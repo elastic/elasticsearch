@@ -20,24 +20,27 @@
 package org.elasticsearch.indices.state;
 
 import com.google.common.collect.ImmutableMap;
-
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.cluster.ClusterInfo;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.DiskUsage;
+import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
@@ -52,19 +55,12 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.*;
 
 /**
  */
@@ -101,6 +97,72 @@ public class RareClusterStateTests extends ElasticsearchIntegrationTest {
         RoutingAllocation routingAllocation = new RoutingAllocation(allocationDeciders, routingNodes, current.nodes(), clusterInfo);
         allocator.allocateUnassigned(routingAllocation);
     }
+
+    @Test
+    @TestLogging("gateway:TRACE")
+    public void testAssignmentWithJustAddedNodes() throws Exception {
+        internalCluster().startNode();
+        final String index = "index";
+        prepareCreate(index).setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).get();
+        ensureGreen(index);
+
+        // close to have some unassigned started shards shards..
+        client().admin().indices().prepareClose(index).get();
+
+
+        final String masterName = internalCluster().getMasterName();
+        final ClusterService clusterService = internalCluster().clusterService(masterName);
+        final AllocationService allocationService = internalCluster().getInstance(AllocationService.class, masterName);
+        clusterService.submitStateUpdateTask("test-inject-node-and-reroute", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                // inject a node
+                ClusterState.Builder builder = ClusterState.builder(currentState);
+                builder.nodes(DiscoveryNodes.builder(currentState.nodes()).put(new DiscoveryNode("_non_existent", DummyTransportAddress.INSTANCE, Version.CURRENT)));
+
+                // open index
+                final IndexMetaData indexMetaData = IndexMetaData.builder(currentState.metaData().index(index)).state(IndexMetaData.State.OPEN).build();
+
+                builder.metaData(MetaData.builder(currentState.metaData()).put(indexMetaData, true));
+                builder.blocks(ClusterBlocks.builder().blocks(currentState.blocks()).removeIndexBlocks(index));
+                ClusterState updatedState = builder.build();
+
+                RoutingTable.Builder routingTable = RoutingTable.builder(updatedState.routingTable());
+                routingTable.addAsRecovery(updatedState.metaData().index(index));
+                updatedState = ClusterState.builder(updatedState).routingTable(routingTable).build();
+
+                RoutingAllocation.Result result = allocationService.reroute(updatedState);
+                return ClusterState.builder(updatedState).routingResult(result).build();
+
+            }
+
+            @Override
+            public void onFailure(String source, Throwable t) {
+
+            }
+        });
+        ensureGreen(index);
+        // remove the extra node
+        clusterService.submitStateUpdateTask("test-remove-injected-node", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                // inject a node
+                ClusterState.Builder builder = ClusterState.builder(currentState);
+                builder.nodes(DiscoveryNodes.builder(currentState.nodes()).remove("_non_existent"));
+
+                currentState = builder.build();
+                RoutingAllocation.Result result = allocationService.reroute(currentState);
+                return ClusterState.builder(currentState).routingResult(result).build();
+
+            }
+
+            @Override
+            public void onFailure(String source, Throwable t) {
+
+            }
+        });
+    }
+
 
     @Test
     @TestLogging(value = "cluster.service:TRACE")
@@ -190,6 +252,7 @@ public class RareClusterStateTests extends ElasticsearchIntegrationTest {
             public void onResponse(PutMappingResponse response) {
                 putMappingResponse.set(response);
             }
+
             @Override
             public void onFailure(Throwable e) {
                 putMappingResponse.set(e);
@@ -221,6 +284,7 @@ public class RareClusterStateTests extends ElasticsearchIntegrationTest {
             public void onResponse(IndexResponse response) {
                 docIndexResponse.set(response);
             }
+
             @Override
             public void onFailure(Throwable e) {
                 docIndexResponse.set(e);
@@ -304,6 +368,7 @@ public class RareClusterStateTests extends ElasticsearchIntegrationTest {
             public void onResponse(PutMappingResponse response) {
                 putMappingResponse.set(response);
             }
+
             @Override
             public void onFailure(Throwable e) {
                 putMappingResponse.set(e);
@@ -329,6 +394,7 @@ public class RareClusterStateTests extends ElasticsearchIntegrationTest {
             public void onResponse(IndexResponse response) {
                 docIndexResponse.set(response);
             }
+
             @Override
             public void onFailure(Throwable e) {
                 docIndexResponse.set(e);

@@ -42,7 +42,7 @@ import static org.hamcrest.core.Is.is;
 
 /**
  */
-public class HttpClientTest extends ElasticsearchTestCase {
+public class HttpClientTests extends ElasticsearchTestCase {
 
     private MockWebServer webServer;
     private HttpClient httpClient;
@@ -145,7 +145,7 @@ public class HttpClientTest extends ElasticsearchTestCase {
 
     @Test
     public void testHttps() throws Exception {
-        Path resource = Paths.get(HttpClientTest.class.getResource("/org/elasticsearch/shield/keystore/truststore-testnode-only.jks").toURI());
+        Path resource = Paths.get(HttpClientTests.class.getResource("/org/elasticsearch/shield/keystore/truststore-testnode-only.jks").toURI());
 
         Settings settings;
         if (randomBoolean()) {
@@ -184,7 +184,7 @@ public class HttpClientTest extends ElasticsearchTestCase {
 
     @Test
     public void testHttpsClientAuth() throws Exception {
-        Path resource = Paths.get(HttpClientTest.class.getResource("/org/elasticsearch/shield/keystore/testnode.jks").toURI());
+        Path resource = Paths.get(HttpClientTests.class.getResource("/org/elasticsearch/shield/keystore/testnode.jks").toURI());
         Settings settings;
         if (randomBoolean()) {
             settings = ImmutableSettings.builder()
@@ -217,7 +217,7 @@ public class HttpClientTest extends ElasticsearchTestCase {
     @Test
     public void testHttpClientReadKeyWithDifferentPassword() throws Exception {
         // This truststore doesn't have a cert with a valid SAN so hostname verification will fail if used
-        Path resource = Paths.get(HttpClientTest.class.getResource("/org/elasticsearch/shield/keystore/testnode-different-passwords.jks").toURI());
+        Path resource = Paths.get(HttpClientTests.class.getResource("/org/elasticsearch/shield/keystore/testnode-different-passwords.jks").toURI());
 
         Settings settings;
         final boolean watcherSettings = randomBoolean();

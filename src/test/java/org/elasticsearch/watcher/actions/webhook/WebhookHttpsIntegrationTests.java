@@ -18,7 +18,7 @@ import org.elasticsearch.watcher.actions.ActionBuilders;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.support.http.HttpClient;
-import org.elasticsearch.watcher.support.http.HttpClientTest;
+import org.elasticsearch.watcher.support.http.HttpClientTests;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.http.Scheme;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuth;
@@ -53,7 +53,7 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
     protected Settings nodeSettings(int nodeOrdinal) {
         Path resource;
         try {
-            resource = Paths.get(HttpClientTest.class.getResource("/org/elasticsearch/shield/keystore/testnode.jks").toURI());
+            resource = Paths.get(HttpClientTests.class.getResource("/org/elasticsearch/shield/keystore/testnode.jks").toURI());
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }

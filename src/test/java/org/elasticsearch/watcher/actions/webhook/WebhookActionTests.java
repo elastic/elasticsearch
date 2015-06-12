@@ -204,9 +204,9 @@ public class WebhookActionTests extends ElasticsearchTestCase {
     public void testParser_Failure() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject();
         if (randomBoolean()) {
-            builder.field(HttpRequestTemplate.Parser.HOST_FIELD.getPreferredName(), TEST_HOST);
+            builder.field(HttpRequest.Field.HOST.getPreferredName(), TEST_HOST);
         } else {
-            builder.field(HttpRequestTemplate.Parser.PORT_FIELD.getPreferredName(), TEST_PORT);
+            builder.field(HttpRequest.Field.PORT.getPreferredName(), TEST_PORT);
         }
         builder.endObject();
 

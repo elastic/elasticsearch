@@ -6,8 +6,10 @@
 package org.elasticsearch.watcher.support.http;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
+import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.netty.handler.codec.http.HttpHeaders;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -78,6 +80,14 @@ public class HttpRequestTemplateTests extends ElasticsearchTestCase {
         }
         if (randomBoolean()) {
             builder.putHeader("_key", Template.inline("_value"));
+        }
+        long connectionTimeout = randomBoolean() ? 0 : randomIntBetween(5, 10);
+        if (connectionTimeout > 0) {
+            builder.connectionTimeout(TimeValue.timeValueSeconds(connectionTimeout));
+        }
+        long readTimeout = randomBoolean() ? 0 : randomIntBetween(5, 10);
+        if (readTimeout > 0) {
+            builder.readTimeout(TimeValue.timeValueSeconds(readTimeout));
         }
 
         HttpRequestTemplate template = builder.build();

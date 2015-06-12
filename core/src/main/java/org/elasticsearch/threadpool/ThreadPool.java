@@ -564,7 +564,7 @@ public class ThreadPool extends AbstractComponent {
         EstimatedTimeThread(String name, long interval) {
             super(name);
             this.interval = interval;
-            this.estimatedTimeInMillis = System.currentTimeMillis();
+            this.estimatedTimeInMillis = TimeValue.nsecToMSec(System.nanoTime());
             this.counter = new TimeCounter();
             setDaemon(true);
         }
@@ -576,7 +576,7 @@ public class ThreadPool extends AbstractComponent {
         @Override
         public void run() {
             while (running) {
-                estimatedTimeInMillis = System.currentTimeMillis();
+                estimatedTimeInMillis = TimeValue.nsecToMSec(System.nanoTime());
                 try {
                     Thread.sleep(interval);
                 } catch (InterruptedException e) {

@@ -21,17 +21,24 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.Lists;
 
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Query;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 
 /**
  * A filter that matches documents matching boolean combinations of other filters.
  * @deprecated Use {@link BoolQueryBuilder} instead
  */
 @Deprecated
-public class AndQueryBuilder extends QueryBuilder {
+public class AndQueryBuilder extends QueryBuilder<AndQueryBuilder> {
 
     public static final String NAME = "and";
 
@@ -56,12 +63,27 @@ public class AndQueryBuilder extends QueryBuilder {
     }
 
     /**
+     * @return the list of filters added to "and".
+     */
+    public List<QueryBuilder> filters() {
+        return this.filters;
+    }
+
+    /**
      * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
      */
     public AndQueryBuilder queryName(String queryName) {
         this.queryName = queryName;
         return this;
     }
+
+    /**
+     * @return the query name.
+     */
+    public Object queryName() {
+        return this.queryName;
+    }
+
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
@@ -78,7 +100,60 @@ public class AndQueryBuilder extends QueryBuilder {
     }
 
     @Override
+    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+        if (filters.isEmpty()) {
+            // no filters provided, this should be ignored upstream
+            return null;
+        }
+
+        BooleanQuery query = new BooleanQuery();
+        for (QueryBuilder f : filters) {
+            query.add(f.toQuery(parseContext), Occur.MUST);
+        }
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
+        }
+        return query;
+    }
+
+    @Override
     public String queryId() {
         return NAME;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(filters, queryName);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        AndQueryBuilder other = (AndQueryBuilder) obj;
+        return Objects.equals(filters, other.filters) &&
+                Objects.equals(queryName, other.queryName);
+    }
+
+    @Override
+    public AndQueryBuilder readFrom(StreamInput in) throws IOException {
+        AndQueryBuilder andQueryBuilder = new AndQueryBuilder();
+        List<QueryBuilder> queryBuilders = in.readNamedWritableList();
+        for (QueryBuilder queryBuilder : queryBuilders) {
+            andQueryBuilder.add(queryBuilder);
+        }
+        andQueryBuilder.queryName = in.readOptionalString();
+        return andQueryBuilder;
+
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeNamedWritableList(this.filters);
+        out.writeOptionalString(queryName);
     }
 }

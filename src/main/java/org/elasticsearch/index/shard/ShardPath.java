@@ -112,12 +112,12 @@ public final class ShardPath {
             } else {
                 dataPath = statePath;
             }
-            logger.debug("{} loaded  data path [{}], state path [{}]", shardId, dataPath, statePath);
+            logger.debug("{} loaded data path [{}], state path [{}]", shardId, dataPath, statePath);
             return new ShardPath(dataPath, statePath, indexUUID, shardId);
         }
     }
 
-    /** Maps each path.data path to a "guess" of how many bytes the shards allocated to that path might additionaly use over their
+    /** Maps each path.data path to a "guess" of how many bytes the shards allocated to that path might additionally use over their
      *  lifetime; we do this so a bunch of newly allocated shards won't just all go the path with the most free space at this moment. */
     private static Map<Path,Long> getEstimatedReservedBytes(NodeEnvironment env, long avgShardSizeInBytes, Iterable<IndexShard> shards) throws IOException {
         long totFreeSpace = 0;
@@ -148,35 +148,40 @@ public final class ShardPath {
     public static ShardPath selectNewPathForShard(NodeEnvironment env, ShardId shardId, @IndexSettings Settings indexSettings,
                                                   long avgShardSizeInBytes, Iterable<IndexShard> shards) throws IOException {
 
-        Map<Path,Long> estReservedBytes = getEstimatedReservedBytes(env, avgShardSizeInBytes, shards);
-
-        // TODO - do we need something more extensible? Yet, this does the job for now...
-        final String indexUUID = indexSettings.get(IndexMetaData.SETTING_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
-        final NodeEnvironment.NodePath[] paths = env.nodePaths();
-        NodeEnvironment.NodePath bestPath = null;
-        long maxUsableBytes = Long.MIN_VALUE;
-        for (NodeEnvironment.NodePath nodePath : paths) {
-            FileStore fileStore = nodePath.fileStore;
-            long usableBytes = fileStore.getUsableSpace();
-            Long reservedBytes = estReservedBytes.get(nodePath.path);
-            if (reservedBytes != null) {
-                // Deduct estimated reserved bytes from usable space:
-                usableBytes -= reservedBytes;
-            }
-            if (usableBytes > maxUsableBytes) {
-                maxUsableBytes = usableBytes;
-                bestPath = nodePath;
-            }
-        }
-
-        final Path statePath = bestPath.resolve(shardId);
         final Path dataPath;
+        final Path statePath;
         
+        final String indexUUID = indexSettings.get(IndexMetaData.SETTING_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
+
         if (NodeEnvironment.hasCustomDataPath(indexSettings)) {
             dataPath = env.resolveCustomLocation(indexSettings, shardId);
+            statePath = env.nodePaths()[0].resolve(shardId);
         } else {
+
+            Map<Path,Long> estReservedBytes = getEstimatedReservedBytes(env, avgShardSizeInBytes, shards);
+
+            // TODO - do we need something more extensible? Yet, this does the job for now...
+            final NodeEnvironment.NodePath[] paths = env.nodePaths();
+            NodeEnvironment.NodePath bestPath = null;
+            long maxUsableBytes = Long.MIN_VALUE;
+            for (NodeEnvironment.NodePath nodePath : paths) {
+                FileStore fileStore = nodePath.fileStore;
+                long usableBytes = fileStore.getUsableSpace();
+                Long reservedBytes = estReservedBytes.get(nodePath.path);
+                if (reservedBytes != null) {
+                    // Deduct estimated reserved bytes from usable space:
+                    usableBytes -= reservedBytes;
+                }
+                if (usableBytes > maxUsableBytes) {
+                    maxUsableBytes = usableBytes;
+                    bestPath = nodePath;
+                }
+            }
+
+            statePath = bestPath.resolve(shardId);
             dataPath = statePath;
         }
+
         return new ShardPath(dataPath, statePath, indexUUID, shardId);
     }
 

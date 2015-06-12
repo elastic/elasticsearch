@@ -14,7 +14,7 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.AbstractPlugin;
-import org.elasticsearch.shield.audit.index.IndexAuditTrailBulkProcessor;
+import org.elasticsearch.shield.audit.index.IndexAuditTrail;
 import org.elasticsearch.shield.authc.Realms;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
@@ -71,7 +71,7 @@ public class ShieldPlugin extends AbstractPlugin {
         if (enabled && !clientMode) {
             if (indexAuditLoggingEnabled(settings)) {
                 // index-based audit logging should be started before other services
-                builder.add(IndexAuditTrailBulkProcessor.class);
+                builder.add(IndexAuditTrail.class);
             }
             builder.add(LicenseService.class).add(InternalCryptoService.class).add(FileRolesStore.class).add(Realms.class).add(IPFilter.class);
         }

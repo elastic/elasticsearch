@@ -12,7 +12,6 @@ import org.elasticsearch.common.inject.PreProcessModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.audit.index.IndexAuditTrail;
-import org.elasticsearch.shield.audit.index.IndexAuditTrailBulkProcessor;
 import org.elasticsearch.shield.audit.index.IndexAuditUserHolder;
 import org.elasticsearch.shield.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.shield.authz.AuthorizationModule;
@@ -59,7 +58,6 @@ public class AuditTrailModule extends AbstractShieldModule.Node implements PrePr
                     bind(IndexAuditUserHolder.class).toInstance(indexAuditUser);
                     binder.addBinding().to(IndexAuditTrail.class);
                     bind(IndexAuditTrail.class).asEagerSingleton();
-                    bind(IndexAuditTrailBulkProcessor.class).asEagerSingleton();
                     break;
                 default:
                     throw new ElasticsearchException("unknown audit trail output [" + output + "]");
@@ -71,7 +69,7 @@ public class AuditTrailModule extends AbstractShieldModule.Node implements PrePr
     public void processModule(Module module) {
         if (enabled && module instanceof AuthorizationModule) {
             if (indexAuditLoggingEnabled(settings)) {
-                indexAuditUser = new IndexAuditUserHolder(IndexAuditTrailBulkProcessor.INDEX_NAME_PREFIX);
+                indexAuditUser = new IndexAuditUserHolder(IndexAuditTrail.INDEX_NAME_PREFIX);
                 ((AuthorizationModule) module).registerReservedRole(indexAuditUser.role());
             }
         }

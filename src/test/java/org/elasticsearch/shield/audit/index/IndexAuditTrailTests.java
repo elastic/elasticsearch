@@ -52,7 +52,6 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
 
     private IndexNameResolver resolver = new IndexNameResolver();
     private IndexNameResolver.Rollover rollover;
-    private IndexAuditTrailBulkProcessor bulkProcessor;
     private IndexAuditTrail auditor;
 
     private boolean remoteIndexing = false;
@@ -61,7 +60,7 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
 
     public static final String REMOTE_TEST_CLUSTER = "single-node-remote-test-cluster";
 
-    private static final IndexAuditUserHolder user = new IndexAuditUserHolder(IndexAuditTrailBulkProcessor.INDEX_NAME_PREFIX);
+    private static final IndexAuditUserHolder user = new IndexAuditUserHolder(IndexAuditTrail.INDEX_NAME_PREFIX);
 
     private Settings commonSettings(IndexNameResolver.Rollover rollover) {
         return Settings.builder()
@@ -80,44 +79,35 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
                 .build();
     }
 
-    private Settings mutedSettings(boolean systemEnabled, String... muted) {
+    private Settings levelSettings(String[] includes, String[] excludes) {
         Settings.Builder builder = Settings.builder();
-        for (String mute : muted) {
-            builder.put("shield.audit.index.events." + mute, false);
+        if (includes != null) {
+            builder.putArray("shield.audit.index.events.include", includes);
         }
-
-        builder.put("shield.audit.index.events.system.access_granted", systemEnabled);
+        if (excludes != null) {
+            builder.putArray("shield.audit.index.events.exclude", excludes);
+        }
         return builder.build();
     }
 
-    private Settings settings(IndexNameResolver.Rollover rollover, boolean systemEnabled, String... muted) {
+    private Settings settings(IndexNameResolver.Rollover rollover, String[] includes, String[] excludes) {
         Settings.Builder builder = Settings.builder();
-        builder.put(mutedSettings(systemEnabled, muted));
+        builder.put(levelSettings(includes, excludes));
         builder.put(commonSettings(rollover));
         return builder.build();
-    }
-
-    private IndexAuditTrailBulkProcessor buildIndexAuditTrailService(Settings settings) {
-
-        AuthenticationService authService = mock(AuthenticationService.class);
-        when(authService.authenticate(mock(RestRequest.class))).thenThrow(UnsupportedOperationException.class);
-        when(authService.authenticate("_action", new LocalHostMockMessage(), user.user())).thenThrow(UnsupportedOperationException.class);
-
-        Environment env = new Environment(settings);
-        return new IndexAuditTrailBulkProcessor(settings, env, authService, user, Providers.of(client()));
     }
 
     private Client getClient() {
         return remoteIndexing ? remoteClient : client();
     }
 
-    private void initialize(String... muted) {
-        initialize(false, muted);
+    private void initialize(String... excludes) {
+        initialize(null, excludes);
     }
 
-    private void initialize(boolean systemEnabled, String... muted) {
+    private void initialize(String[] includes, String[] excludes) {
         rollover = randomFrom(HOURLY, DAILY, WEEKLY, MONTHLY);
-        Settings settings = settings(rollover, systemEnabled, muted);
+        Settings settings = settings(rollover, includes, excludes);
         remoteIndexing = randomBoolean();
 
         if (remoteIndexing) {
@@ -137,16 +127,22 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
                     .build();
         }
 
-        Settings settings1 = Settings.builder().put(settings).put("path.home", createTempDir()).build();
+        settings = Settings.builder().put(settings).put("path.home", createTempDir()).build();
         logger.info("--> settings: [{}]", settings.getAsMap().toString());
-        bulkProcessor = buildIndexAuditTrailService(settings1);
-        bulkProcessor.start();
-        auditor = new IndexAuditTrail(settings, user, bulkProcessor);
+        AuthenticationService authService = mock(AuthenticationService.class);
+        when(authService.authenticate(mock(RestRequest.class))).thenThrow(new UnsupportedOperationException(""));
+        when(authService.authenticate("_action", new LocalHostMockMessage(), user.user())).thenThrow(new UnsupportedOperationException(""));
+
+        Environment env = new Environment(settings);
+        auditor = new IndexAuditTrail(settings, user, env, authService, Providers.of(client())).start();
     }
 
     @After
     public void afterTest() {
-        bulkProcessor.close();
+        if (auditor != null) {
+            auditor.close();
+        }
+
         cluster().wipe();
         if (remoteIndexing && remoteNode != null) {
             DeleteIndexResponse response = remoteClient.admin().indices().prepareDelete("*").execute().actionGet();
@@ -397,7 +393,7 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
 
     @Test
     public void testSystemAccessGranted() throws Exception {
-        initialize(true);
+        initialize(new String[] { "system_access_granted" }, null);
         TransportMessage message = randomBoolean() ? new RemoteHostMockMessage() : new LocalHostMockMessage();
         auditor.accessGranted(User.SYSTEM, "internal:_action", message);
         awaitIndexCreation(resolveIndexName());
@@ -572,7 +568,7 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
     private SearchHit getIndexedAuditMessage() {
 
         SearchResponse response = getClient().prepareSearch(resolveIndexName())
-                .setTypes(IndexAuditTrailBulkProcessor.DOC_TYPE)
+                .setTypes(IndexAuditTrail.DOC_TYPE)
                 .addFields(fieldList())
                 .execute().actionGet();
 
@@ -605,7 +601,7 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
     }
 
     private String resolveIndexName() {
-        return resolver.resolve(IndexAuditTrailBulkProcessor.INDEX_NAME_PREFIX, System.currentTimeMillis(), rollover);
+        return resolver.resolve(IndexAuditTrail.INDEX_NAME_PREFIX, System.currentTimeMillis(), rollover);
     }
 }
 

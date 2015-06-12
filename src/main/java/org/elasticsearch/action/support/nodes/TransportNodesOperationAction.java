@@ -94,6 +94,10 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
         return nodesIds;
     }
 
+    protected String[] resolveNodes(Request request, ClusterState clusterState) {
+        return clusterState.nodes().resolveNodesIds(request.nodesIds());
+    }
+
     private class AsyncAction {
 
         private final Request request;
@@ -107,7 +111,7 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
             this.request = request;
             this.listener = listener;
             clusterState = clusterService.state();
-            String[] nodesIds = clusterState.nodes().resolveNodesIds(request.nodesIds());
+            String[] nodesIds = resolveNodes(request, clusterState);
             this.nodesIds = filterNodeIds(clusterState.nodes(), nodesIds);
             this.responses = new AtomicReferenceArray<>(this.nodesIds.length);
         }

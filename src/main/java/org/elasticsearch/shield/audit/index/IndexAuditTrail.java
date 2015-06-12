@@ -137,6 +137,28 @@ public class IndexAuditTrail implements AuditTrail {
     }
 
     @Override
+    public void authenticationFailed(String action, TransportMessage<?> message) {
+        if (enabled.contains(Level.AUTHENTICATION_FAILED)) {
+            try {
+                processor.submit(message("authentication_failed", action, null, null, indices(message), message));
+            } catch (Exception e) {
+                logger.warn("failed to index audit event: [authentication_failed]", e);
+            }
+        }
+    }
+
+    @Override
+    public void authenticationFailed(RestRequest request) {
+        if (enabled.contains(Level.AUTHENTICATION_FAILED)) {
+            try {
+                processor.submit(message("authentication_failed", null, null, null, null, request));
+            } catch (Exception e) {
+                logger.warn("failed to index audit event: [authentication_failed]", e);
+            }
+        }
+    }
+
+    @Override
     public void authenticationFailed(AuthenticationToken token, String action, TransportMessage<?> message) {
         if (enabled.contains(Level.AUTHENTICATION_FAILED)) {
             if (!principalIsAuditor(token.principal())) {

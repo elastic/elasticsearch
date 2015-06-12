@@ -53,10 +53,6 @@ public class LoggingAuditTrail implements AuditTrail {
         this(resolvePrefix(settings), logger);
     }
 
-    LoggingAuditTrail(ESLogger logger) {
-        this("", logger);
-    }
-
     LoggingAuditTrail(String prefix, ESLogger logger) {
         this.logger = logger;
         this.prefix = prefix;
@@ -103,6 +99,33 @@ public class LoggingAuditTrail implements AuditTrail {
                 logger.debug("{}[transport] [authentication_failed]\t{}, principal=[{}], action=[{}], request=[{}]", prefix, originAttributes(message), token.principal(), action, message.getClass().getSimpleName());
             } else {
                 logger.error("{}[transport] [authentication_failed]\t{}, principal=[{}], action=[{}]", prefix, originAttributes(message), token.principal(), action);
+            }
+        }
+    }
+
+    @Override
+    public void authenticationFailed(RestRequest request) {
+        if (logger.isDebugEnabled()) {
+            logger.debug("{}[rest] [authentication_failed]\t{}, uri=[{}], request_body=[{}]", prefix, hostAttributes(request), request.uri(), restRequestContent(request));
+        } else {
+            logger.error("{}[rest] [authentication_failed]\t{}, uri=[{}]", prefix, hostAttributes(request), request.uri());
+        }
+    }
+
+    @Override
+    public void authenticationFailed(String action, TransportMessage<?> message) {
+        String indices = indices(message);
+        if (indices != null) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("{}[transport] [authentication_failed]\t{}, action=[{}], indices=[{}], request=[{}]", prefix, originAttributes(message), action, indices, message.getClass().getSimpleName());
+            } else {
+                logger.error("{}[transport] [authentication_failed]\t{}, action=[{}], indices=[{}]", prefix, originAttributes(message), action, indices);
+            }
+        } else {
+            if (logger.isDebugEnabled()) {
+                logger.debug("{}[transport] [authentication_failed]\t{}, action=[{}], request=[{}]", prefix, originAttributes(message), action, message.getClass().getSimpleName());
+            } else {
+                logger.error("{}[transport] [authentication_failed]\t{}, action=[{}]", prefix, originAttributes(message), action);
             }
         }
     }

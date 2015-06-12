@@ -199,6 +199,35 @@ public class LoggingAuditTrailTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testAuthenticationFailed_NoToken() throws Exception {
+        for (Level level : Level.values()) {
+            CapturingLogger logger = new CapturingLogger(level);
+            LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, logger);
+            TransportMessage message = randomBoolean() ? new MockMessage() : new MockIndicesRequest();
+            String origins = LoggingAuditTrail.originAttributes(message);
+            auditTrail.authenticationFailed("_action", message);
+            switch (level) {
+                case ERROR:
+                case WARN:
+                case INFO:
+                    if (message instanceof IndicesRequest) {
+                        assertMsg(logger, Level.ERROR, prefix + "[transport] [authentication_failed]\t" + origins + ", action=[_action], indices=[idx1,idx2]");
+                    } else {
+                        assertMsg(logger, Level.ERROR, prefix + "[transport] [authentication_failed]\t" + origins + ", action=[_action]");
+                    }
+                    break;
+                case DEBUG:
+                case TRACE:
+                    if (message instanceof IndicesRequest) {
+                        assertMsg(logger, Level.DEBUG, prefix + "[transport] [authentication_failed]\t" + origins + ", action=[_action], indices=[idx1,idx2], request=[MockIndicesRequest]");
+                    } else {
+                        assertMsg(logger, Level.DEBUG, prefix + "[transport] [authentication_failed]\t" + origins + ", action=[_action], request=[MockMessage]");
+                    }
+            }
+        }
+    }
+
+    @Test
     public void testAuthenticationFailed_Rest() throws Exception {
         for (Level level : Level.values()) {
             RestRequest request = mock(RestRequest.class);
@@ -217,6 +246,29 @@ public class LoggingAuditTrailTests extends ElasticsearchTestCase {
                 case DEBUG:
                 case TRACE:
                     assertMsg(logger, Level.DEBUG, prefix + "[rest] [authentication_failed]\torigin_address=[_hostname:9200], principal=[_principal], uri=[_uri], request_body=[" + expectedMessage + "]");
+            }
+        }
+    }
+
+    @Test
+    public void testAuthenticationFailed_Rest_NoToken() throws Exception {
+        for (Level level : Level.values()) {
+            RestRequest request = mock(RestRequest.class);
+            when(request.getRemoteAddress()).thenReturn(new InetSocketAddress("_hostname", 9200));
+            when(request.uri()).thenReturn("_uri");
+            String expectedMessage = prepareRestContent(request);
+            CapturingLogger logger = new CapturingLogger(level);
+            LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, logger);
+            auditTrail.authenticationFailed(request);
+            switch (level) {
+                case ERROR:
+                case WARN:
+                case INFO:
+                    assertMsg(logger, Level.ERROR, prefix + "[rest] [authentication_failed]\torigin_address=[_hostname:9200], uri=[_uri]");
+                    break;
+                case DEBUG:
+                case TRACE:
+                    assertMsg(logger, Level.DEBUG, prefix + "[rest] [authentication_failed]\torigin_address=[_hostname:9200], uri=[_uri], request_body=[" + expectedMessage + "]");
             }
         }
     }

@@ -37,6 +37,14 @@ public interface AuditTrail {
         }
 
         @Override
+        public void authenticationFailed(RestRequest request) {
+        }
+
+        @Override
+        public void authenticationFailed(String action, TransportMessage<?> message) {
+        }
+
+        @Override
         public void authenticationFailed(AuthenticationToken token, String action, TransportMessage<?> message) {
         }
 
@@ -78,6 +86,10 @@ public interface AuditTrail {
     void anonymousAccessDenied(String action, TransportMessage<?> message);
 
     void anonymousAccessDenied(RestRequest request);
+
+    void authenticationFailed(RestRequest request);
+
+    void authenticationFailed(String action, TransportMessage<?> message);
 
     void authenticationFailed(AuthenticationToken token, String action, TransportMessage<?> message);
 

@@ -57,6 +57,22 @@ public class AuditTrailServiceTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testAuthenticationFailed_No_Token() throws Exception {
+        service.authenticationFailed("_action", message);
+        for (AuditTrail auditTrail : auditTrails) {
+            verify(auditTrail).authenticationFailed("_action", message);
+        }
+    }
+
+    @Test
+    public void testAuthenticationFailed_Rest_No_Token() throws Exception {
+        service.authenticationFailed(restRequest);
+        for (AuditTrail auditTrail : auditTrails) {
+            verify(auditTrail).authenticationFailed(restRequest);
+        }
+    }
+
+    @Test
     public void testAuthenticationFailed_Rest() throws Exception {
         service.authenticationFailed(token, restRequest);
         for (AuditTrail auditTrail : auditTrails) {

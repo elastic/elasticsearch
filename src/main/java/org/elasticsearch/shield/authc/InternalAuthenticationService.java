@@ -50,7 +50,23 @@ public class InternalAuthenticationService extends AbstractComponent implements 
 
     @Override
     public User authenticate(RestRequest request) throws AuthenticationException {
-        AuthenticationToken token = token(request);
+        AuthenticationToken token;
+        try {
+            token = token(request);
+        } catch (Exception e) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("failed to extract token from request", e);
+            } else {
+                logger.warn("failed to extract token from request: ", e.getMessage());
+            }
+            auditTrail.authenticationFailed(request);
+
+            if (e instanceof AuthenticationException) {
+                throw e;
+            }
+            throw new AuthenticationException("error attempting to authenticate request", e);
+        }
+
         if (token == null) {
             if (anonymousService.enabled()) {
                 // we must put the user in the request context, so it'll be copied to the
@@ -61,7 +77,21 @@ public class InternalAuthenticationService extends AbstractComponent implements 
             auditTrail.anonymousAccessDenied(request);
             throw new AuthenticationException("missing authentication token for REST request [" + request.uri() + "]");
         }
-        User user = authenticate(request, token);
+
+        User user;
+        try {
+            user = authenticate(request, token);
+        } catch (Exception e) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("authentication of request failed for principal [{}], uri [{}]", e, token.principal(), request.uri());
+            }
+            auditTrail.authenticationFailed(token, request);
+            if (e instanceof AuthenticationException) {
+                throw e;
+            }
+            throw new AuthenticationException("error attempting to authenticate request", e);
+        }
+
         if (user == null) {
             throw new AuthenticationException("unable to authenticate user [" + token.principal() + "] for REST request [" + request.uri() + "]");
         }
@@ -154,7 +184,21 @@ public class InternalAuthenticationService extends AbstractComponent implements 
      */
     @SuppressWarnings("unchecked")
     User authenticateWithRealms(String action, TransportMessage<?> message, User fallbackUser) throws AuthenticationException {
-        AuthenticationToken token = token(action, message);
+        AuthenticationToken token;
+        try {
+            token = token(action, message);
+        } catch (Exception e) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("failed to extract token from transport message", e);
+            } else {
+                logger.warn("failed to extract token from transport message: ", e.getMessage());
+            }
+            auditTrail.authenticationFailed(action, message);
+            if (e instanceof AuthenticationException) {
+                throw e;
+            }
+            throw new AuthenticationException("error attempting to authenticate request", e);
+        }
 
         if (token == null) {
             if (fallbackUser != null) {
@@ -167,6 +211,28 @@ public class InternalAuthenticationService extends AbstractComponent implements 
             throw new AuthenticationException("missing authentication token for action [" + action + "]");
         }
 
+        User user;
+        try {
+            user = authenticate(message, token, action);
+        } catch (Exception e) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("authentication of transport message failed for principal [{}], action [{}]", e, token.principal(), action);
+            }
+            auditTrail.authenticationFailed(token, action, message);
+            if (e instanceof AuthenticationException) {
+                throw e;
+            }
+            throw new AuthenticationException("error attempting to authenticate request", e);
+        }
+
+        if (user == null) {
+            throw new AuthenticationException("unable to authenticate user [" + token.principal() + "] for action [" + action + "]");
+        }
+        return user;
+    }
+
+    User authenticate(TransportMessage<?> message, AuthenticationToken token, String action) throws AuthenticationException {
+        assert token != null : "cannot authenticate null tokens";
         try {
             for (Realm realm : realms) {
                 if (realm.supports(token)) {
@@ -178,7 +244,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
                 }
             }
             auditTrail.authenticationFailed(token, action, message);
-            throw new AuthenticationException("unable to authenticate user [" + token.principal() + "] for action [" + action + "]");
+            return null;
         } finally {
             token.clearCredentials();
         }

@@ -231,11 +231,41 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
         assertEquals("transport", hit.field("origin_type").getValue());
     }
 
+    @Test
+    public void testAuthenticationFailed_Transport_NoToken() throws Exception {
+        initialize();
+        TransportMessage message = randomBoolean() ? new RemoteHostMockMessage() : new LocalHostMockMessage();
+        auditor.authenticationFailed("_action", message);
+        awaitIndexCreation(resolveIndexName());
+
+        SearchHit hit = getIndexedAuditMessage();
+
+        assertAuditMessage(hit, "transport", "authentication_failed");
+
+        if (message instanceof RemoteHostMockMessage) {
+            assertEquals("remote_host:1234", hit.field("origin_address").getValue());
+        } else {
+            assertEquals("local[local_host]", hit.field("origin_address").getValue());
+        }
+
+        assertThat(hit.field("principal"), nullValue());
+        assertEquals("_action", hit.field("action").getValue());
+        assertEquals("transport", hit.field("origin_type").getValue());
+    }
+
     @Test(expected = IndexMissingException.class)
     public void testAuthenticationFailed_Transport_Muted() throws Exception {
         initialize("authentication_failed");
         TransportMessage message = randomBoolean() ? new RemoteHostMockMessage() : new LocalHostMockMessage();
         auditor.authenticationFailed(new MockToken(), "_action", message);
+        getClient().prepareExists(resolveIndexName()).execute().actionGet();
+    }
+
+    @Test(expected = IndexMissingException.class)
+    public void testAuthenticationFailed_Transport_NoToken_Muted() throws Exception {
+        initialize("authentication_failed");
+        TransportMessage message = randomBoolean() ? new RemoteHostMockMessage() : new LocalHostMockMessage();
+        auditor.authenticationFailed("_action", message);
         getClient().prepareExists(resolveIndexName()).execute().actionGet();
     }
 
@@ -250,6 +280,22 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
         SearchHit hit = getIndexedAuditMessage();
 
         assertAuditMessage(hit, "rest", "authentication_failed");
+        assertThat(hit.field("principal").getValue(), is((Object)"_principal"));
+        assertThat("_hostname:9200", equalTo(hit.field("origin_address").getValue()));
+        assertThat("_uri", equalTo(hit.field("uri").getValue()));
+    }
+
+    @Test
+    public void testAuthenticationFailed_Rest_NoToken() throws Exception {
+        initialize();
+        RestRequest request = mockRestRequest();
+        auditor.authenticationFailed(request);
+        awaitIndexCreation(resolveIndexName());
+
+        SearchHit hit = getIndexedAuditMessage();
+
+        assertAuditMessage(hit, "rest", "authentication_failed");
+        assertThat(hit.field("principal"), nullValue());
         assertThat("_hostname:9200", equalTo(hit.field("origin_address").getValue()));
         assertThat("_uri", equalTo(hit.field("uri").getValue()));
     }
@@ -259,6 +305,14 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
         initialize("authentication_failed");
         RestRequest request = mockRestRequest();
         auditor.authenticationFailed(new MockToken(), request);
+        getClient().prepareExists(resolveIndexName()).execute().actionGet();
+    }
+
+    @Test(expected = IndexMissingException.class)
+    public void testAuthenticationFailed_Rest_NoToken_Muted() throws Exception {
+        initialize("authentication_failed");
+        RestRequest request = mockRestRequest();
+        auditor.authenticationFailed(request);
         getClient().prepareExists(resolveIndexName()).execute().actionGet();
     }
 

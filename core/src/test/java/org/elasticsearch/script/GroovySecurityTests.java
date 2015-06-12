@@ -27,6 +27,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.nio.file.Path;
+import java.util.Locale;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -121,9 +122,12 @@ public class GroovySecurityTests extends ElasticsearchIntegrationTest {
                             "; doc['foo'].value + 2\", \"type\": \"number\", \"lang\": \"groovy\"}}}").get();
         assertEquals(0, resp.getHits().getTotalHits());
         ShardSearchFailure fails[] = resp.getShardFailures();
-        // TODO: GroovyScriptExecutionException needs work
+        // TODO: GroovyScriptExecutionException needs work:
+        // fix it to preserve cause so we don't do this flaky string-check stuff
         for (ShardSearchFailure fail : fails) {
-            assertTrue(fail.getCause().toString().contains("AccessControlException[access denied"));
+            assertTrue("unexpected exception" + fail.getCause(),
+                       // different casing, depending on jvm impl...
+                       fail.getCause().toString().toLowerCase(Locale.ROOT).contains("accesscontrolexception[access denied"));
         }
     }
 }

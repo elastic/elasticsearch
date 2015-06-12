@@ -85,6 +85,8 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
                         builder = randomBlocks(clusterState);
                         break;
                     case 3:
+                        builder = randomClusterStateCustoms(clusterState);
+                        break;
                     case 4:
                         builder = randomMetaDataChanges(clusterState);
                         break;
@@ -163,6 +165,9 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
 
     }
 
+    /**
+     * Randomly updates nodes in the cluster state
+     */
     private ClusterState.Builder randomNodes(ClusterState clusterState) {
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterState.nodes());
         List<String> nodeIds = randomSubsetOf(randomInt(clusterState.nodes().nodes().size() - 1), clusterState.nodes().nodes().keys().toArray(String.class));
@@ -182,6 +187,9 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
         return ClusterState.builder(clusterState).nodes(nodes);
     }
 
+    /**
+     * Randomly updates routing table in the cluster state
+     */
     private ClusterState.Builder randomRoutingTable(ClusterState clusterState) {
         RoutingTable.Builder builder = RoutingTable.builder(clusterState.routingTable());
         int numberOfIndices = clusterState.routingTable().indicesRouting().size();
@@ -202,6 +210,9 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
         return ClusterState.builder(clusterState).routingTable(builder.build());
     }
 
+    /**
+     * Randomly updates index routing table in the cluster state
+     */
     private IndexRoutingTable randomIndexRoutingTable(String index, String[] nodeIds) {
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(index);
         int shardCount = randomInt(10);
@@ -218,6 +229,9 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
         return builder.build();
     }
 
+    /**
+     * Randomly creates or removes cluster blocks
+     */
     private ClusterState.Builder randomBlocks(ClusterState clusterState) {
         ClusterBlocks.Builder builder = ClusterBlocks.builder().blocks(clusterState.blocks());
         int globalBlocksCount = clusterState.blocks().global().size();
@@ -234,6 +248,9 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
         return ClusterState.builder(clusterState).blocks(builder);
     }
 
+    /**
+     * Returns a random global block
+     */
     private ClusterBlock randomGlobalBlock() {
         switch (randomInt(2)) {
             case 0:
@@ -245,6 +262,67 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
         }
     }
 
+    /**
+     * Random cluster state part generator interface. Used by {@link #randomClusterStateParts(ClusterState, String, RandomClusterPart)}
+     * method to update cluster state with randomly generated parts
+     */
+    private interface RandomClusterPart<T> {
+        /**
+         * Returns list of parts from metadata
+         */
+        ImmutableOpenMap<String, T> parts(ClusterState clusterState);
+
+        /**
+         * Puts the part back into metadata
+         */
+        ClusterState.Builder put(ClusterState.Builder builder, T part);
+
+        /**
+         * Remove the part from metadata
+         */
+        ClusterState.Builder remove(ClusterState.Builder builder, String name);
+
+        /**
+         * Returns a random part with the specified name
+         */
+        T randomCreate(String name);
+
+        /**
+         * Makes random modifications to the part
+         */
+        T randomChange(T part);
+
+    }
+
+    /**
+     * Takes an existing cluster state and randomly adds, removes or updates a cluster state part using randomPart generator.
+     * If a new part is added the prefix value is used as a prefix of randomly generated part name.
+     */
+    private <T> ClusterState randomClusterStateParts(ClusterState clusterState, String prefix, RandomClusterPart<T> randomPart) {
+        ClusterState.Builder builder = ClusterState.builder(clusterState);
+        ImmutableOpenMap<String, T> parts = randomPart.parts(clusterState);
+        int partCount = parts.size();
+        if (partCount > 0) {
+            List<String> randomParts = randomSubsetOf(randomInt(partCount - 1), randomPart.parts(clusterState).keys().toArray(String.class));
+            for (String part : randomParts) {
+                if (randomBoolean()) {
+                    randomPart.remove(builder, part);
+                } else {
+                    randomPart.put(builder, randomPart.randomChange(parts.get(part)));
+                }
+            }
+        }
+        int additionalPartCount = randomIntBetween(1, 20);
+        for (int i = 0; i < additionalPartCount; i++) {
+            String name = randomName(prefix);
+            randomPart.put(builder, randomPart.randomCreate(name));
+        }
+        return builder.build();
+    }
+
+    /**
+     * Makes random metadata changes
+     */
     private ClusterState.Builder randomMetaDataChanges(ClusterState clusterState) {
         MetaData metaData = clusterState.metaData();
         int changesCount = randomIntBetween(1, 10);
@@ -269,6 +347,9 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
         return ClusterState.builder(clusterState).metaData(MetaData.builder(metaData).version(metaData.version() + 1).build());
     }
 
+    /**
+     * Makes random settings changes
+     */
     private Settings randomSettings(Settings settings) {
         Settings.Builder builder = Settings.builder();
         if (randomBoolean()) {
@@ -282,6 +363,9 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
 
     }
 
+    /**
+     * Randomly updates persistent or transient settings of the given metadata
+     */
     private MetaData randomMetaDataSettings(MetaData metaData) {
         if (randomBoolean()) {
             return MetaData.builder(metaData).persistentSettings(randomSettings(metaData.persistentSettings())).build();
@@ -290,6 +374,9 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
         }
     }
 
+    /**
+     * Random metadata part generator
+     */
     private interface RandomPart<T> {
         /**
          * Returns list of parts from metadata
@@ -318,6 +405,10 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
 
     }
 
+    /**
+     * Takes an existing cluster state and randomly adds, removes or updates a metadata part using randomPart generator.
+     * If a new part is added the prefix value is used as a prefix of randomly generated part name.
+     */
     private <T> MetaData randomParts(MetaData metaData, String prefix, RandomPart<T> randomPart) {
         MetaData.Builder builder = MetaData.builder(metaData);
         ImmutableOpenMap<String, T> parts = randomPart.parts(metaData);
@@ -340,6 +431,9 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
         return builder.build();
     }
 
+    /**
+     * Randomly add, deletes or updates indices in the metadata
+     */
     private MetaData randomIndices(MetaData metaData) {
         return randomParts(metaData, "index", new RandomPart<IndexMetaData>() {
 
@@ -404,6 +498,9 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
         });
     }
 
+    /**
+     * Generates a random warmer
+     */
     private IndexWarmersMetaData randomWarmers() {
         if (randomBoolean()) {
             return new IndexWarmersMetaData(
@@ -418,6 +515,9 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
         }
     }
 
+    /**
+     * Randomly adds, deletes or updates index templates in the metadata
+     */
     private MetaData randomTemplates(MetaData metaData) {
         return randomParts(metaData, "template", new RandomPart<IndexTemplateMetaData>() {
             @Override
@@ -460,6 +560,9 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
         });
     }
 
+    /**
+     * Generates random alias
+     */
     private AliasMetaData randomAlias() {
         AliasMetaData.Builder builder = newAliasMetaDataBuilder(randomName("alias"));
         if (randomBoolean()) {
@@ -471,6 +574,9 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
         return builder.build();
     }
 
+    /**
+     * Randomly adds, deletes or updates repositories in the metadata
+     */
     private MetaData randomMetaDataCustoms(final MetaData metaData) {
         return randomParts(metaData, "custom", new RandomPart<MetaData.Custom>() {
 
@@ -481,14 +587,7 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
 
             @Override
             public MetaData.Builder put(MetaData.Builder builder, MetaData.Custom part) {
-                if (part instanceof SnapshotMetaData) {
-                    return builder.putCustom(SnapshotMetaData.TYPE, part);
-                } else if (part instanceof RepositoriesMetaData) {
-                    return builder.putCustom(RepositoriesMetaData.TYPE, part);
-                } else if (part instanceof RestoreMetaData) {
-                    return builder.putCustom(RestoreMetaData.TYPE, part);
-                }
-                throw new IllegalArgumentException("Unknown custom part " + part);
+                return builder.putCustom(part.type(), part);
             }
 
             @Override
@@ -498,26 +597,7 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
 
             @Override
             public MetaData.Custom randomCreate(String name) {
-                switch (randomIntBetween(0, 2)) {
-                    case 0:
-                        return new SnapshotMetaData(new SnapshotMetaData.Entry(
-                                new SnapshotId(randomName("repo"), randomName("snap")),
-                                randomBoolean(),
-                                SnapshotMetaData.State.fromValue((byte) randomIntBetween(0, 6)),
-                                ImmutableList.<String>of(),
-                                Math.abs(randomLong()),
-                                ImmutableMap.<ShardId, SnapshotMetaData.ShardSnapshotStatus>of()));
-                    case 1:
-                        return new RepositoriesMetaData();
-                    case 2:
-                        return new RestoreMetaData(new RestoreMetaData.Entry(
-                                new SnapshotId(randomName("repo"), randomName("snap")),
-                                RestoreMetaData.State.fromValue((byte) randomIntBetween(0, 3)),
-                                ImmutableList.<String>of(),
-                                ImmutableMap.<ShardId, RestoreMetaData.ShardRestoreStatus>of()));
-                    default:
-                        throw new IllegalArgumentException("Shouldn't be here");
-                }
+                return new RepositoriesMetaData();
             }
 
             @Override
@@ -527,6 +607,59 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
         });
     }
 
+    /**
+     * Randomly adds, deletes or updates in-progress snapshot and restore records in the cluster state
+     */
+    private ClusterState.Builder randomClusterStateCustoms(final ClusterState clusterState) {
+        return ClusterState.builder(randomClusterStateParts(clusterState, "custom", new RandomClusterPart<ClusterState.Custom>() {
+
+            @Override
+            public ImmutableOpenMap<String, ClusterState.Custom> parts(ClusterState clusterState) {
+                return clusterState.customs();
+            }
+
+            @Override
+            public ClusterState.Builder put(ClusterState.Builder builder, ClusterState.Custom part) {
+                return builder.putCustom(part.type(), part);
+            }
+
+            @Override
+            public ClusterState.Builder remove(ClusterState.Builder builder, String name) {
+                return builder.removeCustom(name);
+            }
+
+            @Override
+            public ClusterState.Custom randomCreate(String name) {
+                switch (randomIntBetween(0, 1)) {
+                    case 0:
+                        return new SnapshotsInProgress(new SnapshotsInProgress.Entry(
+                                new SnapshotId(randomName("repo"), randomName("snap")),
+                                randomBoolean(),
+                                SnapshotsInProgress.State.fromValue((byte) randomIntBetween(0, 6)),
+                                ImmutableList.<String>of(),
+                                Math.abs(randomLong()),
+                                ImmutableMap.<ShardId, SnapshotsInProgress.ShardSnapshotStatus>of()));
+                    case 1:
+                        return new RestoreInProgress(new RestoreInProgress.Entry(
+                                new SnapshotId(randomName("repo"), randomName("snap")),
+                                RestoreInProgress.State.fromValue((byte) randomIntBetween(0, 3)),
+                                ImmutableList.<String>of(),
+                                ImmutableMap.<ShardId, RestoreInProgress.ShardRestoreStatus>of()));
+                    default:
+                        throw new IllegalArgumentException("Shouldn't be here");
+                }
+            }
+
+            @Override
+            public ClusterState.Custom randomChange(ClusterState.Custom part)  {
+                return part;
+            }
+        }));
+    }
+
+    /**
+     * Generates a random name that starts with the given prefix
+     */
     private String randomName(String prefix) {
         return prefix + Strings.randomBase64UUID(getRandom());
     }

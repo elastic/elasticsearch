@@ -17,27 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.index.merge.policy;
-
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.settings.Settings;
+package org.apache.lucene.index;
 
 /**
- *
+ * Allows pkg private access
  */
-public class MergePolicyModule extends AbstractModule {
-
-    private final Settings settings;
-    public static final String MERGE_POLICY_TYPE_KEY = "index.merge.policy.type";
-
-    public MergePolicyModule(Settings settings) {
-        this.settings = settings;
-    }
-
-    @Override
-    protected void configure() {
-        bind(MergePolicyProvider.class)
-                .to(settings.getAsClass("index.merge.policy.type", TieredMergePolicyProvider.class, "org.elasticsearch.index.merge.policy.", "MergePolicyProvider"))
-                .asEagerSingleton();
+public class OneMergeHelper {
+    private OneMergeHelper() {}
+    public static String getSegmentName(MergePolicy.OneMerge merge) {
+        return merge.info != null ? merge.info.info.name : "_na_";
     }
 }

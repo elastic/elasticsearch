@@ -22,7 +22,7 @@ package org.elasticsearch.index.shard;
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.index.CheckIndex;
+import org.apache.lucene.index.*;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.ThreadInterruptedException;
@@ -75,8 +75,6 @@ import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.merge.policy.MergePolicyProvider;
-import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.query.IndexQueryParserService;
@@ -130,7 +128,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final IndexCache indexCache;
     private final InternalIndicesLifecycle indicesLifecycle;
     private final Store store;
-    private final MergeSchedulerProvider mergeScheduler;
+    private final MergeSchedulerConfig mergeSchedulerConfig;
     private final IndexAliasesService indexAliasesService;
     private final ShardIndexingService indexingService;
     private final ShardSearchService searchService;
@@ -155,9 +153,9 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final IndicesWarmer warmer;
     private final SnapshotDeletionPolicy deletionPolicy;
     private final SimilarityService similarityService;
-    private final MergePolicyProvider mergePolicyProvider;
     private final EngineConfig engineConfig;
     private final TranslogConfig translogConfig;
+    private final MergePolicyConfig mergePolicyConfig;
 
     private TimeValue refreshInterval;
 
@@ -193,26 +191,25 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final IndexShardOperationCounter indexShardOperationCounter;
 
     @Inject
-    public IndexShard(ShardId shardId, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, MergeSchedulerProvider mergeScheduler,
+    public IndexShard(ShardId shardId, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store,
                       ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService, ShardGetService getService, ShardSearchService searchService, ShardIndexWarmerService shardWarmerService,
                       ShardFilterCache shardFilterCache, ShardFieldData shardFieldData, PercolatorQueriesRegistry percolatorQueriesRegistry, ShardPercolateService shardPercolateService, CodecService codecService,
                       ShardTermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, IndexService indexService, ShardSuggestService shardSuggestService,
                       ShardQueryCache shardQueryCache, ShardBitsetFilterCache shardBitsetFilterCache,
-                      @Nullable IndicesWarmer warmer, SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService, MergePolicyProvider mergePolicyProvider, EngineFactory factory,
+                      @Nullable IndicesWarmer warmer, SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService, EngineFactory factory,
                       ClusterService clusterService, NodeEnvironment nodeEnv, ShardPath path, BigArrays bigArrays) {
         super(shardId, indexSettingsService.getSettings());
         this.codecService = codecService;
         this.warmer = warmer;
         this.deletionPolicy = deletionPolicy;
         this.similarityService = similarityService;
-        this.mergePolicyProvider = mergePolicyProvider;
         Preconditions.checkNotNull(store, "Store must be provided to the index shard");
         Preconditions.checkNotNull(deletionPolicy, "Snapshot deletion policy must be provided to the index shard");
         this.engineFactory = factory;
         this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
         this.indexSettingsService = indexSettingsService;
         this.store = store;
-        this.mergeScheduler = mergeScheduler;
+        this.mergeSchedulerConfig = new MergeSchedulerConfig(indexSettings);
         this.threadPool = threadPool;
         this.mapperService = mapperService;
         this.queryParserService = queryParserService;
@@ -241,6 +238,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         indexSettingsService.addListener(applyRefreshSettings);
         this.mapperAnalyzer = new MapperAnalyzer(mapperService);
         this.path = path;
+        this.mergePolicyConfig = new MergePolicyConfig(logger, indexSettings);
         /* create engine config */
 
         logger.debug("state: [CREATED]");
@@ -251,6 +249,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.engineConfig = newEngineConfig(translogConfig);
 
         this.indexShardOperationCounter = new IndexShardOperationCounter(logger, shardId);
+
     }
 
     public Store store() {
@@ -609,7 +608,11 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public MergeStats mergeStats() {
-        return mergeScheduler.stats();
+        final Engine engine = engineUnsafe();
+        if (engine == null) {
+            return new MergeStats();
+        }
+        return engine.getMergeStats();
     }
 
     public SegmentsStats segmentStats() {
@@ -1095,7 +1098,29 @@ public class IndexShard extends AbstractIndexShardComponent {
                 if (config.getVersionMapSizeSetting().equals(versionMapSize) == false) {
                     config.setVersionMapSizeSetting(versionMapSize);
                 }
+
+                final int maxThreadCount = settings.getAsInt(MergeSchedulerConfig.MAX_THREAD_COUNT, mergeSchedulerConfig.getMaxThreadCount());
+                if (maxThreadCount != mergeSchedulerConfig.getMaxThreadCount()) {
+                    logger.info("updating [{}] from [{}] to [{}]", MergeSchedulerConfig.MAX_THREAD_COUNT, mergeSchedulerConfig.getMaxMergeCount(), maxThreadCount);
+                    mergeSchedulerConfig.setMaxThreadCount(maxThreadCount);
+                    change = true;
+                }
+
+                final int maxMergeCount = settings.getAsInt(MergeSchedulerConfig.MAX_MERGE_COUNT, mergeSchedulerConfig.getMaxMergeCount());
+                if (maxMergeCount !=  mergeSchedulerConfig.getMaxMergeCount()) {
+                    logger.info("updating [{}] from [{}] to [{}]", MergeSchedulerConfig.MAX_MERGE_COUNT, mergeSchedulerConfig.getMaxMergeCount(), maxMergeCount);
+                    mergeSchedulerConfig.setMaxMergeCount(maxMergeCount);
+                    change = true;
+                }
+
+                final boolean autoThrottle = settings.getAsBoolean(MergeSchedulerConfig.AUTO_THROTTLE, mergeSchedulerConfig.isAutoThrottle());
+                if (autoThrottle != mergeSchedulerConfig.isAutoThrottle()) {
+                    logger.info("updating [{}] from [{}] to [{}]", MergeSchedulerConfig.AUTO_THROTTLE, mergeSchedulerConfig.isAutoThrottle(), autoThrottle);
+                    mergeSchedulerConfig.setAutoThrottle(autoThrottle);
+                    change = true;
+                }
             }
+            mergePolicyConfig.onRefreshSettings(settings);
             if (change) {
                 refresh("apply settings");
             }
@@ -1335,7 +1360,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             }
         };
         return new EngineConfig(shardId,
-                threadPool, indexingService, indexSettingsService, warmer, store, deletionPolicy, mergePolicyProvider, mergeScheduler,
+                threadPool, indexingService, indexSettingsService, warmer, store, deletionPolicy, mergePolicyConfig.getMergePolicy(), mergeSchedulerConfig,
                 mapperAnalyzer, similarityService.similarity(), codecService, failedEngineListener, translogRecoveryPerformer, indexCache.filter(), indexCache.filterPolicy(), translogConfig);
     }
 

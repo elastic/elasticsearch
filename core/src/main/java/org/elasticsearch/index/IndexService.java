@@ -41,9 +41,6 @@ import org.elasticsearch.index.deletionpolicy.DeletionPolicyModule;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.gateway.IndexShardGatewayService;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.merge.policy.MergePolicyModule;
-import org.elasticsearch.index.merge.policy.MergePolicyProvider;
-import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -298,7 +295,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             modules.add(new StoreModule(injector.getInstance(IndexStore.class).shardDirectory(), lock,
                     new StoreCloseListener(shardId, canDeleteShardContent, shardFilterCache), path));
             modules.add(new DeletionPolicyModule(indexSettings));
-            modules.add(new MergePolicyModule(indexSettings));
             try {
                 shardInjector = modules.createChildInjector(injector);
             } catch (CreationException e) {
@@ -373,8 +369,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                     }
                 }
                 closeInjectorResource(sId, shardInjector,
-                        MergeSchedulerProvider.class,
-                        MergePolicyProvider.class,
                         IndexShardGatewayService.class,
                         PercolatorQueriesRegistry.class);
 

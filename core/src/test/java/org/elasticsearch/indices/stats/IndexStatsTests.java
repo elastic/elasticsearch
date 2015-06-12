@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.stats;
 
+import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -42,9 +43,8 @@ import org.elasticsearch.index.cache.filter.FilterCacheModule;
 import org.elasticsearch.index.cache.filter.FilterCacheModule.FilterCacheSettings;
 import org.elasticsearch.index.cache.filter.FilterCacheStats;
 import org.elasticsearch.index.cache.filter.index.IndexFilterCache;
-import org.elasticsearch.index.merge.policy.TieredMergePolicyProvider;
-import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.shard.MergePolicyConfig;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.search.sort.SortOrder;
@@ -285,10 +285,10 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
                                 .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "merge")
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
                                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
-                                .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
-                                .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, "2")
-                                .put(ConcurrentMergeSchedulerProvider.MAX_THREAD_COUNT, "1")
-                                .put(ConcurrentMergeSchedulerProvider.MAX_MERGE_COUNT, "10000")
+                                .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
+                                .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, "2")
+                                .put(MergeSchedulerConfig.MAX_THREAD_COUNT, "1")
+                                .put(MergeSchedulerConfig.MAX_MERGE_COUNT, "10000")
                 ));
         ensureGreen();
         long termUpto = 0;
@@ -318,10 +318,10 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
                                  .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "merge")
                                  .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
                                  .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
-                                 .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
-                                 .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, "2")
-                                 .put(ConcurrentMergeSchedulerProvider.MAX_THREAD_COUNT, "1")
-                                 .put(ConcurrentMergeSchedulerProvider.MAX_MERGE_COUNT, "1")
+                                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
+                                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, "2")
+                                 .put(MergeSchedulerConfig.MAX_THREAD_COUNT, "1")
+                                 .put(MergeSchedulerConfig.MAX_MERGE_COUNT, "1")
                                  .put("index.merge.policy.type", "tiered")
 
                                  ));

@@ -29,6 +29,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.Lists;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.impl.client.HttpClients;
+import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
@@ -101,8 +102,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Loading;
 import org.elasticsearch.index.mapper.internal.SizeFieldMapper;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
-import org.elasticsearch.index.merge.policy.*;
-import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
+import org.elasticsearch.index.shard.MergePolicyConfig;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogService;
@@ -475,7 +475,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
 
         if (random.nextBoolean()) {
-            builder.put(ConcurrentMergeSchedulerProvider.AUTO_THROTTLE, false);
+            builder.put(MergeSchedulerConfig.AUTO_THROTTLE, false);
         }
 
         if (random.nextBoolean()) {
@@ -524,30 +524,15 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     private static Settings.Builder setRandomMerge(Random random, Settings.Builder builder) {
         if (random.nextBoolean()) {
-            builder.put(AbstractMergePolicyProvider.INDEX_COMPOUND_FORMAT,
+            builder.put(MergePolicyConfig.INDEX_COMPOUND_FORMAT,
                     random.nextBoolean() ? random.nextDouble() : random.nextBoolean());
         }
-        Class<? extends MergePolicyProvider<?>> mergePolicy = TieredMergePolicyProvider.class;
-        switch (random.nextInt(5)) {
-            case 4:
-                mergePolicy = LogByteSizeMergePolicyProvider.class;
-                break;
-            case 3:
-                mergePolicy = LogDocMergePolicyProvider.class;
-                break;
-            case 0:
-                mergePolicy = null;
-        }
-        if (mergePolicy != null) {
-            builder.put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, mergePolicy.getName());
-        }
-
         switch (random.nextInt(4)) {
             case 3:
                 final int maxThreadCount = RandomInts.randomIntBetween(random, 1, 4);
                 final int maxMergeCount = RandomInts.randomIntBetween(random, maxThreadCount, maxThreadCount + 4);
-                builder.put(ConcurrentMergeSchedulerProvider.MAX_MERGE_COUNT, maxMergeCount);
-                builder.put(ConcurrentMergeSchedulerProvider.MAX_THREAD_COUNT, maxThreadCount);
+                builder.put(MergeSchedulerConfig.MAX_MERGE_COUNT, maxMergeCount);
+                builder.put(MergeSchedulerConfig.MAX_THREAD_COUNT, maxThreadCount);
                 break;
         }
 

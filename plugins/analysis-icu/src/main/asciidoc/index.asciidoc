@@ -1,0 +1,307 @@
+[[analysis-icu]]
+= ICU Analysis for Elasticsearch
+
+The ICU Analysis plugin integrates Lucene ICU module into elasticsearch, adding ICU relates analysis components.
+
+In order to install the plugin, simply run: 
+
+[source,shell]
+--------------------------------------------------
+bin/plugin install elasticsearch-analysis-icu
+--------------------------------------------------
+
+To build a `SNAPSHOT` version, you need to build it with Maven:
+
+[source,shell]
+--------------------------------------------------
+mvn clean install
+plugin --install analysis-icu \
+       --url file:target/releases/elasticsearch-analysis-icu-X.X.X-SNAPSHOT.zip
+--------------------------------------------------
+
+
+[analysis-icu-normalization]
+== ICU Normalization
+
+Normalizes characters as explained http://userguide.icu-project.org/transforms/normalization[here].
+It registers itself by default under `icu_normalizer` or `icuNormalizer` using the default settings. 
+Allows for the name parameter to be provided which can include the following values: `nfc`, `nfkc`, and `nfkc_cf`. 
+Here is a sample settings:
+
+[source,json]
+--------------------------------------------------
+{
+    "index" : {
+        "analysis" : {
+            "analyzer" : {
+                "normalized" : {
+                    "tokenizer" : "keyword",
+                    "filter" : ["icu_normalizer"]
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+[analysis-icu-folding]
+== ICU Folding
+
+Folding of unicode characters based on `UTR#30`. It registers itself under `icu_folding` and `icuFolding` names. 
+Sample setting:
+
+[source,json]
+--------------------------------------------------
+{
+    "index" : {
+        "analysis" : {
+            "analyzer" : {
+                "folded" : {
+                    "tokenizer" : "keyword",
+                    "filter" : ["icu_folding"]
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+[analysis-icu-filtering]
+== ICU Filtering
+
+The folding can be filtered by a set of unicode characters with the parameter `unicodeSetFilter`. This is useful for a
+non-internationalized search engine where retaining a set of national characters which are primary letters in a specific
+language is wanted. See syntax for the http://icu-project.org/apiref/icu4j/com/ibm/icu/text/UnicodeSet.html[UnicodeSet].
+
+The Following example exempts Swedish characters from the folding. Note that the filtered characters are NOT 
+lowercased which is why we add that filter below.
+
+[source,json]
+--------------------------------------------------
+{
+    "index" : {
+        "analysis" : {
+            "analyzer" : {
+                "folding" : {
+                    "tokenizer" : "standard",
+                    "filter" : ["my_icu_folding", "lowercase"]
+                }
+            }
+            "filter" : {
+                "my_icu_folding" : {
+                    "type" : "icu_folding"
+                    "unicodeSetFilter" : "[^åäöÅÄÖ]"
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+[analysis-icu-collation]
+== ICU Collation
+
+Uses collation token filter. Allows to either specify the rules for collation
+(defined http://www.icu-project.org/userguide/Collate_Customization.html[here]) using the `rules` parameter
+(can point to a location or expressed in the settings, location can be relative to config location), or using the
+`language` parameter (further specialized by country and variant). By default registers under `icu_collation` or
+`icuCollation` and uses the default locale.
+
+Here is a sample settings:
+
+[source,json]
+--------------------------------------------------
+{
+    "index" : {
+        "analysis" : {
+            "analyzer" : {
+                "collation" : {
+                    "tokenizer" : "keyword",
+                    "filter" : ["icu_collation"]
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+And here is a sample of custom collation:
+
+[source,json]
+--------------------------------------------------
+{
+    "index" : {
+        "analysis" : {
+            "analyzer" : {
+                "collation" : {
+                    "tokenizer" : "keyword",
+                    "filter" : ["myCollator"]
+                }
+            },
+            "filter" : {
+                "myCollator" : {
+                    "type" : "icu_collation",
+                    "language" : "en"
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+
+.Optional options
+[width="100%",cols="3,10,^4",options="header"]
+|==========================
+|Setting |Description |Default value
+
+|`strength`
+|The strength property determines the minimum level of difference considered significant during comparison.
+ Possible values: `primary`, `secondary`, `tertiary`, `quaternary` or `identical`.
+ See http://icu-project.org/apiref/icu4j/com/ibm/icu/text/Collator.html[ICU Collation documentation] for a more detailed
+ explanation for the specific values.
+|`tertiary` unless specified otherwise by the locale used to create the Collator.
+
+|`decomposition`
+|Possible values: `no` or `canonical`. Setting this decomposition property with
+ `canonical` allows the Collator to handle un-normalized text properly, producing the same results as if the text were
+ normalized. If `no` is set, it is the user's responsibility to insure that all text is already in the appropriate form
+ before a comparison or before getting a CollationKey. Adjusting decomposition mode allows the user to select between
+ faster and more complete collation behavior. Since a great many of the world's languages do not require text
+ normalization, most locales set `no` as the default decomposition mode.
+|`no`
+
+|==========================
+
+
+.Expert options
+[width="100%",cols="3,10,^4",options="header"]
+|==========================
+|Setting |Description |Default value
+
+| `alternate` 
+| Possible values: `shifted` or `non-ignorable`. Sets the alternate handling for strength `quaternary`
+ to be either shifted or non-ignorable. What boils down to ignoring punctuation and whitespace.
+|
+
+| `caseLevel` 
+| Possible values: `true` or `false`. Whether case level sorting is required. When
+ strength is set to `primary` this will ignore accent differences.
+| `false`
+
+| `caseFirst`
+| Possible values: `lower` or `upper`. Useful to control which case is sorted first when case is not ignored
+ for strength `tertiary`
+|
+
+| `numeric`
+| Possible values: `true` or `false`. Whether digits are sorted according to numeric representation. For
+ example the value `egg-9` is sorted before the value `egg-21`. 
+| `false`
+
+| `variableTop`
+| Single character or contraction. Controls what is variable for `alternate`.
+| 
+
+| `hiraganaQuaternaryMode`
+| Possible values: `true` or `false`.  Distinguishing between Katakana and Hiragana characters in `quaternary` strength.
+| `false`
+
+|==========================
+
+
+[analysis-icu-tokenizer]
+== ICU Tokenizer
+
+Breaks text into words according to http://www.unicode.org/reports/tr29/[UAX #29: Unicode Text Segmentation].
+
+[source,json]
+--------------------------------------------------
+{
+    "index" : {
+        "analysis" : {
+            "analyzer" : {
+                "tokenized" : {
+                    "tokenizer" : "icu_tokenizer",
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+
+[analysis-icu-normalization-charfilter]
+== ICU Normalization CharFilter
+
+Normalizes characters as explained http://userguide.icu-project.org/transforms/normalization[here].
+It registers itself by default under `icu_normalizer` or `icuNormalizer` using the default settings.
+Allows for the name parameter to be provided which can include the following values: `nfc`, `nfkc`, and `nfkc_cf`.
+Allows for the mode parameter to be provided which can include the following values: `compose` and `decompose`.
+Use `decompose` with `nfc` or `nfkc`, to get `nfd` or `nfkd`, respectively.
+
+Here is a sample settings:
+
+[source,json]
+--------------------------------------------------
+{
+    "index" : {
+        "analysis" : {
+            "analyzer" : {
+                "normalized" : {
+                    "tokenizer" : "keyword",
+                    "char_filter" : ["icu_normalizer"]
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+[analysis-icu-transform]
+== ICU Transform
+
+Transforms are used to process Unicode text in many different ways. Some include case mapping, normalization,
+transliteration and bidirectional text handling.
+
+You can defined transliterator identifiers by using `id` property, and specify direction  to `forward` or `reverse` by
+using `dir` property, The default value of both properties are `Null` and `forward`.
+
+For example:
+
+[source,json]
+--------------------------------------------------
+{
+    "index" : {
+        "analysis" : {
+            "analyzer" : {
+                "latin" : {
+                    "tokenizer" : "keyword",
+                    "filter" : ["myLatinTransform"]
+                }
+            },
+            "filter" : {
+                "myLatinTransform" : {
+                    "type" : "icu_transform",
+                    "id" : "Any-Latin; NFD; [:Nonspacing Mark:] Remove; NFC"
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+This transform transliterated characters to latin, and separates accents from their base characters, removes the accents,
+and then puts the remaining text into an unaccented form.
+
+The results are:
+
+`你好` to `ni hao`
+
+`здравствуйте` to `zdravstvujte`
+
+`こんにちは` to `kon'nichiha`
+
+Currently the filter only supports identifier and direction, custom rulesets are not yet supported.
+
+For more documentation, Please see the [user guide of ICU Transform](http://userguide.icu-project.org/transforms/general).

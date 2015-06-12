@@ -311,7 +311,7 @@ public class MultiPercolatorTests extends ElasticsearchIntegrationTest {
             assertThat(item.getResponse().getSuccessfulShards(), equalTo(0));
             assertThat(item.getResponse().getShardFailures().length, equalTo(test.numPrimaries));
             for (ShardOperationFailedException shardFailure : item.getResponse().getShardFailures()) {
-                assertThat(shardFailure.reason(), containsString("Failed to derive xcontent from"));
+                assertThat(shardFailure.reason(), containsString("Failed to derive xcontent"));
                 assertThat(shardFailure.status().getStatus(), equalTo(500));
             }
         }

@@ -100,8 +100,7 @@ You will find the newly built packages under: `./target/releases/`.
 Before submitting your changes, run the test suite to make sure that nothing is broken, with:
 
 ```sh
-ES_TEST_LOCAL=true
-mvn clean test
+mvn clean test -Dtests.slow=true
 ```
 
 Source: [Contributing to elasticsearch](http://www.elasticsearch.org/contributing-to-elasticsearch/)

@@ -30,7 +30,7 @@ public class AuditTrailModule extends AbstractShieldModule.Node implements PrePr
 
     public AuditTrailModule(Settings settings) {
         super(settings);
-        enabled = settings.getAsBoolean("shield.audit.enabled", false);
+        enabled = auditingEnabled(settings);
     }
 
     @Override
@@ -75,11 +75,17 @@ public class AuditTrailModule extends AbstractShieldModule.Node implements PrePr
         }
     }
 
+    static boolean auditingEnabled(Settings settings) {
+        return settings.getAsBoolean("shield.audit.enabled", false);
+    }
+
     public static boolean indexAuditLoggingEnabled(Settings settings) {
-        String[] outputs = settings.getAsArray("shield.audit.outputs");
-        for (String output : outputs) {
-            if (output.equals(IndexAuditTrail.NAME)) {
-                return true;
+        if (auditingEnabled(settings)) {
+            String[] outputs = settings.getAsArray("shield.audit.outputs");
+            for (String output : outputs) {
+                if (output.equals(IndexAuditTrail.NAME)) {
+                    return true;
+                }
             }
         }
         return false;

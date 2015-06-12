@@ -25,8 +25,6 @@ import com.google.common.collect.Iterators;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.ClusterInfo;
-import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -127,15 +125,12 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final AtomicBoolean deleted = new AtomicBoolean(false);
 
-    private volatile long avgShardSizeInBytes = -1;
-
     @Inject
     public IndexService(Injector injector, Index index, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv,
                         AnalysisService analysisService, MapperService mapperService, IndexQueryParserService queryParserService,
                         SimilarityService similarityService, IndexAliasesService aliasesService, IndexCache indexCache,
                         IndexSettingsService settingsService,
-                        IndexFieldDataService indexFieldData, BitsetFilterCache bitSetFilterCache, IndicesService indicesServices,
-                        ClusterInfoService clusterInfoService) {
+                        IndexFieldDataService indexFieldData, BitsetFilterCache bitSetFilterCache, IndicesService indicesServices) {
 
         super(index, indexSettings);
         this.injector = injector;
@@ -158,30 +153,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         indexFieldData.setIndexService(this);
         bitSetFilterCache.setIndexService(this);
         this.nodeEnv = nodeEnv;
-        clusterInfoService.addListener(new ShardSizeListener());
     }
-
-    /**
-     * Just records average size of shards in the cluster as a heuristic to help when allocating new shards to data paths.
-     */
-    class ShardSizeListener implements ClusterInfoService.Listener {
-
-        @Override
-        public void onNewInfo(ClusterInfo info) {
-            int count = 0;
-            long totBytes = 0;
-            for (long size : info.getShardSizes().values()) {
-                count++;
-                totBytes += size;
-            }
-            if (count > 0) {
-                IndexService.this.avgShardSizeInBytes = totBytes / count;
-            } else {
-                IndexService.this.avgShardSizeInBytes = -1;
-            }
-        }
-    }
-
 
     public int numberOfShards() {
         return shards.size();
@@ -301,6 +273,23 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         return indexSettings.get(IndexMetaData.SETTING_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
     }
 
+    // NOTE: O(numShards) cost, but numShards should be smallish?
+    private long getAvgShardSizeInBytes() throws IOException {
+        Iterator<IndexShard> it = this.iterator();
+        long sum = 0;
+        int count = 0;
+        while (it.hasNext()) {
+            IndexShard indexShard = it.next();
+            sum += indexShard.store().stats().sizeInBytes();
+            count++;
+        }
+        if (count == 0) {
+            return -1L;
+        } else {
+            return sum / count;
+        }
+    }
+
     public synchronized IndexShard createShard(int sShardId, boolean primary) {
         /*
          * TODO: we execute this in parallel but it's a synced method. Yet, we might
@@ -318,7 +307,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
 
             ShardPath path = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
             if (path == null) {
-                path = ShardPath.selectNewPathForShard(nodeEnv, shardId, indexSettings, avgShardSizeInBytes, this);
+                path = ShardPath.selectNewPathForShard(nodeEnv, shardId, indexSettings, getAvgShardSizeInBytes(), this);
                 logger.debug("{} creating using a new path [{}]", shardId, path);
             } else {
                 logger.debug("{} creating using an existing path [{}]", shardId, path);

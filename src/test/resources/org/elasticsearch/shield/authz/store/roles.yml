@@ -4,6 +4,9 @@ role1:
     'idx1,idx2': READ
     idx3: crud
 
+role1.ab:
+  cluster: ALL
+
 role2:
   cluster: ALL, MONITOR
 

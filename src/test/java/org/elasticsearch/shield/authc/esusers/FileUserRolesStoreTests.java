@@ -170,7 +170,7 @@ public class FileUserRolesStoreTests extends ElasticsearchTestCase {
         Path path = getDataPath("users_roles");
         Map<String, String[]> usersRoles = FileUserRolesStore.parseFile(path, null);
         assertThat(usersRoles, notNullValue());
-        assertThat(usersRoles.size(), is(3));
+        assertThat(usersRoles.size(), is(4));
         assertThat(usersRoles.get("user1"), notNullValue());
         assertThat(usersRoles.get("user1").length, is(3));
         assertThat(usersRoles.get("user1"), arrayContaining("role1", "role2", "role3"));
@@ -180,6 +180,8 @@ public class FileUserRolesStoreTests extends ElasticsearchTestCase {
         assertThat(usersRoles.get("user3"), notNullValue());
         assertThat(usersRoles.get("user3").length, is(1));
         assertThat(usersRoles.get("user3"), arrayContaining("role3"));
+        assertThat(usersRoles.get("period.user").length, is(1));
+        assertThat(usersRoles.get("period.user"), arrayContaining("role4"));
     }
 
     @Test

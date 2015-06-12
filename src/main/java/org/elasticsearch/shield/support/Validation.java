@@ -12,7 +12,7 @@ import java.util.regex.Pattern;
  */
 public final class Validation {
 
-    private static final Pattern COMMON_NAME_PATTERN = Pattern.compile("[a-zA-Z_][a-zA-Z0-9_@\\-\\$]{0,29}");
+    private static final Pattern COMMON_NAME_PATTERN = Pattern.compile("[a-zA-Z_][a-zA-Z0-9_@\\-\\$\\.]{0,29}");
 
     public static final class ESUsers {
 
@@ -24,7 +24,7 @@ public final class Validation {
                     new Error("A valid username must be at least 1 character and no longer than 30 characters. " +
                             "It must begin with a letter (`a-z` or `A-Z`) or an underscore (`_`). Subsequent " +
                             "characters can be letters, underscores (`_`), digits (`0-9`) or any of the following " +
-                            "symbols `@`, `-` or `$`");
+                            "symbols `@`, `-`, `.` or `$`");
         }
 
         public static Error validatePassword(char[] password) {
@@ -43,7 +43,7 @@ public final class Validation {
                     new Error("A valid role name must be at least 1 character and no longer than 30 characters. " +
                             "It must begin with a letter (`a-z` or `A-Z`) or an underscore (`_`). Subsequent " +
                             "characters can be letters, underscores (`_`), digits (`0-9`) or any of the following " +
-                            "symbols `@`, `-` or `$`");
+                            "symbols `@`, `-`, `.` or `$`");
         }
     }
 

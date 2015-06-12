@@ -43,7 +43,7 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
         Path path = getDataPath("roles.yml");
         Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, Collections.<Permission.Global.Role>emptySet(), logger);
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(4));
+        assertThat(roles.size(), is(5));
 
         Permission.Global.Role role = roles.get("role1");
         assertThat(role, notNullValue());
@@ -68,6 +68,15 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
         assertThat(group.indices()[0], equalTo("idx3"));
         assertThat(group.privilege(), notNullValue());
         assertThat(group.privilege(), is(Privilege.Index.CRUD));
+
+        role = roles.get("role1.ab");
+        assertThat(role, notNullValue());
+        assertThat(role.name(), equalTo("role1.ab"));
+        assertThat(role.cluster(), notNullValue());
+        assertThat(role.cluster().privilege(), is(Privilege.Cluster.ALL));
+        assertThat(role.indices(), notNullValue());
+        assertThat(role.indices().groups(), notNullValue());
+        assertThat(role.indices().groups().length, is(0));
 
         role = roles.get("role2");
         assertThat(role, notNullValue());

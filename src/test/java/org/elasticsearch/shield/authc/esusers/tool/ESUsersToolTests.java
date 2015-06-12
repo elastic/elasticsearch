@@ -846,6 +846,41 @@ public class ESUsersToolTests extends CliToolTestCase {
         assertThat(loggingTerminal.getTerminalOutput(), hasItem(allOf(containsString("admin"), containsString("-"))));
     }
 
+    @Test
+    public void testUseradd_UsernameWithPeriod() throws Exception {
+        Path userFile = createTempFile();
+        Path userRolesFile = createTempFile();
+        Settings settings = Settings.builder()
+                .put("shield.authc.realms.esusers.type", "esusers")
+                .put("shield.authc.realms.esusers.files.users", userFile)
+                .put("shield.authc.realms.esusers.files.users_roles", userRolesFile)
+                .put("path.home", createTempDir())
+                .build();
+
+        ESUsersTool tool = new ESUsersTool();
+        CliTool.Command command = tool.parse("useradd", args("john.doe -p changeme -r r1,r2,r3"));
+        assertThat(command, instanceOf(ESUsersTool.Useradd.class));
+        ESUsersTool.Useradd cmd = (ESUsersTool.Useradd) command;
+
+        CliTool.ExitStatus status = execute(cmd, settings);
+        assertThat(status, is(CliTool.ExitStatus.OK));
+
+        assertFileExists(userFile);
+        List<String> lines = Files.readAllLines(userFile, Charsets.UTF_8);
+        assertThat(lines.size(), is(1));
+        // we can't just hash again and compare the lines, as every time we hash a new salt is generated
+        // instead we'll just verify the generated hash against the correct password.
+        String line = lines.get(0);
+        assertThat(line, startsWith("john.doe:"));
+        String hash = line.substring("john.doe:".length());
+        assertThat(Hasher.BCRYPT.verify(SecuredStringTests.build("changeme"), hash.toCharArray()), is(true));
+
+        assertFileExists(userRolesFile);
+        lines = Files.readAllLines(userRolesFile, Charsets.UTF_8);
+        assertThat(lines, hasSize(3));
+        assertThat(lines, containsInAnyOrder("r1:john.doe", "r2:john.doe", "r3:john.doe"));
+    }
+
     private CliTool.ExitStatus execute(CliTool.Command cmd, Settings settings) throws Exception {
         Environment env = new Environment(settings);
         return cmd.execute(settings, env);

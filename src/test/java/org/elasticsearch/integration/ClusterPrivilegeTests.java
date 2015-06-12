@@ -8,7 +8,7 @@ package org.elasticsearch.integration;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
-import org.elasticsearch.cluster.metadata.SnapshotMetaData;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -180,6 +180,6 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTests {
             } catch (InterruptedException e) {}
             i++;
             if (i >= 20) { throw new ElasticsearchException("Snapshot should have been successfully created after four seconds, was " + snapshotsStatusResponse.getSnapshots().get(0).getState()); }
-        } while (snapshotsStatusResponse.getSnapshots().get(0).getState() != SnapshotMetaData.State.SUCCESS);
+        } while (snapshotsStatusResponse.getSnapshots().get(0).getState() != SnapshotsInProgress.State.SUCCESS);
     }
 }

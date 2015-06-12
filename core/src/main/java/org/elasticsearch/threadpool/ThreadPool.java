@@ -576,7 +576,8 @@ public class ThreadPool extends AbstractComponent {
         @Override
         public void run() {
             while (running) {
-                estimatedTimeInMillis = System.currentTimeMillis();
+                // use the max since currentTimeMillis migth go backwards?
+                estimatedTimeInMillis = Math.max(estimatedTimeInMillis, System.currentTimeMillis());
                 try {
                     Thread.sleep(interval);
                 } catch (InterruptedException e) {

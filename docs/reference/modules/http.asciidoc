@@ -85,5 +85,5 @@ It also uses the common
 The http module can be completely disabled and not started by setting
 `http.enabled` to `false`. This make sense when creating non
 <<modules-node,data nodes>> which accept HTTP
-requests, and communicate with data nodes using the internal
+requests, and communicate with data nodes , which have http disabled, using the internal
 <<modules-transport,transport>>.

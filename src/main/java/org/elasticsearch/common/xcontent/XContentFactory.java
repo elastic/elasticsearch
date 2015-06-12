@@ -174,7 +174,7 @@ public class XContentFactory {
     public static XContent xContent(CharSequence content) {
         XContentType type = xContentType(content);
         if (type == null) {
-            throw new ElasticsearchParseException("Failed to derive xcontent from " + content);
+            throw new ElasticsearchParseException("Failed to derive xcontent");
         }
         return xContent(type);
     }
@@ -192,7 +192,7 @@ public class XContentFactory {
     public static XContent xContent(byte[] data, int offset, int length) {
         XContentType type = xContentType(data, offset, length);
         if (type == null) {
-            throw new ElasticsearchParseException("Failed to derive xcontent from (offset=" + offset + ", length=" + length + "): " + Arrays.toString(data));
+            throw new ElasticsearchParseException("Failed to derive xcontent");
         }
         return xContent(type);
     }
@@ -276,7 +276,7 @@ public class XContentFactory {
     public static XContent xContent(BytesReference bytes) {
         XContentType type = xContentType(bytes);
         if (type == null) {
-            throw new ElasticsearchParseException("Failed to derive xcontent from " + bytes);
+            throw new ElasticsearchParseException("Failed to derive xcontent");
         }
         return xContent(type);
     }

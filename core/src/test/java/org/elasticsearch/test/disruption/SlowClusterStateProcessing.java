@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateNonMasterUpdateTask;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
@@ -130,6 +131,12 @@ public class SlowClusterStateProcessing extends SingleNodeDisruption {
             countDownLatch.await();
         }
         return true;
+    }
+
+    @Override
+    public void removeAndEnsureHealthy(InternalTestCluster cluster) {
+        removeFromCluster(cluster);
+        ensureNodeCount(cluster);
     }
 
     @Override

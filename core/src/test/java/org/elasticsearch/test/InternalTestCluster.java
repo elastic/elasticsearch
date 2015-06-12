@@ -220,7 +220,7 @@ public final class InternalTestCluster extends TestCluster {
 
     public InternalTestCluster(long clusterSeed, Path baseDir,
                                int minNumDataNodes, int maxNumDataNodes, String clusterName, SettingsSource settingsSource, int numClientNodes,
-                                boolean enableHttpPipelining, String nodePrefix) {
+                               boolean enableHttpPipelining, String nodePrefix) {
         super(clusterSeed);
         this.baseDir = baseDir;
         this.clusterName = clusterName;
@@ -281,8 +281,8 @@ public final class InternalTestCluster extends TestCluster {
         }
         builder.put("path.home", baseDir);
         builder.put("path.repo", baseDir.resolve("repos"));
-        builder.put("transport.tcp.port", BASE_PORT + "-" + (BASE_PORT+100));
-        builder.put("http.port", BASE_PORT+101 + "-" + (BASE_PORT+200));
+        builder.put("transport.tcp.port", BASE_PORT + "-" + (BASE_PORT + 100));
+        builder.put("http.port", BASE_PORT + 101 + "-" + (BASE_PORT + 200));
         builder.put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true);
         builder.put("node.mode", NODE_MODE);
         builder.put("http.pipelining", enableHttpPipelining);
@@ -1566,20 +1566,7 @@ public final class InternalTestCluster extends TestCluster {
         if (activeDisruptionScheme != null) {
             TimeValue expectedHealingTime = activeDisruptionScheme.expectedTimeToHeal();
             logger.info("Clearing active scheme {}, expected healing time {}", activeDisruptionScheme, expectedHealingTime);
-            activeDisruptionScheme.removeFromCluster(this);
-            // We don't what scheme is picked, certain schemes don't partition the cluster, but process slow, so we need
-            // to to sleep, cluster health alone doesn't verify if these schemes have been cleared.
-            if (expectedHealingTime != null && expectedHealingTime.millis() > 0) {
-                try {
-                    Thread.sleep(expectedHealingTime.millis());
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-            }
-            assertFalse("cluster failed to form after disruption was healed", client().admin().cluster().prepareHealth()
-                    .setWaitForNodes("" + nodes.size())
-                    .setWaitForRelocatingShards(0)
-                    .get().isTimedOut());
+            activeDisruptionScheme.removeAndEnsureHealthy(this);
         }
         activeDisruptionScheme = null;
     }

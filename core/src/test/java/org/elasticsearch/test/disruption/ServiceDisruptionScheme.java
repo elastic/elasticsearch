@@ -23,20 +23,22 @@ import org.elasticsearch.test.InternalTestCluster;
 
 public interface ServiceDisruptionScheme {
 
-    public void applyToCluster(InternalTestCluster cluster);
+    void applyToCluster(InternalTestCluster cluster);
 
-    public void removeFromCluster(InternalTestCluster cluster);
+    void removeFromCluster(InternalTestCluster cluster);
 
-    public void applyToNode(String node, InternalTestCluster cluster);
+    void removeAndEnsureHealthy(InternalTestCluster cluster);
 
-    public void removeFromNode(String node, InternalTestCluster cluster);
+    void applyToNode(String node, InternalTestCluster cluster);
 
-    public void startDisrupting();
+    void removeFromNode(String node, InternalTestCluster cluster);
 
-    public void stopDisrupting();
+    void startDisrupting();
 
-    public void testClusterClosed();
+    void stopDisrupting();
 
-    public TimeValue expectedTimeToHeal();
+    void testClusterClosed();
+
+    TimeValue expectedTimeToHeal();
 
 }

@@ -32,6 +32,8 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 
+import static org.junit.Assert.assertFalse;
+
 public abstract class NetworkPartition implements ServiceDisruptionScheme {
 
     protected final ESLogger logger = Loggers.getLogger(getClass());
@@ -103,6 +105,19 @@ public abstract class NetworkPartition implements ServiceDisruptionScheme {
     @Override
     public void removeFromCluster(InternalTestCluster cluster) {
         stopDisrupting();
+    }
+
+    @Override
+    public void removeAndEnsureHealthy(InternalTestCluster cluster) {
+        removeFromCluster(cluster);
+        ensureNodeCount(cluster);
+    }
+
+    protected void ensureNodeCount(InternalTestCluster cluster) {
+        assertFalse("cluster failed to form after disruption was healed", cluster.client().admin().cluster().prepareHealth()
+                .setWaitForNodes("" + cluster.size())
+                .setWaitForRelocatingShards(0)
+                .get().isTimedOut());
     }
 
     @Override

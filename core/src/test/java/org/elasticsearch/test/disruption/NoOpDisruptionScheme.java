@@ -60,6 +60,11 @@ public class NoOpDisruptionScheme implements ServiceDisruptionScheme {
     }
 
     @Override
+    public void removeAndEnsureHealthy(InternalTestCluster cluster) {
+
+    }
+
+    @Override
     public TimeValue expectedTimeToHeal() {
         return TimeValue.timeValueSeconds(0);
     }

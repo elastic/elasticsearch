@@ -38,7 +38,7 @@ import java.util.Map;
  * A bridge to evaluate an {@link Expression} against {@link Bindings} in the context
  * of a {@link SearchScript}.
  */
-class ExpressionScript implements SearchScript {
+class ExpressionSearchScript implements SearchScript {
 
     final Expression expression;
     final SimpleBindings bindings;
@@ -47,7 +47,7 @@ class ExpressionScript implements SearchScript {
     Scorer scorer;
     int docid;
 
-    ExpressionScript(Expression e, SimpleBindings b, ReplaceableConstValueSource v) {
+    ExpressionSearchScript(Expression e, SimpleBindings b, ReplaceableConstValueSource v) {
         expression = e;
         bindings = b;
         source = expression.getValueSource(bindings);

@@ -19,29 +19,45 @@
 
 package org.elasticsearch.script.expression;
 
+import org.apache.lucene.expressions.Expression;
+import org.apache.lucene.expressions.js.JavascriptCompiler;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
+import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
+import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.Bucket;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
+import org.elasticsearch.search.aggregations.pipeline.SimpleValue;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.seriesArithmetic;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
 
@@ -49,15 +65,15 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
         ensureGreen("test");
 
         Map<String, Object> paramsMap = new HashMap<>();
-        assert(params.length % 2 == 0);
+        assert (params.length % 2 == 0);
         for (int i = 0; i < params.length; i += 2) {
             paramsMap.put(params[i].toString(), params[i + 1]);
         }
 
         SearchRequestBuilder req = client().prepareSearch().setIndices("test");
         req.setQuery(QueryBuilders.matchAllQuery())
-           .addSort(SortBuilders.fieldSort("_uid")
-.order(SortOrder.ASC))
+                .addSort(SortBuilders.fieldSort("_uid")
+                        .order(SortOrder.ASC))
                 .addScriptField("foo", new Script(script, ScriptType.INLINE, "expression", paramsMap));
         return req;
     }
@@ -84,9 +100,9 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
         createIndex("test");
         ensureGreen("test");
         indexRandom(true,
-            client().prepareIndex("test", "doc", "1").setSource("text", "hello goodbye"),
-            client().prepareIndex("test", "doc", "2").setSource("text", "hello hello hello goodbye"),
-            client().prepareIndex("test", "doc", "3").setSource("text", "hello hello goodebye"));
+                client().prepareIndex("test", "doc", "1").setSource("text", "hello goodbye"),
+                client().prepareIndex("test", "doc", "2").setSource("text", "hello hello hello goodbye"),
+                client().prepareIndex("test", "doc", "3").setSource("text", "hello hello goodebye"));
         ScoreFunctionBuilder score = ScoreFunctionBuilders.scriptFunction(new Script("1 / _score", ScriptType.INLINE, "expression", null));
         SearchRequestBuilder req = client().prepareSearch().setIndices("test");
         req.setQuery(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("text", "hello"), score).boostMode("replace"));
@@ -242,9 +258,9 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
         createIndex("test");
         ensureGreen("test");
         indexRandom(true,
-                    client().prepareIndex("test", "doc", "1").setSource("x", 10),
-                    client().prepareIndex("test", "doc", "2").setSource("x", 3),
-                    client().prepareIndex("test", "doc", "3").setSource("x", 5));
+                client().prepareIndex("test", "doc", "1").setSource("x", 10),
+                client().prepareIndex("test", "doc", "2").setSource("x", 3),
+                client().prepareIndex("test", "doc", "3").setSource("x", 5));
         // a = int, b = double, c = long
         String script = "doc['x'] * a + b + ((c + doc['x']) > 5000000009 ? 1 : 0)";
         SearchResponse rsp = buildRequest(script, "a", 2, "b", 3.5, "c", 5000000000L).get();
@@ -262,9 +278,9 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
             fail("Expected expression compilation failure");
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.toString() + "should have contained ExpressionScriptCompilationException",
-                       e.toString().contains("ExpressionScriptCompilationException"), equalTo(true));
+                    e.toString().contains("ExpressionScriptCompilationException"), equalTo(true));
             assertThat(e.toString() + "should have contained compilation failure",
-                       e.toString().contains("Failed to parse expression"), equalTo(true));
+                    e.toString().contains("Failed to parse expression"), equalTo(true));
         }
     }
 
@@ -275,9 +291,9 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
             fail("Expected string parameter to cause failure");
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.toString() + "should have contained ExpressionScriptCompilationException",
-                       e.toString().contains("ExpressionScriptCompilationException"), equalTo(true));
+                    e.toString().contains("ExpressionScriptCompilationException"), equalTo(true));
             assertThat(e.toString() + "should have contained non-numeric parameter error",
-                       e.toString().contains("must be a numeric type"), equalTo(true));
+                    e.toString().contains("must be a numeric type"), equalTo(true));
         }
     }
 
@@ -288,9 +304,9 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
             fail("Expected text field to cause execution failure");
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.toString() + "should have contained ExpressionScriptCompilationException",
-                       e.toString().contains("ExpressionScriptCompilationException"), equalTo(true));
+                    e.toString().contains("ExpressionScriptCompilationException"), equalTo(true));
             assertThat(e.toString() + "should have contained non-numeric field error",
-                       e.toString().contains("must be numeric"), equalTo(true));
+                    e.toString().contains("must be numeric"), equalTo(true));
         }
     }
 
@@ -301,9 +317,9 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
             fail("Expected bogus variable to cause execution failure");
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.toString() + "should have contained ExpressionScriptCompilationException",
-                       e.toString().contains("ExpressionScriptCompilationException"), equalTo(true));
+                    e.toString().contains("ExpressionScriptCompilationException"), equalTo(true));
             assertThat(e.toString() + "should have contained unknown variable error",
-                       e.toString().contains("Unknown variable"), equalTo(true));
+                    e.toString().contains("Unknown variable"), equalTo(true));
         }
     }
 
@@ -338,14 +354,14 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
         createIndex("test");
         ensureGreen("test");
         indexRandom(true,
-            client().prepareIndex("test", "doc", "1").setSource("x", 5, "y", 1.2),
-            client().prepareIndex("test", "doc", "2").setSource("x", 10, "y", 1.4),
-            client().prepareIndex("test", "doc", "3").setSource("x", 13, "y", 1.8));
+                client().prepareIndex("test", "doc", "1").setSource("x", 5, "y", 1.2),
+                client().prepareIndex("test", "doc", "2").setSource("x", 10, "y", 1.4),
+                client().prepareIndex("test", "doc", "3").setSource("x", 13, "y", 1.8));
 
         SearchRequestBuilder req = client().prepareSearch().setIndices("test");
         req.setQuery(QueryBuilders.matchAllQuery())
-           .addAggregation(AggregationBuilders.stats("int_agg").field("x").script("_value * 3").lang(ExpressionScriptEngineService.NAME))
-           .addAggregation(AggregationBuilders.stats("double_agg").field("y").script("_value - 1.1").lang(ExpressionScriptEngineService.NAME));
+                .addAggregation(AggregationBuilders.stats("int_agg").field("x").script("_value * 3").lang(ExpressionScriptEngineService.NAME))
+                .addAggregation(AggregationBuilders.stats("double_agg").field("y").script("_value - 1.1").lang(ExpressionScriptEngineService.NAME));
 
         SearchResponse rsp = req.get();
         assertEquals(3, rsp.getHits().getTotalHits());
@@ -370,9 +386,9 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
 
         SearchRequestBuilder req = client().prepareSearch().setIndices("test");
         req.setQuery(QueryBuilders.matchAllQuery())
-.addAggregation(
-                AggregationBuilders.terms("term_agg").field("text")
-                        .script(new Script("_value", ScriptType.INLINE, ExpressionScriptEngineService.NAME, null)));
+                .addAggregation(
+                        AggregationBuilders.terms("term_agg").field("text")
+                                .script(new Script("_value", ScriptType.INLINE, ExpressionScriptEngineService.NAME, null)));
 
         String message;
         try {
@@ -385,8 +401,161 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
             message = e.toString();
         }
         assertThat(message + "should have contained ExpressionScriptExecutionException",
-                   message.contains("ExpressionScriptExecutionException"), equalTo(true));
+                message.contains("ExpressionScriptExecutionException"), equalTo(true));
         assertThat(message + "should have contained text variable error",
-                   message.contains("text variable"), equalTo(true));
+                message.contains("text variable"), equalTo(true));
+    }
+
+    // series of unit test for using expressions as executable scripts
+    public void testExecutableScripts() throws Exception {
+        Map<String, Object> vars = new HashMap<>();
+        vars.put("a", 2.5);
+        vars.put("b", 3);
+        vars.put("xyz", -1);
+
+        Expression expr = JavascriptCompiler.compile("a+b+xyz");
+
+        ExpressionExecutableScript ees = new ExpressionExecutableScript(expr, vars);
+        assertEquals((Double) ees.run(), 4.5, 0.001);
+
+        ees.setNextVar("b", -2.5);
+        assertEquals((Double) ees.run(), -1, 0.001);
+
+        ees.setNextVar("a", -2.5);
+        ees.setNextVar("b", -2.5);
+        ees.setNextVar("xyz", -2.5);
+        assertEquals((Double) ees.run(), -7.5, 0.001);
+
+        String message;
+
+        try {
+            vars = new HashMap<>();
+            vars.put("a", 1);
+            ees = new ExpressionExecutableScript(expr, vars);
+            ees.run();
+            fail("An incorrect number of variables were allowed to be used in an expression.");
+        } catch (ScriptException se) {
+            message = se.getMessage();
+            assertThat(message + " should have contained number of variables", message.contains("number of variables"), equalTo(true));
+        }
+
+        try {
+            vars = new HashMap<>();
+            vars.put("a", 1);
+            vars.put("b", 3);
+            vars.put("c", -1);
+            ees = new ExpressionExecutableScript(expr, vars);
+            ees.run();
+            fail("A variable was allowed to be set that does not exist in the expression.");
+        } catch (ScriptException se) {
+            message = se.getMessage();
+            assertThat(message + " should have contained does not exist in", message.contains("does not exist in"), equalTo(true));
+        }
+
+        try {
+            vars = new HashMap<>();
+            vars.put("a", 1);
+            vars.put("b", 3);
+            vars.put("xyz", "hello");
+            ees = new ExpressionExecutableScript(expr, vars);
+            ees.run();
+            fail("A non-number was allowed to be use in the expression.");
+        } catch (ScriptException se) {
+            message = se.getMessage();
+            assertThat(message + " should have contained process numbers", message.contains("process numbers"), equalTo(true));
+        }
+
+    }
+
+    // test to make sure expressions are not allowed to be used as update scripts
+    public void testInvalidUpdateScript() throws Exception {
+        try {
+            createIndex("test_index");
+            ensureGreen("test_index");
+            indexRandom(true, client().prepareIndex("test_index", "doc", "1").setSource("text_field", "text"));
+            UpdateRequestBuilder urb = client().prepareUpdate().setIndex("test_index");
+            urb.setType("doc");
+            urb.setId("1");
+            urb.setScript(new Script("0", ScriptType.INLINE, ExpressionScriptEngineService.NAME, null));
+            urb.get();
+            fail("Expression scripts should not be allowed to run as update scripts.");
+        } catch (Exception e) {
+            String message = e.getMessage();
+            assertThat(message + " should have contained failed to execute", message.contains("failed to execute"), equalTo(true));
+            message = e.getCause().getMessage();
+            assertThat(message + " should have contained not supported", message.contains("not supported"), equalTo(true));
+        }
+    }
+
+    // test to make sure expressions are not allowed to be used as mapping scripts
+    public void testInvalidMappingScript() throws Exception{
+        try {
+            createIndex("test_index");
+            ensureGreen("test_index");
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+            builder.startObject("transform");
+            builder.field("script", "1.0");
+            builder.field("lang", ExpressionScriptEngineService.NAME);
+            builder.endObject();
+            builder.startObject("properties");
+            builder.startObject("double_field");
+            builder.field("type", "double");
+            builder.endObject();
+            builder.endObject();
+            builder.endObject();
+            client().admin().indices().preparePutMapping("test_index").setType("trans_test").setSource(builder).get();
+            client().prepareIndex("test_index", "trans_test", "1").setSource("double_field", 0.0).get();
+            fail("Expression scripts should not be allowed to run as mapping scripts.");
+        } catch (Exception e) {
+            String message = ExceptionsHelper.detailedMessage(e);
+            assertThat(message + " should have contained failed to parse", message.contains("failed to parse"), equalTo(true));
+            assertThat(message + " should have contained not supported", message.contains("not supported"), equalTo(true));
+        }
+    }
+
+    // test to make sure expressions are allowed to be used for reduce in pipeline aggregations
+    public void testPipelineAggregationScript() throws Exception {
+        createIndex("agg_index");
+        ensureGreen("agg_index");
+        indexRandom(true,
+                client().prepareIndex("agg_index", "doc", "1").setSource("one", 1.0, "two", 2.0, "three", 3.0, "four", 4.0),
+                client().prepareIndex("agg_index", "doc", "2").setSource("one", 2.0, "two", 2.0, "three", 3.0, "four", 4.0),
+                client().prepareIndex("agg_index", "doc", "3").setSource("one", 3.0, "two", 2.0, "three", 3.0, "four", 4.0),
+                client().prepareIndex("agg_index", "doc", "4").setSource("one", 4.0, "two", 2.0, "three", 3.0, "four", 4.0),
+                client().prepareIndex("agg_index", "doc", "5").setSource("one", 5.0, "two", 2.0, "three", 3.0, "four", 4.0));
+        SearchResponse response = client()
+                .prepareSearch("agg_index")
+                .addAggregation(
+                        histogram("histogram")
+                                .field("one")
+                                .interval(2)
+                                .subAggregation(sum("twoSum").field("two"))
+                                .subAggregation(sum("threeSum").field("three"))
+                                .subAggregation(sum("fourSum").field("four"))
+                                .subAggregation(
+                                        seriesArithmetic("totalSum").setBucketsPaths("twoSum", "threeSum", "fourSum").script(
+                                                new Script("_value0 + _value1 + _value2", ScriptType.INLINE, ExpressionScriptEngineService.NAME, null)))).execute().actionGet();
+
+        InternalHistogram<Bucket> histogram = response.getAggregations().get("histogram");
+        assertThat(histogram, notNullValue());
+        assertThat(histogram.getName(), equalTo("histogram"));
+        List<Bucket> buckets = histogram.getBuckets();
+
+        for (int bucketCount = 0; bucketCount < buckets.size(); ++bucketCount) {
+            Histogram.Bucket bucket = buckets.get(bucketCount);
+            if (bucket.getDocCount() == 1) {
+                SimpleValue seriesArithmetic = bucket.getAggregations().get("totalSum");
+                assertThat(seriesArithmetic, notNullValue());
+                double seriesArithmeticValue = seriesArithmetic.value();
+                assertEquals(9.0, seriesArithmeticValue, 0.001);
+            } else if (bucket.getDocCount() == 2) {
+                SimpleValue seriesArithmetic = bucket.getAggregations().get("totalSum");
+                assertThat(seriesArithmetic, notNullValue());
+                double seriesArithmeticValue = seriesArithmetic.value();
+                assertEquals(18.0, seriesArithmeticValue, 0.001);
+            } else {
+                fail("Incorrect number of documents in a bucket in the histogram.");
+            }
+        }
     }
 }

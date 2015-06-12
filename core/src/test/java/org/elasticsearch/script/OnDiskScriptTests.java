@@ -142,8 +142,7 @@ public class OnDiskScriptTests extends ElasticsearchIntegrationTest {
             fail("update script should have been rejected");
         } catch (Exception e) {
             assertThat(e.getMessage(), containsString("failed to execute script"));
-            assertThat(e.getCause().toString(),
-                    containsString("scripts of type [file], operation [update] and lang [mustache] are disabled"));
+            assertThat(e.getCause().getMessage(), containsString("scripts of type [file], operation [update] and lang [mustache] are disabled"));
         }
     }
 

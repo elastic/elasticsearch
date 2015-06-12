@@ -31,7 +31,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
@@ -172,7 +171,7 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
             }
         }
 
-        return new ExpressionScript((Expression)compiledScript, bindings, specialValue);
+        return new ExpressionSearchScript((Expression)compiledScript, bindings, specialValue);
     }
 
     protected ValueSource getMethodValueSource(MappedFieldType fieldType, IndexFieldData<?> fieldData, String fieldName, String methodName) {
@@ -215,13 +214,14 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
     }
 
     @Override
-    public ExecutableScript executable(Object compiledScript, @Nullable Map<String, Object> vars) {
-        throw new UnsupportedOperationException("Cannot use expressions for updates");
+    public ExecutableScript executable(Object compiledScript, Map<String, Object> vars) {
+        return new ExpressionExecutableScript(compiledScript, vars);
     }
 
     @Override
     public Object execute(Object compiledScript, Map<String, Object> vars) {
-        throw new UnsupportedOperationException("Cannot use expressions for updates");
+        ExpressionExecutableScript expressionExecutableScript = new ExpressionExecutableScript(compiledScript, vars);
+        return expressionExecutableScript.run();
     }
 
     @Override

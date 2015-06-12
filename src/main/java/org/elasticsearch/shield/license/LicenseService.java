@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.core.LicensesClientService;
-import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.shield.ShieldPlugin;
 
 import java.util.Collection;
@@ -28,14 +27,14 @@ public class LicenseService extends AbstractLifecycleComponent<LicenseService> {
 
     public static final String FEATURE_NAME = ShieldPlugin.NAME;
 
-    private static final LicensesService.TrialLicenseOptions TRIAL_LICENSE_OPTIONS =
-            new LicensesService.TrialLicenseOptions(TimeValue.timeValueHours(30 * 24), 1000);
+    private static final LicensesClientService.TrialLicenseOptions TRIAL_LICENSE_OPTIONS =
+            new LicensesClientService.TrialLicenseOptions(TimeValue.timeValueHours(30 * 24), 1000);
 
     private static final FormatDateTimeFormatter DATE_FORMATTER = Joda.forPattern("EEEE, MMMMM dd, yyyy", Locale.ROOT);
 
     private final LicensesClientService licensesClientService;
     private final LicenseEventsNotifier notifier;
-    private final Collection<LicensesService.ExpirationCallback> expirationLoggers;
+    private final Collection<LicensesClientService.ExpirationCallback> expirationLoggers;
 
     private boolean enabled = false;
 
@@ -45,9 +44,9 @@ public class LicenseService extends AbstractLifecycleComponent<LicenseService> {
         this.licensesClientService = licensesClientService;
         this.notifier = notifier;
         this.expirationLoggers = ImmutableList.of(
-                new LicensesService.ExpirationCallback.Pre(days(7), days(30), days(1)) {
+                new LicensesClientService.ExpirationCallback.Pre(days(7), days(30), days(1)) {
                     @Override
-                    public void on(License license, LicensesService.ExpirationStatus status) {
+                    public void on(License license, LicensesClientService.ExpirationStatus status) {
                         logger.error("\n" +
                                 "#\n" +
                                 "# Shield license will expire on [{}]. Cluster health, cluster stats and indices stats operations are\n" +
@@ -56,9 +55,9 @@ public class LicenseService extends AbstractLifecycleComponent<LicenseService> {
                                 "#", DATE_FORMATTER.printer().print(license.expiryDate()));
                     }
                 },
-                new LicensesService.ExpirationCallback.Pre(days(0), days(7), minutes(10)) {
+                new LicensesClientService.ExpirationCallback.Pre(days(0), days(7), minutes(10)) {
                     @Override
-                    public void on(License license, LicensesService.ExpirationStatus status) {
+                    public void on(License license, LicensesClientService.ExpirationStatus status) {
                         logger.error("\n" +
                                 "#\n" +
                                 "# Shield license will expire on [{}]. Cluster health, cluster stats and indices stats operations are\n" +
@@ -67,9 +66,9 @@ public class LicenseService extends AbstractLifecycleComponent<LicenseService> {
                                 "#", DATE_FORMATTER.printer().print(license.expiryDate()));
                     }
                 },
-                new LicensesService.ExpirationCallback.Post(days(0), null, minutes(10)) {
+                new LicensesClientService.ExpirationCallback.Post(days(0), null, minutes(10)) {
                     @Override
-                    public void on(License license, LicensesService.ExpirationStatus status) {
+                    public void on(License license, LicensesClientService.ExpirationStatus status) {
                         logger.error("\n" +
                                 "#\n" +
                                 "# SHIELD LICENSE EXPIRED ON [{}]! CLUSTER HEALTH, CLUSTER STATS AND INDICES STATS OPERATIONS ARE\n" +

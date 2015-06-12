@@ -104,9 +104,15 @@
         <!-- real dependencies -->
         <dependency>
             <groupId>org.elasticsearch</groupId>
-            <artifactId>elasticsearch-license-plugin</artifactId>
+            <artifactId>elasticsearch-license-plugin-api</artifactId>
             <version>${license.plugin.version}</version>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.elasticsearch</groupId>
+            <artifactId>elasticsearch-license-plugin</artifactId>
+            <version>${license.plugin.version}</version>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>com.google.guava</groupId>

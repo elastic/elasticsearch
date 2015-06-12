@@ -55,7 +55,7 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
             } else {
                 // use unmapped field for numeric range queries
                 query = new RangeQueryBuilder(randomAsciiOfLengthBetween(1, 10));
-                query.from(0.0-randomDouble());
+                query.from(0.0 - randomDouble());
                 query.to(randomDouble());
             }
         } else {
@@ -63,11 +63,15 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
             query = new RangeQueryBuilder(DATE_FIELD_NAME);
             query.from(new DateTime(System.currentTimeMillis() - randomIntBetween(0, 1000000)).toString());
             query.to(new DateTime(System.currentTimeMillis() + randomIntBetween(0, 1000000)).toString());
-            if (randomBoolean()) {
-                query.timeZone(TIMEZONE_IDS.get(randomIntBetween(0, TIMEZONE_IDS.size()-1)));
-            }
-            if (randomBoolean()) {
-                query.format("yyyy-MM-dd'T'HH:mm:ss.SSSZZ");
+            // Use timestamp option then we have a date mapper, otherwise we would trigger exception.
+            // There is a separate test for that.
+            if (createContext().fieldMapper(DATE_FIELD_NAME) != null) {
+                if (randomBoolean()) {
+                    query.timeZone(TIMEZONE_IDS.get(randomIntBetween(0, TIMEZONE_IDS.size() - 1)));
+                }
+                if (randomBoolean()) {
+                    query.format("yyyy-MM-dd'T'HH:mm:ss.SSSZZ");
+                }
             }
         }
         query.includeLower(randomBoolean()).includeUpper(randomBoolean());
@@ -91,14 +95,13 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
     protected Query createExpectedQuery(RangeQueryBuilder queryBuilder, QueryParseContext context) throws IOException {
         Query expectedQuery;
         String fieldName = queryBuilder.fieldName();
-        if (getCurrentTypes().length == 0 || (fieldName.equals(DATE_FIELD_NAME) == false && fieldName.equals(INT_FIELD_NAME) == false) ) {
-            expectedQuery = new TermRangeQuery(fieldName,
-                    BytesRefs.toBytesRef(queryBuilder.from()), BytesRefs.toBytesRef(queryBuilder.to()),
-                    queryBuilder.includeLower(), queryBuilder.includeUpper());
+        if (getCurrentTypes().length == 0 || (fieldName.equals(DATE_FIELD_NAME) == false && fieldName.equals(INT_FIELD_NAME) == false)) {
+            expectedQuery = new TermRangeQuery(fieldName, BytesRefs.toBytesRef(queryBuilder.from()),
+                    BytesRefs.toBytesRef(queryBuilder.to()), queryBuilder.includeLower(), queryBuilder.includeUpper());
 
         } else if (fieldName.equals(DATE_FIELD_NAME)) {
             DateMathParser forcedDateParser = null;
-            if (queryBuilder.format()  != null) {
+            if (queryBuilder.format() != null) {
                 forcedDateParser = new DateMathParser(Joda.forPattern(queryBuilder.format()));
             }
             DateTimeZone dateTimeZone = null;
@@ -106,9 +109,11 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
                 dateTimeZone = DateTimeZone.forID(queryBuilder.timeZone());
             }
             MappedFieldType mapper = context.fieldMapper(queryBuilder.fieldName());
-            expectedQuery = ((DateFieldMapper.DateFieldType) mapper).rangeQuery(queryBuilder.from(), queryBuilder.to(), queryBuilder.includeLower(), queryBuilder.includeUpper(), dateTimeZone, forcedDateParser, context);
+            expectedQuery = ((DateFieldMapper.DateFieldType) mapper).rangeQuery(queryBuilder.from(), queryBuilder.to(),
+                    queryBuilder.includeLower(), queryBuilder.includeUpper(), dateTimeZone, forcedDateParser, context);
         } else if (queryBuilder.fieldName().equals(INT_FIELD_NAME)) {
-            expectedQuery = NumericRangeQuery.newIntRange(INT_FIELD_NAME, (Integer) queryBuilder.from(), (Integer) queryBuilder.to(), queryBuilder.includeLower(), queryBuilder.includeUpper());
+            expectedQuery = NumericRangeQuery.newIntRange(INT_FIELD_NAME, (Integer) queryBuilder.from(), (Integer) queryBuilder.to(),
+                    queryBuilder.includeLower(), queryBuilder.includeUpper());
         } else {
             throw new UnsupportedOperationException();
         }
@@ -145,13 +150,23 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
         assertThat(rangeQueryBuilder.validate().validationErrors().size(), is(2));
     }
 
-//    /**
-//     * Specifying a timezone together with a numeric range query should throw an error.
-//     */
-//    @Test(expected=QueryParsingException.class)
-//    public void testToQueryNonDateWithTimezone() throws QueryParsingException, IOException {
-//        RangeQueryBuilder query = new RangeQueryBuilder(INT_FIELD_NAME);
-//        query.from(1).to(10).timeZone("UTC");
-//        query.toQuery(createContext());
-//    }
+    /**
+     * Specifying a timezone together with a numeric range query should throw an exception.
+     */
+    @Test(expected=QueryParsingException.class)
+    public void testToQueryNonDateWithTimezone() throws QueryParsingException, IOException {
+        RangeQueryBuilder query = new RangeQueryBuilder(INT_FIELD_NAME);
+        query.from(1).to(10).timeZone("UTC");
+        query.toQuery(createContext());
+    }
+
+    /**
+     * Specifying a timezone together with an unmapped field should throw an exception.
+     */
+    @Test(expected=QueryParsingException.class)
+    public void testToQueryUnmappedWithTimezone() throws QueryParsingException, IOException {
+        RangeQueryBuilder query = new RangeQueryBuilder("bogus_field");
+        query.from(1).to(10).timeZone("UTC");
+        query.toQuery(createContext());
+    }
 }

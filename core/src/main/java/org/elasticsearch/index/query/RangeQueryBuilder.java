@@ -301,6 +301,11 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder<RangeQueryBuilder> 
                 //LUCENE 4 UPGRADE Mapper#rangeQuery should use bytesref as well?
                 query = mapper.rangeQuery(from, to, includeLower, includeUpper, parseContext);
             }
+        } else {
+            if (timeZone != null) {
+                throw new QueryParsingException(parseContext, "[range] time_zone can not be applied to non unmapped field ["
+                        + fieldName + "]");
+            }
         }
 
         if (query == null) {

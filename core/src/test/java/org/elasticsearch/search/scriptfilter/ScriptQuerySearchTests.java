@@ -30,6 +30,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -88,9 +89,7 @@ public class ScriptQuerySearchTests extends ElasticsearchIntegrationTest {
         logger.info("running doc['num1'].value > param1");
         response = client()
                 .prepareSearch()
-                .setQuery(
-                        filteredQuery(matchAllQuery(),
-                                scriptQuery(new Script("doc['num1'].value > param1", ScriptType.INLINE, null, params))))
+                .setQuery(scriptQuery(new Script("doc['num1'].value > param1", ScriptType.INLINE, null, params)))
                 .addSort("num1", SortOrder.ASC).addScriptField("sNum1", new Script("doc['num1'].value")).execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(1l));
@@ -106,55 +105,6 @@ public class ScriptQuerySearchTests extends ElasticsearchIntegrationTest {
                         filteredQuery(matchAllQuery(),
                                 scriptQuery(new Script("doc['num1'].value > param1", ScriptType.INLINE, null, params))))
                 .addSort("num1", SortOrder.ASC).addScriptField("sNum1", new Script("doc['num1'].value")).execute().actionGet();
-
-        assertThat(response.getHits().totalHits(), equalTo(3l));
-        assertThat(response.getHits().getAt(0).id(), equalTo("1"));
-        assertThat((Double) response.getHits().getAt(0).fields().get("sNum1").values().get(0), equalTo(1.0));
-        assertThat(response.getHits().getAt(1).id(), equalTo("2"));
-        assertThat((Double) response.getHits().getAt(1).fields().get("sNum1").values().get(0), equalTo(2.0));
-        assertThat(response.getHits().getAt(2).id(), equalTo("3"));
-        assertThat((Double) response.getHits().getAt(2).fields().get("sNum1").values().get(0), equalTo(3.0));
-    }
-
-    /*
-     * TODO Remove in 2.0
-     */
-    @Test
-    public void testCustomScriptBoostOldScriptAPI() throws Exception {
-        createIndex("test");
-        client().prepareIndex("test", "type1", "1")
-                .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 1.0f).endObject()).execute().actionGet();
-        flush();
-        client().prepareIndex("test", "type1", "2")
-                .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 2.0f).endObject()).execute().actionGet();
-        flush();
-        client().prepareIndex("test", "type1", "3")
-                .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 3.0f).endObject()).execute().actionGet();
-        refresh();
-
-        logger.info("running doc['num1'].value > 1");
-        SearchResponse response = client().prepareSearch().setQuery(filteredQuery(matchAllQuery(), scriptQuery("doc['num1'].value > 1")))
-                .addSort("num1", SortOrder.ASC).addScriptField("sNum1", "doc['num1'].value").execute().actionGet();
-
-        assertThat(response.getHits().totalHits(), equalTo(2l));
-        assertThat(response.getHits().getAt(0).id(), equalTo("2"));
-        assertThat((Double) response.getHits().getAt(0).fields().get("sNum1").values().get(0), equalTo(2.0));
-        assertThat(response.getHits().getAt(1).id(), equalTo("3"));
-        assertThat((Double) response.getHits().getAt(1).fields().get("sNum1").values().get(0), equalTo(3.0));
-
-        logger.info("running doc['num1'].value > param1");
-        response = client().prepareSearch()
-                .setQuery(filteredQuery(matchAllQuery(), scriptQuery("doc['num1'].value > param1").addParam("param1", 2)))
-                .addSort("num1", SortOrder.ASC).addScriptField("sNum1", "doc['num1'].value").execute().actionGet();
-
-        assertThat(response.getHits().totalHits(), equalTo(1l));
-        assertThat(response.getHits().getAt(0).id(), equalTo("3"));
-        assertThat((Double) response.getHits().getAt(0).fields().get("sNum1").values().get(0), equalTo(3.0));
-
-        logger.info("running doc['num1'].value > param1");
-        response = client().prepareSearch()
-                .setQuery(filteredQuery(matchAllQuery(), scriptQuery("doc['num1'].value > param1").addParam("param1", -1)))
-                .addSort("num1", SortOrder.ASC).addScriptField("sNum1", "doc['num1'].value").execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().getAt(0).id(), equalTo("1"));

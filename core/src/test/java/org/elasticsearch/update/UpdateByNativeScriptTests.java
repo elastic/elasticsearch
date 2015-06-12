@@ -69,27 +69,6 @@ public class UpdateByNativeScriptTests extends ElasticsearchIntegrationTest {
         assertThat(data.get("foo").toString(), is("SETVALUE"));
     }
 
-    /*
-     * TODO Remove in 2.0
-     */
-    @Test
-    public void testThatUpdateUsingNativeScriptWorksOldScriptAPI() throws Exception {
-        createIndex("test");
-        ensureYellow();
-
-        index("test", "type", "1", "text", "value");
-
-        Map<String, Object> params = Maps.newHashMap();
-        params.put("foo", "SETVALUE");
-        client().prepareUpdate("test", "type", "1")
-                .setScript("custom", ScriptService.ScriptType.INLINE)
-                .setScriptLang(NativeScriptEngineService.NAME).setScriptParams(params).get();
-
-        Map<String, Object> data = client().prepareGet("test", "type", "1").get().getSource();
-        assertThat(data, hasKey("foo"));
-        assertThat(data.get("foo").toString(), is("SETVALUE"));
-    }
-
     static class CustomNativeScriptFactory implements NativeScriptFactory {
         @Override
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {

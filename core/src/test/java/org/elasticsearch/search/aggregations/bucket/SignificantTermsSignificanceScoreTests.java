@@ -508,30 +508,6 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
         }
     }
 
-    /*
-     * TODO Remove in 2.0
-     */
-    @Test
-    public void testScriptScoreOldScriptAPI() throws ExecutionException, InterruptedException, IOException {
-        indexRandomFrequencies01(randomBoolean() ? "string" : "long");
-        ScriptHeuristic.ScriptHeuristicBuilder scriptHeuristicBuilder = getScriptSignificanceHeuristicBuilderOldScriptAPI();
-        ensureYellow();
-        SearchResponse response = client()
-                .prepareSearch(INDEX_NAME)
-                .addAggregation(
-                        new TermsBuilder("class").field(CLASS_FIELD).subAggregation(
-                                new SignificantTermsBuilder("mySignificantTerms").field(TEXT_FIELD).executionHint(randomExecutionHint())
-                                        .significanceHeuristic(scriptHeuristicBuilder).minDocCount(1).shardSize(2).size(2))).execute()
-                .actionGet();
-        assertSearchResponse(response);
-        for (Terms.Bucket classBucket : ((Terms) response.getAggregations().get("class")).getBuckets()) {
-            for (SignificantTerms.Bucket bucket : ((SignificantTerms) classBucket.getAggregations().get("mySignificantTerms")).getBuckets()) {
-                assertThat(bucket.getSignificanceScore(),
-                        is((double) bucket.getSubsetDf() + bucket.getSubsetSize() + bucket.getSupersetDf() + bucket.getSupersetSize()));
-            }
-        }
-    }
-
     @Test
     public void testNoNumberFormatExceptionWithDefaultScriptingEngine() throws ExecutionException, InterruptedException, IOException {
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 1)));
@@ -559,41 +535,6 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
             for (SignificantTerms.Bucket bucket : ((SignificantTerms) classBucket.getAggregations().get("mySignificantTerms")).getBuckets()) {
                 assertThat(bucket.getSignificanceScore(),
                         closeTo((double) bucket.getSubsetDf() / (bucket.getSupersetDf() - bucket.getSubsetDf() + 1), 1.e-6));
-            }
-        }
-    }
-
-    /*
-     * TODO Remove in 2.0
-     */
-    @Test
-    public void testNoNumberFormatExceptionWithDefaultScriptingEngineOldScriptAPI() throws ExecutionException, InterruptedException,
-            IOException {
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 1)));
-        index("test", "doc", "1", "{\"field\":\"a\"}");
-        index("test", "doc", "11", "{\"field\":\"a\"}");
-        index("test", "doc", "2", "{\"field\":\"b\"}");
-        index("test", "doc", "22", "{\"field\":\"b\"}");
-        index("test", "doc", "3", "{\"field\":\"a b\"}");
-        index("test", "doc", "33", "{\"field\":\"a b\"}");
-        ScriptHeuristic.ScriptHeuristicBuilder scriptHeuristicBuilder = new ScriptHeuristic.ScriptHeuristicBuilder();
-        scriptHeuristicBuilder.setScript("_subset_freq/(_superset_freq - _subset_freq + 1)");
-        ensureYellow();
-        refresh();
-        SearchResponse response = client().prepareSearch("test")
-                .addAggregation(new TermsBuilder("letters").field("field").subAggregation(new SignificantTermsBuilder("mySignificantTerms")
-                        .field("field")
-                        .executionHint(randomExecutionHint())
-                        .significanceHeuristic(scriptHeuristicBuilder)
-                        .minDocCount(1).shardSize(2).size(2)))
-                .execute()
-                .actionGet();
-        assertSearchResponse(response);
-        assertThat(((Terms) response.getAggregations().get("letters")).getBuckets().size(), equalTo(2));
-        for (Terms.Bucket classBucket : ((Terms) response.getAggregations().get("letters")).getBuckets()) {
-            assertThat(((SignificantStringTerms) classBucket.getAggregations().get("mySignificantTerms")).getBuckets().size(), equalTo(2));
-            for (SignificantTerms.Bucket bucket : ((SignificantTerms) classBucket.getAggregations().get("mySignificantTerms")).getBuckets()) {
-                assertThat(bucket.getSignificanceScore(), closeTo((double)bucket.getSubsetDf() /(bucket.getSupersetDf() - bucket.getSubsetDf()+ 1), 1.e-6));
             }
         }
     }
@@ -655,73 +596,6 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
         }
         }
         ScriptHeuristic.ScriptHeuristicBuilder builder = new ScriptHeuristic.ScriptHeuristicBuilder().setScript(script);
-
-        return builder;
-    }
-
-    /*
-     * TODO Remove in 2.0
-     */
-    private ScriptHeuristic.ScriptHeuristicBuilder getScriptSignificanceHeuristicBuilderOldScriptAPI() throws IOException {
-        Map<String, Object> params = null;
-        String script = null;
-        String lang = null;
-        String scriptId = null;
-        String scriptFile = null;
-        if (randomBoolean()) {
-            params = new HashMap<>();
-            params.put("param", randomIntBetween(1, 100));
-        }
-        int randomScriptKind = randomIntBetween(0, 3);
-        if (randomBoolean()) {
-            lang = "groovy";
-        }
-        switch (randomScriptKind) {
-            case 0: {
-                if (params == null) {
-                    script = "return _subset_freq + _subset_size + _superset_freq + _superset_size";
-                } else {
-                    script = "return param*(_subset_freq + _subset_size + _superset_freq + _superset_size)/param";
-                }
-                break;
-            }
-            case 1: {
-                if (params == null) {
-                    script = "return _subset_freq + _subset_size + _superset_freq + _superset_size";
-                } else {
-                    script = "return param*(_subset_freq + _subset_size + _superset_freq + _superset_size)/param";
-                }
-                client().prepareIndex().setIndex(ScriptService.SCRIPT_INDEX).setType(ScriptService.DEFAULT_LANG).setId("my_script")
-                        .setSource(XContentFactory.jsonBuilder().startObject()
-                                .field("script", script)
-                                .endObject()).get();
-                refresh();
-                scriptId = "my_script";
-                script = null;
-                break;
-            }
-            case 2: {
-                if (params == null) {
-                    scriptFile = "significance_script_no_params";
-                } else {
-                    scriptFile = "significance_script_with_params";
-                }
-                break;
-            }
-            case 3: {
-                logger.info("NATIVE SCRIPT");
-                if (params == null) {
-                    script = "native_significance_score_script_no_params";
-                } else {
-                    script = "native_significance_score_script_with_params";
-                }
-                lang = "native";
-                if (randomBoolean()) {
-                }
-                break;
-            }
-        }
-        ScriptHeuristic.ScriptHeuristicBuilder builder = new ScriptHeuristic.ScriptHeuristicBuilder().setScript(script).setLang(lang).setParams(params).setScriptId(scriptId).setScriptFile(scriptFile);
 
         return builder;
     }

@@ -34,85 +34,19 @@ import java.util.Map;
  */
 public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder {
 
-    private Script script;
+    private final Script script;
 
-    private String scriptString;
-
-    private String lang;
-
-    private Map<String, Object> params = null;
-
-    public ScriptScoreFunctionBuilder() {
-
-    }
-
-    public ScriptScoreFunctionBuilder script(Script script) {
+    public ScriptScoreFunctionBuilder(Script script) {
+        if (script == null) {
+            throw new IllegalArgumentException("script must not be null");
+        }
         this.script = script;
-        return this;
-    }
-
-    /**
-     * @deprecated Use {@link #script(Script)} instead
-     */
-    @Deprecated
-    public ScriptScoreFunctionBuilder script(String script) {
-        this.scriptString = script;
-        return this;
-    }
-
-    /**
-     * Sets the language of the script.@deprecated Use {@link #script(Script)}
-     * instead
-     */
-    @Deprecated
-    public ScriptScoreFunctionBuilder lang(String lang) {
-        this.lang = lang;
-        return this;
-    }
-
-    /**
-     * Additional parameters that can be provided to the script.@deprecated Use
-     * {@link #script(Script)} instead
-     */
-    @Deprecated
-    public ScriptScoreFunctionBuilder params(Map<String, Object> params) {
-        if (this.params == null) {
-            this.params = params;
-        } else {
-            this.params.putAll(params);
-        }
-        return this;
-    }
-
-    /**
-     * Additional parameters that can be provided to the script.@deprecated Use
-     * {@link #script(Script)} instead
-     */
-    @Deprecated
-    public ScriptScoreFunctionBuilder param(String key, Object value) {
-        if (params == null) {
-            params = new HashMap<>();
-        }
-        params.put(key, value);
-        return this;
     }
 
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
-        if (script != null) {
-            builder.field(ScriptField.SCRIPT.getPreferredName(), script);
-        } else {
-            if (scriptString != null) {
-                builder.field("script", scriptString);
-            }
-            if (lang != null) {
-                builder.field("lang", lang);
-            }
-            if (this.params != null) {
-                builder.field("params", this.params);
-            }
-        }
+        builder.field(ScriptField.SCRIPT.getPreferredName(), script);
         builder.endObject();
     }
 

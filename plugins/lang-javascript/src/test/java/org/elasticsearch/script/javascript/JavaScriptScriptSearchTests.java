@@ -21,9 +21,12 @@ package org.elasticsearch.script.javascript;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -31,6 +34,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -71,10 +75,10 @@ public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
 
         logger.info(" --> running doc['num1'].value > 1");
         SearchResponse response = client().prepareSearch()
-                .setQuery(filteredQuery(matchAllQuery(), scriptQuery("doc['num1'].value > 1").lang("js")))
-                .addSort("num1", SortOrder.ASC)
-                .addScriptField("sNum1", "js", "doc['num1'].value", null)
-                .execute().actionGet();
+                .setQuery(scriptQuery(new Script("doc['num1'].value > 1",  ScriptService.ScriptType.INLINE, "JS", null)))
+                        .addSort("num1", SortOrder.ASC)
+                        .addScriptField("sNum1", new Script("doc['num1'].value",  ScriptService.ScriptType.INLINE, "JS", null))
+                        .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
         assertThat(response.getHits().getAt(0).id(), equalTo("2"));
@@ -84,10 +88,10 @@ public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
 
         logger.info(" --> running doc['num1'].value > param1");
         response = client().prepareSearch()
-                .setQuery(filteredQuery(matchAllQuery(), scriptQuery("doc['num1'].value > param1").lang("js").addParam("param1", 2)))
-                .addSort("num1", SortOrder.ASC)
-                .addScriptField("sNum1", "js", "doc['num1'].value", null)
-                .execute().actionGet();
+                .setQuery(scriptQuery(new Script("doc['num1'].value > param1",  ScriptService.ScriptType.INLINE, "js", Collections.singletonMap("param1", 2))))
+                        .addSort("num1", SortOrder.ASC)
+                        .addScriptField("sNum1", new Script("doc['num1'].value",  ScriptService.ScriptType.INLINE, "js", null))
+                                .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(1l));
         assertThat(response.getHits().getAt(0).id(), equalTo("3"));
@@ -95,10 +99,10 @@ public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
 
         logger.info(" --> running doc['num1'].value > param1");
         response = client().prepareSearch()
-                .setQuery(filteredQuery(matchAllQuery(), scriptQuery("doc['num1'].value > param1").lang("js").addParam("param1", -1)))
-                .addSort("num1", SortOrder.ASC)
-                .addScriptField("sNum1", "js", "doc['num1'].value", null)
-                .execute().actionGet();
+                .setQuery(scriptQuery(new Script("doc['num1'].value > param1", ScriptService.ScriptType.INLINE, "js", Collections.singletonMap("param1", -1))))
+                        .addSort("num1", SortOrder.ASC)
+                        .addScriptField("sNum1", new Script("doc['num1'].value",  ScriptService.ScriptType.INLINE, "js", null))
+                        .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().getAt(0).id(), equalTo("1"));
@@ -121,10 +125,10 @@ public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
 
         SearchResponse response = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("s_obj1", "js", "_source.obj1", null)
-                .addScriptField("s_obj1_test", "js", "_source.obj1.test", null)
-                .addScriptField("s_obj2", "js", "_source.obj2", null)
-                .addScriptField("s_obj2_arr2", "js", "_source.obj2.arr2", null)
+                .addScriptField("s_obj1", new Script("_source.obj1",  ScriptService.ScriptType.INLINE, "js", null))
+                .addScriptField("s_obj1_test", new Script("_source.obj1.test",  ScriptService.ScriptType.INLINE, "js", null))
+                .addScriptField("s_obj2", new Script("_source.obj2",  ScriptService.ScriptType.INLINE, "js", null))
+                .addScriptField("s_obj2_arr2", new Script("_source.obj2.arr2",  ScriptService.ScriptType.INLINE, "js", null))
                 .execute().actionGet();
 
         Map<String, Object> sObj1 = (Map<String, Object>) response.getHits().getAt(0).field("s_obj1").value();
@@ -156,7 +160,7 @@ public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().search(searchRequest()
                 .searchType(SearchType.QUERY_THEN_FETCH)
                 .source(searchSource().explain(true).query(functionScoreQuery(termQuery("test", "value"))
-                        .add(ScoreFunctionBuilders.scriptFunction("doc['num1'].value").lang("js"))))
+                        .add(ScoreFunctionBuilders.scriptFunction(new Script("doc['num1'].value",  ScriptService.ScriptType.INLINE, "js", null)))))
         ).actionGet();
 
         assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
@@ -171,7 +175,7 @@ public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
         response = client().search(searchRequest()
                 .searchType(SearchType.QUERY_THEN_FETCH)
                 .source(searchSource().explain(true).query(functionScoreQuery(termQuery("test", "value"))
-                        .add(ScoreFunctionBuilders.scriptFunction("-doc['num1'].value").lang("js"))))
+                        .add(ScoreFunctionBuilders.scriptFunction(new Script("-doc['num1'].value",  ScriptService.ScriptType.INLINE, "js", null)))))
         ).actionGet();
 
         assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
@@ -187,7 +191,7 @@ public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
         response = client().search(searchRequest()
                 .searchType(SearchType.QUERY_THEN_FETCH)
                 .source(searchSource().explain(true).query(functionScoreQuery(termQuery("test", "value"))
-                        .add(ScoreFunctionBuilders.scriptFunction("Math.pow(doc['num1'].value, 2)").lang("js"))))
+                        .add(ScoreFunctionBuilders.scriptFunction(new Script("Math.pow(doc['num1'].value, 2)",  ScriptService.ScriptType.INLINE, "js", null)))))
         ).actionGet();
 
         assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
@@ -202,7 +206,7 @@ public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
         response = client().search(searchRequest()
                 .searchType(SearchType.QUERY_THEN_FETCH)
                 .source(searchSource().explain(true).query(functionScoreQuery(termQuery("test", "value"))
-                        .add(ScoreFunctionBuilders.scriptFunction("Math.max(doc['num1'].value, 1)").lang("js"))))
+                        .add(ScoreFunctionBuilders.scriptFunction(new Script("Math.max(doc['num1'].value, 1)",  ScriptService.ScriptType.INLINE, "js", null)))))
         ).actionGet();
 
         assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
@@ -217,7 +221,7 @@ public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
         response = client().search(searchRequest()
                 .searchType(SearchType.QUERY_THEN_FETCH)
                 .source(searchSource().explain(true).query(functionScoreQuery(termQuery("test", "value"))
-                        .add(ScoreFunctionBuilders.scriptFunction("doc['num1'].value * _score").lang("js"))))
+                        .add(ScoreFunctionBuilders.scriptFunction(new Script("doc['num1'].value * _score",  ScriptService.ScriptType.INLINE, "js", null)))))
         ).actionGet();
 
         assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
@@ -230,9 +234,9 @@ public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
 
         logger.info(" --> running param1 * param2 * _score");
         response = client().search(searchRequest()
-                .searchType(SearchType.QUERY_THEN_FETCH)
-                .source(searchSource().explain(true).query(functionScoreQuery(termQuery("test", "value"))
-                        .add(ScoreFunctionBuilders.scriptFunction("param1 * param2 * _score").param("param1", 2).param("param2", 2).lang("js"))))
+                        .searchType(SearchType.QUERY_THEN_FETCH)
+                        .source(searchSource().explain(true).query(functionScoreQuery(termQuery("test", "value"))
+                                .add(ScoreFunctionBuilders.scriptFunction(new Script("param1 * param2 * _score", ScriptService.ScriptType.INLINE, "js", MapBuilder.<String, Object>newMapBuilder().put("param1", 2).put("param2", 2).immutableMap())))))
         ).actionGet();
 
         assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
@@ -253,9 +257,9 @@ public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
                         searchSource().query(
                                 functionScoreQuery(
                                         functionScoreQuery(
-                                                functionScoreQuery().add(scriptFunction("1").lang("js")))
-                                                .add(scriptFunction("_score.doubleValue()").lang("js")))
-                                        .add(scriptFunction("_score.doubleValue()").lang("js")
+                                                functionScoreQuery().add(scriptFunction(new Script("1",  ScriptService.ScriptType.INLINE, "js", null))))
+                                                .add(scriptFunction(new Script("_score.doubleValue()",  ScriptService.ScriptType.INLINE, "js", null))))
+                                        .add(scriptFunction(new Script("_score.doubleValue()",  ScriptService.ScriptType.INLINE, "js", null))
                                         )
                         )
                 )
@@ -274,9 +278,9 @@ public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
                 searchRequest().source(
                         searchSource().query(
                                 functionScoreQuery()
-                                        .add(scriptFunction("_score.doubleValue()").lang("js")
+                                        .add(scriptFunction(new Script("_score.doubleValue()",  ScriptService.ScriptType.INLINE, "js", null))
                                         )
-                        ).aggregation(terms("score_agg").script("_score.doubleValue()").lang("js"))
+                        ).aggregation(terms("score_agg").script(new Script("_score.doubleValue()",  ScriptService.ScriptType.INLINE, "js", null)))
                 )
         ).actionGet();
         assertSearchResponse(response);
@@ -291,7 +295,7 @@ public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
         index("index", "testtype", "1", jsonBuilder().startObject().field("f", 42).endObject());
         ensureSearchable("index");
         refresh();
-        SearchResponse response = client().prepareSearch().addScriptField("foobar", "js", "doc['f'].values.length", null).get();
+        SearchResponse response = client().prepareSearch().addScriptField("foobar", new Script("doc['f'].values.length",  ScriptService.ScriptType.INLINE, "js", null)).get();
         assertSearchResponse(response);
         assertHitCount(response, 1);
         assertThat((Integer) response.getHits().getAt(0).getFields().get("foobar").value(), equalTo(1));

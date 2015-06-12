@@ -77,34 +77,6 @@ public class ScriptFieldTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    /*
-     * TODO Remove in 2.0
-     */
-    public void testNativeScriptOldScriptAPI() throws InterruptedException, ExecutionException {
-
-        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("text", "doc1"), client()
-                .prepareIndex("test", "type1", "2").setSource("text", "doc2"),
-                client().prepareIndex("test", "type1", "3").setSource("text", "doc3"), client().prepareIndex("test", "type1", "4")
-                        .setSource("text", "doc4"), client().prepareIndex("test", "type1", "5").setSource("text", "doc5"), client()
-                        .prepareIndex("test", "type1", "6").setSource("text", "doc6"));
-
-        client().admin().indices().prepareFlush("test").execute().actionGet();
-        SearchResponse sr = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
-                .addScriptField("int", "native", "int", null).addScriptField("float", "native", "float", null)
-                .addScriptField("double", "native", "double", null).addScriptField("long", "native", "long", null).execute().actionGet();
-        assertThat(sr.getHits().hits().length, equalTo(6));
-        for (SearchHit hit : sr.getHits().getHits()) {
-            Object result = hit.getFields().get("int").getValues().get(0);
-            assertThat(result, equalTo((Object) intArray));
-            result = hit.getFields().get("long").getValues().get(0);
-            assertThat(result, equalTo((Object) longArray));
-            result = hit.getFields().get("float").getValues().get(0);
-            assertThat(result, equalTo((Object) floatArray));
-            result = hit.getFields().get("double").getValues().get(0);
-            assertThat(result, equalTo((Object) doubleArray));
-        }
-    }
-
     static class IntArrayScriptFactory implements NativeScriptFactory {
         @Override
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {

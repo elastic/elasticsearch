@@ -31,6 +31,7 @@ import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.util.concurrent.ExecutionException;
@@ -46,6 +47,7 @@ import static org.hamcrest.Matchers.*;
 public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
 
     @Test
+    @TestLogging("cluster.service:TRACE,discovery.zen:TRACE,gateway:TRACE,transport.tracer:TRACE")
     public void simpleMinimumMasterNodes() throws Exception {
 
         Settings settings = settingsBuilder()

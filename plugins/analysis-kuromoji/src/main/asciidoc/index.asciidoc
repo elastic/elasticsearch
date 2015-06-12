@@ -1,0 +1,505 @@
+[[analysis-kuromoji]]
+= Japanese (kuromoji) Analysis for Elasticsearch
+
+The Japanese (kuromoji) Analysis plugin integrates Lucene kuromoji analysis module into elasticsearch.
+
+In order to install the plugin, run: 
+
+[source,shell]
+--------------------------------------------------
+bin/plugin install elasticsearch-analysis-kuromoji
+--------------------------------------------------
+
+To build a `SNAPSHOT` version, you need to build it with Maven:
+
+[source,shell]
+--------------------------------------------------
+cd plugins/analysis-kuromoji
+mvn clean install
+plugin --install analysis-kuromoji \
+       --url file:target/releases/elasticsearch-analysis-kuromoji-X.X.X.zip
+--------------------------------------------------
+
+[analysis-kuromoji-content]
+== Provided analysis features
+
+.Available analyzer, tokenizer, tokenfilter and charfilter
+[width="100%",cols="10,^4",options="header"]
+|==========================
+|Name |Type
+
+| `kuromoji`                | `analyzer`
+| `kuromoji_tokenizer`      | `tokenizer`
+| `kuromoji_baseform`       | `tokenfilter`
+| `kuromoji_part_of_speech` | `tokenfilter`
+| `kuromoji_readingform`    | `tokenfilter`
+| `kuromoji_stemmer`        | `tokenfilter`
+| `ja_stop`                 | `tokenfilter`
+| `kuromoji_iteration_mark` | `charfilter`
+
+|==========================
+
+
+[analysis-kuromoji-usage]
+== Usage
+
+[analysis-kuromoji-usage-analyzer]
+=== Analyzer : kuromoji
+
+An analyzer of type `kuromoji`.
+This analyzer is the following tokenizer and tokenfilter combination.
+
+* `kuromoji_tokenizer` : Kuromoji Tokenizer
+* `kuromoji_baseform` : Kuromoji BasicFormFilter (TokenFilter)
+* `kuromoji_part_of_speech` : Kuromoji Part of Speech Stop Filter (TokenFilter)
+* `cjk_width` : CJK Width Filter (TokenFilter)
+* `stop` : Stop Filter (TokenFilter)
+* `kuromoji_stemmer` : Kuromoji Katakana Stemmer Filter (TokenFilter)
+* `lowercase` : LowerCase Filter (TokenFilter)
+
+[analysis-kuromoji-usage-charfilter]
+=== CharFilter : kuromoji_iteration_mark
+
+A charfilter of type `kuromoji_iteration_mark`.
+This charfilter is Normalizes Japanese horizontal iteration marks (odoriji) to their expanded form.
+
+The following ar setting that can be set for a `kuromoji_iteration_mark` charfilter type:
+
+.Available settings
+[width="100%",cols="3,10,^4",options="header"]
+|==========================
+|Setting |Description |Default value
+
+|`normalize_kanji` | indicates whether kanji iteration marks should be normalized | `true`
+
+|`normalize_kana` | indicates whether kanji iteration marks should be normalized | `true`
+
+|==========================
+
+
+[analysis-kuromoji-usage-tokenizer]
+=== Tokenizer : kuromoji_tokenizer
+
+A tokenizer of type `kuromoji_tokenizer`.
+
+The following are settings that can be set for a `kuromoji_tokenizer` tokenizer type:
+
+.Available settings
+[width="100%",cols="3,10,^4",options="header"]
+|==========================
+|Setting |Description |Default value
+
+| `mode`                | Tokenization mode: this determines how the tokenizer handles compound and unknown words. `normal` and `search`, `extended`| `search`
+
+| `discard_punctuation` | `true` if punctuation tokens should be dropped from the output.                                                           | `true`
+
+| `user_dictionary`     | set User Dictionary file | 
+
+|==========================
+
+
+[analysis-kuromoji-usage-tokenizer-mode]
+==== Tokenization mode
+
+The mode is three types.
+
+* `normal` : Ordinary segmentation: no decomposition for compounds
+
+* `search` : Segmentation geared towards search: this includes a decompounding process for long nouns, also including the full compound token as a synonym.
+
+* `extended` : Extended mode outputs unigrams for unknown words.
+
+Difference tokenization mode outputs:
+
+Input text is `関西国際空港` and `アブラカダブラ`.
+
+.Tokenization mode examples
+[width="100%",cols="3,6,6",options="header"]
+|==========================
+|mode | `関西国際空港` | `アブラカダブラ`
+
+| `normal`   | `関西国際空港` | `アブラカダブラ`
+
+| `search`   | `関西` `関西国際空港` `国際` `空港` | `アブラカダブラ`
+
+| `extended` | `関西` `国際` `空港` | `ア` `ブ` `ラ` `カ` `ダ` `ブ` `ラ`
+|==========================
+
+
+[analysis-kuromoji-usage-tokenizer-userdict]
+==== User Dictionary
+
+Kuromoji tokenizer use MeCab-IPADIC dictionary by default.
+And Kuromoji is added an entry of dictionary to define by user; this is User Dictionary.
+User Dictionary entries are defined using the following CSV format:
+
+```
+<text>,<token 1> ... <token n>,<reading 1> ... <reading n>,<part-of-speech tag>
+```
+
+Dictionary Example:
+
+```
+東京スカイツリー,東京 スカイツリー,トウキョウ スカイツリー,カスタム名詞
+```
+
+To use User Dictionary set file path to `user_dict` attribute.
+User Dictionary file is placed `ES_HOME/config` directory.
+
+[source,json]
+--------------------------------------------------
+# Create index
+PUT kuromoji_sample
+{
+    "settings": {
+        "index":{
+            "analysis":{
+                "tokenizer" : {
+                    "kuromoji_user_dict" : {
+                       "type" : "kuromoji_tokenizer",
+                       "mode" : "extended",
+                       "discard_punctuation" : "false",
+                       "user_dictionary" : "userdict_ja.txt"
+                    }
+                },
+                "analyzer" : {
+                    "my_analyzer" : {
+                        "type" : "custom",
+                        "tokenizer" : "kuromoji_user_dict"
+                    }
+                }
+
+            }
+        }
+    }
+}
+
+# Analyze
+POST kuromoji_sample/_analyze?analyzer=my_analyzer&text=東京スカイツリー
+
+# Result
+{
+  "tokens" : [ {
+    "token" : "東京",
+    "start_offset" : 0,
+    "end_offset" : 2,
+    "type" : "word",
+    "position" : 1
+  }, {
+    "token" : "スカイツリー",
+    "start_offset" : 2,
+    "end_offset" : 8,
+    "type" : "word",
+    "position" : 2
+  } ]
+}
+--------------------------------------------------
+
+[analysis-kuromoji-usage-tokenfilter-baseform]
+=== TokenFilter : kuromoji_baseform
+
+A token filter of type `kuromoji_baseform` that replaces term text with BaseFormAttribute.
+This acts as a lemmatizer for verbs and adjectives.
+
+[source,json]
+--------------------------------------------------
+# Create index
+PUT kuromoji_sample
+{
+    "settings": {
+        "index":{
+            "analysis":{
+                "analyzer" : {
+                    "my_analyzer" : {
+                        "tokenizer" : "kuromoji_tokenizer",
+                        "filter" : ["kuromoji_baseform"]
+                    }
+                }
+            }
+        }
+    }
+}
+
+# Analyze
+POST kuromoji_sample/_analyze?analyzer=my_analyzer&text=飲み
+
+# Result
+{
+  "tokens" : [ {
+    "token" : "飲む",
+    "start_offset" : 0,
+    "end_offset" : 2,
+    "type" : "word",
+    "position" : 1
+  } ]
+}
+--------------------------------------------------
+
+[analysis-kuromoji-usage-tokenfilter-speech]
+=== TokenFilter : kuromoji_part_of_speech
+
+A token filter of type `kuromoji_part_of_speech` that removes tokens that match a set of part-of-speech tags.
+
+The following are settings that can be set for a stop token filter type:
+
+.Available settings
+[width="100%",cols="3,10,^4",options="header"]
+|==========================
+|Setting |Description |Default value
+
+| `stoptags`    | A list of part-of-speech tags that should be removed |
+
+|==========================
+
+Note that default setting is stoptags.txt include lucene-analyzer-kuromoji.jar.
+
+[source,json]
+--------------------------------------------------
+# Create index
+PUT kuromoji_sample
+{
+    "settings": {
+        "index":{
+            "analysis":{
+                "analyzer" : {
+                    "my_analyzer" : {
+                        "tokenizer" : "kuromoji_tokenizer",
+                        "filter" : ["my_posfilter"]
+                    }
+                },
+                "filter" : {
+                    "my_posfilter" : {
+                        "type" : "kuromoji_part_of_speech",
+                        "stoptags" : [
+                            "助詞-格助詞-一般",
+                            "助詞-終助詞"
+                        ]
+                    }
+                }
+            }
+        }
+    }
+}
+
+# Analyze
+POST kuromoji_sample/_analyze?analyzer=my_analyzer&text=寿司がおいしいね
+
+# Result
+{
+  "tokens" : [ {
+    "token" : "寿司",
+    "start_offset" : 0,
+    "end_offset" : 2,
+    "type" : "word",
+    "position" : 1
+  }, {
+    "token" : "おいしい",
+    "start_offset" : 3,
+    "end_offset" : 7,
+    "type" : "word",
+    "position" : 3
+  } ]
+}
+--------------------------------------------------
+
+[analysis-kuromoji-usage-tokenfilter-readingform]
+=== TokenFilter : readinkuromoji_readingformgform
+
+A token filter of type `kuromoji_readingform` that replaces the term attribute with the reading of a token in either katakana or romaji form.
+The default reading form is katakana.
+
+The following are settings that can be set for a `kuromoji_readingform` token filter type:
+
+.Available settings
+[width="100%",cols="3,10,^4",options="header"]
+|==========================
+|Setting |Description |Default value
+
+| `use_romaji`  | `true` if romaji reading form output instead of katakana. | `false`
+
+|==========================
+
+
+Note that elasticsearch-analysis-kuromoji built-in `kuromoji_readingform` set default `true` to `use_romaji` attribute.
+
+[source,json]
+--------------------------------------------------
+# Create index
+PUT kuromoji_sample
+{
+    "settings": {
+        "index":{
+            "analysis":{
+                "analyzer" : {
+                    "romaji_analyzer" : {
+                        "tokenizer" : "kuromoji_tokenizer",
+                        "filter" : ["romaji_readingform"]
+                    },
+                    "katakana_analyzer" : {
+                        "tokenizer" : "kuromoji_tokenizer",
+                        "filter" : ["katakana_readingform"]
+                    }
+                },
+                "filter" : {
+                    "romaji_readingform" : {
+                        "type" : "kuromoji_readingform",
+                        "use_romaji" : true
+                    },
+                    "katakana_readingform" : {
+                        "type" : "kuromoji_readingform",
+                        "use_romaji" : false
+                    }
+                }
+            }
+        }
+    }
+}
+
+# Analyze
+POST kuromoji_sample/_analyze?analyzer=katakana_analyzer&text=寿司
+
+# Result
+{
+  "tokens" : [ {
+    "token" : "スシ",
+    "start_offset" : 0,
+    "end_offset" : 2,
+    "type" : "word",
+    "position" : 1
+  } ]
+}
+
+# Analyze
+POST kuromoji_sample/_analyze?analyzer=romaji_analyzer&text=寿司
+
+# Result
+{
+  "tokens" : [ {
+    "token" : "sushi",
+    "start_offset" : 0,
+    "end_offset" : 2,
+    "type" : "word",
+    "position" : 1
+  } ]
+}
+--------------------------------------------------
+
+[analysis-kuromoji-usage-tokenfilter-stemmer]
+=== TokenFilter : kuromoji_stemmer
+
+A token filter of type `kuromoji_stemmer` that normalizes common katakana spelling variations ending in a long sound character by removing this character (U+30FC).
+Only katakana words longer than a minimum length are stemmed (default is four).
+
+Note that only full-width katakana characters are supported.
+
+The following are settings that can be set for a `kuromoji_stemmer` token filter type:
+
+.Available settings
+[width="100%",cols="3,10,^4",options="header"]
+|==========================
+|Setting |Description |Default value
+
+| `minimum_length`  | The minimum length to stem | `4`
+
+|==========================
+
+[source,json]
+--------------------------------------------------
+# Create index
+PUT kuromoji_sample
+{
+    "settings": {
+        "index":{
+            "analysis":{
+                "analyzer" : {
+                    "my_analyzer" : {
+                        "tokenizer" : "kuromoji_tokenizer",
+                        "filter" : ["my_katakana_stemmer"]
+                    }
+                },
+                "filter" : {
+                    "my_katakana_stemmer" : {
+                        "type" : "kuromoji_stemmer",
+                        "minimum_length" : 4
+                    }
+                }
+            }
+        }
+    }
+}
+
+# Analyze
+POST kuromoji_sample/_analyze?analyzer=my_analyzer&text=コピー
+
+# Result
+{
+  "tokens" : [ {
+    "token" : "コピー",
+    "start_offset" : 0,
+    "end_offset" : 3,
+    "type" : "word",
+    "position" : 1
+  } ]
+}
+
+# Analyze
+POST kuromoji_sample/_analyze?analyzer=my_analyzer&text=サーバー
+
+# Result
+{
+  "tokens" : [ {
+    "token" : "サーバ",
+    "start_offset" : 0,
+    "end_offset" : 4,
+    "type" : "word",
+    "position" : 1
+  } ]
+}
+--------------------------------------------------
+
+
+[analysis-kuromoji-usage-tokenfilter-stop]
+=== TokenFilter : ja_stop
+
+A token filter of type `ja_stop` that provide a predefined "_japanese_" stop words.
+*Note: It is only provide "_japanese_". If you want to use other predefined stop words, you can use `stop` token filter.*
+
+[source,json]
+--------------------------------------------------
+# Create index
+PUT kuromoji_sample
+{
+    "settings": {
+        "index":{
+            "analysis":{
+                "analyzer" : {
+                    "analyzer_with_ja_stop" : {
+                        "tokenizer" : "kuromoji_tokenizer",
+                        "filter" : ["ja_stop"]
+                    }
+                },
+                "filter" : {
+                    "ja_stop" : {
+                        "type" : "ja_stop",
+                        "stopwords" : ["_japanese_", "ストップ"]
+                    }
+                }
+            }
+        }
+    }
+}'
+# Analyze
+POST kuromoji_sample/_analyze?analyzer=my_analyzer&text=ストップは消える
+
+# Result
+{
+  "tokens" : [ {
+    "token" : "消える",
+    "start_offset" : 5,
+    "end_offset" : 8,
+    "type" : "word",
+    "position" : 3
+  } ]
+}
+--------------------------------------------------
+

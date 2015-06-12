@@ -307,7 +307,7 @@ public class LoggingAuditTrailTests extends ElasticsearchTestCase {
             LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, logger);
             TransportMessage message = randomBoolean() ? new MockMessage() : new MockIndicesRequest();
             String origins = LoggingAuditTrail.originAttributes(message);
-            auditTrail.accessGranted(new User.Simple("_username", "r1"), "internal:_action", message);
+            auditTrail.accessGranted(User.SYSTEM, "internal:_action", message);
             switch (level) {
                 case ERROR:
                 case WARN:
@@ -317,9 +317,40 @@ public class LoggingAuditTrailTests extends ElasticsearchTestCase {
                     break;
                 case TRACE:
                     if (message instanceof IndicesRequest) {
-                        assertMsg(logger, Level.TRACE, prefix + "[transport] [access_granted]\t" + origins + ", principal=[_username], action=[internal:_action], indices=[idx1,idx2], request=[MockIndicesRequest]");
+                        assertMsg(logger, Level.TRACE, prefix + "[transport] [access_granted]\t" + origins + ", principal=[" + User.SYSTEM.principal() + "], action=[internal:_action], indices=[idx1,idx2], request=[MockIndicesRequest]");
                     } else {
-                        assertMsg(logger, Level.TRACE, prefix + "[transport] [access_granted]\t" + origins + ", principal=[_username], action=[internal:_action], request=[MockMessage]");
+                        assertMsg(logger, Level.TRACE, prefix + "[transport] [access_granted]\t" + origins + ", principal=[" + User.SYSTEM.principal() + "], action=[internal:_action], request=[MockMessage]");
+                    }
+            }
+        }
+    }
+
+    @Test
+    public void testAccessGranted_InternalSystemAction_NonSystemUser() throws Exception {
+        for (Level level : Level.values()) {
+            CapturingLogger logger = new CapturingLogger(level);
+            LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, logger);
+            TransportMessage message = randomBoolean() ? new MockMessage() : new MockIndicesRequest();
+            String origins = LoggingAuditTrail.originAttributes(message);
+            auditTrail.accessGranted(new User.Simple("_username"), "internal:_action", message);
+            switch (level) {
+                case ERROR:
+                case WARN:
+                    assertEmptyLog(logger);
+                    break;
+                case INFO:
+                    if (message instanceof IndicesRequest) {
+                        assertMsg(logger, Level.INFO, prefix + "[transport] [access_granted]\t" + origins + ", principal=[_username], action=[internal:_action], indices=[idx1,idx2]");
+                    } else {
+                        assertMsg(logger, Level.INFO, prefix + "[transport] [access_granted]\t" + origins + ", principal=[_username], action=[internal:_action]");
+                    }
+                    break;
+                case DEBUG:
+                case TRACE:
+                    if (message instanceof IndicesRequest) {
+                        assertMsg(logger, Level.DEBUG, prefix + "[transport] [access_granted]\t" + origins + ", principal=[_username], action=[internal:_action], indices=[idx1,idx2], request=[MockIndicesRequest]");
+                    } else {
+                        assertMsg(logger, Level.DEBUG, prefix + "[transport] [access_granted]\t" + origins + ", principal=[_username], action=[internal:_action], request=[MockMessage]");
                     }
             }
         }

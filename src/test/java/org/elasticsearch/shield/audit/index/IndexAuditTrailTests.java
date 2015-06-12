@@ -80,17 +80,19 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
                 .build();
     }
 
-    private Settings mutedSettings(String... muted) {
+    private Settings mutedSettings(boolean systemEnabled, String... muted) {
         Settings.Builder builder = Settings.builder();
         for (String mute : muted) {
             builder.put("shield.audit.index.events." + mute, false);
         }
+
+        builder.put("shield.audit.index.events.system.access_granted", systemEnabled);
         return builder.build();
     }
 
-    private Settings settings(IndexNameResolver.Rollover rollover, String... muted) {
+    private Settings settings(IndexNameResolver.Rollover rollover, boolean systemEnabled, String... muted) {
         Settings.Builder builder = Settings.builder();
-        builder.put(mutedSettings(muted));
+        builder.put(mutedSettings(systemEnabled, muted));
         builder.put(commonSettings(rollover));
         return builder.build();
     }
@@ -110,9 +112,12 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
     }
 
     private void initialize(String... muted) {
+        initialize(false, muted);
+    }
 
+    private void initialize(boolean systemEnabled, String... muted) {
         rollover = randomFrom(HOURLY, DAILY, WEEKLY, MONTHLY);
-        Settings settings = settings(rollover, muted);
+        Settings settings = settings(rollover, systemEnabled, muted);
         remoteIndexing = randomBoolean();
 
         if (remoteIndexing) {
@@ -334,6 +339,29 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
         TransportMessage message = randomBoolean() ? new RemoteHostMockMessage() : new LocalHostMockMessage();
         auditor.accessGranted(new User.Simple("_username", "r1"), "_action", message);
         getClient().prepareExists(resolveIndexName()).execute().actionGet();
+    }
+
+    @Test
+    public void testSystemAccessGranted() throws Exception {
+        initialize(true);
+        TransportMessage message = randomBoolean() ? new RemoteHostMockMessage() : new LocalHostMockMessage();
+        auditor.accessGranted(User.SYSTEM, "internal:_action", message);
+        awaitIndexCreation(resolveIndexName());
+
+        SearchHit hit = getIndexedAuditMessage();
+        assertAuditMessage(hit, "transport", "access_granted");
+        assertEquals("transport", hit.field("origin_type").getValue());
+        assertEquals(User.SYSTEM.principal(), hit.field("principal").getValue());
+        assertEquals("internal:_action", hit.field("action").getValue());
+    }
+
+    @Test(expected = IndexMissingException.class)
+    public void testSystemAccessGranted_Muted() throws Exception {
+        initialize();
+        TransportMessage message = randomBoolean() ? new RemoteHostMockMessage() : new LocalHostMockMessage();
+        auditor.accessGranted(User.SYSTEM, "internal:_action", message);
+        getClient().prepareExists(resolveIndexName()).execute().actionGet();
+        awaitIndexCreation(resolveIndexName());
     }
 
     @Test

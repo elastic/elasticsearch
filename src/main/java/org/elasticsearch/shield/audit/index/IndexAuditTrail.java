@@ -193,7 +193,7 @@ public class IndexAuditTrail implements AuditTrail {
         if (enabled.contains(Level.ACCESS_GRANTED)) {
             if (!principalIsAuditor(user.principal())) {
                 // special treatment for internal system actions - only log if explicitly told to
-                if (Privilege.SYSTEM.internalActionPredicate().apply(action)) {
+                if (user.isSystem() && Privilege.SYSTEM.predicate().apply(action)) {
                     if (enabled.contains(Level.SYSTEM_ACCESS_GRANTED)) {
                         try {
                             processor.submit(message("access_granted", action, user.principal(), null, indices(message), message));

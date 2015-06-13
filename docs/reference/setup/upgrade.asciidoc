@@ -95,7 +95,7 @@ curl -XPUT localhost:9200/_cluster/settings -d '{
 * There is no problem continuing to index while doing the upgrade. However, you can speed the process considerably
 by *temporarily* stopping non-essential indexing and issuing a manual <<indices-synced-flush, synced flush>>.
 A synced flush is special kind of flush which can seriously speed up recovery of shards. Elasticsearch automatically
-uses it when an index has been inactive for a while (default is `30m`) but you can manuallky trigger it using the following command:
+uses it when an index has been inactive for a while (default is `30m`) but you can manually trigger it using the following command:
 
 [source,sh]
 --------------------------------------------------

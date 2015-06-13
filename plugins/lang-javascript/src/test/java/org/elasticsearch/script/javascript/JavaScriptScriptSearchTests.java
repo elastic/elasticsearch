@@ -75,9 +75,9 @@ public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
 
         logger.info(" --> running doc['num1'].value > 1");
         SearchResponse response = client().prepareSearch()
-                .setQuery(scriptQuery(new Script("doc['num1'].value > 1",  ScriptService.ScriptType.INLINE, "JS", null)))
+                .setQuery(scriptQuery(new Script("doc['num1'].value > 1",  ScriptService.ScriptType.INLINE, "js", null)))
                         .addSort("num1", SortOrder.ASC)
-                        .addScriptField("sNum1", new Script("doc['num1'].value",  ScriptService.ScriptType.INLINE, "JS", null))
+                        .addScriptField("sNum1", new Script("doc['num1'].value",  ScriptService.ScriptType.INLINE, "js", null))
                         .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(2l));

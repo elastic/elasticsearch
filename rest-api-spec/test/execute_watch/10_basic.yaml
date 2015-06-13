@@ -77,8 +77,12 @@
   - match: { "watch_record.trigger_event.type": "manual" }
   - match: { "watch_record.trigger_event.triggered_time": "2015-05-05T20:58:02.443Z" }
   - match: { "watch_record.trigger_event.manual.schedule.scheduled_time": "2015-05-05T20:58:02.443Z" }
-  - match: { "watch_record.result.condition.met": true }
+  - match: { "watch_record.result.input.type": "simple" }
+  - match: { "watch_record.result.input.status": "success" }
   - match: { "watch_record.result.input.payload.foo": "bar" }
+  - match: { "watch_record.result.condition.type": "always" }
+  - match: { "watch_record.result.condition.status": "success" }
+  - match: { "watch_record.result.condition.met": true }
   - match: { "watch_record.result.actions.0.id" : "email_admin" }
   - match: { "watch_record.result.actions.0.status" : "simulated" }
   - match: { "watch_record.result.actions.0.type" : "email" }

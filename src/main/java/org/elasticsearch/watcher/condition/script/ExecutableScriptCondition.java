@@ -13,7 +13,6 @@ import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.Variables;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 
-import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -35,20 +34,25 @@ public class ExecutableScriptCondition extends ExecutableCondition<ScriptConditi
     }
 
     @Override
-    public ScriptCondition.Result execute(WatchExecutionContext ctx) throws IOException {
+    public ScriptCondition.Result execute(WatchExecutionContext ctx) {
         try {
-            Map<String, Object> parameters = Variables.createCtxModel(ctx, ctx.payload());
-            if (condition.script.params() != null && !condition.script.params().isEmpty()) {
-                parameters.putAll(condition.script.params());
-            }
-            ExecutableScript executable = scriptService.executable(compiledScript, parameters);
-            Object value = executable.run();
-            if (value instanceof Boolean) {
-                return (Boolean) value ? ScriptCondition.Result.MET : ScriptCondition.Result.UNMET;
-            }
-            throw new ScriptConditionException("failed to execute [{}] condition for watch [{}]. script [{}] must return a boolean value (true|false) but instead returned [{}]", type(), ctx.watch().id(), condition.script.script(), value);
+            return doExecute(ctx);
         } catch (Exception e) {
-            throw new ScriptConditionException("failed to execute [{}] condition for watch [{}]. script [{}] threw an exception", e, type(), ctx.watch().id(), condition.script.script());
+            logger.error("failed to execute [{}] condition for [{}]", ScriptCondition.TYPE, ctx.id());
+            return new ScriptCondition.Result(e);
         }
+    }
+
+    public ScriptCondition.Result doExecute(WatchExecutionContext ctx) throws Exception {
+        Map<String, Object> parameters = Variables.createCtxModel(ctx, ctx.payload());
+        if (condition.script.params() != null && !condition.script.params().isEmpty()) {
+            parameters.putAll(condition.script.params());
+        }
+        ExecutableScript executable = scriptService.executable(compiledScript, parameters);
+        Object value = executable.run();
+        if (value instanceof Boolean) {
+            return (Boolean) value ? ScriptCondition.Result.MET : ScriptCondition.Result.UNMET;
+        }
+        throw new ScriptConditionException("script [{}] must return a boolean value (true|false) but instead returned [{}]", type(), ctx.watch().id(), condition.script.script(), value);
     }
 }

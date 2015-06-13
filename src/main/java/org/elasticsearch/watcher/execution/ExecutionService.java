@@ -329,6 +329,9 @@ public class ExecutionService extends AbstractComponent {
             conditionResult = watch.condition().execute(ctx);
             ctx.onConditionResult(conditionResult);
         }
+        if (conditionResult.status() == Condition.Result.Status.FAILURE) {
+            return ctx.abortFailedExecution("failed to execute watch condition");
+        }
 
         if (conditionResult.met()) {
 

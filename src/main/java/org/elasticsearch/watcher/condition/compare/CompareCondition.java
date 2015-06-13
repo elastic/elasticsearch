@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.condition.compare;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -126,10 +127,15 @@ public class CompareCondition implements Condition {
 
     public static class Result extends Condition.Result {
 
-        private final Map<String, Object> resolveValues;
+        private final @Nullable Map<String, Object> resolveValues;
 
         Result(Map<String, Object> resolveValues, boolean met) {
             super(TYPE, met);
+            this.resolveValues = resolveValues;
+        }
+
+        Result(@Nullable Map<String, Object> resolveValues, Exception e) {
+            super(TYPE, e);
             this.resolveValues = resolveValues;
         }
 
@@ -139,6 +145,9 @@ public class CompareCondition implements Condition {
 
         @Override
         protected XContentBuilder typeXContent(XContentBuilder builder, Params params) throws IOException {
+            if (resolveValues == null) {
+                return builder;
+            }
             return builder.startObject(type)
                     .field(Field.RESOLVED_VALUES.getPreferredName(), resolveValues)
                     .endObject();

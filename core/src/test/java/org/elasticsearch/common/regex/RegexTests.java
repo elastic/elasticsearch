@@ -68,4 +68,18 @@ public class RegexTests extends ElasticsearchTestCase {
         assertFalse(Regex.simpleMatch("fff******ddd", "fffabcdd"));
     }
 
+    @Test(timeout = 1000)
+    public void testPatternsMatch() {
+        assertTrue(Regex.simpleMatch("test_string_123", "test_string_123"));
+        assertTrue(Regex.simpleMatch("test_string_*", "test_string_123"));
+        assertTrue(Regex.simpleMatch("test_string_???", "test_string_123"));
+        assertFalse(Regex.simpleMatch("test_string_??", "test_string_123"));
+        assertTrue(Regex.simpleMatch("test_*_???", "test_string_123"));
+        assertFalse(Regex.simpleMatch("test_*_??", "test_string_123"));
+        assertFalse(Regex.simpleMatch("??*2", "test_string_123"));
+        assertTrue(Regex.simpleMatch("??*", "test_string_123"));
+        assertTrue(Regex.simpleMatch("*??", "test_string_123"));
+        assertTrue(Regex.simpleMatch("**d?d", "dddd"));
+        assertTrue(Regex.simpleMatch("**dd?d", "ddddd"));
+    }
 }

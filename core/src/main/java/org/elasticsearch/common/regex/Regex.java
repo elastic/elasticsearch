@@ -22,6 +22,7 @@ package org.elasticsearch.common.regex;
 import org.elasticsearch.common.Strings;
 
 import java.util.Locale;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -39,7 +40,7 @@ public class Regex {
      * Is the str a simple match pattern.
      */
     public static boolean isSimpleMatchPattern(String str) {
-        return str.indexOf('*') != -1;
+        return str.indexOf('*') != -1 || str.indexOf('?') != -1;
     }
 
     public static boolean isMatchAllPattern(String str) {
@@ -48,7 +49,7 @@ public class Regex {
 
     /**
      * Match a String against the given pattern, supporting the following simple
-     * pattern styles: "xxx*", "*xxx", "*xxx*" and "xxx*yyy" matches (with an
+     * pattern styles: "xxx*", "*xxx", "*xxx*", "xxx*yyy", "xxx???" matches (with an
      * arbitrary number of pattern parts), as well as direct equality.
      *
      * @param pattern the pattern to match against
@@ -59,34 +60,28 @@ public class Regex {
         if (pattern == null || str == null) {
             return false;
         }
-        int firstIndex = pattern.indexOf('*');
-        if (firstIndex == -1) {
+
+        // if no special pattern characters found - simply compare strings
+        if (pattern.indexOf('*') == -1 && pattern.indexOf('?') == -1) {
             return pattern.equals(str);
         }
-        if (firstIndex == 0) {
-            if (pattern.length() == 1) {
-                return true;
-            }
-            int nextIndex = pattern.indexOf('*', firstIndex + 1);
-            if (nextIndex == -1) {
-                return str.endsWith(pattern.substring(1));
-            } else if (nextIndex == 1) {
-                // Double wildcard "**" - skipping the first "*"
-                return simpleMatch(pattern.substring(1), str);
-            }
-            String part = pattern.substring(1, nextIndex);
-            int partIndex = str.indexOf(part);
-            while (partIndex != -1) {
-                if (simpleMatch(pattern.substring(nextIndex), str.substring(partIndex + part.length()))) {
-                    return true;
-                }
-                partIndex = str.indexOf(part, partIndex + 1);
-            }
-            return false;
+
+        /**
+         * Build a regexp pattern that will be used in Pattern.compile().
+         * All parts except allowed special characters (* and ?) are quoted in \Q..\E to escape
+         * special regexp characters
+         */
+        pattern = "\\Q" + pattern.replace("*", "\\E.*\\Q").replace("?", "\\E.\\Q") + "\\E";
+        if (pattern.startsWith("\\E")) {
+            pattern = "\\Q" + pattern;
         }
-        return (str.length() >= firstIndex &&
-                pattern.substring(0, firstIndex).equals(str.substring(0, firstIndex)) &&
-                simpleMatch(pattern.substring(firstIndex), str.substring(firstIndex)));
+        if (pattern.endsWith("\\Q")) {
+            pattern += "\\E";
+        }
+
+        Pattern regexPattern = Pattern.compile("^" + pattern + "$");
+        Matcher matcher = regexPattern.matcher(str);
+        return matcher.matches();
     }
 
     /**

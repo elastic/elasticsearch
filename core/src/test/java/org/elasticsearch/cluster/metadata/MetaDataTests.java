@@ -500,10 +500,18 @@ public class MetaDataTests extends ElasticsearchTestCase {
         MetaData md = mdBuilder.build();
         assertThat(newHashSet(md.convertFromWildcards(new String[]{"testXXX"}, IndicesOptions.lenientExpandOpen())), equalTo(newHashSet("testXXX")));
         assertThat(newHashSet(md.convertFromWildcards(new String[]{"testXXX", "testYYY"}, IndicesOptions.lenientExpandOpen())), equalTo(newHashSet("testXXX", "testYYY")));
+
+        // test patterns
         assertThat(newHashSet(md.convertFromWildcards(new String[]{"testXXX", "ku*"}, IndicesOptions.lenientExpandOpen())), equalTo(newHashSet("testXXX", "kuku")));
         assertThat(newHashSet(md.convertFromWildcards(new String[]{"test*"}, IndicesOptions.lenientExpandOpen())), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
         assertThat(newHashSet(md.convertFromWildcards(new String[]{"testX*"}, IndicesOptions.lenientExpandOpen())), equalTo(newHashSet("testXXX", "testXYY")));
         assertThat(newHashSet(md.convertFromWildcards(new String[]{"testX*", "kuku"}, IndicesOptions.lenientExpandOpen())), equalTo(newHashSet("testXXX", "testXYY", "kuku")));
+
+        assertThat(newHashSet(md.convertFromWildcards(new String[]{"testX??"}, IndicesOptions.lenientExpandOpen())), equalTo(newHashSet("testXXX", "testXYY")));
+        assertThat(newHashSet(md.convertFromWildcards(new String[]{"test?YY"}, IndicesOptions.lenientExpandOpen())), equalTo(newHashSet("testXYY", "testYYY")));
+        assertThat(newHashSet(md.convertFromWildcards(new String[]{"?est*"}, IndicesOptions.lenientExpandOpen())), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
+        assertThat(newHashSet(md.convertFromWildcards(new String[]{"*st???"}, IndicesOptions.lenientExpandOpen())), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
+        assertThat(newHashSet(md.convertFromWildcards(new String[]{"testXXX", "k?k?"}, IndicesOptions.lenientExpandOpen())), equalTo(newHashSet("testXXX", "kuku")));
     }
 
     @Test
@@ -519,6 +527,8 @@ public class MetaDataTests extends ElasticsearchTestCase {
         assertThat(newHashSet(md.convertFromWildcards(new String[]{"+test*", "-testYYY"}, IndicesOptions.lenientExpandOpen())), equalTo(newHashSet("testXXX", "testXYY")));
         assertThat(newHashSet(md.convertFromWildcards(new String[]{"+testX*", "+testYYY"}, IndicesOptions.lenientExpandOpen())), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
         assertThat(newHashSet(md.convertFromWildcards(new String[]{"+testYYY", "+testX*"}, IndicesOptions.lenientExpandOpen())), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
+
+        assertThat(newHashSet(md.convertFromWildcards(new String[]{"test???", "alias?"}, IndicesOptions.lenientExpandOpen())), equalTo(newHashSet("testXXX", "testXYY", "testYYY", "alias1", "alias2", "alias3")));
     }
 
     @Test

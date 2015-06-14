@@ -384,29 +384,33 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     }
 
     public void testVerboseSegments() throws Exception {
-        List<Segment> segments = engine.segments(true);
-        assertThat(segments.isEmpty(), equalTo(true));
+        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), Settings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        try (Store store = createStore();
+             Engine engine = createEngine(indexSettingsService, store, createTempDir(), new MergeSchedulerConfig(defaultSettings), NoMergePolicy.INSTANCE)) {
+            List<Segment> segments = engine.segments(true);
+            assertThat(segments.isEmpty(), equalTo(true));
 
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
-        engine.create(new Engine.Create(null, newUid("1"), doc));
-        engine.refresh("test");
+            ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
+            engine.create(new Engine.Create(null, newUid("1"), doc));
+            engine.refresh("test");
 
-        segments = engine.segments(true);
-        assertThat(segments.size(), equalTo(1));
-        assertThat(segments.get(0).ramTree, notNullValue());
+            segments = engine.segments(true);
+            assertThat(segments.size(), equalTo(1));
+            assertThat(segments.get(0).ramTree, notNullValue());
 
-        ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, null);
-        engine.create(new Engine.Create(null, newUid("2"), doc2));
-        engine.refresh("test");
-        ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
-        engine.create(new Engine.Create(null, newUid("3"), doc3));
-        engine.refresh("test");
+            ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, null);
+            engine.create(new Engine.Create(null, newUid("2"), doc2));
+            engine.refresh("test");
+            ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
+            engine.create(new Engine.Create(null, newUid("3"), doc3));
+            engine.refresh("test");
 
-        segments = engine.segments(true);
-        assertThat(segments.size(), equalTo(3));
-        assertThat(segments.get(0).ramTree, notNullValue());
-        assertThat(segments.get(1).ramTree, notNullValue());
-        assertThat(segments.get(2).ramTree, notNullValue());
+            segments = engine.segments(true);
+            assertThat(segments.size(), equalTo(3));
+            assertThat(segments.get(0).ramTree, notNullValue());
+            assertThat(segments.get(1).ramTree, notNullValue());
+            assertThat(segments.get(2).ramTree, notNullValue());
+        }
 
     }
 

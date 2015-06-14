@@ -440,6 +440,9 @@ public class ShadowEngineTests extends ElasticsearchTestCase {
 
     @Test
     public void testVerboseSegments() throws Exception {
+        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), Settings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        primaryEngine.close(); // recreate without merging
+        primaryEngine = createInternalEngine(indexSettingsService, store, createTempDir(), NoMergePolicy.INSTANCE);
         List<Segment> segments = primaryEngine.segments(true);
         assertThat(segments.isEmpty(), equalTo(true));
 

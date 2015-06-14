@@ -26,6 +26,7 @@ import org.elasticsearch.watcher.actions.email.EmailActionFactory;
 import org.elasticsearch.watcher.actions.email.ExecutableEmailAction;
 import org.elasticsearch.watcher.actions.email.service.EmailService;
 import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
+import org.elasticsearch.watcher.actions.email.service.HtmlSanitizer;
 import org.elasticsearch.watcher.actions.email.service.Profile;
 import org.elasticsearch.watcher.actions.index.ExecutableIndexAction;
 import org.elasticsearch.watcher.actions.index.IndexAction;
@@ -114,6 +115,7 @@ public class WatchTests extends ElasticsearchTestCase {
     private HttpClient httpClient;
     private EmailService emailService;
     private TemplateEngine templateEngine;
+    private HtmlSanitizer htmlSanitizer;
     private HttpAuthRegistry authRegistry;
     private SecretService secretService;
     private LicenseService licenseService;
@@ -127,6 +129,7 @@ public class WatchTests extends ElasticsearchTestCase {
         httpClient = mock(HttpClient.class);
         emailService = mock(EmailService.class);
         templateEngine = mock(TemplateEngine.class);
+        htmlSanitizer = mock(HtmlSanitizer.class);
         secretService = mock(SecretService.class);
         licenseService = mock(LicenseService.class);
         authRegistry = new HttpAuthRegistry(ImmutableMap.of("basic", (HttpAuthFactory) new BasicAuthFactory(secretService)));
@@ -384,7 +387,7 @@ public class WatchTests extends ElasticsearchTestCase {
         if (randomBoolean()) {
             ExecutableTransform transform = randomTransform();
             EmailAction action = new EmailAction(EmailTemplate.builder().build(), null, null, Profile.STANDARD, randomFrom(DataAttachment.JSON, DataAttachment.YAML, null));
-            list.add(new ActionWrapper("_email_" + randomAsciiOfLength(8), randomThrottler(), transform, new ExecutableEmailAction(action, logger, emailService, templateEngine)));
+            list.add(new ActionWrapper("_email_" + randomAsciiOfLength(8), randomThrottler(), transform, new ExecutableEmailAction(action, logger, emailService, templateEngine, htmlSanitizer)));
         }
         if (randomBoolean()) {
             IndexAction aciton = new IndexAction("_index", "_type", null);
@@ -406,7 +409,7 @@ public class WatchTests extends ElasticsearchTestCase {
         for (ActionWrapper action : actions) {
             switch (action.action().type()) {
                 case EmailAction.TYPE:
-                    parsers.put(EmailAction.TYPE, new EmailActionFactory(settings, emailService, templateEngine));
+                    parsers.put(EmailAction.TYPE, new EmailActionFactory(settings, emailService, templateEngine, htmlSanitizer));
                     break;
                 case IndexAction.TYPE:
                     parsers.put(IndexAction.TYPE, new IndexActionFactory(settings, client));

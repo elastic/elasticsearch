@@ -11,6 +11,7 @@ import org.elasticsearch.watcher.actions.ExecutableAction;
 import org.elasticsearch.watcher.actions.email.service.Attachment;
 import org.elasticsearch.watcher.actions.email.service.Email;
 import org.elasticsearch.watcher.actions.email.service.EmailService;
+import org.elasticsearch.watcher.actions.email.service.HtmlSanitizer;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.Variables;
 import org.elasticsearch.watcher.support.template.TemplateEngine;
@@ -25,11 +26,13 @@ public class ExecutableEmailAction extends ExecutableAction<EmailAction> {
 
     final EmailService emailService;
     final TemplateEngine templateEngine;
+    final HtmlSanitizer htmlSanitizer;
 
-    public ExecutableEmailAction(EmailAction action, ESLogger logger, EmailService emailService, TemplateEngine templateEngine) {
+    public ExecutableEmailAction(EmailAction action, ESLogger logger, EmailService emailService, TemplateEngine templateEngine, HtmlSanitizer htmlSanitizer) {
         super(action, logger);
         this.emailService = emailService;
         this.templateEngine = templateEngine;
+        this.htmlSanitizer = htmlSanitizer;
     }
 
     public Action.Result execute(String actionId, WatchExecutionContext ctx, Payload payload) throws Exception {
@@ -42,7 +45,7 @@ public class ExecutableEmailAction extends ExecutableAction<EmailAction> {
             attachments.put(attachment.id(), attachment);
         }
 
-        Email.Builder email = action.getEmail().render(templateEngine, model, attachments);
+        Email.Builder email = action.getEmail().render(templateEngine, model, htmlSanitizer, attachments);
         email.id(ctx.id().value());
 
         if (ctx.simulateAction(actionId)) {

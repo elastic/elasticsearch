@@ -1,3 +1,17 @@
+/*
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.elasticsearch.examples.nativescript.script;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -13,6 +27,8 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.sort.SortOrder;
 import org.junit.Test;
 
@@ -84,7 +100,7 @@ public class LookupScriptTests extends AbstractSearchScriptTests {
                 .setTypes("city")
                 .setQuery(matchQuery("city", "south burlington"))
                 .addField("city")
-                .addScriptField("state_info", "native", "lookup", params)
+                .addScriptField("state_info", new Script("lookup", ScriptService.ScriptType.INLINE, "native", params))
                 .setSize(10)
                 .addSort("population", SortOrder.DESC)
                 .execute().actionGet();

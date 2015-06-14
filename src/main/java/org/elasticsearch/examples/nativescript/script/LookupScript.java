@@ -1,11 +1,24 @@
+/*
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.elasticsearch.examples.nativescript.script;
 
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.cache.Cache;
-import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -21,6 +34,7 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
 import org.elasticsearch.script.ScriptException;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -35,7 +49,7 @@ public class LookupScript extends AbstractSearchScript {
      * {@link org.elasticsearch.examples.nativescript.plugin.NativeScriptExamplesPlugin#onModule(org.elasticsearch.script.ScriptModule)}
      * method when plugin is loaded.
      */
-    public static class Factory extends AbstractComponent implements NativeScriptFactory{
+    public static class Factory extends AbstractComponent implements NativeScriptFactory {
 
         private final Node node;
 
@@ -102,7 +116,7 @@ public class LookupScript extends AbstractSearchScript {
     private final Client client;
     private final Cache<Tuple<String, String>, Map<String, Object>> cache;
 
-    private static final Map<String, Object> EMPTY_MAP = ImmutableMap.of();
+    private static final Map<String, Object> EMPTY_MAP = Collections.emptyMap();
 
     private LookupScript(Client client, ESLogger logger, Cache<Tuple<String, String>, Map<String, Object>> cache, String lookupIndex, String lookupType, String field) {
         this.client = client;
@@ -116,7 +130,7 @@ public class LookupScript extends AbstractSearchScript {
     @Override
     public Object run() {
         // First we get field using doc lookup
-        ScriptDocValues  docValue = (ScriptDocValues)doc().get(field);
+        ScriptDocValues docValue = (ScriptDocValues) doc().get(field);
         // This is not very efficient
         // Check if field exists
         if (docValue != null && !docValue.isEmpty()) {

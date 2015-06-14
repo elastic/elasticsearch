@@ -1,21 +1,35 @@
+/*
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.elasticsearch.examples.nativescript.script;
-
-import static org.elasticsearch.index.query.FilterBuilders.scriptFilter;
-import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.equalTo;
-
-import java.util.ArrayList;
-import java.util.List;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.sort.SortOrder;
 import org.junit.Test;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+import static com.google.common.collect.Maps.newHashMap;
+import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
@@ -57,11 +71,12 @@ public class IsPrimeSearchScriptTests extends AbstractSearchScriptTests {
         }
 
         indexRandom(true, indexBuilders);
-        
+
+        Map<String, Object> params = newHashMap();
+        params.put("field", "number");
         // Retrieve first 10 prime records
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), 
-                        scriptFilter("is_prime").lang("native").addParam("field", "number")))
+                .setQuery(scriptQuery(new Script("is_prime", ScriptService.ScriptType.INLINE, "native", params)))
                 .addField("name")
                 .setSize(10)
                 .addSort("number", SortOrder.ASC)
@@ -77,10 +92,12 @@ public class IsPrimeSearchScriptTests extends AbstractSearchScriptTests {
             assertThat(searchResponse.getHits().getAt(i).field("name").getValue().toString(), equalTo("rec " + PRIMES_10[i]));
         }
 
+        params = newHashMap();
+        params.put("field", "number");
+        params.put("certainty", 0);
         // Check certainty parameter - with certainty == 0, it should return all numbers, but only if numbers are present
         searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(),
-                        scriptFilter("is_prime").lang("native").addParam("field", "number").addParam("certainty", 0)))
+                .setQuery(scriptQuery(new Script("is_prime", ScriptService.ScriptType.INLINE, "native", params)))
                 .addField("name")
                 .setSize(10)
                 .addSort("number", SortOrder.ASC)

@@ -1,3 +1,17 @@
+/*
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.elasticsearch.examples.nativescript.script;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -19,6 +33,8 @@ import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
 import org.junit.Test;
 
@@ -26,15 +42,14 @@ import org.junit.Test;
  * Test if the computed tfidf in NaiveTFIDFScoreScript equals 0.0 for each
  * document as would be expected if each document in the index contains only one
  * and always the same term.
- * 
  */
 public class TermScoringScriptTests extends AbstractSearchScriptTests {
 
-    final static String[] searchTerms = { "foo", "bar" };
+    final static String[] searchTerms = {"foo", "bar"};
     final static String field = "field";
     final static String wordCountField = field + ".word_count";
-    final static  String placeholder = "placeholder";
-    final static Double[] weights = { 1.0, 1.0 };
+    final static String placeholder = "placeholder";
+    final static Double[] weights = {1.0, 1.0};
     final static int numDocs = 100;
 
     @Test
@@ -58,7 +73,7 @@ public class TermScoringScriptTests extends AbstractSearchScriptTests {
                 .prepareSearch("test")
                 .setQuery(
                         QueryBuilders.functionScoreQuery()
-                                .add(ScoreFunctionBuilders.scriptFunction(TFIDFScoreScript.SCRIPT_NAME, "native", params))
+                                .add(ScoreFunctionBuilders.scriptFunction(new Script(TFIDFScoreScript.SCRIPT_NAME, ScriptService.ScriptType.INLINE, "native", params)))
                                 .boostMode(CombineFunction.REPLACE.getName())).setSize(numDocs).execute().actionGet();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, numDocs);
@@ -85,7 +100,7 @@ public class TermScoringScriptTests extends AbstractSearchScriptTests {
                 .prepareSearch("test")
                 .setQuery(
                         QueryBuilders.functionScoreQuery()
-                                .add(ScoreFunctionBuilders.scriptFunction(CosineSimilarityScoreScript.SCRIPT_NAME, "native", params))
+                                .add(ScoreFunctionBuilders.scriptFunction(new Script(CosineSimilarityScoreScript.SCRIPT_NAME, ScriptService.ScriptType.INLINE, "native", params)))
                                 .boostMode(CombineFunction.REPLACE.getName())).setSize(numDocs).execute().actionGet();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, numDocs);
@@ -110,7 +125,7 @@ public class TermScoringScriptTests extends AbstractSearchScriptTests {
                 .prepareSearch("test")
                 .setQuery(
                         QueryBuilders.functionScoreQuery()
-                                .add(ScoreFunctionBuilders.scriptFunction(PhraseScoreScript.SCRIPT_NAME, "native", params))
+                                .add(ScoreFunctionBuilders.scriptFunction(new Script(PhraseScoreScript.SCRIPT_NAME, ScriptService.ScriptType.INLINE, "native", params)))
                                 .boostMode(CombineFunction.REPLACE.getName())).setSize(numDocs).execute().actionGet();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, numDocs);
@@ -138,7 +153,7 @@ public class TermScoringScriptTests extends AbstractSearchScriptTests {
                 .prepareSearch("test")
                 .setQuery(
                         QueryBuilders.functionScoreQuery()
-                                .add(ScoreFunctionBuilders.scriptFunction(LanguageModelScoreScript.SCRIPT_NAME, "native", params))
+                                .add(ScoreFunctionBuilders.scriptFunction(new Script(LanguageModelScoreScript.SCRIPT_NAME, ScriptService.ScriptType.INLINE, "native", params)))
                                 .boostMode(CombineFunction.REPLACE.getName())).setSize(numDocs).execute().actionGet();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, numDocs);

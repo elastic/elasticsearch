@@ -5,6 +5,7 @@ logs/
 build/
 target/
 .DS_Store
+*-execution-hints.log
 
 # IDEA ignores
 .idea/

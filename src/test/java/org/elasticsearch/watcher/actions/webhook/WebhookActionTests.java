@@ -6,9 +6,8 @@
 package org.elasticsearch.watcher.actions.webhook;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import com.google.common.collect.ImmutableMap;
+import org.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -45,7 +44,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
+import static org.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -77,7 +76,7 @@ public class WebhookActionTests extends ElasticsearchTestCase {
     @Before
     public void init() throws Exception {
         tp = new ThreadPool(ThreadPool.Names.SAME);
-        Settings settings = ImmutableSettings.EMPTY;
+        Settings settings = Settings.EMPTY;
         scriptService = WatcherTestUtils.getScriptServiceProxy(tp);
         templateEngine = new XMustacheTemplateEngine(settings, scriptService);
         SecretService secretService = mock(SecretService.class);
@@ -220,7 +219,7 @@ public class WebhookActionTests extends ElasticsearchTestCase {
     }
 
     private WebhookActionFactory webhookFactory(HttpClient client) {
-        return new WebhookActionFactory(ImmutableSettings.EMPTY, client, new HttpRequest.Parser(authRegistry),
+        return new WebhookActionFactory(Settings.EMPTY, client, new HttpRequest.Parser(authRegistry),
                 new HttpRequestTemplate.Parser(authRegistry), templateEngine);
     }
 

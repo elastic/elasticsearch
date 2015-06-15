@@ -5,14 +5,13 @@
  */
 package org.elasticsearch.watcher.support.concurrent;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.common.netty.util.internal.ConcurrentHashMap;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -64,7 +63,7 @@ public class FairKeyedLockTests extends ElasticsearchTestCase{
         }
     }
 
-    @Test(expected = ElasticsearchIllegalStateException.class)
+    @Test(expected = IllegalStateException.class)
     public void checkCannotAcquireTwoLocksGlobal() throws InterruptedException {
         FairKeyedLock.GlobalLockable<String> connectionLock = new FairKeyedLock.GlobalLockable<>();
         String name = randomRealisticUnicodeOfLength(scaledRandomIntBetween(10, 50));
@@ -78,7 +77,7 @@ public class FairKeyedLockTests extends ElasticsearchTestCase{
         }
     }
 
-    @Test(expected = ElasticsearchIllegalStateException.class)
+    @Test(expected = IllegalStateException.class)
     public void checkCannotAcquireTwoLocks() throws InterruptedException {
         FairKeyedLock<String> connectionLock = randomBoolean() ? new FairKeyedLock.GlobalLockable<String>() : new FairKeyedLock<String>();
         String name = randomRealisticUnicodeOfLength(scaledRandomIntBetween(10, 50));
@@ -117,7 +116,7 @@ public class FairKeyedLockTests extends ElasticsearchTestCase{
     }
 
 
-    @Test(expected = ElasticsearchIllegalStateException.class)
+    @Test(expected = IllegalStateException.class)
     public void checkCannotReleaseUnacquiredLock() throws InterruptedException {
         FairKeyedLock<String> connectionLock = randomBoolean() ? new FairKeyedLock.GlobalLockable<String>() : new FairKeyedLock<String>();
         String name = randomRealisticUnicodeOfLength(scaledRandomIntBetween(10, 50));

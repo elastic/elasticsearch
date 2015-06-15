@@ -5,16 +5,16 @@
  */
 package org.elasticsearch.watcher.support.http;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.netty.handler.codec.http.HttpHeaders;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.watcher.WatcherException;
+import org.jboss.netty.handler.codec.http.HttpHeaders;
 
 import javax.annotation.Nullable;
 import java.io.IOException;

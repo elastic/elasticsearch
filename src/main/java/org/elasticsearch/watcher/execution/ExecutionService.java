@@ -5,13 +5,11 @@
  */
 package org.elasticsearch.watcher.execution;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -27,13 +25,14 @@ import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.watch.WatchLockService;
 import org.elasticsearch.watcher.watch.WatchStore;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 
 /**
  */
@@ -64,7 +63,7 @@ public class ExecutionService extends AbstractComponent {
         this.watchStore = watchStore;
         this.watchLockService = watchLockService;
         this.clock = clock;
-        this.defaultThrottlePeriod = componentSettings.getAsTime("default_throttle_period", TimeValue.timeValueSeconds(5));
+        this.defaultThrottlePeriod = settings.getAsTime("watcher.execution.default_throttle_period", TimeValue.timeValueSeconds(5));
         maxStopTimeout = settings.getAsTime(DEFAULT_MAX_STOP_TIMEOUT_SETTING, DEFAULT_MAX_STOP_TIMEOUT);
         if (ExecutionService.this.defaultThrottlePeriod.millis() < 0) {
             settingsValidation.addError("watcher.execution.default_throttle_period", "time value cannot be negative");
@@ -161,12 +160,12 @@ public class ExecutionService extends AbstractComponent {
 
     void processEventsAsync(Iterable<TriggerEvent> events) throws WatcherException {
         if (!started.get()) {
-            throw new ElasticsearchIllegalStateException("not started");
+            throw new IllegalStateException("not started");
         }
         final LinkedList<TriggeredWatch> triggeredWatches = new LinkedList<>();
         final LinkedList<TriggeredExecutionContext> contexts = new LinkedList<>();
 
-        DateTime now = clock.now(UTC);
+        DateTime now = clock.now(DateTimeZone.UTC);
         for (TriggerEvent event : events) {
             Watch watch = watchStore.get(event.jobName());
             if (watch == null) {
@@ -202,12 +201,12 @@ public class ExecutionService extends AbstractComponent {
 
     void processEventsSync(Iterable<TriggerEvent> events) throws WatcherException {
         if (!started.get()) {
-            throw new ElasticsearchIllegalStateException("not started");
+            throw new IllegalStateException("not started");
         }
         final LinkedList<TriggeredWatch> triggeredWatches = new LinkedList<>();
         final LinkedList<TriggeredExecutionContext> contexts = new LinkedList<>();
 
-        DateTime now = clock.now(UTC);
+        DateTime now = clock.now(DateTimeZone.UTC);
         for (TriggerEvent event : events) {
             Watch watch = watchStore.get(event.jobName());
             if (watch == null) {
@@ -354,7 +353,7 @@ public class ExecutionService extends AbstractComponent {
                 historyStore.put(record);
                 triggeredWatchStore.delete(triggeredWatch.id());
             } else {
-                TriggeredExecutionContext ctx = new TriggeredExecutionContext(watch, clock.now(UTC), triggeredWatch.triggerEvent(), defaultThrottlePeriod);
+                TriggeredExecutionContext ctx = new TriggeredExecutionContext(watch, clock.now(DateTimeZone.UTC), triggeredWatch.triggerEvent(), defaultThrottlePeriod);
                 executeAsync(ctx, triggeredWatch);
                 counter++;
             }

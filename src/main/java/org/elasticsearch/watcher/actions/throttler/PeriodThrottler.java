@@ -6,7 +6,7 @@
 package org.elasticsearch.watcher.actions.throttler;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.joda.time.PeriodType;
+import org.joda.time.PeriodType;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.watcher.actions.ActionStatus;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;

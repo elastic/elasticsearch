@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.watcher.input.simple;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -49,7 +49,7 @@ public class SimpleInputTests extends ElasticsearchTestCase {
         data.put("baz", new ArrayList<String>());
 
         XContentBuilder jsonBuilder = jsonBuilder().value(data);
-        InputFactory parser = new SimpleInputFactory(ImmutableSettings.builder().build());
+        InputFactory parser = new SimpleInputFactory(Settings.builder().build());
         XContentParser xContentParser = JsonXContent.jsonXContent.createParser(jsonBuilder.bytes());
         xContentParser.nextToken();
         ExecutableInput input = parser.parseExecutable("_id", xContentParser);
@@ -68,7 +68,7 @@ public class SimpleInputTests extends ElasticsearchTestCase {
 
         XContentBuilder jsonBuilder = jsonBuilder().value("just a string");
 
-        InputFactory parser = new SimpleInputFactory(ImmutableSettings.builder().build());
+        InputFactory parser = new SimpleInputFactory(Settings.builder().build());
         XContentParser xContentParser = JsonXContent.jsonXContent.createParser(jsonBuilder.bytes());
         xContentParser.nextToken();
         parser.parseInput("_id", xContentParser);

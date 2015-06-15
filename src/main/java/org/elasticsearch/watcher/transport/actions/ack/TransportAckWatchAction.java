@@ -32,18 +32,13 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
     @Inject
     public TransportAckWatchAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                    ThreadPool threadPool, ActionFilters actionFilters, WatcherService watcherService, LicenseService licenseService) {
-        super(settings, AckWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, licenseService);
+        super(settings, AckWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, licenseService, AckWatchRequest.class);
         this.watcherService = watcherService;
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected AckWatchRequest newRequest() {
-        return new AckWatchRequest();
     }
 
     @Override

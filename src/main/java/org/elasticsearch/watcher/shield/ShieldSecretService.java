@@ -22,7 +22,7 @@ public class ShieldSecretService extends AbstractComponent implements SecretServ
     @Inject
     public ShieldSecretService(Settings settings, CryptoService cryptoService) {
         super(settings);
-        this.encryptSensitiveData = componentSettings.getAsBoolean("encrypt_sensitive_data", false);
+        this.encryptSensitiveData = settings.getAsBoolean("watcher.shield.encrypt_sensitive_data", false);
         this.cryptoService = cryptoService;
     }
 

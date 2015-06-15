@@ -6,8 +6,7 @@
 package org.elasticsearch.watcher.support.http;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.netty.handler.codec.http.HttpHeaders;
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -21,6 +20,7 @@ import org.elasticsearch.watcher.support.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.watcher.support.secret.SecretService;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.support.template.TemplateEngine;
+import org.jboss.netty.handler.codec.http.HttpHeaders;
 import org.junit.Test;
 
 import java.util.Map;

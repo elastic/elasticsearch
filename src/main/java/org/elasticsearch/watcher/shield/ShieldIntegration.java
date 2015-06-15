@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.shield;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.settings.Settings;
@@ -69,7 +68,7 @@ public class ShieldIntegration {
             // lets check min compatibility
             ShieldVersion minVersion = ShieldVersion.fromId(minCompatibleShieldVersionId);
             if (!ShieldVersion.CURRENT.onOrAfter(minVersion)) {
-                throw new ElasticsearchIllegalStateException("watcher [" + WatcherVersion.CURRENT + "] requires " +
+                throw new IllegalStateException("watcher [" + WatcherVersion.CURRENT + "] requires " +
                         "minimum shield plugin version [" + minVersion + "], but installed shield plugin version is " +
                         "[" + ShieldVersion.CURRENT + "]");
             }

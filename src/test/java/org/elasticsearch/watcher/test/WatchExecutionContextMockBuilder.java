@@ -6,7 +6,7 @@
 package org.elasticsearch.watcher.test;
 
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.joda.time.DateTime;
+import org.joda.time.DateTime;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
@@ -17,7 +17,7 @@ import org.elasticsearch.watcher.watch.Watch;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
+import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 

@@ -6,7 +6,7 @@
 package org.elasticsearch.watcher.history;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -63,7 +63,7 @@ public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegratio
             //Need to construct the Email Server here as this happens before init()
             server = EmailServer.localhost("2500-2600", USERNAME, PASSWORD, logger);
         }
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
 
                 // email

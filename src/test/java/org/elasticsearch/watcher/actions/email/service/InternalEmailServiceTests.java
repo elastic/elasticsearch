@@ -6,7 +6,7 @@
 package org.elasticsearch.watcher.actions.email.service;
 
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -31,7 +31,7 @@ public class InternalEmailServiceTests extends ElasticsearchTestCase {
     @Before
     public void init() throws Exception {
         accounts = mock(Accounts.class);
-        service = new InternalEmailService(ImmutableSettings.EMPTY, new SecretService.PlainText(), new NodeSettingsService(ImmutableSettings.EMPTY), WatcherSettingsFilter.Noop.INSTANCE) {
+        service = new InternalEmailService(Settings.EMPTY, new SecretService.PlainText(), new NodeSettingsService(Settings.EMPTY), WatcherSettingsFilter.Noop.INSTANCE) {
             @Override
             protected Accounts createAccounts(Settings settings, ESLogger logger) {
                 return accounts;

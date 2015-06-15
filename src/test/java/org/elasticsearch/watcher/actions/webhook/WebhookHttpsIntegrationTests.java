@@ -11,7 +11,6 @@ import com.squareup.okhttp.mockwebserver.QueueDispatcher;
 import com.squareup.okhttp.mockwebserver.RecordedRequest;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.watcher.actions.ActionBuilders;
@@ -57,7 +56,7 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(HttpClient.SETTINGS_SSL_KEYSTORE, resource.toString())
                 .put(HttpClient.SETTINGS_SSL_KEYSTORE_PASSWORD, "testnode")

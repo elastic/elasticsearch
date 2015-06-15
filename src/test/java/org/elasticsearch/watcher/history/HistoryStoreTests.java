@@ -8,8 +8,8 @@ package org.elasticsearch.watcher.history;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.settings.DynamicSettings;
-import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.joda.time.DateTime;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -22,7 +22,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Matchers;
 
-import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
+import static org.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.watcher.test.WatcherMatchers.indexRequest;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.mockito.Mockito.*;
@@ -41,7 +41,7 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
         NodeSettingsService nodeSettingsService = mock(NodeSettingsService.class);
         DynamicSettings dynamicSettings = mock(DynamicSettings.class);
         ThreadPool threadPool = mock(ThreadPool.class);
-        historyStore = new HistoryStore(ImmutableSettings.EMPTY, clientProxy, templateUtils, nodeSettingsService, dynamicSettings, threadPool);
+        historyStore = new HistoryStore(Settings.EMPTY, clientProxy, templateUtils, nodeSettingsService, dynamicSettings, threadPool);
         historyStore.start();
     }
 

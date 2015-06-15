@@ -6,7 +6,7 @@
 package org.elasticsearch.watcher.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.core.LicenseExpiredException;
 import org.elasticsearch.plugins.Plugin;
@@ -27,7 +27,7 @@ public class WatcherDisabledLicenseRestTests extends WatcherRestTests {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder()
+        Settings.Builder builder = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("scroll.size", randomIntBetween(1, 100))
                 .put("plugin.types",

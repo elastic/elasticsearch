@@ -75,7 +75,7 @@ public class ScheduleModule extends AbstractModule {
         protected abstract Class<? extends TriggerEngine> engineType();
 
         public static Engine resolve(Settings settings) {
-            String engine = settings.getComponentSettings(ScheduleModule.class).get("engine", "ticker");
+            String engine = settings.get("watcher.trigger.schedule.engine", "ticker");
             switch (engine.toLowerCase(Locale.ROOT)) {
                 case "ticker"    : return TICKER;
                 case "scheduler" : return SCHEDULER;

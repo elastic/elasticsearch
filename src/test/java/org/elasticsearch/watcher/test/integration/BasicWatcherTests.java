@@ -10,7 +10,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.joda.time.DateTime;
+import org.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -37,7 +37,6 @@ import org.elasticsearch.watcher.watch.WatchStore;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.rangeFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -290,7 +289,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
         String variable = randomFrom("ctx.execution_time", "ctx.trigger.scheduled_time", "ctx.trigger.triggered_time");
         SearchSourceBuilder searchSourceBuilder = searchSource().query(filteredQuery(
                 matchQuery("level", "a"),
-                rangeFilter("_timestamp")
+                rangeQuery("_timestamp")
                         .from("{{" + variable + "}}||-30s")
                         .to("{{" + variable + "}}")));
 
@@ -302,7 +301,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
         String variable = randomFrom("ctx.execution_time", "ctx.trigger.scheduled_time", "ctx.trigger.triggered_time");
         SearchSourceBuilder searchSourceBuilder = searchSource().query(filteredQuery(
                 matchQuery("level", "a"),
-                rangeFilter("_timestamp")
+                rangeQuery("_timestamp")
                         .from("{{" + variable + "}}||-30s")
                         .to("{{" + variable + "}}")));
 

@@ -38,18 +38,13 @@ public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequ
     @Inject
     public TransportGetWatchAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                    ThreadPool threadPool, ActionFilters actionFilters, WatcherService watcherService, LicenseService licenseService) {
-        super(settings, GetWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, licenseService);
+        super(settings, GetWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, licenseService, GetWatchRequest.class);
         this.watcherService = watcherService;
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.SAME; // Super lightweight operation, so don't fork
-    }
-
-    @Override
-    protected GetWatchRequest newRequest() {
-        return new GetWatchRequest();
     }
 
     @Override

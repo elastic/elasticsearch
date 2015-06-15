@@ -7,7 +7,7 @@ package org.elasticsearch.watcher.transport.actions.delete;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -19,7 +19,7 @@ import java.io.IOException;
 /**
  * A delete watch request to delete an watch by name (id)
  */
-public class DeleteWatchRequest extends MasterNodeOperationRequest<DeleteWatchRequest> {
+public class DeleteWatchRequest extends MasterNodeRequest<DeleteWatchRequest> {
 
     private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(10);
 
@@ -94,7 +94,7 @@ public class DeleteWatchRequest extends MasterNodeOperationRequest<DeleteWatchRe
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         id = in.readString();
-        version = Versions.readVersion(in);
+        version = in.readLong();
         force = in.readBoolean();
     }
 
@@ -102,7 +102,7 @@ public class DeleteWatchRequest extends MasterNodeOperationRequest<DeleteWatchRe
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(id);
-        Versions.writeVersion(version, out);
+        out.writeLong(version);
         out.writeBoolean(force);
     }
 

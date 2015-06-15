@@ -7,7 +7,7 @@ package org.elasticsearch.watcher.support.template.xmustache;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Before;
 import org.junit.Test;
@@ -27,7 +27,7 @@ public class XMustacheScriptEngineTests extends ElasticsearchTestCase {
 
     @Before
     public void setup() {
-        engine = new XMustacheScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
+        engine = new XMustacheScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
     }
 
     @Test

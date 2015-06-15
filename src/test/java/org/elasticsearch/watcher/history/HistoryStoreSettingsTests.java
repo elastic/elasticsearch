@@ -6,7 +6,7 @@
 package org.elasticsearch.watcher.history;
 
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
@@ -30,7 +30,7 @@ public class HistoryStoreSettingsTests extends AbstractWatcherIntegrationTests {
         assertThat(response.getIndexTemplates().get(0).getSettings().get("index.refresh_interval"), nullValue()); // this isn't defined in the template, so we rely on ES's default, which is 1s
 
         client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(ImmutableSettings.builder()
+                .setTransientSettings(Settings.builder()
                         .put("watcher.history.index.number_of_shards", "2")
                         .put("watcher.history.index.number_of_replicas", "2")
                         .put("watcher.history.index.refresh_interval", "5m"))
@@ -55,7 +55,7 @@ public class HistoryStoreSettingsTests extends AbstractWatcherIntegrationTests {
         assertThat(response.getIndexTemplates().get(0).getSettings().getAsBoolean("index.mapper.dynamic", null), is(false));
 
         client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(ImmutableSettings.builder()
+                .setTransientSettings(Settings.builder()
                         .put("watcher.history.index.number_of_shards", "2")
                         .put("watcher.history.index.mapper.dynamic", true)) // forbidden setting, should not get updated
                 .get();

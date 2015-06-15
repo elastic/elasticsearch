@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.watcher.execution;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
@@ -28,7 +26,7 @@ public class CurrentExecutions implements Iterable<ExecutionService.WatchExecuti
         try {
             if (seal) {
                 // We shouldn't get here, because, ExecutionService#started should have been set to false
-                throw new ElasticsearchIllegalStateException("put execution forbidden, because we're sealed");
+                throw new IllegalStateException("put execution forbidden, because we're sealed");
             }
             currentExecutions.put(id, execution);
         } finally {

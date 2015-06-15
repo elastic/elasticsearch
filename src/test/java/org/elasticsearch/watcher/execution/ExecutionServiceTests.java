@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.watcher.execution;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.joda.time.DateTime;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.actions.*;
 import org.elasticsearch.watcher.actions.throttler.ActionThrottler;
@@ -29,13 +29,13 @@ import org.elasticsearch.watcher.transform.ExecutableTransform;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.*;
+import org.joda.time.DateTimeZone;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.concurrent.ArrayBlockingQueue;
 
-import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.*;
 import static org.mockito.Matchers.any;
@@ -75,7 +75,7 @@ public class ExecutionServiceTests extends ElasticsearchTestCase {
         watchLockService = mock(WatchLockService.class);
         WatcherSettingsValidation settingsValidator = mock(WatcherSettingsValidation.class);
         clock = new ClockMock();
-        executionService = new ExecutionService(ImmutableSettings.EMPTY, historyStore, triggeredWatchStore, executor, watchStore, watchLockService, clock, settingsValidator);
+        executionService = new ExecutionService(Settings.EMPTY, historyStore, triggeredWatchStore, executor, watchStore, watchLockService, clock, settingsValidator);
 
         ClusterState clusterState = mock(ClusterState.class);
         when(triggeredWatchStore.loadTriggeredWatches(clusterState)).thenReturn(ImmutableList.<TriggeredWatch>of());
@@ -225,7 +225,7 @@ public class ExecutionServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testExecuteInner() throws Exception {
-        DateTime now = DateTime.now(UTC);
+        DateTime now = DateTime.now(DateTimeZone.UTC);
         Watch watch = mock(Watch.class);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event, timeValueSeconds(5));
@@ -286,7 +286,7 @@ public class ExecutionServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testExecuteInner_throttled() throws Exception {
-        DateTime now = DateTime.now(UTC);
+        DateTime now = DateTime.now(DateTimeZone.UTC);
         Watch watch = mock(Watch.class);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event, timeValueSeconds(5));
@@ -335,7 +335,7 @@ public class ExecutionServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testExecuteInner_conditionNotMet() throws Exception {
-        DateTime now = DateTime.now(UTC);
+        DateTime now = DateTime.now(DateTimeZone.UTC);
         Watch watch = mock(Watch.class);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event, timeValueSeconds(5));

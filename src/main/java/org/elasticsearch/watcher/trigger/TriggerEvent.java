@@ -6,10 +6,10 @@
 package org.elasticsearch.watcher.trigger;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
+import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.util.HashMap;

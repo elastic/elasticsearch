@@ -71,17 +71,14 @@ public class ClientProxy implements InitializingService.Initializable {
     }
 
     public BulkResponse bulk(BulkRequest request) {
-        request.listenerThreaded(true);
         return client.bulk(preProcess(request)).actionGet();
     }
 
     public void index(IndexRequest request, ActionListener<IndexResponse> listener) {
-        request.listenerThreaded(true);
         client.index(preProcess(request), listener);
     }
 
     public void bulk(BulkRequest request, ActionListener<BulkResponse> listener) {
-        request.listenerThreaded(true);
         client.bulk(preProcess(request), listener);
     }
 

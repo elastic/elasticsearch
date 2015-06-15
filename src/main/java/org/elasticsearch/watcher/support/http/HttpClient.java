@@ -5,12 +5,11 @@
  */
 package org.elasticsearch.watcher.support.http;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
@@ -18,9 +17,12 @@ import org.elasticsearch.watcher.support.http.auth.ApplicableHttpAuth;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 
 import javax.net.ssl.*;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -134,10 +136,10 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
             applicableAuth.apply(urlConnection);
         }
         urlConnection.setUseCaches(false);
-        urlConnection.setRequestProperty("Accept-Charset", Charsets.UTF_8.name());
+        urlConnection.setRequestProperty("Accept-Charset", StandardCharsets.UTF_8.name());
         if (request.body() != null) {
             urlConnection.setDoOutput(true);
-            byte[] bytes = request.body().getBytes(Charsets.UTF_8.name());
+            byte[] bytes = request.body().getBytes(StandardCharsets.UTF_8.name());
             urlConnection.setRequestProperty("Content-Length", String.valueOf(bytes.length));
             urlConnection.getOutputStream().write(bytes);
             urlConnection.getOutputStream().close();
@@ -155,7 +157,11 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
         }
         logger.debug("http status code [{}]", statusCode);
         if (statusCode < 400) {
-            byte[] body = Streams.copyToByteArray(urlConnection.getInputStream());
+            final byte[] body;
+            try (InputStream inputStream = urlConnection.getInputStream();ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+                Streams.copy(inputStream, outputStream);
+                body = outputStream.toByteArray();
+            }
             return new HttpResponse(statusCode, body, responseHeaders.build());
         }
         return new HttpResponse(statusCode, responseHeaders.build());

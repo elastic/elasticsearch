@@ -6,7 +6,6 @@
 package org.elasticsearch.watcher.watch;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -67,8 +66,8 @@ public class WatchStore extends AbstractComponent {
         this.watchParser = watchParser;
         this.watches = ConcurrentCollections.newConcurrentMap();
 
-        this.scrollTimeout = componentSettings.getAsTime("scroll.timeout", TimeValue.timeValueSeconds(30));
-        this.scrollSize = componentSettings.getAsInt("scroll.size", 100);
+        this.scrollTimeout = settings.getAsTime("watcher.watch.scroll.timeout", TimeValue.timeValueSeconds(30));
+        this.scrollSize = settings.getAsInt("watcher.watch.scroll.size", 100);
     }
 
     public void start(ClusterState state) {
@@ -157,7 +156,6 @@ public class WatchStore extends AbstractComponent {
                     .field(Watch.Field.STATUS.getPreferredName(), watch.status(), ToXContent.EMPTY_PARAMS)
                 .endObject();
         UpdateRequest updateRequest = new UpdateRequest(INDEX, DOC_TYPE, watch.id());
-        updateRequest.listenerThreaded(false);
         updateRequest.doc(source);
         updateRequest.version(watch.version());
         try {
@@ -197,7 +195,6 @@ public class WatchStore extends AbstractComponent {
 
     IndexRequest createIndexRequest(String id, BytesReference source, long version) {
         IndexRequest indexRequest = new IndexRequest(INDEX, DOC_TYPE, id);
-        indexRequest.listenerThreaded(false);
         // TODO (2.0 upgrade): move back to BytesReference instead of dealing with the array directly
         if (source.hasArray()) {
             indexRequest.source(source.array(), source.arrayOffset(), source.length());
@@ -260,7 +257,7 @@ public class WatchStore extends AbstractComponent {
 
     private void ensureStarted() {
         if (!started.get()) {
-            throw new ElasticsearchIllegalStateException("watch store not started");
+            throw new IllegalStateException("watch store not started");
         }
     }
 

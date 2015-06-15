@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.watch;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -52,7 +51,7 @@ public class WatchLockServiceTests extends ElasticsearchTestCase {
         try {
             lockService.acquire("_name");
             fail("exception expected");
-        } catch (ElasticsearchIllegalStateException e) {
+        } catch (IllegalStateException e) {
             assertThat(e.getMessage(), containsString("Lock already acquired"));
         }
         lock1.release();

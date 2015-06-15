@@ -11,9 +11,9 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.common.io.Streams;
+import org.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -42,15 +42,18 @@ import org.elasticsearch.watcher.watch.WatchStatus;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.joda.time.DateTimeZone.UTC;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
@@ -66,10 +69,24 @@ public class SearchTransformTests extends ElasticsearchIntegrationTest {
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
+        Path tempDir = createTempDir();
+        Path configPath = tempDir.resolve("config").resolve("scripts");
+        try {
+            Files.createDirectories(configPath);
+        } catch (IOException e) {
+            throw new RuntimeException("failed to create config dir");
+
+        }
+        try (InputStream stream  = SearchTransformTests.class.getResourceAsStream("/org/elasticsearch/watcher/transform/search/config/scripts/test_disk_template.mustache");
+             OutputStream out = Files.newOutputStream(configPath.resolve("test_disk_template.mustache"))) {
+            Streams.copy(stream, out);
+        } catch (IOException e) {
+            throw new RuntimeException("failed to copy mustache template");
+        }
         //Set path so ScriptService will pick up the test scripts
         return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("path.conf", this.getResource("config").getPath()).build();
+                .put("path.conf", configPath).build();
     }
 
     @Override
@@ -147,10 +164,10 @@ public class SearchTransformTests extends ElasticsearchIntegrationTest {
         ensureGreen("idx");
         refresh();
 
-        SearchRequest request = Requests.searchRequest("idx").source(searchSource().query(filteredQuery(matchAllQuery(), boolFilter()
-                .must(rangeFilter("date").gt("{{ctx.trigger.scheduled_time}}"))
-                .must(rangeFilter("date").lt("{{ctx.execution_time}}"))
-                .must(termFilter("value", "{{ctx.payload.value}}")))));
+        SearchRequest request = Requests.searchRequest("idx").source(searchSource().query(filteredQuery(matchAllQuery(), boolQuery()
+                .must(rangeQuery("date").gt("{{ctx.trigger.scheduled_time}}"))
+                .must(rangeQuery("date").lt("{{ctx.execution_time}}"))
+                .must(termQuery("value", "{{ctx.payload.value}}")))));
 
         SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
         ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, ClientProxy.of(client()));
@@ -165,7 +182,7 @@ public class SearchTransformTests extends ElasticsearchIntegrationTest {
         assertThat(result.type(), is(SearchTransform.TYPE));
 
         SearchResponse response = client().prepareSearch("idx").setQuery(
-                filteredQuery(matchAllQuery(), termFilter("value", "val_3")))
+                filteredQuery(matchAllQuery(), termQuery("value", "val_3")))
                 .get();
         Payload expectedPayload = new Payload.XContent(response);
 
@@ -215,7 +232,7 @@ public class SearchTransformTests extends ElasticsearchIntegrationTest {
         builder.endObject();
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
-        ExecutableSearchTransform executable = new SearchTransformFactory(ImmutableSettings.EMPTY, ClientProxy.of(client())).parseExecutable("_id", parser);
+        ExecutableSearchTransform executable = new SearchTransformFactory(Settings.EMPTY, ClientProxy.of(client())).parseExecutable("_id", parser);
         assertThat(executable, notNullValue());
         assertThat(executable.type(), is(SearchTransform.TYPE));
         assertThat(executable.transform().getRequest(), notNullValue());
@@ -237,14 +254,14 @@ public class SearchTransformTests extends ElasticsearchIntegrationTest {
                 .setSearchType(SearchType.SCAN)
                 .request()
                 .source(searchSource()
-                        .query(filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}"))));
+                        .query(filteredQuery(matchQuery("event_type", "a"), rangeQuery("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}"))));
 
         SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
         XContentBuilder builder = jsonBuilder().value(searchTransform);
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 
-        SearchTransformFactory factory = new SearchTransformFactory(ImmutableSettings.EMPTY, ClientProxy.of(client()));
+        SearchTransformFactory factory = new SearchTransformFactory(Settings.EMPTY, ClientProxy.of(client()));
 
         factory.parseTransform("_id", parser);
         fail("expected a SearchTransformException as search type SCAN should not be supported");
@@ -342,7 +359,7 @@ public class SearchTransformTests extends ElasticsearchIntegrationTest {
 
         SearchSourceBuilder searchSourceBuilder = searchSource().query(filteredQuery(
               matchQuery("event_type", "a"),
-              rangeFilter("_timestamp")
+              rangeQuery("_timestamp")
                       .from("{{ctx.trigger.scheduled_time}}||-30s")
                       .to("{{ctx.trigger.triggered_time}}")));
 

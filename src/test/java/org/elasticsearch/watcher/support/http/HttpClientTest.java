@@ -11,9 +11,8 @@ import com.squareup.okhttp.mockwebserver.MockWebServer;
 import com.squareup.okhttp.mockwebserver.RecordedRequest;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.base.Charsets;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
@@ -33,6 +32,7 @@ import java.net.BindException;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.UnrecoverableKeyException;
@@ -59,7 +59,7 @@ public class HttpClientTest extends ElasticsearchTestCase {
             try {
                 webServer = new MockWebServer();
                 webServer.start(webPort);
-                httpClient = new HttpClient(ImmutableSettings.EMPTY, authRegistry).start();
+                httpClient = new HttpClient(Settings.EMPTY, authRegistry).start();
                 return;
             } catch (BindException be) {
                 logger.warn("port [{}] was already in use trying next port", webPort);
@@ -105,7 +105,7 @@ public class HttpClientTest extends ElasticsearchTestCase {
         assertThat(response.status(), equalTo(responseCode));
         assertThat(response.body().toUtf8(), equalTo(body));
         assertThat(webServer.getRequestCount(), equalTo(1));
-        assertThat(recordedRequest.getBody().readString(Charsets.UTF_8), equalTo(request.body()));
+        assertThat(recordedRequest.getBody().readString(StandardCharsets.UTF_8), equalTo(request.body()));
         assertThat(recordedRequest.getPath().split("\\?")[0], equalTo(request.path()));
         assertThat(recordedRequest.getPath().split("\\?")[1], equalTo(paramKey + "=" + paramValue));
         assertThat(recordedRequest.getHeader(headerKey), equalTo(headerValue));
@@ -149,12 +149,12 @@ public class HttpClientTest extends ElasticsearchTestCase {
 
         Settings settings;
         if (randomBoolean()) {
-            settings = ImmutableSettings.builder()
+            settings = Settings.builder()
                     .put(HttpClient.SETTINGS_SSL_TRUSTSTORE, resource.toString())
                     .put(HttpClient.SETTINGS_SSL_TRUSTSTORE_PASSWORD, "truststore-testnode-only")
                     .build();
         } else {
-            settings = ImmutableSettings.builder()
+            settings = Settings.builder()
                     .put(HttpClient.SETTINGS_SSL_SHIELD_TRUSTSTORE, resource.toString())
                     .put(HttpClient.SETTINGS_SSL_SHIELD_TRUSTSTORE_PASSWORD, "truststore-testnode-only")
                     .build();
@@ -162,8 +162,8 @@ public class HttpClientTest extends ElasticsearchTestCase {
         HttpClient httpClient = new HttpClient(settings, authRegistry).start();
 
         // We can't use the client created above for the server since it is only a truststore
-        webServer.useHttps(new HttpClient(ImmutableSettings.builder()
-                .put(HttpClient.SETTINGS_SSL_KEYSTORE, getResource("/org/elasticsearch/shield/keystore/testnode.jks").toPath())
+        webServer.useHttps(new HttpClient(Settings.builder()
+                .put(HttpClient.SETTINGS_SSL_KEYSTORE, PathUtils.get(HttpClientTest.class.getResource("/org/elasticsearch/shield/keystore/testnode.jks").toURI()))
                 .put(HttpClient.SETTINGS_SSL_KEYSTORE_PASSWORD, "testnode")
                 .build(), authRegistry)
                 .start()
@@ -187,12 +187,12 @@ public class HttpClientTest extends ElasticsearchTestCase {
         Path resource = Paths.get(HttpClientTest.class.getResource("/org/elasticsearch/shield/keystore/testnode.jks").toURI());
         Settings settings;
         if (randomBoolean()) {
-            settings = ImmutableSettings.builder()
+            settings = Settings.builder()
                     .put(HttpClient.SETTINGS_SSL_KEYSTORE, resource.toString())
                     .put(HttpClient.SETTINGS_SSL_KEYSTORE_PASSWORD, "testnode")
                     .build();
         } else {
-            settings = ImmutableSettings.builder()
+            settings = Settings.builder()
                     .put(HttpClient.SETTINGS_SSL_SHIELD_KEYSTORE, resource.toString())
                     .put(HttpClient.SETTINGS_SSL_SHIELD_KEYSTORE_PASSWORD, "testnode")
                     .build();
@@ -222,13 +222,13 @@ public class HttpClientTest extends ElasticsearchTestCase {
         Settings settings;
         final boolean watcherSettings = randomBoolean();
         if (watcherSettings) {
-            settings = ImmutableSettings.builder()
+            settings = Settings.builder()
                     .put(HttpClient.SETTINGS_SSL_KEYSTORE, resource.toString())
                     .put(HttpClient.SETTINGS_SSL_KEYSTORE_PASSWORD, "testnode")
                     .put(HttpClient.SETTINGS_SSL_KEYSTORE_KEY_PASSWORD, "testnode1")
                     .build();
         } else {
-            settings = ImmutableSettings.builder()
+            settings = Settings.builder()
                     .put(HttpClient.SETTINGS_SSL_SHIELD_KEYSTORE, resource.toString())
                     .put(HttpClient.SETTINGS_SSL_SHIELD_KEYSTORE_PASSWORD, "testnode")
                     .put(HttpClient.SETTINGS_SSL_SHIELD_KEYSTORE_KEY_PASSWORD, "testnode1")
@@ -238,7 +238,7 @@ public class HttpClientTest extends ElasticsearchTestCase {
         HttpClient httpClient = new HttpClient(settings, authRegistry).start();
         assertThat(httpClient.getSslSocketFactory(), notNullValue());
 
-        ImmutableSettings.Builder badSettings = ImmutableSettings.builder().put(settings);
+        Settings.Builder badSettings = Settings.builder().put(settings);
         if (watcherSettings) {
             badSettings.remove(HttpClient.SETTINGS_SSL_KEYSTORE_KEY_PASSWORD);
         } else {
@@ -249,7 +249,7 @@ public class HttpClientTest extends ElasticsearchTestCase {
             new HttpClient(badSettings.build(), authRegistry).start();
             fail("an exception should have been thrown since the key is not recoverable without the password");
         } catch (Exception e) {
-            UnrecoverableKeyException rootCause = ExceptionsHelper.unwrap(e, UnrecoverableKeyException.class);
+            UnrecoverableKeyException rootCause = (UnrecoverableKeyException) ExceptionsHelper.unwrap(e, UnrecoverableKeyException.class);
             assertThat(rootCause, notNullValue());
             assertThat(rootCause.getMessage(), containsString("Cannot recover key"));
         }
@@ -272,7 +272,7 @@ public class HttpClientTest extends ElasticsearchTestCase {
     @Test
     @Network
     public void testHttpsWithoutTruststore() throws Exception {
-        HttpClient httpClient = new HttpClient(ImmutableSettings.EMPTY, authRegistry).start();
+        HttpClient httpClient = new HttpClient(Settings.EMPTY, authRegistry).start();
         assertThat(httpClient.getSslSocketFactory(), nullValue());
 
         // Known server with a valid cert from a commercial CA
@@ -289,7 +289,7 @@ public class HttpClientTest extends ElasticsearchTestCase {
         // Add some settings with  SSL prefix to force socket factory creation
         String setting = (randomBoolean() ? HttpClient.SETTINGS_SSL_PREFIX : HttpClient.SETTINGS_SSL_SHIELD_PREFIX) +
                 "foo.bar";
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put(setting, randomBoolean())
                 .build();
         HttpClient httpClient = new HttpClient(settings, authRegistry).start();

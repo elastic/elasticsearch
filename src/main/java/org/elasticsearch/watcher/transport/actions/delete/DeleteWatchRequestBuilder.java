@@ -7,20 +7,21 @@ package org.elasticsearch.watcher.transport.actions.delete;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.client.Client;
 
 /**
  * A delete document action request builder.
  */
-public class DeleteWatchRequestBuilder extends MasterNodeOperationRequestBuilder<DeleteWatchRequest, DeleteWatchResponse, DeleteWatchRequestBuilder, Client> {
+public class DeleteWatchRequestBuilder extends MasterNodeOperationRequestBuilder<DeleteWatchRequest, DeleteWatchResponse, DeleteWatchRequestBuilder> {
 
-    public DeleteWatchRequestBuilder(Client client) {
-        super(client, new DeleteWatchRequest());
+    public DeleteWatchRequestBuilder(ElasticsearchClient client) {
+        super(client, DeleteWatchAction.INSTANCE, new DeleteWatchRequest());
     }
 
-    public DeleteWatchRequestBuilder(Client client, String id) {
-        super(client, new DeleteWatchRequest(id));
+    public DeleteWatchRequestBuilder(ElasticsearchClient client, String id) {
+        super(client, DeleteWatchAction.INSTANCE, new DeleteWatchRequest(id));
     }
 
     /**
@@ -37,11 +38,6 @@ public class DeleteWatchRequestBuilder extends MasterNodeOperationRequestBuilder
     public DeleteWatchRequestBuilder setForce(boolean force) {
         this.request().setForce(force);
         return this;
-    }
-
-    @Override
-    protected void doExecute(final ActionListener<DeleteWatchResponse> listener) {
-        new WatcherClient(client).deleteWatch(request, listener);
     }
 
 }

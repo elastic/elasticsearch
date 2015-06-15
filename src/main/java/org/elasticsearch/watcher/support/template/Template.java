@@ -8,12 +8,12 @@ package org.elasticsearch.watcher.support.template;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.watcher.WatcherException;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -50,7 +50,7 @@ public class Template implements ToXContent {
     }
 
     public Map<String, Object> getParams() {
-        return params != null ? params : ImmutableMap.<String, Object>of();
+        return params != null ? params : Collections.EMPTY_MAP;
     }
 
     @Override

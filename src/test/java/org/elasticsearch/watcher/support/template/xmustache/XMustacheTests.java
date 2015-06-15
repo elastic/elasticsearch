@@ -7,11 +7,11 @@ package org.elasticsearch.watcher.support.template.xmustache;
 
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.ImmutableList;
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
+import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.jackson.core.io.JsonStringEncoder;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -34,7 +34,7 @@ public class XMustacheTests extends ElasticsearchTestCase {
 
     @Before
     public void init() throws Exception {
-        engine = new XMustacheScriptEngineService(ImmutableSettings.EMPTY);
+        engine = new XMustacheScriptEngineService(Settings.EMPTY);
     }
 
     @Test @Repeat(iterations = 10)

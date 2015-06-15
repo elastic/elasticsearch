@@ -6,8 +6,8 @@
 package org.elasticsearch.watcher.actions.email;
 
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.joda.time.DateTime;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
@@ -23,6 +23,7 @@ import org.elasticsearch.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.WatchStore;
+import org.joda.time.DateTimeZone;
 import org.junit.After;
 import org.junit.Test;
 
@@ -31,7 +32,6 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.watcher.actions.ActionBuilders.emailAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.alwaysCondition;
@@ -65,7 +65,7 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
         if (encryptSensitiveData == null) {
             encryptSensitiveData = shieldEnabled() && randomBoolean();
         }
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("watcher.actions.email.service.account.test.smtp.auth", true)
                 .put("watcher.actions.email.service.account.test.smtp.port", server.port())
@@ -136,7 +136,7 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
             }
         });
 
-        TriggerEvent triggerEvent = new ScheduleTriggerEvent(new DateTime(UTC), new DateTime(UTC));
+        TriggerEvent triggerEvent = new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC));
         ExecuteWatchResponse executeResponse = watcherClient.prepareExecuteWatch("_id")
                 .setRecordExecution(false)
                 .setTriggerEvent(triggerEvent)

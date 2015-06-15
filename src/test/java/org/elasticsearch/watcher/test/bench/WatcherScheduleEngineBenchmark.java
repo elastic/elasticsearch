@@ -13,15 +13,15 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.metrics.MeanMetric;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
-import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
@@ -54,7 +54,7 @@ import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
  */
 public class WatcherScheduleEngineBenchmark {
 
-    private final static Settings SETTINGS = ImmutableSettings.builder()
+    private final static Settings SETTINGS = Settings.builder()
             .put("plugins.load_classpath_plugins", false)
             .put("shield.enabled", false)
             .put("plugin.types", WatcherPlugin.class.getName() + "," + LicensePlugin.class.getName())
@@ -92,8 +92,8 @@ public class WatcherScheduleEngineBenchmark {
 
 
         // First clean everything and index the watcher (but not via put alert api!)
-        Settings settings = ImmutableSettings.builder().put(SETTINGS).put("plugin.types", "").build();
-        try (InternalNode node = (InternalNode) NodeBuilder.nodeBuilder().settings(settings).data(false).node()) {
+        Settings settings = Settings.builder().put(SETTINGS).put("plugin.types", "").build();
+        try (Node node = NodeBuilder.nodeBuilder().settings(settings).data(false).node()) {
             try (Client client = node.client()) {
                 ClusterHealthResponse response = client.admin().cluster().prepareHealth().setWaitForNodes("2").get();
                 if (response.getNumberOfNodes() != 2 && response.getNumberOfDataNodes() != 1) {
@@ -131,11 +131,11 @@ public class WatcherScheduleEngineBenchmark {
             results.put(engine, stats);
             System.out.println("===============> testing engine [" + engine + "]");
             System.gc();
-            settings = ImmutableSettings.builder()
+            settings = Settings.builder()
                     .put(SETTINGS)
                     .put("watcher.trigger.schedule.engine", engine)
                     .build();
-            try (InternalNode node = (InternalNode) NodeBuilder.nodeBuilder().settings(settings).data(false).node()) {
+            try (Node node = NodeBuilder.nodeBuilder().settings(settings).data(false).node()) {
                 try (final Client client = node.client()) {
                     client.admin().cluster().prepareHealth().setWaitForNodes("2").get();
                     client.admin().indices().prepareDelete(HistoryStore.INDEX_PREFIX + "*").get();
@@ -189,7 +189,7 @@ public class WatcherScheduleEngineBenchmark {
                             .setQuery(QueryBuilders.rangeQuery("trigger_event.schedule.scheduled_time").gte(startTime).lte(endTime))
                             .addAggregation(terms("state").field("state"))
                             .addAggregation(histogram("delay")
-                                            .script("doc['trigger_event.schedule.triggered_time'].value - doc['trigger_event.schedule.scheduled_time'].value")
+                                            .script(new Script("doc['trigger_event.schedule.triggered_time'].value - doc['trigger_event.schedule.scheduled_time'].value"))
                                             .interval(10)
                             )
                             .addAggregation(percentiles("percentile_delay")

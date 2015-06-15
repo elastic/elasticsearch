@@ -8,8 +8,8 @@ package org.elasticsearch.watcher.transform.script;
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.ImmutableList;
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.ImmutableSet;
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -128,7 +128,7 @@ public class ScriptTransformTests extends ElasticsearchTestCase {
 
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
-        ExecutableScriptTransform transform = new ScriptTransformFactory(ImmutableSettings.EMPTY, service).parseExecutable("_id", parser);
+        ExecutableScriptTransform transform = new ScriptTransformFactory(Settings.EMPTY, service).parseExecutable("_id", parser);
         Script script = scriptBuilder(type, "_script").lang("_lang").params(ImmutableMap.<String, Object>builder().put("key", "value").build()).build();
         assertThat(transform.transform().getScript(), equalTo(script));
     }
@@ -140,7 +140,7 @@ public class ScriptTransformTests extends ElasticsearchTestCase {
 
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
-        ExecutableScriptTransform transform = new ScriptTransformFactory(ImmutableSettings.EMPTY, service).parseExecutable("_id", parser);
+        ExecutableScriptTransform transform = new ScriptTransformFactory(Settings.EMPTY, service).parseExecutable("_id", parser);
         assertThat(transform.transform().getScript(), equalTo(Script.defaultType("_script").build()));
     }
 
@@ -148,7 +148,7 @@ public class ScriptTransformTests extends ElasticsearchTestCase {
     @Test(expected = ScriptTransformValidationException.class)
     @Repeat(iterations = 3)
     public void testScriptConditionParser_badScript() throws Exception {
-        ScriptTransformFactory transformFactory = new ScriptTransformFactory(ImmutableSettings.settingsBuilder().build(), getScriptServiceProxy(tp));
+        ScriptTransformFactory transformFactory = new ScriptTransformFactory(Settings.settingsBuilder().build(), getScriptServiceProxy(tp));
         ScriptType scriptType = randomFrom(ScriptType.values());
         String script;
         switch (scriptType) {
@@ -176,7 +176,7 @@ public class ScriptTransformTests extends ElasticsearchTestCase {
 
     @Test(expected = ScriptTransformValidationException.class)
     public void testScriptConditionParser_badLang() throws Exception {
-        ScriptTransformFactory transformFactory = new ScriptTransformFactory(ImmutableSettings.settingsBuilder().build(), getScriptServiceProxy(tp));
+        ScriptTransformFactory transformFactory = new ScriptTransformFactory(Settings.settingsBuilder().build(), getScriptServiceProxy(tp));
         ScriptType scriptType = randomFrom(ScriptType.values());
         String script = "return true";
         XContentBuilder builder = jsonBuilder().startObject()

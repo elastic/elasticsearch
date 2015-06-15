@@ -5,14 +5,13 @@
  */
 package org.elasticsearch.watcher.watch;
 
+import com.google.common.collect.ImmutableMap;
+import org.apache.commons.lang3.ArrayUtils;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.lang3.ArrayUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -20,11 +19,12 @@ import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.ActionStatus;
 import org.elasticsearch.watcher.actions.throttler.AckThrottler;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.watcher.support.WatcherDateTimeUtils.*;
 
 /**
@@ -192,8 +192,8 @@ public class WatchStatus implements ToXContent, Streamable {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         version = in.readLong();
-        lastChecked = readOptionalDate(in, UTC);
-        lastMetCondition = readOptionalDate(in, UTC);
+        lastChecked = readOptionalDate(in, DateTimeZone.UTC);
+        lastMetCondition = readOptionalDate(in, DateTimeZone.UTC);
         ImmutableMap.Builder<String, ActionStatus> builder = ImmutableMap.builder();
         int count = in.readInt();
         for (int i = 0; i < count; i++) {
@@ -240,13 +240,13 @@ public class WatchStatus implements ToXContent, Streamable {
                 currentFieldName = parser.currentName();
             } else if (Field.LAST_CHECKED.match(currentFieldName)) {
                 if (token.isValue()) {
-                    lastChecked = parseDate(currentFieldName, parser, UTC);
+                    lastChecked = parseDate(currentFieldName, parser, DateTimeZone.UTC);
                 } else {
                     throw new WatcherException("could not parse watch status for [{}]. expecting field [{}] to hold a date value, found [{}] instead", watchId, currentFieldName, token);
                 }
             } else if (Field.LAST_MET_CONDITION.match(currentFieldName)) {
                 if (token.isValue()) {
-                    lastMetCondition = parseDate(currentFieldName, parser, UTC);
+                    lastMetCondition = parseDate(currentFieldName, parser, DateTimeZone.UTC);
                 } else {
                     throw new WatcherException("could not parse watch status for [{}]. expecting field [{}] to hold a date value, found [{}] instead", watchId, currentFieldName, token);
                 }

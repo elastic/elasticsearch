@@ -9,11 +9,11 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.base.Charsets;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.joda.time.DateTime;
+import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.script.ScriptContextRegistry;
+import org.joda.time.DateTime;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -74,10 +74,11 @@ import org.hamcrest.Matcher;
 import javax.mail.internet.AddressException;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomInt;
-import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
+import static org.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.ElasticsearchTestCase.randomFrom;
@@ -180,7 +181,7 @@ public final class WatcherTestUtils {
         Template body = Template.inline("{{ctx.watch_id}} executed with {{ctx.payload.response.hits.total_hits}} hits").build();
         httpRequest.body(body);
 
-        TemplateEngine engine = new XMustacheTemplateEngine(ImmutableSettings.EMPTY, scriptService);
+        TemplateEngine engine = new XMustacheTemplateEngine(Settings.EMPTY, scriptService);
 
         actions.add(new ActionWrapper("_webhook", new ExecutableWebhookAction(new WebhookAction(httpRequest.build()), logger, httpClient, engine)));
 
@@ -192,7 +193,7 @@ public final class WatcherTestUtils {
                 .to(to)
                 .build();
 
-        TemplateEngine templateEngine = new XMustacheTemplateEngine(ImmutableSettings.EMPTY, scriptService);
+        TemplateEngine templateEngine = new XMustacheTemplateEngine(Settings.EMPTY, scriptService);
 
         Authentication auth = new Authentication("testname", new Secret("testpassword".toCharArray()));
 
@@ -227,8 +228,8 @@ public final class WatcherTestUtils {
     }
 
     public static ScriptServiceProxy getScriptServiceProxy(ThreadPool tp) throws Exception {
-        Settings settings = ImmutableSettings.settingsBuilder()
-                .put(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING, "none")
+        Settings settings = Settings.settingsBuilder()
+                .put("script.disable_dynamic", "none")
                 .build();
         GroovyScriptEngineService groovyScriptEngineService = new GroovyScriptEngineService(settings);
         XMustacheScriptEngineService mustacheScriptEngineService = new XMustacheScriptEngineService(settings);
@@ -237,20 +238,12 @@ public final class WatcherTestUtils {
         engineServiceSet.add(groovyScriptEngineService);
         NodeSettingsService nodeSettingsService = new NodeSettingsService(settings);
 
-        // TODO (2.0 upgrade): remove this reflection hack:
-        Class scriptServiceClass = ScriptService.class;
-        Constructor scriptServiceConstructor = scriptServiceClass.getConstructors()[0];
-        if (scriptServiceConstructor.getParameterTypes().length == 5) {
-            return ScriptServiceProxy.of((ScriptService) scriptServiceConstructor.newInstance(settings, new Environment(), engineServiceSet, new ResourceWatcherService(settings, tp), nodeSettingsService));
-        } else if (scriptServiceConstructor.getParameterTypes().length == 6) {
-            Class scriptContextRegistryClass = Class.forName("org.elasticsearch.script.ScriptContextRegistry");
-            Constructor scriptContextRegistryConstructor = scriptContextRegistryClass.getDeclaredConstructors()[0];
-            scriptContextRegistryConstructor.setAccessible(true);
-            Object scriptContextRegistry = scriptContextRegistryConstructor.newInstance(Collections.emptyList());
-            return ScriptServiceProxy.of((ScriptService) scriptServiceConstructor.newInstance(settings, new Environment(), engineServiceSet, new ResourceWatcherService(settings, tp), nodeSettingsService, scriptContextRegistry));
-        } else {
-            throw new RuntimeException("ScriptService is supposed to have 5 or 6 parameters in its constructor");
-        }
+        Class scriptContextRegistryClass = Class.forName("org.elasticsearch.script.ScriptContextRegistry");
+        Constructor scriptContextRegistryConstructor = scriptContextRegistryClass.getDeclaredConstructors()[0];
+        scriptContextRegistryConstructor.setAccessible(true);
+        ScriptContextRegistry registry = (ScriptContextRegistry) scriptContextRegistryConstructor.newInstance(Collections.emptyList());
+
+        return  ScriptServiceProxy.of(new ScriptService(settings, new Environment(settings), engineServiceSet, new ResourceWatcherService(settings, tp), registry));
     }
 
     public static SearchType getRandomSupportedSearchType() {
@@ -262,8 +255,8 @@ public final class WatcherTestUtils {
     }
 
     public static boolean areJsonEquivalent(String json1, String json2) throws IOException {
-        XContentParser parser1 = XContentHelper.createParser(json1.getBytes(Charsets.UTF_8), 0, json1.getBytes(Charsets.UTF_8).length);
-        XContentParser parser2 = XContentHelper.createParser(json2.getBytes(Charsets.UTF_8), 0, json2.getBytes(Charsets.UTF_8).length);
+        XContentParser parser1 = XContentHelper.createParser(new BytesArray(json1.getBytes(StandardCharsets.UTF_8)));
+        XContentParser parser2 = XContentHelper.createParser(new BytesArray(json2.getBytes(StandardCharsets.UTF_8)));
         Map<String, Object> map1 = parser1.map();
         Map<String, Object> map2 = parser2.map();
         return map1.equals(map2);

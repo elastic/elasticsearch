@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.watcher.condition.compare;
 
-import org.elasticsearch.common.joda.time.DateTime;
+import org.joda.time.DateTime;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.watcher.condition.ExecutableCondition;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
@@ -13,6 +13,7 @@ import org.elasticsearch.watcher.support.Variables;
 import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.support.xcontent.ObjectPath;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -20,7 +21,6 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 
 /**
  *
@@ -52,7 +52,7 @@ public class ExecutableCompareCondition extends ExecutableCondition<CompareCondi
             Matcher matcher = DATE_MATH_PATTERN.matcher((String) configuredValue);
             if (matcher.matches()) {
                 String dateMath = matcher.group(1);
-                configuredValue = WatcherDateTimeUtils.parseDateMath(dateMath, UTC, clock);
+                configuredValue = WatcherDateTimeUtils.parseDateMath(dateMath, DateTimeZone.UTC, clock);
                 resolvedValues.put(dateMath, WatcherDateTimeUtils.formatDate((DateTime) configuredValue));
             } else {
                 // checking if the given value is a path expression

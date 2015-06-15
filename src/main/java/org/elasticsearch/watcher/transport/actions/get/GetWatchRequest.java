@@ -7,7 +7,8 @@ package org.elasticsearch.watcher.transport.actions.get;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -19,7 +20,7 @@ import java.io.IOException;
 /**
  * The request to get the watch by name (id)
  */
-public class GetWatchRequest extends MasterNodeOperationRequest<GetWatchRequest> {
+public class GetWatchRequest extends MasterNodeReadRequest<GetWatchRequest> {
 
     private String id;
     private long version = Versions.MATCH_ANY;
@@ -87,7 +88,7 @@ public class GetWatchRequest extends MasterNodeOperationRequest<GetWatchRequest>
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        version = Versions.readVersion(in);
+        version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
         id = in.readString();
     }
@@ -95,7 +96,7 @@ public class GetWatchRequest extends MasterNodeOperationRequest<GetWatchRequest>
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        Versions.writeVersion(version, out);
+        out.writeLong(version);
         out.writeByte(versionType.getValue());
         out.writeString(id);
     }

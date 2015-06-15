@@ -5,15 +5,14 @@
  */
 package org.elasticsearch.watcher.support;
 
+import com.google.common.base.Equivalence;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.watcher.WatcherException;
-import org.elasticsearch.common.base.Equivalence;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 
 import java.io.IOException;
 import java.util.Arrays;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * The only true way today to compare search request object (outside of core) is to

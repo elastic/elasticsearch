@@ -8,7 +8,8 @@ package org.elasticsearch.watcher.transport.actions.put;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -23,7 +24,7 @@ import java.io.IOException;
  * This request class contains the data needed to create a watch along with the name of the watch.
  * The name of the watch will become the ID of the indexed document.
  */
-public class PutWatchRequest extends MasterNodeOperationRequest<PutWatchRequest> {
+public class PutWatchRequest extends MasterNodeRequest<PutWatchRequest> {
 
     private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(10);
 

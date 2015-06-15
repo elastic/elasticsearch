@@ -5,11 +5,10 @@
  */
 package org.elasticsearch.watcher;
 
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.watcher.actions.email.service.InternalEmailService;
@@ -21,7 +20,7 @@ import org.elasticsearch.watcher.support.validation.WatcherSettingsValidation;
 
 import java.util.Collection;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 public class WatcherPlugin extends AbstractPlugin {
 
@@ -75,7 +74,7 @@ public class WatcherPlugin extends AbstractPlugin {
     @Override
     public Settings additionalSettings() {
         if (!enabled || transportClient) {
-            return ImmutableSettings.EMPTY;
+            return Settings.EMPTY;
         }
         Settings additionalSettings = settingsBuilder()
                 .put(HistoryModule.additionalSettings(settings))

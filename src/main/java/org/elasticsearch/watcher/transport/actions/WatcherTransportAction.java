@@ -8,8 +8,8 @@ package org.elasticsearch.watcher.transport.actions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.core.LicenseExpiredException;
@@ -20,12 +20,12 @@ import org.elasticsearch.watcher.license.LicenseService;
 /**
  *
  */
-public abstract class WatcherTransportAction<Request extends MasterNodeOperationRequest<Request>, Response extends ActionResponse> extends TransportMasterNodeOperationAction<Request, Response> {
+public abstract class WatcherTransportAction<Request extends MasterNodeRequest<Request>, Response extends ActionResponse> extends TransportMasterNodeAction<Request, Response> {
 
     private final LicenseService licenseService;
 
-    public WatcherTransportAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters, LicenseService licenseService) {
-        super(settings, actionName, transportService, clusterService, threadPool, actionFilters);
+    public WatcherTransportAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters, LicenseService licenseService,  Class<Request> request) {
+        super(settings, actionName, transportService, clusterService, threadPool, actionFilters, request);
         this.licenseService = licenseService;
     }
 

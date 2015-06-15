@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.watcher.transport.actions.ack;
 
-import org.elasticsearch.watcher.client.WatcherAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * This action acks a watch in memory, and the index
  */
-public class AckWatchAction extends WatcherAction<AckWatchRequest, AckWatchResponse, AckWatchRequestBuilder> {
+public class AckWatchAction extends Action<AckWatchRequest, AckWatchResponse, AckWatchRequestBuilder> {
 
     public static final AckWatchAction INSTANCE = new AckWatchAction();
     public static final String NAME = "cluster:admin/watcher/watch/ack";
@@ -26,8 +26,7 @@ public class AckWatchAction extends WatcherAction<AckWatchRequest, AckWatchRespo
     }
 
     @Override
-    public AckWatchRequestBuilder newRequestBuilder(Client client) {
+    public AckWatchRequestBuilder newRequestBuilder(ElasticsearchClient client) {
         return new AckWatchRequestBuilder(client);
     }
-
 }

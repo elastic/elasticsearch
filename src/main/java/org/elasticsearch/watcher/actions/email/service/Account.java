@@ -6,7 +6,7 @@
 package org.elasticsearch.watcher.actions.email.service;
 
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.watcher.support.secret.SecretService;
 
@@ -153,7 +153,7 @@ public class Account {
              * "unreadable" keys. We'll then use these settings when crea
              */
             static Properties loadSmtpProperties(Settings settings) {
-                ImmutableSettings.Builder builder = ImmutableSettings.builder().put(settings);
+                Settings.Builder builder = Settings.builder().put(settings);
                 replace(builder, "connection_timeout", "connectiontimeout");
                 replace(builder, "write_timeout", "writetimeout");
                 replace(builder, "local_address", "localaddress");
@@ -174,7 +174,7 @@ public class Account {
                 return props;
             }
 
-            static void replace(ImmutableSettings.Builder settings, String currentKey, String newKey) {
+            static void replace(Settings.Builder settings, String currentKey, String newKey) {
                 String value = settings.remove(currentKey);
                 if (value != null) {
                     settings.put(newKey, value);

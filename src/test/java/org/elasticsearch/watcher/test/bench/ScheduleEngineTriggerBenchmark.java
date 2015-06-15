@@ -6,7 +6,7 @@
 package org.elasticsearch.watcher.test.bench;
 
 import org.elasticsearch.common.metrics.MeanMetric;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.trigger.Trigger;
@@ -47,7 +47,7 @@ public class ScheduleEngineTriggerBenchmark {
         }
         System.out.println("Running benchmark with numWatches=" + numWatches + " benchTime=" + benchTime + " interval=" + interval);
 
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put("name", "test")
                 .build();
         List<TriggerEngine.Job> jobs = new ArrayList<>(numWatches);
@@ -72,7 +72,7 @@ public class ScheduleEngineTriggerBenchmark {
             final ScheduleTriggerEngine scheduler;
             switch (impl) {
                 case "schedule":
-                    scheduler = new SchedulerScheduleTriggerEngine(ImmutableSettings.EMPTY, scheduleRegistry, SystemClock.INSTANCE) {
+                    scheduler = new SchedulerScheduleTriggerEngine(Settings.EMPTY, scheduleRegistry, SystemClock.INSTANCE) {
 
                         @Override
                         protected void notifyListeners(String name, long triggeredTime, long scheduledTime) {

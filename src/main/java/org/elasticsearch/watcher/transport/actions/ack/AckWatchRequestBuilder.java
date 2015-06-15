@@ -7,20 +7,21 @@ package org.elasticsearch.watcher.transport.actions.ack;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.client.Client;
 
 /**
  * A ack watch action request builder.
  */
-public class AckWatchRequestBuilder extends MasterNodeOperationRequestBuilder<AckWatchRequest, AckWatchResponse, AckWatchRequestBuilder, Client> {
+public class AckWatchRequestBuilder extends MasterNodeOperationRequestBuilder<AckWatchRequest, AckWatchResponse, AckWatchRequestBuilder> {
 
-    public AckWatchRequestBuilder(Client client) {
-        super(client, new AckWatchRequest());
+    public AckWatchRequestBuilder(ElasticsearchClient client) {
+        super(client, AckWatchAction.INSTANCE, new AckWatchRequest());
     }
 
-    public AckWatchRequestBuilder(Client client, String id) {
-        super(client, new AckWatchRequest(id));
+    public AckWatchRequestBuilder(ElasticsearchClient client, String id) {
+        super(client, AckWatchAction.INSTANCE, new AckWatchRequest(id));
     }
 
     public AckWatchRequestBuilder setActionIds(String... actionIds) {
@@ -28,9 +29,5 @@ public class AckWatchRequestBuilder extends MasterNodeOperationRequestBuilder<Ac
         return this;
     }
 
-    @Override
-    protected void doExecute(final ActionListener<AckWatchResponse> listener) {
-        new WatcherClient(client).ackWatch(request, listener);
-    }
 
 }

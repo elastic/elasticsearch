@@ -7,10 +7,9 @@ package org.elasticsearch.watcher.input.http;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.history.HistoryStore;
@@ -40,8 +39,8 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTests {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder()
-                .put(InternalNode.HTTP_ENABLED, true)
+        return Settings.builder()
+                .put(Node.HTTP_ENABLED, true)
                 .put(super.nodeSettings(nodeOrdinal))
                 .build();
     }

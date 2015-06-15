@@ -5,13 +5,12 @@
  */
 package org.elasticsearch.watcher.transport.actions.get;
 
-import org.elasticsearch.watcher.client.WatcherAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * This action gets an watch by name
  */
-public class GetWatchAction extends WatcherAction<GetWatchRequest, GetWatchResponse, GetWatchRequestBuilder> {
+public class GetWatchAction extends org.elasticsearch.action.Action<GetWatchRequest, GetWatchResponse, GetWatchRequestBuilder> {
 
     public static final GetWatchAction INSTANCE = new GetWatchAction();
     public static final String NAME = "cluster:monitor/watcher/watch/get";
@@ -26,7 +25,7 @@ public class GetWatchAction extends WatcherAction<GetWatchRequest, GetWatchRespo
     }
 
     @Override
-    public GetWatchRequestBuilder newRequestBuilder(Client client) {
+    public GetWatchRequestBuilder newRequestBuilder(ElasticsearchClient client) {
         return new GetWatchRequestBuilder(client);
     }
 }

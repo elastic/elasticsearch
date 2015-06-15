@@ -5,14 +5,14 @@
  */
 package org.elasticsearch.watcher.watch;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.joda.time.DateTime;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.WatcherException;
@@ -25,13 +25,13 @@ import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.trigger.Trigger;
 import org.elasticsearch.watcher.trigger.TriggerEngine;
 import org.elasticsearch.watcher.trigger.TriggerService;
+import org.joda.time.DateTimeZone;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.lang.reflect.Field;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Matchers.any;
@@ -57,7 +57,7 @@ public class WatchServiceTests extends ElasticsearchTestCase {
         executionService =  mock(ExecutionService.class);
         watchLockService = mock(WatchLockService.class);
         clock = new ClockMock();
-        watcherService = new WatcherService(ImmutableSettings.EMPTY, clock, triggerService, watchStore, watchParser, executionService, watchLockService);
+        watcherService = new WatcherService(Settings.EMPTY, clock, triggerService, watchStore, watchParser, executionService, watchLockService);
         Field field = WatcherService.class.getDeclaredField("state");
         field.setAccessible(true);
         AtomicReference<WatcherState> state = (AtomicReference<WatcherState>) field.get(watcherService);
@@ -178,7 +178,7 @@ public class WatchServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testAckWatch() throws Exception {
-        DateTime now = new DateTime(UTC);
+        DateTime now = new DateTime(DateTimeZone.UTC);
         clock.setTime(now);
         TimeValue timeout = TimeValue.timeValueSeconds(5);
         WatchLockService.Lock lock = mock(WatchLockService.Lock.class);

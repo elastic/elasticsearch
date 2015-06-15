@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.watcher.transform.chain;
 
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.transform.Transform;
@@ -14,6 +14,7 @@ import org.elasticsearch.watcher.transform.TransformRegistry;
 import org.elasticsearch.watcher.watch.Payload;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  *
@@ -33,7 +34,7 @@ public class ChainTransform implements Transform {
         return TYPE;
     }
 
-    public ImmutableList<Transform> getTransforms() {
+    public List<Transform> getTransforms() {
         return transforms;
     }
 

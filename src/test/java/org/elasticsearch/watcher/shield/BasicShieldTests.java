@@ -6,8 +6,8 @@
 package org.elasticsearch.watcher.shield;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.joda.time.DateTime;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.AuthenticationException;
@@ -29,7 +29,7 @@ import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.junit.Test;
 
-import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
+import static org.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
@@ -46,7 +46,7 @@ public class BasicShieldTests extends AbstractWatcherIntegrationTests {
 
     @Override
     protected Settings transportClientSettings() {
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .put("client.transport.sniff", false)
                 .put("plugin.types", ShieldPlugin.class.getName() + "," + WatcherPlugin.class.getName())
                 // Use just the transport user here, so we can test Watcher roles specifically

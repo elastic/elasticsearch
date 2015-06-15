@@ -5,12 +5,13 @@
  */
 package org.elasticsearch.watcher.transport.actions.service;
 
-import org.elasticsearch.watcher.client.WatcherAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class WatcherServiceAction extends WatcherAction<WatcherServiceRequest, WatcherServiceResponse, WatcherServiceRequestBuilder> {
+
+public class WatcherServiceAction extends Action<WatcherServiceRequest, WatcherServiceResponse, WatcherServiceRequestBuilder> {
 
     public static final WatcherServiceAction INSTANCE = new WatcherServiceAction();
     public static final String NAME = "cluster:admin/watcher/service";
@@ -25,8 +26,7 @@ public class WatcherServiceAction extends WatcherAction<WatcherServiceRequest, W
     }
 
     @Override
-    public WatcherServiceRequestBuilder newRequestBuilder(Client client) {
+    public WatcherServiceRequestBuilder newRequestBuilder(ElasticsearchClient client) {
         return new WatcherServiceRequestBuilder(client);
     }
-
 }

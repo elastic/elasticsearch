@@ -9,12 +9,12 @@ import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.joda.time.format.ISODateTimeFormat;
+import org.joda.time.DateTimeZone;
+import org.joda.time.format.ISODateTimeFormat;
 
 import java.io.IOException;
 import java.util.Properties;
 
-import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 /**
  */
 public class WatcherBuild {
@@ -37,7 +37,7 @@ public class WatcherBuild {
             }
             String gitTimestampRaw = props.getProperty("timestamp");
             if (gitTimestampRaw != null) {
-                timestamp = ISODateTimeFormat.dateTimeNoMillis().withZone(UTC).print(Long.parseLong(gitTimestampRaw));
+                timestamp = ISODateTimeFormat.dateTimeNoMillis().withZone(DateTimeZone.UTC).print(Long.parseLong(gitTimestampRaw));
             }
             versionName = props.getProperty("version", "NA");
         } catch (Exception e) {

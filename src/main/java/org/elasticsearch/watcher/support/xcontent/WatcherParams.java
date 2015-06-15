@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.watcher.support.xcontent;
 
-import org.elasticsearch.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.xcontent.ToXContent;
 
 /**
@@ -17,8 +17,6 @@ public class WatcherParams extends ToXContent.DelegatingMapParams {
 
     static final String HIDE_SECRETS_KEY = "hide_secrets";
     static final String COLLAPSE_ARRAYS_KEY = "collapse_arrays";
-
-    private ImmutableMap<String, String> params;
 
     private WatcherParams(ImmutableMap<String, String> params, ToXContent.Params delegate) {
         super(params, delegate);
@@ -40,10 +38,6 @@ public class WatcherParams extends ToXContent.DelegatingMapParams {
 
     public static boolean hideSecrets(ToXContent.Params params) {
         return wrap(params).hideSecrets();
-    }
-
-    public static boolean collapseArrays(ToXContent.Params params) {
-        return wrap(params).collapseArrays();
     }
 
     public static Builder builder() {

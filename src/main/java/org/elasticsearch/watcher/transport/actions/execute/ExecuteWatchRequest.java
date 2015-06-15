@@ -7,7 +7,7 @@ package org.elasticsearch.watcher.transport.actions.execute;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,7 +22,7 @@ import java.util.Map;
 /**
  * An execute watch request to execute a watch by id
  */
-public class ExecuteWatchRequest extends MasterNodeOperationRequest<ExecuteWatchRequest> {
+public class ExecuteWatchRequest extends MasterNodeReadRequest<ExecuteWatchRequest> {
 
     private String id;
     private boolean ignoreCondition = false;

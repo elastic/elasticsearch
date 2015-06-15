@@ -31,18 +31,13 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
     @Inject
     public TransportPutWatchAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                    ThreadPool threadPool, ActionFilters actionFilters, WatcherService watcherService, LicenseService licenseService) {
-        super(settings, PutWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, licenseService);
+        super(settings, PutWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, licenseService, PutWatchRequest.class);
         this.watcherService = watcherService;
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected PutWatchRequest newRequest() {
-        return new PutWatchRequest();
     }
 
     @Override

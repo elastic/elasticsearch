@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.watcher.execution;
 
-import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.watch.Watch;
+import org.joda.time.DateTime;
 
 /**
  */

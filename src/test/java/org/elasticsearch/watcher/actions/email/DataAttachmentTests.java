@@ -5,8 +5,7 @@
  */
 package org.elasticsearch.watcher.actions.email;
 
-import org.elasticsearch.common.base.Charsets;
-import org.elasticsearch.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.actions.email.service.Attachment;
@@ -14,6 +13,7 @@ import org.junit.Test;
 
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
@@ -28,7 +28,7 @@ public class DataAttachmentTests extends ElasticsearchTestCase {
         Map<String, Object> data = ImmutableMap.<String, Object>of("key", "value");
         Attachment attachment = DataAttachment.JSON.create(data);
         InputStream input = attachment.bodyPart().getDataHandler().getInputStream();
-        String content = Streams.copyToString(new InputStreamReader(input, Charsets.UTF_8));
+        String content = Streams.copyToString(new InputStreamReader(input, StandardCharsets.UTF_8));
         assertThat(content, is("{" + System.lineSeparator() + "  \"key\" : \"value\"" + System.lineSeparator() + "}"));
     }
 
@@ -37,7 +37,7 @@ public class DataAttachmentTests extends ElasticsearchTestCase {
         Map<String, Object> data = ImmutableMap.<String, Object>of("key", "value");
         Attachment attachment = DataAttachment.YAML.create(data);
         InputStream input = attachment.bodyPart().getDataHandler().getInputStream();
-        String content = Streams.copyToString(new InputStreamReader(input, Charsets.UTF_8));
+        String content = Streams.copyToString(new InputStreamReader(input, StandardCharsets.UTF_8));
         // the yaml factory in es always emits unix line breaks
         // this seems to be a bug in jackson yaml factory that doesn't default to the platform line break
         assertThat(content, is("---\nkey: \"value\"\n"));

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.support.http;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -35,7 +34,7 @@ public enum Scheme implements ToXContent {
             case "https":
                 return HTTPS;
             default:
-                throw new ElasticsearchIllegalArgumentException("unsupported http scheme [" + value + "]");
+                throw new IllegalArgumentException("unsupported http scheme [" + value + "]");
         }
     }
 

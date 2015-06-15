@@ -7,16 +7,14 @@ package org.elasticsearch.watcher.execution;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.watcher.actions.ExecutableActions;
 import org.elasticsearch.watcher.condition.Condition;
-import org.elasticsearch.watcher.condition.ConditionRegistry;
 import org.elasticsearch.watcher.input.Input;
-import org.elasticsearch.watcher.input.InputRegistry;
 import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.transform.Transform;
+import org.joda.time.DateTime;
 
 import java.io.IOException;
 

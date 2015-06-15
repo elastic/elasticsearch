@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.support.http;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -46,7 +45,7 @@ public enum HttpMethod implements ToXContent {
             case "DELETE":
                 return DELETE;
             default:
-                throw new ElasticsearchIllegalArgumentException("unsupported http method [" + value + "]");
+                throw new IllegalArgumentException("unsupported http method [" + value + "]");
         }
     }
 

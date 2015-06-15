@@ -6,37 +6,32 @@
 package org.elasticsearch.watcher.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
-import org.apache.lucene.util.AbstractRandomizedTest.Rest;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.support.Headers;
-import org.elasticsearch.common.base.Charsets;
-import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.LicensePlugin;
-import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.test.rest.ElasticsearchRestTests;
+import org.elasticsearch.test.rest.ElasticsearchRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.watcher.WatcherPlugin;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 
-import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
 
 
-@Rest
+@ElasticsearchRestTestCase.Rest
 @ClusterScope(scope = SUITE, numClientNodes = 1, transportClientRatio = 0, numDataNodes = 1, randomDynamicTemplates = false)
 @TestLogging("_root:DEBUG")
-public class WatcherRestTests extends ElasticsearchRestTests {
+public class WatcherRestTests extends ElasticsearchRestTestCase {
 
     final boolean shieldEnabled = randomBoolean();
 
@@ -46,13 +41,13 @@ public class WatcherRestTests extends ElasticsearchRestTests {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("scroll.size", randomIntBetween(1, 100))
                 .put("plugin.types", WatcherPlugin.class.getName() + ","
                         + (shieldEnabled ? ShieldPlugin.class.getName() + "," : "")
                         + "," + LicensePlugin.class.getName())
-                .put(InternalNode.HTTP_ENABLED, true)
+                .put(Node.HTTP_ENABLED, true)
                 .put(ShieldSettings.settings(shieldEnabled))
         .build();
     }
@@ -64,30 +59,30 @@ public class WatcherRestTests extends ElasticsearchRestTests {
     protected Settings restClientSettings() {
         if (shieldEnabled) {
             String token = basicAuthHeaderValue("admin", new SecuredString("changeme".toCharArray()));
-            return ImmutableSettings.builder()
+            return Settings.builder()
                     .put(Headers.PREFIX + ".Authorization", token)
                     .build();
         } else {
-            return ImmutableSettings.EMPTY;
+            return Settings.EMPTY;
         }
     }
 
     @Override
     protected Settings transportClientSettings() {
         if (shieldEnabled) {
-            return ImmutableSettings.builder()
+            return Settings.builder()
                     .put(super.transportClientSettings())
                     .put("client.transport.sniff", false)
                     .put("plugin.types", WatcherPlugin.class.getName() + ","
                             + (shieldEnabled ? ShieldPlugin.class.getName() + "," : ""))
                     .put("shield.user", "admin:changeme")
-                    .put(InternalNode.HTTP_ENABLED, true)
+                    .put(Node.HTTP_ENABLED, true)
                     .build();
         }
 
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .put("plugin.types", WatcherPlugin.class.getName())
-                .put(InternalNode.HTTP_ENABLED, true)
+                .put(Node.HTTP_ENABLED, true)
                 .put("plugin.types", WatcherPlugin.class.getName() + ","
                         + "," + LicensePlugin.class.getName())
                 .build();
@@ -125,50 +120,26 @@ public class WatcherRestTests extends ElasticsearchRestTests {
                 ;
 
         public static Settings settings(boolean enabled) {
-            ImmutableSettings.Builder builder = ImmutableSettings.builder();
+            Settings.Builder builder = Settings.builder();
             if (!enabled) {
                 return builder.put("shield.enabled", false).build();
             }
-
-            File folder = createFolder(globalTempDir(), "watcher_shield");
-            return builder.put("shield.enabled", true)
+            try {
+                Path folder = createTempDir().resolve("watcher_shield");
+                Files.createDirectories(folder);
+                return builder.put("shield.enabled", true)
                     .put("shield.user", "test:changeme")
                     .put("shield.authc.realms.esusers.type", ESUsersRealm.TYPE)
                     .put("shield.authc.realms.esusers.order", 0)
-                    .put("shield.authc.realms.esusers.files.users", writeFile(folder, "users", USERS))
-                    .put("shield.authc.realms.esusers.files.users_roles", writeFile(folder, "users_roles", USER_ROLES))
-                    .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", ROLES))
-                    .put("shield.transport.n2n.ip_filter.file", writeFile(folder, "ip_filter.yml", IP_FILTER))
+                    .put("shield.authc.realms.esusers.files.users", AbstractWatcherIntegrationTests.ShieldSettings.writeFile(folder, "users", USERS))
+                    .put("shield.authc.realms.esusers.files.users_roles", AbstractWatcherIntegrationTests.ShieldSettings.writeFile(folder, "users_roles", USER_ROLES))
+                    .put("shield.authz.store.files.roles", AbstractWatcherIntegrationTests.ShieldSettings.writeFile(folder, "roles.yml", ROLES))
+                    .put("shield.transport.n2n.ip_filter.file", AbstractWatcherIntegrationTests.ShieldSettings.writeFile(folder, "ip_filter.yml", IP_FILTER))
                     .put("shield.audit.enabled", true)
                     .build();
-        }
-
-        static File createFolder(File parent, String name) {
-            File createdFolder = new File(parent, name);
-            //the directory might exist e.g. if the global cluster gets restarted, then we recreate the directory as well
-            if (createdFolder.exists()) {
-                if (!FileSystemUtils.deleteRecursively(createdFolder)) {
-                    throw new RuntimeException("could not delete existing temporary folder: " + createdFolder.getAbsolutePath());
-                }
+            } catch (IOException ex) {
+                throw new RuntimeException("failed to build settings for shield", ex);
             }
-            if (!createdFolder.mkdir()) {
-                throw new RuntimeException("could not create temporary folder: " + createdFolder.getAbsolutePath());
-            }
-            return createdFolder;
-        }
-
-        static String writeFile(File folder, String name, String content) {
-            return writeFile(folder, name, content.getBytes(Charsets.UTF_8));
-        }
-
-        static String writeFile(File folder, String name, byte[] content) {
-            Path file = folder.toPath().resolve(name);
-            try {
-                Streams.copy(content, file.toFile());
-            } catch (IOException e) {
-                throw new ElasticsearchException("error writing file in test", e);
-            }
-            return file.toFile().getAbsolutePath();
         }
     }
 

@@ -6,11 +6,11 @@
 package org.elasticsearch.watcher.condition.script;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.joda.time.DateTime;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -24,13 +24,13 @@ import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.watch.Payload;
+import org.joda.time.DateTimeZone;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.getScriptServiceProxy;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.mockExecutionContext;
@@ -74,7 +74,7 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
 
     @Test @Repeat(iterations =  5)
     public void testParser_Valid() throws Exception {
-        ScriptConditionFactory factory = new ScriptConditionFactory(ImmutableSettings.settingsBuilder().build(), getScriptServiceProxy(tp));
+        ScriptConditionFactory factory = new ScriptConditionFactory(Settings.settingsBuilder().build(), getScriptServiceProxy(tp));
 
         XContentBuilder builder = createConditionContent("ctx.payload.hits.total > 1", null, ScriptType.INLINE);
 
@@ -102,7 +102,7 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
 
     @Test(expected = ScriptConditionException.class)
     public void testParser_InValid() throws Exception {
-        ScriptConditionFactory factory = new ScriptConditionFactory(ImmutableSettings.settingsBuilder().build(), getScriptServiceProxy(tp));
+        ScriptConditionFactory factory = new ScriptConditionFactory(Settings.settingsBuilder().build(), getScriptServiceProxy(tp));
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject().endObject();
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
@@ -114,7 +114,7 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
     @Test(expected = ScriptConditionValidationException.class)
     @Repeat(iterations = 3)
     public void testScriptConditionParser_badScript() throws Exception {
-        ScriptConditionFactory conditionParser = new ScriptConditionFactory(ImmutableSettings.settingsBuilder().build(), getScriptServiceProxy(tp));
+        ScriptConditionFactory conditionParser = new ScriptConditionFactory(Settings.settingsBuilder().build(), getScriptServiceProxy(tp));
         ScriptType scriptType = randomFrom(ScriptType.values());
         String script;
         switch (scriptType) {
@@ -136,7 +136,7 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
 
     @Test(expected = ScriptConditionValidationException.class)
     public void testScriptConditionParser_badLang() throws Exception {
-        ScriptConditionFactory conditionParser = new ScriptConditionFactory(ImmutableSettings.settingsBuilder().build(), getScriptServiceProxy(tp));
+        ScriptConditionFactory conditionParser = new ScriptConditionFactory(Settings.settingsBuilder().build(), getScriptServiceProxy(tp));
         ScriptType scriptType = ScriptType.INLINE;
         String script = "return true";
         XContentBuilder builder = createConditionContent(script, "not_a_valid_lang", scriptType);
@@ -173,7 +173,7 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
         ScriptServiceProxy scriptService = getScriptServiceProxy(tp);
         ExecutableScriptCondition condition = new ExecutableScriptCondition(new ScriptCondition(Script.inline("ctx.trigger.scheduled_time.getMillis() < System.currentTimeMillis() ").build()), logger, scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500l, new ShardSearchFailure[0]);
-        WatchExecutionContext ctx = mockExecutionContext("_name", new DateTime(UTC), new Payload.XContent(response));
+        WatchExecutionContext ctx = mockExecutionContext("_name", new DateTime(DateTimeZone.UTC), new Payload.XContent(response));
         Thread.sleep(10);
         assertThat(condition.execute(ctx).met(), is(true));
     }

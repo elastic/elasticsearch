@@ -7,8 +7,8 @@ package org.elasticsearch.watcher.trigger.schedule;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Collections2;
-import org.elasticsearch.common.primitives.Ints;
+import com.google.common.collect.Collections2;
+import com.google.common.primitives.Ints;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;

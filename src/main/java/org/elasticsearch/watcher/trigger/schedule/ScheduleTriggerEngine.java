@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.watcher.trigger.schedule;
 
-import org.elasticsearch.common.joda.time.DateTime;
+import org.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.support.WatcherDateTimeUtils;

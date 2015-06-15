@@ -5,14 +5,14 @@
  */
 package org.elasticsearch.watcher.actions.email.service;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.base.Charsets;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.joda.time.DateTime;
+import org.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.joda.time.DateTimeZone;
 
 import javax.mail.MessagingException;
 import javax.mail.internet.AddressException;
@@ -20,9 +20,9 @@ import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
-import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 /**
  *
  */
@@ -50,7 +50,7 @@ public class Email implements ToXContent {
         this.from = from;
         this.replyTo = replyTo;
         this.priority = priority;
-        this.sentDate = sentDate != null ? sentDate : new DateTime(UTC);
+        this.sentDate = sentDate != null ? sentDate : new DateTime(DateTimeZone.UTC);
         this.to = to;
         this.cc = cc;
         this.bcc = bcc;
@@ -425,7 +425,7 @@ public class Email implements ToXContent {
         }
 
         public Address(String address, String personal) throws UnsupportedEncodingException {
-            super(address, personal, Charsets.UTF_8.name());
+            super(address, personal, StandardCharsets.UTF_8.name());
         }
 
         @Override

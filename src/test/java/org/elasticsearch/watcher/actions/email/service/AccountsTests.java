@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.watcher.actions.email.service;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.support.secret.SecretService;
 import org.junit.Test;
@@ -19,7 +19,7 @@ public class AccountsTests extends ElasticsearchTestCase {
 
     @Test
     public void testSingleAccount() throws Exception {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder()
+        Settings.Builder builder = Settings.builder()
                 .put("default_account", "account1");
         addAccountSettings("account1", builder);
 
@@ -34,7 +34,7 @@ public class AccountsTests extends ElasticsearchTestCase {
 
     @Test
     public void testSingleAccount_NoExplicitDefault() throws Exception {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        Settings.Builder builder = Settings.builder();
         addAccountSettings("account1", builder);
 
         Accounts accounts = new Accounts(builder.build(), new SecretService.PlainText(), logger);
@@ -48,7 +48,7 @@ public class AccountsTests extends ElasticsearchTestCase {
 
     @Test
     public void testMultipleAccounts() throws Exception {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder()
+        Settings.Builder builder = Settings.builder()
                 .put("default_account", "account1");
         addAccountSettings("account1", builder);
         addAccountSettings("account2", builder);
@@ -67,7 +67,7 @@ public class AccountsTests extends ElasticsearchTestCase {
 
     @Test
     public void testMultipleAccounts_NoExplicitDefault() throws Exception {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder()
+        Settings.Builder builder = Settings.builder()
                 .put("default_account", "account1");
         addAccountSettings("account1", builder);
         addAccountSettings("account2", builder);
@@ -86,7 +86,7 @@ public class AccountsTests extends ElasticsearchTestCase {
 
     @Test(expected = EmailSettingsException.class)
     public void testMultipleAccounts_UnknownDefault() throws Exception {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder()
+        Settings.Builder builder = Settings.builder()
                 .put("default_account", "unknown");
         addAccountSettings("account1", builder);
         addAccountSettings("account2", builder);
@@ -95,7 +95,7 @@ public class AccountsTests extends ElasticsearchTestCase {
 
     @Test(expected = EmailSettingsException.class)
     public void testNoAccount() throws Exception {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        Settings.Builder builder = Settings.builder();
         Accounts accounts = new Accounts(builder.build(), new SecretService.PlainText(), logger);
         accounts.account(null);
         fail("no accounts are configured so trying to get the default account should throw an EmailSettingsException");
@@ -103,12 +103,12 @@ public class AccountsTests extends ElasticsearchTestCase {
 
     @Test(expected = EmailSettingsException.class)
     public void testNoAccount_WithDefaultAccount() throws Exception {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder()
+        Settings.Builder builder = Settings.builder()
                 .put("default_account", "unknown");
         new Accounts(builder.build(), new SecretService.PlainText(), logger);
     }
 
-    private void addAccountSettings(String name, ImmutableSettings.Builder builder) {
+    private void addAccountSettings(String name, Settings.Builder builder) {
         builder.put("account." + name + ".smtp.host", "_host");
     }
 }

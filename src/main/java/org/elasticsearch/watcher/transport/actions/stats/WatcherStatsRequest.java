@@ -6,7 +6,7 @@
 package org.elasticsearch.watcher.transport.actions.stats;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -15,7 +15,7 @@ import java.io.IOException;
 /**
  * The Request to get the watcher stats
  */
-public class WatcherStatsRequest extends MasterNodeOperationRequest<WatcherStatsRequest> {
+public class WatcherStatsRequest extends MasterNodeReadRequest<WatcherStatsRequest> {
 
     private boolean includeCurrentWatches;
     private boolean includeQueuedWatches;

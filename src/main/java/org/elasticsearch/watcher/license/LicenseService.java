@@ -6,7 +6,6 @@
 package org.elasticsearch.watcher.license;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
@@ -18,6 +17,7 @@ import org.elasticsearch.license.plugin.core.LicensesClientService;
 import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.watcher.WatcherPlugin;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Locale;
 
@@ -42,7 +42,7 @@ public class LicenseService extends AbstractLifecycleComponent<LicenseService> {
     public LicenseService(Settings settings, LicensesClientService clientService) {
         super(settings);
         this.clientService = clientService;
-        this.expirationLoggers = ImmutableList.of(
+        this.expirationLoggers = Arrays.asList(
                 new LicensesService.ExpirationCallback.Pre(days(7), days(30), days(1)) {
                     @Override
                     public void on(License license, LicensesService.ExpirationStatus status) {

@@ -11,9 +11,9 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.joda.time.DateTime;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import org.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -88,11 +88,11 @@ public class WatcherUtilsTests extends ElasticsearchTestCase {
 
     @Test @Repeat(iterations = 20)
     public void testSerializeSearchRequest() throws Exception {
-        String[] randomIndices = generateRandomStringArray(5, 5);
+        String[] randomIndices = generateRandomStringArray(5, 5, false);
         SearchRequest expectedRequest = new SearchRequest(randomIndices);
 
         if (randomBoolean()) {
-            String[] randomTypes = generateRandomStringArray(2, 5);
+            String[] randomTypes = generateRandomStringArray(2, 5, false);
             expectedRequest.types(randomTypes);
         }
 
@@ -143,7 +143,7 @@ public class WatcherUtilsTests extends ElasticsearchTestCase {
 
         String[] indices = Strings.EMPTY_ARRAY;
         if (randomBoolean()) {
-            indices = generateRandomStringArray(5, 5);
+            indices = generateRandomStringArray(5, 5, false);
             if (randomBoolean()) {
                 builder.array("indices", indices);
             } else {
@@ -153,7 +153,7 @@ public class WatcherUtilsTests extends ElasticsearchTestCase {
 
         String[] types = Strings.EMPTY_ARRAY;
         if (randomBoolean()) {
-            types = generateRandomStringArray(2, 5);
+            types = generateRandomStringArray(2, 5, false);
             if (randomBoolean()) {
                 builder.array("types", types);
             } else {

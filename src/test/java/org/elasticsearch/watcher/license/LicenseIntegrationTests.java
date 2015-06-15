@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.watcher.license;
 
-import org.elasticsearch.common.collect.ImmutableSet;
+import com.carrotsearch.randomizedtesting.RandomizedTest;
+import com.carrotsearch.randomizedtesting.SysGlobals;
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
@@ -31,7 +33,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -56,7 +57,7 @@ public class LicenseIntegrationTests extends AbstractWatcherIntegrationTests {
             .signature("_signature")
             .type("test_license_for_watcher")
             .subscriptionType("all_is_good")
-            .uid(String.valueOf(CHILD_JVM_ID) + System.identityHashCode(LicenseIntegrationTests.class))
+            .uid(String.valueOf(RandomizedTest.systemPropertyAsInt(SysGlobals.CHILDVM_SYSPROP_JVM_ID, 0)) + System.identityHashCode(LicenseIntegrationTests.class))
             .build();
 
     @Override
@@ -163,7 +164,7 @@ public class LicenseIntegrationTests extends AbstractWatcherIntegrationTests {
         // and last... lets verify that we have throttled watches due to license expiration
         long throttledCount = docCount(HistoryStore.INDEX_PREFIX + "*", HistoryStore.DOC_TYPE, filteredQuery(
                 matchQuery("result.actions.reason", "watcher license expired"),
-                termFilter("result.actions.status", "throttled")));
+                termQuery("result.actions.status", "throttled")));
         assertThat(throttledCount, is(1L));
 
         //=====

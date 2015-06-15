@@ -7,7 +7,7 @@ package org.elasticsearch.watcher.actions;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.common.joda.time.DateTime;
+import org.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.execution.ExecutionState;
@@ -15,11 +15,11 @@ import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
+import org.joda.time.DateTimeZone;
 import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.watcher.actions.ActionBuilders.indexAction;
@@ -69,7 +69,7 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
         assertThat(putWatchResponse.isCreated(), is(true));
 
         if (timeWarped()) {
-            timeWarp().clock().setTime(DateTime.now(UTC));
+            timeWarp().clock().setTime(DateTime.now(DateTimeZone.UTC));
 
             timeWarp().scheduler().trigger("_name");
             refresh();
@@ -143,7 +143,7 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
         assertThat(putWatchResponse.isCreated(), is(true));
 
         if (timeWarped()) {
-            timeWarp().clock().setTime(DateTime.now(UTC));
+            timeWarp().clock().setTime(DateTime.now(DateTimeZone.UTC));
 
             timeWarp().scheduler().trigger("_name");
             refresh();

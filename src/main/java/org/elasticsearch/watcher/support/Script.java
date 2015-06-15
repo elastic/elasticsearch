@@ -7,7 +7,6 @@ package org.elasticsearch.watcher.support;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -16,6 +15,7 @@ import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.watcher.WatcherException;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -55,7 +55,7 @@ public class Script implements ToXContent {
     }
 
     public Map<String, Object> params() {
-        return params != null ? params : ImmutableMap.<String, Object>of();
+        return params != null ? params : Collections.EMPTY_MAP;
     }
 
     @Override

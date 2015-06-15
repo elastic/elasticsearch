@@ -7,14 +7,13 @@ package org.elasticsearch.watcher.test.bench;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.LicensePlugin;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
-import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.watcher.WatcherPlugin;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
@@ -43,7 +42,7 @@ import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
  */
 public class WatcherExecutorServiceBenchmark {
 
-    private final static Settings SETTINGS = ImmutableSettings.builder()
+    private final static Settings SETTINGS = Settings.builder()
             .put("plugins.load_classpath_plugins", false)
             .put("shield.enabled", false)
             .put("plugin.types", WatcherBenchmarkPlugin.class.getName() + "," + LicensePlugin.class.getName())
@@ -62,7 +61,7 @@ public class WatcherExecutorServiceBenchmark {
     private static ScheduleTriggerEngineMock scheduler;
 
     protected static void start() throws Exception {
-        InternalNode node = (InternalNode) NodeBuilder.nodeBuilder().settings(SETTINGS).data(false).node();
+        Node node = NodeBuilder.nodeBuilder().settings(SETTINGS).data(false).node();
         client = node.client();
         client.admin().cluster().prepareHealth("*").setWaitForGreenStatus().get();
         Thread.sleep(5000);

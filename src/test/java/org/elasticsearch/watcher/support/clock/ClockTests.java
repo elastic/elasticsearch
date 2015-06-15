@@ -8,7 +8,7 @@ package org.elasticsearch.watcher.support.clock;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
+import static org.joda.time.DateTimeZone.UTC;
 import static org.hamcrest.Matchers.equalTo;
 
 /**

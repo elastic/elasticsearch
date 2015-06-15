@@ -10,7 +10,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoverySettings;
@@ -74,7 +74,7 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTests {
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings settings = super.nodeSettings(nodeOrdinal);
         Settings unicastSettings = config.node(nodeOrdinal);
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .put(settings)
                 .put(unicastSettings)
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, 2)
@@ -138,12 +138,12 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTests {
     public void testDedicatedMasterNodeLayout() throws Exception {
         // Only the master nodes are in the unicast nodes list:
         config = new ClusterDiscoveryConfiguration.UnicastZen(3);
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put("node.data", false)
                 .put("node.master", true)
                 .build();
         internalTestCluster().startNodesAsync(3, settings).get();
-        settings = ImmutableSettings.builder()
+        settings = Settings.builder()
                 .put("node.data", true)
                 .put("node.master", false)
                 .build();

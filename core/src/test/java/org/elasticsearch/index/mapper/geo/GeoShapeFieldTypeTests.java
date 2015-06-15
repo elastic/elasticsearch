@@ -45,7 +45,7 @@ public class GeoShapeFieldTypeTests extends FieldTypeTestCase {
             case 3: gft.setPrecisionInMeters(20); break;
             case 4: gft.setDefaultDistanceErrorPct(0.5); break;
             case 5: gft.setOrientation(ShapeBuilder.Orientation.LEFT); break;
-            default: super.modifyProperty(ft, numProperties() - propNum - 1);
+            default: super.modifyProperty(ft, 6 + propNum);
         }
     }
 }

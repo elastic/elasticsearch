@@ -208,17 +208,15 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (!(o instanceof GeoShapeFieldType)) return false;
             if (!super.equals(o)) return false;
             GeoShapeFieldType that = (GeoShapeFieldType) o;
-            return Objects.equals(treeLevels, that.treeLevels) &&
-                Objects.equals(precisionInMeters, that.precisionInMeters) &&
-                Objects.equals(defaultDistanceErrorPct, that.defaultDistanceErrorPct) &&
+            return treeLevels == that.treeLevels &&
+                precisionInMeters == that.precisionInMeters &&
+                defaultDistanceErrorPct == that.defaultDistanceErrorPct &&
                 Objects.equals(tree, that.tree) &&
                 Objects.equals(strategyName, that.strategyName) &&
                 Objects.equals(distanceErrorPct, that.distanceErrorPct) &&
-                Objects.equals(orientation, that.orientation);
+                orientation == that.orientation;
         }
 
         @Override
@@ -229,6 +227,8 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper {
         @Override
         public void freeze() {
             super.freeze();
+            // This is a bit hackish: we need to setup the spatial tree and strategies once the field name is set, which
+            // must be by the time freeze is called.
             SpatialPrefixTree prefixTree;
             if ("geohash".equals(tree)) {
                 prefixTree = new GeohashPrefixTree(ShapeBuilder.SPATIAL_CONTEXT, getLevels(treeLevels, precisionInMeters, Defaults.GEOHASH_LEVELS, true));

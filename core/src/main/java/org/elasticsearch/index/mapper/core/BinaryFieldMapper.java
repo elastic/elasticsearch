@@ -125,8 +125,6 @@ public class BinaryFieldMapper extends AbstractFieldMapper {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (!(o instanceof BinaryFieldType)) return false;
             if (!super.equals(o)) return false;
             BinaryFieldType that = (BinaryFieldType) o;
             return Objects.equals(tryUncompressing, that.tryUncompressing);

@@ -237,17 +237,15 @@ public class DateFieldMapper extends NumberFieldMapper {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (!(o instanceof DateFieldType)) return false;
             if (!super.equals(o)) return false;
             DateFieldType that = (DateFieldType) o;
             return Objects.equals(dateTimeFormatter.format(), that.dateTimeFormatter.format()) &&
-                Objects.equals(timeUnit, that.timeUnit);
+                   Objects.equals(timeUnit, that.timeUnit);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(super.hashCode(), dateTimeFormatter, timeUnit);
+            return Objects.hash(super.hashCode(), dateTimeFormatter.format(), timeUnit);
         }
 
         public FormatDateTimeFormatter dateTimeFormatter() {

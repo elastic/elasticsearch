@@ -42,7 +42,7 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
             case 3: gft.setValidateLat(!gft.validateLat()); break;
             case 4: gft.setNormalizeLon(!gft.normalizeLon()); break;
             case 5: gft.setNormalizeLat(!gft.normalizeLat()); break;
-            default: super.modifyProperty(ft, numProperties() - propNum - 1);
+            default: super.modifyProperty(ft, 6 + propNum);
         }
     }
 }

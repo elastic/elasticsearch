@@ -37,7 +37,7 @@ public class FieldNamesFieldTypeTests extends FieldTypeTestCase {
         FieldNamesFieldMapper.FieldNamesFieldType fnft = (FieldNamesFieldMapper.FieldNamesFieldType)ft;
         switch (propNum) {
             case 0: fnft.setEnabled(!fnft.isEnabled()); break;
-            default: super.modifyProperty(ft, numProperties() - propNum - 1);
+            default: super.modifyProperty(ft, 1 + propNum);
         }
     }
 }

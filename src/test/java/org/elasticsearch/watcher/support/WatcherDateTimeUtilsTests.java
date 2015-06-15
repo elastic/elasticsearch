@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class WatcherDateTimeUtilsTests extends ElasticsearchTestCase {
 
-    @Test @Repeat(iterations = 10)
+    @Test
     public void testParseTimeValue_Numeric() throws Exception {
         TimeValue value = new TimeValue(randomInt(100), randomFrom(TimeUnit.values()));
 
@@ -41,7 +41,7 @@ public class WatcherDateTimeUtilsTests extends ElasticsearchTestCase {
         assertThat(parsed.millis(), is(value.millis()));
     }
 
-    @Test(expected = WatcherDateTimeUtils.ParseException.class) @Repeat(iterations = 10)
+    @Test(expected = WatcherDateTimeUtils.ParseException.class)
     public void testParseTimeValue_Numeric_Negative() throws Exception {
         TimeValue value = new TimeValue(randomIntBetween(1, 100), randomFrom(MILLISECONDS, SECONDS, MINUTES, HOURS, DAYS));
 
@@ -53,7 +53,7 @@ public class WatcherDateTimeUtilsTests extends ElasticsearchTestCase {
         WatcherDateTimeUtils.parseTimeValue(parser, null, "test");
     }
 
-    @Test @Repeat(iterations = 10)
+    @Test
     public void testParseTimeValue_String() throws Exception {
         int value = randomIntBetween(2, 200);
         ImmutableMap<String, TimeValue> values = ImmutableMap.<String, TimeValue>builder()
@@ -75,7 +75,7 @@ public class WatcherDateTimeUtilsTests extends ElasticsearchTestCase {
         assertThat(parsed.millis(), is(values.get(key).millis()));
     }
 
-    @Test(expected = WatcherDateTimeUtils.ParseException.class) @Repeat(iterations = 10)
+    @Test(expected = WatcherDateTimeUtils.ParseException.class)
     public void testParseTimeValue_String_Negative() throws Exception {
         int value = -1 * randomIntBetween(2, 200);
         ImmutableMap<String, TimeValue> values = ImmutableMap.<String, TimeValue>builder()

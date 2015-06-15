@@ -33,7 +33,7 @@ public class WeeklyScheduleTests extends ScheduleTestCase {
         assertThat(crons, arrayContaining("0 0 0 ? * MON"));
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void test_SingleTime() throws Exception {
         WeekTimes time = validWeekTime();
         WeeklySchedule schedule = new WeeklySchedule(time);
@@ -44,7 +44,7 @@ public class WeeklyScheduleTests extends ScheduleTestCase {
         }
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void test_MultipleTimes() throws Exception {
         WeekTimes[] times = validWeekTimes();
         WeeklySchedule schedule = new WeeklySchedule(times);
@@ -73,7 +73,7 @@ public class WeeklyScheduleTests extends ScheduleTestCase {
         assertThat(schedule.times()[0], is(new WeekTimes(DayOfWeek.MONDAY, new DayTimes())));
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void testParser_SingleTime() throws Exception {
         DayTimes time = validDayTime();
         XContentBuilder builder = jsonBuilder()
@@ -96,7 +96,7 @@ public class WeeklyScheduleTests extends ScheduleTestCase {
         assertThat(schedule.times()[0].times(), hasItemInArray(time));
     }
 
-    @Test(expected = ScheduleTriggerException.class) @Repeat(iterations = 20)
+    @Test(expected = ScheduleTriggerException.class)
     public void testParser_SingleTime_Invalid() throws Exception {
         HourAndMinute time = invalidDayTime();
         XContentBuilder builder = jsonBuilder()
@@ -113,7 +113,7 @@ public class WeeklyScheduleTests extends ScheduleTestCase {
         new WeeklySchedule.Parser().parse(parser);
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void testParser_MultipleTimes() throws Exception {
         WeekTimes[] times = validWeekTimes();
         XContentBuilder builder = jsonBuilder().value(times);
@@ -128,7 +128,7 @@ public class WeeklyScheduleTests extends ScheduleTestCase {
         }
     }
 
-    @Test(expected = ScheduleTriggerException.class) @Repeat(iterations = 20)
+    @Test(expected = ScheduleTriggerException.class)
     public void testParser_MultipleTimes_Objects_Invalid() throws Exception {
         HourAndMinute[] times = invalidDayTimes();
         XContentBuilder builder = jsonBuilder()

@@ -79,6 +79,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomInt;
+import static org.apache.lucene.util.LuceneTestCase.createTempDir;
 import static org.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
@@ -232,7 +233,7 @@ public final class WatcherTestUtils {
         Settings settings = Settings.settingsBuilder()
                 .put("script.inline", "on")
                 .put("script.indexed", "on")
-                .put("path.home", ".")
+                .put("path.home", createTempDir())
                 .build();
         GroovyScriptEngineService groovyScriptEngineService = new GroovyScriptEngineService(settings);
         XMustacheScriptEngineService mustacheScriptEngineService = new XMustacheScriptEngineService(settings);

@@ -107,7 +107,7 @@ public class ExecuteWatchTests extends AbstractWatcherIntegrationTests {
         assertValue(record, "result.actions.0.logging.logged_text", is("_text"));
     }
 
-    @Test @Repeat(iterations = 5)
+    @Test
     public void testExecute_CustomTriggerData() throws Exception {
         WatcherClient watcherClient = watcherClient();
 
@@ -253,7 +253,7 @@ public class ExecuteWatchTests extends AbstractWatcherIntegrationTests {
         assertValue(record, "result.actions.0.logging.logged_text", is("_text"));
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void testExecute_ActionMode() throws Exception {
         final WatcherClient watcherClient = watcherClient();
 

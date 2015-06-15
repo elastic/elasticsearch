@@ -72,7 +72,7 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
         assertFalse(executable.execute(ctx).met());
     }
 
-    @Test @Repeat(iterations =  5)
+    @Test
     public void testParser_Valid() throws Exception {
         ScriptConditionFactory factory = new ScriptConditionFactory(Settings.settingsBuilder().build(), getScriptServiceProxy(tp));
 
@@ -112,7 +112,6 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
     }
 
     @Test(expected = ScriptConditionValidationException.class)
-    @Repeat(iterations = 3)
     public void testScriptConditionParser_badScript() throws Exception {
         ScriptConditionFactory conditionParser = new ScriptConditionFactory(Settings.settingsBuilder().build(), getScriptServiceProxy(tp));
         ScriptType scriptType = randomFrom(ScriptType.values());

@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class EmailTest extends ElasticsearchTestCase {
 
-    @Test @Repeat(iterations = 100)
+    @Test
     public void testEmail_Parser_SelfGenerated() throws Exception {
         String id = "test-id";
         Email.Address from = randomFrom(new Email.Address("from@from.com"), null);

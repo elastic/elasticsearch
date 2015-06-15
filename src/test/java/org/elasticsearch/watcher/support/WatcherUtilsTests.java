@@ -86,7 +86,7 @@ public class WatcherUtilsTests extends ElasticsearchTestCase {
         assertThat(result, equalTo(expected));
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void testSerializeSearchRequest() throws Exception {
         String[] randomIndices = generateRandomStringArray(5, 5, false);
         SearchRequest expectedRequest = new SearchRequest(randomIndices);
@@ -136,7 +136,7 @@ public class WatcherUtilsTests extends ElasticsearchTestCase {
         assertThat(result.templateSource(), equalTo(expectedRequest.templateSource()));
     }
 
-    @Test @Repeat(iterations = 100)
+    @Test
     public void testDeserializeSearchRequest() throws Exception {
 
         XContentBuilder builder = jsonBuilder().startObject();

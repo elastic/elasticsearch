@@ -18,7 +18,7 @@ import static org.hamcrest.Matchers.is;
  */
 public class CronEvalToolTests extends CliToolTestCase {
 
-    @Test @Repeat(iterations = 10)
+    @Test
     public void testParse() throws Exception {
         String countOption = randomBoolean() ? "-c" : "--count";
         int count = randomIntBetween(1, 100);

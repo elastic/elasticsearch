@@ -147,11 +147,16 @@ public class WatcherDateTimeUtils {
             return new TimeValue(millis, defaultTimeUnit);
         }
         if (token == XContentParser.Token.VALUE_STRING) {
-            TimeValue value = TimeValue.parseTimeValue(parser.text(), defaultValue, settingName);
-            if (value.millis() < 0) {
-                throw new ParseException("could not parse time value [{}]. Time value cannot be negative.", parser.text());
+            try {
+                TimeValue value = TimeValue.parseTimeValue(parser.text(), defaultValue, settingName);
+                if (value.millis() < 0) {
+                    throw new ParseException("could not parse time value [{}]. Time value cannot be negative.", parser.text());
+                }
+                return value;
+            } catch (ElasticsearchParseException ex) {
+                throw new ParseException("failed to parse time unit", ex);
             }
-            return value;
+
         }
         throw new ParseException("could not parse time value. expected either a string or a numeric value but found [{}] instead", token);
     }

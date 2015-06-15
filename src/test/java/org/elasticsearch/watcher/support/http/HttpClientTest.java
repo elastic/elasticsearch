@@ -76,7 +76,7 @@ public class HttpClientTest extends ElasticsearchTestCase {
     }
 
     @Test
-    @Repeat(iterations = 10)
+
     public void testBasics() throws Exception {
         int responseCode = randomIntBetween(200, 203);
         String body = randomAsciiOfLengthBetween(2, 8096);

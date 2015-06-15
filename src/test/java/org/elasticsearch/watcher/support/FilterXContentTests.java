@@ -25,7 +25,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class FilterXContentTests extends ElasticsearchTestCase {
 
     @Test
-    @Repeat(iterations = 12)
     public void testPayloadFiltering() throws Exception {
         Map<String, Object> data = new HashMap<>();
         data.put("key0", "value1");

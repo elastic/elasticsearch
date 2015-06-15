@@ -22,7 +22,7 @@ import static org.hamcrest.Matchers.not;
 
 /**
  */
-public class FairKeyedLockTests extends ElasticsearchTestCase{
+public class FairKeyedLockTests extends ElasticsearchTestCase {
 
     @Test
     public void checkIfMapEmptyAfterLotsOfAcquireAndReleases() throws InterruptedException {
@@ -63,7 +63,7 @@ public class FairKeyedLockTests extends ElasticsearchTestCase{
         }
     }
 
-    @Test(expected = IllegalStateException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void checkCannotAcquireTwoLocksGlobal() throws InterruptedException {
         FairKeyedLock.GlobalLockable<String> connectionLock = new FairKeyedLock.GlobalLockable<>();
         String name = randomRealisticUnicodeOfLength(scaledRandomIntBetween(10, 50));
@@ -77,7 +77,7 @@ public class FairKeyedLockTests extends ElasticsearchTestCase{
         }
     }
 
-    @Test(expected = IllegalStateException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void checkCannotAcquireTwoLocks() throws InterruptedException {
         FairKeyedLock<String> connectionLock = randomBoolean() ? new FairKeyedLock.GlobalLockable<String>() : new FairKeyedLock<String>();
         String name = randomRealisticUnicodeOfLength(scaledRandomIntBetween(10, 50));
@@ -116,7 +116,7 @@ public class FairKeyedLockTests extends ElasticsearchTestCase{
     }
 
 
-    @Test(expected = IllegalStateException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void checkCannotReleaseUnacquiredLock() throws InterruptedException {
         FairKeyedLock<String> connectionLock = randomBoolean() ? new FairKeyedLock.GlobalLockable<String>() : new FairKeyedLock<String>();
         String name = randomRealisticUnicodeOfLength(scaledRandomIntBetween(10, 50));

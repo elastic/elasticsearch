@@ -55,7 +55,7 @@ public class XMustacheScriptEngineTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test @Repeat(iterations = 100)
+    @Test
     public void testInvalidPrefixes() throws Exception {
         String[] specialStrings = new String[]{"\f", "\n", "\r", "\"", "\\", "\t", "\b", "__::", "__" };
         String prefix = randomFrom("", "__", "____::", "___::", "____", "::", "++json__::", "__json__", "+_json__::", "__json__:");

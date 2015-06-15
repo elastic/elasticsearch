@@ -60,7 +60,7 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
         return false;
     }
 
-    @Test @Repeat(iterations = 10)
+    @Test
     public void testExecuteWatch() throws Exception {
         ensureWatcherStarted();
         boolean ignoreCondition = randomBoolean();

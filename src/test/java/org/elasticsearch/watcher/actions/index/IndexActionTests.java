@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.*;
  */
 public class IndexActionTests extends ElasticsearchIntegrationTest {
 
-    @Test @Repeat(iterations = 6)
+    @Test
     public void testIndexActionExecute_SingleDoc() throws Exception {
 
         String timestampField = randomFrom(null, "_timestamp", "@timestamp");
@@ -99,7 +99,7 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
         assertThat(terms.getBuckets().get(0).getDocCount(), is(1L));
     }
 
-    @Test @Repeat(iterations = 6)
+    @Test
     public void testIndexActionExecute_MultiDoc() throws Exception {
 
         String timestampField = randomFrom(null, "_timestamp", "@timestamp");
@@ -169,7 +169,7 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    @Test @Repeat(iterations = 10)
+    @Test
     public void testParser() throws Exception {
         String timestampField = randomBoolean() ? "@timestamp" : null;
         XContentBuilder builder = jsonBuilder();
@@ -194,7 +194,7 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    @Test @Repeat(iterations = 10)
+    @Test
     public void testParser_Failure() throws Exception {
         XContentBuilder builder = jsonBuilder();
         boolean useIndex = randomBoolean();

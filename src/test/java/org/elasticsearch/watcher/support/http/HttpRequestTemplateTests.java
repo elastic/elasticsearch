@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.*;
  */
 public class HttpRequestTemplateTests extends ElasticsearchTestCase {
 
-    @Test @Repeat(iterations = 5)
+    @Test
     public void testBody_WithXContent() throws Exception {
         XContentType type = randomFrom(XContentType.JSON, XContentType.YAML);
         HttpRequestTemplate template = HttpRequestTemplate.builder("_host", 1234)
@@ -52,7 +52,7 @@ public class HttpRequestTemplateTests extends ElasticsearchTestCase {
         assertThat(request.headers.size(), is(0));
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void testParse_SelfGenerated() throws Exception {
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("_host", 1234);
 

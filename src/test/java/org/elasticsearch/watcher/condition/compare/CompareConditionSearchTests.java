@@ -49,7 +49,6 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTests
                 .get();
 
         ExecutableCompareCondition condition = new ExecutableCompareCondition(new CompareCondition("ctx.payload.aggregations.rate.buckets.0.doc_count", CompareCondition.Op.GTE, 5), logger, SystemClock.INSTANCE);
-
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
         CompareCondition.Result result = condition.execute(ctx);
         assertThat(result.met(), is(false));

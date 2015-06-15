@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class PutWatchTests extends AbstractWatcherIntegrationTests {
 
     @Test
-    @Repeat(iterations = 10)
+
     public void testPut() throws Exception {
         ensureWatcherStarted();
 

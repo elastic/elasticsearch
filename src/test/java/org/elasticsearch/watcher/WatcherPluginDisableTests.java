@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
@@ -38,6 +39,7 @@ public class WatcherPluginDisableTests extends ElasticsearchIntegrationTest {
         return Settings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("plugin.types", WatcherPlugin.class.getName() + "," + LicensePlugin.class.getName())
+                .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
                 .put(WatcherPlugin.ENABLED_SETTING, false)
                 .put(Node.HTTP_ENABLED, true)
                 .build();

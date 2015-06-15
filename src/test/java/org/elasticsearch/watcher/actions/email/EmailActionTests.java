@@ -42,7 +42,7 @@ import static org.mockito.Mockito.when;
  */
 public class EmailActionTests extends ElasticsearchTestCase {
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void testExecute() throws Exception {
         final String account = "account1";
         EmailService service = new EmailService() {
@@ -139,7 +139,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void testParser() throws Exception {
         TemplateEngine engine = mock(TemplateEngine.class);
         EmailService emailService = mock(EmailService.class);
@@ -285,7 +285,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
         return templates;
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void testParser_SelfGenerated() throws Exception {
         EmailService service = mock(EmailService.class);
         TemplateEngine engine = mock(TemplateEngine.class);
@@ -353,7 +353,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test(expected = EmailActionException.class) @Repeat(iterations = 100)
+    @Test(expected = EmailActionException.class)
     public void testParser_Invalid() throws Exception {
         EmailService emailService = mock(EmailService.class);
         TemplateEngine engine = mock(TemplateEngine.class);

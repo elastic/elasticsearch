@@ -32,7 +32,7 @@ public class MapPathTests extends ElasticsearchTestCase {
         assertThat(ObjectPath.eval("key1", map), nullValue());
     }
 
-    @Test @Repeat(iterations = 5)
+    @Test
     public void testEval_List() throws Exception {
         List list = ImmutableList.of(1, 2, 3, 4);
         Map<String, Object> map = ImmutableMap.<String, Object>builder()
@@ -43,7 +43,7 @@ public class MapPathTests extends ElasticsearchTestCase {
         assertThat(ObjectPath.eval("key." + index, map), is(list.get(index)));
     }
 
-    @Test @Repeat(iterations = 5)
+    @Test
     public void testEval_Array() throws Exception {
         int[] array = new int[] { 1, 2, 3, 4 };
         Map<String, Object> map = ImmutableMap.<String, Object>builder()

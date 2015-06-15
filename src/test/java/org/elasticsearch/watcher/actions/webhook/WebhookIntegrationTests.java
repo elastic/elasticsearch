@@ -64,7 +64,7 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTests {
         webServer.shutdown();
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void testWebhook() throws Exception {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("localhost", webPort)

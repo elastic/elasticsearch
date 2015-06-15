@@ -52,7 +52,7 @@ public class LoggingActionTests extends ElasticsearchTestCase {
         engine = mock(TemplateEngine.class);
     }
 
-    @Test @Repeat(iterations = 30)
+    @Test
     public void testExecute() throws Exception {
         final DateTime now = DateTime.now(UTC);
 
@@ -91,7 +91,7 @@ public class LoggingActionTests extends ElasticsearchTestCase {
         assertThat(((LoggingAction.Result.Success) result).loggedText(), is(text));
     }
 
-    @Test @Repeat(iterations = 10)
+    @Test
     public void testParser() throws Exception {
         Settings settings = Settings.EMPTY;
         LoggingActionFactory parser = new LoggingActionFactory(settings, engine);
@@ -126,7 +126,7 @@ public class LoggingActionTests extends ElasticsearchTestCase {
         assertThat(executable.action().text, is(template));
     }
 
-    @Test @Repeat(iterations = 10)
+    @Test
     public void testParser_SelfGenerated() throws Exception {
         Settings settings = Settings.EMPTY;
         LoggingActionFactory parser = new LoggingActionFactory(settings, engine);
@@ -147,7 +147,7 @@ public class LoggingActionTests extends ElasticsearchTestCase {
         assertThat(parsedAction, equalTo(executable));
     }
 
-    @Test @Repeat(iterations = 10)
+    @Test
     public void testParser_Builder() throws Exception {
         Settings settings = Settings.EMPTY;
         LoggingActionFactory parser = new LoggingActionFactory(settings, engine);

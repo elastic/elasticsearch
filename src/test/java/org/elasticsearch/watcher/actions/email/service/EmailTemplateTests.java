@@ -30,7 +30,7 @@ import static org.mockito.Mockito.when;
  */
 public class EmailTemplateTests extends ElasticsearchTestCase {
 
-    @Test @Repeat(iterations = 100)
+    @Test
     public void testEmailTemplate_Parser_SelfGenerated() throws Exception {
         Template from = randomFrom(Template.inline("from@from.com").build(), null);
         List<Template> addresses = new ArrayList<>();

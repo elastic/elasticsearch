@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class HttpResponseTests extends ElasticsearchTestCase {
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void testParse_SelfGenerated() throws Exception {
         int status = randomIntBetween(200, 600);
         ImmutableMap<String, String[]> headers = ImmutableMap.of();

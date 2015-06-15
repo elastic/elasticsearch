@@ -9,6 +9,7 @@ import com.squareup.okhttp.mockwebserver.MockResponse;
 import com.squareup.okhttp.mockwebserver.MockWebServer;
 import com.squareup.okhttp.mockwebserver.QueueDispatcher;
 import com.squareup.okhttp.mockwebserver.RecordedRequest;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -40,6 +41,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
+@LuceneTestCase.Slow
 public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTests {
 
     private int webPort;

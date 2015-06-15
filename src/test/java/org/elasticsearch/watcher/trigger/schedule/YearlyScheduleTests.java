@@ -32,7 +32,7 @@ public class YearlyScheduleTests extends ScheduleTestCase {
         assertThat(crons, arrayContaining("0 0 0 1 JAN ?"));
     }
 
-    @Test @Repeat(iterations = 120)
+    @Test
     public void test_SingleTime() throws Exception {
         YearTimes time = validYearTime();
         YearlySchedule schedule = new YearlySchedule(time);
@@ -50,7 +50,7 @@ public class YearlyScheduleTests extends ScheduleTestCase {
         }
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void test_MultipleTimes() throws Exception {
         YearTimes[] times = validYearTimes();
         YearlySchedule schedule = new YearlySchedule(times);
@@ -72,7 +72,7 @@ public class YearlyScheduleTests extends ScheduleTestCase {
         }
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void testParser_Empty() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject().endObject();
         BytesReference bytes = builder.bytes();
@@ -84,7 +84,7 @@ public class YearlyScheduleTests extends ScheduleTestCase {
         assertThat(schedule.times()[0], is(new YearTimes()));
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void testParser_SingleTime() throws Exception {
         DayTimes time = validDayTime();
         Object day = randomDayOfMonth();
@@ -110,7 +110,7 @@ public class YearlyScheduleTests extends ScheduleTestCase {
         assertThat(schedule.times()[0].times(), hasItemInArray(time));
     }
 
-    @Test(expected = ScheduleTriggerException.class) @Repeat(iterations = 20)
+    @Test(expected = ScheduleTriggerException.class)
     public void testParser_SingleTime_Invalid() throws Exception {
         HourAndMinute time = invalidDayTime();
         XContentBuilder builder = jsonBuilder()
@@ -128,7 +128,7 @@ public class YearlyScheduleTests extends ScheduleTestCase {
         new MonthlySchedule.Parser().parse(parser);
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void testParser_MultipleTimes() throws Exception {
         YearTimes[] times = validYearTimes();
         XContentBuilder builder = jsonBuilder().value(times);
@@ -143,7 +143,7 @@ public class YearlyScheduleTests extends ScheduleTestCase {
         }
     }
 
-    @Test(expected = ScheduleTriggerException.class) @Repeat(iterations = 20)
+    @Test(expected = ScheduleTriggerException.class)
     public void testParser_MultipleTimes_Invalid() throws Exception {
         HourAndMinute[] times = invalidDayTimes();
         XContentBuilder builder = jsonBuilder()

@@ -75,7 +75,7 @@ public class HttpInputTests extends ElasticsearchTestCase {
         httpParser = new HttpInputFactory(Settings.EMPTY, httpClient, templateEngine, new HttpRequest.Parser(registry), new HttpRequestTemplate.Parser(registry));
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void testExecute() throws Exception {
         String host = "_host";
         int port = 123;
@@ -168,7 +168,7 @@ public class HttpInputTests extends ElasticsearchTestCase {
     }
 
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void testParser() throws Exception {
         final HttpMethod httpMethod = rarely() ? null : randomFrom(HttpMethod.values());
         Scheme scheme = randomFrom(Scheme.HTTP, Scheme.HTTPS, null);

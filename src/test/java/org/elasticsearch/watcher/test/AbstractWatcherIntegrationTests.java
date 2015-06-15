@@ -16,14 +16,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
@@ -62,7 +61,6 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.BufferedWriter;
-import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
@@ -102,6 +100,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
                 .put("scroll.size", randomIntBetween(1, 100))
                 .put("plugin.types", Strings.collectionToCommaDelimitedString(pluginTypes()))
                 .put(ShieldSettings.settings(shieldEnabled))
+                .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
                 .put("watcher.trigger.schedule.engine", scheduleImplName)
                 .build();
     }
@@ -183,9 +182,10 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
 
     @Override
     protected Settings transportClientSettings() {
-        if (!shieldEnabled) {
+        if (shieldEnabled == false) {
             return Settings.builder()
                     .put(super.transportClientSettings())
+                    .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
                     .put("plugin.types", WatcherPlugin.class.getName())
                     .build();
         }
@@ -193,6 +193,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
         return Settings.builder()
                 .put("client.transport.sniff", false)
                 .put("plugin.types", ShieldPlugin.class.getName() + "," + WatcherPlugin.class.getName())
+                .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
                 .put("shield.user", "admin:changeme")
                 .build();
     }

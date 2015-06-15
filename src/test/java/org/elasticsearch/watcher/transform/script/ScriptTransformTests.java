@@ -146,7 +146,6 @@ public class ScriptTransformTests extends ElasticsearchTestCase {
 
 
     @Test(expected = ScriptTransformValidationException.class)
-    @Repeat(iterations = 3)
     public void testScriptConditionParser_badScript() throws Exception {
         ScriptTransformFactory transformFactory = new ScriptTransformFactory(Settings.settingsBuilder().build(), getScriptServiceProxy(tp));
         ScriptType scriptType = randomFrom(ScriptType.values());

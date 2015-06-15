@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.is;
 public class ScheduleTriggerEventTests extends ElasticsearchTestCase {
 
     @Test
-    @Repeat(iterations = 10)
+
     public void testParser_RandomDateMath() throws Exception {
         String triggeredTime = randomFrom("now", "now+5m", "2015-05-07T22:24:41.254Z", "2015-05-07T22:24:41.254Z||-5m");
         String scheduledTime = randomFrom("now", "now-5m", "2015-05-07T22:24:41.254Z", "2015-05-07T22:24:41.254Z||+5h");

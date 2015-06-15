@@ -132,7 +132,7 @@ public class CompareConditionTests extends ElasticsearchTestCase {
         assertThat(Op.LT.eval("aa", "ab"), is(true));
     }
 
-    @Test @Repeat(iterations = 10)
+    @Test
     public void testExecute() throws Exception {
         Op op = randomFrom(Op.values());
         int value = randomInt(10);
@@ -144,7 +144,7 @@ public class CompareConditionTests extends ElasticsearchTestCase {
         assertThat(condition.execute(ctx).met(), is(met));
     }
 
-    @Test @Repeat(iterations = 10)
+    @Test
     public void testExecute_DateMath() throws Exception {
         ClockMock clock = new ClockMock();
         boolean met = randomBoolean();
@@ -157,7 +157,7 @@ public class CompareConditionTests extends ElasticsearchTestCase {
         assertThat(condition.execute(ctx).met(), is(met));
     }
 
-    @Test @Repeat(iterations = 5)
+    @Test
     public void testExecute_Path() throws Exception {
         ClockMock clock = new ClockMock();
         boolean met = randomBoolean();
@@ -171,7 +171,7 @@ public class CompareConditionTests extends ElasticsearchTestCase {
     }
 
 
-    @Test @Repeat(iterations =  10)
+    @Test
     public void testParse_Valid() throws Exception {
         Op op = randomFrom(Op.values());
         Object value = randomFrom("value", 1, null);
@@ -224,7 +224,7 @@ public class CompareConditionTests extends ElasticsearchTestCase {
         factory.parseCondition("_id", parser);
     }
 
-    @Test(expected = CompareConditionException.class) @Repeat(iterations = 10)
+    @Test(expected = CompareConditionException.class)
     public void testParse_InValid_WrongValueForOp() throws Exception {
         Object value = randomFrom(ImmutableList.of("1", "2"), ImmutableMap.of("key", "value"));
         String op = randomFrom("lt", "lte", "gt", "gte");

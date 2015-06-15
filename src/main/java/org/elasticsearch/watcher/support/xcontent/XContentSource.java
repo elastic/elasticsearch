@@ -80,7 +80,8 @@ public class XContentSource implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        XContentParser parser = contentType().xContent().createParser(bytes);
+        XContentType xContentType = contentType();
+        XContentParser parser = xContentType.xContent().createParser(bytes);
         parser.nextToken();
         XContentHelper.copyCurrentStructure(builder.generator(), parser);
         return builder;

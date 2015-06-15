@@ -151,11 +151,9 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper implements RootMa
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (!(o instanceof FieldNamesFieldType)) return false;
             if (!super.equals(o)) return false;
             FieldNamesFieldType that = (FieldNamesFieldType) o;
-            return Objects.equals(enabled, that.enabled);
+            return enabled == that.enabled;
         }
 
         @Override

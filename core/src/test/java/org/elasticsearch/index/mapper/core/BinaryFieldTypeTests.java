@@ -38,7 +38,7 @@ public class BinaryFieldTypeTests extends FieldTypeTestCase {
         BinaryFieldMapper.BinaryFieldType bft = (BinaryFieldMapper.BinaryFieldType)ft;
         switch (propNum) {
             case 0: bft.setTryUncompressing(!bft.tryUncompressing()); break;
-            default: super.modifyProperty(ft, numProperties() - propNum - 1);
+            default: super.modifyProperty(ft, 1 + propNum);
         }
     }
 }

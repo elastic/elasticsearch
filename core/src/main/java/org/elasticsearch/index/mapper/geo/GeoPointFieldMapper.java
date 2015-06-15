@@ -314,16 +314,14 @@ public class GeoPointFieldMapper extends AbstractFieldMapper implements ArrayVal
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (!(o instanceof GeoPointFieldType)) return false;
             if (!super.equals(o)) return false;
             GeoPointFieldType that = (GeoPointFieldType) o;
-            return java.util.Objects.equals(geohashPrecision, that.geohashPrecision) &&
-                java.util.Objects.equals(geohashPrefixEnabled, that.geohashPrefixEnabled) &&
-                java.util.Objects.equals(validateLon, that.validateLon) &&
-                java.util.Objects.equals(validateLat, that.validateLat) &&
-                java.util.Objects.equals(normalizeLon, that.normalizeLon) &&
-                java.util.Objects.equals(normalizeLat, that.normalizeLat) &&
+            return geohashPrecision == that.geohashPrecision &&
+                geohashPrefixEnabled == that.geohashPrefixEnabled &&
+                validateLon == that.validateLon &&
+                validateLat == that.validateLat &&
+                normalizeLon == that.normalizeLon &&
+                normalizeLat == that.normalizeLat &&
                 java.util.Objects.equals(geohashFieldType, that.geohashFieldType) &&
                 java.util.Objects.equals(latFieldType, that.latFieldType) &&
                 java.util.Objects.equals(lonFieldType, that.lonFieldType);

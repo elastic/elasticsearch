@@ -203,12 +203,10 @@ public class MappedFieldType extends FieldType {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (!(o instanceof MappedFieldType)) return false;
         if (!super.equals(o)) return false;
         MappedFieldType fieldType = (MappedFieldType) o;
-        return Objects.equals(boost, fieldType.boost) &&
-            Objects.equals(docValues, fieldType.docValues) &&
+        return boost == fieldType.boost &&
+            docValues == fieldType.docValues &&
             Objects.equals(names, fieldType.names) &&
             Objects.equals(indexAnalyzer, fieldType.indexAnalyzer) &&
             Objects.equals(searchAnalyzer, fieldType.searchAnalyzer) &&

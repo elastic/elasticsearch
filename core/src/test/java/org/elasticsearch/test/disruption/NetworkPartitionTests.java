@@ -22,14 +22,24 @@ package org.elasticsearch.test.disruption;
 
 
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportModule;
 import org.junit.Test;
 
 import java.io.IOException;
 
 @LuceneTestCase.Slow
-public class NetworkPartitionTests extends ElasticsearchIntegrationTest{
+public class NetworkPartitionTests extends ElasticsearchIntegrationTest {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
+                .build();
+    }
 
     @Test
     public void testNetworkPartitionWithNodeShutdown() throws IOException {

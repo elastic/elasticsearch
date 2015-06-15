@@ -1,0 +1,1656 @@
+[INFO] Scanning for projects...
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Elasticsearch ICU Analysis plugin 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-clean-plugin:2.6.1:clean (default-clean) @ elasticsearch-analysis-icu ---
+[INFO] Deleting /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-icu/target
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-versions) @ elasticsearch-analysis-icu ---
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-maven) @ elasticsearch-analysis-icu ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create (default) @ elasticsearch-analysis-icu ---
+[INFO] Executing: /bin/sh -c cd /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-icu && git rev-parse --verify HEAD
+[INFO] Working directory: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-icu
+[INFO] Storing buildNumber: 4f9f489dc156b010dc62e077811f6b40d3e9cb3c at timestamp: 1434365220684
+[INFO] Storing buildScmBranch: plugins/reduce-analysis-size
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (print-jvm) @ elasticsearch-analysis-icu ---
+[INFO] Executing tasks
+
+main:
+      [JVM] Using Java(TM) SE Runtime Environment 1.7.0_60-b19 Oracle Corporation
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (set-permgen) @ elasticsearch-analysis-icu ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (check-invalid-patterns) @ elasticsearch-analysis-icu ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ elasticsearch-analysis-icu ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.7:resources (default-resources) @ elasticsearch-analysis-icu ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 1 resource
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.3:compile (default-compile) @ elasticsearch-analysis-icu ---
+[INFO] Compiling 12 source files to /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-icu/target/classes
+[INFO] 
+[INFO] --- forbiddenapis:1.8:check (check-forbidden-apis) @ elasticsearch-analysis-icu ---
+[INFO] Scanning for classes to check...
+[INFO] Reading bundled API signatures: jdk-unsafe
+[INFO] Reading bundled API signatures: jdk-deprecated
+[INFO] Reading bundled API signatures: jdk-system-out
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-icu/target/dev-tools/forbidden/core-signatures.txt
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-icu/target/dev-tools/forbidden/all-signatures.txt
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-icu/target/dev-tools/forbidden/third-party-unshaded-signatures.txt
+[INFO] Loading classes to check...
+[INFO] Scanning for API signatures and dependencies...
+[INFO] Scanned 18 (and 319 related) class file(s) for forbidden API invocations (in 0.18s), 0 error(s).
+[INFO] 
+[INFO] --- license-maven-plugin:2.5:check (check-license-headers) @ elasticsearch-analysis-icu ---
+[INFO] Checking licenses...
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (create-heapdump-directory) @ elasticsearch-analysis-icu ---
+[INFO] Executing tasks
+
+main:
+ [heapdump] Creating heapdump directory
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-resources-plugin:2.7:testResources (default-testResources) @ elasticsearch-analysis-icu ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 0 resource
+[INFO] skip non existing resourceDirectory /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-icu/src/test/resources
+[INFO] skip non existing resourceDirectory /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-icu/src/test/resources
+[INFO] Copying 1 resource
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.3:testCompile (default-testCompile) @ elasticsearch-analysis-icu ---
+[INFO] Compiling 6 source files to /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-icu/target/test-classes
+[INFO] 
+[INFO] --- forbiddenapis:1.8:testCheck (check-forbidden-test-apis) @ elasticsearch-analysis-icu ---
+[INFO] Scanning for classes to check...
+[INFO] Reading bundled API signatures: jdk-unsafe
+[INFO] Reading bundled API signatures: jdk-deprecated
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-icu/target/dev-tools/forbidden/test-signatures.txt
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-icu/target/dev-tools/forbidden/all-signatures.txt
+[INFO] Loading classes to check...
+[INFO] Scanning for API signatures and dependencies...
+[INFO] Scanned 6 (and 314 related) class file(s) for forbidden API invocations (in 0.11s), 0 error(s).
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.18.1:test (default-test) @ elasticsearch-analysis-icu ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- junit4-maven-plugin:2.1.14:junit4 (tests) @ elasticsearch-analysis-icu ---
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (tests-top-hints) @ elasticsearch-analysis-icu ---
+[INFO] Skipping Antrun execution
+[INFO] 
+[INFO] --- maven-jar-plugin:2.5:jar (default-jar) @ elasticsearch-analysis-icu ---
+[INFO] Building jar: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-icu/target/elasticsearch-analysis-icu-2.0.0-SNAPSHOT.jar
+[INFO] 
+[INFO] >>> maven-source-plugin:2.4:jar (attach-sources) @ elasticsearch-analysis-icu >>>
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-versions) @ elasticsearch-analysis-icu ---
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-maven) @ elasticsearch-analysis-icu ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create (default) @ elasticsearch-analysis-icu ---
+[INFO] Executing: /bin/sh -c cd /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-icu && git rev-parse --verify HEAD
+[INFO] Working directory: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-icu
+[INFO] Storing buildNumber: 4f9f489dc156b010dc62e077811f6b40d3e9cb3c at timestamp: 1434365227486
+[INFO] Storing buildScmBranch: plugins/reduce-analysis-size
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (print-jvm) @ elasticsearch-analysis-icu ---
+[INFO] Executing tasks
+
+main:
+      [JVM] Using Java(TM) SE Runtime Environment 1.7.0_60-b19 Oracle Corporation
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (set-permgen) @ elasticsearch-analysis-icu ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (check-invalid-patterns) @ elasticsearch-analysis-icu ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] <<< maven-source-plugin:2.4:jar (attach-sources) @ elasticsearch-analysis-icu <<<
+[INFO] 
+[INFO] --- maven-source-plugin:2.4:jar (attach-sources) @ elasticsearch-analysis-icu ---
+[INFO] Building jar: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-icu/target/elasticsearch-analysis-icu-2.0.0-SNAPSHOT-sources.jar
+[INFO] 
+[INFO] --- maven-assembly-plugin:2.5.5:single (default) @ elasticsearch-analysis-icu ---
+[INFO] Reading assembly descriptor: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-icu/src/main/assemblies/plugin.xml
+[WARNING] The following patterns were never triggered in this artifact exclusion filter:
+o  'org.elasticsearch:elasticsearch'
+
+[INFO] Building zip: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-icu/target/releases/elasticsearch-analysis-icu-2.0.0-SNAPSHOT.zip
+[INFO] 
+[INFO] --- maven-install-plugin:2.5.2:install (default-install) @ elasticsearch-analysis-icu ---
+[INFO] Installing /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-icu/target/elasticsearch-analysis-icu-2.0.0-SNAPSHOT.jar to /Users/dpilato/.m2/repository/org/elasticsearch/plugin/elasticsearch-analysis-icu/2.0.0-SNAPSHOT/elasticsearch-analysis-icu-2.0.0-SNAPSHOT.jar
+[INFO] Installing /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-icu/pom.xml to /Users/dpilato/.m2/repository/org/elasticsearch/plugin/elasticsearch-analysis-icu/2.0.0-SNAPSHOT/elasticsearch-analysis-icu-2.0.0-SNAPSHOT.pom
+[INFO] Installing /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-icu/target/elasticsearch-analysis-icu-2.0.0-SNAPSHOT-sources.jar to /Users/dpilato/.m2/repository/org/elasticsearch/plugin/elasticsearch-analysis-icu/2.0.0-SNAPSHOT/elasticsearch-analysis-icu-2.0.0-SNAPSHOT-sources.jar
+[INFO] Installing /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-icu/target/releases/elasticsearch-analysis-icu-2.0.0-SNAPSHOT.zip to /Users/dpilato/.m2/repository/org/elasticsearch/plugin/elasticsearch-analysis-icu/2.0.0-SNAPSHOT/elasticsearch-analysis-icu-2.0.0-SNAPSHOT.zip
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time: 12.411s
+[INFO] Finished at: Mon Jun 15 12:47:11 CEST 2015
+[INFO] Final Memory: 25M/511M
+[INFO] ------------------------------------------------------------------------
+[INFO] Scanning for projects...
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Elasticsearch Japanese (kuromoji) Analysis plugin 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-clean-plugin:2.6.1:clean (default-clean) @ elasticsearch-analysis-kuromoji ---
+[INFO] Deleting /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-kuromoji/target
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-versions) @ elasticsearch-analysis-kuromoji ---
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-maven) @ elasticsearch-analysis-kuromoji ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create (default) @ elasticsearch-analysis-kuromoji ---
+[INFO] Executing: /bin/sh -c cd /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-kuromoji && git rev-parse --verify HEAD
+[INFO] Working directory: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-kuromoji
+[INFO] Storing buildNumber: 4f9f489dc156b010dc62e077811f6b40d3e9cb3c at timestamp: 1434365236424
+[INFO] Storing buildScmBranch: plugins/reduce-analysis-size
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (print-jvm) @ elasticsearch-analysis-kuromoji ---
+[INFO] Executing tasks
+
+main:
+      [JVM] Using Java(TM) SE Runtime Environment 1.7.0_60-b19 Oracle Corporation
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (set-permgen) @ elasticsearch-analysis-kuromoji ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (check-invalid-patterns) @ elasticsearch-analysis-kuromoji ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ elasticsearch-analysis-kuromoji ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.7:resources (default-resources) @ elasticsearch-analysis-kuromoji ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 1 resource
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.3:compile (default-compile) @ elasticsearch-analysis-kuromoji ---
+[INFO] Compiling 11 source files to /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-kuromoji/target/classes
+[INFO] 
+[INFO] --- forbiddenapis:1.8:check (check-forbidden-apis) @ elasticsearch-analysis-kuromoji ---
+[INFO] Scanning for classes to check...
+[INFO] Reading bundled API signatures: jdk-unsafe
+[INFO] Reading bundled API signatures: jdk-deprecated
+[INFO] Reading bundled API signatures: jdk-system-out
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-kuromoji/target/dev-tools/forbidden/core-signatures.txt
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-kuromoji/target/dev-tools/forbidden/all-signatures.txt
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-kuromoji/target/dev-tools/forbidden/third-party-unshaded-signatures.txt
+[INFO] Loading classes to check...
+[INFO] Scanning for API signatures and dependencies...
+[INFO] Scanned 17 (and 313 related) class file(s) for forbidden API invocations (in 0.19s), 0 error(s).
+[INFO] 
+[INFO] --- license-maven-plugin:2.5:check (check-license-headers) @ elasticsearch-analysis-kuromoji ---
+[INFO] Checking licenses...
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (create-heapdump-directory) @ elasticsearch-analysis-kuromoji ---
+[INFO] Executing tasks
+
+main:
+ [heapdump] Creating heapdump directory
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-resources-plugin:2.7:testResources (default-testResources) @ elasticsearch-analysis-kuromoji ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 3 resources
+[INFO] skip non existing resourceDirectory /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-kuromoji/src/test/resources
+[INFO] skip non existing resourceDirectory /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-kuromoji/src/test/resources
+[INFO] Copying 1 resource
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.3:testCompile (default-testCompile) @ elasticsearch-analysis-kuromoji ---
+[INFO] Compiling 2 source files to /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-kuromoji/target/test-classes
+[INFO] 
+[INFO] --- forbiddenapis:1.8:testCheck (check-forbidden-test-apis) @ elasticsearch-analysis-kuromoji ---
+[INFO] Scanning for classes to check...
+[INFO] Reading bundled API signatures: jdk-unsafe
+[INFO] Reading bundled API signatures: jdk-deprecated
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-kuromoji/target/dev-tools/forbidden/test-signatures.txt
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-kuromoji/target/dev-tools/forbidden/all-signatures.txt
+[INFO] Loading classes to check...
+[INFO] Scanning for API signatures and dependencies...
+[INFO] Scanned 2 (and 302 related) class file(s) for forbidden API invocations (in 0.10s), 0 error(s).
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.18.1:test (default-test) @ elasticsearch-analysis-kuromoji ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- junit4-maven-plugin:2.1.14:junit4 (tests) @ elasticsearch-analysis-kuromoji ---
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (tests-top-hints) @ elasticsearch-analysis-kuromoji ---
+[INFO] Skipping Antrun execution
+[INFO] 
+[INFO] --- maven-jar-plugin:2.5:jar (default-jar) @ elasticsearch-analysis-kuromoji ---
+[INFO] Building jar: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-kuromoji/target/elasticsearch-analysis-kuromoji-2.0.0-SNAPSHOT.jar
+[INFO] 
+[INFO] >>> maven-source-plugin:2.4:jar (attach-sources) @ elasticsearch-analysis-kuromoji >>>
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-versions) @ elasticsearch-analysis-kuromoji ---
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-maven) @ elasticsearch-analysis-kuromoji ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create (default) @ elasticsearch-analysis-kuromoji ---
+[INFO] Executing: /bin/sh -c cd /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-kuromoji && git rev-parse --verify HEAD
+[INFO] Working directory: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-kuromoji
+[INFO] Storing buildNumber: 4f9f489dc156b010dc62e077811f6b40d3e9cb3c at timestamp: 1434365244340
+[INFO] Storing buildScmBranch: plugins/reduce-analysis-size
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (print-jvm) @ elasticsearch-analysis-kuromoji ---
+[INFO] Executing tasks
+
+main:
+      [JVM] Using Java(TM) SE Runtime Environment 1.7.0_60-b19 Oracle Corporation
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (set-permgen) @ elasticsearch-analysis-kuromoji ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (check-invalid-patterns) @ elasticsearch-analysis-kuromoji ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] <<< maven-source-plugin:2.4:jar (attach-sources) @ elasticsearch-analysis-kuromoji <<<
+[INFO] 
+[INFO] --- maven-source-plugin:2.4:jar (attach-sources) @ elasticsearch-analysis-kuromoji ---
+[INFO] Building jar: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-kuromoji/target/elasticsearch-analysis-kuromoji-2.0.0-SNAPSHOT-sources.jar
+[INFO] 
+[INFO] --- maven-assembly-plugin:2.5.5:single (default) @ elasticsearch-analysis-kuromoji ---
+[INFO] Reading assembly descriptor: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-kuromoji/src/main/assemblies/plugin.xml
+[WARNING] The following patterns were never triggered in this artifact exclusion filter:
+o  'org.elasticsearch:elasticsearch'
+
+[INFO] Building zip: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-kuromoji/target/releases/elasticsearch-analysis-kuromoji-2.0.0-SNAPSHOT.zip
+[INFO] 
+[INFO] --- maven-install-plugin:2.5.2:install (default-install) @ elasticsearch-analysis-kuromoji ---
+[INFO] Installing /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-kuromoji/target/elasticsearch-analysis-kuromoji-2.0.0-SNAPSHOT.jar to /Users/dpilato/.m2/repository/org/elasticsearch/plugin/elasticsearch-analysis-kuromoji/2.0.0-SNAPSHOT/elasticsearch-analysis-kuromoji-2.0.0-SNAPSHOT.jar
+[INFO] Installing /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-kuromoji/pom.xml to /Users/dpilato/.m2/repository/org/elasticsearch/plugin/elasticsearch-analysis-kuromoji/2.0.0-SNAPSHOT/elasticsearch-analysis-kuromoji-2.0.0-SNAPSHOT.pom
+[INFO] Installing /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-kuromoji/target/elasticsearch-analysis-kuromoji-2.0.0-SNAPSHOT-sources.jar to /Users/dpilato/.m2/repository/org/elasticsearch/plugin/elasticsearch-analysis-kuromoji/2.0.0-SNAPSHOT/elasticsearch-analysis-kuromoji-2.0.0-SNAPSHOT-sources.jar
+[INFO] Installing /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-kuromoji/target/releases/elasticsearch-analysis-kuromoji-2.0.0-SNAPSHOT.zip to /Users/dpilato/.m2/repository/org/elasticsearch/plugin/elasticsearch-analysis-kuromoji/2.0.0-SNAPSHOT/elasticsearch-analysis-kuromoji-2.0.0-SNAPSHOT.zip
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time: 12.634s
+[INFO] Finished at: Mon Jun 15 12:47:26 CEST 2015
+[INFO] Final Memory: 28M/511M
+[INFO] ------------------------------------------------------------------------
+[INFO] Scanning for projects...
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Elasticsearch Phonetic Analysis plugin 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-clean-plugin:2.6.1:clean (default-clean) @ elasticsearch-analysis-phonetic ---
+[INFO] Deleting /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-phonetic/target
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-versions) @ elasticsearch-analysis-phonetic ---
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-maven) @ elasticsearch-analysis-phonetic ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create (default) @ elasticsearch-analysis-phonetic ---
+[INFO] Executing: /bin/sh -c cd /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-phonetic && git rev-parse --verify HEAD
+[INFO] Working directory: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-phonetic
+[INFO] Storing buildNumber: 4f9f489dc156b010dc62e077811f6b40d3e9cb3c at timestamp: 1434365250556
+[INFO] Storing buildScmBranch: plugins/reduce-analysis-size
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (print-jvm) @ elasticsearch-analysis-phonetic ---
+[INFO] Executing tasks
+
+main:
+      [JVM] Using Java(TM) SE Runtime Environment 1.7.0_60-b19 Oracle Corporation
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (set-permgen) @ elasticsearch-analysis-phonetic ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (check-invalid-patterns) @ elasticsearch-analysis-phonetic ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ elasticsearch-analysis-phonetic ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.7:resources (default-resources) @ elasticsearch-analysis-phonetic ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 1 resource
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.3:compile (default-compile) @ elasticsearch-analysis-phonetic ---
+[INFO] Compiling 6 source files to /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-phonetic/target/classes
+[INFO] 
+[INFO] --- forbiddenapis:1.8:check (check-forbidden-apis) @ elasticsearch-analysis-phonetic ---
+[INFO] Scanning for classes to check...
+[INFO] Reading bundled API signatures: jdk-unsafe
+[INFO] Reading bundled API signatures: jdk-deprecated
+[INFO] Reading bundled API signatures: jdk-system-out
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-phonetic/target/dev-tools/forbidden/core-signatures.txt
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-phonetic/target/dev-tools/forbidden/all-signatures.txt
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-phonetic/target/dev-tools/forbidden/third-party-unshaded-signatures.txt
+[INFO] Loading classes to check...
+[INFO] Scanning for API signatures and dependencies...
+[INFO] Scanned 6 (and 297 related) class file(s) for forbidden API invocations (in 0.18s), 0 error(s).
+[INFO] 
+[INFO] --- license-maven-plugin:2.5:check (check-license-headers) @ elasticsearch-analysis-phonetic ---
+[INFO] Checking licenses...
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (create-heapdump-directory) @ elasticsearch-analysis-phonetic ---
+[INFO] Executing tasks
+
+main:
+ [heapdump] Creating heapdump directory
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-resources-plugin:2.7:testResources (default-testResources) @ elasticsearch-analysis-phonetic ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 0 resource
+[INFO] Copying 1 resource
+[INFO] Copying 0 resource
+[INFO] Copying 1 resource
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.3:testCompile (default-testCompile) @ elasticsearch-analysis-phonetic ---
+[INFO] Compiling 2 source files to /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-phonetic/target/test-classes
+[INFO] 
+[INFO] --- forbiddenapis:1.8:testCheck (check-forbidden-test-apis) @ elasticsearch-analysis-phonetic ---
+[INFO] Scanning for classes to check...
+[INFO] Reading bundled API signatures: jdk-unsafe
+[INFO] Reading bundled API signatures: jdk-deprecated
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-phonetic/target/dev-tools/forbidden/test-signatures.txt
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-phonetic/target/dev-tools/forbidden/all-signatures.txt
+[INFO] Loading classes to check...
+[INFO] Scanning for API signatures and dependencies...
+[INFO] Scanned 2 (and 276 related) class file(s) for forbidden API invocations (in 0.15s), 0 error(s).
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.18.1:test (default-test) @ elasticsearch-analysis-phonetic ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- junit4-maven-plugin:2.1.14:junit4 (tests) @ elasticsearch-analysis-phonetic ---
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (tests-top-hints) @ elasticsearch-analysis-phonetic ---
+[INFO] Skipping Antrun execution
+[INFO] 
+[INFO] --- maven-jar-plugin:2.5:jar (default-jar) @ elasticsearch-analysis-phonetic ---
+[INFO] Building jar: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-phonetic/target/elasticsearch-analysis-phonetic-2.0.0-SNAPSHOT.jar
+[INFO] 
+[INFO] >>> maven-source-plugin:2.4:jar (attach-sources) @ elasticsearch-analysis-phonetic >>>
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-versions) @ elasticsearch-analysis-phonetic ---
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-maven) @ elasticsearch-analysis-phonetic ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create (default) @ elasticsearch-analysis-phonetic ---
+[INFO] Executing: /bin/sh -c cd /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-phonetic && git rev-parse --verify HEAD
+[INFO] Working directory: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-phonetic
+[INFO] Storing buildNumber: 4f9f489dc156b010dc62e077811f6b40d3e9cb3c at timestamp: 1434365256983
+[INFO] Storing buildScmBranch: plugins/reduce-analysis-size
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (print-jvm) @ elasticsearch-analysis-phonetic ---
+[INFO] Executing tasks
+
+main:
+      [JVM] Using Java(TM) SE Runtime Environment 1.7.0_60-b19 Oracle Corporation
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (set-permgen) @ elasticsearch-analysis-phonetic ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (check-invalid-patterns) @ elasticsearch-analysis-phonetic ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] <<< maven-source-plugin:2.4:jar (attach-sources) @ elasticsearch-analysis-phonetic <<<
+[INFO] 
+[INFO] --- maven-source-plugin:2.4:jar (attach-sources) @ elasticsearch-analysis-phonetic ---
+[INFO] Building jar: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-phonetic/target/elasticsearch-analysis-phonetic-2.0.0-SNAPSHOT-sources.jar
+[INFO] 
+[INFO] --- maven-assembly-plugin:2.5.5:single (default) @ elasticsearch-analysis-phonetic ---
+[INFO] Reading assembly descriptor: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-phonetic/src/main/assemblies/plugin.xml
+[WARNING] The following patterns were never triggered in this artifact exclusion filter:
+o  'org.elasticsearch:elasticsearch'
+
+[INFO] Building zip: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-phonetic/target/releases/elasticsearch-analysis-phonetic-2.0.0-SNAPSHOT.zip
+[INFO] 
+[INFO] --- maven-install-plugin:2.5.2:install (default-install) @ elasticsearch-analysis-phonetic ---
+[INFO] Installing /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-phonetic/target/elasticsearch-analysis-phonetic-2.0.0-SNAPSHOT.jar to /Users/dpilato/.m2/repository/org/elasticsearch/plugin/elasticsearch-analysis-phonetic/2.0.0-SNAPSHOT/elasticsearch-analysis-phonetic-2.0.0-SNAPSHOT.jar
+[INFO] Installing /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-phonetic/pom.xml to /Users/dpilato/.m2/repository/org/elasticsearch/plugin/elasticsearch-analysis-phonetic/2.0.0-SNAPSHOT/elasticsearch-analysis-phonetic-2.0.0-SNAPSHOT.pom
+[INFO] Installing /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-phonetic/target/elasticsearch-analysis-phonetic-2.0.0-SNAPSHOT-sources.jar to /Users/dpilato/.m2/repository/org/elasticsearch/plugin/elasticsearch-analysis-phonetic/2.0.0-SNAPSHOT/elasticsearch-analysis-phonetic-2.0.0-SNAPSHOT-sources.jar
+[INFO] Installing /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-phonetic/target/releases/elasticsearch-analysis-phonetic-2.0.0-SNAPSHOT.zip to /Users/dpilato/.m2/repository/org/elasticsearch/plugin/elasticsearch-analysis-phonetic/2.0.0-SNAPSHOT/elasticsearch-analysis-phonetic-2.0.0-SNAPSHOT.zip
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time: 10.513s
+[INFO] Finished at: Mon Jun 15 12:47:38 CEST 2015
+[INFO] Final Memory: 26M/510M
+[INFO] ------------------------------------------------------------------------
+[INFO] Scanning for projects...
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Elasticsearch Smart Chinese Analysis plugin 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-clean-plugin:2.6.1:clean (default-clean) @ elasticsearch-analysis-smartcn ---
+[INFO] Deleting /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-smartcn/target
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-versions) @ elasticsearch-analysis-smartcn ---
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-maven) @ elasticsearch-analysis-smartcn ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create (default) @ elasticsearch-analysis-smartcn ---
+[INFO] Executing: /bin/sh -c cd /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-smartcn && git rev-parse --verify HEAD
+[INFO] Working directory: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-smartcn
+[INFO] Storing buildNumber: 4f9f489dc156b010dc62e077811f6b40d3e9cb3c at timestamp: 1434365263632
+[INFO] Storing buildScmBranch: plugins/reduce-analysis-size
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (print-jvm) @ elasticsearch-analysis-smartcn ---
+[INFO] Executing tasks
+
+main:
+      [JVM] Using Java(TM) SE Runtime Environment 1.7.0_60-b19 Oracle Corporation
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (set-permgen) @ elasticsearch-analysis-smartcn ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (check-invalid-patterns) @ elasticsearch-analysis-smartcn ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ elasticsearch-analysis-smartcn ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.7:resources (default-resources) @ elasticsearch-analysis-smartcn ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 1 resource
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.3:compile (default-compile) @ elasticsearch-analysis-smartcn ---
+[INFO] Compiling 7 source files to /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-smartcn/target/classes
+[INFO] 
+[INFO] --- forbiddenapis:1.8:check (check-forbidden-apis) @ elasticsearch-analysis-smartcn ---
+[INFO] Scanning for classes to check...
+[INFO] Reading bundled API signatures: jdk-unsafe
+[INFO] Reading bundled API signatures: jdk-deprecated
+[INFO] Reading bundled API signatures: jdk-system-out
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-smartcn/target/dev-tools/forbidden/core-signatures.txt
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-smartcn/target/dev-tools/forbidden/all-signatures.txt
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-smartcn/target/dev-tools/forbidden/third-party-unshaded-signatures.txt
+[INFO] Loading classes to check...
+[INFO] Scanning for API signatures and dependencies...
+[INFO] Scanned 10 (and 290 related) class file(s) for forbidden API invocations (in 0.40s), 0 error(s).
+[INFO] 
+[INFO] --- license-maven-plugin:2.5:check (check-license-headers) @ elasticsearch-analysis-smartcn ---
+[INFO] Checking licenses...
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (create-heapdump-directory) @ elasticsearch-analysis-smartcn ---
+[INFO] Executing tasks
+
+main:
+ [heapdump] Creating heapdump directory
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-resources-plugin:2.7:testResources (default-testResources) @ elasticsearch-analysis-smartcn ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 0 resource
+[INFO] skip non existing resourceDirectory /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-smartcn/src/test/resources
+[INFO] skip non existing resourceDirectory /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-smartcn/src/test/resources
+[INFO] Copying 1 resource
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.3:testCompile (default-testCompile) @ elasticsearch-analysis-smartcn ---
+[INFO] Compiling 2 source files to /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-smartcn/target/test-classes
+[INFO] 
+[INFO] --- forbiddenapis:1.8:testCheck (check-forbidden-test-apis) @ elasticsearch-analysis-smartcn ---
+[INFO] Scanning for classes to check...
+[INFO] Reading bundled API signatures: jdk-unsafe
+[INFO] Reading bundled API signatures: jdk-deprecated
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-smartcn/target/dev-tools/forbidden/test-signatures.txt
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-smartcn/target/dev-tools/forbidden/all-signatures.txt
+[INFO] Loading classes to check...
+[INFO] Scanning for API signatures and dependencies...
+[INFO] Scanned 2 (and 262 related) class file(s) for forbidden API invocations (in 0.08s), 0 error(s).
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.18.1:test (default-test) @ elasticsearch-analysis-smartcn ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- junit4-maven-plugin:2.1.14:junit4 (tests) @ elasticsearch-analysis-smartcn ---
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (tests-top-hints) @ elasticsearch-analysis-smartcn ---
+[INFO] Skipping Antrun execution
+[INFO] 
+[INFO] --- maven-jar-plugin:2.5:jar (default-jar) @ elasticsearch-analysis-smartcn ---
+[INFO] Building jar: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-smartcn/target/elasticsearch-analysis-smartcn-2.0.0-SNAPSHOT.jar
+[INFO] 
+[INFO] >>> maven-source-plugin:2.4:jar (attach-sources) @ elasticsearch-analysis-smartcn >>>
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-versions) @ elasticsearch-analysis-smartcn ---
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-maven) @ elasticsearch-analysis-smartcn ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create (default) @ elasticsearch-analysis-smartcn ---
+[INFO] Executing: /bin/sh -c cd /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-smartcn && git rev-parse --verify HEAD
+[INFO] Working directory: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-smartcn
+[INFO] Storing buildNumber: 4f9f489dc156b010dc62e077811f6b40d3e9cb3c at timestamp: 1434365271414
+[INFO] Storing buildScmBranch: plugins/reduce-analysis-size
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (print-jvm) @ elasticsearch-analysis-smartcn ---
+[INFO] Executing tasks
+
+main:
+      [JVM] Using Java(TM) SE Runtime Environment 1.7.0_60-b19 Oracle Corporation
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (set-permgen) @ elasticsearch-analysis-smartcn ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (check-invalid-patterns) @ elasticsearch-analysis-smartcn ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] <<< maven-source-plugin:2.4:jar (attach-sources) @ elasticsearch-analysis-smartcn <<<
+[INFO] 
+[INFO] --- maven-source-plugin:2.4:jar (attach-sources) @ elasticsearch-analysis-smartcn ---
+[INFO] Building jar: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-smartcn/target/elasticsearch-analysis-smartcn-2.0.0-SNAPSHOT-sources.jar
+[INFO] 
+[INFO] --- maven-assembly-plugin:2.5.5:single (default) @ elasticsearch-analysis-smartcn ---
+[INFO] Reading assembly descriptor: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-smartcn/src/main/assemblies/plugin.xml
+[WARNING] The following patterns were never triggered in this artifact exclusion filter:
+o  'org.elasticsearch:elasticsearch'
+
+[INFO] Building zip: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-smartcn/target/releases/elasticsearch-analysis-smartcn-2.0.0-SNAPSHOT.zip
+[INFO] 
+[INFO] --- maven-install-plugin:2.5.2:install (default-install) @ elasticsearch-analysis-smartcn ---
+[INFO] Installing /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-smartcn/target/elasticsearch-analysis-smartcn-2.0.0-SNAPSHOT.jar to /Users/dpilato/.m2/repository/org/elasticsearch/plugin/elasticsearch-analysis-smartcn/2.0.0-SNAPSHOT/elasticsearch-analysis-smartcn-2.0.0-SNAPSHOT.jar
+[INFO] Installing /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-smartcn/pom.xml to /Users/dpilato/.m2/repository/org/elasticsearch/plugin/elasticsearch-analysis-smartcn/2.0.0-SNAPSHOT/elasticsearch-analysis-smartcn-2.0.0-SNAPSHOT.pom
+[INFO] Installing /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-smartcn/target/elasticsearch-analysis-smartcn-2.0.0-SNAPSHOT-sources.jar to /Users/dpilato/.m2/repository/org/elasticsearch/plugin/elasticsearch-analysis-smartcn/2.0.0-SNAPSHOT/elasticsearch-analysis-smartcn-2.0.0-SNAPSHOT-sources.jar
+[INFO] Installing /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-smartcn/target/releases/elasticsearch-analysis-smartcn-2.0.0-SNAPSHOT.zip to /Users/dpilato/.m2/repository/org/elasticsearch/plugin/elasticsearch-analysis-smartcn/2.0.0-SNAPSHOT/elasticsearch-analysis-smartcn-2.0.0-SNAPSHOT.zip
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time: 13.115s
+[INFO] Finished at: Mon Jun 15 12:47:53 CEST 2015
+[INFO] Final Memory: 34M/354M
+[INFO] ------------------------------------------------------------------------
+[INFO] Scanning for projects...
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Elasticsearch Stempel (Polish) Analysis plugin 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-clean-plugin:2.6.1:clean (default-clean) @ elasticsearch-analysis-stempel ---
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-versions) @ elasticsearch-analysis-stempel ---
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-maven) @ elasticsearch-analysis-stempel ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create (default) @ elasticsearch-analysis-stempel ---
+[INFO] Executing: /bin/sh -c cd /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-stempel && git rev-parse --verify HEAD
+[INFO] Working directory: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-stempel
+[INFO] Storing buildNumber: 4f9f489dc156b010dc62e077811f6b40d3e9cb3c at timestamp: 1434365277993
+[INFO] Storing buildScmBranch: plugins/reduce-analysis-size
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (print-jvm) @ elasticsearch-analysis-stempel ---
+[INFO] Executing tasks
+
+main:
+      [JVM] Using Java(TM) SE Runtime Environment 1.7.0_60-b19 Oracle Corporation
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (set-permgen) @ elasticsearch-analysis-stempel ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (check-invalid-patterns) @ elasticsearch-analysis-stempel ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ elasticsearch-analysis-stempel ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.7:resources (default-resources) @ elasticsearch-analysis-stempel ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 1 resource
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.3:compile (default-compile) @ elasticsearch-analysis-stempel ---
+[INFO] Compiling 6 source files to /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-stempel/target/classes
+[INFO] 
+[INFO] --- forbiddenapis:1.8:check (check-forbidden-apis) @ elasticsearch-analysis-stempel ---
+[INFO] Scanning for classes to check...
+[INFO] Reading bundled API signatures: jdk-unsafe
+[INFO] Reading bundled API signatures: jdk-deprecated
+[INFO] Reading bundled API signatures: jdk-system-out
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-stempel/target/dev-tools/forbidden/core-signatures.txt
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-stempel/target/dev-tools/forbidden/all-signatures.txt
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-stempel/target/dev-tools/forbidden/third-party-unshaded-signatures.txt
+[INFO] Loading classes to check...
+[INFO] Scanning for API signatures and dependencies...
+[INFO] Scanned 7 (and 289 related) class file(s) for forbidden API invocations (in 0.22s), 0 error(s).
+[INFO] 
+[INFO] --- license-maven-plugin:2.5:check (check-license-headers) @ elasticsearch-analysis-stempel ---
+[INFO] Checking licenses...
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (create-heapdump-directory) @ elasticsearch-analysis-stempel ---
+[INFO] Executing tasks
+
+main:
+ [heapdump] Creating heapdump directory
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-resources-plugin:2.7:testResources (default-testResources) @ elasticsearch-analysis-stempel ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 0 resource
+[INFO] skip non existing resourceDirectory /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-stempel/src/test/resources
+[INFO] skip non existing resourceDirectory /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-stempel/src/test/resources
+[INFO] Copying 1 resource
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.3:testCompile (default-testCompile) @ elasticsearch-analysis-stempel ---
+[INFO] Compiling 3 source files to /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-stempel/target/test-classes
+[INFO] 
+[INFO] --- forbiddenapis:1.8:testCheck (check-forbidden-test-apis) @ elasticsearch-analysis-stempel ---
+[INFO] Scanning for classes to check...
+[INFO] Reading bundled API signatures: jdk-unsafe
+[INFO] Reading bundled API signatures: jdk-deprecated
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-stempel/target/dev-tools/forbidden/test-signatures.txt
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-stempel/target/dev-tools/forbidden/all-signatures.txt
+[INFO] Loading classes to check...
+[INFO] Scanning for API signatures and dependencies...
+[INFO] Scanned 3 (and 284 related) class file(s) for forbidden API invocations (in 0.10s), 0 error(s).
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.18.1:test (default-test) @ elasticsearch-analysis-stempel ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- junit4-maven-plugin:2.1.14:junit4 (tests) @ elasticsearch-analysis-stempel ---
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (tests-top-hints) @ elasticsearch-analysis-stempel ---
+[INFO] Skipping Antrun execution
+[INFO] 
+[INFO] --- maven-jar-plugin:2.5:jar (default-jar) @ elasticsearch-analysis-stempel ---
+[INFO] Building jar: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-stempel/target/elasticsearch-analysis-stempel-2.0.0-SNAPSHOT.jar
+[INFO] 
+[INFO] >>> maven-source-plugin:2.4:jar (attach-sources) @ elasticsearch-analysis-stempel >>>
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-versions) @ elasticsearch-analysis-stempel ---
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-maven) @ elasticsearch-analysis-stempel ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create (default) @ elasticsearch-analysis-stempel ---
+[INFO] Executing: /bin/sh -c cd /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-stempel && git rev-parse --verify HEAD
+[INFO] Working directory: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-stempel
+[INFO] Storing buildNumber: 4f9f489dc156b010dc62e077811f6b40d3e9cb3c at timestamp: 1434365284429
+[INFO] Storing buildScmBranch: plugins/reduce-analysis-size
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (print-jvm) @ elasticsearch-analysis-stempel ---
+[INFO] Executing tasks
+
+main:
+      [JVM] Using Java(TM) SE Runtime Environment 1.7.0_60-b19 Oracle Corporation
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (set-permgen) @ elasticsearch-analysis-stempel ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (check-invalid-patterns) @ elasticsearch-analysis-stempel ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] <<< maven-source-plugin:2.4:jar (attach-sources) @ elasticsearch-analysis-stempel <<<
+[INFO] 
+[INFO] --- maven-source-plugin:2.4:jar (attach-sources) @ elasticsearch-analysis-stempel ---
+[INFO] Building jar: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-stempel/target/elasticsearch-analysis-stempel-2.0.0-SNAPSHOT-sources.jar
+[INFO] 
+[INFO] --- maven-assembly-plugin:2.5.5:single (default) @ elasticsearch-analysis-stempel ---
+[INFO] Reading assembly descriptor: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-stempel/src/main/assemblies/plugin.xml
+[WARNING] The following patterns were never triggered in this artifact exclusion filter:
+o  'org.elasticsearch:elasticsearch'
+
+[INFO] Building zip: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-stempel/target/releases/elasticsearch-analysis-stempel-2.0.0-SNAPSHOT.zip
+[INFO] 
+[INFO] --- maven-install-plugin:2.5.2:install (default-install) @ elasticsearch-analysis-stempel ---
+[INFO] Installing /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-stempel/target/elasticsearch-analysis-stempel-2.0.0-SNAPSHOT.jar to /Users/dpilato/.m2/repository/org/elasticsearch/plugin/elasticsearch-analysis-stempel/2.0.0-SNAPSHOT/elasticsearch-analysis-stempel-2.0.0-SNAPSHOT.jar
+[INFO] Installing /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-stempel/pom.xml to /Users/dpilato/.m2/repository/org/elasticsearch/plugin/elasticsearch-analysis-stempel/2.0.0-SNAPSHOT/elasticsearch-analysis-stempel-2.0.0-SNAPSHOT.pom
+[INFO] Installing /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-stempel/target/elasticsearch-analysis-stempel-2.0.0-SNAPSHOT-sources.jar to /Users/dpilato/.m2/repository/org/elasticsearch/plugin/elasticsearch-analysis-stempel/2.0.0-SNAPSHOT/elasticsearch-analysis-stempel-2.0.0-SNAPSHOT-sources.jar
+[INFO] Installing /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/analysis-stempel/target/releases/elasticsearch-analysis-stempel-2.0.0-SNAPSHOT.zip to /Users/dpilato/.m2/repository/org/elasticsearch/plugin/elasticsearch-analysis-stempel/2.0.0-SNAPSHOT/elasticsearch-analysis-stempel-2.0.0-SNAPSHOT.zip
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time: 10.139s
+[INFO] Finished at: Mon Jun 15 12:48:05 CEST 2015
+[INFO] Final Memory: 33M/512M
+[INFO] ------------------------------------------------------------------------
+[INFO] Scanning for projects...
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Elasticsearch AWS cloud plugin 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-clean-plugin:2.6.1:clean (default-clean) @ elasticsearch-cloud-aws ---
+[INFO] Deleting /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-aws/target
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-versions) @ elasticsearch-cloud-aws ---
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-maven) @ elasticsearch-cloud-aws ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create (default) @ elasticsearch-cloud-aws ---
+[INFO] Executing: /bin/sh -c cd /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-aws && git rev-parse --verify HEAD
+[INFO] Working directory: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-aws
+[INFO] Storing buildNumber: 4f9f489dc156b010dc62e077811f6b40d3e9cb3c at timestamp: 1434365292110
+[INFO] Storing buildScmBranch: plugins/reduce-analysis-size
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (print-jvm) @ elasticsearch-cloud-aws ---
+[INFO] Executing tasks
+
+main:
+      [JVM] Using Java(TM) SE Runtime Environment 1.7.0_60-b19 Oracle Corporation
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (set-permgen) @ elasticsearch-cloud-aws ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (check-invalid-patterns) @ elasticsearch-cloud-aws ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ elasticsearch-cloud-aws ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.7:resources (default-resources) @ elasticsearch-cloud-aws ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 1 resource
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.3:compile (default-compile) @ elasticsearch-cloud-aws ---
+[INFO] Compiling 17 source files to /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-aws/target/classes
+[INFO] 
+[INFO] --- forbiddenapis:1.8:check (check-forbidden-apis) @ elasticsearch-cloud-aws ---
+[INFO] Scanning for classes to check...
+[INFO] Reading bundled API signatures: jdk-unsafe
+[INFO] Reading bundled API signatures: jdk-deprecated
+[INFO] Reading bundled API signatures: jdk-system-out
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-aws/target/dev-tools/forbidden/core-signatures.txt
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-aws/target/dev-tools/forbidden/all-signatures.txt
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-aws/target/dev-tools/forbidden/third-party-unshaded-signatures.txt
+[INFO] Loading classes to check...
+[INFO] Scanning for API signatures and dependencies...
+[INFO] Scanned 20 (and 394 related) class file(s) for forbidden API invocations (in 0.32s), 0 error(s).
+[INFO] 
+[INFO] --- license-maven-plugin:2.5:check (check-license-headers) @ elasticsearch-cloud-aws ---
+[INFO] Checking licenses...
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (create-heapdump-directory) @ elasticsearch-cloud-aws ---
+[INFO] Executing tasks
+
+main:
+ [heapdump] Creating heapdump directory
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-resources-plugin:2.7:testResources (default-testResources) @ elasticsearch-cloud-aws ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 0 resource
+[INFO] skip non existing resourceDirectory /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-aws/src/test/resources
+[INFO] skip non existing resourceDirectory /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-aws/src/test/resources
+[INFO] Copying 1 resource
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.3:testCompile (default-testCompile) @ elasticsearch-cloud-aws ---
+[INFO] Compiling 13 source files to /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-aws/target/test-classes
+[INFO] 
+[INFO] --- forbiddenapis:1.8:testCheck (check-forbidden-test-apis) @ elasticsearch-cloud-aws ---
+[INFO] Scanning for classes to check...
+[INFO] Reading bundled API signatures: jdk-unsafe
+[INFO] Reading bundled API signatures: jdk-deprecated
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-aws/target/dev-tools/forbidden/test-signatures.txt
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-aws/target/dev-tools/forbidden/all-signatures.txt
+[INFO] Loading classes to check...
+[INFO] Scanning for API signatures and dependencies...
+[INFO] Scanned 13 (and 340 related) class file(s) for forbidden API invocations (in 0.18s), 0 error(s).
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.18.1:test (default-test) @ elasticsearch-cloud-aws ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- junit4-maven-plugin:2.1.14:junit4 (tests) @ elasticsearch-cloud-aws ---
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (tests-top-hints) @ elasticsearch-cloud-aws ---
+[INFO] Skipping Antrun execution
+[INFO] 
+[INFO] --- maven-jar-plugin:2.5:jar (default-jar) @ elasticsearch-cloud-aws ---
+[INFO] Building jar: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-aws/target/elasticsearch-cloud-aws-2.0.0-SNAPSHOT.jar
+[INFO] 
+[INFO] >>> maven-source-plugin:2.4:jar (attach-sources) @ elasticsearch-cloud-aws >>>
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-versions) @ elasticsearch-cloud-aws ---
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-maven) @ elasticsearch-cloud-aws ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create (default) @ elasticsearch-cloud-aws ---
+[INFO] Executing: /bin/sh -c cd /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-aws && git rev-parse --verify HEAD
+[INFO] Working directory: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-aws
+[INFO] Storing buildNumber: 4f9f489dc156b010dc62e077811f6b40d3e9cb3c at timestamp: 1434365302744
+[INFO] Storing buildScmBranch: plugins/reduce-analysis-size
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (print-jvm) @ elasticsearch-cloud-aws ---
+[INFO] Executing tasks
+
+main:
+      [JVM] Using Java(TM) SE Runtime Environment 1.7.0_60-b19 Oracle Corporation
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (set-permgen) @ elasticsearch-cloud-aws ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (check-invalid-patterns) @ elasticsearch-cloud-aws ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] <<< maven-source-plugin:2.4:jar (attach-sources) @ elasticsearch-cloud-aws <<<
+[INFO] 
+[INFO] --- maven-source-plugin:2.4:jar (attach-sources) @ elasticsearch-cloud-aws ---
+[INFO] Building jar: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-aws/target/elasticsearch-cloud-aws-2.0.0-SNAPSHOT-sources.jar
+[INFO] 
+[INFO] --- maven-assembly-plugin:2.5.5:single (default) @ elasticsearch-cloud-aws ---
+[INFO] Reading assembly descriptor: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-aws/src/main/assemblies/plugin.xml
+[WARNING] The following patterns were never triggered in this artifact exclusion filter:
+o  'org.elasticsearch:elasticsearch'
+
+[INFO] Building zip: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-aws/target/releases/elasticsearch-cloud-aws-2.0.0-SNAPSHOT.zip
+[INFO] 
+[INFO] --- maven-install-plugin:2.5.2:install (default-install) @ elasticsearch-cloud-aws ---
+[INFO] Installing /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-aws/target/elasticsearch-cloud-aws-2.0.0-SNAPSHOT.jar to /Users/dpilato/.m2/repository/org/elasticsearch/plugin/elasticsearch-cloud-aws/2.0.0-SNAPSHOT/elasticsearch-cloud-aws-2.0.0-SNAPSHOT.jar
+[INFO] Installing /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-aws/pom.xml to /Users/dpilato/.m2/repository/org/elasticsearch/plugin/elasticsearch-cloud-aws/2.0.0-SNAPSHOT/elasticsearch-cloud-aws-2.0.0-SNAPSHOT.pom
+[INFO] Installing /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-aws/target/elasticsearch-cloud-aws-2.0.0-SNAPSHOT-sources.jar to /Users/dpilato/.m2/repository/org/elasticsearch/plugin/elasticsearch-cloud-aws/2.0.0-SNAPSHOT/elasticsearch-cloud-aws-2.0.0-SNAPSHOT-sources.jar
+[INFO] Installing /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-aws/target/releases/elasticsearch-cloud-aws-2.0.0-SNAPSHOT.zip to /Users/dpilato/.m2/repository/org/elasticsearch/plugin/elasticsearch-cloud-aws/2.0.0-SNAPSHOT/elasticsearch-cloud-aws-2.0.0-SNAPSHOT.zip
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time: 16.811s
+[INFO] Finished at: Mon Jun 15 12:48:25 CEST 2015
+[INFO] Final Memory: 25M/475M
+[INFO] ------------------------------------------------------------------------
+[INFO] Scanning for projects...
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Elasticsearch Azure cloud plugin 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-clean-plugin:2.6.1:clean (default-clean) @ elasticsearch-cloud-azure ---
+[INFO] Deleting /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-azure/target
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-versions) @ elasticsearch-cloud-azure ---
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-maven) @ elasticsearch-cloud-azure ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create (default) @ elasticsearch-cloud-azure ---
+[INFO] Executing: /bin/sh -c cd /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-azure && git rev-parse --verify HEAD
+[INFO] Working directory: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-azure
+[INFO] Storing buildNumber: 4f9f489dc156b010dc62e077811f6b40d3e9cb3c at timestamp: 1434365310679
+[INFO] Storing buildScmBranch: plugins/reduce-analysis-size
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (print-jvm) @ elasticsearch-cloud-azure ---
+[INFO] Executing tasks
+
+main:
+      [JVM] Using Java(TM) SE Runtime Environment 1.7.0_60-b19 Oracle Corporation
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (set-permgen) @ elasticsearch-cloud-azure ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (check-invalid-patterns) @ elasticsearch-cloud-azure ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ elasticsearch-cloud-azure ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.7:resources (default-resources) @ elasticsearch-cloud-azure ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 1 resource
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.3:compile (default-compile) @ elasticsearch-cloud-azure ---
+[INFO] Compiling 25 source files to /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-azure/target/classes
+[INFO] 
+[INFO] --- forbiddenapis:1.8:check (check-forbidden-apis) @ elasticsearch-cloud-azure ---
+[INFO] Scanning for classes to check...
+[INFO] Reading bundled API signatures: jdk-unsafe
+[INFO] Reading bundled API signatures: jdk-deprecated
+[INFO] Reading bundled API signatures: jdk-system-out
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-azure/target/dev-tools/forbidden/core-signatures.txt
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-azure/target/dev-tools/forbidden/all-signatures.txt
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-azure/target/dev-tools/forbidden/third-party-unshaded-signatures.txt
+[INFO] Loading classes to check...
+[INFO] Scanning for API signatures and dependencies...
+[INFO] Scanned 35 (and 390 related) class file(s) for forbidden API invocations (in 0.74s), 0 error(s).
+[INFO] 
+[INFO] --- license-maven-plugin:2.5:check (check-license-headers) @ elasticsearch-cloud-azure ---
+[INFO] Checking licenses...
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (create-heapdump-directory) @ elasticsearch-cloud-azure ---
+[INFO] Executing tasks
+
+main:
+ [heapdump] Creating heapdump directory
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-resources-plugin:2.7:testResources (default-testResources) @ elasticsearch-cloud-azure ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 0 resource
+[INFO] skip non existing resourceDirectory /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-azure/src/test/resources
+[INFO] skip non existing resourceDirectory /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-azure/src/test/resources
+[INFO] Copying 1 resource
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.3:testCompile (default-testCompile) @ elasticsearch-cloud-azure ---
+[INFO] Compiling 19 source files to /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-azure/target/test-classes
+[INFO] 
+[INFO] --- forbiddenapis:1.8:testCheck (check-forbidden-test-apis) @ elasticsearch-cloud-azure ---
+[INFO] Scanning for classes to check...
+[INFO] Reading bundled API signatures: jdk-unsafe
+[INFO] Reading bundled API signatures: jdk-deprecated
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-azure/target/dev-tools/forbidden/test-signatures.txt
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-azure/target/dev-tools/forbidden/all-signatures.txt
+[INFO] Loading classes to check...
+[INFO] Scanning for API signatures and dependencies...
+[INFO] Scanned 21 (and 326 related) class file(s) for forbidden API invocations (in 0.20s), 0 error(s).
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.18.1:test (default-test) @ elasticsearch-cloud-azure ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- junit4-maven-plugin:2.1.14:junit4 (tests) @ elasticsearch-cloud-azure ---
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (tests-top-hints) @ elasticsearch-cloud-azure ---
+[INFO] Skipping Antrun execution
+[INFO] 
+[INFO] --- maven-jar-plugin:2.5:jar (default-jar) @ elasticsearch-cloud-azure ---
+[INFO] Building jar: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-azure/target/elasticsearch-cloud-azure-2.0.0-SNAPSHOT.jar
+[INFO] 
+[INFO] >>> maven-source-plugin:2.4:jar (attach-sources) @ elasticsearch-cloud-azure >>>
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-versions) @ elasticsearch-cloud-azure ---
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-maven) @ elasticsearch-cloud-azure ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create (default) @ elasticsearch-cloud-azure ---
+[INFO] Executing: /bin/sh -c cd /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-azure && git rev-parse --verify HEAD
+[INFO] Working directory: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-azure
+[INFO] Storing buildNumber: 4f9f489dc156b010dc62e077811f6b40d3e9cb3c at timestamp: 1434365323066
+[INFO] Storing buildScmBranch: plugins/reduce-analysis-size
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (print-jvm) @ elasticsearch-cloud-azure ---
+[INFO] Executing tasks
+
+main:
+      [JVM] Using Java(TM) SE Runtime Environment 1.7.0_60-b19 Oracle Corporation
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (set-permgen) @ elasticsearch-cloud-azure ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (check-invalid-patterns) @ elasticsearch-cloud-azure ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] <<< maven-source-plugin:2.4:jar (attach-sources) @ elasticsearch-cloud-azure <<<
+[INFO] 
+[INFO] --- maven-source-plugin:2.4:jar (attach-sources) @ elasticsearch-cloud-azure ---
+[INFO] Building jar: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-azure/target/elasticsearch-cloud-azure-2.0.0-SNAPSHOT-sources.jar
+[INFO] 
+[INFO] --- maven-assembly-plugin:2.5.5:single (default) @ elasticsearch-cloud-azure ---
+[INFO] Reading assembly descriptor: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-azure/src/main/assemblies/plugin.xml
+[WARNING] The following patterns were never triggered in this artifact exclusion filter:
+o  'org.elasticsearch:elasticsearch'
+
+[INFO] Building zip: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-azure/target/releases/elasticsearch-cloud-azure-2.0.0-SNAPSHOT.zip
+[INFO] 
+[INFO] --- maven-install-plugin:2.5.2:install (default-install) @ elasticsearch-cloud-azure ---
+[INFO] Installing /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-azure/target/elasticsearch-cloud-azure-2.0.0-SNAPSHOT.jar to /Users/dpilato/.m2/repository/org/elasticsearch/plugin/elasticsearch-cloud-azure/2.0.0-SNAPSHOT/elasticsearch-cloud-azure-2.0.0-SNAPSHOT.jar
+[INFO] Installing /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-azure/pom.xml to /Users/dpilato/.m2/repository/org/elasticsearch/plugin/elasticsearch-cloud-azure/2.0.0-SNAPSHOT/elasticsearch-cloud-azure-2.0.0-SNAPSHOT.pom
+[INFO] Installing /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-azure/target/elasticsearch-cloud-azure-2.0.0-SNAPSHOT-sources.jar to /Users/dpilato/.m2/repository/org/elasticsearch/plugin/elasticsearch-cloud-azure/2.0.0-SNAPSHOT/elasticsearch-cloud-azure-2.0.0-SNAPSHOT-sources.jar
+[INFO] Installing /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-azure/target/releases/elasticsearch-cloud-azure-2.0.0-SNAPSHOT.zip to /Users/dpilato/.m2/repository/org/elasticsearch/plugin/elasticsearch-cloud-azure/2.0.0-SNAPSHOT/elasticsearch-cloud-azure-2.0.0-SNAPSHOT.zip
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time: 19.265s
+[INFO] Finished at: Mon Jun 15 12:48:46 CEST 2015
+[INFO] Final Memory: 29M/518M
+[INFO] ------------------------------------------------------------------------
+[INFO] Scanning for projects...
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Elasticsearch Google Compute Engine cloud plugin 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-clean-plugin:2.6.1:clean (default-clean) @ elasticsearch-cloud-gce ---
+[INFO] Deleting /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-gce/target
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-versions) @ elasticsearch-cloud-gce ---
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-maven) @ elasticsearch-cloud-gce ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create (default) @ elasticsearch-cloud-gce ---
+[INFO] Executing: /bin/sh -c cd /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-gce && git rev-parse --verify HEAD
+[INFO] Working directory: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-gce
+[INFO] Storing buildNumber: 4f9f489dc156b010dc62e077811f6b40d3e9cb3c at timestamp: 1434365332834
+[INFO] Storing buildScmBranch: plugins/reduce-analysis-size
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (print-jvm) @ elasticsearch-cloud-gce ---
+[INFO] Executing tasks
+
+main:
+      [JVM] Using Java(TM) SE Runtime Environment 1.7.0_60-b19 Oracle Corporation
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (set-permgen) @ elasticsearch-cloud-gce ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (check-invalid-patterns) @ elasticsearch-cloud-gce ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ elasticsearch-cloud-gce ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.7:resources (default-resources) @ elasticsearch-cloud-gce ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 1 resource
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.3:compile (default-compile) @ elasticsearch-cloud-gce ---
+[INFO] Compiling 7 source files to /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-gce/target/classes
+[INFO] 
+[INFO] --- forbiddenapis:1.8:check (check-forbidden-apis) @ elasticsearch-cloud-gce ---
+[INFO] Scanning for classes to check...
+[INFO] Reading bundled API signatures: jdk-unsafe
+[INFO] Reading bundled API signatures: jdk-deprecated
+[INFO] Reading bundled API signatures: jdk-system-out
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-gce/target/dev-tools/forbidden/core-signatures.txt
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-gce/target/dev-tools/forbidden/all-signatures.txt
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-gce/target/dev-tools/forbidden/third-party-unshaded-signatures.txt
+[INFO] Loading classes to check...
+[INFO] Scanning for API signatures and dependencies...
+[INFO] Scanned 10 (and 328 related) class file(s) for forbidden API invocations (in 0.21s), 0 error(s).
+[INFO] 
+[INFO] --- license-maven-plugin:2.5:check (check-license-headers) @ elasticsearch-cloud-gce ---
+[INFO] Checking licenses...
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (create-heapdump-directory) @ elasticsearch-cloud-gce ---
+[INFO] Executing tasks
+
+main:
+ [heapdump] Creating heapdump directory
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-resources-plugin:2.7:testResources (default-testResources) @ elasticsearch-cloud-gce ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 0 resource
+[INFO] Copying 0 resource
+[INFO] Copying 1 resource
+[INFO] Copying 1 resource
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.3:testCompile (default-testCompile) @ elasticsearch-cloud-gce ---
+[INFO] Compiling 10 source files to /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-gce/target/test-classes
+[INFO] 
+[INFO] --- forbiddenapis:1.8:testCheck (check-forbidden-test-apis) @ elasticsearch-cloud-gce ---
+[INFO] Scanning for classes to check...
+[INFO] Reading bundled API signatures: jdk-unsafe
+[INFO] Reading bundled API signatures: jdk-deprecated
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-gce/target/dev-tools/forbidden/test-signatures.txt
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-gce/target/dev-tools/forbidden/all-signatures.txt
+[INFO] Loading classes to check...
+[INFO] Scanning for API signatures and dependencies...
+[INFO] Scanned 11 (and 277 related) class file(s) for forbidden API invocations (in 0.14s), 0 error(s).
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.18.1:test (default-test) @ elasticsearch-cloud-gce ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- junit4-maven-plugin:2.1.14:junit4 (tests) @ elasticsearch-cloud-gce ---
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (tests-top-hints) @ elasticsearch-cloud-gce ---
+[INFO] Skipping Antrun execution
+[INFO] 
+[INFO] --- maven-jar-plugin:2.5:jar (default-jar) @ elasticsearch-cloud-gce ---
+[INFO] Building jar: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-gce/target/elasticsearch-cloud-gce-2.0.0-SNAPSHOT.jar
+[INFO] 
+[INFO] >>> maven-source-plugin:2.4:jar (attach-sources) @ elasticsearch-cloud-gce >>>
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-versions) @ elasticsearch-cloud-gce ---
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-maven) @ elasticsearch-cloud-gce ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create (default) @ elasticsearch-cloud-gce ---
+[INFO] Executing: /bin/sh -c cd /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-gce && git rev-parse --verify HEAD
+[INFO] Working directory: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-gce
+[INFO] Storing buildNumber: 4f9f489dc156b010dc62e077811f6b40d3e9cb3c at timestamp: 1434365342318
+[INFO] Storing buildScmBranch: plugins/reduce-analysis-size
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (print-jvm) @ elasticsearch-cloud-gce ---
+[INFO] Executing tasks
+
+main:
+      [JVM] Using Java(TM) SE Runtime Environment 1.7.0_60-b19 Oracle Corporation
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (set-permgen) @ elasticsearch-cloud-gce ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (check-invalid-patterns) @ elasticsearch-cloud-gce ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] <<< maven-source-plugin:2.4:jar (attach-sources) @ elasticsearch-cloud-gce <<<
+[INFO] 
+[INFO] --- maven-source-plugin:2.4:jar (attach-sources) @ elasticsearch-cloud-gce ---
+[INFO] Building jar: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-gce/target/elasticsearch-cloud-gce-2.0.0-SNAPSHOT-sources.jar
+[INFO] 
+[INFO] --- maven-assembly-plugin:2.5.5:single (default) @ elasticsearch-cloud-gce ---
+[INFO] Reading assembly descriptor: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-gce/src/main/assemblies/plugin.xml
+[WARNING] The following patterns were never triggered in this artifact exclusion filter:
+o  'org.elasticsearch:elasticsearch'
+
+[INFO] Building zip: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-gce/target/releases/elasticsearch-cloud-gce-2.0.0-SNAPSHOT.zip
+[INFO] 
+[INFO] --- maven-install-plugin:2.5.2:install (default-install) @ elasticsearch-cloud-gce ---
+[INFO] Installing /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-gce/target/elasticsearch-cloud-gce-2.0.0-SNAPSHOT.jar to /Users/dpilato/.m2/repository/org/elasticsearch/plugin/elasticsearch-cloud-gce/2.0.0-SNAPSHOT/elasticsearch-cloud-gce-2.0.0-SNAPSHOT.jar
+[INFO] Installing /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-gce/pom.xml to /Users/dpilato/.m2/repository/org/elasticsearch/plugin/elasticsearch-cloud-gce/2.0.0-SNAPSHOT/elasticsearch-cloud-gce-2.0.0-SNAPSHOT.pom
+[INFO] Installing /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-gce/target/elasticsearch-cloud-gce-2.0.0-SNAPSHOT-sources.jar to /Users/dpilato/.m2/repository/org/elasticsearch/plugin/elasticsearch-cloud-gce/2.0.0-SNAPSHOT/elasticsearch-cloud-gce-2.0.0-SNAPSHOT-sources.jar
+[INFO] Installing /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/cloud-gce/target/releases/elasticsearch-cloud-gce-2.0.0-SNAPSHOT.zip to /Users/dpilato/.m2/repository/org/elasticsearch/plugin/elasticsearch-cloud-gce/2.0.0-SNAPSHOT/elasticsearch-cloud-gce-2.0.0-SNAPSHOT.zip
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time: 15.772s
+[INFO] Finished at: Mon Jun 15 12:49:04 CEST 2015
+[INFO] Final Memory: 26M/476M
+[INFO] ------------------------------------------------------------------------
+[INFO] Scanning for projects...
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Elasticsearch JavaScript language plugin 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-clean-plugin:2.6.1:clean (default-clean) @ elasticsearch-lang-javascript ---
+[INFO] Deleting /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/target
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-versions) @ elasticsearch-lang-javascript ---
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-maven) @ elasticsearch-lang-javascript ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create (default) @ elasticsearch-lang-javascript ---
+[INFO] Executing: /bin/sh -c cd /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript && git rev-parse --verify HEAD
+[INFO] Working directory: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript
+[INFO] Storing buildNumber: 4f9f489dc156b010dc62e077811f6b40d3e9cb3c at timestamp: 1434365349118
+[INFO] Storing buildScmBranch: plugins/reduce-analysis-size
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (print-jvm) @ elasticsearch-lang-javascript ---
+[INFO] Executing tasks
+
+main:
+      [JVM] Using Java(TM) SE Runtime Environment 1.7.0_60-b19 Oracle Corporation
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (set-permgen) @ elasticsearch-lang-javascript ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (check-invalid-patterns) @ elasticsearch-lang-javascript ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ elasticsearch-lang-javascript ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.7:resources (default-resources) @ elasticsearch-lang-javascript ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 1 resource
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.3:compile (default-compile) @ elasticsearch-lang-javascript ---
+[INFO] Compiling 8 source files to /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/target/classes
+[INFO] 
+[INFO] --- forbiddenapis:1.8:check (check-forbidden-apis) @ elasticsearch-lang-javascript ---
+[INFO] Scanning for classes to check...
+[INFO] Reading bundled API signatures: jdk-unsafe
+[INFO] Reading bundled API signatures: jdk-deprecated
+[INFO] Reading bundled API signatures: jdk-system-out
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/target/dev-tools/forbidden/core-signatures.txt
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/target/dev-tools/forbidden/all-signatures.txt
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/target/dev-tools/forbidden/third-party-unshaded-signatures.txt
+[INFO] Loading classes to check...
+[INFO] Scanning for API signatures and dependencies...
+[INFO] Scanned 12 (and 305 related) class file(s) for forbidden API invocations (in 0.19s), 0 error(s).
+[INFO] 
+[INFO] --- license-maven-plugin:2.5:check (check-license-headers) @ elasticsearch-lang-javascript ---
+[INFO] Checking licenses...
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (create-heapdump-directory) @ elasticsearch-lang-javascript ---
+[INFO] Executing tasks
+
+main:
+ [heapdump] Creating heapdump directory
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-resources-plugin:2.7:testResources (default-testResources) @ elasticsearch-lang-javascript ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 0 resource
+[INFO] skip non existing resourceDirectory /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/src/test/resources
+[INFO] skip non existing resourceDirectory /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/src/test/resources
+[INFO] Copying 1 resource
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.3:testCompile (default-testCompile) @ elasticsearch-lang-javascript ---
+[INFO] Compiling 4 source files to /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/target/test-classes
+[INFO] -------------------------------------------------------------
+[ERROR] COMPILATION ERROR : 
+[INFO] -------------------------------------------------------------
+[ERROR] /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/src/test/java/org/elasticsearch/script/javascript/JavaScriptScriptSearchTests.java:[74,57] error: method scriptQuery in class QueryBuilders cannot be applied to given types;
+[ERROR]   required: Script
+  found: String
+  reason: actual argument String cannot be converted to Script by method invocation conversion
+/Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/src/test/java/org/elasticsearch/script/javascript/JavaScriptScriptSearchTests.java:[87,57] error: method scriptQuery in class QueryBuilders cannot be applied to given types;
+[ERROR]   required: Script
+  found: String
+  reason: actual argument String cannot be converted to Script by method invocation conversion
+/Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/src/test/java/org/elasticsearch/script/javascript/JavaScriptScriptSearchTests.java:[98,57] error: method scriptQuery in class QueryBuilders cannot be applied to given types;
+[ERROR]   required: Script
+  found: String
+  reason: actual argument String cannot be converted to Script by method invocation conversion
+/Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/src/test/java/org/elasticsearch/script/javascript/JavaScriptScriptSearchTests.java:[124,16] error: method addScriptField in class SearchRequestBuilder cannot be applied to given types;
+[ERROR]   required: String,Script
+  found: String,String,String,<null>
+  reason: actual and formal argument lists differ in length
+/Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/src/test/java/org/elasticsearch/script/javascript/JavaScriptScriptSearchTests.java:[159,86] error: cannot find symbol
+[ERROR]   symbol:   method lang(String)
+  location: class ScriptScoreFunctionBuilder
+/Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/src/test/java/org/elasticsearch/script/javascript/JavaScriptScriptSearchTests.java:[174,87] error: cannot find symbol
+[ERROR]   symbol:   method lang(String)
+  location: class ScriptScoreFunctionBuilder
+/Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/src/test/java/org/elasticsearch/script/javascript/JavaScriptScriptSearchTests.java:[190,99] error: cannot find symbol
+[ERROR]   symbol:   method lang(String)
+  location: class ScriptScoreFunctionBuilder
+/Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/src/test/java/org/elasticsearch/script/javascript/JavaScriptScriptSearchTests.java:[205,99] error: cannot find symbol
+[ERROR]   symbol:   method lang(String)
+  location: class ScriptScoreFunctionBuilder
+/Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/src/test/java/org/elasticsearch/script/javascript/JavaScriptScriptSearchTests.java:[220,95] error: cannot find symbol
+[ERROR]   symbol:   method lang(String)
+  location: class ScriptScoreFunctionBuilder
+/Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/src/test/java/org/elasticsearch/script/javascript/JavaScriptScriptSearchTests.java:[235,93] error: cannot find symbol
+[ERROR]   symbol:   method param(String,int)
+  location: class ScriptScoreFunctionBuilder
+/Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/src/test/java/org/elasticsearch/script/javascript/JavaScriptScriptSearchTests.java:[258,83] error: cannot find symbol
+[ERROR]   symbol:   method lang(String)
+  location: class ScriptScoreFunctionBuilder
+/Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/src/test/java/org/elasticsearch/script/javascript/JavaScriptScriptSearchTests.java:[257,91] error: cannot find symbol
+[ERROR]   symbol:   method lang(String)
+  location: class ScriptScoreFunctionBuilder
+/Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/src/test/java/org/elasticsearch/script/javascript/JavaScriptScriptSearchTests.java:[256,92] error: cannot find symbol
+[ERROR]   symbol:   method lang(String)
+  location: class ScriptScoreFunctionBuilder
+/Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/src/test/java/org/elasticsearch/script/javascript/JavaScriptScriptSearchTests.java:[279,56] error: method script in class ValuesSourceAggregationBuilder<B> cannot be applied to given types;
+[ERROR]   required: Script
+  found: String
+  reason: actual argument String cannot be converted to Script by method invocation conversion
+  where B is a type-variable:
+    B extends ValuesSourceAggregationBuilder<B> declared in class ValuesSourceAggregationBuilder
+/Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/src/test/java/org/elasticsearch/script/javascript/JavaScriptScriptSearchTests.java:[277,83] error: cannot find symbol
+[ERROR]   symbol:   method lang(String)
+  location: class ScriptScoreFunctionBuilder
+/Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/src/test/java/org/elasticsearch/script/javascript/JavaScriptScriptSearchTests.java:[294,58] error: method addScriptField in class SearchRequestBuilder cannot be applied to given types;
+[INFO] 16 errors 
+[INFO] -------------------------------------------------------------
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD FAILURE
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time: 8.040s
+[INFO] Finished at: Mon Jun 15 12:49:14 CEST 2015
+[INFO] Final Memory: 22M/355M
+[INFO] ------------------------------------------------------------------------
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.3:testCompile (default-testCompile) on project elasticsearch-lang-javascript: Compilation failure: Compilation failure:
+[ERROR] /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/src/test/java/org/elasticsearch/script/javascript/JavaScriptScriptSearchTests.java:[74,57] error: method scriptQuery in class QueryBuilders cannot be applied to given types;
+[ERROR] required: Script
+[ERROR] found: String
+[ERROR] reason: actual argument String cannot be converted to Script by method invocation conversion
+[ERROR] /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/src/test/java/org/elasticsearch/script/javascript/JavaScriptScriptSearchTests.java:[87,57] error: method scriptQuery in class QueryBuilders cannot be applied to given types;
+[ERROR] required: Script
+[ERROR] found: String
+[ERROR] reason: actual argument String cannot be converted to Script by method invocation conversion
+[ERROR] /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/src/test/java/org/elasticsearch/script/javascript/JavaScriptScriptSearchTests.java:[98,57] error: method scriptQuery in class QueryBuilders cannot be applied to given types;
+[ERROR] required: Script
+[ERROR] found: String
+[ERROR] reason: actual argument String cannot be converted to Script by method invocation conversion
+[ERROR] /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/src/test/java/org/elasticsearch/script/javascript/JavaScriptScriptSearchTests.java:[124,16] error: method addScriptField in class SearchRequestBuilder cannot be applied to given types;
+[ERROR] required: String,Script
+[ERROR] found: String,String,String,<null>
+[ERROR] reason: actual and formal argument lists differ in length
+[ERROR] /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/src/test/java/org/elasticsearch/script/javascript/JavaScriptScriptSearchTests.java:[159,86] error: cannot find symbol
+[ERROR] symbol:   method lang(String)
+[ERROR] location: class ScriptScoreFunctionBuilder
+[ERROR] /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/src/test/java/org/elasticsearch/script/javascript/JavaScriptScriptSearchTests.java:[174,87] error: cannot find symbol
+[ERROR] symbol:   method lang(String)
+[ERROR] location: class ScriptScoreFunctionBuilder
+[ERROR] /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/src/test/java/org/elasticsearch/script/javascript/JavaScriptScriptSearchTests.java:[190,99] error: cannot find symbol
+[ERROR] symbol:   method lang(String)
+[ERROR] location: class ScriptScoreFunctionBuilder
+[ERROR] /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/src/test/java/org/elasticsearch/script/javascript/JavaScriptScriptSearchTests.java:[205,99] error: cannot find symbol
+[ERROR] symbol:   method lang(String)
+[ERROR] location: class ScriptScoreFunctionBuilder
+[ERROR] /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/src/test/java/org/elasticsearch/script/javascript/JavaScriptScriptSearchTests.java:[220,95] error: cannot find symbol
+[ERROR] symbol:   method lang(String)
+[ERROR] location: class ScriptScoreFunctionBuilder
+[ERROR] /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/src/test/java/org/elasticsearch/script/javascript/JavaScriptScriptSearchTests.java:[235,93] error: cannot find symbol
+[ERROR] symbol:   method param(String,int)
+[ERROR] location: class ScriptScoreFunctionBuilder
+[ERROR] /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/src/test/java/org/elasticsearch/script/javascript/JavaScriptScriptSearchTests.java:[258,83] error: cannot find symbol
+[ERROR] symbol:   method lang(String)
+[ERROR] location: class ScriptScoreFunctionBuilder
+[ERROR] /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/src/test/java/org/elasticsearch/script/javascript/JavaScriptScriptSearchTests.java:[257,91] error: cannot find symbol
+[ERROR] symbol:   method lang(String)
+[ERROR] location: class ScriptScoreFunctionBuilder
+[ERROR] /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/src/test/java/org/elasticsearch/script/javascript/JavaScriptScriptSearchTests.java:[256,92] error: cannot find symbol
+[ERROR] symbol:   method lang(String)
+[ERROR] location: class ScriptScoreFunctionBuilder
+[ERROR] /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/src/test/java/org/elasticsearch/script/javascript/JavaScriptScriptSearchTests.java:[279,56] error: method script in class ValuesSourceAggregationBuilder<B> cannot be applied to given types;
+[ERROR] required: Script
+[ERROR] found: String
+[ERROR] reason: actual argument String cannot be converted to Script by method invocation conversion
+[ERROR] where B is a type-variable:
+[ERROR] B extends ValuesSourceAggregationBuilder<B> declared in class ValuesSourceAggregationBuilder
+[ERROR] /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/src/test/java/org/elasticsearch/script/javascript/JavaScriptScriptSearchTests.java:[277,83] error: cannot find symbol
+[ERROR] symbol:   method lang(String)
+[ERROR] location: class ScriptScoreFunctionBuilder
+[ERROR] /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-javascript/src/test/java/org/elasticsearch/script/javascript/JavaScriptScriptSearchTests.java:[294,58] error: method addScriptField in class SearchRequestBuilder cannot be applied to given types;
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException
+[INFO] Scanning for projects...
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Elasticsearch Python language plugin 2.0.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-clean-plugin:2.6.1:clean (default-clean) @ elasticsearch-lang-python ---
+[INFO] Deleting /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/target
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-versions) @ elasticsearch-lang-python ---
+[INFO] 
+[INFO] --- maven-enforcer-plugin:1.0:enforce (enforce-maven) @ elasticsearch-lang-python ---
+[INFO] 
+[INFO] --- buildnumber-maven-plugin:1.3:create (default) @ elasticsearch-lang-python ---
+[INFO] Executing: /bin/sh -c cd /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python && git rev-parse --verify HEAD
+[INFO] Working directory: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python
+[INFO] Storing buildNumber: 4f9f489dc156b010dc62e077811f6b40d3e9cb3c at timestamp: 1434365358465
+[INFO] Storing buildScmBranch: plugins/reduce-analysis-size
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (print-jvm) @ elasticsearch-lang-python ---
+[INFO] Executing tasks
+
+main:
+      [JVM] Using Java(TM) SE Runtime Environment 1.7.0_60-b19 Oracle Corporation
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (set-permgen) @ elasticsearch-lang-python ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (check-invalid-patterns) @ elasticsearch-lang-python ---
+[INFO] Executing tasks
+
+main:
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-remote-resources-plugin:1.5:process (default) @ elasticsearch-lang-python ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.7:resources (default-resources) @ elasticsearch-lang-python ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 1 resource
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.3:compile (default-compile) @ elasticsearch-lang-python ---
+[INFO] Compiling 2 source files to /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/target/classes
+[INFO] 
+[INFO] --- forbiddenapis:1.8:check (check-forbidden-apis) @ elasticsearch-lang-python ---
+[INFO] Scanning for classes to check...
+[INFO] Reading bundled API signatures: jdk-unsafe
+[INFO] Reading bundled API signatures: jdk-deprecated
+[INFO] Reading bundled API signatures: jdk-system-out
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/target/dev-tools/forbidden/core-signatures.txt
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/target/dev-tools/forbidden/all-signatures.txt
+[INFO] Reading API signatures: /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/target/dev-tools/forbidden/third-party-unshaded-signatures.txt
+[INFO] Loading classes to check...
+[INFO] Scanning for API signatures and dependencies...
+[INFO] Scanned 5 (and 283 related) class file(s) for forbidden API invocations (in 0.16s), 0 error(s).
+[INFO] 
+[INFO] --- license-maven-plugin:2.5:check (check-license-headers) @ elasticsearch-lang-python ---
+[INFO] Checking licenses...
+[INFO] 
+[INFO] --- maven-antrun-plugin:1.8:run (create-heapdump-directory) @ elasticsearch-lang-python ---
+[INFO] Executing tasks
+
+main:
+ [heapdump] Creating heapdump directory
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- maven-resources-plugin:2.7:testResources (default-testResources) @ elasticsearch-lang-python ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 0 resource
+[INFO] skip non existing resourceDirectory /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/src/test/resources
+[INFO] skip non existing resourceDirectory /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/src/test/resources
+[INFO] Copying 1 resource
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.3:testCompile (default-testCompile) @ elasticsearch-lang-python ---
+[INFO] Compiling 4 source files to /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/target/test-classes
+[INFO] -------------------------------------------------------------
+[ERROR] COMPILATION ERROR : 
+[INFO] -------------------------------------------------------------
+[ERROR] /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/src/test/java/org/elasticsearch/script/python/PythonScriptSearchTests.java:[84,57] error: method scriptQuery in class QueryBuilders cannot be applied to given types;
+[ERROR]   required: Script
+  found: String
+  reason: actual argument String cannot be converted to Script by method invocation conversion
+/Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/src/test/java/org/elasticsearch/script/python/PythonScriptSearchTests.java:[97,57] error: method scriptQuery in class QueryBuilders cannot be applied to given types;
+[ERROR]   required: Script
+  found: String
+  reason: actual argument String cannot be converted to Script by method invocation conversion
+/Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/src/test/java/org/elasticsearch/script/python/PythonScriptSearchTests.java:[108,57] error: method scriptQuery in class QueryBuilders cannot be applied to given types;
+[ERROR]   required: Script
+  found: String
+  reason: actual argument String cannot be converted to Script by method invocation conversion
+/Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/src/test/java/org/elasticsearch/script/python/PythonScriptSearchTests.java:[134,16] error: method addScriptField in class SearchRequestBuilder cannot be applied to given types;
+[ERROR]   required: String,Script
+  found: String,String,String,<null>
+  reason: actual and formal argument lists differ in length
+/Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/src/test/java/org/elasticsearch/script/python/PythonScriptSearchTests.java:[169,86] error: cannot find symbol
+[ERROR]   symbol:   method lang(String)
+  location: class ScriptScoreFunctionBuilder
+/Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/src/test/java/org/elasticsearch/script/python/PythonScriptSearchTests.java:[184,87] error: cannot find symbol
+[ERROR]   symbol:   method lang(String)
+  location: class ScriptScoreFunctionBuilder
+/Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/src/test/java/org/elasticsearch/script/python/PythonScriptSearchTests.java:[200,109] error: cannot find symbol
+[ERROR]   symbol:   method lang(String)
+  location: class ScriptScoreFunctionBuilder
+/Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/src/test/java/org/elasticsearch/script/python/PythonScriptSearchTests.java:[215,107] error: cannot find symbol
+[ERROR]   symbol:   method param(String,int)
+  location: class ScriptScoreFunctionBuilder
+/Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/src/test/java/org/elasticsearch/script/python/PythonScriptSearchTests.java:[236,52] error: cannot find symbol
+[ERROR]   symbol:   method setScriptLang(String)
+  location: class UpdateRequestBuilder
+/Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/src/test/java/org/elasticsearch/script/python/PythonScriptSearchTests.java:[260,83] error: cannot find symbol
+[ERROR]   symbol:   method lang(String)
+  location: class ScriptScoreFunctionBuilder
+/Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/src/test/java/org/elasticsearch/script/python/PythonScriptSearchTests.java:[259,91] error: cannot find symbol
+[ERROR]   symbol:   method lang(String)
+  location: class ScriptScoreFunctionBuilder
+/Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/src/test/java/org/elasticsearch/script/python/PythonScriptSearchTests.java:[258,92] error: cannot find symbol
+[ERROR]   symbol:   method lang(String)
+  location: class ScriptScoreFunctionBuilder
+/Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/src/test/java/org/elasticsearch/script/python/PythonScriptSearchTests.java:[281,56] error: method script in class ValuesSourceAggregationBuilder<B> cannot be applied to given types;
+[ERROR]   required: Script
+  found: String
+  reason: actual argument String cannot be converted to Script by method invocation conversion
+  where B is a type-variable:
+    B extends ValuesSourceAggregationBuilder<B> declared in class ValuesSourceAggregationBuilder
+/Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/src/test/java/org/elasticsearch/script/python/PythonScriptSearchTests.java:[279,83] error: cannot find symbol
+[ERROR]   symbol:   method lang(String)
+  location: class ScriptScoreFunctionBuilder
+/Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/src/test/java/org/elasticsearch/script/python/PythonScriptSearchTests.java:[300,52] error: cannot find symbol
+[INFO] 15 errors 
+[INFO] -------------------------------------------------------------
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD FAILURE
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time: 7.901s
+[INFO] Finished at: Mon Jun 15 12:49:24 CEST 2015
+[INFO] Final Memory: 23M/356M
+[INFO] ------------------------------------------------------------------------
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.3:testCompile (default-testCompile) on project elasticsearch-lang-python: Compilation failure: Compilation failure:
+[ERROR] /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/src/test/java/org/elasticsearch/script/python/PythonScriptSearchTests.java:[84,57] error: method scriptQuery in class QueryBuilders cannot be applied to given types;
+[ERROR] required: Script
+[ERROR] found: String
+[ERROR] reason: actual argument String cannot be converted to Script by method invocation conversion
+[ERROR] /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/src/test/java/org/elasticsearch/script/python/PythonScriptSearchTests.java:[97,57] error: method scriptQuery in class QueryBuilders cannot be applied to given types;
+[ERROR] required: Script
+[ERROR] found: String
+[ERROR] reason: actual argument String cannot be converted to Script by method invocation conversion
+[ERROR] /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/src/test/java/org/elasticsearch/script/python/PythonScriptSearchTests.java:[108,57] error: method scriptQuery in class QueryBuilders cannot be applied to given types;
+[ERROR] required: Script
+[ERROR] found: String
+[ERROR] reason: actual argument String cannot be converted to Script by method invocation conversion
+[ERROR] /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/src/test/java/org/elasticsearch/script/python/PythonScriptSearchTests.java:[134,16] error: method addScriptField in class SearchRequestBuilder cannot be applied to given types;
+[ERROR] required: String,Script
+[ERROR] found: String,String,String,<null>
+[ERROR] reason: actual and formal argument lists differ in length
+[ERROR] /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/src/test/java/org/elasticsearch/script/python/PythonScriptSearchTests.java:[169,86] error: cannot find symbol
+[ERROR] symbol:   method lang(String)
+[ERROR] location: class ScriptScoreFunctionBuilder
+[ERROR] /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/src/test/java/org/elasticsearch/script/python/PythonScriptSearchTests.java:[184,87] error: cannot find symbol
+[ERROR] symbol:   method lang(String)
+[ERROR] location: class ScriptScoreFunctionBuilder
+[ERROR] /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/src/test/java/org/elasticsearch/script/python/PythonScriptSearchTests.java:[200,109] error: cannot find symbol
+[ERROR] symbol:   method lang(String)
+[ERROR] location: class ScriptScoreFunctionBuilder
+[ERROR] /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/src/test/java/org/elasticsearch/script/python/PythonScriptSearchTests.java:[215,107] error: cannot find symbol
+[ERROR] symbol:   method param(String,int)
+[ERROR] location: class ScriptScoreFunctionBuilder
+[ERROR] /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/src/test/java/org/elasticsearch/script/python/PythonScriptSearchTests.java:[236,52] error: cannot find symbol
+[ERROR] symbol:   method setScriptLang(String)
+[ERROR] location: class UpdateRequestBuilder
+[ERROR] /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/src/test/java/org/elasticsearch/script/python/PythonScriptSearchTests.java:[260,83] error: cannot find symbol
+[ERROR] symbol:   method lang(String)
+[ERROR] location: class ScriptScoreFunctionBuilder
+[ERROR] /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/src/test/java/org/elasticsearch/script/python/PythonScriptSearchTests.java:[259,91] error: cannot find symbol
+[ERROR] symbol:   method lang(String)
+[ERROR] location: class ScriptScoreFunctionBuilder
+[ERROR] /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/src/test/java/org/elasticsearch/script/python/PythonScriptSearchTests.java:[258,92] error: cannot find symbol
+[ERROR] symbol:   method lang(String)
+[ERROR] location: class ScriptScoreFunctionBuilder
+[ERROR] /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/src/test/java/org/elasticsearch/script/python/PythonScriptSearchTests.java:[281,56] error: method script in class ValuesSourceAggregationBuilder<B> cannot be applied to given types;
+[ERROR] required: Script
+[ERROR] found: String
+[ERROR] reason: actual argument String cannot be converted to Script by method invocation conversion
+[ERROR] where B is a type-variable:
+[ERROR] B extends ValuesSourceAggregationBuilder<B> declared in class ValuesSourceAggregationBuilder
+[ERROR] /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/src/test/java/org/elasticsearch/script/python/PythonScriptSearchTests.java:[279,83] error: cannot find symbol
+[ERROR] symbol:   method lang(String)
+[ERROR] location: class ScriptScoreFunctionBuilder
+[ERROR] /Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/lang-python/src/test/java/org/elasticsearch/script/python/PythonScriptSearchTests.java:[300,52] error: cannot find symbol
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException
+[INFO] Scanning for projects...
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD FAILURE
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time: 0.096s
+[INFO] Finished at: Mon Jun 15 12:49:25 CEST 2015
+[INFO] Final Memory: 4M/123M
+[INFO] ------------------------------------------------------------------------
+[ERROR] The goal you specified requires a project to execute but there is no POM in this directory (/Users/dpilato/Documents/Elasticsearch/dev/elasticsearch/plugins/target). Please verify you invoked Maven from the correct directory. -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MissingProjectException

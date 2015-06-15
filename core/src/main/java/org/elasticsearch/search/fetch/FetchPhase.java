@@ -44,7 +44,6 @@ import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.JustUidFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.UidAndSourceFieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
@@ -145,7 +144,7 @@ public class FetchPhase implements SearchPhase {
                 MappedFieldType fieldType = context.smartNameFieldType(fieldName);
                 if (fieldType == null) {
                     // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
-                    if (context.smartNameObjectMapper(fieldName) != null) {
+                    if (context.getObjectMapper(fieldName) != null) {
                         throw new IllegalArgumentException("field [" + fieldName + "] isn't a leaf field");
                     }
                 } else if (fieldType.stored()) {

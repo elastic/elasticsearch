@@ -37,6 +37,7 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -346,7 +347,7 @@ public abstract class SearchContext implements Releasable, HasContextAndHeaders 
      */
     public abstract MappedFieldType smartNameFieldTypeFromAnyType(String name);
 
-    public abstract MapperService.SmartNameObjectMapper smartNameObjectMapper(String name);
+    public abstract ObjectMapper getObjectMapper(String name);
 
     public abstract Counter timeEstimateCounter();
 

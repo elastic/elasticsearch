@@ -23,10 +23,10 @@ import org.apache.lucene.search.*;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.object.ObjectMapper;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -84,8 +84,8 @@ public class ExistsQueryParser implements QueryParser {
             return Queries.newMatchNoDocsQuery();
         }
 
-        MapperService.SmartNameObjectMapper smartNameObjectMapper = parseContext.smartObjectMapper(fieldPattern);
-        if (smartNameObjectMapper != null && smartNameObjectMapper.hasMapper()) {
+        ObjectMapper objectMapper = parseContext.getObjectMapper(fieldPattern);
+        if (objectMapper != null) {
             // automatic make the object mapper pattern
             fieldPattern = fieldPattern + ".*";
         }

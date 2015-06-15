@@ -76,14 +76,6 @@
                 <include>plugin</include>
             </includes>
         </fileSet>
-
-        <fileSet>
-            <directory>../src/main/resources/lib/sigar</directory>
-            <outputDirectory>lib/sigar</outputDirectory>
-            <includes>
-                <include>*</include>
-            </includes>
-        </fileSet>
     </fileSets>
     <files>
         <file>

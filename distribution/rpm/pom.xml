@@ -168,18 +168,6 @@
                                 </source>
                             </sources>
                         </mapping>
-                        <mapping>
-                            <directory>${packaging.elasticsearch.home.dir}/lib/sigar</directory>
-                            <sources>
-                                <source>
-                                    <location>lib/sigar</location>
-                                    <includes>
-                                        <include>sigar*.jar</include>
-                                        <include>libsigar-*-linux.*</include>
-                                    </includes>
-                                </source>
-                            </sources>
-                        </mapping>
                         <!-- Add init.d files  -->
                         <mapping>
                             <directory>/etc/init.d</directory>

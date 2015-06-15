@@ -27,6 +27,7 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MapperParsingException;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -104,17 +105,20 @@ public class DynamicTemplate {
     private final String matchMappingType;
 
     private final Map<String, Object> mapping;
+    
+    private final boolean empty;
 
     public DynamicTemplate(String name, Map<String, Object> conf, String pathMatch, String pathUnmatch, String match, String unmatch, String matchMappingType, MatchType matchType, Map<String, Object> mapping) {
         this.name = name;
-        this.conf = new TreeMap<>(conf);
+        this.conf = (conf == null) ? Collections.<String, Object>emptyMap() : new TreeMap<>(conf);
         this.pathMatch = pathMatch;
         this.pathUnmatch = pathUnmatch;
         this.match = match;
         this.unmatch = unmatch;
         this.matchType = matchType;
         this.matchMappingType = matchMappingType;
-        this.mapping = mapping;
+        this.mapping = (mapping == null) ? Collections.<String, Object>emptyMap() : mapping;
+        this.empty = (this.mapping.isEmpty()) || (this.mapping.isEmpty());
     }
 
     public String name() {
@@ -198,6 +202,11 @@ public class DynamicTemplate {
             processedList.add(value);
         }
         return processedList;
+    }
+
+
+    public boolean isEmpty() {
+        return empty;
     }
 
     @Override

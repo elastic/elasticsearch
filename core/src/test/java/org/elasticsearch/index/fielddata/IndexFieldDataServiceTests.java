@@ -28,7 +28,6 @@ import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.plain.*;
 import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.MapperBuilders;
@@ -101,10 +100,10 @@ public class IndexFieldDataServiceTests extends ElasticsearchSingleNodeTest {
         final IndexService indexService = createIndex("test");
         final IndexFieldDataService ifdService = indexService.fieldData();
         final BuilderContext ctx = new BuilderContext(indexService.settingsService().getSettings(), new ContentPath(1));
-        final MappedFieldType stringMapper = MapperBuilders.stringField("string").tokenized(false).fieldDataSettings(DOC_VALUES_SETTINGS).fieldDataSettings(Settings.builder().put("format", "fst").build()).build(ctx).fieldType();
+        final MappedFieldType stringMapper = MapperBuilders.stringField("string").tokenized(false).fieldDataSettings(DOC_VALUES_SETTINGS).fieldDataSettings(Settings.builder().put("format", "disabled").build()).build(ctx).fieldType();
         ifdService.clear();
         IndexFieldData<?> fd = ifdService.getForField(stringMapper);
-        assertTrue(fd instanceof FSTBytesIndexFieldData);
+        assertTrue(fd instanceof DisabledIndexFieldData);
 
         final Settings fdSettings = Settings.builder().put("format", "array").build();
         for (MappedFieldType mapper : Arrays.asList(
@@ -133,7 +132,7 @@ public class IndexFieldDataServiceTests extends ElasticsearchSingleNodeTest {
         final IndexService indexService = createIndex("test");
         final IndexFieldDataService ifdService = indexService.fieldData();
         final BuilderContext ctx = new BuilderContext(indexService.settingsService().getSettings(), new ContentPath(1));
-        final MappedFieldType mapper1 = MapperBuilders.stringField("s").tokenized(false).fieldDataSettings(Settings.builder().put(FieldDataType.FORMAT_KEY, "paged_bytes").build()).build(ctx).fieldType();
+        final MappedFieldType mapper1 = MapperBuilders.stringField("s").tokenized(false).docValues(true).fieldDataSettings(Settings.builder().put(FieldDataType.FORMAT_KEY, "paged_bytes").build()).build(ctx).fieldType();
         final IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
         Document doc = new Document();
         doc.add(new StringField("s", "thisisastring", Store.NO));
@@ -150,18 +149,10 @@ public class IndexFieldDataServiceTests extends ElasticsearchSingleNodeTest {
         // write new segment
         writer.addDocument(doc);
         final IndexReader reader2 = DirectoryReader.open(writer, true);
-        final MappedFieldType mapper2 = MapperBuilders.stringField("s").tokenized(false).fieldDataSettings(Settings.builder().put(FieldDataType.FORMAT_KEY, "fst").build()).build(ctx).fieldType();
+        final MappedFieldType mapper2 = MapperBuilders.stringField("s").tokenized(false).docValues(true).fieldDataSettings(Settings.builder().put(FieldDataType.FORMAT_KEY, "doc_values").build()).build(ctx).fieldType();
         ifdService.onMappingUpdate();
         ifd = ifdService.getForField(mapper2);
-        assertThat(ifd, instanceOf(FSTBytesIndexFieldData.class));
-        for (LeafReaderContext arc : reader2.leaves()) {
-            AtomicFieldData afd = ifd.load(arc);
-            if (oldSegments.contains(arc.reader())) {
-                assertThat(afd, instanceOf(PagedBytesAtomicFieldData.class));
-            } else {
-                assertThat(afd, instanceOf(FSTBytesAtomicFieldData.class));
-            }
-        }
+        assertThat(ifd, instanceOf(SortedSetDVOrdinalsIndexFieldData.class));
         reader1.close();
         reader2.close();
         writer.close();

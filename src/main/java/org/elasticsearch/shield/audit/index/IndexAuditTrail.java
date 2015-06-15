@@ -6,18 +6,26 @@
 package org.elasticsearch.shield.audit.index;
 
 import com.google.common.base.Splitter;
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Provider;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -27,7 +35,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.shield.ShieldException;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationService;
@@ -42,10 +52,9 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.EnumSet;
-import java.util.List;
-import java.util.Locale;
+import java.util.*;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.shield.audit.AuditUtil.indices;
 import static org.elasticsearch.shield.audit.AuditUtil.restRequestContent;
@@ -54,7 +63,7 @@ import static org.elasticsearch.shield.audit.index.IndexAuditLevel.*;
 /**
  * Audit trail implementation that writes events into an index.
  */
-public class IndexAuditTrail extends AbstractLifecycleComponent<IndexAuditTrail> implements AuditTrail {
+public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
 
     public static final int DEFAULT_BULK_SIZE = 1000;
     public static final int MAX_BULK_SIZE = 10000;
@@ -63,7 +72,9 @@ public class IndexAuditTrail extends AbstractLifecycleComponent<IndexAuditTrail>
     public static final String NAME = "index";
     public static final String INDEX_NAME_PREFIX = ".shield-audit-log";
     public static final String DOC_TYPE = "event";
+    public static final String ROLLOVER_SETTING = "shield.audit.index.rollover";
 
+    static final String INDEX_TEMPLATE_NAME = "shield_audit_log";
     static final String[] DEFAULT_EVENT_INCLUDES = new String[] {
             ACCESS_DENIED.toString(),
             ACCESS_GRANTED.toString(),
@@ -74,6 +85,9 @@ public class IndexAuditTrail extends AbstractLifecycleComponent<IndexAuditTrail>
             TAMPERED_REQUEST.toString()
     };
 
+    private static final ImmutableSet<String> forbiddenIndexSettings = ImmutableSet.of("index.mapper.dynamic");
+
+    private final AtomicReference<State> state = new AtomicReference<>(State.STOPPED);
     private final String nodeName;
     private final IndexAuditUserHolder auditUser;
     private final Provider<Client> clientProvider;
@@ -87,13 +101,13 @@ public class IndexAuditTrail extends AbstractLifecycleComponent<IndexAuditTrail>
     private IndexNameResolver.Rollover rollover;
     private String nodeHostName;
     private String nodeHostAddress;
+    private ConcurrentLinkedQueue<Message> eventQueue = new ConcurrentLinkedQueue<>();
+    private EnumSet<IndexAuditLevel> events;
 
     @Override
     public String name() {
         return NAME;
     }
-
-    private EnumSet<IndexAuditLevel> events;
 
     @Inject
     public IndexAuditTrail(Settings settings, IndexAuditUserHolder indexingAuditUser,
@@ -106,48 +120,125 @@ public class IndexAuditTrail extends AbstractLifecycleComponent<IndexAuditTrail>
         this.environment = environment;
         this.resolver = new IndexNameResolver();
         this.nodeName = settings.get("name");
-    }
 
-    @Override
-    protected void doStart() throws ElasticsearchException {
+        // we have to initialize this here since we use rollover in determining if we can start...
         try {
             rollover = IndexNameResolver.Rollover.valueOf(
-                    settings.get("shield.audit.index.rollover", DEFAULT_ROLLOVER.name()).toUpperCase(Locale.ENGLISH));
+                    settings.get(ROLLOVER_SETTING, DEFAULT_ROLLOVER.name()).toUpperCase(Locale.ENGLISH));
         } catch (IllegalArgumentException e) {
             logger.warn("invalid value for setting [shield.audit.index.rollover]; falling back to default [{}]",
                     DEFAULT_ROLLOVER.name());
             rollover = DEFAULT_ROLLOVER;
         }
 
-        String hostname = "n/a";
-        String hostaddr = "n/a";
-        try {
-            hostname = InetAddress.getLocalHost().getHostName();
-            hostaddr = InetAddress.getLocalHost().getHostAddress();
-        } catch (UnknownHostException e) {
-            logger.warn("unable to resolve local host name", e);
-        }
-        this.nodeHostName = hostname;
-        this.nodeHostAddress = hostaddr;
-
+        // we have to initialize the events here since we can receive events before starting...
         String[] includedEvents = settings.getAsArray("shield.audit.index.events.include", DEFAULT_EVENT_INCLUDES);
         String[] excludedEvents = settings.getAsArray("shield.audit.index.events.exclude");
-        events = parse(includedEvents, excludedEvents);
-
-        initializeClient();
-        initializeBulkProcessor();
-    }
-
-    @Override
-    protected void doStop() throws ElasticsearchException {
-    }
-
-    @Override
-    protected void doClose() throws ElasticsearchException {
         try {
-            if (bulkProcessor != null) {
-                bulkProcessor.close();
+            events = parse(includedEvents, excludedEvents);
+        } catch (ShieldException e) {
+            logger.warn("invalid event type specified, using default for audit index output. include events [{}], exclude events [{}]", e, includedEvents, excludedEvents);
+            events = parse(DEFAULT_EVENT_INCLUDES, Strings.EMPTY_ARRAY);
+        }
+    }
+
+    public State state() {
+        return state.get();
+    }
+
+    /**
+     * This method determines if this service can be started based on the state in the {@link ClusterChangedEvent} and
+     * if the node is the master or not. In order for the service to start, the following must be true:
+     *
+     * <ol>
+     *     <li>The cluster must not have a {@link GatewayService#STATE_NOT_RECOVERED_BLOCK}; in other words the gateway
+     *         must have recovered from disk already.</li>
+     *     <li>The current node must be the master OR the <code>shield_audit_log</code> index template must exist</li>
+     *     <li>The current audit index must not exist or have all primary shards active. The current audit index name
+     *         is determined by the rollover settings and current time</li>
+     * </ol>
+     *
+     * @param event the {@link ClusterChangedEvent} containing the up to date cluster state
+     * @param master flag indicating if the current node is the master
+     * @return true if all requirements are met and the service can be started
+     */
+    public boolean canStart(ClusterChangedEvent event, boolean master) {
+        if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+            // wait until the gateway has recovered from disk, otherwise we think may not have .shield-audit-
+            // but they may not have been restored from the cluster state on disk
+            logger.debug("index audit trail waiting until gateway has recovered from disk");
+            return false;
+        }
+
+        final ClusterState clusterState = event.state();
+        if (!master && clusterState.metaData().templates().get(INDEX_TEMPLATE_NAME) == null) {
+            logger.debug("shield audit index template [{}] does not exist, so service cannot start", INDEX_TEMPLATE_NAME);
+            return false;
+        }
+
+        String index = resolver.resolve(INDEX_NAME_PREFIX, System.currentTimeMillis(), rollover);
+        IndexMetaData metaData = clusterState.metaData().index(index);
+        if (metaData == null) {
+            logger.debug("shield audit index [{}] does not exist, so service can start", index);
+            return true;
+        }
+
+        if (clusterState.routingTable().index(index).allPrimaryShardsActive()) {
+            logger.debug("shield audit index [{}] all primary shards started, so service can start", index);
+            return true;
+        }
+        logger.debug("shield audit index [{}] does not have all primary shards started, so service cannot start", index);
+        return false;
+    }
+
+    /**
+     * Starts the service. The state is moved to {@link org.elasticsearch.shield.audit.index.IndexAuditTrail.State#STARTING}
+     * at the beginning of the method. The service's components are initialized and if the current node is the master, the index
+     * template will be stored. The state is moved {@link org.elasticsearch.shield.audit.index.IndexAuditTrail.State#STARTED}
+     * and before returning the queue of messages that came before the service started is drained.
+     *
+     * @param master flag indicating if the current node is master
+     */
+    public void start(boolean master) {
+        if (state.compareAndSet(State.STOPPED, State.STARTING)) {
+            String hostname = "n/a";
+            String hostaddr = "n/a";
+            try {
+                hostname = InetAddress.getLocalHost().getHostName();
+                hostaddr = InetAddress.getLocalHost().getHostAddress();
+            } catch (UnknownHostException e) {
+                logger.warn("unable to resolve local host name", e);
             }
+            this.nodeHostName = hostname;
+            this.nodeHostAddress = hostaddr;
+
+            initializeClient();
+            if (master) {
+                putTemplate(customAuditIndexSettings(settings));
+            }
+            initializeBulkProcessor();
+            state.set(State.STARTED);
+            drainQueue();
+        }
+    }
+
+    public void stop() {
+        if (state.compareAndSet(State.STARTED, State.STOPPING)) {
+            try {
+                bulkProcessor.flush();
+            } finally {
+                state.set(State.STOPPED);
+            }
+        }
+    }
+
+    public void close() {
+        if (state.get() != State.STOPPED) {
+            stop();
+        }
+
+        try {
+            bulkProcessor.close();
         } finally {
             if (indexToRemoteCluster) {
                 if (client != null) {
@@ -409,7 +500,7 @@ public class IndexAuditTrail extends AbstractLifecycleComponent<IndexAuditTrail>
         InetSocketAddress restAddress = RemoteHostHeader.restRemoteAddress(message);
         if (restAddress != null) {
             builder.field(Field.ORIGIN_TYPE, "rest");
-            builder.field(Field.ORIGIN_ADDRESS, restAddress);
+            builder.field(Field.ORIGIN_ADDRESS, restAddress.getAddress().getHostAddress());
             return builder;
         }
 
@@ -418,7 +509,7 @@ public class IndexAuditTrail extends AbstractLifecycleComponent<IndexAuditTrail>
         if (address != null) {
             builder.field(Field.ORIGIN_TYPE, "transport");
             if (address instanceof InetSocketTransportAddress) {
-                builder.field(Field.ORIGIN_ADDRESS, ((InetSocketTransportAddress) address).address());
+                builder.field(Field.ORIGIN_ADDRESS, ((InetSocketTransportAddress) address).address().getAddress().getHostAddress());
             } else {
                 builder.field(Field.ORIGIN_ADDRESS, address);
             }
@@ -431,8 +522,12 @@ public class IndexAuditTrail extends AbstractLifecycleComponent<IndexAuditTrail>
         return builder;
     }
 
-    void submit(IndexAuditTrail.Message message) {
-        assert lifecycle.started();
+    void submit(Message message) {
+        if (state.get() != State.STARTED) {
+            eventQueue.add(message);
+            return;
+        }
+
         IndexRequest indexRequest = client.prepareIndex()
                 .setIndex(resolver.resolve(INDEX_NAME_PREFIX, message.timestamp, rollover))
                 .setType(DOC_TYPE).setSource(message.builder).request();
@@ -488,6 +583,49 @@ public class IndexAuditTrail extends AbstractLifecycleComponent<IndexAuditTrail>
         }
     }
 
+    Settings customAuditIndexSettings(Settings nodeSettings) {
+        Settings newSettings = Settings.builder()
+                .put(nodeSettings.getAsSettings("shield.audit.index.settings.index"))
+                .build();
+        if (newSettings.names().isEmpty()) {
+            return Settings.EMPTY;
+        }
+
+        // Filter out forbidden settings:
+        Settings.Builder builder = Settings.builder();
+        for (Map.Entry<String, String> entry : newSettings.getAsMap().entrySet()) {
+            String name = "index." + entry.getKey();
+            if (forbiddenIndexSettings.contains(name)) {
+                logger.warn("overriding the default [{}} setting is forbidden. ignoring...", name);
+                continue;
+            }
+            builder.put(name, entry.getValue());
+        }
+        return builder.build();
+    }
+
+    void putTemplate(Settings customSettings) {
+        try {
+            final byte[] template = Streams.copyToBytesFromClasspath("/" + INDEX_TEMPLATE_NAME + ".json");
+            PutIndexTemplateRequest request = new PutIndexTemplateRequest(INDEX_TEMPLATE_NAME).source(template);
+            if (customSettings != null && customSettings.names().size() > 0) {
+                Settings updatedSettings = Settings.builder()
+                        .put(request.settings())
+                        .put(customSettings)
+                        .build();
+                request.settings(updatedSettings);
+            }
+
+            authenticationService.attachUserHeaderIfMissing(request, auditUser.user());
+            PutIndexTemplateResponse response = client.admin().indices().putTemplate(request).actionGet();
+            if (!response.isAcknowledged()) {
+                throw new ShieldException("failed to put index template for audit logging");
+            }
+        } catch (Exception e) {
+            throw new ShieldException("failed to load [" + INDEX_TEMPLATE_NAME + ".json]", e);
+        }
+    }
+
     private void initializeBulkProcessor() {
 
         int bulkSize = Math.min(settings.getAsInt("shield.audit.index.bulk_size", DEFAULT_BULK_SIZE), MAX_BULK_SIZE);
@@ -519,6 +657,14 @@ public class IndexAuditTrail extends AbstractLifecycleComponent<IndexAuditTrail>
                 .build();
     }
 
+    private void drainQueue() {
+        Message message = eventQueue.poll();
+        while (message != null) {
+            submit(message);
+            message = eventQueue.poll();
+        }
+    }
+
     static class Message {
 
         final long timestamp;
@@ -542,12 +688,12 @@ public class IndexAuditTrail extends AbstractLifecycleComponent<IndexAuditTrail>
     }
 
     interface Field {
-        XContentBuilderString TIMESTAMP = new XContentBuilderString("timestamp");
+        XContentBuilderString TIMESTAMP = new XContentBuilderString("@timestamp");
         XContentBuilderString NODE_NAME = new XContentBuilderString("node_name");
         XContentBuilderString NODE_HOST_NAME = new XContentBuilderString("node_host_name");
         XContentBuilderString NODE_HOST_ADDRESS = new XContentBuilderString("node_host_address");
         XContentBuilderString LAYER = new XContentBuilderString("layer");
-        XContentBuilderString TYPE = new XContentBuilderString("type");
+        XContentBuilderString TYPE = new XContentBuilderString("event_type");
         XContentBuilderString ORIGIN_ADDRESS = new XContentBuilderString("origin_address");
         XContentBuilderString ORIGIN_TYPE = new XContentBuilderString("origin_type");
         XContentBuilderString PRINCIPAL = new XContentBuilderString("principal");
@@ -559,5 +705,12 @@ public class IndexAuditTrail extends AbstractLifecycleComponent<IndexAuditTrail>
         XContentBuilderString REALM = new XContentBuilderString("realm");
         XContentBuilderString TRANSPORT_PROFILE = new XContentBuilderString("transport_profile");
         XContentBuilderString RULE = new XContentBuilderString("rule");
+    }
+
+    public enum State {
+        STOPPED,
+        STARTING,
+        STARTED,
+        STOPPING
     }
 }

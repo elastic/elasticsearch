@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.audit.index;
 
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authz.Permission;
@@ -29,6 +30,7 @@ public class IndexAuditUserHolder {
         String indexPattern = indexName + "*";
 
         this.role = Permission.Global.Role.builder(ROLE_NAMES[0])
+                    .set(Privilege.Cluster.action(PutIndexTemplateAction.NAME))
                     .add(Privilege.Index.CREATE_INDEX, indexPattern)
                     .add(Privilege.Index.INDEX, indexPattern)
                     .add(Privilege.Index.action(BulkAction.NAME), indexPattern)

@@ -11,6 +11,7 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.PreProcessModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.shield.ShieldLifecycleService;
 import org.elasticsearch.shield.audit.index.IndexAuditTrail;
 import org.elasticsearch.shield.audit.index.IndexAuditUserHolder;
 import org.elasticsearch.shield.audit.logfile.LoggingAuditTrail;
@@ -55,6 +56,8 @@ public class AuditTrailModule extends AbstractShieldModule.Node implements PrePr
                     bind(LoggingAuditTrail.class).asEagerSingleton();
                     break;
                 case IndexAuditTrail.NAME:
+                    // TODO should bind the lifecycle service in ShieldModule if we use it other places...
+                    bind(ShieldLifecycleService.class).asEagerSingleton();
                     bind(IndexAuditUserHolder.class).toInstance(indexAuditUser);
                     binder.addBinding().to(IndexAuditTrail.class);
                     bind(IndexAuditTrail.class).asEagerSingleton();

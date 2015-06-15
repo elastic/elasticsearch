@@ -8,6 +8,7 @@ package org.elasticsearch.shield.audit.index;
 import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.exists.ExistsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
@@ -50,17 +51,18 @@ import static org.mockito.Mockito.when;
 @ElasticsearchIntegrationTest.ClusterScope(scope = SUITE, numDataNodes = 1)
 public class IndexAuditTrailTests extends ShieldIntegrationTest {
 
-    private IndexNameResolver resolver = new IndexNameResolver();
-    private IndexNameResolver.Rollover rollover;
-    private IndexAuditTrail auditor;
-
-    private boolean remoteIndexing = false;
-    private Node remoteNode;
-    private Client remoteClient;
-
     public static final String REMOTE_TEST_CLUSTER = "single-node-remote-test-cluster";
 
     private static final IndexAuditUserHolder user = new IndexAuditUserHolder(IndexAuditTrail.INDEX_NAME_PREFIX);
+
+    private IndexNameResolver resolver = new IndexNameResolver();
+    private IndexNameResolver.Rollover rollover;
+    private IndexAuditTrail auditor;
+    private boolean remoteIndexing = false;
+    private Node remoteNode;
+    private Client remoteClient;
+    private int numShards;
+    private int numReplicas;
 
     private Settings commonSettings(IndexNameResolver.Rollover rollover) {
         return Settings.builder()
@@ -69,6 +71,8 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
                 .put("shield.audit.index.bulk_size", 1)
                 .put("shield.audit.index.flush_interval", "1ms")
                 .put("shield.audit.index.rollover", rollover.name().toLowerCase(Locale.ENGLISH))
+                .put("shield.audit.index.settings.index.number_of_shards", numShards)
+                .put("shield.audit.index.settings.index.number_of_replicas", numReplicas)
                 .build();
     }
 
@@ -107,6 +111,8 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
 
     private void initialize(String[] includes, String[] excludes) {
         rollover = randomFrom(HOURLY, DAILY, WEEKLY, MONTHLY);
+        numReplicas = numberOfReplicas();
+        numShards = numberOfShards();
         Settings settings = settings(rollover, includes, excludes);
         remoteIndexing = randomBoolean();
 
@@ -134,7 +140,8 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
         when(authService.authenticate("_action", new LocalHostMockMessage(), user.user())).thenThrow(new UnsupportedOperationException(""));
 
         Environment env = new Environment(settings);
-        auditor = new IndexAuditTrail(settings, user, env, authService, Providers.of(client())).start();
+        auditor = new IndexAuditTrail(settings, user, env, authService, Providers.of(client()));
+        auditor.start(true);
     }
 
     @After
@@ -164,7 +171,7 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
         assertAuditMessage(hit, "transport", "anonymous_access_denied");
 
         if (message instanceof RemoteHostMockMessage) {
-            assertEquals("remote_host:1234", hit.field("origin_address").getValue());
+            assertEquals(remoteHostAddress(), hit.field("origin_address").getValue());
         } else {
             assertEquals("local[local_host]", hit.field("origin_address").getValue());
         }
@@ -217,7 +224,7 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
         assertAuditMessage(hit, "transport", "authentication_failed");
 
         if (message instanceof RemoteHostMockMessage) {
-            assertEquals("remote_host:1234", hit.field("origin_address").getValue());
+            assertEquals(remoteHostAddress(), hit.field("origin_address").getValue());
         } else {
             assertEquals("local[local_host]", hit.field("origin_address").getValue());
         }
@@ -239,7 +246,7 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
         assertAuditMessage(hit, "transport", "authentication_failed");
 
         if (message instanceof RemoteHostMockMessage) {
-            assertEquals("remote_host:1234", hit.field("origin_address").getValue());
+            assertEquals(remoteHostAddress(), hit.field("origin_address").getValue());
         } else {
             assertEquals("local[local_host]", hit.field("origin_address").getValue());
         }
@@ -325,7 +332,7 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
         assertAuditMessage(hit, "transport", "authentication_failed");
 
         if (message instanceof RemoteHostMockMessage) {
-            assertEquals("remote_host:1234", hit.field("origin_address").getValue());
+            assertEquals(remoteHostAddress(), hit.field("origin_address").getValue());
         } else {
             assertEquals("local[local_host]", hit.field("origin_address").getValue());
         }
@@ -512,15 +519,13 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
     }
 
     private void assertAuditMessage(SearchHit hit, String layer, String type) {
-
-        assertThat((Long) hit.field("timestamp").getValue(), greaterThan(0L));
-        assertThat((Long) hit.field("timestamp").getValue(), lessThan(System.currentTimeMillis()));
+        assertThat((Long) hit.field("@timestamp").getValue(), lessThan(System.currentTimeMillis()));
 
         assertThat(clusterService().localNode().getHostName(), equalTo(hit.field("node_host_name").getValue()));
         assertThat(clusterService().localNode().getHostAddress(), equalTo(hit.field("node_host_address").getValue()));
 
         assertEquals(layer, hit.field("layer").getValue());
-        assertEquals(type, hit.field("type").getValue());
+        assertEquals(type, hit.field("event_type").getValue());
     }
 
     private static class LocalHostMockMessage extends TransportMessage<LocalHostMockMessage> {
@@ -530,14 +535,14 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
     }
 
     private static class RemoteHostMockMessage extends TransportMessage<RemoteHostMockMessage> {
-        RemoteHostMockMessage() {
-            remoteAddress(new InetSocketTransportAddress("remote_host", 1234));
+        RemoteHostMockMessage() throws Exception {
+            remoteAddress(new InetSocketTransportAddress(InetAddress.getLocalHost(), 1234));
         }
     }
 
     private static class RemoteHostMockTransportRequest extends TransportRequest {
-        RemoteHostMockTransportRequest() {
-            remoteAddress(new InetSocketTransportAddress("remote_host", 1234));
+        RemoteHostMockTransportRequest() throws Exception {
+            remoteAddress(new InetSocketTransportAddress(InetAddress.getLocalHost(), 1234));
         }
     }
 
@@ -577,12 +582,25 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
     }
 
     private String[] fieldList() {
-        java.lang.reflect.Field[] fields = IndexAuditTrail.Field.class.getDeclaredFields();
-        String[] array = new String[fields.length];
-        for (int i = 0; i < fields.length; i++) {
-            array[i] = fields[i].getName().toLowerCase(Locale.ROOT);
-        }
-        return array;
+        return new String[] {
+                "@timestamp",
+                "node_name",
+                "node_host_name",
+                "node_host_address",
+                "layer",
+                "event_type",
+                "origin_address",
+                "origin_type",
+                "principal",
+                "action",
+                "indices",
+                "request",
+                "request_body",
+                "uri",
+                "realm",
+                "transport_profile",
+                "rule"
+        };
     }
 
     private void awaitIndexCreation(final String indexName) throws InterruptedException {
@@ -598,10 +616,18 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
                 }
             }
         });
+
+        GetSettingsResponse response = getClient().admin().indices().prepareGetSettings(indexName).execute().actionGet();
+        assertThat(response.getSetting(indexName, "index.number_of_shards"), is(Integer.toString(numShards)));
+        assertThat(response.getSetting(indexName, "index.number_of_replicas"), is(Integer.toString(numReplicas)));
     }
 
     private String resolveIndexName() {
         return resolver.resolve(IndexAuditTrail.INDEX_NAME_PREFIX, System.currentTimeMillis(), rollover);
+    }
+
+    static String remoteHostAddress() throws Exception {
+        return InetAddress.getLocalHost().getHostAddress();
     }
 }
 

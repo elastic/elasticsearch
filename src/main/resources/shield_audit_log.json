@@ -1,0 +1,87 @@
+{
+  "template": ".shield-audit-log*",
+  "order": 2147483647,
+  "settings": {
+    "index.mapper.dynamic" : false
+  },
+  "mappings": {
+    "event": {
+      "dynamic" : "strict",
+      "_all" : {
+        "enabled" : false
+      },
+      "_timestamp" : {
+        "enabled" : true,
+        "path" : "@timestamp"
+      },
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "node_name": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "node_host_name": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "node_host_address": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "layer": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "event_type": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "origin_address": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "origin_type": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "principal": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "action": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "indices": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "request": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "request_body": {
+          "type": "string"
+        },
+        "uri": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "realm": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "transport_profile": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "rule": {
+          "type": "string",
+          "index": "not_analyzed"
+        }
+      }
+    }
+  }
+}

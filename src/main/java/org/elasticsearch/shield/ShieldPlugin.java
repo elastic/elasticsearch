@@ -14,7 +14,6 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.AbstractPlugin;
-import org.elasticsearch.shield.audit.index.IndexAuditTrail;
 import org.elasticsearch.shield.authc.Realms;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
@@ -26,8 +25,6 @@ import org.elasticsearch.shield.transport.filter.IPFilter;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Map;
-
-import static org.elasticsearch.shield.audit.AuditTrailModule.indexAuditLoggingEnabled;
 
 /**
  *
@@ -69,10 +66,6 @@ public class ShieldPlugin extends AbstractPlugin {
     public Collection<Class<? extends LifecycleComponent>> services() {
         ImmutableList.Builder<Class<? extends LifecycleComponent>> builder = ImmutableList.builder();
         if (enabled && !clientMode) {
-            if (indexAuditLoggingEnabled(settings)) {
-                // index-based audit logging should be started before other services
-                builder.add(IndexAuditTrail.class);
-            }
             builder.add(LicenseService.class).add(InternalCryptoService.class).add(FileRolesStore.class).add(Realms.class).add(IPFilter.class);
         }
         return builder.build();

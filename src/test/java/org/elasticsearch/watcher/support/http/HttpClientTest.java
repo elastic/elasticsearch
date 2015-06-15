@@ -5,13 +5,12 @@
  */
 package org.elasticsearch.watcher.support.http;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
+import com.google.common.collect.ImmutableMap;
 import com.squareup.okhttp.mockwebserver.MockResponse;
 import com.squareup.okhttp.mockwebserver.MockWebServer;
 import com.squareup.okhttp.mockwebserver.RecordedRequest;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -35,7 +34,6 @@ import java.net.Socket;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.security.UnrecoverableKeyException;
 
 import static org.hamcrest.Matchers.*;
@@ -49,7 +47,7 @@ public class HttpClientTest extends ElasticsearchTestCase {
     private HttpClient httpClient;
     private HttpAuthRegistry authRegistry;
     private SecretService secretService;
-    private Environment environment = new Environment(Settings.EMPTY);
+    private Environment environment = new Environment(Settings.builder().put("path.home", createTempDir()).build());
 
     private int webPort;
 

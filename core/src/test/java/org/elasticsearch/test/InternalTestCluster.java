@@ -1286,6 +1286,18 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
+    /**
+     * Restarts a node and calls the callback during restart.
+     */
+    public void restartNode(String nodeName, RestartCallback callback) throws Exception {
+        ensureOpen();
+        NodeAndClient nodeAndClient = nodes.get(nodeName);
+        if (nodeAndClient != null) {
+            logger.info("Restarting node [{}] ", nodeAndClient.name);
+            nodeAndClient.restart(callback);
+        }
+    }
+
     private void restartAllNodes(boolean rollingRestart, RestartCallback callback) throws Exception {
         ensureOpen();
         List<NodeAndClient> toRemove = new ArrayList<>();
@@ -1343,7 +1355,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
 
-    private static final RestartCallback EMPTY_CALLBACK = new RestartCallback() {
+    public static final RestartCallback EMPTY_CALLBACK = new RestartCallback() {
         @Override
         public Settings onNodeStopped(String node) {
             return null;
@@ -1466,6 +1478,52 @@ public final class InternalTestCluster extends TestCluster {
         buildNode.node().start();
         publishNode(buildNode);
         return buildNode.name;
+    }
+
+    public synchronized ListenableFuture<List<String>> startMasterOnlyNodesAsync(int numNodes) {
+        return startMasterOnlyNodesAsync(numNodes, Settings.EMPTY);
+    }
+
+    public synchronized ListenableFuture<List<String>> startMasterOnlyNodesAsync(int numNodes, Settings settings) {
+        Settings settings1 = Settings.builder().put(settings).put("node.master", true).put("node.data", false).build();
+        return startNodesAsync(numNodes, settings1, Version.CURRENT);
+    }
+
+    public synchronized ListenableFuture<List<String>> startDataOnlyNodesAsync(int numNodes) {
+        return startDataOnlyNodesAsync(numNodes, Settings.EMPTY);
+    }
+
+    public synchronized ListenableFuture<List<String>> startDataOnlyNodesAsync(int numNodes, Settings settings) {
+        Settings settings1 = Settings.builder().put(settings).put("node.master", false).put("node.data", true).build();
+        return startNodesAsync(numNodes, settings1, Version.CURRENT);
+    }
+
+    public synchronized ListenableFuture<String> startMasterOnlyNodeAsync() {
+        return startMasterOnlyNodeAsync(Settings.EMPTY);
+    }
+
+    public synchronized ListenableFuture<String> startMasterOnlyNodeAsync(Settings settings) {
+        Settings settings1 = Settings.builder().put(settings).put("node.master", true).put("node.data", false).build();
+        return startNodeAsync(settings1, Version.CURRENT);
+    }
+
+    public synchronized String startMasterOnlyNode(Settings settings) {
+        Settings settings1 = Settings.builder().put(settings).put("node.master", true).put("node.data", false).build();
+        return startNode(settings1, Version.CURRENT);
+    }
+
+    public synchronized ListenableFuture<String> startDataOnlyNodeAsync() {
+        return startDataOnlyNodeAsync(Settings.EMPTY);
+    }
+
+    public synchronized ListenableFuture<String> startDataOnlyNodeAsync(Settings settings) {
+        Settings settings1 = Settings.builder().put(settings).put("node.master", false).put("node.data", true).build();
+        return startNodeAsync(settings1, Version.CURRENT);
+    }
+
+    public synchronized String startDataOnlyNode(Settings settings) {
+        Settings settings1 = Settings.builder().put(settings).put("node.master", false).put("node.data", true).build();
+        return startNode(settings1, Version.CURRENT);
     }
 
     /**
@@ -1726,7 +1784,7 @@ public final class InternalTestCluster extends TestCluster {
      * and / or {@link #fullRestart(InternalTestCluster.RestartCallback)} to execute actions at certain
      * stages of the restart.
      */
-    public static abstract class RestartCallback {
+    public static class RestartCallback {
 
         /**
          * Executed once the give node name has been stopped.

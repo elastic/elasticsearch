@@ -795,10 +795,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             return iterable.iterator();
         }
 
-        public void moveToUnassigned() {
+        public void moveToUnassigned(UnassignedInfo unassignedInfo) {
             remove();
             MutableShardRouting unassigned = new MutableShardRouting(shard); // protective copy of the mutable shard
-            unassigned.moveToUnassigned();
+            unassigned.moveToUnassigned(unassignedInfo);
             unassigned().add(unassigned);
         }
     }

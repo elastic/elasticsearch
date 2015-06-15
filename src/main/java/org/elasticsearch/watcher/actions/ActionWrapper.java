@@ -78,9 +78,13 @@ public class ActionWrapper implements ToXContent {
         if (transform != null) {
             try {
                 transformResult = transform.execute(ctx, payload);
+                if (transformResult.status() == Transform.Result.Status.FAILURE) {
+                    action.logger().error("failed to execute action [{}/{}]. failed to transform payload. {}", ctx.watch().id(), id, transformResult.reason());
+                    return new ActionWrapper.Result(id, transformResult, new Action.Result.Failure(action.type(), "Failed to transform payload"));
+                }
                 payload = transformResult.payload();
             } catch (Exception e) {
-                action.logger.error("failed to execute action [{}/{}]. failed to transform payload.", e, ctx.watch().id(), id);
+                action.logger().error("failed to execute action [{}/{}]. failed to transform payload.", e, ctx.watch().id(), id);
                 return new ActionWrapper.Result(id, new Action.Result.Failure(action.type(), "Failed to transform payload. error: " + ExceptionsHelper.detailedMessage(e)));
             }
         }
@@ -88,7 +92,7 @@ public class ActionWrapper implements ToXContent {
             Action.Result actionResult = action.execute(id, ctx, payload);
             return new ActionWrapper.Result(id, transformResult, actionResult);
         } catch (Exception e) {
-            action.logger.error("failed to execute action [{}/{}]", e, ctx.watch().id(), id);
+            action.logger().error("failed to execute action [{}/{}]", e, ctx.watch().id(), id);
             return new ActionWrapper.Result(id, new Action.Result.Failure(action.type(), ExceptionsHelper.detailedMessage(e)));
         }
     }

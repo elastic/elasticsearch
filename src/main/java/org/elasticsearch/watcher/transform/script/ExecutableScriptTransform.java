@@ -40,7 +40,17 @@ public class ExecutableScriptTransform extends ExecutableTransform<ScriptTransfo
     }
 
     @Override
-    public ScriptTransform.Result execute(WatchExecutionContext ctx, Payload payload) throws IOException {
+    public ScriptTransform.Result execute(WatchExecutionContext ctx, Payload payload) {
+        try {
+            return doExecute(ctx, payload);
+        } catch (Exception e) {
+            logger.error("failed to execute [{}] transform for [{}]", e, ScriptTransform.TYPE, ctx.id());
+            return new ScriptTransform.Result(e);
+        }
+    }
+
+
+    ScriptTransform.Result doExecute(WatchExecutionContext ctx, Payload payload) throws IOException {
         Script script = transform.getScript();
         Map<String, Object> model = new HashMap<>();
         model.putAll(script.params());

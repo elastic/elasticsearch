@@ -37,7 +37,7 @@ import static org.mockito.Mockito.mock;
 public class ChainTransformTests extends ElasticsearchTestCase {
 
     @Test
-    public void testApply() throws Exception {
+    public void testExecute() throws Exception {
         ChainTransform transform = new ChainTransform(ImmutableList.<Transform>of(
                 new NamedExecutableTransform.Transform("name1"),
                 new NamedExecutableTransform.Transform("name2"),
@@ -51,7 +51,21 @@ public class ChainTransformTests extends ElasticsearchTestCase {
         WatchExecutionContext ctx = mock(WatchExecutionContext.class);
         Payload payload = new Payload.Simple(new HashMap<String, Object>());
 
-        Transform.Result result = executable.execute(ctx, payload);
+        ChainTransform.Result result = executable.execute(ctx, payload);
+        assertThat(result.status(), is(Transform.Result.Status.SUCCESS));
+        assertThat(result.results(), hasSize(3));
+        assertThat(result.results().get(0), instanceOf(NamedExecutableTransform.Result.class));
+        assertThat(result.results().get(0).status(), is(Transform.Result.Status.SUCCESS));
+        assertThat((List<String>) result.results().get(0).payload().data().get("names"), hasSize(1));
+        assertThat((List<String>) result.results().get(0).payload().data().get("names"), contains("name1"));
+        assertThat(result.results().get(1), instanceOf(NamedExecutableTransform.Result.class));
+        assertThat(result.results().get(1).status(), is(Transform.Result.Status.SUCCESS));
+        assertThat((List<String>) result.results().get(1).payload().data().get("names"), hasSize(2));
+        assertThat((List<String>) result.results().get(1).payload().data().get("names"), contains("name1", "name2"));
+        assertThat(result.results().get(2), instanceOf(NamedExecutableTransform.Result.class));
+        assertThat(result.results().get(2).status(), is(Transform.Result.Status.SUCCESS));
+        assertThat((List<String>) result.results().get(2).payload().data().get("names"), hasSize(3));
+        assertThat((List<String>) result.results().get(2).payload().data().get("names"), contains("name1", "name2", "name3"));
 
         Map<String, Object> data = result.payload().data();
         assertThat(data, notNullValue());
@@ -60,6 +74,39 @@ public class ChainTransformTests extends ElasticsearchTestCase {
         List<String> names = (List<String>) data.get("names");
         assertThat(names, hasSize(3));
         assertThat(names, contains("name1", "name2", "name3"));
+    }
+
+    @Test
+    public void testExecute_Failure() throws Exception {
+        ChainTransform transform = new ChainTransform(ImmutableList.of(
+                new NamedExecutableTransform.Transform("name1"),
+                new NamedExecutableTransform.Transform("name2"),
+                new FailingExecutableTransform.Transform()
+        ));
+        ExecutableChainTransform executable = new ExecutableChainTransform(transform, logger, ImmutableList.<ExecutableTransform>of(
+                new NamedExecutableTransform("name1"),
+                new NamedExecutableTransform("name2"),
+                new FailingExecutableTransform(logger)));
+
+        WatchExecutionContext ctx = mock(WatchExecutionContext.class);
+        Payload payload = new Payload.Simple(new HashMap<String, Object>());
+
+        ChainTransform.Result result = executable.execute(ctx, payload);
+        assertThat(result.status(), is(Transform.Result.Status.FAILURE));
+        assertThat(result.reason(), notNullValue());
+        assertThat(result.results(), hasSize(3));
+        assertThat(result.results().get(0), instanceOf(NamedExecutableTransform.Result.class));
+        assertThat(result.results().get(0).status(), is(Transform.Result.Status.SUCCESS));
+        assertThat((List<String>) result.results().get(0).payload().data().get("names"), hasSize(1));
+        assertThat((List<String>) result.results().get(0).payload().data().get("names"), contains("name1"));
+        assertThat(result.results().get(1), instanceOf(NamedExecutableTransform.Result.class));
+        assertThat(result.results().get(1).status(), is(Transform.Result.Status.SUCCESS));
+        assertThat((List<String>) result.results().get(1).payload().data().get("names"), hasSize(2));
+        assertThat((List<String>) result.results().get(1).payload().data().get("names"), contains("name1", "name2"));
+        assertThat(result.results().get(2), instanceOf(FailingExecutableTransform.Result.class));
+        assertThat(result.results().get(2).status(), is(Transform.Result.Status.FAILURE));
+        assertThat(result.results().get(2).reason(), containsString("_error"));
+
     }
 
     @Test
@@ -103,14 +150,16 @@ public class ChainTransformTests extends ElasticsearchTestCase {
         }
 
         @Override
-        public Result execute(WatchExecutionContext ctx, Payload payload) throws IOException {
-            Map<String, Object> data = new HashMap<>(payload.data());
-            List<String> names = (List<String>) data.get("names");
+        public Result execute(WatchExecutionContext ctx, Payload payload) {
+            List<String> names = (List<String>) payload.data().get("names");
             if (names == null) {
                 names = new ArrayList<>();
-                data.put("names", names);
+            } else {
+                names = new ArrayList<>(names);
             }
             names.add(transform.name);
+            Map<String, Object> data = new HashMap<>();
+            data.put("names", names);
             return new Result("named", new Payload.Simple(data));
         }
 
@@ -175,6 +224,70 @@ public class ChainTransformTests extends ElasticsearchTestCase {
             @Override
             public NamedExecutableTransform createExecutable(Transform transform) {
                 return new NamedExecutableTransform(transform);
+            }
+        }
+    }
+
+    private static class FailingExecutableTransform extends ExecutableTransform<FailingExecutableTransform.Transform, FailingExecutableTransform.Result> {
+
+        private static final String TYPE = "throwing";
+
+        public FailingExecutableTransform(ESLogger logger) {
+            super(new Transform(), logger);
+        }
+
+        @Override
+        public Result execute(WatchExecutionContext ctx, Payload payload) {
+            return new Result(TYPE);
+        }
+
+        public static class Transform implements org.elasticsearch.watcher.transform.Transform {
+
+            @Override
+            public String type() {
+                return TYPE;
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                return builder.startObject().endArray();
+            }
+        }
+
+        public static class Result extends Transform.Result {
+
+            public Result(String type) {
+                super(type, new Exception("_error"));
+            }
+
+            @Override
+            protected XContentBuilder typeXContent(XContentBuilder builder, Params params) throws IOException {
+                return builder;
+            }
+        }
+
+        public static class Factory extends TransformFactory<Transform, Result, FailingExecutableTransform> {
+
+            public Factory(ESLogger transformLogger) {
+                super(transformLogger);
+            }
+
+            @Override
+            public String type() {
+                return TYPE;
+            }
+
+            @Override
+            public Transform parseTransform(String watchId, XContentParser parser) throws IOException {
+                assert parser.currentToken() == XContentParser.Token.START_OBJECT;
+                XContentParser.Token token = parser.nextToken();
+                assert token == XContentParser.Token.END_OBJECT;
+                return new Transform();
+            }
+
+            @Override
+            public FailingExecutableTransform createExecutable(Transform transform) {
+                return new FailingExecutableTransform(transformLogger);
             }
         }
     }

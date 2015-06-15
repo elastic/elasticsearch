@@ -121,6 +121,9 @@ public abstract class WatchExecutionContext {
         }
         beforeWatchTransform();
         this.transformResult = watch.transform().execute(this, payload);
+        if (this.transformResult.status() == Transform.Result.Status.FAILURE) {
+            throw new WatchExecutionException("failed to execute watch level transform for [{}]", id);
+        }
         this.payload = transformResult.payload();
         this.transformedPayload = this.payload;
         return transformedPayload;

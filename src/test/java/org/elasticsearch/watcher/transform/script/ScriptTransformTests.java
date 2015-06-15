@@ -58,7 +58,7 @@ public class ScriptTransformTests extends ElasticsearchTestCase {
 
 
     @Test
-    public void testApply_MapValue() throws Exception {
+    public void testExecute_MapValue() throws Exception {
         ScriptServiceProxy service = mock(ScriptServiceProxy.class);
         ScriptType type = randomFrom(ScriptType.values());
         Map<String, Object> params = Collections.emptyMap();
@@ -84,11 +84,39 @@ public class ScriptTransformTests extends ElasticsearchTestCase {
         Transform.Result result = transform.execute(ctx, payload);
         assertThat(result, notNullValue());
         assertThat(result.type(), is(ScriptTransform.TYPE));
+        assertThat(result.status(), is(Transform.Result.Status.SUCCESS));
         assertThat(result.payload().data(), equalTo(transformed));
     }
 
     @Test
-    public void testApply_NonMapValue() throws Exception {
+    public void testExecute_MapValue_Failure() throws Exception {
+        ScriptServiceProxy service = mock(ScriptServiceProxy.class);
+        ScriptType type = randomFrom(ScriptType.values());
+        Map<String, Object> params = Collections.emptyMap();
+        Script script = scriptBuilder(type, "_script").lang("_lang").params(params).build();
+        CompiledScript compiledScript = mock(CompiledScript.class);
+        when(service.compile(script)).thenReturn(compiledScript);
+        ExecutableScriptTransform transform = new ExecutableScriptTransform(new ScriptTransform(script), logger, service);
+
+        WatchExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
+
+        Payload payload = simplePayload("key", "value");
+
+        Map<String, Object> model = Variables.createCtxModel(ctx, payload);
+
+        ExecutableScript executable = mock(ExecutableScript.class);
+        when(executable.run()).thenThrow(new RuntimeException("_error"));
+        when(service.executable(compiledScript, model)).thenReturn(executable);
+
+        Transform.Result result = transform.execute(ctx, payload);
+        assertThat(result, notNullValue());
+        assertThat(result.type(), is(ScriptTransform.TYPE));
+        assertThat(result.status(), is(Transform.Result.Status.FAILURE));
+        assertThat(result.reason(), containsString("_error"));
+    }
+
+    @Test
+    public void testExecute_NonMapValue() throws Exception {
         ScriptServiceProxy service = mock(ScriptServiceProxy.class);
 
         ScriptType type = randomFrom(ScriptType.values());

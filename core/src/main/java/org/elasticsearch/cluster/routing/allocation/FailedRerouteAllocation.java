@@ -33,14 +33,28 @@ import java.util.List;
  */
 public class FailedRerouteAllocation extends RoutingAllocation {
 
-    private final List<ShardRouting> failedShards;
+    /**
+     * A failed shard with the shard routing itself and an optional
+     * details on why it failed.
+     */
+    public static class FailedShard {
+        public final ShardRouting shard;
+        public final String details;
 
-    public FailedRerouteAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, DiscoveryNodes nodes, List<ShardRouting> failedShards, ClusterInfo clusterInfo) {
+        public FailedShard(ShardRouting shard, String details) {
+            this.shard = shard;
+            this.details = details;
+        }
+    }
+
+    private final List<FailedShard> failedShards;
+
+    public FailedRerouteAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, DiscoveryNodes nodes, List<FailedShard> failedShards, ClusterInfo clusterInfo) {
         super(deciders, routingNodes, nodes, clusterInfo);
         this.failedShards = failedShards;
     }
 
-    public List<ShardRouting> failedShards() {
+    public List<FailedShard> failedShards() {
         return failedShards;
     }
 }

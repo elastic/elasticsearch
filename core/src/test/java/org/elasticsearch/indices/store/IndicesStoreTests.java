@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ImmutableShardRouting;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -95,7 +96,11 @@ public class IndicesStoreTests extends ElasticsearchTestCase {
                 } else {
                     state = randomFrom(ShardRoutingState.values());
                 }
-                routingTable.addShard(new ImmutableShardRouting("test", i, "xyz", null, j == 0, state, 0));
+                UnassignedInfo unassignedInfo = null;
+                if (state == ShardRoutingState.UNASSIGNED) {
+                    unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
+                }
+                routingTable.addShard(new ImmutableShardRouting("test", i, "xyz", null, null, j == 0, state, 0, unassignedInfo));
             }
         }
         assertFalse(indicesStore.shardCanBeDeleted(clusterState.build(), routingTable.build()));

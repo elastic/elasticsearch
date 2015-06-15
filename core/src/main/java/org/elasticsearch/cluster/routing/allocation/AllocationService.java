@@ -88,7 +88,7 @@ public class AllocationService extends AbstractComponent {
     }
 
     public RoutingAllocation.Result applyFailedShard(ClusterState clusterState, ShardRouting failedShard) {
-        return applyFailedShards(clusterState, ImmutableList.of(failedShard));
+        return applyFailedShards(clusterState, ImmutableList.of(new FailedRerouteAllocation.FailedShard(failedShard, null)));
     }
 
     /**
@@ -96,14 +96,14 @@ public class AllocationService extends AbstractComponent {
      * <p/>
      * <p>If the same instance of the routing table is returned, then no change has been made.</p>
      */
-    public RoutingAllocation.Result applyFailedShards(ClusterState clusterState, List<ShardRouting> failedShards) {
+    public RoutingAllocation.Result applyFailedShards(ClusterState clusterState, List<FailedRerouteAllocation.FailedShard> failedShards) {
         RoutingNodes routingNodes = clusterState.routingNodes();
         // shuffle the unassigned nodes, just so we won't have things like poison failed shards
         routingNodes.unassigned().shuffle();
         FailedRerouteAllocation allocation = new FailedRerouteAllocation(allocationDeciders, routingNodes, clusterState.nodes(), failedShards, clusterInfoService.getClusterInfo());
         boolean changed = false;
-        for (ShardRouting failedShard : failedShards) {
-            changed |= applyFailedShard(allocation, failedShard, true);
+        for (FailedRerouteAllocation.FailedShard failedShard : failedShards) {
+            changed |= applyFailedShard(allocation, failedShard.shard, true, new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, failedShard.details));
         }
         if (!changed) {
             return new RoutingAllocation.Result(false, clusterState.routingTable());
@@ -288,7 +288,7 @@ public class AllocationService extends AbstractComponent {
             }
         }
         for (ShardRouting shardToFail : shardsToFail) {
-           changed |= applyFailedShard(allocation, shardToFail, false);
+           changed |= applyFailedShard(allocation, shardToFail, false, new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "primary failed while replica initializing"));
         }
 
         // now, go over and elect a new primary if possible, not, from this code block on, if one is elected,
@@ -348,8 +348,9 @@ public class AllocationService extends AbstractComponent {
             }
             changed = true;
             // now, go over all the shards routing on the node, and fail them
+            UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, "node_left[" + node.nodeId() + "]");
             for (MutableShardRouting shardRouting : node.copyShards()) {
-                applyFailedShard(allocation, shardRouting, false);
+                applyFailedShard(allocation, shardRouting, false, unassignedInfo);
             }
             // its a dead node, remove it, note, its important to remove it *after* we apply failed shard
             // since it relies on the fact that the RoutingNode exists in the list of nodes
@@ -410,7 +411,7 @@ public class AllocationService extends AbstractComponent {
      * Applies the relevant logic to handle a failed shard. Returns <tt>true</tt> if changes happened that
      * require relocation.
      */
-    private boolean applyFailedShard(RoutingAllocation allocation, ShardRouting failedShard, boolean addToIgnoreList) {
+    private boolean applyFailedShard(RoutingAllocation allocation, ShardRouting failedShard, boolean addToIgnoreList, UnassignedInfo unassignedInfo) {
         // create a copy of the failed shard, since we assume we can change possible references to it without
         // changing the state of failed shard
         failedShard = new ImmutableShardRouting(failedShard);
@@ -474,7 +475,7 @@ public class AllocationService extends AbstractComponent {
                                 // make sure we ignore this shard on the relevant node
                                 allocation.addIgnoreShardForNode(failedShard.shardId(), failedShard.currentNodeId());
                             }
-                            relocatingFromNode.moveToUnassigned();
+                            relocatingFromNode.moveToUnassigned(unassignedInfo);
                             break;
                         }
                     }
@@ -525,7 +526,7 @@ public class AllocationService extends AbstractComponent {
                             routingNodes.unassigned().addAll(shardsToMove);
                         }
 
-                        node.moveToUnassigned();
+                        node.moveToUnassigned(unassignedInfo);
                         break;
                     }
                 }

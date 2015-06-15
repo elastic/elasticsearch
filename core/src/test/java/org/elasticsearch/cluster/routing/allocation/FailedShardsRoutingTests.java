@@ -312,21 +312,21 @@ public class FailedShardsRoutingTests extends ElasticsearchAllocationTestCase {
         }
 
         int shardsToFail = randomIntBetween(1, numberOfReplicas);
-        ArrayList<ShardRouting> failedShards = new ArrayList<>();
+        ArrayList<FailedRerouteAllocation.FailedShard> failedShards = new ArrayList<>();
         RoutingNodes routingNodes = clusterState.routingNodes();
         for (int i = 0; i < shardsToFail; i++) {
             String n = "node" + Integer.toString(randomInt(numberOfReplicas));
             logger.info("failing shard on node [{}]", n);
             ShardRouting shardToFail = routingNodes.node(n).get(0);
-            failedShards.add(new MutableShardRouting(shardToFail));
+            failedShards.add(new FailedRerouteAllocation.FailedShard(new MutableShardRouting(shardToFail), null));
         }
 
         routingTable = strategy.applyFailedShards(clusterState, failedShards).routingTable();
 
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.routingNodes();
-        for (ShardRouting failedShard : failedShards) {
-            if (!routingNodes.node(failedShard.currentNodeId()).isEmpty()) {
+        for (FailedRerouteAllocation.FailedShard failedShard : failedShards) {
+            if (!routingNodes.node(failedShard.shard.currentNodeId()).isEmpty()) {
                 fail("shard " + failedShard + " was re-assigned to it's node");
             }
         }

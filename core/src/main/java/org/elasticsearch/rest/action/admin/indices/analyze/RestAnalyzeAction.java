@@ -21,7 +21,6 @@ package org.elasticsearch.rest.action.admin.indices.analyze;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -68,6 +67,8 @@ public class RestAnalyzeAction extends BaseRestHandler {
         analyzeRequest.tokenizer(request.param("tokenizer"));
         analyzeRequest.tokenFilters(request.paramAsStringArray("token_filters", request.paramAsStringArray("filters", analyzeRequest.tokenFilters())));
         analyzeRequest.charFilters(request.paramAsStringArray("char_filters", analyzeRequest.charFilters()));
+        analyzeRequest.detail(request.paramAsBoolean("detail", false));
+        analyzeRequest.attributes(request.paramAsStringArray("attributes", analyzeRequest.attributes()));
 
         if (RestActions.hasBodyContent(request)) {
             XContentType type = RestActions.guessBodyContentType(request);
@@ -105,7 +106,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
                             }
                             texts.add(parser.text());
                         }
-                        analyzeRequest.text(texts.toArray(Strings.EMPTY_ARRAY));
+                        analyzeRequest.text(texts.toArray(new String[texts.size()]));
                     } else if ("analyzer".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
                         analyzeRequest.analyzer(parser.text());
                     } else if ("field".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
@@ -120,7 +121,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
                             }
                             filters.add(parser.text());
                         }
-                        analyzeRequest.tokenFilters(filters.toArray(Strings.EMPTY_ARRAY));
+                        analyzeRequest.tokenFilters(filters.toArray(new String[filters.size()]));
                     } else if ("char_filters".equals(currentFieldName) && token == XContentParser.Token.START_ARRAY) {
                         List<String> charFilters = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -129,7 +130,18 @@ public class RestAnalyzeAction extends BaseRestHandler {
                             }
                             charFilters.add(parser.text());
                         }
-                        analyzeRequest.tokenFilters(charFilters.toArray(Strings.EMPTY_ARRAY));
+                        analyzeRequest.charFilters(charFilters.toArray(new String[charFilters.size()]));
+                    } else if ("detail".equals(currentFieldName) && token == XContentParser.Token.VALUE_BOOLEAN) {
+                        analyzeRequest.detail(parser.booleanValue());
+                    } else if ("attributes".equals(currentFieldName) && token == XContentParser.Token.START_ARRAY){
+                        List<String> attributes = new ArrayList<>();
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            if (token.isValue() == false) {
+                                throw new IllegalArgumentException(currentFieldName + " array element should only contain attribute name");
+                            }
+                            attributes.add(parser.text());
+                        }
+                        analyzeRequest.attributes(attributes.toArray(new String[attributes.size()]));
                     } else {
                         throw new IllegalArgumentException("Unknown parameter [" + currentFieldName + "] in request body or parameter is of the wrong type[" + token + "] ");
                     }

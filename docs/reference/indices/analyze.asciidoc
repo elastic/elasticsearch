@@ -86,6 +86,70 @@ curl -XGET 'localhost:9200/test/_analyze' -d '
 Will cause the analysis to happen based on the analyzer configured in the
 mapping for `obj1.field1` (and if not, the default index analyzer).
 
+If you want to get more advanced details, set `detail` to `true` (defaults to `false`). It will output all token attributes for each token.
+You can filter token attributes you want to output by setting `attributes` option.
+
+[source,js]
+--------------------------------------------------
+GET test/_analyze
+{
+  "tokenizer" : "standard",
+  "token_filters" : ["snowball"],
+  "text" : "detailed output",
+  "detail" : true,
+  "attributes" : ["keyword"]
+}
+--------------------------------------------------
+// AUTOSENSE
+
+coming[2.0.0, body based parameters were added in 2.0.0]
+
+The request returns the following result:
+
+[source,js]
+--------------------------------------------------
+{
+  "detail" : {
+    "custom_analyzer" : true,
+    "charfilters" : [ ],
+    "tokenizer" : {
+      "name" : "standard",
+      "tokens" : [ {
+        "token" : "detailed",
+        "start_offset" : 0,
+        "end_offset" : 8,
+        "type" : "<ALPHANUM>",
+        "position" : 0
+      }, {
+        "token" : "output",
+        "start_offset" : 9,
+        "end_offset" : 15,
+        "type" : "<ALPHANUM>",
+        "position" : 1
+      } ]
+    },
+    "tokenfilters" : [ {
+      "name" : "snowball",
+      "tokens" : [ {
+        "token" : "detail",
+        "start_offset" : 0,
+        "end_offset" : 8,
+        "type" : "<ALPHANUM>",
+        "position" : 0,
+        "keyword" : false
+      }, {
+        "token" : "output",
+        "start_offset" : 9,
+        "end_offset" : 15,
+        "type" : "<ALPHANUM>",
+        "position" : 1,
+        "keyword" : false
+      } ]
+    } ]
+  }
+}
+--------------------------------------------------
+
 All parameters can also supplied as request parameters. For example:
 
 [source,js]

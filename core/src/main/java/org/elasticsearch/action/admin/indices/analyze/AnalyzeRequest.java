@@ -46,6 +46,10 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
 
     private String field;
 
+    private boolean detail = false;
+
+    private String[] attributes = Strings.EMPTY_ARRAY;
+
     public AnalyzeRequest() {
     }
 
@@ -112,6 +116,24 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
         return this.field;
     }
 
+    public AnalyzeRequest detail(boolean detail) {
+        this.detail = detail;
+        return this;
+    }
+
+    public boolean detail() {
+        return this.detail;
+    }
+
+    public AnalyzeRequest attributes(String... attributes) {
+        this.attributes = attributes;
+        return this;
+    }
+
+    public String[] attributes() {
+        return this.attributes;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -123,6 +145,9 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
         }
         if (charFilters == null) {
             validationException = addValidationError("char filters must not be null", validationException);
+        }
+        if (attributes == null) {
+            validationException = addValidationError("attributes must not be null", validationException);
         }
         return validationException;
     }
@@ -136,6 +161,8 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
         tokenFilters = in.readStringArray();
         charFilters = in.readStringArray();
         field = in.readOptionalString();
+        detail = in.readBoolean();
+        attributes = in.readStringArray();
     }
 
     @Override
@@ -147,5 +174,7 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
         out.writeStringArray(tokenFilters);
         out.writeStringArray(charFilters);
         out.writeOptionalString(field);
+        out.writeBoolean(detail);
+        out.writeStringArray(attributes);
     }
 }

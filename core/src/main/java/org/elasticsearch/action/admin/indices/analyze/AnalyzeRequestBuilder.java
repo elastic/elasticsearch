@@ -79,6 +79,22 @@ public class AnalyzeRequestBuilder extends SingleShardOperationRequestBuilder<An
     }
 
     /**
+     * Sets detail
+     */
+    public AnalyzeRequestBuilder setDetail(boolean detail) {
+        request.detail(detail);
+        return this;
+    }
+
+    /**
+     * Sets attributes that will include results
+     */
+    public AnalyzeRequestBuilder setAttributes(String attributes){
+        request.attributes(attributes);
+        return this;
+    }
+
+    /**
      * Sets texts to analyze
      */
     public AnalyzeRequestBuilder setText(String... texts) {

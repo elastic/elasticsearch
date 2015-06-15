@@ -30,7 +30,7 @@ public class IBMJ9HackThreadFilters implements ThreadFilter {
     static final boolean isJ9;
     
     static {
-        assert Version.LATEST.equals(Version.LUCENE_5_2_0) : "please remove this entire class for 5.3";
+        assert Version.LATEST.equals(Version.LUCENE_5_2_1) : "please remove this entire class for 5.3";
         isJ9 = Constants.JAVA_VENDOR.startsWith("IBM");
     }
     

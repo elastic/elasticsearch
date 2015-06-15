@@ -76,12 +76,12 @@ import static org.hamcrest.Matchers.is;
 @Ignore
 public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends ElasticsearchTestCase {
 
-    protected static final String OBJECT_FIELD_NAME = "object";
-    protected static final String DATE_FIELD_NAME = "age";
-    protected static final String INT_FIELD_NAME = "price";
-    protected static final String STRING_FIELD_NAME = "text";
-    protected static final String DOUBLE_FIELD_NAME = "double";
-    protected static final String BOOLEAN_FIELD_NAME = "boolean";
+    protected static final String OBJECT_FIELD_NAME = "mapped_object";
+    protected static final String DATE_FIELD_NAME = "mapped_date";
+    protected static final String INT_FIELD_NAME = "mapped_int";
+    protected static final String STRING_FIELD_NAME = "mapped_string";
+    protected static final String DOUBLE_FIELD_NAME = "mapped_double";
+    protected static final String BOOLEAN_FIELD_NAME = "mapped_boolean";
     protected static final String[] mappedFieldNames = new String[] { DATE_FIELD_NAME, INT_FIELD_NAME, STRING_FIELD_NAME,
             DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, OBJECT_FIELD_NAME };
 

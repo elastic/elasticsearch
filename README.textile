@@ -31,7 +31,6 @@ p. An Elasticsearch plugin can be created by following these six steps.
 
 bc.. package org.elasticsearch.examples.nativescript.plugin;
 
-import org.elasticsearch.examples.nativescript.script.DividedBoostScoreSearchScript;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.script.ScriptModule;
 

@@ -5,10 +5,8 @@
  */
 package org.elasticsearch.watcher.support.init.proxy;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.script.*;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.init.InitializingService;
 
@@ -53,11 +51,13 @@ public class ScriptServiceProxy implements InitializingService.Initializable {
         return service.executable(script, WatcherScriptContext.CTX);
     }
 
+    public static final ScriptContext.Plugin INSTANCE = new ScriptContext.Plugin("elasticsearch-watcher", "watch");
+
     private static class WatcherScriptContext implements ScriptContext {
-        private static final ScriptContext CTX = new WatcherScriptContext();
+        public static final ScriptContext CTX = new WatcherScriptContext();
         @Override
         public String getKey() {
-            return "watcher";
+            return INSTANCE.getKey();
         }
     }
 }

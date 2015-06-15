@@ -11,11 +11,15 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.script.ScriptModes;
+import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.watcher.actions.email.service.InternalEmailService;
 import org.elasticsearch.watcher.history.HistoryModule;
 import org.elasticsearch.watcher.license.LicenseService;
+import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.init.InitializingService;
+import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.validation.WatcherSettingsValidation;
 
 import java.util.Collection;
@@ -55,6 +59,7 @@ public class WatcherPlugin extends AbstractPlugin {
                 ImmutableList.<Class<? extends Module>>of(WatcherModule.class);
     }
 
+
     @Override
     public Collection<Class<? extends LifecycleComponent>> services() {
         if (!enabled || transportClient) {
@@ -81,6 +86,10 @@ public class WatcherPlugin extends AbstractPlugin {
                 .build();
 
         return additionalSettings;
+    }
+
+    public void onModule(ScriptModule module) {
+        module.registerScriptContext(ScriptServiceProxy.INSTANCE);
     }
 
     public static boolean watcherEnabled(Settings settings) {

@@ -17,7 +17,6 @@ import org.elasticsearch.watcher.actions.ActionBuilders;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.support.http.HttpClient;
-import org.elasticsearch.watcher.support.http.HttpClientTest;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.http.Scheme;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuth;
@@ -29,9 +28,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.net.BindException;
-import java.net.URISyntaxException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -50,12 +47,7 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        Path resource;
-        try {
-            resource = Paths.get(HttpClientTest.class.getResource("/org/elasticsearch/shield/keystore/testnode.jks").toURI());
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
+        Path resource = getDataPath("/org/elasticsearch/shield/keystore/testnode.jks");
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(HttpClient.SETTINGS_SSL_KEYSTORE, resource.toString())

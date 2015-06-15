@@ -14,6 +14,7 @@ import org.elasticsearch.ExceptionsHelper;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthFactory;
@@ -48,6 +49,7 @@ public class HttpClientTest extends ElasticsearchTestCase {
     private HttpClient httpClient;
     private HttpAuthRegistry authRegistry;
     private SecretService secretService;
+    private Environment environment = new Environment(Settings.EMPTY);
 
     private int webPort;
 
@@ -59,7 +61,7 @@ public class HttpClientTest extends ElasticsearchTestCase {
             try {
                 webServer = new MockWebServer();
                 webServer.start(webPort);
-                httpClient = new HttpClient(Settings.EMPTY, authRegistry).start();
+                httpClient = new HttpClient(Settings.EMPTY, authRegistry, environment).start();
                 return;
             } catch (BindException be) {
                 logger.warn("port [{}] was already in use trying next port", webPort);
@@ -145,7 +147,7 @@ public class HttpClientTest extends ElasticsearchTestCase {
 
     @Test
     public void testHttps() throws Exception {
-        Path resource = Paths.get(HttpClientTest.class.getResource("/org/elasticsearch/shield/keystore/truststore-testnode-only.jks").toURI());
+        Path resource = getDataPath("/org/elasticsearch/shield/keystore/truststore-testnode-only.jks");
 
         Settings settings;
         if (randomBoolean()) {
@@ -159,13 +161,13 @@ public class HttpClientTest extends ElasticsearchTestCase {
                     .put(HttpClient.SETTINGS_SSL_SHIELD_TRUSTSTORE_PASSWORD, "truststore-testnode-only")
                     .build();
         }
-        HttpClient httpClient = new HttpClient(settings, authRegistry).start();
+        HttpClient httpClient = new HttpClient(settings, authRegistry, environment).start();
 
         // We can't use the client created above for the server since it is only a truststore
         webServer.useHttps(new HttpClient(Settings.builder()
                 .put(HttpClient.SETTINGS_SSL_KEYSTORE, PathUtils.get(HttpClientTest.class.getResource("/org/elasticsearch/shield/keystore/testnode.jks").toURI()))
                 .put(HttpClient.SETTINGS_SSL_KEYSTORE_PASSWORD, "testnode")
-                .build(), authRegistry)
+                .build(), authRegistry, environment)
                 .start()
                 .getSslSocketFactory(), false);
 
@@ -184,7 +186,7 @@ public class HttpClientTest extends ElasticsearchTestCase {
 
     @Test
     public void testHttpsClientAuth() throws Exception {
-        Path resource = Paths.get(HttpClientTest.class.getResource("/org/elasticsearch/shield/keystore/testnode.jks").toURI());
+        Path resource = getDataPath("/org/elasticsearch/shield/keystore/testnode.jks");
         Settings settings;
         if (randomBoolean()) {
             settings = Settings.builder()
@@ -198,7 +200,7 @@ public class HttpClientTest extends ElasticsearchTestCase {
                     .build();
         }
 
-        HttpClient httpClient = new HttpClient(settings, authRegistry).start();
+        HttpClient httpClient = new HttpClient(settings, authRegistry, environment).start();
         webServer.useHttps(new ClientAuthRequiringSSLSocketFactory(httpClient.getSslSocketFactory()), false);
 
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
@@ -217,7 +219,7 @@ public class HttpClientTest extends ElasticsearchTestCase {
     @Test
     public void testHttpClientReadKeyWithDifferentPassword() throws Exception {
         // This truststore doesn't have a cert with a valid SAN so hostname verification will fail if used
-        Path resource = Paths.get(HttpClientTest.class.getResource("/org/elasticsearch/shield/keystore/testnode-different-passwords.jks").toURI());
+        Path resource = getDataPath("/org/elasticsearch/shield/keystore/testnode-different-passwords.jks");
 
         Settings settings;
         final boolean watcherSettings = randomBoolean();
@@ -235,7 +237,7 @@ public class HttpClientTest extends ElasticsearchTestCase {
                     .build();
         }
 
-        HttpClient httpClient = new HttpClient(settings, authRegistry).start();
+        HttpClient httpClient = new HttpClient(settings, authRegistry, environment).start();
         assertThat(httpClient.getSslSocketFactory(), notNullValue());
 
         Settings.Builder badSettings = Settings.builder().put(settings);
@@ -246,7 +248,7 @@ public class HttpClientTest extends ElasticsearchTestCase {
         }
 
         try {
-            new HttpClient(badSettings.build(), authRegistry).start();
+            new HttpClient(badSettings.build(), authRegistry, environment).start();
             fail("an exception should have been thrown since the key is not recoverable without the password");
         } catch (Exception e) {
             UnrecoverableKeyException rootCause = (UnrecoverableKeyException) ExceptionsHelper.unwrap(e, UnrecoverableKeyException.class);
@@ -272,7 +274,7 @@ public class HttpClientTest extends ElasticsearchTestCase {
     @Test
     @Network
     public void testHttpsWithoutTruststore() throws Exception {
-        HttpClient httpClient = new HttpClient(Settings.EMPTY, authRegistry).start();
+        HttpClient httpClient = new HttpClient(Settings.EMPTY, authRegistry, environment).start();
         assertThat(httpClient.getSslSocketFactory(), nullValue());
 
         // Known server with a valid cert from a commercial CA
@@ -292,7 +294,7 @@ public class HttpClientTest extends ElasticsearchTestCase {
         Settings settings = Settings.builder()
                 .put(setting, randomBoolean())
                 .build();
-        HttpClient httpClient = new HttpClient(settings, authRegistry).start();
+        HttpClient httpClient = new HttpClient(settings, authRegistry, environment).start();
         assertThat(httpClient.getSslSocketFactory(), notNullValue());
 
         // Known server with a valid cert from a commercial CA

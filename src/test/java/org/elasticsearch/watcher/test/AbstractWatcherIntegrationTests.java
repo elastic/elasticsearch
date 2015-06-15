@@ -694,7 +694,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
             } catch (IOException e) {
                 throw new ElasticsearchException("error writing file in test", e);
             }
-            return file.toFile().getAbsolutePath();
+            return file.toAbsolutePath().toString();
         }
 
         public static String writeFile(Path folder, String name, byte[] content) throws IOException {
@@ -704,7 +704,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
             } catch (IOException e) {
                 throw new ElasticsearchException("error writing file in test", e);
             }
-            return file.toFile().getAbsolutePath();
+            return file.toAbsolutePath().toString();
         }
     }
 

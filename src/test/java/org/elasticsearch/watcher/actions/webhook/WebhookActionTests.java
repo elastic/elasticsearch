@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.actions.webhook;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import com.google.common.collect.ImmutableMap;
 import org.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
@@ -90,7 +89,7 @@ public class WebhookActionTests extends ElasticsearchTestCase {
         tp.shutdownNow();
     }
 
-    @Test @Repeat(iterations = 30)
+    @Test
     public void testExecute() throws Exception {
         ExecuteScenario scenario = randomFrom(ExecuteScenario.Success, ExecuteScenario.ErrorCode);
 
@@ -125,7 +124,7 @@ public class WebhookActionTests extends ElasticsearchTestCase {
         return builder.build();
     }
 
-    @Test @Repeat(iterations = 10)
+    @Test
     public void testParser() throws Exception {
         Template body = randomBoolean() ? Template.inline("_subject").build() : null;
         Template path = Template.inline("_url").build();
@@ -146,7 +145,7 @@ public class WebhookActionTests extends ElasticsearchTestCase {
         assertThat(executable.action().getRequest(), equalTo(request));
     }
 
-    @Test @Repeat(iterations = 10)
+    @Test
     public void testParser_SelfGenerated() throws Exception {
         Template body = randomBoolean() ? Template.inline("_body").build() : null;
         Template path = Template.inline("_url").build();
@@ -173,7 +172,7 @@ public class WebhookActionTests extends ElasticsearchTestCase {
         assertThat(parsedExecutable.action(), is(action));
     }
 
-    @Test @Repeat(iterations = 10)
+    @Test
     public void testParser_Builder() throws Exception {
         Template body = randomBoolean() ? Template.inline("_body").build() : null;
         Template path = Template.inline("_url").build();
@@ -199,7 +198,6 @@ public class WebhookActionTests extends ElasticsearchTestCase {
     }
 
     @Test(expected = WebhookActionException.class)
-    @Repeat(iterations = 5)
     public void testParser_Failure() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject();
         if (randomBoolean()) {
@@ -224,7 +222,6 @@ public class WebhookActionTests extends ElasticsearchTestCase {
     }
 
     @Test
-    @Repeat(iterations = 10)
     public void testTemplatedHttpRequest() throws Exception
     {
         HttpClient httpClient = ExecuteScenario.Success.client();
@@ -259,7 +256,7 @@ public class WebhookActionTests extends ElasticsearchTestCase {
 
     }
 
-    @Test @Repeat(iterations = 100)
+    @Test
     public void testValidUrls() throws Exception {
 
         HttpClient httpClient = ExecuteScenario.Success.client();

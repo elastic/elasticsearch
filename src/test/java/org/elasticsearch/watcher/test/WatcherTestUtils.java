@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.joda.time.DateTime;
 import org.elasticsearch.common.logging.ESLogger;
@@ -229,19 +230,19 @@ public final class WatcherTestUtils {
 
     public static ScriptServiceProxy getScriptServiceProxy(ThreadPool tp) throws Exception {
         Settings settings = Settings.settingsBuilder()
-                .put("script.disable_dynamic", "none")
+                .put("script.inline", "on")
+                .put("script.indexed", "on")
+                .put("path.home", ".")
                 .build();
         GroovyScriptEngineService groovyScriptEngineService = new GroovyScriptEngineService(settings);
         XMustacheScriptEngineService mustacheScriptEngineService = new XMustacheScriptEngineService(settings);
         Set<ScriptEngineService> engineServiceSet = new HashSet<>();
         engineServiceSet.add(mustacheScriptEngineService);
         engineServiceSet.add(groovyScriptEngineService);
-        NodeSettingsService nodeSettingsService = new NodeSettingsService(settings);
-
         Class scriptContextRegistryClass = Class.forName("org.elasticsearch.script.ScriptContextRegistry");
         Constructor scriptContextRegistryConstructor = scriptContextRegistryClass.getDeclaredConstructors()[0];
         scriptContextRegistryConstructor.setAccessible(true);
-        ScriptContextRegistry registry = (ScriptContextRegistry) scriptContextRegistryConstructor.newInstance(Collections.emptyList());
+        ScriptContextRegistry registry = (ScriptContextRegistry) scriptContextRegistryConstructor.newInstance(Arrays.asList(ScriptServiceProxy.INSTANCE));
 
         return  ScriptServiceProxy.of(new ScriptService(settings, new Environment(settings), engineServiceSet, new ResourceWatcherService(settings, tp), registry));
     }

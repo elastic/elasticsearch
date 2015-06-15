@@ -13,11 +13,11 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.support.http.auth.ApplicableHttpAuth;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 
 import javax.net.ssl.*;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -25,7 +25,6 @@ import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.security.KeyStore;
 import java.security.SecureRandom;
 import java.util.List;
@@ -57,13 +56,15 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
     static final String SETTINGS_SSL_SHIELD_TRUSTSTORE_ALGORITHM = SETTINGS_SSL_SHIELD_PREFIX + "truststore.algorithm";
 
     private final HttpAuthRegistry httpAuthRegistry;
+    private final Environment env;
 
     private SSLSocketFactory sslSocketFactory;
 
     @Inject
-    public HttpClient(Settings settings, HttpAuthRegistry httpAuthRegistry) {
+    public HttpClient(Settings settings, HttpAuthRegistry httpAuthRegistry, Environment env) {
         super(settings);
         this.httpAuthRegistry = httpAuthRegistry;
+        this.env = env;
     }
 
     @Override
@@ -196,8 +197,8 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
             logger.debug("using protocol [{}], keyStore [{}], keyStoreAlgorithm [{}], trustStore [{}] and trustAlgorithm [{}]", sslContextProtocol, keyStore, keyStoreAlgorithm, trustStore, trustStoreAlgorithm);
 
             SSLContext sslContext = SSLContext.getInstance(sslContextProtocol);
-            KeyManager[] keyManagers = keyManagers(keyStore, keyStorePassword, keyStoreAlgorithm, keyPassword);
-            TrustManager[] trustManagers = trustManagers(trustStore, trustStorePassword, trustStoreAlgorithm);
+            KeyManager[] keyManagers = keyManagers(env, keyStore, keyStorePassword, keyStoreAlgorithm, keyPassword);
+            TrustManager[] trustManagers = trustManagers(env, trustStore, trustStorePassword, trustStoreAlgorithm);
             sslContext.init(keyManagers, trustManagers, new SecureRandom());
             return sslContext.getSocketFactory();
         } catch (Exception e) {
@@ -209,11 +210,11 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
         return sslSocketFactory;
     }
 
-    private static KeyManager[] keyManagers(String keyStore, String keyStorePassword, String keyStoreAlgorithm, String keyPassword) {
+    private static KeyManager[] keyManagers(Environment env, String keyStore, String keyStorePassword, String keyStoreAlgorithm, String keyPassword) {
         if (keyStore == null) {
             return null;
         }
-        Path path = Paths.get(keyStore);
+        Path path = env.homeFile().resolve(keyStore);
         if (Files.notExists(path)) {
             return null;
         }
@@ -231,12 +232,12 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
         }
     }
 
-    private static TrustManager[] trustManagers(String trustStore, String trustStorePassword, String trustStoreAlgorithm) {
+    private static TrustManager[] trustManagers(Environment env, String trustStore, String trustStorePassword, String trustStoreAlgorithm) {
         try {
             // Load TrustStore
             KeyStore ks = null;
             if (trustStore != null) {
-                Path trustStorePath = Paths.get(trustStore);
+                Path trustStorePath = env.homeFile().resolve(trustStore);
                 if (Files.exists(trustStorePath)) {
                     ks = readKeystore(trustStorePath, trustStorePassword);
                 }

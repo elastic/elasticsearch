@@ -8,6 +8,7 @@ package org.elasticsearch.watcher.trigger.schedule.engine;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -123,9 +124,7 @@ public class SchedulerScheduleTriggerEngine extends ScheduleTriggerEngine {
         }
 
         public void cancel() {
-            if (future != null) {
-                future.cancel(true);
-            }
+            FutureUtils.cancel(future);
         }
     }
 

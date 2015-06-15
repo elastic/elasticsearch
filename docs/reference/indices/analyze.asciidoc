@@ -100,3 +100,74 @@ provided it doesn't start with `{` :
 --------------------------------------------------
 curl -XGET 'localhost:9200/_analyze?tokenizer=keyword&token_filters=lowercase&char_filters=html_strip' -d 'this is a <b>test</b>'
 --------------------------------------------------
+
+=== Explain Analyze
+
+If you want to get more advanced details, set `explain` to `true` (defaults to `false`). It will output all token attributes for each token.
+You can filter token attributes you want to output by setting `attributes` option.
+
+experimental[The format of the additional detail information is experimental and can change at any time]
+
+[source,js]
+--------------------------------------------------
+GET test/_analyze
+{
+  "tokenizer" : "standard",
+  "token_filters" : ["snowball"],
+  "text" : "detailed output",
+  "explain" : true,
+  "attributes" : ["keyword"] <1>
+}
+--------------------------------------------------
+// AUTOSENSE
+<1> Set "keyword" to output "keyword" attribute only
+
+coming[2.0.0, body based parameters were added in 2.0.0]
+
+The request returns the following result:
+
+[source,js]
+--------------------------------------------------
+{
+  "detail" : {
+    "custom_analyzer" : true,
+    "charfilters" : [ ],
+    "tokenizer" : {
+      "name" : "standard",
+      "tokens" : [ {
+        "token" : "detailed",
+        "start_offset" : 0,
+        "end_offset" : 8,
+        "type" : "<ALPHANUM>",
+        "position" : 0
+      }, {
+        "token" : "output",
+        "start_offset" : 9,
+        "end_offset" : 15,
+        "type" : "<ALPHANUM>",
+        "position" : 1
+      } ]
+    },
+    "tokenfilters" : [ {
+      "name" : "snowball",
+      "tokens" : [ {
+        "token" : "detail",
+        "start_offset" : 0,
+        "end_offset" : 8,
+        "type" : "<ALPHANUM>",
+        "position" : 0,
+        "keyword" : false <1>
+      }, {
+        "token" : "output",
+        "start_offset" : 9,
+        "end_offset" : 15,
+        "type" : "<ALPHANUM>",
+        "position" : 1,
+        "keyword" : false <1>
+      } ]
+    } ]
+  }
+}
+--------------------------------------------------
+<1> Output only "keyword" attribute, since specify "attributes" in the request.
+

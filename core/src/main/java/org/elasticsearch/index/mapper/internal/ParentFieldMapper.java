@@ -229,12 +229,10 @@ public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper
     }
 
     private final String type;
-    private final BytesRef typeAsBytes;
 
     protected ParentFieldMapper(MappedFieldType fieldType, String type, @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(fieldType, Version.indexCreated(indexSettings).onOrAfter(Version.V_2_0_0), fieldDataSettings, indexSettings);
         this.type = type;
-        this.typeAsBytes = type == null ? null : new BytesRef(type);
     }
 
     public ParentFieldMapper(Settings indexSettings) {

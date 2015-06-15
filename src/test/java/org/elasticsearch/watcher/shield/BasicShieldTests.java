@@ -5,37 +5,32 @@
  */
 package org.elasticsearch.watcher.shield;
 
-import org.elasticsearch.ElasticsearchException;
-import org.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.shield.ShieldPlugin;
-import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authz.AuthorizationException;
 import org.elasticsearch.watcher.WatcherPlugin;
 import org.elasticsearch.watcher.WatcherState;
-import org.elasticsearch.watcher.client.WatchSourceBuilders;
-import org.elasticsearch.watcher.condition.ConditionBuilders;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsResponse;
-import org.elasticsearch.watcher.trigger.TriggerBuilders;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
+import org.joda.time.DateTime;
 import org.junit.Test;
 
-import static org.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.Is.is;
+import static org.joda.time.DateTimeZone.UTC;
 
 public class BasicShieldTests extends AbstractWatcherIntegrationTests {
 
@@ -51,6 +46,7 @@ public class BasicShieldTests extends AbstractWatcherIntegrationTests {
                 .put("plugin.types", ShieldPlugin.class.getName() + "," + WatcherPlugin.class.getName())
                 // Use just the transport user here, so we can test Watcher roles specifically
                 .put("shield.user", "transport_client:changeme")
+                .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
                 .build();
     }
 

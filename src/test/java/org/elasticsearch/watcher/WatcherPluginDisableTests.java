@@ -45,6 +45,14 @@ public class WatcherPluginDisableTests extends ElasticsearchIntegrationTest {
                 .build();
     }
 
+    @Override
+    protected Settings transportClientSettings() {
+        return Settings.builder()
+                .put(super.transportClientSettings())
+                .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
+                .build();
+    }
+
     @Test
     public void testRestEndpoints() throws Exception {
         HttpServerTransport httpServerTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);

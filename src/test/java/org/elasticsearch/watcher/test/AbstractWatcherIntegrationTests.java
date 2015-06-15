@@ -26,6 +26,8 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
+import org.elasticsearch.shield.authc.support.Hasher;
+import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
@@ -621,6 +623,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
 
         public static final String TEST_USERNAME = "test";
         public static final String TEST_PASSWORD = "changeme";
+        private static final String TEST_PASSWORD_HASHED =  new String(Hasher.BCRYPT.hash(new SecuredString(TEST_PASSWORD.toCharArray())));
 
         static boolean auditLogsEnabled = SystemPropertyUtil.getBoolean("tests.audit_logs", true);
         static byte[] systemKey = generateKey(); // must be the same for all nodes
@@ -628,10 +631,10 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
         public static final String IP_FILTER = "allow: all\n";
 
         public static final String USERS =
-                "transport_client:{plain}changeme\n" +
-                TEST_USERNAME + ":{plain}" + TEST_PASSWORD + "\n" +
-                "admin:{plain}changeme\n" +
-                "monitor:{plain}changeme";
+                "transport_client:" + TEST_PASSWORD_HASHED + "\n" +
+                TEST_USERNAME + ":" + TEST_PASSWORD_HASHED + "\n" +
+                "admin:" + TEST_PASSWORD_HASHED + "\n" +
+                "monitor:" + TEST_PASSWORD_HASHED;
 
         public static final String USER_ROLES =
                 "transport_client:transport_client\n" +
@@ -641,17 +644,17 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
 
         public static final String ROLES =
                 "test:\n" + // a user for the test infra.
-                "  cluster: cluster:monitor/nodes/info, cluster:monitor/state, cluster:monitor/health, cluster:monitor/stats, cluster:admin/settings/update, cluster:admin/repository/delete, indices:admin/template/get, indices:admin/template/put, indices:admin/template/delete\n" +
+                "  cluster: cluster:monitor/nodes/info, cluster:monitor/state, cluster:monitor/health, cluster:monitor/stats, cluster:admin/settings/update, cluster:admin/repository/delete, cluster:monitor/nodes/liveness, indices:admin/template/get, indices:admin/template/put, indices:admin/template/delete\n" +
                 "  indices:\n" +
                 "    '*': all\n" +
                 "\n" +
                 "admin:\n" +
-                "  cluster: manage_watcher, cluster:monitor/nodes/info\n" +
+                "  cluster: manage_watcher, cluster:monitor/nodes/info, cluster:monitor/nodes/liveness\n" +
                 "transport_client:\n" +
-                "  cluster: cluster:monitor/nodes/info\n" +
+                "  cluster: cluster:monitor/nodes/info, cluster:monitor/nodes/liveness\n" +
                 "\n" +
                 "monitor:\n" +
-                "  cluster: monitor_watcher, cluster:monitor/nodes/info\n"
+                "  cluster: monitor_watcher, cluster:monitor/nodes/info, cluster:monitor/nodes/liveness\\\n"
                 ;
 
 

@@ -13,6 +13,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesReference;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.plugins.PluginsService;
 import org.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -86,7 +87,17 @@ public class SearchTransformTests extends ElasticsearchIntegrationTest {
         //Set path so ScriptService will pick up the test scripts
         return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
+                // we're not extending from the base watcher test case, so we should prevent the watcher plugin from being loaded
+                .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
                 .put("path.conf", configPath).build();
+    }
+
+    @Override
+    protected Settings transportClientSettings() {
+        return Settings.builder()
+                .put(super.transportClientSettings())
+                .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
+                .build();
     }
 
     @Override

@@ -381,7 +381,7 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
             .startObject("str1")
                 .field("type", "string")
                 .startObject("fielddata")
-                    .field("format", "fst")
+                    .field("format", "paged_bytes")
                 .endObject()
             .endObject()
             .startObject("str2")

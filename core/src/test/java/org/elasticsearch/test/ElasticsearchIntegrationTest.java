@@ -391,7 +391,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                         .field("match_mapping_type", "string")
                         .startObject("mapping")
                         .startObject("fielddata")
-                        .field(FieldDataType.FORMAT_KEY, randomFrom("paged_bytes", "fst"))
                         .field(Loading.KEY, randomLoadingValues())
                         .endObject()
                         .endObject()
@@ -1767,14 +1766,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      */
     public static String randomNumericFieldDataFormat() {
         return randomFrom(Arrays.asList("array", "doc_values"));
-    }
-
-    /**
-     * Returns a random bytes field data format from the choices of
-     * "paged_bytes", "fst", or "doc_values".
-     */
-    public static String randomBytesFieldDataFormat() {
-        return randomFrom(Arrays.asList("paged_bytes", "fst"));
     }
 
     /**

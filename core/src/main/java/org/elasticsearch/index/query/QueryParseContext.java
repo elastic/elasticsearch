@@ -40,6 +40,7 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
@@ -283,8 +284,8 @@ public class QueryParseContext {
         return failIfFieldMappingNotFound(name, indexQueryParser.mapperService.smartNameFieldType(name, getTypes()));
     }
 
-    public MapperService.SmartNameObjectMapper smartObjectMapper(String name) {
-        return indexQueryParser.mapperService.smartNameObjectMapper(name, getTypes());
+    public ObjectMapper getObjectMapper(String name) {
+        return indexQueryParser.mapperService.getObjectMapper(name, getTypes());
     }
 
     /** Gets the search analyzer for the given field, or the default if there is none present for the field

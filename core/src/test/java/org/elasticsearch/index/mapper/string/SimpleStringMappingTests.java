@@ -252,7 +252,7 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
         DocumentMapper mapper = parser.parse(mapping);
         for (String fieldName : Lists.newArrayList("field1", "field2", "field3", "field4")) {
             Map<String, Object> serializedMap = getSerializedMap(fieldName, mapper);
-            assertFalse(serializedMap.containsKey("search_quote_analyzer"));
+            assertFalse(fieldName, serializedMap.containsKey("search_quote_analyzer"));
         }
         
         // Cases where search_quote_analyzer should be present.

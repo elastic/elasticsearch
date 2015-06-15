@@ -33,4 +33,13 @@
   - match: {_shards.failed: 0}
   - match: {explanations.0.index: 'testing'}
   - match: {explanations.0.explanation: '*:*'}
+  
+  - do:
+      indices.validate_query:
+        rewrite: true
+
+  - is_true: valid
+  - match: {_shards.failed: 0}
+  - match: {explanations.0.index: 'testing'}
+  - match: {explanations.0.explanation: 'ConstantScore(*:*)'}
 

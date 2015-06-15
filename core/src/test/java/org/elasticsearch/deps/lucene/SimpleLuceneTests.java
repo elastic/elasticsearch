@@ -73,6 +73,7 @@ public class SimpleLuceneTests extends ElasticsearchTestCase {
 
         indexWriter.prepareCommit();
         // Returns null b/c no changes.
+        // nocommit: this fails
         assertThat(DirectoryReader.openIfChanged(reader), equalTo(null));
 
         document = new Document();

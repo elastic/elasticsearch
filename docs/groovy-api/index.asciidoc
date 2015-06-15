@@ -5,7 +5,7 @@
 [preface]
 == Preface
 
-This section describes the http://groovy.codehaus.org/[Groovy] API
+This section describes the http://groovy-lang.org/[Groovy] API
 elasticsearch provides. All elasticsearch APIs are executed using a
 <<client,GClient>>, and are completely
 asynchronous in nature (they either accept a listener, or return a
@@ -48,4 +48,3 @@ include::delete.asciidoc[]
 include::search.asciidoc[]
 
 include::count.asciidoc[]
-

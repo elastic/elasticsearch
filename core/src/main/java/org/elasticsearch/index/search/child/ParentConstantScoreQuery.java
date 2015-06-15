@@ -93,7 +93,7 @@ public class ParentConstantScoreQuery extends IndexCacheableQuery {
 
         ParentOrdsCollector collector = new ParentOrdsCollector(globalIfd, maxOrd, parentType);
         IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
-        indexSearcher.setSimilarity(searcher.getSimilarity());
+        indexSearcher.setSimilarity(searcher.getSimilarity(true));
         indexSearcher.setQueryCache(null);
         indexSearcher.search(parentQuery, collector);
 

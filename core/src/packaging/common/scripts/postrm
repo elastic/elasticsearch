@@ -84,25 +84,22 @@ if [ "$REMOVE_DIRS" = "true" ]; then
 
     if [ -d "$LOG_DIR" ]; then
         echo -n "Deleting log directory..."
-        rm -rf "$LOG_DIR"
-        echo " OK"
+        rm -rf "$LOG_DIR" && echo " OK" || echo " ERROR: unable to delete directory [$LOG_DIR]"
     fi
 
     if [ -d "$PLUGINS_DIR" ]; then
         echo -n "Deleting plugins directory..."
-        rm -rf "$PLUGINS_DIR"
-        echo " OK"
+        rm -rf "$PLUGINS_DIR" && echo " OK" || echo " ERROR: unable to delete directory [$PLUGINS_DIR]"
     fi
 
     if [ -d "$PID_DIR" ]; then
         echo -n "Deleting PID directory..."
-        rm -rf "$PID_DIR"
-        echo " OK"
+        rm -rf "$PID_DIR" && echo " OK" || echo " ERROR: unable to delete directory [$PID_DIR]"
     fi
 
     # Delete the data directory if and only if empty
     if [ -d "$DATA_DIR" ]; then
-        rmdir --ignore-fail-on-non-empty "$DATA_DIR"
+        rmdir --ignore-fail-on-non-empty "$DATA_DIR" && echo " OK" || echo " ERROR: unable to delete directory [$DATA_DIR]"
     fi
 fi
 

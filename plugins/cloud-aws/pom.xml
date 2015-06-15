@@ -18,7 +18,7 @@
     </parent>
 
     <properties>
-        <amazonaws.version>1.9.34</amazonaws.version>
+        <amazonaws.version>1.10.0</amazonaws.version>
         <tests.jvms>1</tests.jvms>
     </properties>
 

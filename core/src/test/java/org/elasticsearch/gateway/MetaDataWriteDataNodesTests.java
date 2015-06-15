@@ -21,6 +21,7 @@ package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Predicate;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -33,227 +34,81 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.junit.Test;
 
-import java.io.IOException;
 import java.util.LinkedHashMap;
+import java.util.concurrent.Future;
 
-import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.elasticsearch.test.InternalTestCluster.RestartCallback;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  *
  */
+@LuceneTestCase.Slow
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testMetaWrittenAlsoOnDataNode() throws Exception {
-        // this test checks that index state is written on data only nodes
-        String masterNodeName = startMasterNode();
-        String redNode = startDataNode("red");
-        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.number_of_replicas", 0)));
+        // this test checks that index state is written on data only nodes if they have a shard allocated
+        String masterNode = internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        String dataNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
+        assertAcked(prepareCreate("test").setSettings("index.number_of_replicas", 0));
         index("test", "doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
         ensureGreen("test");
-        assertIndexInMetaState(redNode, "test");
-        assertIndexInMetaState(masterNodeName, "test");
-        //stop master node and start again with an empty data folder
-        ((InternalTestCluster) cluster()).stopCurrentMasterNode();
-        String newMasterNode = startMasterNode();
-        ensureGreen("test");
-        // check for meta data
-        assertIndexInMetaState(redNode, "test");
-        assertIndexInMetaState(newMasterNode, "test");
-        // check if index and doc is still there
-        ensureGreen("test");
-        assertTrue(client().prepareGet("test", "doc", "1").get().isExists());
-    }
-
-    @Test
-    public void testMetaWrittenOnlyForIndicesOnNodesThatHaveAShard() throws Exception {
-        // this test checks that the index state is only written to a data only node if they have a shard of that index allocated on the node
-        String masterNode = startMasterNode();
-        String blueNode = startDataNode("blue");
-        String redNode = startDataNode("red");
-
-        assertAcked(prepareCreate("blue_index").setSettings(Settings.builder().put("index.number_of_replicas", 0).put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "blue")));
-        index("blue_index", "doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
-        assertAcked(prepareCreate("red_index").setSettings(Settings.builder().put("index.number_of_replicas", 0).put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "red")));
-        index("red_index", "doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
-        ensureGreen();
-        assertIndexNotInMetaState(blueNode, "red_index");
-        assertIndexNotInMetaState(redNode, "blue_index");
-        assertIndexInMetaState(blueNode, "blue_index");
-        assertIndexInMetaState(redNode, "red_index");
-        assertIndexInMetaState(masterNode, "red_index");
-        assertIndexInMetaState(masterNode, "blue_index");
-
-        // not the index state for blue_index should only be written on blue_node and the for red_index only on red_node
-        // we restart red node and master but with empty data folders
-        stopNode(redNode);
-        ((InternalTestCluster) cluster()).stopCurrentMasterNode();
-        masterNode = startMasterNode();
-        redNode = startDataNode("red");
-
-        ensureGreen();
-        assertIndexNotInMetaState(blueNode, "red_index");
-        assertIndexInMetaState(blueNode, "blue_index");
-        assertIndexNotInMetaState(redNode, "red_index");
-        assertIndexNotInMetaState(redNode, "blue_index");
-        assertIndexNotInMetaState(masterNode, "red_index");
-        assertIndexInMetaState(masterNode, "blue_index");
-        // check that blue index is still there
-        assertFalse(client().admin().indices().prepareExists("red_index").get().isExists());
-        assertTrue(client().prepareGet("blue_index", "doc", "1").get().isExists());
-        // red index should be gone
-        // if the blue node had stored the index state then cluster health would be red and red_index would exist
-        assertFalse(client().admin().indices().prepareExists("red_index").get().isExists());
-
+        assertIndexInMetaState(dataNode, "test");
+        assertIndexInMetaState(masterNode, "test");
     }
 
     @Test
     public void testMetaIsRemovedIfAllShardsFromIndexRemoved() throws Exception {
         // this test checks that the index state is removed from a data only node once all shards have been allocated away from it
-        String masterNode = startMasterNode();
-        String blueNode = startDataNode("blue");
-        String redNode = startDataNode("red");
+        String masterNode = internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        Future<String> nodeName1 = internalCluster().startDataOnlyNodeAsync();
+        Future<String> nodeName2 = internalCluster().startDataOnlyNodeAsync();
+        String node1 = nodeName1.get();
+        String node2 = nodeName2.get();
 
-        // create blue_index on blue_node and same for red
-        client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForNodes("3")).get();
-        assertAcked(prepareCreate("blue_index").setSettings(Settings.builder().put("index.number_of_replicas", 0).put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "blue")));
-        index("blue_index", "doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
-        assertAcked(prepareCreate("red_index").setSettings(Settings.builder().put("index.number_of_replicas", 0).put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "red")));
-        index("red_index", "doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
-
+        String index = "index";
+        assertAcked(prepareCreate(index).setSettings(Settings.builder().put("index.number_of_replicas", 0).put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "_name", node1)));
+        index(index, "doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
         ensureGreen();
-        assertIndexNotInMetaState(redNode, "blue_index");
-        assertIndexNotInMetaState(blueNode, "red_index");
-        assertIndexInMetaState(redNode, "red_index");
-        assertIndexInMetaState(blueNode, "blue_index");
-        assertIndexInMetaState(masterNode, "red_index");
-        assertIndexInMetaState(masterNode, "blue_index");
+        assertIndexInMetaState(node1, index);
+        assertIndexNotInMetaState(node2, index);
+        assertIndexInMetaState(masterNode, index);
 
-        // now relocate blue_index to red_node and red_index to blue_node
-        logger.debug("relocating indices...");
-        client().admin().indices().prepareUpdateSettings("blue_index").setSettings(Settings.builder().put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "red")).get();
-        client().admin().indices().prepareUpdateSettings("red_index").setSettings(Settings.builder().put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "blue")).get();
+        logger.debug("relocating index...");
+        client().admin().indices().prepareUpdateSettings(index).setSettings(Settings.builder().put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "_name", node2)).get();
         client().admin().cluster().prepareHealth().setWaitForRelocatingShards(0).get();
         ensureGreen();
-        assertIndexNotInMetaState(redNode, "red_index");
-        assertIndexNotInMetaState(blueNode, "blue_index");
-        assertIndexInMetaState(redNode, "blue_index");
-        assertIndexInMetaState(blueNode, "red_index");
-        assertIndexInMetaState(masterNode, "red_index");
-        assertIndexInMetaState(masterNode, "blue_index");
-
-        //at this point the blue_index is on red node and the red_index on blue node
-        // now, when we start red and master node again but without data folder, the red index should be gone but the blue index should initialize fine
-        stopNode(redNode);
-        ((InternalTestCluster) cluster()).stopCurrentMasterNode();
-        masterNode = startMasterNode();
-        redNode = startDataNode("red");
-        ensureGreen();
-        assertIndexNotInMetaState(redNode, "blue_index");
-        assertIndexNotInMetaState(blueNode, "blue_index");
-        assertIndexNotInMetaState(redNode, "red_index");
-        assertIndexInMetaState(blueNode, "red_index");
-        assertIndexInMetaState(masterNode, "red_index");
-        assertIndexNotInMetaState(masterNode, "blue_index");
-        assertTrue(client().prepareGet("red_index", "doc", "1").get().isExists());
-        // if the red_node had stored the index state then cluster health would be red and blue_index would exist
-        assertFalse(client().admin().indices().prepareExists("blue_index").get().isExists());
-    }
-
-    @Test
-    public void testMetaWrittenWhenIndexIsClosed() throws Exception {
-        String masterNode = startMasterNode();
-        String redNodeDataPath = createTempDir().toString();
-        String redNode = startDataNode("red", redNodeDataPath);
-        String blueNode = startDataNode("blue");
-        // create red_index on red_node and same for red
-        client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForNodes("3")).get();
-        assertAcked(prepareCreate("red_index").setSettings(Settings.builder().put("index.number_of_replicas", 0).put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "red")));
-        index("red_index", "doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
-
-        ensureGreen();
-        assertIndexNotInMetaState(blueNode, "red_index");
-        assertIndexInMetaState(redNode, "red_index");
-        assertIndexInMetaState(masterNode, "red_index");
-
-        client().admin().indices().prepareClose("red_index").get();
-        // close the index
-        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
-        assertThat(clusterStateResponse.getState().getMetaData().index("red_index").getState().name(), equalTo(IndexMetaData.State.CLOSE.name()));
-
-        // restart master with empty data folder and maybe red node
-        boolean restartRedNode = randomBoolean();
-        //at this point the red_index on red node
-        if (restartRedNode) {
-            stopNode(redNode);
-        }
-        ((InternalTestCluster) cluster()).stopCurrentMasterNode();
-        masterNode = startMasterNode();
-        if (restartRedNode) {
-            redNode = startDataNode("red", redNodeDataPath);
-        }
-
-        ensureGreen("red_index");
-        assertIndexNotInMetaState(blueNode, "red_index");
-        assertIndexInMetaState(redNode, "red_index");
-        assertIndexInMetaState(masterNode, "red_index");
-        clusterStateResponse = client().admin().cluster().prepareState().get();
-        assertThat(clusterStateResponse.getState().getMetaData().index("red_index").getState().name(), equalTo(IndexMetaData.State.CLOSE.name()));
-
-        // open the index again
-        client().admin().indices().prepareOpen("red_index").get();
-        clusterStateResponse = client().admin().cluster().prepareState().get();
-        assertThat(clusterStateResponse.getState().getMetaData().index("red_index").getState().name(), equalTo(IndexMetaData.State.OPEN.name()));
-        // restart again
-        ensureGreen();
-        if (restartRedNode) {
-            stopNode(redNode);
-        }
-        ((InternalTestCluster) cluster()).stopCurrentMasterNode();
-        masterNode = startMasterNode();
-        if (restartRedNode) {
-            redNode = startDataNode("red", redNodeDataPath);
-        }
-        ensureGreen("red_index");
-        assertIndexNotInMetaState(blueNode, "red_index");
-        assertIndexInMetaState(redNode, "red_index");
-        assertIndexInMetaState(masterNode, "red_index");
-        clusterStateResponse = client().admin().cluster().prepareState().get();
-        assertThat(clusterStateResponse.getState().getMetaData().index("red_index").getState().name(), equalTo(IndexMetaData.State.OPEN.name()));
-        assertTrue(client().prepareGet("red_index", "doc", "1").get().isExists());
+        assertIndexNotInMetaState(node1, index);
+        assertIndexInMetaState(node2, index);
+        assertIndexInMetaState(masterNode, index);
     }
 
     @Test
     public void testMetaWrittenWhenIndexIsClosedAndMetaUpdated() throws Exception {
-        String masterNode = startMasterNode();
-        String redNodeDataPath = createTempDir().toString();
-        String redNode = startDataNode("red", redNodeDataPath);
-        // create red_index on red_node and same for red
-        client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForNodes("2")).get();
-        assertAcked(prepareCreate("red_index").setSettings(Settings.builder().put("index.number_of_replicas", 0).put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "red")));
-        index("red_index", "doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
+        String masterNode = internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        final String dataNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
 
-        logger.info("--> wait for green red_index");
+        final String index = "index";
+        assertAcked(prepareCreate(index).setSettings(Settings.builder().put("index.number_of_replicas", 0)));
+        logger.info("--> wait for green index");
         ensureGreen();
-        logger.info("--> wait for meta state written for red_index");
-        assertIndexInMetaState(redNode, "red_index");
-        assertIndexInMetaState(masterNode, "red_index");
+        logger.info("--> wait for meta state written for index");
+        assertIndexInMetaState(dataNode, index);
+        assertIndexInMetaState(masterNode, index);
 
-        logger.info("--> close red_index");
-        client().admin().indices().prepareClose("red_index").get();
+        logger.info("--> close index");
+        client().admin().indices().prepareClose(index).get();
         // close the index
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
-        assertThat(clusterStateResponse.getState().getMetaData().index("red_index").getState().name(), equalTo(IndexMetaData.State.CLOSE.name()));
+        assertThat(clusterStateResponse.getState().getMetaData().index(index).getState().name(), equalTo(IndexMetaData.State.CLOSE.name()));
 
-        logger.info("--> restart red node");
-        stopNode(redNode);
-        redNode = startDataNode("red", redNodeDataPath);
-        client().admin().indices().preparePutMapping("red_index").setType("doc").setSource(jsonBuilder().startObject()
+        // update the mapping. this should cause the new meta data to be written although index is closed
+        client().admin().indices().preparePutMapping(index).setType("doc").setSource(jsonBuilder().startObject()
                 .startObject("properties")
                 .startObject("integer_field")
                 .field("type", "integer")
@@ -261,45 +116,54 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
                 .endObject()
                 .endObject()).get();
 
-        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("red_index").addTypes("doc").get();
-        assertNotNull(((LinkedHashMap) (getMappingsResponse.getMappings().get("red_index").get("doc").getSourceAsMap().get("properties"))).get("integer_field"));
-        // restart master with empty data folder and maybe red node
-        ((InternalTestCluster) cluster()).stopCurrentMasterNode();
-        masterNode = startMasterNode();
+        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(index).addTypes("doc").get();
+        assertNotNull(((LinkedHashMap) (getMappingsResponse.getMappings().get(index).get("doc").getSourceAsMap().get("properties"))).get("integer_field"));
 
-        ensureGreen("red_index");
-        assertIndexInMetaState(redNode, "red_index");
-        assertIndexInMetaState(masterNode, "red_index");
-        clusterStateResponse = client().admin().cluster().prepareState().get();
-        assertThat(clusterStateResponse.getState().getMetaData().index("red_index").getState().name(), equalTo(IndexMetaData.State.CLOSE.name()));
-        getMappingsResponse = client().admin().indices().prepareGetMappings("red_index").addTypes("doc").get();
-        assertNotNull(((LinkedHashMap) (getMappingsResponse.getMappings().get("red_index").get("doc").getSourceAsMap().get("properties"))).get("integer_field"));
+        // make sure it was also written on red node although index is closed
+        ImmutableOpenMap<String, IndexMetaData> indicesMetaData = getIndicesMetaDataOnNode(dataNode);
+        assertNotNull(((LinkedHashMap) (indicesMetaData.get(index).getMappings().get("doc").getSourceAsMap().get("properties"))).get("integer_field"));
+        assertThat(indicesMetaData.get(index).state(), equalTo(IndexMetaData.State.CLOSE));
 
-    }
+        /**
+         * Try the same and see if this also works if node was just restarted.
+         * Each node holds an array of indices it knows of and checks if it should
+         * write new meta data by looking up in this array. We need it because if an
+         * index is closed it will not appear in the shard routing and we therefore
+         * need to keep track of what we wrote before. However, when the node is
+         * restarted this array is empty and we have to fill it before we decide
+         * what we write. This is why I explicitly test for it.
+         */
+        internalCluster().restartNode(dataNode, new RestartCallback());
+        client().admin().indices().preparePutMapping(index).setType("doc").setSource(jsonBuilder().startObject()
+                .startObject("properties")
+                .startObject("float_field")
+                .field("type", "float")
+                .endObject()
+                .endObject()
+                .endObject()).get();
 
-    private String startDataNode(String color) {
-        return startDataNode(color, createTempDir().toString());
-    }
+        getMappingsResponse = client().admin().indices().prepareGetMappings(index).addTypes("doc").get();
+        assertNotNull(((LinkedHashMap) (getMappingsResponse.getMappings().get(index).get("doc").getSourceAsMap().get("properties"))).get("float_field"));
 
-    private String startDataNode(String color, String newDataPath) {
-        Settings.Builder settingsBuilder = Settings.builder()
-                .put("node.data", true)
-                .put("node.master", false)
-                .put("node.color", color)
-                .put("path.data", newDataPath);
-        return internalCluster().startNode(settingsBuilder.build());
-    }
+        // make sure it was also written on red node although index is closed
+        indicesMetaData = getIndicesMetaDataOnNode(dataNode);
+        assertNotNull(((LinkedHashMap) (indicesMetaData.get(index).getMappings().get("doc").getSourceAsMap().get("properties"))).get("float_field"));
+        assertThat(indicesMetaData.get(index).state(), equalTo(IndexMetaData.State.CLOSE));
 
-    private String startMasterNode() {
-        Settings.Builder settingsBuilder = Settings.builder()
-                .put("node.data", false)
-                .put("node.master", true)
-                .put("path.data", createTempDir().toString());
-        return internalCluster().startNode(settingsBuilder.build());
-    }
-
-    private void stopNode(String name) throws IOException {
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(name));
+        // finally check that meta data is also written of index opened again
+        client().admin().indices().prepareOpen(index).get();
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    ImmutableOpenMap<String, IndexMetaData> indicesMetaData = getIndicesMetaDataOnNode(dataNode);
+                    assertThat(indicesMetaData.get(index).state(), equalTo(IndexMetaData.State.OPEN));
+                } catch (Exception e) {
+                    logger.info("caught exception while reading meta state: ", e);
+                    fail();
+                }
+            }
+        });
     }
 
     protected void assertIndexNotInMetaState(String nodeName, String indexName) throws Exception {
@@ -335,14 +199,18 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
     }
 
     private boolean metaStateExists(String nodeName, String indexName) throws Exception {
-        GatewayMetaState nodeMetaState = ((InternalTestCluster) cluster()).getInstance(GatewayMetaState.class, nodeName);
-        MetaData nodeMetaData = null;
-        nodeMetaData = nodeMetaState.loadMetaState();
-        ImmutableOpenMap<String, IndexMetaData> indices = nodeMetaData.getIndices();
+        ImmutableOpenMap<String, IndexMetaData> indices = getIndicesMetaDataOnNode(nodeName);
         boolean inMetaSate = false;
         for (ObjectObjectCursor<String, IndexMetaData> index : indices) {
             inMetaSate = inMetaSate || index.key.equals(indexName);
         }
         return inMetaSate;
+    }
+
+    private ImmutableOpenMap<String, IndexMetaData> getIndicesMetaDataOnNode(String nodeName) throws Exception {
+        GatewayMetaState nodeMetaState = ((InternalTestCluster) cluster()).getInstance(GatewayMetaState.class, nodeName);
+        MetaData nodeMetaData = null;
+        nodeMetaData = nodeMetaState.loadMetaState();
+        return nodeMetaData.getIndices();
     }
 }

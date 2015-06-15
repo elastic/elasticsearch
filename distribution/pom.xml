@@ -98,6 +98,7 @@
     </dependencies>
 
     <build>
+        <finalName>elasticsearch-${project.version}</finalName>
         <plugins>
             <!-- We copy libs for deb and rpm -->
             <plugin>

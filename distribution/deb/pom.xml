@@ -84,7 +84,7 @@
                 <groupId>org.vafer</groupId>
                 <version>1.4</version>
                 <configuration>
-                    <deb>${project.build.directory}/releases/${project.artifactId}-${project.version}.deb</deb>
+                    <deb>${project.build.directory}/releases/elasticsearch-${project.version}.deb</deb>
                     <controlDir>${project.build.directory}/generated-packaging/deb/scripts</controlDir>
                 </configuration>
                 <executions>
@@ -140,7 +140,7 @@
                                 <!-- Add libs -->
                                 <data>
                                     <src>${project.build.directory}/</src>
-                                    <includes>${project.build.finalName}.jar</includes>
+                                    <includes>elasticsearch-${project.version}.jar</includes>
                                     <type>directory</type>
                                     <mapper>
                                         <type>perm</type>

@@ -163,7 +163,7 @@
                                 <source>
                                     <location>${project.build.directory}/</location>
                                     <includes>
-                                        <include>${project.build.finalName}.jar</include>
+                                        <include>elasticsearch-${project.version}.jar</include>
                                     </includes>
                                 </source>
                             </sources>

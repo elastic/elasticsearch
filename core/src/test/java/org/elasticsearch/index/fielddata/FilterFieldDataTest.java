@@ -60,7 +60,7 @@ public class FilterFieldDataTest extends AbstractFieldDataTests {
         }
         writer.forceMerge(1, true);
         LeafReaderContext context = refreshReader();
-        String[] formats = new String[] { "fst", "paged_bytes"};
+        String[] formats = new String[] { "paged_bytes"};
         
         for (String format : formats) {
             {
@@ -153,7 +153,7 @@ public class FilterFieldDataTest extends AbstractFieldDataTests {
         logger.debug(hundred + " " + ten + " " + five);
         writer.forceMerge(1, true);
         LeafReaderContext context = refreshReader();
-        String[] formats = new String[] { "fst", "paged_bytes"};
+        String[] formats = new String[] { "paged_bytes"};
         for (String format : formats) {
             {
                 ifdService.clear();

@@ -70,9 +70,6 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
                 .field("type", "string")
                 .field("index", "not_analyzed")
                 .field("doc_values", randomBoolean())
-                .startObject("fielddata")
-                .field("format", randomBytesFieldDataFormat())
-                .endObject() // fielddata
                 .endObject() // test-str
                 .startObject("test-num")
                         // I don't use randomNumericType() here because I don't want "byte", and I want "float" and "double"

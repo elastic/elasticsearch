@@ -462,7 +462,6 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
         possibleSettings.put("filter.frequency.min", 1);
         possibleSettings.put("filter.frequency.max", 2);
         possibleSettings.put("filter.regex.pattern", ".*");
-        possibleSettings.put("format", "fst");
         possibleSettings.put("loading", "eager");
         possibleSettings.put("foo", "bar");
         possibleSettings.put("zetting", "zValue");

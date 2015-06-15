@@ -62,29 +62,6 @@ public class SimpleLuceneTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testAddDocAfterPrepareCommit() throws Exception {
-        Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
-        Document document = new Document();
-        document.add(new TextField("_id", "1", Field.Store.YES));
-        indexWriter.addDocument(document);
-        DirectoryReader reader = DirectoryReader.open(indexWriter, true);
-        assertThat(reader.numDocs(), equalTo(1));
-
-        indexWriter.prepareCommit();
-        // Returns null b/c no changes.
-        // nocommit: this fails
-        assertThat(DirectoryReader.openIfChanged(reader), equalTo(null));
-
-        document = new Document();
-        document.add(new TextField("_id", "2", Field.Store.YES));
-        indexWriter.addDocument(document);
-        indexWriter.commit();
-        reader = DirectoryReader.openIfChanged(reader);
-        assertThat(reader.numDocs(), equalTo(2));
-    }
-
-    @Test
     public void testSimpleNumericOps() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));

@@ -27,10 +27,12 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActionListener;
 import org.elasticsearch.rest.action.support.RestResponseListener;
@@ -88,6 +90,11 @@ public class RestShardsAction extends AbstractCatAction {
                 .addCell("ip", "default:true;desc:ip of node where it lives")
                 .addCell("id", "default:false;desc:unique id of node where it lives")
                 .addCell("node", "default:true;alias:n;desc:name of node where it lives");
+
+        table.addCell("unassigned.reason", "alias:ur;default:false;desc:reason shard is unassigned");
+        table.addCell("unassigned.at", "alias:ua;default:false;desc:time shard became unassigned (UTC)");
+        table.addCell("unassigned.for", "alias:uf;default:false;text-align:right;desc:time has been unassigned");
+        table.addCell("unassigned.details", "alias:ud;default:false;desc:additional details as to why the shard became unassigned");
 
         table.addCell("completion.size", "alias:cs,completionSize;default:false;text-align:right;desc:size of completion");
 
@@ -203,6 +210,18 @@ public class RestShardsAction extends AbstractCatAction {
                 table.addCell(nodeId);
                 table.addCell(name);
             } else {
+                table.addCell(null);
+                table.addCell(null);
+                table.addCell(null);
+            }
+
+            if (shard.unassignedInfo() != null) {
+                table.addCell(shard.unassignedInfo().getReason());
+                table.addCell(UnassignedInfo.DATE_TIME_FORMATTER.printer().print(shard.unassignedInfo().getTimestampInMillis()));
+                table.addCell(TimeValue.timeValueMillis(System.currentTimeMillis() - shard.unassignedInfo().getTimestampInMillis()));
+                table.addCell(shard.unassignedInfo().getDetails());
+            } else {
+                table.addCell(null);
                 table.addCell(null);
                 table.addCell(null);
                 table.addCell(null);

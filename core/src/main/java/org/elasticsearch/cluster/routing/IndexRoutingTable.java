@@ -37,7 +37,6 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
@@ -394,34 +393,48 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
          * Initializes a new empty index, as if it was created from an API.
          */
         public Builder initializeAsNew(IndexMetaData indexMetaData) {
-            return initializeEmpty(indexMetaData, true);
+            return initializeEmpty(indexMetaData, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
         }
 
         /**
          * Initializes a new empty index, as if it was created from an API.
          */
         public Builder initializeAsRecovery(IndexMetaData indexMetaData) {
-            return initializeEmpty(indexMetaData, false);
+            return initializeEmpty(indexMetaData, false, new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null));
+        }
+
+        /**
+         * Initializes a new index caused by dangling index imported.
+         */
+        public Builder initializeAsFromDangling(IndexMetaData indexMetaData) {
+            return initializeEmpty(indexMetaData, false, new UnassignedInfo(UnassignedInfo.Reason.DANGLING_INDEX_IMPORTED, null));
+        }
+
+        /**
+         * Initializes a new empty index, as as a result of opening a closed index.
+         */
+        public Builder initializeAsFromCloseToOpen(IndexMetaData indexMetaData) {
+            return initializeEmpty(indexMetaData, false, new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, null));
         }
 
         /**
          * Initializes a new empty index, to be restored from a snapshot
          */
         public Builder initializeAsNewRestore(IndexMetaData indexMetaData, RestoreSource restoreSource, IntSet ignoreShards) {
-            return initializeAsRestore(indexMetaData, restoreSource, ignoreShards, true);
+            return initializeAsRestore(indexMetaData, restoreSource, ignoreShards, true, new UnassignedInfo(UnassignedInfo.Reason.NEW_INDEX_RESTORED, "restore_source[" + restoreSource.snapshotId().getRepository() + "/" + restoreSource.snapshotId().getSnapshot() + "]"));
         }
 
         /**
          * Initializes an existing index, to be restored from a snapshot
          */
         public Builder initializeAsRestore(IndexMetaData indexMetaData, RestoreSource restoreSource) {
-            return initializeAsRestore(indexMetaData, restoreSource, null, false);
+            return initializeAsRestore(indexMetaData, restoreSource, null, false, new UnassignedInfo(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED, "restore_source[" + restoreSource.snapshotId().getRepository() + "/" + restoreSource.snapshotId().getSnapshot() + "]"));
         }
 
         /**
          * Initializes an index, to be restored from snapshot
          */
-        private Builder initializeAsRestore(IndexMetaData indexMetaData, RestoreSource restoreSource, IntSet ignoreShards, boolean asNew) {
+        private Builder initializeAsRestore(IndexMetaData indexMetaData, RestoreSource restoreSource, IntSet ignoreShards, boolean asNew, UnassignedInfo unassignedInfo) {
             if (!shards.isEmpty()) {
                 throw new IllegalStateException("trying to initialize an index with fresh shards, but already has shards created");
             }
@@ -430,9 +443,9 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                 for (int i = 0; i <= indexMetaData.numberOfReplicas(); i++) {
                     if (asNew && ignoreShards.contains(shardId)) {
                         // This shards wasn't completely snapshotted - restore it as new shard
-                        indexShardRoutingBuilder.addShard(new ImmutableShardRouting(index, shardId, null, i == 0, ShardRoutingState.UNASSIGNED, 0));
+                        indexShardRoutingBuilder.addShard(new ImmutableShardRouting(index, shardId, null, null, null, i == 0, ShardRoutingState.UNASSIGNED, 0, unassignedInfo));
                     } else {
-                        indexShardRoutingBuilder.addShard(new ImmutableShardRouting(index, shardId, null, null, i == 0 ? restoreSource : null, i == 0, ShardRoutingState.UNASSIGNED, 0));
+                        indexShardRoutingBuilder.addShard(new ImmutableShardRouting(index, shardId, null, null, i == 0 ? restoreSource : null, i == 0, ShardRoutingState.UNASSIGNED, 0, unassignedInfo));
                     }
                 }
                 shards.put(shardId, indexShardRoutingBuilder.build());
@@ -443,14 +456,14 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         /**
          * Initializes a new empty index, with an option to control if its from an API or not.
          */
-        private Builder initializeEmpty(IndexMetaData indexMetaData, boolean asNew) {
+        private Builder initializeEmpty(IndexMetaData indexMetaData, boolean asNew, UnassignedInfo unassignedInfo) {
             if (!shards.isEmpty()) {
                 throw new IllegalStateException("trying to initialize an index with fresh shards, but already has shards created");
             }
             for (int shardId = 0; shardId < indexMetaData.numberOfShards(); shardId++) {
                 IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(new ShardId(indexMetaData.index(), shardId), asNew ? false : true);
                 for (int i = 0; i <= indexMetaData.numberOfReplicas(); i++) {
-                    indexShardRoutingBuilder.addShard(new ImmutableShardRouting(index, shardId, null, i == 0, ShardRoutingState.UNASSIGNED, 0));
+                    indexShardRoutingBuilder.addShard(new ImmutableShardRouting(index, shardId, null, null, null, i == 0, ShardRoutingState.UNASSIGNED, 0, unassignedInfo));
                 }
                 shards.put(shardId, indexShardRoutingBuilder.build());
             }
@@ -461,7 +474,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
             for (IntCursor cursor : shards.keys()) {
                 int shardId = cursor.value;
                 // version 0, will get updated when reroute will happen
-                ImmutableShardRouting shard = new ImmutableShardRouting(index, shardId, null, false, ShardRoutingState.UNASSIGNED, 0);
+                ImmutableShardRouting shard = new ImmutableShardRouting(index, shardId, null, null, null, false, ShardRoutingState.UNASSIGNED, 0, new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, null));
                 shards.put(shardId,
                         new IndexShardRoutingTable.Builder(shards.get(shard.id())).addShard(shard).build()
                 );

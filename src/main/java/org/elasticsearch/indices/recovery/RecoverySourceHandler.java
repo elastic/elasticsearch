@@ -172,7 +172,7 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
             if (recoverWithSyncId) {
                 final long numDocsTarget = request.metadataSnapshot().getNumDocs();
                 final long numDocsSource = recoverySourceMetadata.getNumDocs();
-                logger.info("Recovery with sync ID {} numDocs: {} vs. {}", numDocsSource, numDocsTarget, recoverWithSyncId );
+                logger.debug("[{}][{}] recovery with sync ID {} numDocs: {} vs. {}", indexName, shardId, recoverySourceSyncId, numDocsSource, numDocsTarget);
                 if (numDocsTarget != numDocsSource) {
                     throw new IllegalStateException("try to recover " + request.shardId() + " from primary shard with sync id but number of docs differ: " + numDocsTarget + " (" + request.sourceNode().getName() + ", primary) vs " + numDocsSource + "(" + request.targetNode().getName() + ")");
                 }

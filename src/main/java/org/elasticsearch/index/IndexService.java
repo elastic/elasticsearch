@@ -275,11 +275,9 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
 
     // NOTE: O(numShards) cost, but numShards should be smallish?
     private long getAvgShardSizeInBytes() throws IOException {
-        Iterator<IndexShard> it = this.iterator();
         long sum = 0;
         int count = 0;
-        while (it.hasNext()) {
-            IndexShard indexShard = it.next();
+        for(IndexShard indexShard : this) {
             sum += indexShard.store().stats().sizeInBytes();
             count++;
         }

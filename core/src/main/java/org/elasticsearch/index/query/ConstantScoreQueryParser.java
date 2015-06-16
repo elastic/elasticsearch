@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -31,7 +29,7 @@ import java.io.IOException;
 /**
  *
  */
-public class ConstantScoreQueryParser extends BaseQueryParserTemp {
+public class ConstantScoreQueryParser extends BaseQueryParser {
 
     private static final ParseField INNER_QUERY_FIELD = new ParseField("filter", "query");
 
@@ -45,10 +43,10 @@ public class ConstantScoreQueryParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        Query filter = null;
+        QueryBuilder query = null;
         boolean queryFound = false;
         float boost = 1.0f;
 
@@ -61,7 +59,7 @@ public class ConstantScoreQueryParser extends BaseQueryParserTemp {
                 // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (INNER_QUERY_FIELD.match(currentFieldName)) {
-                    filter = parseContext.parseInnerFilter();
+                    query = parseContext.parseInnerFilterToQueryBuilder();
                     queryFound = true;
                 } else {
                     throw new QueryParsingException(parseContext, "[constant_score] query does not support [" + currentFieldName + "]");
@@ -78,13 +76,10 @@ public class ConstantScoreQueryParser extends BaseQueryParserTemp {
             throw new QueryParsingException(parseContext, "[constant_score] requires a 'filter' element");
         }
 
-        if (filter == null) {
-            return null;
-        }
-
-        filter = new ConstantScoreQuery(filter);
-        filter.setBoost(boost);
-        return filter;
+        ConstantScoreQueryBuilder constantScoreBuilder = new ConstantScoreQueryBuilder(query);
+        constantScoreBuilder.boost(boost);
+        constantScoreBuilder.validate();
+        return constantScoreBuilder;
     }
 
     @Override

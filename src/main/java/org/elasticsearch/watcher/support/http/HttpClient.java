@@ -14,6 +14,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.watcher.support.http.auth.ApplicableHttpAuth;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 
@@ -57,6 +58,8 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
 
     private final HttpAuthRegistry httpAuthRegistry;
     private final Environment env;
+    private final TimeValue defaultConnectionTimeout;
+    private final TimeValue defaultReadTimeout;
 
     private SSLSocketFactory sslSocketFactory;
 
@@ -65,6 +68,8 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
         super(settings);
         this.httpAuthRegistry = httpAuthRegistry;
         this.env = env;
+        defaultConnectionTimeout = settings.getAsTime("watcher.http.default_connection_timeout", TimeValue.timeValueSeconds(10));
+        defaultReadTimeout = settings.getAsTime("watcher.http.default_read_timeout", TimeValue.timeValueSeconds(10));
     }
 
     @Override
@@ -145,6 +150,13 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
             urlConnection.getOutputStream().write(bytes);
             urlConnection.getOutputStream().close();
         }
+
+        TimeValue connectionTimeout = request.connectionTimeout != null ? request.connectionTimeout : defaultConnectionTimeout;
+        urlConnection.setConnectTimeout((int) connectionTimeout.millis());
+
+        TimeValue readTimeout = request.readTimeout != null ? request.readTimeout : defaultReadTimeout;
+        urlConnection.setReadTimeout((int) readTimeout.millis());
+
         urlConnection.connect();
 
         final int statusCode = urlConnection.getResponseCode();

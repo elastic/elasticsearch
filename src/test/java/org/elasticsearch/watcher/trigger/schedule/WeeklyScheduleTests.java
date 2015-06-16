@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.watcher.trigger.schedule;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import com.google.common.base.Joiner;
 import org.elasticsearch.common.bytes.BytesReference;
 import com.google.common.primitives.Ints;

@@ -32,11 +32,24 @@ public class ExecutableChainTransform extends ExecutableTransform<ChainTransform
     }
 
     @Override
-    public ChainTransform.Result execute(WatchExecutionContext ctx, Payload payload) throws IOException {
+    public ChainTransform.Result execute(WatchExecutionContext ctx, Payload payload) {
         ImmutableList.Builder<Transform.Result> results = ImmutableList.builder();
+        try {
+            return doExecute(ctx, payload, results);
+        } catch (Exception e) {
+            logger.error("failed to execute [{}] transform for [{}]", e, ChainTransform.TYPE, ctx.id());
+            return new ChainTransform.Result(e, results.build());
+        }
+    }
+
+
+    ChainTransform.Result doExecute(WatchExecutionContext ctx, Payload payload, ImmutableList.Builder<Transform.Result> results) throws IOException {
         for (ExecutableTransform transform : transforms) {
             Transform.Result result = transform.execute(ctx, payload);
             results.add(result);
+            if (result.status() == Transform.Result.Status.FAILURE) {
+                throw new ChainTransformException("failed to execute [{}] transform. failed to execute sub-transform [{}]", ChainTransform.TYPE, transform.type());
+            }
             payload = result.payload();
         }
         return new ChainTransform.Result(payload, results.build());

@@ -39,7 +39,7 @@ public abstract class ExecutableCondition<C extends Condition, R extends Conditi
     /**
      * Executes this condition
      */
-    public abstract R execute(WatchExecutionContext ctx) throws IOException;
+    public abstract R execute(WatchExecutionContext ctx);
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

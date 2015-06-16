@@ -5,11 +5,10 @@
  */
 package org.elasticsearch.watcher.transport.actions.execute;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.watcher.client.WatcherClient;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 
@@ -77,6 +76,22 @@ public class ExecuteWatchRequestBuilder extends MasterNodeOperationRequestBuilde
     }
 
     /**
+     * @param watchSource instead of using an existing watch use this non persisted watch
+     */
+    public ExecuteWatchRequestBuilder setWatchSource(BytesReference watchSource) {
+        request.setWatchSource(watchSource);
+        return this;
+    }
+
+    /**
+     * @param watchSource instead of using an existing watch use this non persisted watch
+     */
+    public ExecuteWatchRequestBuilder setWatchSource(WatchSourceBuilder watchSource) {
+        request.setWatchSource(watchSource);
+        return this;
+    }
+
+    /**
      * Sets the mode in which the given action (identified by its id) will be handled.
      *
      * @param actionId      The id of the action
@@ -86,5 +101,4 @@ public class ExecuteWatchRequestBuilder extends MasterNodeOperationRequestBuilde
         request.setActionMode(actionId, actionMode);
         return this;
     }
-
 }

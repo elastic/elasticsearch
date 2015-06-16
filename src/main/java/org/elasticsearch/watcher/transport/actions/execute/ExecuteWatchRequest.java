@@ -9,8 +9,11 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.watcher.support.validation.Validation;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
@@ -24,12 +27,15 @@ import java.util.Map;
  */
 public class ExecuteWatchRequest extends MasterNodeReadRequest<ExecuteWatchRequest> {
 
+    public static final String INLINE_WATCH_ID = "_inlined_";
+
     private String id;
     private boolean ignoreCondition = false;
     private boolean recordExecution = false;
     private @Nullable Map<String, Object> triggerData = null;
     private @Nullable Map<String, Object> alternativeInput = null;
     private Map<String, ActionExecutionMode> actionModes = new HashMap<>();
+    private BytesReference watchSource;
 
     ExecuteWatchRequest() {
     }
@@ -120,6 +126,26 @@ public class ExecuteWatchRequest extends MasterNodeReadRequest<ExecuteWatchReque
         return triggerData;
     }
 
+    /**
+     * @return the source of the watch to execute
+     */
+    public BytesReference getWatchSource() {
+        return watchSource;
+    }
+
+    /**
+     * @param watchSource instead of using an existing watch use this non persisted watch
+     */
+    public void setWatchSource(BytesReference watchSource) {
+        this.watchSource = watchSource;
+    }
+
+    /**
+     * @param watchSource instead of using an existing watch use this non persisted watch
+     */
+    public void setWatchSource(WatchSourceBuilder watchSource) {
+        this.watchSource = watchSource.buildAsBytes(XContentType.JSON);
+    }
 
     /**
      *
@@ -143,18 +169,26 @@ public class ExecuteWatchRequest extends MasterNodeReadRequest<ExecuteWatchReque
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (id == null){
+        if (id == null && watchSource == null){
             validationException = ValidateActions.addValidationError("watch id is missing", validationException);
         }
-        Validation.Error error = Validation.watchId(id);
-        if (error != null) {
-            validationException = ValidateActions.addValidationError(error.message(), validationException);
-        }
-        for (Map.Entry<String, ActionExecutionMode> modes : actionModes.entrySet()) {
-            error = Validation.actionId(modes.getKey());
+        if (id != null) {
+            Validation.Error error = Validation.watchId(id);
             if (error != null) {
                 validationException = ValidateActions.addValidationError(error.message(), validationException);
             }
+        }
+        for (Map.Entry<String, ActionExecutionMode> modes : actionModes.entrySet()) {
+            Validation.Error error = Validation.actionId(modes.getKey());
+            if (error != null) {
+                validationException = ValidateActions.addValidationError(error.message(), validationException);
+            }
+        }
+        if (watchSource != null && id != null) {
+            validationException = ValidateActions.addValidationError("a watch execution request must either have a watch id or an inline watch source but not both", validationException);
+        }
+        if (watchSource != null && recordExecution) {
+            validationException = ValidateActions.addValidationError("the execution of an inline watch cannot be recorded", validationException);
         }
         return validationException;
     }
@@ -162,7 +196,7 @@ public class ExecuteWatchRequest extends MasterNodeReadRequest<ExecuteWatchReque
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        id = in.readString();
+        id = in.readOptionalString();
         ignoreCondition = in.readBoolean();
         recordExecution = in.readBoolean();
         if (in.readBoolean()){
@@ -176,13 +210,16 @@ public class ExecuteWatchRequest extends MasterNodeReadRequest<ExecuteWatchReque
         for (int i = 0; i < actionModesCount; i++) {
             actionModes.put(in.readString(), ActionExecutionMode.resolve(in.readByte()));
         }
+        if (in.readBoolean()) {
+            watchSource = in.readBytesReference();
+        }
     }
 
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(id);
+        out.writeOptionalString(id);
         out.writeBoolean(ignoreCondition);
         out.writeBoolean(recordExecution);
         out.writeBoolean(alternativeInput != null);
@@ -197,6 +234,10 @@ public class ExecuteWatchRequest extends MasterNodeReadRequest<ExecuteWatchReque
         for (Map.Entry<String, ActionExecutionMode> entry : actionModes.entrySet()) {
             out.writeString(entry.getKey());
             out.writeByte(entry.getValue().id());
+        }
+        out.writeBoolean(watchSource != null);
+        if (watchSource != null) {
+            out.writeBytesReference(watchSource);
         }
     }
 

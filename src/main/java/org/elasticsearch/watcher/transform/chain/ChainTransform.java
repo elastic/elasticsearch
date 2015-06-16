@@ -101,19 +101,27 @@ public class ChainTransform implements Transform {
             this.results = results;
         }
 
+        public Result(Exception e, ImmutableList<Transform.Result> results) {
+            super(TYPE, e);
+            this.results = results;
+        }
+
         public ImmutableList<Transform.Result> results() {
             return results;
         }
 
         @Override
         protected XContentBuilder typeXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(type);
-            builder.startArray(Field.RESULTS.getPreferredName());
-            for (Transform.Result result : results) {
-                result.toXContent(builder, params);
+            if (!results.isEmpty()) {
+                builder.startObject(type);
+                builder.startArray(Field.RESULTS.getPreferredName());
+                for (Transform.Result result : results) {
+                    result.toXContent(builder, params);
+                }
+                builder.endArray();
+                builder.endObject();
             }
-            builder.endArray();
-            return builder.endObject();
+            return builder;
         }
     }
 

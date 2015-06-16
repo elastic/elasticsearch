@@ -7,6 +7,7 @@ package org.elasticsearch.watcher.condition.compare;
 
 import org.joda.time.DateTime;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.watcher.actions.email.DataAttachment;
 import org.elasticsearch.watcher.condition.ExecutableCondition;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.Variables;
@@ -39,10 +40,21 @@ public class ExecutableCompareCondition extends ExecutableCondition<CompareCondi
     }
 
     @Override
-    public CompareCondition.Result execute(WatchExecutionContext ctx) throws IOException {
-        Map<String, Object> model = Variables.createCtxModel(ctx, ctx.payload());
-
+    public CompareCondition.Result execute(WatchExecutionContext ctx) {
         Map<String, Object> resolvedValues = new HashMap<>();
+        try {
+            return doExecute(ctx, resolvedValues);
+        } catch (Exception e) {
+            logger.error("failed to execute [{}] condition for [{}]", CompareCondition.TYPE, ctx.id());
+            if (resolvedValues.isEmpty()) {
+                resolvedValues = null;
+            }
+            return new CompareCondition.Result(resolvedValues, e);
+        }
+    }
+
+    public CompareCondition.Result doExecute(WatchExecutionContext ctx, Map<String, Object> resolvedValues) throws Exception {
+        Map<String, Object> model = Variables.createCtxModel(ctx, ctx.payload());
 
         Object configuredValue = condition.getValue();
 

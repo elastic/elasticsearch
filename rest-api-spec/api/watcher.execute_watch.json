@@ -4,12 +4,11 @@
     "methods": [ "PUT", "POST" ],
     "url": {
       "path": "/_watcher/watch/{id}/_execute",
-      "paths": [ "/_watcher/watch/{id}/_execute" ],
+      "paths": [ "/_watcher/watch/{id}/_execute", "/_watcher/watch/_execute" ],
       "parts": {
         "id": {
           "type" : "string",
-          "description" : "Watch ID",
-          "required" : true
+          "description" : "Watch ID"
         }
       },
       "params": {

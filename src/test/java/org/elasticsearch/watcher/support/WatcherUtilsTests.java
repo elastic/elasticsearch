@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.watcher.support;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;

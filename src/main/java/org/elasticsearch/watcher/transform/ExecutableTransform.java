@@ -34,7 +34,7 @@ public abstract class ExecutableTransform<T extends Transform, R extends Transfo
         return transform;
     }
 
-    public abstract R execute(WatchExecutionContext ctx, Payload payload) throws IOException;
+    public abstract R execute(WatchExecutionContext ctx, Payload payload);
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

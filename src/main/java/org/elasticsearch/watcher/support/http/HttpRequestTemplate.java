@@ -7,13 +7,15 @@ package org.elasticsearch.watcher.support.http;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.WatcherException;
+import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
+import org.elasticsearch.watcher.support.http.HttpRequest.Field;
 import org.elasticsearch.watcher.support.http.auth.HttpAuth;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 import org.elasticsearch.watcher.support.template.Template;
@@ -39,10 +41,12 @@ public class HttpRequestTemplate implements ToXContent {
     private final ImmutableMap<String, Template> headers;
     private final HttpAuth auth;
     private final Template body;
+    private final @Nullable TimeValue connectionTimeout;
+    private final @Nullable TimeValue readTimeout;
 
     public HttpRequestTemplate(String host, int port, @Nullable Scheme scheme, @Nullable HttpMethod method, @Nullable Template path,
                                Map<String, Template> params, Map<String, Template> headers, HttpAuth auth,
-                               Template body) {
+                               Template body, @Nullable TimeValue connectionTimeout, @Nullable TimeValue readTimeout) {
         this.host = host;
         this.port = port;
         this.scheme = scheme != null ? scheme :Scheme.HTTP;
@@ -52,6 +56,8 @@ public class HttpRequestTemplate implements ToXContent {
         this.headers = headers != null ? ImmutableMap.copyOf(headers) : ImmutableMap.<String, Template>of();
         this.auth = auth;
         this.body = body;
+        this.connectionTimeout = connectionTimeout;
+        this.readTimeout = readTimeout;
     }
 
     public Scheme scheme() {
@@ -90,6 +96,14 @@ public class HttpRequestTemplate implements ToXContent {
         return body;
     }
 
+    public TimeValue connectionTimeout() {
+        return connectionTimeout;
+    }
+
+    public TimeValue readTimeout() {
+        return readTimeout;
+    }
+
     public HttpRequest render(TemplateEngine engine, Map<String, Object> model) {
         HttpRequest.Builder request = HttpRequest.builder(host, port);
         request.method(method);
@@ -123,39 +137,51 @@ public class HttpRequestTemplate implements ToXContent {
         if (body != null) {
             request.body(engine.render(body, model));
         }
+        if (connectionTimeout != null) {
+            request.connectionTimeout(connectionTimeout);
+        }
+        if (readTimeout != null) {
+            request.readTimeout(readTimeout);
+        }
         return request.build();
     }
 
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
-        builder.field(Parser.SCHEME_FIELD.getPreferredName(), scheme, params);
-        builder.field(Parser.HOST_FIELD.getPreferredName(), host);
-        builder.field(Parser.PORT_FIELD.getPreferredName(), port);
-        builder.field(Parser.METHOD_FIELD.getPreferredName(), method, params);
+        builder.field(Field.SCHEME.getPreferredName(), scheme, params);
+        builder.field(Field.HOST.getPreferredName(), host);
+        builder.field(Field.PORT.getPreferredName(), port);
+        builder.field(Field.METHOD.getPreferredName(), method, params);
         if (path != null) {
-            builder.field(Parser.PATH_FIELD.getPreferredName(), path, params);
+            builder.field(Field.PATH.getPreferredName(), path, params);
         }
         if (this.params != null) {
-            builder.startObject(Parser.PARAMS_FIELD.getPreferredName());
+            builder.startObject(Field.PARAMS.getPreferredName());
             for (Map.Entry<String, Template> entry : this.params.entrySet()) {
                 builder.field(entry.getKey(), entry.getValue(), params);
             }
             builder.endObject();
         }
         if (headers != null) {
-            builder.startObject(Parser.HEADERS_FIELD.getPreferredName());
+            builder.startObject(Field.HEADERS.getPreferredName());
             for (Map.Entry<String, Template> entry : headers.entrySet()) {
                 builder.field(entry.getKey(), entry.getValue(), params);
             }
             builder.endObject();
         }
         if (auth != null) {
-            builder.startObject(Parser.AUTH_FIELD.getPreferredName())
+            builder.startObject(Field.AUTH.getPreferredName())
                     .field(auth.type(), auth, params)
                     .endObject();
         }
         if (body != null) {
-            builder.field(Parser.BODY_FIELD.getPreferredName(), body, params);
+            builder.field(Field.BODY.getPreferredName(), body, params);
+        }
+        if (connectionTimeout != null) {
+            builder.field(Field.CONNECTION_TIMEOUT.getPreferredName(), connectionTimeout.toString());
+        }
+        if (readTimeout != null) {
+            builder.field(Field.READ_TIMEOUT.getPreferredName(), readTimeout.toString());
         }
         return builder.endObject();
     }
@@ -175,6 +201,8 @@ public class HttpRequestTemplate implements ToXContent {
         if (params != null ? !params.equals(that.params) : that.params != null) return false;
         if (headers != null ? !headers.equals(that.headers) : that.headers != null) return false;
         if (auth != null ? !auth.equals(that.auth) : that.auth != null) return false;
+        if (connectionTimeout != null ? !connectionTimeout.equals(that.connectionTimeout) : that.connectionTimeout != null) return false;
+        if (readTimeout != null ? !readTimeout.equals(that.readTimeout) : that.readTimeout != null) return false;
         return body != null ? body.equals(that.body) : that.body == null;
     }
 
@@ -189,6 +217,8 @@ public class HttpRequestTemplate implements ToXContent {
         result = 31 * result + (headers != null ? headers.hashCode() : 0);
         result = 31 * result + (auth != null ? auth.hashCode() : 0);
         result = 31 * result + (body != null ? body.hashCode() : 0);
+        result = 31 * result + (connectionTimeout != null ? connectionTimeout.hashCode() : 0);
+        result = 31 * result + (readTimeout != null ? readTimeout.hashCode() : 0);
         return result;
     }
 
@@ -197,17 +227,6 @@ public class HttpRequestTemplate implements ToXContent {
     }
 
     public static class Parser {
-
-        public static final ParseField SCHEME_FIELD = new ParseField("scheme");
-        public static final ParseField HOST_FIELD = new ParseField("host");
-        public static final ParseField PORT_FIELD = new ParseField("port");
-        public static final ParseField METHOD_FIELD = new ParseField("method");
-        public static final ParseField PATH_FIELD = new ParseField("path");
-        public static final ParseField PARAMS_FIELD = new ParseField("params");
-        public static final ParseField HEADERS_FIELD = new ParseField("headers");
-        public static final ParseField AUTH_FIELD = new ParseField("auth");
-        public static final ParseField BODY_FIELD = new ParseField("body");
-        public static final ParseField XBODY_FIELD = new ParseField("xbody");
 
         private final HttpAuthRegistry httpAuthRegistry;
 
@@ -225,32 +244,44 @@ public class HttpRequestTemplate implements ToXContent {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (PATH_FIELD.match(currentFieldName)) {
+                } else if (Field.PATH.match(currentFieldName)) {
                     builder.path(parseFieldTemplate(currentFieldName, parser));
-                } else if (HEADERS_FIELD.match(currentFieldName)) {
+                } else if (Field.HEADERS.match(currentFieldName)) {
                     builder.putHeaders(parseFieldTemplates(currentFieldName, parser));
-                } else if (PARAMS_FIELD.match(currentFieldName)) {
+                } else if (Field.PARAMS.match(currentFieldName)) {
                     builder.putParams(parseFieldTemplates(currentFieldName, parser));
-                } else if (BODY_FIELD.match(currentFieldName)) {
+                } else if (Field.BODY.match(currentFieldName)) {
                     builder.body(parseFieldTemplate(currentFieldName, parser));
+                } else if (Field.CONNECTION_TIMEOUT.match(currentFieldName)) {
+                    try {
+                        builder.connectionTimeout(WatcherDateTimeUtils.parseTimeValue(parser, null, Field.CONNECTION_TIMEOUT.toString()));
+                    } catch (WatcherDateTimeUtils.ParseException pe) {
+                        throw new ParseException("could not parse http request template. invalid time value for [{}] field", pe, currentFieldName);
+                    }
+                } else if (Field.READ_TIMEOUT.match(currentFieldName)) {
+                    try {
+                        builder.readTimeout(WatcherDateTimeUtils.parseTimeValue(parser, null, Field.READ_TIMEOUT.toString()));
+                    } catch (WatcherDateTimeUtils.ParseException pe) {
+                        throw new ParseException("could not parse http request template. invalid time value for [{}] field", pe, currentFieldName);
+                    }
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    if (AUTH_FIELD.match(currentFieldName)) {
+                    if (Field.AUTH.match(currentFieldName)) {
                         builder.auth(httpAuthRegistry.parse(parser));
                     }  else {
                         throw new ParseException("could not parse http request template. unexpected object field [{}]", currentFieldName);
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
-                    if (SCHEME_FIELD.match(currentFieldName)) {
+                    if (Field.SCHEME.match(currentFieldName)) {
                         builder.scheme(Scheme.parse(parser.text()));
-                    } else if (METHOD_FIELD.match(currentFieldName)) {
+                    } else if (Field.METHOD.match(currentFieldName)) {
                         builder.method(HttpMethod.parse(parser.text()));
-                    } else if (HOST_FIELD.match(currentFieldName)) {
+                    } else if (Field.HOST.match(currentFieldName)) {
                         builder.host = parser.text();
                     } else {
                         throw new ParseException("could not parse http request template. unexpected string field [{}]", currentFieldName);
                     }
                 } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                    if (PORT_FIELD.match(currentFieldName)) {
+                    if (Field.PORT.match(currentFieldName)) {
                         builder.port = parser.intValue();
                     } else {
                         throw new ParseException("could not parse http request template. unexpected numeric field [{}]", currentFieldName);
@@ -261,10 +292,10 @@ public class HttpRequestTemplate implements ToXContent {
             }
 
             if (builder.host == null) {
-                throw new ParseException("could not parse http request template. missing required [{}] string field", HOST_FIELD.getPreferredName());
+                throw new ParseException("could not parse http request template. missing required [{}] string field", Field.HOST.getPreferredName());
             }
             if (builder.port <= 0) {
-                throw new ParseException("could not parse http request template. missing required [{}] numeric field", PORT_FIELD.getPreferredName());
+                throw new ParseException("could not parse http request template. missing required [{}] numeric field", Field.PORT.getPreferredName());
             }
 
             return builder.build();
@@ -317,6 +348,8 @@ public class HttpRequestTemplate implements ToXContent {
         private final ImmutableMap.Builder<String, Template> headers = ImmutableMap.builder();
         private HttpAuth auth;
         private Template body;
+        private TimeValue connectionTimeout;
+        private TimeValue readTimeout;
 
         private Builder() {
         }
@@ -407,8 +440,18 @@ public class HttpRequestTemplate implements ToXContent {
             return body(Template.inline(content));
         }
 
+        public Builder connectionTimeout(TimeValue timeout) {
+            this.connectionTimeout = timeout;
+            return this;
+        }
+
+        public Builder readTimeout(TimeValue timeout) {
+            this.readTimeout = timeout;
+            return this;
+        }
+
         public HttpRequestTemplate build() {
-            return new HttpRequestTemplate(host, port, scheme, method, path, params.build(), headers.build(), auth, body);
+            return new HttpRequestTemplate(host, port, scheme, method, path, params.build(), headers.build(), auth, body, connectionTimeout, readTimeout);
         }
     }
 

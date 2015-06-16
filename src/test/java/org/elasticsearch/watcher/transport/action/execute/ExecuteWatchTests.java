@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.transport.action.execute;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.action.ActionRequestValidationException;
 import com.google.common.collect.ImmutableMap;
 import org.joda.time.DateTime;

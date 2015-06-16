@@ -27,10 +27,10 @@ public interface Input extends ToXContent {
             SUCCESS, FAILURE
         }
 
-        protected final Status status;
         protected final String type;
-        private final Payload payload;
+        protected final Status status;
         private final String reason;
+        private final Payload payload;
 
         protected Result(String type, Payload payload) {
             this.status = Status.SUCCESS;
@@ -67,8 +67,8 @@ public interface Input extends ToXContent {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(Field.STATUS.getPreferredName(), status.name().toLowerCase(Locale.ROOT));
             builder.field(Field.TYPE.getPreferredName(), type);
+            builder.field(Field.STATUS.getPreferredName(), status.name().toLowerCase(Locale.ROOT));
             switch (status) {
                 case SUCCESS:
                     assert payload != null;

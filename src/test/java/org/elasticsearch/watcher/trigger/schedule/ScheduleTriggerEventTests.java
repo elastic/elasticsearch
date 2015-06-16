@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.watcher.trigger.schedule;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;

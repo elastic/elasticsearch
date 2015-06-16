@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.support.http;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import com.google.common.collect.ImmutableMap;

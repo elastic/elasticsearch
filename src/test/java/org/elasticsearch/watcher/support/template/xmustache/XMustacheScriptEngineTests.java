@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.watcher.support.template.xmustache;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;

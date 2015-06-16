@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.actions.email.service;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -43,25 +42,18 @@ public class EmailTemplateTests extends ElasticsearchTestCase {
         Template[] cc = randomFrom(possibleList, null);
         Template[] bcc = randomFrom(possibleList, null);
         Template priority = Template.inline(randomFrom(Email.Priority.values()).name()).build();
-        boolean sanitizeHtml = randomBoolean();
 
-        Template templatedSubject = Template.inline("Templated Subject {{foo}}").build();
-        String renderedTemplatedSubject = "Templated Subject bar";
+        Template subjectTemplate = Template.inline("Templated Subject {{foo}}").build();
+        String subject = "Templated Subject bar";
 
-        Template templatedBody = Template.inline("Templated Body {{foo}}").build();
-        String renderedTemplatedBody = "Templated Body bar";
+        Template textBodyTemplate = Template.inline("Templated Body {{foo}}").build();
+        String textBody = "Templated Body bar";
 
-        Template templatedHtmlBodyGood = Template.inline("Templated Html Body <hr />").build();
-        String renderedTemplatedHtmlBodyGood = "Templated Html Body <hr /> bar";
+        Template htmlBodyTemplate = Template.inline("Templated Html Body <script>nefarious scripting</script>").build();
+        String htmlBody = "Templated Html Body <script>nefarious scripting</script>";
+        String sanitizedHtmlBody = "Templated Html Body";
 
-        Template templatedHtmlBodyBad = Template.inline("Templated Html Body <script>nefarious scripting</script>").build();
-        String renderedTemplatedHtmlBodyBad = "Templated Html Body<script>nefarious scripting</script>";
-        String renderedSanitizedHtmlBodyBad = "Templated Html Body";
-
-        Template htmlBody = randomFrom(templatedHtmlBodyGood, templatedHtmlBodyBad);
-
-        EmailTemplate emailTemplate = new EmailTemplate(from, replyTo, priority, to, cc, bcc,
-                templatedSubject, templatedBody, htmlBody, sanitizeHtml);
+        EmailTemplate emailTemplate = new EmailTemplate(from, replyTo, priority, to, cc, bcc, subjectTemplate, textBodyTemplate, htmlBodyTemplate);
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         emailTemplate.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -69,7 +61,7 @@ public class EmailTemplateTests extends ElasticsearchTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 
-        EmailTemplate.Parser emailTemplateParser = new EmailTemplate.Parser(sanitizeHtml);
+        EmailTemplate.Parser emailTemplateParser = new EmailTemplate.Parser();
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -83,11 +75,14 @@ public class EmailTemplateTests extends ElasticsearchTestCase {
         EmailTemplate parsedEmailTemplate = emailTemplateParser.parsedTemplate();
 
         Map<String, Object> model = new HashMap<>();
+
+        HtmlSanitizer htmlSanitizer = mock(HtmlSanitizer.class);
+        when(htmlSanitizer.sanitize(htmlBody)).thenReturn(sanitizedHtmlBody);
+
         TemplateEngine templateEngine = mock(TemplateEngine.class);
-        when(templateEngine.render(templatedSubject, model)).thenReturn(renderedTemplatedSubject);
-        when(templateEngine.render(templatedBody, model)).thenReturn(renderedTemplatedBody);
-        when(templateEngine.render(templatedHtmlBodyGood, model)).thenReturn(renderedTemplatedHtmlBodyGood);
-        when(templateEngine.render(templatedHtmlBodyBad, model)).thenReturn(renderedTemplatedHtmlBodyBad);
+        when(templateEngine.render(subjectTemplate, model)).thenReturn(subject);
+        when(templateEngine.render(textBodyTemplate, model)).thenReturn(textBody);
+        when(templateEngine.render(htmlBodyTemplate, model)).thenReturn(htmlBody);
         for (Template possibleAddress : possibleList) {
             when(templateEngine.render(possibleAddress, model)).thenReturn(possibleAddress.getTemplate());
         }
@@ -96,7 +91,7 @@ public class EmailTemplateTests extends ElasticsearchTestCase {
         }
         when(templateEngine.render(priority, model)).thenReturn(priority.getTemplate());
 
-        Email.Builder emailBuilder = parsedEmailTemplate.render(templateEngine, model, new HashMap<String, Attachment>());
+        Email.Builder emailBuilder = parsedEmailTemplate.render(templateEngine, model, htmlSanitizer, new HashMap<String, Attachment>());
 
         assertThat(emailTemplate.from, equalTo(parsedEmailTemplate.from));
         assertThat(emailTemplate.replyTo, equalTo(parsedEmailTemplate.replyTo));
@@ -110,17 +105,9 @@ public class EmailTemplateTests extends ElasticsearchTestCase {
 
         emailBuilder.id("_id");
         Email email = emailBuilder.build();
-        assertThat(email.subject, equalTo(renderedTemplatedSubject));
-        assertThat(email.textBody, equalTo(renderedTemplatedBody));
-        if (htmlBody.equals(templatedHtmlBodyBad)) {
-            if (sanitizeHtml) {
-                assertThat(email.htmlBody, equalTo(renderedSanitizedHtmlBodyBad));
-            } else {
-                assertThat(email.htmlBody, equalTo(renderedTemplatedHtmlBodyBad));
-            }
-        } else {
-            assertThat(email.htmlBody, equalTo(renderedTemplatedHtmlBodyGood));
-        }
+        assertThat(email.subject, equalTo(subject));
+        assertThat(email.textBody, equalTo(textBody));
+        assertThat(email.htmlBody, equalTo(sanitizedHtmlBody));
     }
 
 

@@ -41,7 +41,7 @@ import static org.hamcrest.core.Is.is;
 
 /**
  */
-public class HttpClientTest extends ElasticsearchTestCase {
+public class HttpClientTests extends ElasticsearchTestCase {
 
     private MockWebServer webServer;
     private HttpClient httpClient;
@@ -163,7 +163,7 @@ public class HttpClientTest extends ElasticsearchTestCase {
 
         // We can't use the client created above for the server since it is only a truststore
         webServer.useHttps(new HttpClient(Settings.builder()
-                .put(HttpClient.SETTINGS_SSL_KEYSTORE, PathUtils.get(HttpClientTest.class.getResource("/org/elasticsearch/shield/keystore/testnode.jks").toURI()))
+                .put(HttpClient.SETTINGS_SSL_KEYSTORE, getDataPath("/org/elasticsearch/shield/keystore/testnode.jks"))
                 .put(HttpClient.SETTINGS_SSL_KEYSTORE_PASSWORD, "testnode")
                 .build(), authRegistry, environment)
                 .start()

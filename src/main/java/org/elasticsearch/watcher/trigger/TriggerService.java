@@ -105,7 +105,9 @@ public class TriggerService extends AbstractComponent {
 
     public Trigger parseTrigger(String jobName, String type, XContentParser parser) throws IOException {
         TriggerEngine engine = engines.get(type);
-        assert engine != null;
+        if (engine == null) {
+            throw new TriggerException("could not parse trigger [{}] for [{}]. unknown trigger type [{}]", type, jobName, type);
+        }
         return engine.parseTrigger(jobName, parser);
     }
 

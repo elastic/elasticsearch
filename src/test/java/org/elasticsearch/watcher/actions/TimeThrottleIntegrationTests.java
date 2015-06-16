@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.watcher.actions;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.action.index.IndexResponse;
 import org.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;

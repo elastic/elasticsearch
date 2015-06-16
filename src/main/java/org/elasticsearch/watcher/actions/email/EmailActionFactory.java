@@ -9,10 +9,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.ActionFactory;
 import org.elasticsearch.watcher.actions.email.service.EmailService;
-import org.elasticsearch.watcher.execution.Wid;
+import org.elasticsearch.watcher.actions.email.service.HtmlSanitizer;
 import org.elasticsearch.watcher.support.template.TemplateEngine;
 
 import java.io.IOException;
@@ -24,16 +23,14 @@ public class EmailActionFactory extends ActionFactory<EmailAction, ExecutableEma
 
     private final EmailService emailService;
     private final TemplateEngine templateEngine;
-    private final boolean sanitizeHtmlBodyOfEmails;
-
-    private static String SANITIZE_HTML_SETTING = "watcher.actions.email.sanitize_html";
+    private final HtmlSanitizer htmlSanitizer;
 
     @Inject
-    public EmailActionFactory(Settings settings, EmailService emailService, TemplateEngine templateEngine) {
+    public EmailActionFactory(Settings settings, EmailService emailService, TemplateEngine templateEngine, HtmlSanitizer htmlSanitizer) {
         super(Loggers.getLogger(ExecutableEmailAction.class, settings));
         this.emailService = emailService;
         this.templateEngine = templateEngine;
-        sanitizeHtmlBodyOfEmails = settings.getAsBoolean(SANITIZE_HTML_SETTING, true);
+        this.htmlSanitizer = htmlSanitizer;
     }
 
     @Override
@@ -43,11 +40,11 @@ public class EmailActionFactory extends ActionFactory<EmailAction, ExecutableEma
 
     @Override
     public EmailAction parseAction(String watchId, String actionId, XContentParser parser) throws IOException {
-        return EmailAction.parse(watchId, actionId, parser, sanitizeHtmlBodyOfEmails);
+        return EmailAction.parse(watchId, actionId, parser);
     }
 
     @Override
     public ExecutableEmailAction createExecutable(EmailAction action) {
-        return new ExecutableEmailAction(action, actionLogger, emailService, templateEngine);
+        return new ExecutableEmailAction(action, actionLogger, emailService, templateEngine, htmlSanitizer);
     }
 }

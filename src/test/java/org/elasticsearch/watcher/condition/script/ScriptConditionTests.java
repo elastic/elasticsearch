@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.watcher.condition.script;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -20,6 +20,7 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.WatcherException;
+import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
@@ -34,7 +35,9 @@ import java.io.IOException;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.getScriptServiceProxy;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.mockExecutionContext;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  */
@@ -146,25 +149,28 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
         fail("expected a condition validation exception trying to create an executable with an invalid language");
     }
 
-    @Test(expected = ScriptConditionException.class)
     public void testScriptCondition_throwException() throws Exception {
         ScriptServiceProxy scriptService = getScriptServiceProxy(tp);
         ExecutableScriptCondition condition = new ExecutableScriptCondition(new ScriptCondition(Script.inline("assert false").build()), logger, scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500l, new ShardSearchFailure[0]);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
-        condition.execute(ctx);
-        fail("expected a ScriptConditionException trying to execute a script that throws an exception");
+        ScriptCondition.Result result = condition.execute(ctx);
+        assertThat(result, notNullValue());
+        assertThat(result.status(), is(Condition.Result.Status.FAILURE));
+        assertThat(result.reason(), notNullValue());
+        assertThat(result.reason(), containsString("Assertion"));
     }
 
-    @Test(expected = ScriptConditionException.class)
     public void testScriptCondition_returnObject() throws Exception {
         ScriptServiceProxy scriptService = getScriptServiceProxy(tp);
         ExecutableScriptCondition condition = new ExecutableScriptCondition(new ScriptCondition(Script.inline("return new Object()").build()), logger, scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500l, new ShardSearchFailure[0]);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
-        condition.execute(ctx);
-        fail();
-        fail("expected a ScriptConditionException trying to execute a script that returns an object");
+        ScriptCondition.Result result = condition.execute(ctx);
+        assertThat(result, notNullValue());
+        assertThat(result.status(), is(Condition.Result.Status.FAILURE));
+        assertThat(result.reason(), notNullValue());
+        assertThat(result.reason(), containsString("ScriptConditionException"));
     }
 
     @Test

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.trigger.schedule.tool;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolTestCase;
 import org.junit.Test;

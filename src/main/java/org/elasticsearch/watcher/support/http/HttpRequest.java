@@ -9,10 +9,12 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.WatcherException;
+import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.http.auth.HttpAuth;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
@@ -31,10 +33,12 @@ public class HttpRequest implements ToXContent {
     final ImmutableMap<String, String> headers;
     final @Nullable HttpAuth auth;
     final @Nullable String body;
+    final @Nullable TimeValue connectionTimeout;
+    final @Nullable TimeValue readTimeout;
 
     public HttpRequest(String host, int port, @Nullable Scheme scheme, @Nullable HttpMethod method, @Nullable String path,
                        @Nullable ImmutableMap<String, String> params, @Nullable ImmutableMap<String, String> headers,
-                       @Nullable HttpAuth auth, @Nullable String body) {
+                       @Nullable HttpAuth auth, @Nullable String body, @Nullable TimeValue connectionTimeout, @Nullable TimeValue readTimeout) {
         this.host = host;
         this.port = port;
         this.scheme = scheme != null ? scheme : Scheme.HTTP;
@@ -44,6 +48,8 @@ public class HttpRequest implements ToXContent {
         this.headers = headers != null ? headers : ImmutableMap.<String, String>of();
         this.auth = auth;
         this.body = body;
+        this.connectionTimeout = connectionTimeout;
+        this.readTimeout = readTimeout;
     }
 
     public Scheme scheme() {
@@ -86,6 +92,14 @@ public class HttpRequest implements ToXContent {
         return body;
     }
 
+    public TimeValue connectionTimeout() {
+        return connectionTimeout;
+    }
+
+    public TimeValue readTimeout() {
+        return readTimeout;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
@@ -108,6 +122,12 @@ public class HttpRequest implements ToXContent {
         if (body != null) {
             builder.field(Field.BODY.getPreferredName(), body);
         }
+        if (connectionTimeout != null) {
+            builder.field(Field.CONNECTION_TIMEOUT.getPreferredName(), connectionTimeout.toString());
+        }
+        if (readTimeout != null) {
+            builder.field(Field.READ_TIMEOUT.getPreferredName(), readTimeout.toString());
+        }
         return builder.endObject();
     }
 
@@ -126,6 +146,8 @@ public class HttpRequest implements ToXContent {
         if (!params.equals(that.params)) return false;
         if (!headers.equals(that.headers)) return false;
         if (auth != null ? !auth.equals(that.auth) : that.auth != null) return false;
+        if (connectionTimeout != null ? !connectionTimeout.equals(that.connectionTimeout) : that.connectionTimeout != null) return false;
+        if (readTimeout != null ? !readTimeout.equals(that.readTimeout) : that.readTimeout != null) return false;
         return !(body != null ? !body.equals(that.body) : that.body != null);
 
     }
@@ -140,6 +162,8 @@ public class HttpRequest implements ToXContent {
         result = 31 * result + params.hashCode();
         result = 31 * result + headers.hashCode();
         result = 31 * result + (auth != null ? auth.hashCode() : 0);
+        result = 31 * result + (connectionTimeout != null ? connectionTimeout.hashCode() : 0);
+        result = 31 * result + (readTimeout != null ? readTimeout.hashCode() : 0);
         result = 31 * result + (body != null ? body.hashCode() : 0);
         return result;
     }
@@ -153,6 +177,8 @@ public class HttpRequest implements ToXContent {
                 "], method=[" + method +
                 "], port=[" + port +
                 "], host=[" + host + '\'' +
+                "], connection_timeout=[" + connectionTimeout + '\'' +
+                "], read_timeout=[" + readTimeout + '\'' +
                 "]}";
     }
 
@@ -178,6 +204,18 @@ public class HttpRequest implements ToXContent {
                     currentFieldName = parser.currentName();
                 } else if (Field.AUTH.match(currentFieldName)) {
                     builder.auth(httpAuthRegistry.parse(parser));
+                } else if (Field.CONNECTION_TIMEOUT.match(currentFieldName)) {
+                    try {
+                        builder.connectionTimeout(WatcherDateTimeUtils.parseTimeValue(parser, null, Field.CONNECTION_TIMEOUT.toString()));
+                    } catch (WatcherDateTimeUtils.ParseException pe) {
+                        throw new ParseException("could not parse http request. invalid time value for [{}] field", pe, currentFieldName);
+                    }
+                } else if (Field.READ_TIMEOUT.match(currentFieldName)) {
+                    try {
+                        builder.readTimeout(WatcherDateTimeUtils.parseTimeValue(parser, null, Field.READ_TIMEOUT.toString()));
+                    } catch (WatcherDateTimeUtils.ParseException pe) {
+                        throw new ParseException("could not parse http request. invalid time value for [{}] field", pe, currentFieldName);
+                    }
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if (Field.HEADERS.match(currentFieldName)) {
                         builder.setHeaders((Map) WatcherUtils.flattenModel(parser.map()));
@@ -186,7 +224,7 @@ public class HttpRequest implements ToXContent {
                     }  else if (Field.BODY.match(currentFieldName)) {
                         builder.body(parser.text());
                     } else {
-                        throw new ParseException("could not parse http request. unexpected object field [" + currentFieldName + "]");
+                        throw new ParseException("could not parse http request. unexpected object field [{}]", currentFieldName);
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     if (Field.SCHEME.match(currentFieldName)) {
@@ -200,25 +238,25 @@ public class HttpRequest implements ToXContent {
                     } else if (Field.BODY.match(currentFieldName)) {
                         builder.body(parser.text());
                     } else {
-                        throw new ParseException("could not parse http request. unexpected string field [" + currentFieldName + "]");
+                        throw new ParseException("could not parse http request. unexpected string field [{}]", currentFieldName);
                     }
                 } else if (token == XContentParser.Token.VALUE_NUMBER) {
                     if (Field.PORT.match(currentFieldName)) {
                         builder.port = parser.intValue();
                     } else {
-                        throw new ParseException("could not parse http request. unexpected numeric field [" + currentFieldName + "]");
+                        throw new ParseException("could not parse http request. unexpected numeric field [{}]", currentFieldName);
                     }
                 } else {
-                    throw new ParseException("could not parse http request. unexpected token [" + token + "]");
+                    throw new ParseException("could not parse http request. unexpected token [{}]", token);
                 }
             }
 
             if (builder.host == null) {
-                throw new ParseException("could not parse http request. missing required [host] field");
+                throw new ParseException("could not parse http request. missing required [{}] field", Field.HOST.getPreferredName());
             }
 
             if (builder.port < 0) {
-                throw new ParseException("could not parse http request. missing required [port] field");
+                throw new ParseException("could not parse http request. missing required [{}] field", Field.PORT.getPreferredName());
             }
 
             return builder.build();
@@ -226,12 +264,12 @@ public class HttpRequest implements ToXContent {
 
         public static class ParseException extends WatcherException {
 
-            public ParseException(String msg) {
-                super(msg);
+            public ParseException(String msg, Object... args) {
+                super(msg, args);
             }
 
-            public ParseException(String msg, Throwable cause) {
-                super(msg, cause);
+            public ParseException(String msg, Throwable cause, Object... args) {
+                super(msg, cause, args);
             }
         }
     }
@@ -247,6 +285,8 @@ public class HttpRequest implements ToXContent {
         private ImmutableMap.Builder<String, String> headers = ImmutableMap.builder();
         private HttpAuth auth;
         private String body;
+        private TimeValue connectionTimeout;
+        private TimeValue readTimeout;
 
         private Builder(String host, int port) {
             this.host = host;
@@ -301,13 +341,22 @@ public class HttpRequest implements ToXContent {
             return this;
         }
 
-        public HttpRequest build() {
-            return new HttpRequest(host, port, scheme, method, path, params.build(), headers.build(), auth, body);
+        public Builder connectionTimeout(TimeValue timeout) {
+            this.connectionTimeout = timeout;
+            return this;
         }
 
+        public Builder readTimeout(TimeValue timeout) {
+            this.readTimeout = timeout;
+            return this;
+        }
+
+        public HttpRequest build() {
+            return new HttpRequest(host, port, scheme, method, path, params.build(), headers.build(), auth, body, connectionTimeout, readTimeout);
+        }
     }
 
-    interface Field {
+    public interface Field {
         ParseField SCHEME = new ParseField("scheme");
         ParseField HOST = new ParseField("host");
         ParseField PORT = new ParseField("port");
@@ -317,5 +366,7 @@ public class HttpRequest implements ToXContent {
         ParseField HEADERS = new ParseField("headers");
         ParseField AUTH = new ParseField("auth");
         ParseField BODY = new ParseField("body");
+        ParseField CONNECTION_TIMEOUT = new ParseField("connection_timeout");
+        ParseField READ_TIMEOUT = new ParseField("read_timeout");
     }
 }

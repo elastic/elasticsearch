@@ -11,9 +11,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.support.template.TemplateEngine;
-import org.owasp.html.*;
 
-import javax.annotation.ParametersAreNonnullByDefault;
 import javax.mail.internet.AddressException;
 import java.io.IOException;
 import java.util.*;
@@ -32,11 +30,10 @@ public class EmailTemplate implements ToXContent {
     final Template subject;
     final Template textBody;
     final Template htmlBody;
-    final boolean sanitizeHtmlBody;
 
     public EmailTemplate(Template from, Template[] replyTo, Template priority, Template[] to,
                          Template[] cc, Template[] bcc, Template subject, Template textBody,
-                         Template htmlBody, boolean sanitizeHtmlBody) {
+                         Template htmlBody) {
         this.from = from;
         this.replyTo = replyTo;
         this.priority = priority;
@@ -46,7 +43,6 @@ public class EmailTemplate implements ToXContent {
         this.subject = subject;
         this.textBody = textBody;
         this.htmlBody = htmlBody;
-        this.sanitizeHtmlBody = sanitizeHtmlBody;
     }
 
     public Template from() {
@@ -85,11 +81,7 @@ public class EmailTemplate implements ToXContent {
         return htmlBody;
     }
 
-    public boolean sanitizeHtmlBody() {
-        return sanitizeHtmlBody;
-    }
-
-    public Email.Builder render(TemplateEngine engine, Map<String, Object> model, Map<String, Attachment> attachments) throws AddressException {
+    public Email.Builder render(TemplateEngine engine, Map<String, Object> model, HtmlSanitizer htmlSanitizer, Map<String, Attachment> attachments) throws AddressException {
         Email.Builder builder = Email.builder();
         if (from != null) {
             builder.from(engine.render(from, model));
@@ -126,9 +118,7 @@ public class EmailTemplate implements ToXContent {
         }
         if (htmlBody != null) {
             String renderedHtml = engine.render(htmlBody, model);
-            if (sanitizeHtmlBody && htmlBody != null) {
-                renderedHtml = sanitizeHtml(renderedHtml, attachments);
-            }
+            renderedHtml = htmlSanitizer.sanitize(renderedHtml);
             builder.htmlBody(renderedHtml);
         }
         return builder;
@@ -236,7 +226,6 @@ public class EmailTemplate implements ToXContent {
         private Template subject;
         private Template textBody;
         private Template htmlBody;
-        private boolean sanitizeHtmlBody = true;
 
         private Builder() {
         }
@@ -377,81 +366,27 @@ public class EmailTemplate implements ToXContent {
             return this;
         }
 
-        public Builder htmlBody(String html, boolean sanitizeHtmlBody) {
-            return htmlBody(Template.defaultType(html), sanitizeHtmlBody);
+        public Builder htmlBody(String html) {
+            return htmlBody(Template.defaultType(html));
         }
 
-        public Builder htmlBody(Template.Builder html, boolean sanitizeHtmlBody) {
-            return htmlBody(html.build(), sanitizeHtmlBody);
+        public Builder htmlBody(Template.Builder html) {
+            return htmlBody(html.build());
         }
 
-        public Builder htmlBody(Template html, boolean sanitizeHtmlBody) {
+        public Builder htmlBody(Template html) {
             this.htmlBody = html;
-            this.sanitizeHtmlBody = sanitizeHtmlBody;
             return this;
         }
 
         public EmailTemplate build() {
-            return new EmailTemplate(from, replyTo, priority, to, cc, bcc, subject, textBody, htmlBody, sanitizeHtmlBody);
-        }
-    }
-
-    static String sanitizeHtml(String html, final Map<String, Attachment> attachments){
-        ElementPolicy onlyCIDImgPolicy = new AttachementVerifyElementPolicy(attachments);
-        PolicyFactory policy = Sanitizers.FORMATTING
-                .and(new HtmlPolicyBuilder()
-                        .allowElements("img", "table", "tr", "td", "style", "body", "head", "hr")
-                        .allowAttributes("src").onElements("img")
-                        .allowAttributes("class").onElements("style")
-                        .allowUrlProtocols("cid")
-                        .allowCommonInlineFormattingElements()
-                        .allowElements(onlyCIDImgPolicy, "img")
-                        .allowStyling(CssSchema.DEFAULT)
-                        .toFactory())
-                .and(Sanitizers.LINKS)
-                .and(Sanitizers.BLOCKS);
-        return policy.sanitize(html);
-    }
-
-    private static class AttachementVerifyElementPolicy implements ElementPolicy {
-
-        private final Map<String, Attachment> attachments;
-
-        AttachementVerifyElementPolicy(Map<String, Attachment> attachments) {
-            this.attachments = attachments;
-        }
-
-        @Override
-        public String apply(@ParametersAreNonnullByDefault String elementName, @ParametersAreNonnullByDefault List<String> attrs) {
-            if (attrs.size() == 0) {
-                return elementName;
-            }
-            for (int i = 0; i < attrs.size(); ++i) {
-                if(attrs.get(i).equals("src") && i < attrs.size() - 1) {
-                    String srcValue = attrs.get(i+1);
-                    if (!srcValue.startsWith("cid:")) {
-                        return null; //Disallow anything other than content ids
-                    }
-                    String contentId = srcValue.substring(4);
-                    if (attachments.containsKey(contentId)) {
-                        return elementName;
-                    } else {
-                        return null; //This cid wasn't found
-                    }
-                }
-            }
-            return elementName;
+            return new EmailTemplate(from, replyTo, priority, to, cc, bcc, subject, textBody, htmlBody);
         }
     }
 
     public static class Parser {
 
         private final EmailTemplate.Builder builder = builder();
-        private final boolean sanitizeHtmlBody;
-
-        public Parser(boolean sanitizeHtmlBody) {
-            this.sanitizeHtmlBody = sanitizeHtmlBody;
-        }
 
         public boolean handle(String fieldName, XContentParser parser) throws IOException {
             if (Email.Field.FROM.match(fieldName)) {
@@ -514,7 +449,7 @@ public class EmailTemplate implements ToXContent {
                         } else if (Email.Field.BODY_TEXT.match(currentFieldName)) {
                             builder.textBody(Template.parse(parser));
                         } else if (Email.Field.BODY_HTML.match(currentFieldName)) {
-                            builder.htmlBody(Template.parse(parser), sanitizeHtmlBody);
+                            builder.htmlBody(Template.parse(parser));
                         } else {
                             throw new ParseException("could not parse email template. unknown field [{}.{}] field", fieldName, currentFieldName);
                         }

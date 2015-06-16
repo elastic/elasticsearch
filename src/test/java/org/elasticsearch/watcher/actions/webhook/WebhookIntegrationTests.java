@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.watcher.actions.webhook;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import com.squareup.okhttp.mockwebserver.MockResponse;
 import com.squareup.okhttp.mockwebserver.MockWebServer;
 import com.squareup.okhttp.mockwebserver.QueueDispatcher;

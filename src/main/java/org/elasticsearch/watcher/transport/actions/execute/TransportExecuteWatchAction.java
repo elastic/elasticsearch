@@ -49,16 +49,19 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
     private final WatchStore watchStore;
     private final Clock clock;
     private final TriggerService triggerService;
+    private final Watch.Parser watchParser;
 
     @Inject
     public TransportExecuteWatchAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                        ThreadPool threadPool, ActionFilters actionFilters, ExecutionService executionService,
-                                       Clock clock, LicenseService licenseService, WatchStore watchStore, TriggerService triggerService) {
+                                       Clock clock, LicenseService licenseService, WatchStore watchStore, TriggerService triggerService,
+                                       Watch.Parser watchParser) {
         super(settings, ExecuteWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, licenseService, ExecuteWatchRequest.class);
         this.executionService = executionService;
         this.watchStore = watchStore;
         this.clock = clock;
         this.triggerService = triggerService;
+        this.watchParser = watchParser;
     }
 
     @Override
@@ -74,15 +77,26 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
     @Override
     protected void masterOperation(ExecuteWatchRequest request, ClusterState state, ActionListener<ExecuteWatchResponse> listener) throws ElasticsearchException {
         try {
-            Watch watch = watchStore.get(request.getId());
-            if (watch == null) {
-                throw new WatcherException("watch [{}] does not exist", request.getId());
+            Watch watch;
+            boolean knownWatch;
+            if (request.getId() != null) {
+                watch = watchStore.get(request.getId());
+                if (watch == null) {
+                    throw new WatcherException("watch [{}] does not exist", request.getId());
+                }
+                knownWatch = true;
+            } else if (request.getWatchSource() != null) {
+                assert !request.isRecordExecution();
+                watch = watchParser.parse(ExecuteWatchRequest.INLINE_WATCH_ID, false, request.getWatchSource());
+                knownWatch = false;
+            } else {
+                throw new WatcherException("no watch provided");
             }
 
             String triggerType = watch.trigger().type();
             TriggerEvent triggerEvent = triggerService.simulateEvent(triggerType, watch.id(), request.getTriggerData());
 
-            ManualExecutionContext.Builder ctxBuilder = ManualExecutionContext.builder(watch, true, new ManualTriggerEvent(triggerEvent.jobName(), triggerEvent), executionService.defaultThrottlePeriod());
+            ManualExecutionContext.Builder ctxBuilder = ManualExecutionContext.builder(watch, knownWatch, new ManualTriggerEvent(triggerEvent.jobName(), triggerEvent), executionService.defaultThrottlePeriod());
 
             DateTime executionTime = clock.now(DateTimeZone.UTC);
             ctxBuilder.executionTime(executionTime);

@@ -76,6 +76,10 @@ public class ScriptCondition implements Condition {
             super(TYPE, met);
         }
 
+        Result(Exception e) {
+            super(TYPE, e);
+        }
+
         @Override
         protected XContentBuilder typeXContent(XContentBuilder builder, Params params) throws IOException {
             return builder;

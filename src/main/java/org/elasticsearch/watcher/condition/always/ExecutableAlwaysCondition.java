@@ -21,7 +21,7 @@ public class ExecutableAlwaysCondition extends ExecutableCondition<AlwaysConditi
     }
 
     @Override
-    public AlwaysCondition.Result execute(WatchExecutionContext ctx) throws IOException {
+    public AlwaysCondition.Result execute(WatchExecutionContext ctx) {
         return AlwaysCondition.Result.INSTANCE;
     }
 

@@ -114,7 +114,7 @@ public class SearchTransformTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testApply() throws Exception {
+    public void testExecute() throws Exception {
 
         index("idx", "type", "1");
         ensureGreen("idx");
@@ -133,6 +133,7 @@ public class SearchTransformTests extends ElasticsearchIntegrationTest {
         Transform.Result result = transform.execute(ctx, EMPTY_PAYLOAD);
         assertThat(result, notNullValue());
         assertThat(result.type(), is(SearchTransform.TYPE));
+        assertThat(result.status(), is(Transform.Result.Status.SUCCESS));
 
         SearchResponse response = client().search(request).get();
         Payload expectedPayload = new Payload.XContent(response);
@@ -149,7 +150,33 @@ public class SearchTransformTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testApply_MustacheTemplate() throws Exception {
+    public void testExecute_Failure() throws Exception {
+
+        index("idx", "type", "1");
+        ensureGreen("idx");
+        refresh();
+
+        // create a bad request
+        SearchRequest request = Requests.searchRequest("idx").source(jsonBuilder().startObject()
+                .startObject("query")
+                .startObject("_unknown_query_").endObject()
+                .endObject()
+                .endObject());
+        SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
+        ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, ClientProxy.of(client()));
+
+        WatchExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
+
+        SearchTransform.Result result = transform.execute(ctx, EMPTY_PAYLOAD);
+        assertThat(result, notNullValue());
+        assertThat(result.type(), is(SearchTransform.TYPE));
+        assertThat(result.status(), is(Transform.Result.Status.FAILURE));
+        assertThat(result.reason(), notNullValue());
+        assertThat(result.executedRequest().templateSource().toUtf8(), containsString("_unknown_query_"));
+    }
+
+    @Test
+    public void testExecute_MustacheTemplate() throws Exception {
 
         // The rational behind this test:
         //

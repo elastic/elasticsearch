@@ -11,7 +11,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.joda.time.DateTime;
 import org.elasticsearch.common.logging.ESLogger;
@@ -22,7 +21,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
@@ -35,10 +33,7 @@ import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.actions.ExecutableActions;
 import org.elasticsearch.watcher.actions.email.EmailAction;
 import org.elasticsearch.watcher.actions.email.ExecutableEmailAction;
-import org.elasticsearch.watcher.actions.email.service.Authentication;
-import org.elasticsearch.watcher.actions.email.service.EmailService;
-import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
-import org.elasticsearch.watcher.actions.email.service.Profile;
+import org.elasticsearch.watcher.actions.email.service.*;
 import org.elasticsearch.watcher.actions.webhook.ExecutableWebhookAction;
 import org.elasticsearch.watcher.actions.webhook.WebhookAction;
 import org.elasticsearch.watcher.condition.script.ExecutableScriptCondition;
@@ -200,7 +195,7 @@ public final class WatcherTestUtils {
         Authentication auth = new Authentication("testname", new Secret("testpassword".toCharArray()));
 
         EmailAction action = new EmailAction(email, "testaccount", auth, Profile.STANDARD, null);
-        ExecutableEmailAction executale = new ExecutableEmailAction(action, logger, emailService, templateEngine);
+        ExecutableEmailAction executale = new ExecutableEmailAction(action, logger, emailService, templateEngine, new HtmlSanitizer(Settings.EMPTY));
 
         actions.add(new ActionWrapper("_email", executale));
 

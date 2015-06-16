@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.actions.logging;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import com.google.common.collect.ImmutableMap;
 import org.joda.time.DateTime;
 import org.elasticsearch.common.logging.ESLogger;

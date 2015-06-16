@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.watcher.actions.throttler;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.watcher.actions.Action;

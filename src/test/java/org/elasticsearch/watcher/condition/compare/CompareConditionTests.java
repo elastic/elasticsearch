@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.condition.compare;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.joda.time.DateTime;

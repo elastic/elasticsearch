@@ -129,7 +129,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
                 throw new IllegalStateException("Cannot load doc values", e);
             }
         }
-        
+
         @Override
         public Collection<Accountable> getChildResources() {
             return Collections.emptyList();

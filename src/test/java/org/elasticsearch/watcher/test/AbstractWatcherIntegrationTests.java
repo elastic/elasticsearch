@@ -654,7 +654,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
                 "  cluster: cluster:monitor/nodes/info, cluster:monitor/nodes/liveness\n" +
                 "\n" +
                 "monitor:\n" +
-                "  cluster: monitor_watcher, cluster:monitor/nodes/info, cluster:monitor/nodes/liveness\\\n"
+                "  cluster: monitor_watcher, cluster:monitor/nodes/info, cWatcherDateTimeUtilsTestsluster:monitor/nodes/liveness\\\n"
                 ;
 
 

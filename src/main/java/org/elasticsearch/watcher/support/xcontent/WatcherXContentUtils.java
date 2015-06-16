@@ -13,6 +13,7 @@ import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -30,18 +31,8 @@ public class WatcherXContentUtils {
 
     public static Tuple<XContentType, Object> convertToObject(BytesReference bytes) throws ElasticsearchParseException {
         try {
-            XContentParser parser;
-            XContentType contentType;
-            Compressor compressor = CompressorFactory.compressor(bytes);
-            if (compressor != null) {
-                StreamInput compressedStreamInput = compressor.streamInput(bytes.streamInput());
-                contentType = XContentFactory.xContentType(compressedStreamInput);
-                parser = XContentFactory.xContent(contentType).createParser(compressedStreamInput);
-            } else {
-                contentType = XContentFactory.xContentType(bytes);
-                parser = XContentFactory.xContent(contentType).createParser(bytes.streamInput());
-            }
-            return Tuple.tuple(contentType, readValue(parser, parser.nextToken()));
+            XContentParser parser = XContentHelper.createParser(bytes);
+            return Tuple.tuple(parser.contentType(), readValue(parser, parser.nextToken()));
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);
         }

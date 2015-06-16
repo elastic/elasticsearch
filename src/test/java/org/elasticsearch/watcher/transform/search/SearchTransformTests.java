@@ -70,16 +70,17 @@ public class SearchTransformTests extends ElasticsearchIntegrationTest {
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
-        Path tempDir = createTempDir();
-        Path configPath = tempDir.resolve("config").resolve("scripts");
+        final Path tempDir = createTempDir();
+        final Path configPath = tempDir.resolve("config");
+        final Path scriptPath = configPath.resolve("scripts");
         try {
-            Files.createDirectories(configPath);
+            Files.createDirectories(scriptPath);
         } catch (IOException e) {
             throw new RuntimeException("failed to create config dir");
 
         }
         try (InputStream stream  = SearchTransformTests.class.getResourceAsStream("/org/elasticsearch/watcher/transform/search/config/scripts/test_disk_template.mustache");
-             OutputStream out = Files.newOutputStream(configPath.resolve("test_disk_template.mustache"))) {
+            OutputStream out = Files.newOutputStream(scriptPath.resolve("test_disk_template.mustache"))) {
             Streams.copy(stream, out);
         } catch (IOException e) {
             throw new RuntimeException("failed to copy mustache template");

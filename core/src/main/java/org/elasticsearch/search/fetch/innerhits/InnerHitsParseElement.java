@@ -158,7 +158,7 @@ public class InnerHitsParseElement implements SearchParseElement {
         if (objectMapper == null) {
             throw new IllegalArgumentException("path [" + nestedPath +"] doesn't exist");
         }
-        if (!objectMapper.nested().isNested()) {
+        if (objectMapper.nested().isNested() == false) {
             throw new IllegalArgumentException("path [" + nestedPath +"] isn't nested");
         }
         ObjectMapper parentObjectMapper = parseContext.nestedScope().nextLevel(objectMapper);

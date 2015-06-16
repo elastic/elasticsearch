@@ -14,7 +14,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.elasticsearch.test.ShieldIntegrationTest;
 import org.junit.Test;
 
-@ClusterScope(scope = Scope.TEST)
+@ClusterScope(scope = Scope.TEST, randomDynamicTemplates = false)
 public class IndexAuditTrailEnabledTests extends ShieldIntegrationTest {
 
     IndexNameResolver.Rollover rollover = randomFrom(IndexNameResolver.Rollover.values());

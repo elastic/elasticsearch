@@ -71,6 +71,7 @@ public class WatcherRestTests extends ElasticsearchRestTestCase {
             String token = basicAuthHeaderValue("admin", new SecuredString("changeme".toCharArray()));
             return Settings.builder()
                     .put(Headers.PREFIX + ".Authorization", token)
+                    .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
                     .build();
         } else {
             return Settings.EMPTY;
@@ -120,7 +121,7 @@ public class WatcherRestTests extends ElasticsearchRestTestCase {
 
         public static final String ROLES =
                 "test:\n" + // a user for the test infra.
-                "  cluster: cluster:monitor/state, cluster:monitor/health, indices:admin/template/delete, cluster:admin/repository/delete, cluster:monitor/nodes/liveness, indices:admin/template/put\n" +
+                "  cluster: cluster:monitor/state, cluster:monitor/health, indices:admin/template/delete, cluster:admin/repository/delete, cluster:monitor/nodes/liveness, indices:admin/template/put, cluster:admin/delete\n" +
                 "  indices:\n" +
                 "    '*': all\n" +
                 "\n" +

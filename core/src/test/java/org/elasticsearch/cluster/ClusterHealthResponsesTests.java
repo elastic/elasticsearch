@@ -114,21 +114,17 @@ public class ClusterHealthResponsesTests extends ElasticsearchTestCase {
             state = ShardRoutingState.STARTED;
         } else if (i > 3) {
             state = ShardRoutingState.RELOCATING;
-        } else if (i > 1) {
-            state = ShardRoutingState.INITIALIZING;
         } else {
-            state = ShardRoutingState.UNASSIGNED;
+            state = ShardRoutingState.INITIALIZING;
         }
 
         switch (state) {
-            case UNASSIGNED:
-                return new MutableShardRouting(index, shardId, null, primary, ShardRoutingState.UNASSIGNED, 1);
             case STARTED:
-                return new MutableShardRouting(index, shardId, "node_" + Integer.toString(node_id++), primary, ShardRoutingState.STARTED, 1);
+                return new MutableShardRouting(index, shardId, "node_" + Integer.toString(node_id++), null, null, primary, ShardRoutingState.STARTED, 1);
             case INITIALIZING:
-                return new MutableShardRouting(index, shardId, "node_" + Integer.toString(node_id++), primary, ShardRoutingState.INITIALIZING, 1);
+                return new MutableShardRouting(index, shardId, "node_" + Integer.toString(node_id++), null, null, primary, ShardRoutingState.INITIALIZING, 1);
             case RELOCATING:
-                return new MutableShardRouting(index, shardId, "node_" + Integer.toString(node_id++), "node_" + Integer.toString(node_id++), primary, ShardRoutingState.RELOCATING, 1);
+                return new MutableShardRouting(index, shardId, "node_" + Integer.toString(node_id++), "node_" + Integer.toString(node_id++), null, primary, ShardRoutingState.RELOCATING, 1);
             default:
                 throw new ElasticsearchException("Unknown state: " + state.name());
         }

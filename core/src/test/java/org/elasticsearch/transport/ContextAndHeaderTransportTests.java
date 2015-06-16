@@ -57,6 +57,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -70,7 +71,7 @@ import static org.hamcrest.Matchers.*;
 @ClusterScope(scope = SUITE)
 public class ContextAndHeaderTransportTests extends ElasticsearchIntegrationTest {
 
-    private static final List<ActionRequest> requests = Collections.synchronizedList(new ArrayList<ActionRequest>());
+    private static final List<ActionRequest> requests =  new CopyOnWriteArrayList<>();
     private String randomHeaderKey = randomAsciiOfLength(10);
     private String randomHeaderValue = randomAsciiOfLength(20);
     private String queryIndex = "query-" + randomAsciiOfLength(10).toLowerCase(Locale.ROOT);

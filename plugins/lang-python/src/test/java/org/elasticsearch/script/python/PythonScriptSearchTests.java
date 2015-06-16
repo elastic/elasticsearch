@@ -21,9 +21,11 @@ package org.elasticsearch.script.python;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortOrder;
@@ -35,6 +37,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -81,9 +84,9 @@ public class PythonScriptSearchTests extends ElasticsearchIntegrationTest {
 
         logger.info(" --> running doc['num1'].value > 1");
         SearchResponse response = client().prepareSearch()
-                .setQuery(filteredQuery(matchAllQuery(), scriptQuery("doc['num1'].value > 1").lang("python")))
+                .setQuery(scriptQuery(new Script("doc['num1'].value > 1", ScriptService.ScriptType.INLINE, "python", null)))
                 .addSort("num1", SortOrder.ASC)
-                .addScriptField("sNum1", "python", "doc['num1'].value", null)
+                .addScriptField("sNum1", new Script("doc['num1'].value", ScriptService.ScriptType.INLINE, "python", null))
                 .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
@@ -94,10 +97,10 @@ public class PythonScriptSearchTests extends ElasticsearchIntegrationTest {
 
         logger.info(" --> running doc['num1'].value > param1");
         response = client().prepareSearch()
-                .setQuery(filteredQuery(matchAllQuery(), scriptQuery("doc['num1'].value > param1").lang("python").addParam("param1", 2)))
-                .addSort("num1", SortOrder.ASC)
-                .addScriptField("sNum1", "python", "doc['num1'].value", null)
-                .execute().actionGet();
+                .setQuery(scriptQuery(new Script("doc['num1'].value > param1", ScriptService.ScriptType.INLINE, "python", Collections.singletonMap("param1", 2))))
+                        .addSort("num1", SortOrder.ASC)
+                        .addScriptField("sNum1", new Script("doc['num1'].value", ScriptService.ScriptType.INLINE, "python", null))
+                                .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(1l));
         assertThat(response.getHits().getAt(0).id(), equalTo("3"));
@@ -105,10 +108,10 @@ public class PythonScriptSearchTests extends ElasticsearchIntegrationTest {
 
         logger.info(" --> running doc['num1'].value > param1");
         response = client().prepareSearch()
-                .setQuery(filteredQuery(matchAllQuery(), scriptQuery("doc['num1'].value > param1").lang("python").addParam("param1", -1)))
+                .setQuery(scriptQuery(new Script("doc['num1'].value > param1", ScriptService.ScriptType.INLINE, "python", Collections.singletonMap("param1", -1))))
                 .addSort("num1", SortOrder.ASC)
-                .addScriptField("sNum1", "python", "doc['num1'].value", null)
-                .execute().actionGet();
+                .addScriptField("sNum1", new Script("doc['num1'].value", ScriptService.ScriptType.INLINE, "python", null))
+                        .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().getAt(0).id(), equalTo("1"));
@@ -131,10 +134,10 @@ public class PythonScriptSearchTests extends ElasticsearchIntegrationTest {
 
         SearchResponse response = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("s_obj1", "python", "_source['obj1']", null)
-                .addScriptField("s_obj1_test", "python", "_source['obj1']['test']", null)
-                .addScriptField("s_obj2", "python", "_source['obj2']", null)
-                .addScriptField("s_obj2_arr2", "python", "_source['obj2']['arr2']", null)
+                .addScriptField("s_obj1", new Script("_source['obj1']", ScriptService.ScriptType.INLINE,  "python", null))
+                .addScriptField("s_obj1_test", new Script("_source['obj1']['test']", ScriptService.ScriptType.INLINE,  "python", null))
+                .addScriptField("s_obj2", new Script("_source['obj2']", ScriptService.ScriptType.INLINE, "python", null))
+                .addScriptField("s_obj2_arr2", new Script("_source['obj2']['arr2']", ScriptService.ScriptType.INLINE,  "python", null))
                 .execute().actionGet();
 
         Map<String, Object> sObj1 = (Map<String, Object>) response.getHits().getAt(0).field("s_obj1").value();
@@ -164,9 +167,9 @@ public class PythonScriptSearchTests extends ElasticsearchIntegrationTest {
 
         logger.info(" --> running doc['num1'].value");
         SearchResponse response = client().search(searchRequest()
-                .searchType(SearchType.QUERY_THEN_FETCH)
-                .source(searchSource().explain(true).query(functionScoreQuery(termQuery("test", "value"))
-                        .add(ScoreFunctionBuilders.scriptFunction("doc['num1'].value").lang("python"))))
+                        .searchType(SearchType.QUERY_THEN_FETCH)
+                        .source(searchSource().explain(true).query(functionScoreQuery(termQuery("test", "value"))
+                                .add(ScoreFunctionBuilders.scriptFunction(new Script("doc['num1'].value", ScriptService.ScriptType.INLINE, "python", null)))))
         ).actionGet();
 
         assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
@@ -179,9 +182,9 @@ public class PythonScriptSearchTests extends ElasticsearchIntegrationTest {
 
         logger.info(" --> running -doc['num1'].value");
         response = client().search(searchRequest()
-                .searchType(SearchType.QUERY_THEN_FETCH)
-                .source(searchSource().explain(true).query(functionScoreQuery(termQuery("test", "value"))
-                        .add(ScoreFunctionBuilders.scriptFunction("-doc['num1'].value").lang("python"))))
+                        .searchType(SearchType.QUERY_THEN_FETCH)
+                        .source(searchSource().explain(true).query(functionScoreQuery(termQuery("test", "value"))
+                                .add(ScoreFunctionBuilders.scriptFunction(new Script("-doc['num1'].value",  ScriptService.ScriptType.INLINE, "python", null)))))
         ).actionGet();
 
         assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
@@ -195,9 +198,9 @@ public class PythonScriptSearchTests extends ElasticsearchIntegrationTest {
 
         logger.info(" --> running doc['num1'].value * _score");
         response = client().search(searchRequest()
-                .searchType(SearchType.QUERY_THEN_FETCH)
-                .source(searchSource().explain(true).query(functionScoreQuery(termQuery("test", "value"))
-                        .add(ScoreFunctionBuilders.scriptFunction("doc['num1'].value * _score.doubleValue()").lang("python"))))
+                        .searchType(SearchType.QUERY_THEN_FETCH)
+                        .source(searchSource().explain(true).query(functionScoreQuery(termQuery("test", "value"))
+                                .add(ScoreFunctionBuilders.scriptFunction(new Script("doc['num1'].value * _score.doubleValue()",  ScriptService.ScriptType.INLINE, "python", null)))))
         ).actionGet();
 
         assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
@@ -212,8 +215,8 @@ public class PythonScriptSearchTests extends ElasticsearchIntegrationTest {
         response = client().search(searchRequest()
                 .searchType(SearchType.QUERY_THEN_FETCH)
                 .source(searchSource().explain(true).query(functionScoreQuery(termQuery("test", "value"))
-                        .add(ScoreFunctionBuilders.scriptFunction("param1 * param2 * _score.doubleValue()").param("param1", 2).param("param2", 2).lang("python"))))
-        ).actionGet();
+                                .add(ScoreFunctionBuilders.scriptFunction(new Script("param1 * param2 * _score.doubleValue()", ScriptService.ScriptType.INLINE, "python", MapBuilder.<String, Object>newMapBuilder().put("param1", 2).put("param2", 2).immutableMap())))))
+                ).actionGet();
 
         assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
 
@@ -233,8 +236,7 @@ public class PythonScriptSearchTests extends ElasticsearchIntegrationTest {
         index("test", "type1", "1", jsonBuilder().startObject().field("myfield", "foo").endObject());
         refresh();
 
-        client().prepareUpdate("test", "type1", "1").setScriptLang("python")
-                .setScript("ctx[\"_source\"][\"myfield\"]=\"bar\"", ScriptService.ScriptType.INLINE)
+        client().prepareUpdate("test", "type1", "1").setScript(new Script("ctx[\"_source\"][\"myfield\"]=\"bar\"", ScriptService.ScriptType.INLINE, "python", null))
             .execute().actionGet();
         refresh();
 
@@ -255,10 +257,10 @@ public class PythonScriptSearchTests extends ElasticsearchIntegrationTest {
                         searchSource().query(
                                 functionScoreQuery(
                                         functionScoreQuery(
-                                                functionScoreQuery().add(scriptFunction("1").lang("python")))
-                                                .add(scriptFunction("_score.doubleValue()").lang("python")))
-                                        .add(scriptFunction("_score.doubleValue()").lang("python")
-                                        )
+                                                functionScoreQuery().add(scriptFunction(new Script("1",  ScriptService.ScriptType.INLINE, "python", null))))
+                                                .add(scriptFunction(new Script("_score.doubleValue()",  ScriptService.ScriptType.INLINE, "python", null)))
+                                                .add(scriptFunction(new Script("_score.doubleValue()",  ScriptService.ScriptType.INLINE, "python", null)))
+                                )
                         )
                 )
         ).actionGet();
@@ -276,9 +278,9 @@ public class PythonScriptSearchTests extends ElasticsearchIntegrationTest {
                 searchRequest().source(
                         searchSource().query(
                                 functionScoreQuery()
-                                        .add(scriptFunction("_score.doubleValue()").lang("python")
+                                        .add(scriptFunction(new Script("_score.doubleValue()",  ScriptService.ScriptType.INLINE, "python", null))
                                         )
-                        ).aggregation(terms("score_agg").script("_score.doubleValue()").lang("python"))
+                        ).aggregation(terms("score_agg").script(new Script("_score.doubleValue()",  ScriptService.ScriptType.INLINE, "python", null)))
                 )
         ).actionGet();
         assertSearchResponse(response);
@@ -297,8 +299,8 @@ public class PythonScriptSearchTests extends ElasticsearchIntegrationTest {
         index("test", "type1", "1", jsonBuilder().startObject().field("myfield", "foo").endObject());
         refresh();
 
-        client().prepareUpdate("test", "type1", "1").setScriptLang("python")
-                .setScript("a=42; ctx[\"_source\"][\"myfield\"]=\"bar\"", ScriptService.ScriptType.INLINE)
+        client().prepareUpdate("test", "type1", "1")
+                .setScript(new Script("a=42; ctx[\"_source\"][\"myfield\"]=\"bar\"", ScriptService.ScriptType.INLINE, "python", null))
                 .execute().actionGet();
         refresh();
 

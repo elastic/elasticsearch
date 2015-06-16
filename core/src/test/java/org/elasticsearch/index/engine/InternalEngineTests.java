@@ -262,147 +262,155 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
     @Test
     public void testSegments() throws Exception {
-        List<Segment> segments = engine.segments(false);
-        assertThat(segments.isEmpty(), equalTo(true));
-        assertThat(engine.segmentsStats().getCount(), equalTo(0l));
-        assertThat(engine.segmentsStats().getMemoryInBytes(), equalTo(0l));
-        final boolean defaultCompound = defaultSettings.getAsBoolean(EngineConfig.INDEX_COMPOUND_ON_FLUSH, true);
+        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), Settings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        try (Store store = createStore();
+            Engine engine = createEngine(indexSettingsService, store, createTempDir(), new MergeSchedulerConfig(defaultSettings), NoMergePolicy.INSTANCE)) {
+            List<Segment> segments = engine.segments(false);
+            assertThat(segments.isEmpty(), equalTo(true));
+            assertThat(engine.segmentsStats().getCount(), equalTo(0l));
+            assertThat(engine.segmentsStats().getMemoryInBytes(), equalTo(0l));
+            final boolean defaultCompound = defaultSettings.getAsBoolean(EngineConfig.INDEX_COMPOUND_ON_FLUSH, true);
 
-        // create a doc and refresh
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
-        engine.create(new Engine.Create(null, newUid("1"), doc));
+            // create a doc and refresh
+            ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
+            engine.create(new Engine.Create(null, newUid("1"), doc));
 
-        ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, null);
-        engine.create(new Engine.Create(null, newUid("2"), doc2));
-        engine.refresh("test");
+            ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, null);
+            engine.create(new Engine.Create(null, newUid("2"), doc2));
+            engine.refresh("test");
 
-        segments = engine.segments(false);
-        assertThat(segments.size(), equalTo(1));
-        SegmentsStats stats = engine.segmentsStats();
-        assertThat(stats.getCount(), equalTo(1l));
-        assertThat(stats.getTermsMemoryInBytes(), greaterThan(0l));
-        assertThat(stats.getStoredFieldsMemoryInBytes(), greaterThan(0l));
-        assertThat(stats.getTermVectorsMemoryInBytes(), equalTo(0l));
-        assertThat(stats.getNormsMemoryInBytes(), greaterThan(0l));
-        assertThat(stats.getDocValuesMemoryInBytes(), greaterThan(0l));
-        assertThat(segments.get(0).isCommitted(), equalTo(false));
-        assertThat(segments.get(0).isSearch(), equalTo(true));
-        assertThat(segments.get(0).getNumDocs(), equalTo(2));
-        assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
-        assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
-        assertThat(segments.get(0).ramTree, nullValue());
+            segments = engine.segments(false);
+            assertThat(segments.size(), equalTo(1));
+            SegmentsStats stats = engine.segmentsStats();
+            assertThat(stats.getCount(), equalTo(1l));
+            assertThat(stats.getTermsMemoryInBytes(), greaterThan(0l));
+            assertThat(stats.getStoredFieldsMemoryInBytes(), greaterThan(0l));
+            assertThat(stats.getTermVectorsMemoryInBytes(), equalTo(0l));
+            assertThat(stats.getNormsMemoryInBytes(), greaterThan(0l));
+            assertThat(stats.getDocValuesMemoryInBytes(), greaterThan(0l));
+            assertThat(segments.get(0).isCommitted(), equalTo(false));
+            assertThat(segments.get(0).isSearch(), equalTo(true));
+            assertThat(segments.get(0).getNumDocs(), equalTo(2));
+            assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
+            assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
+            assertThat(segments.get(0).ramTree, nullValue());
 
-        engine.flush();
+            engine.flush();
 
-        segments = engine.segments(false);
-        assertThat(segments.size(), equalTo(1));
-        assertThat(engine.segmentsStats().getCount(), equalTo(1l));
-        assertThat(segments.get(0).isCommitted(), equalTo(true));
-        assertThat(segments.get(0).isSearch(), equalTo(true));
-        assertThat(segments.get(0).getNumDocs(), equalTo(2));
-        assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
-        assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
+            segments = engine.segments(false);
+            assertThat(segments.size(), equalTo(1));
+            assertThat(engine.segmentsStats().getCount(), equalTo(1l));
+            assertThat(segments.get(0).isCommitted(), equalTo(true));
+            assertThat(segments.get(0).isSearch(), equalTo(true));
+            assertThat(segments.get(0).getNumDocs(), equalTo(2));
+            assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
+            assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
 
-        engine.config().setCompoundOnFlush(false);
+            engine.config().setCompoundOnFlush(false);
 
-        ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
-        engine.create(new Engine.Create(null, newUid("3"), doc3));
-        engine.refresh("test");
+            ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
+            engine.create(new Engine.Create(null, newUid("3"), doc3));
+            engine.refresh("test");
 
-        segments = engine.segments(false);
-        assertThat(segments.size(), equalTo(2));
-        assertThat(engine.segmentsStats().getCount(), equalTo(2l));
-        assertThat(engine.segmentsStats().getTermsMemoryInBytes(), greaterThan(stats.getTermsMemoryInBytes()));
-        assertThat(engine.segmentsStats().getStoredFieldsMemoryInBytes(), greaterThan(stats.getStoredFieldsMemoryInBytes()));
-        assertThat(engine.segmentsStats().getTermVectorsMemoryInBytes(), equalTo(0l));
-        assertThat(engine.segmentsStats().getNormsMemoryInBytes(), greaterThan(stats.getNormsMemoryInBytes()));
-        assertThat(engine.segmentsStats().getDocValuesMemoryInBytes(), greaterThan(stats.getDocValuesMemoryInBytes()));
-        assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
-        assertThat(segments.get(0).isCommitted(), equalTo(true));
-        assertThat(segments.get(0).isSearch(), equalTo(true));
-        assertThat(segments.get(0).getNumDocs(), equalTo(2));
-        assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
-        assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
-
-
-        assertThat(segments.get(1).isCommitted(), equalTo(false));
-        assertThat(segments.get(1).isSearch(), equalTo(true));
-        assertThat(segments.get(1).getNumDocs(), equalTo(1));
-        assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
-        assertThat(segments.get(1).isCompound(), equalTo(false));
+            segments = engine.segments(false);
+            assertThat(segments.size(), equalTo(2));
+            assertThat(engine.segmentsStats().getCount(), equalTo(2l));
+            assertThat(engine.segmentsStats().getTermsMemoryInBytes(), greaterThan(stats.getTermsMemoryInBytes()));
+            assertThat(engine.segmentsStats().getStoredFieldsMemoryInBytes(), greaterThan(stats.getStoredFieldsMemoryInBytes()));
+            assertThat(engine.segmentsStats().getTermVectorsMemoryInBytes(), equalTo(0l));
+            assertThat(engine.segmentsStats().getNormsMemoryInBytes(), greaterThan(stats.getNormsMemoryInBytes()));
+            assertThat(engine.segmentsStats().getDocValuesMemoryInBytes(), greaterThan(stats.getDocValuesMemoryInBytes()));
+            assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
+            assertThat(segments.get(0).isCommitted(), equalTo(true));
+            assertThat(segments.get(0).isSearch(), equalTo(true));
+            assertThat(segments.get(0).getNumDocs(), equalTo(2));
+            assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
+            assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
 
 
-        engine.delete(new Engine.Delete("test", "1", newUid("1")));
-        engine.refresh("test");
+            assertThat(segments.get(1).isCommitted(), equalTo(false));
+            assertThat(segments.get(1).isSearch(), equalTo(true));
+            assertThat(segments.get(1).getNumDocs(), equalTo(1));
+            assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
+            assertThat(segments.get(1).isCompound(), equalTo(false));
 
-        segments = engine.segments(false);
-        assertThat(segments.size(), equalTo(2));
-        assertThat(engine.segmentsStats().getCount(), equalTo(2l));
-        assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
-        assertThat(segments.get(0).isCommitted(), equalTo(true));
-        assertThat(segments.get(0).isSearch(), equalTo(true));
-        assertThat(segments.get(0).getNumDocs(), equalTo(1));
-        assertThat(segments.get(0).getDeletedDocs(), equalTo(1));
-        assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
 
-        assertThat(segments.get(1).isCommitted(), equalTo(false));
-        assertThat(segments.get(1).isSearch(), equalTo(true));
-        assertThat(segments.get(1).getNumDocs(), equalTo(1));
-        assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
-        assertThat(segments.get(1).isCompound(), equalTo(false));
+            engine.delete(new Engine.Delete("test", "1", newUid("1")));
+            engine.refresh("test");
 
-        engine.config().setCompoundOnFlush(true);
-        ParsedDocument doc4 = testParsedDocument("4", "4", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
-        engine.create(new Engine.Create(null, newUid("4"), doc4));
-        engine.refresh("test");
+            segments = engine.segments(false);
+            assertThat(segments.size(), equalTo(2));
+            assertThat(engine.segmentsStats().getCount(), equalTo(2l));
+            assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
+            assertThat(segments.get(0).isCommitted(), equalTo(true));
+            assertThat(segments.get(0).isSearch(), equalTo(true));
+            assertThat(segments.get(0).getNumDocs(), equalTo(1));
+            assertThat(segments.get(0).getDeletedDocs(), equalTo(1));
+            assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
 
-        segments = engine.segments(false);
-        assertThat(segments.size(), equalTo(3));
-        assertThat(engine.segmentsStats().getCount(), equalTo(3l));
-        assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
-        assertThat(segments.get(0).isCommitted(), equalTo(true));
-        assertThat(segments.get(0).isSearch(), equalTo(true));
-        assertThat(segments.get(0).getNumDocs(), equalTo(1));
-        assertThat(segments.get(0).getDeletedDocs(), equalTo(1));
-        assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
+            assertThat(segments.get(1).isCommitted(), equalTo(false));
+            assertThat(segments.get(1).isSearch(), equalTo(true));
+            assertThat(segments.get(1).getNumDocs(), equalTo(1));
+            assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
+            assertThat(segments.get(1).isCompound(), equalTo(false));
 
-        assertThat(segments.get(1).isCommitted(), equalTo(false));
-        assertThat(segments.get(1).isSearch(), equalTo(true));
-        assertThat(segments.get(1).getNumDocs(), equalTo(1));
-        assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
-        assertThat(segments.get(1).isCompound(), equalTo(false));
+            engine.config().setCompoundOnFlush(true);
+            ParsedDocument doc4 = testParsedDocument("4", "4", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
+            engine.create(new Engine.Create(null, newUid("4"), doc4));
+            engine.refresh("test");
 
-        assertThat(segments.get(2).isCommitted(), equalTo(false));
-        assertThat(segments.get(2).isSearch(), equalTo(true));
-        assertThat(segments.get(2).getNumDocs(), equalTo(1));
-        assertThat(segments.get(2).getDeletedDocs(), equalTo(0));
-        assertThat(segments.get(2).isCompound(), equalTo(true));
+            segments = engine.segments(false);
+            assertThat(segments.size(), equalTo(3));
+            assertThat(engine.segmentsStats().getCount(), equalTo(3l));
+            assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
+            assertThat(segments.get(0).isCommitted(), equalTo(true));
+            assertThat(segments.get(0).isSearch(), equalTo(true));
+            assertThat(segments.get(0).getNumDocs(), equalTo(1));
+            assertThat(segments.get(0).getDeletedDocs(), equalTo(1));
+            assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
+
+            assertThat(segments.get(1).isCommitted(), equalTo(false));
+            assertThat(segments.get(1).isSearch(), equalTo(true));
+            assertThat(segments.get(1).getNumDocs(), equalTo(1));
+            assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
+            assertThat(segments.get(1).isCompound(), equalTo(false));
+
+            assertThat(segments.get(2).isCommitted(), equalTo(false));
+            assertThat(segments.get(2).isSearch(), equalTo(true));
+            assertThat(segments.get(2).getNumDocs(), equalTo(1));
+            assertThat(segments.get(2).getDeletedDocs(), equalTo(0));
+            assertThat(segments.get(2).isCompound(), equalTo(true));
+        }
     }
 
     public void testVerboseSegments() throws Exception {
-        List<Segment> segments = engine.segments(true);
-        assertThat(segments.isEmpty(), equalTo(true));
+        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), Settings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        try (Store store = createStore();
+             Engine engine = createEngine(indexSettingsService, store, createTempDir(), new MergeSchedulerConfig(defaultSettings), NoMergePolicy.INSTANCE)) {
+            List<Segment> segments = engine.segments(true);
+            assertThat(segments.isEmpty(), equalTo(true));
 
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
-        engine.create(new Engine.Create(null, newUid("1"), doc));
-        engine.refresh("test");
+            ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
+            engine.create(new Engine.Create(null, newUid("1"), doc));
+            engine.refresh("test");
 
-        segments = engine.segments(true);
-        assertThat(segments.size(), equalTo(1));
-        assertThat(segments.get(0).ramTree, notNullValue());
+            segments = engine.segments(true);
+            assertThat(segments.size(), equalTo(1));
+            assertThat(segments.get(0).ramTree, notNullValue());
 
-        ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, null);
-        engine.create(new Engine.Create(null, newUid("2"), doc2));
-        engine.refresh("test");
-        ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
-        engine.create(new Engine.Create(null, newUid("3"), doc3));
-        engine.refresh("test");
+            ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, null);
+            engine.create(new Engine.Create(null, newUid("2"), doc2));
+            engine.refresh("test");
+            ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
+            engine.create(new Engine.Create(null, newUid("3"), doc3));
+            engine.refresh("test");
 
-        segments = engine.segments(true);
-        assertThat(segments.size(), equalTo(3));
-        assertThat(segments.get(0).ramTree, notNullValue());
-        assertThat(segments.get(1).ramTree, notNullValue());
-        assertThat(segments.get(2).ramTree, notNullValue());
+            segments = engine.segments(true);
+            assertThat(segments.size(), equalTo(3));
+            assertThat(segments.get(0).ramTree, notNullValue());
+            assertThat(segments.get(1).ramTree, notNullValue());
+            assertThat(segments.get(2).ramTree, notNullValue());
+        }
 
     }
 

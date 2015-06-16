@@ -32,25 +32,25 @@ public class MutableShardRouting extends ImmutableShardRouting {
     }
 
     public MutableShardRouting(ShardRouting copy, long version) {
-        super(copy);
-        this.version = version;
-    }
-
-    public MutableShardRouting(String index, int shardId, String currentNodeId, boolean primary, ShardRoutingState state, long version) {
-        super(index, shardId, currentNodeId, primary, state, version);
-    }
-
-    public MutableShardRouting(String index, int shardId, String currentNodeId,
-                               String relocatingNodeId, boolean primary, ShardRoutingState state, long version) {
-        super(index, shardId, currentNodeId, relocatingNodeId, null, primary, state, version);
+        super(copy, version);
     }
 
     public MutableShardRouting(String index, int shardId, String currentNodeId,
                                String relocatingNodeId, RestoreSource restoreSource, boolean primary, ShardRoutingState state, long version) {
         super(index, shardId, currentNodeId, relocatingNodeId, restoreSource, primary, state, version);
+        assert state != ShardRoutingState.UNASSIGNED : "new mutable routing should not be created with UNASSIGNED state, should moveToUnassigned";
     }
 
-
+    /**
+     * Moves the shard to unassigned state.
+     */
+    void moveToUnassigned() {
+        version++;
+        assert state != ShardRoutingState.UNASSIGNED;
+        state = ShardRoutingState.UNASSIGNED;
+        currentNodeId = null;
+        relocatingNodeId = null;
+    }
 
     /**
      * Assign this shard to a node.

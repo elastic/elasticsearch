@@ -16,18 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.index.mapper.core;
 
-package org.elasticsearch.index.fielddata;
+import org.elasticsearch.index.mapper.FieldTypeTestCase;
+import org.elasticsearch.index.mapper.MappedFieldType;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
-
-/**
- */
-public class FSTPackedBytesStringFieldDataTests extends AbstractStringFieldDataTests {
-
+public class StringFieldTypeTests extends FieldTypeTestCase {
     @Override
-    protected FieldDataType getFieldDataType() {
-        return new FieldDataType("string", Settings.builder().put("format", "fst").put(OrdinalsBuilder.FORCE_MULTI_ORDINALS, randomBoolean()));
+    protected MappedFieldType createDefaultFieldType() {
+        return new StringFieldMapper.StringFieldType();
     }
 }

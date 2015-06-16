@@ -60,44 +60,33 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
     }
 
     public ImmutableShardRouting(ShardRouting copy) {
-        this(copy.index(), copy.id(), copy.currentNodeId(), copy.primary(), copy.state(), copy.version());
-        this.relocatingNodeId = copy.relocatingNodeId();
-        this.restoreSource = copy.restoreSource();
-        if (copy instanceof ImmutableShardRouting) {
-            this.shardIdentifier = ((ImmutableShardRouting) copy).shardIdentifier;
-        }
+        this(copy, copy.version());
     }
 
     public ImmutableShardRouting(ShardRouting copy, long version) {
-        this(copy.index(), copy.id(), copy.currentNodeId(), copy.primary(), copy.state(), copy.version());
-        this.relocatingNodeId = copy.relocatingNodeId();
-        this.restoreSource = copy.restoreSource();
-        this.version = version;
-        if (copy instanceof ImmutableShardRouting) {
-            this.shardIdentifier = ((ImmutableShardRouting) copy).shardIdentifier;
-        }
+        this(copy.index(), copy.id(), copy.currentNodeId(), copy.relocatingNodeId(), copy.restoreSource(), copy.primary(), copy.state(), version);
+    }
+
+    public ImmutableShardRouting(String index, int shardId, String currentNodeId, boolean primary, ShardRoutingState state, long version) {
+        this(index, shardId, currentNodeId, null, primary, state, version);
     }
 
     public ImmutableShardRouting(String index, int shardId, String currentNodeId,
                                  String relocatingNodeId, boolean primary, ShardRoutingState state, long version) {
-        this(index, shardId, currentNodeId, primary, state, version);
-        this.relocatingNodeId = relocatingNodeId;
+        this(index, shardId, currentNodeId, relocatingNodeId, null, primary, state, version);
     }
 
     public ImmutableShardRouting(String index, int shardId, String currentNodeId,
                                  String relocatingNodeId, RestoreSource restoreSource, boolean primary, ShardRoutingState state, long version) {
-        this(index, shardId, currentNodeId, relocatingNodeId, primary, state, version);
-        this.restoreSource = restoreSource;
-    }
-
-    public ImmutableShardRouting(String index, int shardId, String currentNodeId, boolean primary, ShardRoutingState state, long version) {
         this.index = index;
         this.shardId = shardId;
         this.currentNodeId = currentNodeId;
+        this.relocatingNodeId = relocatingNodeId;
         this.primary = primary;
         this.state = state;
         this.asList = ImmutableList.of((ShardRouting) this);
         this.version = version;
+        this.restoreSource = restoreSource;
     }
 
     @Override

@@ -189,67 +189,9 @@ public class ScriptHeuristic extends SignificanceHeuristic {
     public static class ScriptHeuristicBuilder implements SignificanceHeuristicBuilder {
 
         private Script script = null;
-        private String scriptString = null;
-        private ScriptType type = null;
-        private String lang = null;
-        private Map<String, Object> params = null;
 
         public ScriptHeuristicBuilder setScript(Script script) {
             this.script = script;
-            return this;
-        }
-
-        /**
-         * @deprecated use {@link #setScript(Script)}
-         */
-        @Deprecated
-        public ScriptHeuristicBuilder setScript(String script) {
-            if (script != null) {
-                this.scriptString = script;
-                this.type = ScriptType.INLINE;
-            }
-            return this;
-        }
-
-        /**
-         * @deprecated use {@link #setScript(Script)}
-         */
-        @Deprecated
-        public ScriptHeuristicBuilder setScriptFile(String script) {
-            if (script != null) {
-                this.scriptString = script;
-                this.type = ScriptType.FILE;
-            }
-            return this;
-        }
-
-        /**
-         * @deprecated use {@link #setScript(Script)}
-         */
-        @Deprecated
-        public ScriptHeuristicBuilder setLang(String lang) {
-            this.lang = lang;
-            return this;
-        }
-
-        /**
-         * @deprecated use {@link #setScript(Script)}
-         */
-        @Deprecated
-        public ScriptHeuristicBuilder setParams(Map<String, Object> params) {
-            this.params = params;
-            return this;
-        }
-
-        /**
-         * @deprecated use {@link #setScript(Script)}
-         */
-        @Deprecated
-        public ScriptHeuristicBuilder setScriptId(String scriptId) {
-            if (scriptId != null) {
-                this.scriptString = scriptId;
-                this.type = ScriptType.INDEXED;
-            }
             return this;
         }
 
@@ -257,11 +199,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
         public XContentBuilder toXContent(XContentBuilder builder, Params builderParams) throws IOException {
             builder.startObject(STREAM.getName());
             builder.field(ScriptField.SCRIPT.getPreferredName());
-            if (script == null) {
-                new Script(scriptString, type, lang, params).toXContent(builder, builderParams);
-            } else {
-                script.toXContent(builder, builderParams);
-            }
+            script.toXContent(builder, builderParams);
             builder.endObject();
             return builder;
         }

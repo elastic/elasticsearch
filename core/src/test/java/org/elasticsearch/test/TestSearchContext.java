@@ -38,6 +38,7 @@ import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.shard.IndexShard;
@@ -567,9 +568,9 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public MapperService.SmartNameObjectMapper smartNameObjectMapper(String name) {
+    public ObjectMapper getObjectMapper(String name) {
         if (mapperService() != null) {
-            return mapperService().smartNameObjectMapper(name, types);
+            return mapperService().getObjectMapper(name, types);
         }
         return null;
     }

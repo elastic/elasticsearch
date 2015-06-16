@@ -37,7 +37,6 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ShardFieldData;
-import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.MergeStats;
@@ -48,7 +47,6 @@ import org.elasticsearch.index.search.stats.ShardSearchService;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.suggest.stats.ShardSuggestService;
 import org.elasticsearch.index.termvectors.ShardTermVectorsService;
 import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 import org.elasticsearch.indices.IndicesLifecycle;
@@ -71,21 +69,21 @@ public final class ShadowIndexShard extends IndexShard {
                             ThreadPool threadPool, MapperService mapperService,
                             IndexQueryParserService queryParserService, IndexCache indexCache,
                             IndexAliasesService indexAliasesService, ShardIndexingService indexingService,
-                            ShardGetService getService, ShardSearchService searchService,
+                            ShardSearchService searchService,
                             ShardIndexWarmerService shardWarmerService, ShardFilterCache shardFilterCache,
                             ShardFieldData shardFieldData, PercolatorQueriesRegistry percolatorQueriesRegistry,
                             ShardPercolateService shardPercolateService, CodecService codecService,
                             ShardTermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService,
-                            IndexService indexService, ShardSuggestService shardSuggestService, ShardQueryCache shardQueryCache,
+                            IndexService indexService, ShardQueryCache shardQueryCache,
                             ShardBitsetFilterCache shardBitsetFilterCache, @Nullable IndicesWarmer warmer,
                             SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService,
                             EngineFactory factory, ClusterService clusterService,
                             NodeEnvironment nodeEnv, ShardPath path, BigArrays bigArrays) throws IOException {
         super(shardId, indexSettingsService, indicesLifecycle, store,
                 threadPool, mapperService, queryParserService, indexCache, indexAliasesService,
-                indexingService, getService, searchService, shardWarmerService, shardFilterCache,
+                indexingService, searchService, shardWarmerService, shardFilterCache,
                 shardFieldData, percolatorQueriesRegistry, shardPercolateService, codecService,
-                termVectorsService, indexFieldDataService, indexService, shardSuggestService,
+                termVectorsService, indexFieldDataService, indexService,
                 shardQueryCache, shardBitsetFilterCache, warmer, deletionPolicy, similarityService,
                 factory, clusterService, nodeEnv, path, bigArrays);
     }

@@ -39,7 +39,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.suggest.stats.ShardSuggestService;
+import org.elasticsearch.index.suggest.stats.ShardSuggestMetric;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestPhase;
@@ -130,8 +130,8 @@ public class TransportSuggestAction extends TransportBroadcastAction<SuggestRequ
     protected ShardSuggestResponse shardOperation(ShardSuggestRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.shardSafe(request.shardId().id());
-        ShardSuggestService shardSuggestService = indexShard.shardSuggestService();
-        shardSuggestService.preSuggest();
+        ShardSuggestMetric suggestMetric = indexShard.getSuggestMetric();
+        suggestMetric.preSuggest();
         long startTime = System.nanoTime();
         XContentParser parser = null;
         try (Engine.Searcher searcher = indexShard.acquireSearcher("suggest")) {
@@ -153,7 +153,7 @@ public class TransportSuggestAction extends TransportBroadcastAction<SuggestRequ
             if (parser != null) {
                 parser.close();
             }
-            shardSuggestService.postSuggest(System.nanoTime() - startTime);
+            suggestMetric.postSuggest(System.nanoTime() - startTime);
         }
     }
 }

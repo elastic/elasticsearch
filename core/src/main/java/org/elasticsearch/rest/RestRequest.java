@@ -134,11 +134,6 @@ public abstract class RestRequest extends ContextAndHeaderHolder implements ToXC
         return Booleans.parseBoolean(param(key), defaultValue);
     }
 
-    @Override @Deprecated
-    public Boolean paramAsBooleanOptional(String key, Boolean defaultValue) {
-        return paramAsBoolean(key, defaultValue);
-    }
-
     public TimeValue paramAsTime(String key, TimeValue defaultValue) {
         return parseTimeValue(param(key), defaultValue, key);
     }

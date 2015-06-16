@@ -205,7 +205,7 @@ Elasticsearch uses "Maven":http://maven.apache.org for its build system.
 In order to create a distribution, simply run the @mvn clean package
 -DskipTests@ command in the cloned directory.
 
-The distribution will be created under @target/releases@.
+The distribution for each project will be created under the @target/releases@ directory in that project.
 
 See the "TESTING":TESTING.asciidoc file for more information about
 running the Elasticsearch test suite.

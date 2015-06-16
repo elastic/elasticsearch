@@ -84,7 +84,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
                     .setQuery(QueryBuilders.matchAllQuery())
                     .setRescorer(RescoreBuilder.queryRescorer(
                             QueryBuilders.functionScoreQuery(QueryBuilders.matchAllQuery())
-                                    .boostMode("replace").add(ScoreFunctionBuilders.factorFunction(100))).setQueryWeight(0.0f).setRescoreQueryWeight(1.0f))
+                                    .boostMode("replace").add(ScoreFunctionBuilders.weightFactorFunction(100))).setQueryWeight(0.0f).setRescoreQueryWeight(1.0f))
                     .setRescoreWindow(1).setSize(randomIntBetween(2,10)).execute().actionGet();
             assertSearchResponse(searchResponse);
             assertFirstHit(searchResponse, hasScore(100.f));

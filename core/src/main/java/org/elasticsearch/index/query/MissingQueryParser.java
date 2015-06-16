@@ -19,14 +19,17 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.object.ObjectMapper;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -95,8 +98,8 @@ public class MissingQueryParser extends BaseQueryParserTemp {
             return Queries.newMatchNoDocsQuery();
         }
 
-        MapperService.SmartNameObjectMapper smartNameObjectMapper = parseContext.smartObjectMapper(fieldPattern);
-        if (smartNameObjectMapper != null && smartNameObjectMapper.hasMapper()) {
+        ObjectMapper objectMapper = parseContext.getObjectMapper(fieldPattern);
+        if (objectMapper != null) {
             // automatic make the object mapper pattern
             fieldPattern = fieldPattern + ".*";
         }

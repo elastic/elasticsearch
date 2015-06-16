@@ -222,9 +222,7 @@ public class CancelAllocationCommand implements AllocationCommand {
                     throw new IllegalArgumentException("[cancel_allocation] can't cancel " + shardId + " on node " +
                             discoNode + ", shard is primary and started");
                 }
-                it.remove();
-                allocation.routingNodes().unassigned().add(new MutableShardRouting(shardRouting.index(), shardRouting.id(),
-                        null, shardRouting.primary(), ShardRoutingState.UNASSIGNED, shardRouting.version() + 1));
+                it.moveToUnassigned();
             }
         }
         if (!found) {

@@ -37,13 +37,6 @@ public interface ToXContent {
         boolean paramAsBoolean(String key, boolean defaultValue);
 
         Boolean paramAsBoolean(String key, Boolean defaultValue);
-
-        /**
-         * @deprecated since 1.0.0
-         * use {@link ToXContent.Params#paramAsBoolean(String, Boolean)} instead
-         */
-        @Deprecated
-        Boolean paramAsBooleanOptional(String key, Boolean defaultValue);
     }
 
     public static final Params EMPTY_PARAMS = new Params() {
@@ -67,10 +60,6 @@ public interface ToXContent {
             return defaultValue;
         }
 
-        @Override @Deprecated
-        public Boolean paramAsBooleanOptional(String key, Boolean defaultValue) {
-            return paramAsBoolean(key, defaultValue);
-        }
     };
 
     public static class MapParams implements Params {
@@ -104,11 +93,6 @@ public interface ToXContent {
         public Boolean paramAsBoolean(String key, Boolean defaultValue) {
             return Booleans.parseBoolean(param(key), defaultValue);
         }
-
-        @Override @Deprecated
-        public Boolean paramAsBooleanOptional(String key, Boolean defaultValue) {
-            return paramAsBoolean(key, defaultValue);
-        }
     }
 
     public static class DelegatingMapParams extends MapParams {
@@ -138,11 +122,6 @@ public interface ToXContent {
         @Override
         public Boolean paramAsBoolean(String key, Boolean defaultValue) {
             return super.paramAsBoolean(key, delegate.paramAsBoolean(key, defaultValue));
-        }
-
-        @Override @Deprecated
-        public Boolean paramAsBooleanOptional(String key, Boolean defaultValue) {
-            return super.paramAsBooleanOptional(key, delegate.paramAsBooleanOptional(key, defaultValue));
         }
     }
 

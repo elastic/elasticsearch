@@ -470,14 +470,11 @@ public class AllocationService extends AbstractComponent {
                         MutableShardRouting shardRouting = relocatingFromNode.next();
                         if (shardRouting.equals(failedShard)) {
                             dirty = true;
-                            relocatingFromNode.remove();
                             if (addToIgnoreList) {
                                 // make sure we ignore this shard on the relevant node
                                 allocation.addIgnoreShardForNode(failedShard.shardId(), failedShard.currentNodeId());
                             }
-
-                            routingNodes.unassigned().add(new MutableShardRouting(failedShard.index(), failedShard.id(),
-                                    null, failedShard.primary(), ShardRoutingState.UNASSIGNED, failedShard.version() + 1));
+                            relocatingFromNode.moveToUnassigned();
                             break;
                         }
                     }
@@ -512,7 +509,6 @@ public class AllocationService extends AbstractComponent {
                             // make sure we ignore this shard on the relevant node
                             allocation.addIgnoreShardForNode(failedShard.shardId(), failedShard.currentNodeId());
                         }
-                        node.remove();
                         // move all the shards matching the failed shard to the end of the unassigned list
                         // so we give a chance for other allocations and won't create poison failed allocations
                         // that can keep other shards from being allocated (because of limits applied on how many
@@ -529,9 +525,7 @@ public class AllocationService extends AbstractComponent {
                             routingNodes.unassigned().addAll(shardsToMove);
                         }
 
-                        routingNodes.unassigned().add(new MutableShardRouting(failedShard.index(), failedShard.id(), null,
-                                null, failedShard.restoreSource(), failedShard.primary(), ShardRoutingState.UNASSIGNED, failedShard.version() + 1));
-
+                        node.moveToUnassigned();
                         break;
                     }
                 }

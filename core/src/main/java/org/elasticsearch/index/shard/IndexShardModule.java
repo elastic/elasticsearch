@@ -30,7 +30,6 @@ import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.fielddata.ShardFieldData;
 import org.elasticsearch.index.gateway.IndexShardGateway;
 import org.elasticsearch.index.gateway.IndexShardGatewayService;
-import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.indexing.slowlog.ShardSlowLogIndexingService;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
@@ -38,7 +37,6 @@ import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.search.slowlog.ShardSlowLogSearchService;
 import org.elasticsearch.index.search.stats.ShardSearchService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotAndRestoreService;
-import org.elasticsearch.index.suggest.stats.ShardSuggestService;
 import org.elasticsearch.index.termvectors.ShardTermVectorsService;
 import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.index.warmer.ShardIndexWarmerService;
@@ -92,7 +90,6 @@ public class IndexShardModule extends AbstractModule {
         bind(ShardSlowLogIndexingService.class).asEagerSingleton();
         bind(ShardSearchService.class).asEagerSingleton();
         bind(ShardSlowLogSearchService.class).asEagerSingleton();
-        bind(ShardGetService.class).asEagerSingleton();
         bind(ShardFilterCache.class).toInstance(shardFilterCache);
         bind(ShardQueryCache.class).asEagerSingleton();
         bind(ShardBitsetFilterCache.class).asEagerSingleton();
@@ -103,7 +100,6 @@ public class IndexShardModule extends AbstractModule {
         bind(ShardPercolateService.class).asEagerSingleton();
         bind(ShardTermVectorsService.class).asEagerSingleton();
         bind(IndexShardSnapshotAndRestoreService.class).asEagerSingleton();
-        bind(ShardSuggestService.class).asEagerSingleton();
     }
 
 

@@ -56,26 +56,19 @@ public class Script implements ToXContent, Streamable {
     /**
      * Constructor for simple inline script. The script will have no lang or
      * params set.
-     * 
+     *
      * @param script
      *            The inline script to execute.
      */
     public Script(String script) {
-        if (script == null) {
-            throw new IllegalArgumentException("The parameter script (String) must not be null in Script.");
-        }
-        this.script = script;
+        this(script, null);
     }
 
     /**
      * For sub-classes to use to override the default language
      */
     protected Script(String script, String lang) {
-        if (script == null) {
-            throw new IllegalArgumentException("The parameter script (String) must not be null in Script.");
-        }
-        this.script = script;
-        this.lang = lang;
+        this(script, ScriptType.INLINE, lang, null);
     }
 
     /**
@@ -93,7 +86,7 @@ public class Script implements ToXContent, Streamable {
      * @param params
      *            The map of parameters the script will be executed with.
      */
-    public Script(String script, ScriptType type, @Nullable String lang, @Nullable Map<String, Object> params) {
+    public Script(String script, ScriptType type, @Nullable String lang, @Nullable Map<String, ? extends Object> params) {
         if (script == null) {
             throw new IllegalArgumentException("The parameter script (String) must not be null in Script.");
         }
@@ -103,7 +96,7 @@ public class Script implements ToXContent, Streamable {
         this.script = script;
         this.type = type;
         this.lang = lang;
-        this.params = params;
+        this.params = (Map<String, Object>)params;
     }
 
     /**

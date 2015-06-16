@@ -36,6 +36,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -58,6 +59,13 @@ public class SimpleQueryStringTests extends ElasticsearchIntegrationTest {
         SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar")).get();
         assertHitCount(searchResponse, 3l);
         assertSearchHits(searchResponse, "1", "2", "3");
+
+        searchResponse = client().prepareSearch().setQuery(
+                boolQuery()
+                    .should(simpleQueryStringQuery("foo").boost(-10.0f))
+                    .should(termQuery("body", "eggplant"))).get();
+        assertHitCount(searchResponse, 3l);
+        assertFirstHit(searchResponse, hasId("4"));
 
         searchResponse = client().prepareSearch().setQuery(
                 simpleQueryStringQuery("foo bar").defaultOperator(SimpleQueryStringBuilder.Operator.AND)).get();

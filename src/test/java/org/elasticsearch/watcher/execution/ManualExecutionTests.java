@@ -7,6 +7,7 @@ package org.elasticsearch.watcher.execution;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.lucene.util.LuceneTestCase.Slow;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -24,6 +25,9 @@ import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchResponse;
+import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchRequest;
+import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
+import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchRequest;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchRequest;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
@@ -62,7 +66,6 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
 
     @Test @Repeat(iterations = 10)
     public void testExecuteWatch() throws Exception {
-        ensureWatcherStarted();
         boolean ignoreCondition = randomBoolean();
         boolean recordExecution = randomBoolean();
         boolean conditionAlwaysTrue = randomBoolean();
@@ -147,8 +150,73 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
     }
 
     @Test
+    @Repeat(iterations = 5)
+    public void testExecutionWithInlineWatch() throws Exception {
+        WatchSourceBuilder watchBuilder = watchBuilder()
+                .trigger(schedule(cron("0 0 0 1 * ? 2099")))
+                .input(simpleInput("foo", "bar"))
+                .condition(alwaysCondition())
+                .addAction("log", loggingAction("foobar"));
+
+        ExecuteWatchRequestBuilder builder = watcherClient().prepareExecuteWatch()
+                .setWatchSource(watchBuilder);
+        if (randomBoolean()) {
+            builder.setRecordExecution(false);
+        }
+        if (randomBoolean()) {
+            builder.setTriggerEvent(new ScheduleTriggerEvent(new DateTime(UTC), new DateTime(UTC)));
+        }
+
+        ExecuteWatchResponse executeWatchResponse = builder.get();
+        assertThat(executeWatchResponse.getRecordId(), startsWith(ExecuteWatchRequest.INLINE_WATCH_ID));
+        assertThat(executeWatchResponse.getRecordSource().getValue("watch_id").toString(), equalTo(ExecuteWatchRequest.INLINE_WATCH_ID));
+        assertThat(executeWatchResponse.getRecordSource().getValue("state").toString(), equalTo("executed"));
+        assertThat(executeWatchResponse.getRecordSource().getValue("trigger_event.type").toString(), equalTo("manual"));
+    }
+
+    @Test
+    public void testExecutionWithInlineWatch_withRecordExecutionEnabled() throws Exception {
+        WatchSourceBuilder watchBuilder = watchBuilder()
+                .trigger(schedule(cron("0 0 0 1 * ? 2099")))
+                .input(simpleInput("foo", "bar"))
+                .condition(alwaysCondition())
+                .addAction("log", loggingAction("foobar"));
+
+        try {
+            watcherClient().prepareExecuteWatch()
+                    .setWatchSource(watchBuilder)
+                    .setRecordExecution(true)
+                    .setTriggerEvent(new ScheduleTriggerEvent(new DateTime(UTC), new DateTime(UTC)))
+                    .get();
+            fail();
+        } catch (ActionRequestValidationException e) {
+            assertThat(e.getMessage(), containsString("the execution of an inline watch cannot be recorded"));
+        }
+    }
+
+    @Test
+    public void testExecutionWithInlineWatch_withWatchId() throws Exception {
+        WatchSourceBuilder watchBuilder = watchBuilder()
+                .trigger(schedule(cron("0 0 0 1 * ? 2099")))
+                .input(simpleInput("foo", "bar"))
+                .condition(alwaysCondition())
+                .addAction("log", loggingAction("foobar"));
+
+        try {
+            watcherClient().prepareExecuteWatch()
+                    .setId("_id")
+                    .setWatchSource(watchBuilder)
+                    .setRecordExecution(false)
+                    .setTriggerEvent(new ScheduleTriggerEvent(new DateTime(UTC), new DateTime(UTC)))
+                    .get();
+            fail();
+        } catch (ActionRequestValidationException e) {
+            assertThat(e.getMessage(), containsString("a watch execution request must either have a watch id or an inline watch source but not both"));
+        }
+    }
+
+    @Test
     public void testDifferentAlternativeInputs() throws Exception {
-        ensureWatcherStarted();
         WatchSourceBuilder watchBuilder = watchBuilder()
                 .trigger(schedule(cron("0 0 0 1 * ? 2099")))
                 .addAction("log", loggingAction("foobar"));
@@ -187,8 +255,6 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
 
     @Test
     public void testExecutionRequestDefaults() throws Exception {
-        ensureWatcherStarted();
-
         WatchSourceBuilder watchBuilder = watchBuilder()
                 .trigger(schedule(cron("0 0 0 1 * ? 2099")))
                 .input(simpleInput("foo", "bar"))

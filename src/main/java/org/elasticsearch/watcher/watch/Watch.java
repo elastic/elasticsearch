@@ -252,6 +252,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                 if (withSecrets) {
                     parser = new SensitiveXContentParser(parser, secretService);
                 }
+                parser.nextToken();
                 return parse(id, includeStatus, parser);
             } catch (IOException ioe) {
                 throw new WatcherException("could not parse watch [{}]", ioe, id);
@@ -273,7 +274,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
             WatchStatus status = null;
 
             String currentFieldName = null;
-            XContentParser.Token token = parser.nextToken();
+            XContentParser.Token token;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == null ) {
                     throw new ParseException("could not parse watch [{}]. null token", id);

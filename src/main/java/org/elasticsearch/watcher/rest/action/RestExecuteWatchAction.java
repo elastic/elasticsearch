@@ -37,6 +37,8 @@ public class RestExecuteWatchAction extends WatcherRestHandler {
         super(settings, controller, client);
         controller.registerHandler(RestRequest.Method.POST, URI_BASE + "/watch/{id}/_execute", this);
         controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/watch/{id}/_execute", this);
+        controller.registerHandler(RestRequest.Method.POST, URI_BASE + "/watch/_execute", this);
+        controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/watch/_execute", this);
         this.triggerService = triggerService;
     }
 
@@ -58,9 +60,8 @@ public class RestExecuteWatchAction extends WatcherRestHandler {
 
     //This tightly binds the REST API to the java API
     private ExecuteWatchRequest parseRequest(RestRequest request, WatcherClient client) throws IOException {
-        String watchId = request.param("id");
-        ExecuteWatchRequestBuilder builder = client.prepareExecuteWatch(watchId);
-
+        ExecuteWatchRequestBuilder builder = client.prepareExecuteWatch();
+        builder.setId(request.param("id"));
         if (request.content() == null || request.content().length() == 0) {
             return builder.request();
         }
@@ -79,13 +80,17 @@ public class RestExecuteWatchAction extends WatcherRestHandler {
                 } else if (Field.RECORD_EXECUTION.match(currentFieldName)) {
                     builder.setRecordExecution(parser.booleanValue());
                 } else {
-                    throw new ParseException("could not parse watch execution request for [{}]. unexpected boolean field [{}]", watchId, currentFieldName);
+                    throw new ParseException("could not parse watch execution request. unexpected boolean field [{}]", currentFieldName);
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (Field.ALTERNATIVE_INPUT.match(currentFieldName)) {
                     builder.setAlternativeInput(parser.map());
                 } else if (Field.TRIGGER_DATA.match(currentFieldName)) {
                     builder.setTriggerData(parser.map());
+                } else if (Field.WATCH.match(currentFieldName)) {
+                    XContentBuilder watcherSource = XContentBuilder.builder(parser.contentType().xContent());
+                    XContentHelper.copyCurrentStructure(watcherSource.generator(), parser);
+                    builder.setWatchSource(watcherSource.bytes());
                 } else if (Field.ACTION_MODES.match(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
@@ -95,17 +100,17 @@ public class RestExecuteWatchAction extends WatcherRestHandler {
                                 ActionExecutionMode mode = ActionExecutionMode.resolve(parser.textOrNull());
                                 builder.setActionMode(currentFieldName, mode);
                             } catch (WatcherException we) {
-                                throw new ParseException("could not parse watch execution request for [{}].", watchId, we);
+                                throw new ParseException("could not parse watch execution request", we);
                             }
                         } else {
-                            throw new ParseException("could not parse watch execution request for [{}]. unexpected array field [{}]", watchId, currentFieldName);
+                            throw new ParseException("could not parse watch execution request. unexpected array field [{}]", currentFieldName);
                         }
                     }
                 } else {
-                    throw new ParseException("could not parse watch execution request for [{}]. unexpected object field [{}]", watchId, currentFieldName);
+                    throw new ParseException("could not parse watch execution request. unexpected object field [{}]", currentFieldName);
                 }
             } else {
-                throw new ParseException("could not parse watch execution request for [{}]. unexpected token [{}]", watchId, token);
+                throw new ParseException("could not parse watch execution request. unexpected token [{}]", token);
             }
         }
 
@@ -132,5 +137,6 @@ public class RestExecuteWatchAction extends WatcherRestHandler {
         ParseField ALTERNATIVE_INPUT = new ParseField("alternative_input");
         ParseField IGNORE_CONDITION = new ParseField("ignore_condition");
         ParseField TRIGGER_DATA = new ParseField("trigger_data");
+        ParseField WATCH = new ParseField("watch");
     }
 }

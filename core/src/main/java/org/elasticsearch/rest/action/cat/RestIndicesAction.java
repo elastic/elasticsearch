@@ -42,6 +42,7 @@ import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActionListener;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
+import org.joda.time.DateTime;
 
 import java.util.Locale;
 
@@ -111,6 +112,9 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("rep", "alias:r,shards.replica,shardsReplica;text-align:right;desc:number of replica shards");
         table.addCell("docs.count", "alias:dc,docsCount;text-align:right;desc:available docs");
         table.addCell("docs.deleted", "alias:dd,docsDeleted;text-align:right;desc:deleted docs");
+
+        table.addCell("creation.date", "alias:cd;default:false;desc:index creation date (millisecond value)");
+        table.addCell("creation.date.string", "alias:cds;default:false;desc:index creation date (as string)");        
 
         table.addCell("store.size", "sibling:pri;alias:ss,storeSize;text-align:right;desc:store size of primaries & replicas");
         table.addCell("pri.store.size", "text-align:right;desc:store size of primaries");
@@ -319,6 +323,9 @@ public class RestIndicesAction extends AbstractCatAction {
             table.addCell(indexHealth == null ? null : indexHealth.getNumberOfReplicas());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getDocs().getCount());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getDocs().getDeleted());
+
+            table.addCell(indexMetaData.creationDate());
+            table.addCell(new DateTime(indexMetaData.creationDate()));
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getStore().size());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getStore().size());

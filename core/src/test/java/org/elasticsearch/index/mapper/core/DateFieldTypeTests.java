@@ -47,7 +47,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         switch (propNum) {
             case 0: dft.setDateTimeFormatter(Joda.forPattern("basic_week_date", Locale.ROOT)); break;
             case 1: dft.setTimeUnit(TimeUnit.HOURS); break;
-            default: super.modifyProperty(ft, 2 + propNum);
+            default: super.modifyProperty(ft, propNum - 2);
         }
     }
 }

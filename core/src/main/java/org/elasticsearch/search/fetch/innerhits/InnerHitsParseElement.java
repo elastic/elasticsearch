@@ -154,19 +154,18 @@ public class InnerHitsParseElement implements SearchParseElement {
     }
 
     private InnerHitsContext.NestedInnerHits parseNested(XContentParser parser, QueryParseContext parseContext, SearchContext searchContext, String nestedPath) throws Exception {
-        MapperService.SmartNameObjectMapper smartNameObjectMapper = searchContext.smartNameObjectMapper(nestedPath);
-        if (smartNameObjectMapper == null || !smartNameObjectMapper.hasMapper()) {
+        ObjectMapper objectMapper = searchContext.getObjectMapper(nestedPath);
+        if (objectMapper == null) {
             throw new IllegalArgumentException("path [" + nestedPath +"] doesn't exist");
         }
-        ObjectMapper childObjectMapper = smartNameObjectMapper.mapper();
-        if (!childObjectMapper.nested().isNested()) {
+        if (objectMapper.nested().isNested() == false) {
             throw new IllegalArgumentException("path [" + nestedPath +"] isn't nested");
         }
-        ObjectMapper parentObjectMapper = parseContext.nestedScope().nextLevel(childObjectMapper);
+        ObjectMapper parentObjectMapper = parseContext.nestedScope().nextLevel(objectMapper);
         ParseResult parseResult = parseSubSearchContext(searchContext, parseContext, parser);
         parseContext.nestedScope().previousLevel();
 
-        return new InnerHitsContext.NestedInnerHits(parseResult.context(), parseResult.query(), parseResult.childInnerHits(), parentObjectMapper, childObjectMapper);
+        return new InnerHitsContext.NestedInnerHits(parseResult.context(), parseResult.query(), parseResult.childInnerHits(), parentObjectMapper, objectMapper);
     }
 
     private ParseResult parseSubSearchContext(SearchContext searchContext, QueryParseContext parseContext, XContentParser parser) throws Exception {

@@ -64,7 +64,7 @@ public class SpanFirstQueryBuilder extends BaseQueryBuilder implements SpanQuery
             builder.field("boost", boost);
         }
         if (queryName != null) {
-            builder.field("name", queryName);
+            builder.field("_name", queryName);
         }
         builder.endObject();
     }

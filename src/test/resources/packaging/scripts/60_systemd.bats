@@ -144,3 +144,27 @@ setup() {
     run systemctl status elasticsearch.service
     echo "$output" | grep "Active:" | grep "inactive"
 }
+
+# Simulates the behavior of a system restart:
+# the PID directory is deleted by the operating system
+# but it should not block ES from starting
+# see https://github.com/elastic/elasticsearch/issues/11594
+@test "[SYSTEMD] delete PID_DIR and restart" {
+    skip_not_systemd
+
+    run rm -rf /var/run/elasticsearch
+    [ "$status" -eq 0 ]
+
+    run systemd-tmpfiles --create
+    [ "$status" -eq 0 ]
+
+    run systemctl start elasticsearch.service
+    [ "$status" -eq 0 ]
+
+    wait_for_elasticsearch_status
+
+    assert_file_exist "/var/run/elasticsearch/elasticsearch.pid"
+
+    run systemctl stop elasticsearch.service
+    [ "$status" -eq 0 ]
+}

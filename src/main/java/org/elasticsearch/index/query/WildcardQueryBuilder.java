@@ -86,7 +86,7 @@ public class WildcardQueryBuilder extends BaseQueryBuilder implements MultiTermQ
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(WildcardQueryParser.NAME);
-        if (boost == -1 && rewrite == null && queryName != null) {
+        if (boost == -1 && rewrite == null && queryName == null) {
             builder.field(name, wildcard);
         } else {
             builder.startObject(name);

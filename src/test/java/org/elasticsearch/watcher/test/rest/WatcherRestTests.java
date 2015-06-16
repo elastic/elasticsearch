@@ -50,7 +50,7 @@ public class WatcherRestTests extends ElasticsearchRestTestCase {
     }
 
     protected boolean enableShield() {
-        return randomBoolean() || true;
+        return randomBoolean();
     }
 
     @Override

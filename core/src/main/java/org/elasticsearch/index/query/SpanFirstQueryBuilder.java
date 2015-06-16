@@ -62,7 +62,7 @@ public class SpanFirstQueryBuilder extends SpanQueryBuilder implements Boostable
             builder.field("boost", boost);
         }
         if (queryName != null) {
-            builder.field("name", queryName);
+            builder.field("_name", queryName);
         }
         builder.endObject();
     }

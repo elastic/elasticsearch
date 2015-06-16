@@ -98,28 +98,24 @@ public class RegexpQueryBuilder extends MultiTermQueryBuilder implements Boostab
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(RegexpQueryParser.NAME);
-        if (boost == -1 && rewrite == null && queryName != null) {
-            builder.field(name, regexp);
-        } else {
-            builder.startObject(name);
-            builder.field("value", regexp);
-            if (flags != -1) {
-                builder.field("flags_value", flags);
-            }
-            if (maxDetermizedStatesSet) {
-                builder.field("max_determinized_states", maxDeterminizedStates);
-            }
-            if (boost != -1) {
-                builder.field("boost", boost);
-            }
-            if (rewrite != null) {
-                builder.field("rewrite", rewrite);
-            }
-            if (queryName != null) {
-                builder.field("name", queryName);
-            }
-            builder.endObject();
+        builder.startObject(name);
+        builder.field("value", regexp);
+        if (flags != -1) {
+            builder.field("flags_value", flags);
         }
+        if (maxDetermizedStatesSet) {
+            builder.field("max_determinized_states", maxDeterminizedStates);
+        }
+        if (boost != -1) {
+            builder.field("boost", boost);
+        }
+        if (rewrite != null) {
+            builder.field("rewrite", rewrite);
+        }
+        if (queryName != null) {
+            builder.field("_name", queryName);
+        }
+        builder.endObject();
         builder.endObject();
     }
 }

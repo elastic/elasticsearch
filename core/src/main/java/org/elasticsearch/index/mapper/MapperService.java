@@ -532,30 +532,21 @@ public class MapperService extends AbstractIndexComponent  {
         return fields;
     }
 
-    public SmartNameObjectMapper smartNameObjectMapper(String smartName, @Nullable String[] types) {
+    public ObjectMapper getObjectMapper(String name, @Nullable String[] types) {
         if (types == null || types.length == 0 || types.length == 1 && types[0].equals("_all")) {
-            ObjectMappers mappers = fullPathObjectMappers.get(smartName);
+            ObjectMappers mappers = fullPathObjectMappers.get(name);
             if (mappers != null) {
-                return new SmartNameObjectMapper(mappers.mapper(), guessDocMapper(smartName));
+                return mappers.mapper();
             }
             return null;
         }
         for (String type : types) {
             DocumentMapper possibleDocMapper = mappers.get(type);
             if (possibleDocMapper != null) {
-                ObjectMapper mapper = possibleDocMapper.objectMappers().get(smartName);
+                ObjectMapper mapper = possibleDocMapper.objectMappers().get(name);
                 if (mapper != null) {
-                    return new SmartNameObjectMapper(mapper, possibleDocMapper);
+                    return mapper;
                 }
-            }
-        }
-        return null;
-    }
-
-    private DocumentMapper guessDocMapper(String path) {
-        for (DocumentMapper documentMapper : docMappers(false)) {
-            if (documentMapper.objectMappers().containsKey(path)) {
-                return documentMapper;
             }
         }
         return null;
@@ -661,32 +652,6 @@ public class MapperService extends AbstractIndexComponent  {
      */
     public static boolean isMetadataField(String fieldName) {
         return META_FIELDS.contains(fieldName);
-    }
-
-    public static class SmartNameObjectMapper {
-        private final ObjectMapper mapper;
-        private final DocumentMapper docMapper;
-
-        public SmartNameObjectMapper(ObjectMapper mapper, @Nullable DocumentMapper docMapper) {
-            this.mapper = mapper;
-            this.docMapper = docMapper;
-        }
-
-        public boolean hasMapper() {
-            return mapper != null;
-        }
-
-        public ObjectMapper mapper() {
-            return mapper;
-        }
-
-        public boolean hasDocMapper() {
-            return docMapper != null;
-        }
-
-        public DocumentMapper docMapper() {
-            return docMapper;
-        }
     }
 
     final class SmartIndexNameSearchAnalyzer extends DelegatingAnalyzerWrapper {

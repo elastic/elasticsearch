@@ -8,7 +8,6 @@ package org.elasticsearch.watcher.test.rest;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.client.support.Headers;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.node.Node;
@@ -24,7 +23,6 @@ import org.elasticsearch.test.rest.ElasticsearchRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 import org.elasticsearch.watcher.WatcherPlugin;
-import org.elasticsearch.watcher.license.LicenseIntegrationTests;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 
 import java.io.IOException;
@@ -52,7 +50,7 @@ public class WatcherRestTests extends ElasticsearchRestTestCase {
     }
 
     protected boolean enableShield() {
-        return randomBoolean();
+        return randomBoolean() || true;
     }
 
     @Override
@@ -141,7 +139,7 @@ public class WatcherRestTests extends ElasticsearchRestTestCase {
                 "    '*': all\n" +
                 "\n" +
                 "admin:\n" +
-                "  cluster: manage_watcher, cluster:monitor/nodes/info, cluster:monitor/state, cluster:monitor/nodes/liveness, cluster:monitor/health, cluster:admin/repository/delete, indices:admin/template/put, indices:admin/template/get\n" +
+                "  cluster: manage_watcher, cluster:monitor/nodes/info, cluster:monitor/state, cluster:monitor/nodes/liveness, cluster:monitor/health, cluster:admin/repository/delete, cluster:admin/repository/put, indices:admin/template/put, indices:admin/template/get, cluster:monitor/nodes/stats, cluster:admin/reroute, cluster:admin/analyze, cluster:monitor/task, cluster:admin/repository/verify, cluster:admin/repository/get\n" +
                 "  indices:\n" +
                 "    '*': all, indices:admin/template/delete\n" +
                 "\n" +

@@ -36,7 +36,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.snapshots.SnapshotsShardService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -51,13 +51,13 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
 
     public static final String ACTION_NAME = SnapshotsStatusAction.NAME + "[nodes]";
 
-    private final SnapshotsService snapshotsService;
+    private final SnapshotsShardService snapshotsShardService;
 
     @Inject
-    public TransportNodesSnapshotsStatus(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, SnapshotsService snapshotsService, ActionFilters actionFilters) {
+    public TransportNodesSnapshotsStatus(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, SnapshotsShardService snapshotsShardService, ActionFilters actionFilters) {
         super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
                 Request.class, NodeRequest.class, ThreadPool.Names.GENERIC);
-        this.snapshotsService = snapshotsService;
+        this.snapshotsShardService = snapshotsShardService;
     }
 
     @Override
@@ -99,7 +99,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
         try {
             String nodeId = clusterService.localNode().id();
             for (SnapshotId snapshotId : request.snapshotIds) {
-                ImmutableMap<ShardId, IndexShardSnapshotStatus> shardsStatus = snapshotsService.currentSnapshotShards(snapshotId);
+                ImmutableMap<ShardId, IndexShardSnapshotStatus> shardsStatus = snapshotsShardService.currentSnapshotShards(snapshotId);
                 if (shardsStatus == null) {
                     continue;
                 }

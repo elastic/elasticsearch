@@ -28,8 +28,7 @@ import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.repositories.fs.FsRepositoryModule;
 import org.elasticsearch.repositories.uri.URLRepository;
 import org.elasticsearch.repositories.uri.URLRepositoryModule;
-import org.elasticsearch.snapshots.RestoreService;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.snapshots.*;
 
 import java.util.Map;
 
@@ -61,7 +60,10 @@ public class RepositoriesModule extends AbstractModule {
     @Override
     protected void configure() {
         bind(RepositoriesService.class).asEagerSingleton();
+        bind(SnapshotManager.class).asEagerSingleton();
         bind(SnapshotsService.class).asEagerSingleton();
+        bind(SnapshotsShardService.class).asEagerSingleton();
+        bind(SnapshotsShardWatcherService.class).asEagerSingleton();
         bind(TransportNodesSnapshotsStatus.class).asEagerSingleton();
         bind(RestoreService.class).asEagerSingleton();
         bind(RepositoryTypesRegistry.class).toInstance(new RepositoryTypesRegistry(ImmutableMap.copyOf(repositoryTypes)));

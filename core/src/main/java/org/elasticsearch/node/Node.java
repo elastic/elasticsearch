@@ -87,7 +87,8 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.snapshots.SnapshotsShardService;
+import org.elasticsearch.snapshots.SnapshotsShardWatcherService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.elasticsearch.transport.TransportModule;
@@ -248,7 +249,8 @@ public class Node implements Releasable {
         injector.getInstance(IndicesClusterStateService.class).start();
         injector.getInstance(IndicesTTLService.class).start();
         injector.getInstance(RiversManager.class).start();
-        injector.getInstance(SnapshotsService.class).start();
+        injector.getInstance(SnapshotsShardService.class).start();
+        injector.getInstance(SnapshotsShardWatcherService.class).start();
         injector.getInstance(TransportService.class).start();
         injector.getInstance(ClusterService.class).start();
         injector.getInstance(RoutingService.class).start();
@@ -291,7 +293,8 @@ public class Node implements Releasable {
 
         injector.getInstance(RiversManager.class).stop();
 
-        injector.getInstance(SnapshotsService.class).stop();
+        injector.getInstance(SnapshotsShardService.class).stop();
+        injector.getInstance(SnapshotsShardWatcherService.class).stop();
         // stop any changes happening as a result of cluster state changes
         injector.getInstance(IndicesClusterStateService.class).stop();
         // we close indices first, so operations won't be allowed on it
@@ -344,7 +347,8 @@ public class Node implements Releasable {
         injector.getInstance(RiversManager.class).close();
 
         stopWatch.stop().start("snapshot_service");
-        injector.getInstance(SnapshotsService.class).close();
+        injector.getInstance(SnapshotsShardService.class).close();
+        injector.getInstance(SnapshotsShardWatcherService.class).close();
         stopWatch.stop().start("client");
         Releasables.close(injector.getInstance(Client.class));
         stopWatch.stop().start("indices_cluster");

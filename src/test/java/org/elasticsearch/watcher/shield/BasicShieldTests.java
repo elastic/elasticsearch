@@ -158,7 +158,7 @@ public class BasicShieldTests extends AbstractWatcherIntegrationTests {
         assertThat(deleteWatchResponse.isFound(), is(true));
 
         // stats and get watch are also allowed by role monitor:
-        token = basicAuthHeaderValue("monitor", new SecuredString("changeme".toCharArray()));
+        token = basicAuthHeaderValue("admin", new SecuredString("changeme".toCharArray()));
         WatcherStatsResponse statsResponse = watcherClient().prepareWatcherStats()
                 .putHeader("Authorization", token)
                 .get();

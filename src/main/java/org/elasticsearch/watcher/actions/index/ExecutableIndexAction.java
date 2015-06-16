@@ -12,6 +12,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.ExecutableAction;
@@ -102,12 +103,12 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
             bulkRequest.add(indexRequest);
         }
         BulkResponse bulkResponse = client.bulk(bulkRequest);
-        XContentBuilder jsonBuilder = jsonBuilder().startArray();
+        XContentBuilder jsonBuilder = jsonBuilder().startObject().startArray("items");
         for (BulkItemResponse item : bulkResponse) {
             IndexResponse response = item.getResponse();
             indexResponseToXContent(jsonBuilder, response);
         }
-        jsonBuilder.endArray();
+        jsonBuilder.endArray().endObject();
         return new IndexAction.Result.Success(new XContentSource(jsonBuilder.bytes()));
     }
 

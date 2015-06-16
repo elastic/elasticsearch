@@ -7,6 +7,7 @@ package org.elasticsearch.watcher.actions.throttler;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.watcher.actions.Action;
@@ -325,7 +326,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTests {
                 .trigger(new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(60, IntervalSchedule.Interval.Unit.MINUTES))))
                 .defaultThrottlePeriod(throttlePeriod)
                 .addAction("logging", loggingAction("test out"))
-                .addAction("failing_hook", webhookAction(HttpRequestTemplate.builder("unknown.foo", 80))))
+                .addAction("failing_hook", webhookAction(HttpRequestTemplate.builder("http://127.0.0.1/foobar", 80)))) // no DNS resolution here please
                 .get();
         assertThat(putWatchResponse.getVersion(), greaterThan(0L));
         refresh();
@@ -337,9 +338,9 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTests {
         ManualExecutionContext ctx = ctxBuilder.build();
         WatchRecord watchRecord = executionService().execute(ctx);
 
+        assertThat(watchRecord.state(), equalTo(ExecutionState.EXECUTED));
         assertThat(watchRecord.result().actionsResults().get("logging").action().status(), equalTo(Action.Result.Status.SUCCESS));
         assertThat(watchRecord.result().actionsResults().get("failing_hook").action().status(), equalTo(Action.Result.Status.FAILURE));
-        assertThat(watchRecord.state(), equalTo(ExecutionState.EXECUTED));
 
         triggerEvent = new ManualTriggerEvent("_id", new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC)));
         ctxBuilder = ManualExecutionContext.builder(watchService().getWatch("_id"), true, triggerEvent, throttlePeriod);

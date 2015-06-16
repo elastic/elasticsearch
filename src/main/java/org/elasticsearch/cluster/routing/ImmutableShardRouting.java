@@ -20,6 +20,8 @@
 package org.elasticsearch.cluster.routing;
 
 import com.google.common.collect.ImmutableList;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -53,6 +55,8 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
 
     protected RestoreSource restoreSource;
 
+    protected UnassignedInfo unassignedInfo;
+
     private final transient ImmutableList<ShardRouting> asList;
 
     ImmutableShardRouting() {
@@ -60,16 +64,11 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
     }
 
     public ImmutableShardRouting(ShardRouting copy) {
-        this(copy.index(), copy.id(), copy.currentNodeId(), copy.primary(), copy.state(), copy.version());
-        this.relocatingNodeId = copy.relocatingNodeId();
-        this.restoreSource = copy.restoreSource();
-        if (copy instanceof ImmutableShardRouting) {
-            this.shardIdentifier = ((ImmutableShardRouting) copy).shardIdentifier;
-        }
+        this(copy, copy.version());
     }
 
     public ImmutableShardRouting(ShardRouting copy, long version) {
-        this(copy.index(), copy.id(), copy.currentNodeId(), copy.relocatingNodeId(), copy.restoreSource(), copy.primary(), copy.state(), version);
+        this(copy.index(), copy.id(), copy.currentNodeId(), copy.relocatingNodeId(), copy.restoreSource(), copy.primary(), copy.state(), version, copy.unassignedInfo());
     }
 
     public ImmutableShardRouting(String index, int shardId, String currentNodeId, boolean primary, ShardRoutingState state, long version) {
@@ -83,6 +82,12 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
 
     public ImmutableShardRouting(String index, int shardId, String currentNodeId,
                                  String relocatingNodeId, RestoreSource restoreSource, boolean primary, ShardRoutingState state, long version) {
+        this(index, shardId, currentNodeId, relocatingNodeId, restoreSource, primary, state, version, null);
+    }
+
+    public ImmutableShardRouting(String index, int shardId, String currentNodeId,
+                                 String relocatingNodeId, RestoreSource restoreSource, boolean primary, ShardRoutingState state, long version,
+                                 UnassignedInfo unassignedInfo) {
         this.index = index;
         this.shardId = shardId;
         this.currentNodeId = currentNodeId;
@@ -92,6 +97,8 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
         this.asList = ImmutableList.of((ShardRouting) this);
         this.version = version;
         this.restoreSource = restoreSource;
+        this.unassignedInfo = unassignedInfo;
+        assert !(state == ShardRoutingState.UNASSIGNED && unassignedInfo == null) : "unassigned shard must be created with meta";
     }
 
     @Override
@@ -173,6 +180,12 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
     }
 
     @Override
+    @Nullable
+    public UnassignedInfo unassignedInfo() {
+        return unassignedInfo;
+    }
+
+    @Override
     public boolean primary() {
         return this.primary;
     }
@@ -229,6 +242,11 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
         state = ShardRoutingState.fromValue(in.readByte());
 
         restoreSource = RestoreSource.readOptionalRestoreSource(in);
+        if (in.getVersion().onOrAfter(Version.V_1_7_0)) {
+            if (in.readBoolean()) {
+                unassignedInfo = new UnassignedInfo(in);
+            }
+        }
     }
 
     @Override
@@ -266,6 +284,14 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
             restoreSource.writeTo(out);
         } else {
             out.writeBoolean(false);
+        }
+        if (out.getVersion().onOrAfter(Version.V_1_7_0)) {
+            if (unassignedInfo != null) {
+                out.writeBoolean(true);
+                unassignedInfo.writeTo(out);
+            } else {
+                out.writeBoolean(false);
+            }
         }
     }
 
@@ -344,6 +370,9 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
             sb.append(", restoring[" + restoreSource + "]");
         }
         sb.append(", s[").append(state).append("]");
+        if (this.unassignedInfo != null) {
+            sb.append(", ").append(unassignedInfo.toString());
+        }
         return sb.toString();
     }
 
@@ -359,6 +388,9 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
         if (restoreSource() != null) {
             builder.field("restore_source");
             restoreSource().toXContent(builder, params);
+        }
+        if (unassignedInfo != null) {
+            unassignedInfo.toXContent(builder, params);
         }
         return builder.endObject();
     }

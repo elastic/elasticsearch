@@ -44,12 +44,13 @@ public class MutableShardRouting extends ImmutableShardRouting {
     /**
      * Moves the shard to unassigned state.
      */
-    void moveToUnassigned() {
+    void moveToUnassigned(UnassignedInfo unassignedInfo) {
         version++;
         assert state != ShardRoutingState.UNASSIGNED;
         state = ShardRoutingState.UNASSIGNED;
         currentNodeId = null;
         relocatingNodeId = null;
+        this.unassignedInfo = unassignedInfo;
     }
 
     /**
@@ -120,6 +121,7 @@ public class MutableShardRouting extends ImmutableShardRouting {
         relocatingNodeId = null;
         restoreSource = null;
         state = ShardRoutingState.STARTED;
+        unassignedInfo = null; // we keep the unassigned data until the shard is started
     }
 
     /**

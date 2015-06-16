@@ -136,7 +136,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
                         importNeeded = true;
                         metaData.put(indexMetaData, false);
                         blocks.addBlocks(indexMetaData);
-                        routingTableBuilder.addAsRecovery(indexMetaData);
+                        routingTableBuilder.addAsFromDangling(indexMetaData);
                         sb.append("[").append(indexMetaData.index()).append("/").append(indexMetaData.state()).append("]");
                     }
                     if (!importNeeded) {

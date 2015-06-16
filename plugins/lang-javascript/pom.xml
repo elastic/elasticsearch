@@ -26,8 +26,6 @@
             <groupId>org.mozilla</groupId>
             <artifactId>rhino</artifactId>
             <version>1.7R4</version>
-            <exclusions>
-            </exclusions>
         </dependency>
     </dependencies>
 

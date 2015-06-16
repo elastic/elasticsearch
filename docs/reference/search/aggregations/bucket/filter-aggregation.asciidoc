@@ -9,8 +9,8 @@ Example:
 --------------------------------------------------
 {
     "aggs" : {
-        "in_stock_products" : {
-            "filter" : { "range" : { "stock" : { "gt" : 0 } } },
+        "red_products" : {
+            "filter" : { "term": { "color": "red" } },
             "aggs" : {
                 "avg_price" : { "avg" : { "field" : "price" } }
             }

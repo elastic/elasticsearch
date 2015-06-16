@@ -27,7 +27,6 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.support.QueryParsers;
 
@@ -87,6 +86,8 @@ public class RegexpQueryParser implements QueryParser {
                             maxDeterminizedStates = parser.intValue();
                         } else if ("flags_value".equals(currentFieldName)) {
                             flagsValue = parser.intValue();
+                        } else if ("_name".equals(currentFieldName)) {
+                            queryName = parser.text();
                         } else {
                             throw new QueryParsingException(parseContext, "[regexp] query does not support [" + currentFieldName + "]");
                         }

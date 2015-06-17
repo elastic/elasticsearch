@@ -19,9 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -30,11 +27,8 @@ import java.util.ArrayList;
 
 import static com.google.common.collect.Lists.newArrayList;
 
-/**
- *
- */
 @Deprecated
-public class OrQueryParser extends BaseQueryParserTemp {
+public class OrQueryParser extends BaseQueryParser {
 
     @Inject
     public OrQueryParser() {
@@ -46,10 +40,10 @@ public class OrQueryParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        ArrayList<Query> queries = newArrayList();
+        ArrayList<QueryBuilder> queries = newArrayList();
         boolean queriesFound = false;
 
         String queryName = null;
@@ -58,7 +52,7 @@ public class OrQueryParser extends BaseQueryParserTemp {
         if (token == XContentParser.Token.START_ARRAY) {
             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                 queriesFound = true;
-                Query filter = parseContext.parseInnerFilter();
+                QueryBuilder filter = parseContext.parseInnerFilterToQueryBuilder();
                 if (filter != null) {
                     queries.add(filter);
                 }
@@ -71,7 +65,7 @@ public class OrQueryParser extends BaseQueryParserTemp {
                     if ("filters".equals(currentFieldName)) {
                         queriesFound = true;
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            Query filter = parseContext.parseInnerFilter();
+                            QueryBuilder filter = parseContext.parseInnerFilterToQueryBuilder();
                             if (filter != null) {
                                 queries.add(filter);
                             }
@@ -79,7 +73,7 @@ public class OrQueryParser extends BaseQueryParserTemp {
                     } else {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             queriesFound = true;
-                            Query filter = parseContext.parseInnerFilter();
+                            QueryBuilder filter = parseContext.parseInnerFilterToQueryBuilder();
                             if (filter != null) {
                                 queries.add(filter);
                             }
@@ -99,18 +93,12 @@ public class OrQueryParser extends BaseQueryParserTemp {
             throw new QueryParsingException(parseContext, "[or] query requires 'filters' to be set on it'");
         }
 
-        if (queries.isEmpty()) {
-            return null;
+        OrQueryBuilder orQuery = new OrQueryBuilder();
+        for (QueryBuilder query : queries) {
+            orQuery.add(query);
         }
-
-        BooleanQuery query = new BooleanQuery();
-        for (Query f : queries) {
-            query.add(f, Occur.SHOULD);
-        }
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
-        }
-        return query;
+        orQuery.queryName(queryName);
+        return orQuery;
     }
 
     @Override

@@ -103,7 +103,6 @@ public class AndQueryParser extends BaseQueryParser {
             andQuery.add(query);
         }
         andQuery.queryName(queryName);
-        andQuery.validate();
         return andQuery;
     }
 

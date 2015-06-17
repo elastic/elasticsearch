@@ -80,10 +80,9 @@ public class AndQueryBuilder extends AbstractQueryBuilder<AndQueryBuilder> {
     /**
      * @return the query name.
      */
-    public Object queryName() {
+    public String queryName() {
         return this.queryName;
     }
-
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
@@ -117,6 +116,12 @@ public class AndQueryBuilder extends AbstractQueryBuilder<AndQueryBuilder> {
     }
 
     @Override
+    public QueryValidationException validate() {
+        // nothing to validate.
+        return null;
+    }
+
+    @Override
     public String getName() {
         return NAME;
     }
@@ -136,7 +141,7 @@ public class AndQueryBuilder extends AbstractQueryBuilder<AndQueryBuilder> {
         }
         AndQueryBuilder other = (AndQueryBuilder) obj;
         return Objects.equals(filters, other.filters) &&
-                Objects.equals(queryName, other.queryName);
+               Objects.equals(queryName, other.queryName);
     }
 
     @Override

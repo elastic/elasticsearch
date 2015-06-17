@@ -215,49 +215,6 @@ You can disable that check using `plugins.check_lucene: false`.
 * https://github.com/grantr/elasticsearch-srv-discovery[DNS SRV Discovery Plugin] (by Grant Rodgers)
 
 [float]
-[[river]]
-==== River Plugins
-
-deprecated[1.5.0,Rivers have been deprecated.  See https://www.elastic.co/blog/deprecating_rivers for more details]
-
-.Supported by Elasticsearch
-* https://github.com/elasticsearch/elasticsearch-river-couchdb[CouchDB River Plugin]
-* https://github.com/elasticsearch/elasticsearch-river-rabbitmq[RabbitMQ River Plugin]
-* https://github.com/elasticsearch/elasticsearch-river-twitter[Twitter River Plugin]
-* https://github.com/elasticsearch/elasticsearch-river-wikipedia[Wikipedia River Plugin]
-
-.Supported by the community
-* https://github.com/domdorn/elasticsearch-river-activemq/[ActiveMQ River Plugin] (by Dominik Dorn)
-* https://github.com/albogdano/elasticsearch-river-amazonsqs[Amazon SQS River Plugin] (by Alex Bogdanovski)
-* https://github.com/xxBedy/elasticsearch-river-csv[CSV River Plugin] (by Martin Bednar)
-* http://www.pilato.fr/dropbox/[Dropbox River Plugin] (by David Pilato)
-* http://www.pilato.fr/fsriver/[FileSystem River Plugin] (by David Pilato)
-* https://github.com/obazoud/elasticsearch-river-git[Git River Plugin] (by Olivier Bazoud)
-* https://github.com/uberVU/elasticsearch-river-github[GitHub River Plugin] (by uberVU)
-* https://github.com/sksamuel/elasticsearch-river-hazelcast[Hazelcast River Plugin] (by Steve Samuel)
-* https://github.com/jprante/elasticsearch-river-jdbc[JDBC River Plugin] (by Jörg Prante)
-* https://github.com/qotho/elasticsearch-river-jms[JMS River Plugin] (by Steve Sarandos)
-* https://github.com/endgameinc/elasticsearch-river-kafka[Kafka River Plugin] (by Endgame Inc.)
-* https://github.com/mariamhakobyan/elasticsearch-river-kafka[Kafka River Plugin 2] (by Mariam Hakobyan)
-* https://github.com/tlrx/elasticsearch-river-ldap[LDAP River Plugin] (by Tanguy Leroux)
-* https://github.com/richardwilly98/elasticsearch-river-mongodb/[MongoDB River Plugin] (by Richard Louapre)
-* https://github.com/sksamuel/elasticsearch-river-neo4j[Neo4j River Plugin] (by Steve Samuel)
-* https://github.com/jprante/elasticsearch-river-oai/[Open Archives Initiative (OAI) River Plugin] (by Jörg Prante)
-* https://github.com/sksamuel/elasticsearch-river-redis[Redis River Plugin] (by Steve Samuel)
-* https://github.com/rethinkdb/elasticsearch-river-rethinkdb[RethinkDB River Plugin] (by RethinkDB)
-* http://dadoonet.github.com/rssriver/[RSS River Plugin] (by David Pilato)
-* https://github.com/adamlofts/elasticsearch-river-sofa[Sofa River Plugin] (by adamlofts)
-* https://github.com/javanna/elasticsearch-river-solr/[Solr River Plugin] (by Luca Cavanna)
-* https://github.com/sunnygleason/elasticsearch-river-st9[St9 River Plugin] (by Sunny Gleason)
-* https://github.com/plombard/SubversionRiver[Subversion River Plugin] (by Pascal Lombard)
-* https://github.com/kzwang/elasticsearch-river-dynamodb[DynamoDB River Plugin] (by Kevin Wang)
-* https://github.com/salyh/elasticsearch-river-imap[IMAP/POP3 Email River Plugin] (by Hendrik Saly)
-* https://github.com/codelibs/elasticsearch-river-web[Web River Plugin] (by CodeLibs Project)
-* https://github.com/eea/eea.elasticsearch.river.rdf[EEA ElasticSearch RDF River Plugin] (by the European Environment Agency)
-* https://github.com/lbroudoux/es-amazon-s3-river[Amazon S3 River Plugin] (by Laurent Broudoux)
-* https://github.com/lbroudoux/es-google-drive-river[Google Drive River Plugin] (by Laurent Broudoux)
-
-[float]
 [[transport]]
 ==== Transport Plugins
 

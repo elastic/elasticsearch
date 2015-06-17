@@ -24,7 +24,6 @@ import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.river.RiverName;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -69,15 +68,6 @@ public class Loggers {
 
     public static ESLogger getLogger(Class clazz, Settings settings, Index index, String... prefixes) {
         return getLogger(clazz, settings, Lists.asList(SPACE, index.name(), prefixes).toArray(new String[0]));
-    }
-
-    public static ESLogger getLogger(Class clazz, Settings settings, RiverName riverName, String... prefixes) {
-        List<String> l = Lists.newArrayList();
-        l.add(SPACE);
-        l.add(riverName.type());
-        l.add(riverName.name());
-        l.addAll(Lists.newArrayList(prefixes));
-        return getLogger(clazz, settings, l.toArray(new String[l.size()]));
     }
 
     public static ESLogger getLogger(Class clazz, Settings settings, String... prefixes) {

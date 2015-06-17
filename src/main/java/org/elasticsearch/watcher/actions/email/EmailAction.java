@@ -192,7 +192,7 @@ public class EmailAction implements Action {
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 return builder.startObject(type)
                         .field(Field.ACCOUNT.getPreferredName(), account)
-                        .field(Field.EMAIL.getPreferredName(), email, params)
+                        .field(Field.MESSAGE.getPreferredName(), email, params)
                         .endObject();
             }
         }
@@ -213,7 +213,7 @@ public class EmailAction implements Action {
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 return builder.startObject(type)
-                        .field(Field.EMAIL.getPreferredName(), email, params)
+                        .field(Field.MESSAGE.getPreferredName(), email, params)
                         .endObject();
             }
         }
@@ -268,6 +268,6 @@ public class EmailAction implements Action {
         ParseField ATTACH_DATA = new ParseField("attach_data");
 
         // result fields
-        ParseField EMAIL = new ParseField("email");
+        ParseField MESSAGE = new ParseField("message");
     }
 }

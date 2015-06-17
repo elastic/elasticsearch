@@ -13,7 +13,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
 import org.elasticsearch.watcher.actions.email.service.support.EmailServer;
 import org.elasticsearch.watcher.execution.ExecutionState;
-import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.junit.After;
@@ -101,11 +100,11 @@ public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegratio
         assertWatchWithMinimumActionsCount("_id", ExecutionState.EXECUTED, 1);
 
         SearchResponse response = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*").setSource(searchSource()
-                .aggregation(terms("from").field("result.actions.email.email.from"))
-                .aggregation(terms("to").field("result.actions.email.email.to"))
-                .aggregation(terms("cc").field("result.actions.email.email.cc"))
-                .aggregation(terms("bcc").field("result.actions.email.email.bcc"))
-                .aggregation(terms("reply_to").field("result.actions.email.email.reply_to"))
+                .aggregation(terms("from").field("result.actions.email.message.from"))
+                .aggregation(terms("to").field("result.actions.email.message.to"))
+                .aggregation(terms("cc").field("result.actions.email.message.cc"))
+                .aggregation(terms("bcc").field("result.actions.email.message.bcc"))
+                .aggregation(terms("reply_to").field("result.actions.email.message.reply_to"))
                 .buildAsBytes())
                 .get();
 

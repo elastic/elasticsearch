@@ -236,7 +236,7 @@
                   "type": "object",
                   "dynamic": true,
                   "properties": {
-                    "email": {
+                    "message": {
                       "type": "object",
                       "dynamic": true,
                       "properties": {

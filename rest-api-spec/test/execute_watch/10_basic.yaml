@@ -86,4 +86,4 @@
   - match: { "watch_record.result.actions.0.id" : "email_admin" }
   - match: { "watch_record.result.actions.0.status" : "simulated" }
   - match: { "watch_record.result.actions.0.type" : "email" }
-  - match: { "watch_record.result.actions.0.email.email.subject" : "404 recently encountered" }
+  - match: { "watch_record.result.actions.0.email.message.subject" : "404 recently encountered" }

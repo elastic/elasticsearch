@@ -57,7 +57,12 @@ public enum  Preference {
     /**
      * Route to specific node only
      */
-    ONLY_NODE("_only_node");
+    ONLY_NODE("_only_node"),
+
+    /**
+     * Route to only node with attribute
+     */
+    ONLY_NODES("_only_nodes");
 
     private final String type;
 
@@ -97,6 +102,8 @@ public enum  Preference {
             case "_only_local":
             case "_onlyLocal":
                 return ONLY_LOCAL;
+            case "_only_nodes":
+                return ONLY_NODES;
             default:
                 throw new IllegalArgumentException("no Preference for [" + preferenceType + "]");
         }

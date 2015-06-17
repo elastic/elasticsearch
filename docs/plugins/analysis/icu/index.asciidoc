@@ -93,7 +93,7 @@ The folding can be filtered by a set of unicode characters with the parameter `u
 non-internationalized search engine where retaining a set of national characters which are primary letters in a specific
 language is wanted. See syntax for the http://icu-project.org/apiref/icu4j/com/ibm/icu/text/UnicodeSet.html[UnicodeSet].
 
-The Following example exempts Swedish characters from the folding. Note that the filtered characters are NOT 
+The following example exempts Swedish characters from the folding. Note that the filtered characters are NOT
 lowercased which is why we add that filter below.
 
 [source,json]
@@ -108,7 +108,7 @@ PUT icu_sample
                         "tokenizer" : "standard",
                         "filter" : ["my_icu_folding", "lowercase"]
                     }
-                }
+                },
                 "filter" : {
                     "my_icu_folding" : {
                         "type" : "icu_folding"

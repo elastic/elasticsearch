@@ -64,6 +64,7 @@ if "%ES_GC_LOG_FILE%" == "" goto nogclog
 :gclog
 set JAVA_OPTS=%JAVA_OPTS% -XX:+PrintGCDetails
 set JAVA_OPTS=%JAVA_OPTS% -XX:+PrintGCTimeStamps
+set JAVA_OPTS=%JAVA_OPTS% -XX:+PrintGCDateStamps
 set JAVA_OPTS=%JAVA_OPTS% -XX:+PrintClassHistogram
 set JAVA_OPTS=%JAVA_OPTS% -XX:+PrintTenuringDistribution
 set JAVA_OPTS=%JAVA_OPTS% -XX:+PrintGCApplicationStoppedTime

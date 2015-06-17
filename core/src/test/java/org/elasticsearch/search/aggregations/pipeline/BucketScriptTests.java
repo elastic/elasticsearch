@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ElasticsearchIntegrationTest.SuiteScopeTest
-public class SeriesArithmeticTests extends ElasticsearchIntegrationTest {
+public class BucketScriptTests extends ElasticsearchIntegrationTest {
 
     private static final String FIELD_1_NAME = "field1";
     private static final String FIELD_2_NAME = "field2";

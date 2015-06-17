@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.pipeline.seriesarithmetic;
+package org.elasticsearch.search.aggregations.pipeline.bucketscript;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
@@ -53,14 +53,14 @@ import java.util.Map;
 
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
-public class SeriesArithmeticPipelineAggregator extends PipelineAggregator {
+public class BucketScriptPipelineAggregator extends PipelineAggregator {
 
-    public final static Type TYPE = new Type("series_arithmetic");
+    public final static Type TYPE = new Type("bucket_script");
 
     public final static PipelineAggregatorStreams.Stream STREAM = new PipelineAggregatorStreams.Stream() {
         @Override
-        public SeriesArithmeticPipelineAggregator readResult(StreamInput in) throws IOException {
-            SeriesArithmeticPipelineAggregator result = new SeriesArithmeticPipelineAggregator();
+        public BucketScriptPipelineAggregator readResult(StreamInput in) throws IOException {
+            BucketScriptPipelineAggregator result = new BucketScriptPipelineAggregator();
             result.readFrom(in);
             return result;
         }
@@ -84,10 +84,10 @@ public class SeriesArithmeticPipelineAggregator extends PipelineAggregator {
 
     private Map<String, String> bucketsPathsMap;
 
-    public SeriesArithmeticPipelineAggregator() {
+    public BucketScriptPipelineAggregator() {
     }
 
-    public SeriesArithmeticPipelineAggregator(String name, Map<String, String> bucketsPathsMap, Script script, @Nullable ValueFormatter formatter,
+    public BucketScriptPipelineAggregator(String name, Map<String, String> bucketsPathsMap, Script script, @Nullable ValueFormatter formatter,
             GapPolicy gapPolicy, Map<String, Object> metadata) {
         super(name, bucketsPathsMap.values().toArray(new String[bucketsPathsMap.size()]), metadata);
         this.bucketsPathsMap = bucketsPathsMap;
@@ -172,7 +172,7 @@ public class SeriesArithmeticPipelineAggregator extends PipelineAggregator {
 
         @Override
         protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
-            return new SeriesArithmeticPipelineAggregator(name, bucketsPathsMap, script, formatter, gapPolicy, metaData);
+            return new BucketScriptPipelineAggregator(name, bucketsPathsMap, script, formatter, gapPolicy, metaData);
         }
     }
 

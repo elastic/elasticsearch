@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
 import com.google.common.collect.UnmodifiableIterator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -326,6 +327,33 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             if (nodeId.equals(shardRouting.currentNodeId())) {
                 ordered.add(shardRouting);
             }
+        }
+        return new PlainShardIterator(shardId, ordered);
+    }
+
+    /**
+     * Returns shards based on nodeAttributes given  such as node name , node attribute, node IP
+     * Supports node specifications in cluster API
+     *
+     * @param nodeAttribute
+     * @param discoveryNodes
+     */
+    public ShardIterator onlyNodeSelectorActiveInitializingShardsIt(String nodeAttribute, DiscoveryNodes discoveryNodes) {
+        ArrayList<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
+        Set<String> selectedNodes = Sets.newHashSet(discoveryNodes.resolveNodesIds(nodeAttribute));
+
+        for (ShardRouting shardRouting : activeShards) {
+            if (selectedNodes.contains(shardRouting.currentNodeId())) {
+                ordered.add(shardRouting);
+            }
+        }
+        for (ShardRouting shardRouting : allInitializingShards) {
+            if (selectedNodes.contains(shardRouting.currentNodeId())) {
+                ordered.add(shardRouting);
+            }
+        }
+        if (ordered.isEmpty()) {
+            throw new IllegalArgumentException("No data node with critera [" + nodeAttribute + "] found");
         }
         return new PlainShardIterator(shardId, ordered);
     }

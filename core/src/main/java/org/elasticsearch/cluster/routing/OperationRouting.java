@@ -183,6 +183,9 @@ public class OperationRouting extends AbstractComponent {
                     String nodeId = preference.substring(Preference.ONLY_NODE.type().length() + 1);
                     ensureNodeIdExists(nodes, nodeId);
                     return indexShard.onlyNodeActiveInitializingShardsIt(nodeId);
+                case ONLY_NODES:
+                    String nodeAttribute = preference.substring(Preference.ONLY_NODES.type().length() + 1);
+                    return indexShard.onlyNodeSelectorActiveInitializingShardsIt(nodeAttribute, nodes);
                 default:
                     throw new IllegalArgumentException("unknown preference [" + preferenceType + "]");
             }

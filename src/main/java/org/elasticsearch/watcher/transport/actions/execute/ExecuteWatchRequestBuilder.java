@@ -101,4 +101,13 @@ public class ExecuteWatchRequestBuilder extends MasterNodeOperationRequestBuilde
         request.setActionMode(actionId, actionMode);
         return this;
     }
+
+    /**
+     * @param debug indicates whether the watch should execute in debug mode. In debug mode the
+     *              returned watch record will hold the execution {@code vars}
+     */
+    public ExecuteWatchRequestBuilder setDebug(boolean debug) {
+        request.setDebug(debug);
+        return this;
+    }
 }

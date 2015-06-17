@@ -23,19 +23,21 @@ public final class Variables {
     public static final String TRIGGER = "trigger";
     public static final String PAYLOAD = "payload";
     public static final String METADATA = "metadata";
+    public static final String VARS = "vars";
 
     public static Map<String, Object> createCtxModel(WatchExecutionContext ctx, Payload payload) {
-        Map<String, Object> vars = new HashMap<>();
-        vars.put(ID, ctx.id().value());
-        vars.put(WATCH_ID, ctx.watch().id());
-        vars.put(EXECUTION_TIME, ctx.executionTime());
-        vars.put(TRIGGER, ctx.triggerEvent().data());
+        Map<String, Object> ctxModel = new HashMap<>();
+        ctxModel.put(ID, ctx.id().value());
+        ctxModel.put(WATCH_ID, ctx.watch().id());
+        ctxModel.put(EXECUTION_TIME, ctx.executionTime());
+        ctxModel.put(TRIGGER, ctx.triggerEvent().data());
         if (payload != null) {
-            vars.put(PAYLOAD, payload.data());
+            ctxModel.put(PAYLOAD, payload.data());
         }
-        vars.put(METADATA, ctx.watch().metadata());
+        ctxModel.put(METADATA, ctx.watch().metadata());
+        ctxModel.put(VARS, ctx.vars());
         Map<String, Object> model = new HashMap<>();
-        model.put(CTX, vars);
+        model.put(CTX, ctxModel);
         return model;
     }
 

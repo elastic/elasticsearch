@@ -12,14 +12,14 @@ import org.elasticsearch.watcher.actions.ExecutableActions;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.input.Input;
-import org.elasticsearch.watcher.transform.ExecutableTransform;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
 import org.joda.time.DateTime;
 
-import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -33,19 +33,16 @@ public abstract class WatchExecutionContext {
     private final TriggerEvent triggerEvent;
     private final TimeValue defaultThrottlePeriod;
 
+    private ExecutionPhase phase = ExecutionPhase.AWAITS_EXECUTION;
+    private long startTimestamp;
+
+    private Payload payload;
+    private Map<String, Object> vars = new HashMap<>();
+
     private Input.Result inputResult;
     private Condition.Result conditionResult;
     private Transform.Result transformResult;
     private ConcurrentMap<String, ActionWrapper.Result> actionsResults = ConcurrentCollections.newConcurrentMap();
-
-    private Payload payload;
-    private Payload transformedPayload;
-
-    private volatile ExecutionPhase executionPhase = ExecutionPhase.AWAITS_EXECUTION;
-
-    private long actualExecutionStartMs;
-
-    private boolean sealed = false;
 
     public WatchExecutionContext(Watch watch, DateTime executionTime, TriggerEvent triggerEvent, TimeValue defaultThrottlePeriod) {
         this.id = new Wid(watch.id(), watch.nonce(), executionTime);
@@ -104,42 +101,27 @@ public abstract class WatchExecutionContext {
         return payload;
     }
 
-    /**
-     * If a transform is associated with the watch itself, this method will return the transformed payload,
-     * that is, the payload after the transform was applied to it. note, after calling this method, the payload
-     * will be the same as the transformed payload. Also note, that the transform is only applied once. So calling
-     * this method multiple times will always result in the same payload.
-     */
-    public Payload transformedPayload() throws IOException {
-        if (transformedPayload != null) {
-            return transformedPayload;
-        }
-        ExecutableTransform transform = watch.transform();
-        if (transform == null) {
-            transformedPayload = payload;
-            return transformedPayload;
-        }
-        beforeWatchTransform();
-        this.transformResult = watch.transform().execute(this, payload);
-        if (this.transformResult.status() == Transform.Result.Status.FAILURE) {
-            throw new WatchExecutionException("failed to execute watch level transform for [{}]", id);
-        }
-        this.payload = transformResult.payload();
-        this.transformedPayload = this.payload;
-        return transformedPayload;
+    public Map<String, Object> vars() {
+        return vars;
     }
 
     public ExecutionPhase executionPhase() {
-        return executionPhase;
+        return phase;
+    }
+
+    public void start() {
+        assert phase == ExecutionPhase.AWAITS_EXECUTION;
+        startTimestamp = System.currentTimeMillis();
+        phase = ExecutionPhase.STARTED;
     }
 
     public void beforeInput() {
-        assert !sealed;
-        executionPhase = ExecutionPhase.INPUT;
+        assert phase == ExecutionPhase.STARTED;
+        phase = ExecutionPhase.INPUT;
     }
 
     public void onInputResult(Input.Result inputResult) {
-        assert !sealed;
+        assert !phase.sealed();
         this.inputResult = inputResult;
         if (inputResult.status() == Input.Result.Status.SUCCESS) {
             this.payload = inputResult.payload();
@@ -151,17 +133,16 @@ public abstract class WatchExecutionContext {
     }
 
     public void beforeCondition() {
-        assert !sealed;
-        executionPhase = ExecutionPhase.CONDITION;
+        assert phase == ExecutionPhase.INPUT;
+        phase = ExecutionPhase.CONDITION;
     }
 
     public void onConditionResult(Condition.Result conditionResult) {
-        assert !sealed;
+        assert !phase.sealed();
         this.conditionResult = conditionResult;
         if (recordExecution()) {
             watch.status().onCheck(conditionResult.met(), executionTime);
         }
-
     }
 
     public Condition.Result conditionResult() {
@@ -169,21 +150,29 @@ public abstract class WatchExecutionContext {
     }
 
     public void beforeWatchTransform() {
-        assert !sealed;
-        this.executionPhase = ExecutionPhase.WATCH_TRANSFORM;
+        assert phase == ExecutionPhase.CONDITION;
+        this.phase = ExecutionPhase.WATCH_TRANSFORM;
+    }
+
+    public void onWatchTransformResult(Transform.Result result) {
+        assert !phase.sealed();
+        this.transformResult = result;
+        if (result.status() == Transform.Result.Status.SUCCESS) {
+            this.payload = result.payload();
+        }
     }
 
     public Transform.Result transformResult() {
         return transformResult;
     }
 
-    public void beforeAction() {
-        assert !sealed;
-        executionPhase = ExecutionPhase.ACTIONS;
+    public void beforeActions() {
+        assert phase == ExecutionPhase.CONDITION || phase == ExecutionPhase.WATCH_TRANSFORM;
+        phase = ExecutionPhase.ACTIONS;
     }
 
     public void onActionResult(ActionWrapper.Result result) {
-        assert !sealed;
+        assert !phase.sealed();
         actionsResults.put(result.id(), result);
         if (recordExecution()) {
             watch.status().onActionResult(result.id(), executionTime, result.action());
@@ -194,28 +183,25 @@ public abstract class WatchExecutionContext {
         return new ExecutableActions.Results(actionsResults);
     }
 
-    public WatchRecord abortBeforeExecution(String message, ExecutionState state) {
-        sealed = true;
-        return new WatchRecord(id, triggerEvent, message, state);
-    }
-
-    public void start() {
-        assert !sealed;
-        actualExecutionStartMs = System.currentTimeMillis();
+    public WatchRecord abortBeforeExecution(ExecutionState state, String message) {
+        assert !phase.sealed();
+        phase = ExecutionPhase.ABORTED;
+        return new WatchRecord(id, triggerEvent, state, message);
     }
 
     public WatchRecord abortFailedExecution(String message) {
-        sealed = true;
+        assert !phase.sealed();
+        phase = ExecutionPhase.ABORTED;
         long executionFinishMs = System.currentTimeMillis();
-        WatchExecutionResult result = new WatchExecutionResult(this, executionFinishMs - actualExecutionStartMs);
+        WatchExecutionResult result = new WatchExecutionResult(this, executionFinishMs - startTimestamp);
         return new WatchRecord(this, result, message);
     }
 
     public WatchRecord finish() {
-        sealed = true;
-        executionPhase = ExecutionPhase.FINISHED;
+        assert !phase.sealed();
+        phase = ExecutionPhase.FINISHED;
         long executionFinishMs = System.currentTimeMillis();
-        WatchExecutionResult result = new WatchExecutionResult(this, executionFinishMs - actualExecutionStartMs);
+        WatchExecutionResult result = new WatchExecutionResult(this, executionFinishMs - startTimestamp);
         return new WatchRecord(this, result);
     }
 

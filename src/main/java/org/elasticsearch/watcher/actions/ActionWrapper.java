@@ -73,7 +73,7 @@ public class ActionWrapper implements ToXContent {
                 return new ActionWrapper.Result(id, new Action.Result.Throttled(action.type(), throttleResult.reason()));
             }
         }
-        Payload payload = ctx.transformedPayload();
+        Payload payload = ctx.payload();
         Transform.Result transformResult = null;
         if (transform != null) {
             try {

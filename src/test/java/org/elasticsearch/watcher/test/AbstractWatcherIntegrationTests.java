@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.plugin.LicensePlugin;
@@ -307,7 +308,11 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
     }
 
     protected void assertValue(XContentSource source, String path, Matcher<?> matcher) {
-        assertThat(source.getValue(path), (Matcher<Object>) matcher);
+        WatcherTestUtils.assertValue(source, path, matcher);
+    }
+
+    protected void assertValue(Map<String, Object> map, String path, Matcher<?> matcher) {
+        WatcherTestUtils.assertValue(map, path, matcher);
     }
 
     protected void assertWatchWithMinimumPerformedActionsCount(final String watchName, final long minimumExpectedWatchActionsWithActionPerformed) throws Exception {
@@ -338,6 +343,12 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
                 }
             }
         });
+    }
+
+    protected SearchResponse searchWatchRecords(Callback<SearchRequestBuilder> requestBuilderCallback) {
+        SearchRequestBuilder builder = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*").setTypes(HistoryStore.DOC_TYPE);
+        requestBuilderCallback.handle(builder);
+        return builder.get();
     }
 
     protected long historyRecordsCount(String watchName) {

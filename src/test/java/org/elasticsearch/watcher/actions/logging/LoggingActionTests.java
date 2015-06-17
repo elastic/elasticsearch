@@ -25,6 +25,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 
 import static org.joda.time.DateTimeZone.UTC;
@@ -70,6 +71,7 @@ public class LoggingActionTests extends ElasticsearchTestCase {
                                 .put("scheduled_time", now)
                                 .put("triggered_time", now)
                                 .build())
+                        .put("vars", Collections.emptyMap())
                         .build())
                 .build();
 

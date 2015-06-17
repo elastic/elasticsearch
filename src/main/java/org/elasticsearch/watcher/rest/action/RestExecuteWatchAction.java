@@ -9,7 +9,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -19,6 +18,7 @@ import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.watcher.rest.WatcherRestHandler;
+import org.elasticsearch.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchRequest;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchResponse;
@@ -51,7 +51,7 @@ public class RestExecuteWatchAction extends WatcherRestHandler {
             public RestResponse buildResponse(ExecuteWatchResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
                 builder.field(Field.ID.getPreferredName(), response.getRecordId());
-                builder.field(Field.WATCH_RECORD.getPreferredName(), response.getRecordSource(), ToXContent.EMPTY_PARAMS);
+                builder.field(Field.WATCH_RECORD.getPreferredName(), response.getRecordSource(), request);
                 builder.endObject();
                 return new BytesRestResponse(RestStatus.OK, builder);
             }
@@ -62,6 +62,11 @@ public class RestExecuteWatchAction extends WatcherRestHandler {
     private ExecuteWatchRequest parseRequest(RestRequest request, WatcherClient client) throws IOException {
         ExecuteWatchRequestBuilder builder = client.prepareExecuteWatch();
         builder.setId(request.param("id"));
+
+        if (WatcherParams.debug(request)) {
+            builder.setDebug(true);
+        }
+
         if (request.content() == null || request.content().length() == 0) {
             return builder.request();
         }

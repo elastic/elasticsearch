@@ -57,6 +57,7 @@ import org.elasticsearch.watcher.support.template.TemplateEngine;
 import org.elasticsearch.watcher.support.template.xmustache.XMustacheScriptEngineService;
 import org.elasticsearch.watcher.support.template.xmustache.XMustacheTemplateEngine;
 import org.elasticsearch.watcher.support.xcontent.ObjectPath;
+import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.transform.search.ExecutableSearchTransform;
 import org.elasticsearch.watcher.transform.search.SearchTransform;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
@@ -95,6 +96,10 @@ public final class WatcherTestUtils {
 
     public static void assertValue(Map<String, Object> map, String path, Matcher<?> matcher) {
         assertThat(ObjectPath.eval(path, map), (Matcher<Object>) matcher);
+    }
+
+    public static void assertValue(XContentSource source, String path, Matcher<?> matcher) {
+        assertThat(source.getValue(path), (Matcher<Object>) matcher);
     }
 
     public static XContentParser xContentParser(XContentBuilder builder) throws IOException {

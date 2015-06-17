@@ -38,7 +38,7 @@ public class ExecutableScriptCondition extends ExecutableCondition<ScriptConditi
         try {
             return doExecute(ctx);
         } catch (Exception e) {
-            logger.error("failed to execute [{}] condition for [{}]", ScriptCondition.TYPE, ctx.id());
+            logger.error("failed to execute [{}] condition for [{}]", e, ScriptCondition.TYPE, ctx.id());
             return new ScriptCondition.Result(e);
         }
     }

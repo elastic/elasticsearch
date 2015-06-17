@@ -75,6 +75,10 @@
             }
           }
         },
+        "vars" : {
+          "type" : "object",
+          "enabled" : false
+        },
         "input": {
           "type": "object",
           "enabled": false
@@ -87,7 +91,7 @@
           "type": "string",
           "index": "not_analyzed"
         },
-        "message": {
+        "messages": {
           "type": "string"
         },
         "result": {

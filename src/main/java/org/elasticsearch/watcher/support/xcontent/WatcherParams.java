@@ -17,6 +17,19 @@ public class WatcherParams extends ToXContent.DelegatingMapParams {
 
     static final String HIDE_SECRETS_KEY = "hide_secrets";
     static final String COLLAPSE_ARRAYS_KEY = "collapse_arrays";
+    static final String DEBUG_KEY = "debug";
+
+    public static boolean hideSecrets(ToXContent.Params params) {
+        return wrap(params).hideSecrets();
+    }
+
+    public static boolean collapseArrays(ToXContent.Params params) {
+        return wrap(params).collapseArrays();
+    }
+
+    public static boolean debug(ToXContent.Params params) {
+        return wrap(params).debug();
+    }
 
     private WatcherParams(ImmutableMap<String, String> params, ToXContent.Params delegate) {
         super(params, delegate);
@@ -30,14 +43,14 @@ public class WatcherParams extends ToXContent.DelegatingMapParams {
         return paramAsBoolean(COLLAPSE_ARRAYS_KEY, false);
     }
 
+    public boolean debug() {
+        return paramAsBoolean(DEBUG_KEY, false);
+    }
+
     public static WatcherParams wrap(ToXContent.Params params) {
         return params instanceof WatcherParams ?
                 (WatcherParams) params :
                 new WatcherParams(ImmutableMap.<String, String>of(), params);
-    }
-
-    public static boolean hideSecrets(ToXContent.Params params) {
-        return wrap(params).hideSecrets();
     }
 
     public static Builder builder() {
@@ -64,6 +77,11 @@ public class WatcherParams extends ToXContent.DelegatingMapParams {
 
         public Builder collapseArrays(boolean collapseArrays) {
             params.put(COLLAPSE_ARRAYS_KEY, String.valueOf(collapseArrays));
+            return this;
+        }
+
+        public Builder debug(boolean debug) {
+            params.put(DEBUG_KEY, String.valueOf(debug));
             return this;
         }
 

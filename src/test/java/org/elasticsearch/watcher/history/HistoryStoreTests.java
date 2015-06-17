@@ -49,7 +49,7 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
     public void testPut() throws Exception {
         Wid wid = new Wid("_name", 0, new DateTime(0, UTC));
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(wid.watchId(), new DateTime(0, UTC), new DateTime(0, UTC));
-        WatchRecord watchRecord = new WatchRecord(wid, event, null, ExecutionState.EXECUTED);
+        WatchRecord watchRecord = new WatchRecord(wid, event, ExecutionState.EXECUTED, null);
 
         IndexResponse indexResponse = mock(IndexResponse.class);
         IndexRequest indexRequest = indexRequest(".watch_history-1970.01.01", HistoryStore.DOC_TYPE, wid.value(), IndexRequest.OpType.CREATE);
@@ -62,7 +62,7 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
     public void testPut_stopped() {
         Wid wid = new Wid("_name", 0, new DateTime(0, UTC));
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(wid.watchId(), new DateTime(0, UTC), new DateTime(0, UTC));
-        WatchRecord watchRecord = new WatchRecord(wid, event, null, ExecutionState.EXECUTED);
+        WatchRecord watchRecord = new WatchRecord(wid, event, ExecutionState.EXECUTED, null);
 
         historyStore.stop();
         try {

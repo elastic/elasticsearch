@@ -45,7 +45,7 @@ public class ExecutableCompareCondition extends ExecutableCondition<CompareCondi
         try {
             return doExecute(ctx, resolvedValues);
         } catch (Exception e) {
-            logger.error("failed to execute [{}] condition for [{}]", CompareCondition.TYPE, ctx.id());
+            logger.error("failed to execute [{}] condition for [{}]", e, CompareCondition.TYPE, ctx.id());
             if (resolvedValues.isEmpty()) {
                 resolvedValues = null;
             }

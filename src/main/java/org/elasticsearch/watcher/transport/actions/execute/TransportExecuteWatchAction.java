@@ -113,7 +113,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
 
             WatchRecord record = executionService.execute(ctxBuilder.build());
             XContentBuilder builder = XContentFactory.jsonBuilder();
-            record.toXContent(builder, WatcherParams.builder().hideSecrets(true).build());
+            record.toXContent(builder, WatcherParams.builder().hideSecrets(true).debug(request.isDebug()).build());
             ExecuteWatchResponse response = new ExecuteWatchResponse(record.id().value(), builder.bytes());
             listener.onResponse(response);
         } catch (Exception e) {

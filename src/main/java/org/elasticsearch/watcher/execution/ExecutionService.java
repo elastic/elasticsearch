@@ -22,6 +22,7 @@ import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.support.WatcherInactiveException;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.support.validation.WatcherSettingsValidation;
+import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.watch.WatchLockService;
@@ -34,6 +35,7 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.common.logging.support.LoggerMessageFormat.format;
 
 /**
  */
@@ -242,18 +244,34 @@ public class ExecutionService extends AbstractComponent {
                 // fail fast if we are trying to execute a deleted watch
                 String message = "unable to find watch for record [" + ctx.id() + "], perhaps it has been deleted, ignoring...";
                 logger.warn(message);
-                record = ctx.abortBeforeExecution(message, ExecutionState.NOT_EXECUTED_WATCH_MISSING);
+                record = ctx.abortBeforeExecution(ExecutionState.NOT_EXECUTED_WATCH_MISSING, message);
+
             } else {
                 logger.debug("executing watch [{}]", ctx.id().watchId());
-                record = executeInner(ctx);
-                if (ctx.recordExecution()) {
-                    watchStore.updateStatus(ctx.watch());
+
+                try {
+                    record = executeInner(ctx);
+                } catch (Exception e) {
+                    logger.warn("failed to execute watch [{}]", e, ctx.id());
+                    record = ctx.abortFailedExecution(ExceptionsHelper.detailedMessage(e));
+                }
+
+                if (record != null && ctx.recordExecution()) {
+                    try {
+                        watchStore.updateStatus(ctx.watch());
+                    } catch (Exception e) {
+                        logger.warn("failed to update watch status [{}]", e, ctx.id());
+                        record = new WatchRecord(record, ExecutionState.FAILED, format("failed to update watch status [{}]...{}", ctx.id(), ExceptionsHelper.detailedMessage(e)));
+                    }
                 }
             }
         } catch (Exception e) {
-            String detailedMessage = ExceptionsHelper.detailedMessage(e);
-            logger.warn("failed to execute watch [{}], failure [{}]", ctx.id(), detailedMessage);
-            record = ctx.abortFailedExecution(detailedMessage);
+            logger.warn("failed to execute watch [{}]", e, ctx.id());
+            if (record != null) {
+                record = new WatchRecord(record, ExecutionState.FAILED, format("failed to execute watch. {}", ExceptionsHelper.detailedMessage(e)));
+            } else {
+                record = ctx.abortFailedExecution(ExceptionsHelper.detailedMessage(e));
+            }
 
         } finally {
             if (ctx.knownWatch() && record != null && ctx.recordExecution()) {
@@ -294,7 +312,7 @@ public class ExecutionService extends AbstractComponent {
         } catch (EsRejectedExecutionException e) {
             String message = "failed to run triggered watch [" + triggeredWatch.id() + "] due to thread pool capacity";
             logger.debug(message);
-            WatchRecord record = ctx.abortBeforeExecution(message, ExecutionState.FAILED);
+            WatchRecord record = ctx.abortBeforeExecution(ExecutionState.FAILED, message);
             historyStore.put(record);
             triggeredWatchStore.delete(triggeredWatch.id());
         }
@@ -328,8 +346,17 @@ public class ExecutionService extends AbstractComponent {
 
         if (conditionResult.met()) {
 
+            if (watch.actions().count() > 0 && watch.transform() != null) {
+                ctx.beforeWatchTransform();
+                Transform.Result transformResult = watch.transform().execute(ctx, ctx.payload());
+                ctx.onWatchTransformResult(transformResult);
+                if (transformResult.status() == Transform.Result.Status.FAILURE) {
+                    return ctx.abortFailedExecution("failed to execute watch transform");
+                }
+            }
+
             // actions
-            ctx.beforeAction();
+            ctx.beforeActions();
             for (ActionWrapper action : watch.actions()) {
                 ActionWrapper.Result actionResult = action.execute(ctx);
                 ctx.onActionResult(actionResult);
@@ -346,7 +373,7 @@ public class ExecutionService extends AbstractComponent {
             Watch watch = watchStore.get(triggeredWatch.id().watchId());
             if (watch == null) {
                 String message = "unable to find watch for record [" + triggeredWatch.id().watchId() + "]/[" + triggeredWatch.id() + "], perhaps it has been deleted, ignoring...";
-                WatchRecord record = new WatchRecord(triggeredWatch.id(), triggeredWatch.triggerEvent(), message, ExecutionState.NOT_EXECUTED_WATCH_MISSING);
+                WatchRecord record = new WatchRecord(triggeredWatch.id(), triggeredWatch.triggerEvent(), ExecutionState.NOT_EXECUTED_WATCH_MISSING, message);
                 historyStore.put(record);
                 triggeredWatchStore.delete(triggeredWatch.id());
             } else {

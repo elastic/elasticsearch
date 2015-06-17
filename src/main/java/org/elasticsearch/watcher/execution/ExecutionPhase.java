@@ -11,19 +11,35 @@ import java.util.Locale;
  */
 public enum ExecutionPhase {
 
-    AWAITS_EXECUTION,
-    INPUT,
-    CONDITION,
-    WATCH_TRANSFORM,
-    ACTIONS,
-    FINISHED;
+    AWAITS_EXECUTION(false),
+    STARTED(false),
+    INPUT(false),
+    CONDITION(false),
+    WATCH_TRANSFORM(false),
+    ACTIONS(false),
+    ABORTED(true),
+    FINISHED(true);
 
-    public static ExecutionPhase parse(String value) {
-        return valueOf(value.toUpperCase(Locale.ROOT));
+    private final boolean sealed;
+
+    ExecutionPhase(boolean sealed) {
+        this.sealed = sealed;
+    }
+
+    public boolean sealed() {
+        return sealed;
+    }
+
+    public String id() {
+        return name().toLowerCase(Locale.ROOT);
+    }
+
+    public static ExecutionPhase resolve(String id) {
+        return valueOf(id.toUpperCase(Locale.ROOT));
     }
 
     @Override
     public String toString() {
-        return name().toLowerCase(Locale.ROOT);
+        return id();
     }
 }

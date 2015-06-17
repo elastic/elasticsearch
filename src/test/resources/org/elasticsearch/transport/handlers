@@ -86,6 +86,5 @@ internal:indices/admin/upgrade
 internal:indices/flush/synced/in_flight
 internal:indices/flush/synced/pre
 internal:indices/flush/synced/sync
-internal:river/state/publish
 internal:admin/repository/verify
 internal:plugin/license/cluster/register_trial_license

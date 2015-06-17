@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.actions.throttler;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.joda.time.DateTime;
@@ -56,7 +55,7 @@ import static org.hamcrest.Matchers.greaterThan;
  */
 public class ActionThrottleTests extends AbstractWatcherIntegrationTests {
 
-    @Test @Slow @Repeat(iterations = 10)
+    @Test @Slow
     public void testSingleActionAckThrottle() throws Exception {
         boolean useClientForAcking = randomBoolean();
 
@@ -96,7 +95,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTests {
         }
     }
 
-    @Test @Slow @Repeat(iterations = 10)
+    @Test @Slow
     public void testRandomMultiActionAckThrottle() throws Exception {
         boolean useClientForAcking = randomBoolean();
 
@@ -256,11 +255,11 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTests {
         }, 6, TimeUnit.SECONDS);
     }
 
-    @Test @Slow @Repeat(iterations = 20)
+    @Test @Slow
     public void testWatchThrottlePeriod() throws Exception {
         WatchSourceBuilder watchSourceBuilder = watchBuilder()
                 .trigger(schedule(interval("60m")))
-                .defaultThrottlePeriod(new TimeValue(1, TimeUnit.SECONDS));
+                .defaultThrottlePeriod(new TimeValue(20, TimeUnit.SECONDS));
 
         AvailableAction availableAction = randomFrom(AvailableAction.values());
         watchSourceBuilder.addAction("default_global_throttle", availableAction.action());
@@ -296,7 +295,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTests {
         assertThat(resultStatus.toString(), equalTo("throttled"));
 
         if (timeWarped()) {
-            timeWarp().clock().fastForwardSeconds(1);
+            timeWarp().clock().fastForwardSeconds(20);
         }
         assertBusy(new Runnable() {
             @Override
@@ -315,7 +314,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTests {
                     throw new ElasticsearchException("failed to execute", ioe);
                 }
             }
-        }, 1, TimeUnit.SECONDS);
+        }, 20, TimeUnit.SECONDS);
     }
 
     @Test @Slow

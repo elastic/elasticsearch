@@ -27,6 +27,7 @@
             <includes>
                 <include>com.sun.mail:javax.mail</include>
                 <include>javax.activation:activation</include>
+                <include>com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer</include>
             </includes>
         </dependencySet>
     </dependencySets>

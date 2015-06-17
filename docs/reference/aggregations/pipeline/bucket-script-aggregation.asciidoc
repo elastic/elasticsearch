@@ -1,17 +1,17 @@
-[[search-aggregations-pipeline-series-arithmetic-aggregation]]
-=== Series Arithmetic Aggregation
+[[search-aggregations-pipeline-bucket-script-aggregation]]
+=== Bucket Script Aggregation
 
 A parent pipeline aggregation which executes a script which can perform per bucket computations on specified metrics 
 in the parent multi-bucket aggregation. The specified metric must be numeric and the script must return a numeric value.
 
 ==== Syntax
 
-A `series_arithmetic` aggregation looks like this in isolation:
+A `bucket_script` aggregation looks like this in isolation:
 
 [source,js]
 --------------------------------------------------
 {
-    "series_arithmetic": {
+    "bucket_script": {
         "buckets_path": {
             "my_var1": "the_sum", <1>
             "my_var2": "the_value_count"
@@ -24,7 +24,7 @@ A `series_arithmetic` aggregation looks like this in isolation:
 the metrics to use for that variable.
 
 
-.`series_arithmetic` Parameters
+.`bucket_script` Parameters
 |===
 |Parameter Name |Description |Required |Default Value
 |`script` |The script to run for this aggregation. The script can be inline, file or indexed. (see <<modules-scripting>> 

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.pipeline.seriesarithmetic;
+package org.elasticsearch.search.aggregations.pipeline.bucketscript;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.Script;
@@ -29,28 +29,28 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import java.io.IOException;
 import java.util.Map;
 
-public class SeriesArithmeticBuilder extends PipelineAggregatorBuilder<SeriesArithmeticBuilder> {
+public class BucketScriptBuilder extends PipelineAggregatorBuilder<BucketScriptBuilder> {
 
     private String format;
     private GapPolicy gapPolicy;
     private Script script;
     private Map<String, String> bucketsPathsMap;
 
-    public SeriesArithmeticBuilder(String name) {
-        super(name, SeriesArithmeticPipelineAggregator.TYPE.name());
+    public BucketScriptBuilder(String name) {
+        super(name, BucketScriptPipelineAggregator.TYPE.name());
     }
 
-    public SeriesArithmeticBuilder script(Script script) {
+    public BucketScriptBuilder script(Script script) {
         this.script = script;
         return this;
     }
 
-    public SeriesArithmeticBuilder format(String format) {
+    public BucketScriptBuilder format(String format) {
         this.format = format;
         return this;
     }
 
-    public SeriesArithmeticBuilder gapPolicy(GapPolicy gapPolicy) {
+    public BucketScriptBuilder gapPolicy(GapPolicy gapPolicy) {
         this.gapPolicy = gapPolicy;
         return this;
     }
@@ -58,7 +58,7 @@ public class SeriesArithmeticBuilder extends PipelineAggregatorBuilder<SeriesAri
     /**
      * Sets the paths to the buckets to use for this pipeline aggregator
      */
-    public SeriesArithmeticBuilder setBucketsPathsMap(Map<String, String> bucketsPathsMap) {
+    public BucketScriptBuilder setBucketsPathsMap(Map<String, String> bucketsPathsMap) {
         this.bucketsPathsMap = bucketsPathsMap;
         return this;
     }
@@ -69,10 +69,10 @@ public class SeriesArithmeticBuilder extends PipelineAggregatorBuilder<SeriesAri
             builder.field(ScriptField.SCRIPT.getPreferredName(), script);
         }
         if (format != null) {
-            builder.field(SeriesArithmeticParser.FORMAT.getPreferredName(), format);
+            builder.field(BucketScriptParser.FORMAT.getPreferredName(), format);
         }
         if (gapPolicy != null) {
-            builder.field(SeriesArithmeticParser.GAP_POLICY.getPreferredName(), gapPolicy.getName());
+            builder.field(BucketScriptParser.GAP_POLICY.getPreferredName(), gapPolicy.getName());
         }
         if (bucketsPathsMap != null) {
             builder.field(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName(), bucketsPathsMap);

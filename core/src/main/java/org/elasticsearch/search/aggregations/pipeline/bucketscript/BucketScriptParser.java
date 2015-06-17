@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.pipeline.seriesarithmetic;
+package org.elasticsearch.search.aggregations.pipeline.bucketscript;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -37,7 +37,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class SeriesArithmeticParser implements PipelineAggregator.Parser {
+public class BucketScriptParser implements PipelineAggregator.Parser {
 
     public static final ParseField FORMAT = new ParseField("format");
     public static final ParseField GAP_POLICY = new ParseField("gap_policy");
@@ -45,7 +45,7 @@ public class SeriesArithmeticParser implements PipelineAggregator.Parser {
 
     @Override
     public String type() {
-        return SeriesArithmeticPipelineAggregator.TYPE.name();
+        return BucketScriptPipelineAggregator.TYPE.name();
     }
 
     @Override
@@ -123,7 +123,7 @@ public class SeriesArithmeticParser implements PipelineAggregator.Parser {
             formatter = ValueFormat.Patternable.Number.format(format).formatter();
         }
 
-        return new SeriesArithmeticPipelineAggregator.Factory(reducerName, bucketsPathsMap, script, formatter, gapPolicy);
+        return new BucketScriptPipelineAggregator.Factory(reducerName, bucketsPathsMap, script, formatter, gapPolicy);
     }
 
 }

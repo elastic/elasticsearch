@@ -24,7 +24,7 @@ import org.elasticsearch.common.collect.Tuple;
 /**
  * Routing Preference Type
  */
-public enum  Preference {
+public enum Preference {
 
     /**
      * Route to specific shards
@@ -59,7 +59,13 @@ public enum  Preference {
     /**
      * Route to specific node only
      */
-    ONLY_NODE("_only_node");
+    ONLY_NODE("_only_node"),
+
+    /**
+     * Route to only node with attribute
+     */
+    ONLY_NODES("_only_nodes");
+
 
     private final String type;
 

@@ -217,6 +217,10 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
                     String nodeId = preference.substring(Preference.ONLY_NODE.type().length() + 1);
                     ensureNodeIdExists(nodes, nodeId);
                     return indexShard.onlyNodeActiveInitializingShardsIt(nodeId);
+                case ONLY_NODES:
+                    String nodeAttribute = preference.substring(Preference.ONLY_NODES.type().length() + 1);
+                    return indexShard.onlyNodeSelectorActiveInitializingShardsIt(nodeAttribute, nodes);
+
                 default:
                     throw new ElasticsearchIllegalArgumentException("unknown preference [" + preferenceType + "]");
             }

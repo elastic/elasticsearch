@@ -1,0 +1,24 @@
+# Compress LZF
+
+This library contains efficient implementation of LZF compression format,
+as well as additional helper classes that build on JDK-provided gzip (deflat)
+codec.
+
+## Licensing
+
+Library is licensed under Apache License 2.0, as per accompanying LICENSE file.
+
+## Credit
+
+Library has been written by Tatu Saloranta (tatu.saloranta@iki.fi).
+It was started at Ning, inc., as an official Open Source process used by
+platform backend, but after initial versions has been developed outside of
+Ning by supporting community.
+
+Other contributors include:
+
+* Jon Hartlaub (first versions of streaming reader/writer; unit tests)
+* Cedrik Lime: parallel LZF implementation
+
+Various community members have contributed bug reports, and suggested minor
+fixes; these can be found from file "VERSION.txt" in SCM.

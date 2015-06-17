@@ -9,6 +9,16 @@ your application to Elasticsearch 2.0.
 Elasticsearch now binds to the loopback interface by default (usually 127.0.0.1
 or ::1), the setting `network.host` can be specified to change this behavior.
 
+=== Rivers removal
+
+Elasticsearch does not support rivers anymore. While we had first planned to
+keep them around to ease migration, keeping support for rivers proved to be
+challenging as it conflicted with other important changes that we wanted to
+bring to 2.0 like synchronous dynamic mappings updates, so we eventually
+decided to remove them entirely. See
+https://www.elastic.co/blog/deprecating_rivers for more background about why
+we are moving away from rivers.
+
 === Indices API
 
 The <<alias-retrieving, get alias api>> will, by default produce an error response

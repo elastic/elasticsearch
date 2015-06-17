@@ -54,7 +54,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
@@ -64,7 +63,6 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.river.RiverIndexName;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -1068,34 +1066,18 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
     protected final WriteResult<IndexResponse> executeIndexRequestOnPrimary(BulkShardRequest shardRequest, IndexRequest request, IndexShard indexShard) throws Throwable {
         Engine.IndexingOperation operation = prepareIndexOperationOnPrimary(shardRequest, request, indexShard);
         Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
-        final boolean created;
         final ShardId shardId = indexShard.shardId();
         if (update != null) {
             final String indexName = shardId.getIndex();
-            if (indexName.equals(RiverIndexName.Conf.indexName(settings))) {
-                // With rivers, we have a chicken and egg problem if indexing
-                // the _meta document triggers a mapping update. Because we would
-                // like to validate the mapping update first, but on the other
-                // hand putting the mapping would start the river, which expects
-                // to find a _meta document
-                // So we have no choice but to index first and send mappings afterwards
-                MapperService mapperService = indexShard.indexService().mapperService();
-                mapperService.merge(request.type(), new CompressedXContent(update.toBytes()), true);
-                created = operation.execute(indexShard);
-                mappingUpdatedAction.updateMappingOnMasterAsynchronously(indexName, request.type(), update);
-            } else {
-                mappingUpdatedAction.updateMappingOnMasterSynchronously(indexName, request.type(), update);
-                operation = prepareIndexOperationOnPrimary(shardRequest, request, indexShard);
-                update = operation.parsedDoc().dynamicMappingsUpdate();
-                if (update != null) {
-                    throw new RetryOnPrimaryException(shardId,
-                            "Dynamics mappings are not available on the node that holds the primary yet");
-                }
-                created = operation.execute(indexShard);
+            mappingUpdatedAction.updateMappingOnMasterSynchronously(indexName, request.type(), update);
+            operation = prepareIndexOperationOnPrimary(shardRequest, request, indexShard);
+            update = operation.parsedDoc().dynamicMappingsUpdate();
+            if (update != null) {
+                throw new RetryOnPrimaryException(shardId,
+                        "Dynamics mappings are not available on the node that holds the primary yet");
             }
-        } else {
-            created = operation.execute(indexShard);
         }
+        final boolean created = operation.execute(indexShard);
 
         // update the version on request so it will happen on the replicas
         final long version = operation.version();

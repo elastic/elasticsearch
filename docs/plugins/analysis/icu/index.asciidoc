@@ -1,27 +1,39 @@
 [[analysis-icu]]
-= ICU Analysis for Elasticsearch
+== ICU Analysis for Elasticsearch
 
 The ICU Analysis plugin integrates Lucene ICU module into elasticsearch, adding ICU relates analysis components.
 
-In order to install the plugin, simply run: 
 
-[source,shell]
---------------------------------------------------
+[analysis-icu-install]
+=== Installation
+
+This plugin can be installed using the plugin manager:
+
+[source,sh]
+----------------------------------------------------------------
 bin/plugin install elasticsearch-analysis-icu
---------------------------------------------------
+----------------------------------------------------------------
 
-To build a `SNAPSHOT` version, you need to build it with Maven:
+The plugin must be installed on every node in the cluster, and each node must
+be restarted after installation.
 
-[source,shell]
---------------------------------------------------
-mvn clean install
-plugin --install analysis-icu \
-       --url file:target/releases/elasticsearch-analysis-icu-X.X.X-SNAPSHOT.zip
---------------------------------------------------
+[analysis-icu-remove]
+=== Removal
 
+The plugin can be removed with the following command:
+
+[source,sh]
+----------------------------------------------------------------
+bin/plugin remove elasticsearch-analysis-icu
+----------------------------------------------------------------
+
+The node must be stopped before removing the plugin.
+
+[analysis-icu-usage]
+=== Usage
 
 [analysis-icu-normalization]
-== ICU Normalization
+==== ICU Normalization
 
 Normalizes characters as explained http://userguide.icu-project.org/transforms/normalization[here].
 It registers itself by default under `icu_normalizer` or `icuNormalizer` using the default settings. 
@@ -30,44 +42,52 @@ Here is a sample settings:
 
 [source,json]
 --------------------------------------------------
+PUT icu_sample
 {
-    "index" : {
-        "analysis" : {
-            "analyzer" : {
-                "normalized" : {
-                    "tokenizer" : "keyword",
-                    "filter" : ["icu_normalizer"]
+    "settings": {
+        "index" : {
+            "analysis" : {
+                "analyzer" : {
+                    "normalized" : {
+                        "tokenizer" : "keyword",
+                        "filter" : ["icu_normalizer"]
+                    }
                 }
             }
         }
     }
 }
 --------------------------------------------------
+// AUTOSENSE
 
 [analysis-icu-folding]
-== ICU Folding
+==== ICU Folding
 
 Folding of unicode characters based on `UTR#30`. It registers itself under `icu_folding` and `icuFolding` names. 
 Sample setting:
 
 [source,json]
 --------------------------------------------------
+PUT icu_sample
 {
-    "index" : {
-        "analysis" : {
-            "analyzer" : {
-                "folded" : {
-                    "tokenizer" : "keyword",
-                    "filter" : ["icu_folding"]
+    "settings": {
+        "index" : {
+            "analysis" : {
+                "analyzer" : {
+                    "folded" : {
+                        "tokenizer" : "keyword",
+                        "filter" : ["icu_folding"]
+                    }
                 }
             }
         }
     }
 }
 --------------------------------------------------
+// AUTOSENSE
 
 [analysis-icu-filtering]
-== ICU Filtering
+==== ICU Filtering
 
 The folding can be filtered by a set of unicode characters with the parameter `unicodeSetFilter`. This is useful for a
 non-internationalized search engine where retaining a set of national characters which are primary letters in a specific
@@ -78,28 +98,32 @@ lowercased which is why we add that filter below.
 
 [source,json]
 --------------------------------------------------
+PUT icu_sample
 {
-    "index" : {
-        "analysis" : {
-            "analyzer" : {
-                "folding" : {
-                    "tokenizer" : "standard",
-                    "filter" : ["my_icu_folding", "lowercase"]
+    "settings": {
+        "index" : {
+            "analysis" : {
+                "analyzer" : {
+                    "folding" : {
+                        "tokenizer" : "standard",
+                        "filter" : ["my_icu_folding", "lowercase"]
+                    }
                 }
-            }
-            "filter" : {
-                "my_icu_folding" : {
-                    "type" : "icu_folding"
-                    "unicodeSetFilter" : "[^åäöÅÄÖ]"
+                "filter" : {
+                    "my_icu_folding" : {
+                        "type" : "icu_folding"
+                        "unicodeSetFilter" : "[^åäöÅÄÖ]"
+                    }
                 }
             }
         }
     }
 }
 --------------------------------------------------
+// AUTOSENSE
 
 [analysis-icu-collation]
-== ICU Collation
+==== ICU Collation
 
 Uses collation token filter. Allows to either specify the rules for collation
 (defined http://www.icu-project.org/userguide/Collate_Customization.html[here]) using the `rules` parameter
@@ -111,43 +135,51 @@ Here is a sample settings:
 
 [source,json]
 --------------------------------------------------
+PUT icu_sample
 {
-    "index" : {
-        "analysis" : {
-            "analyzer" : {
-                "collation" : {
-                    "tokenizer" : "keyword",
-                    "filter" : ["icu_collation"]
+    "settings": {
+        "index" : {
+            "analysis" : {
+                "analyzer" : {
+                    "collation" : {
+                        "tokenizer" : "keyword",
+                        "filter" : ["icu_collation"]
+                    }
                 }
             }
         }
     }
 }
 --------------------------------------------------
+// AUTOSENSE
 
 And here is a sample of custom collation:
 
 [source,json]
 --------------------------------------------------
+PUT icu_sample
 {
-    "index" : {
-        "analysis" : {
-            "analyzer" : {
-                "collation" : {
-                    "tokenizer" : "keyword",
-                    "filter" : ["myCollator"]
-                }
-            },
-            "filter" : {
-                "myCollator" : {
-                    "type" : "icu_collation",
-                    "language" : "en"
+    "settings": {
+        "index" : {
+            "analysis" : {
+                "analyzer" : {
+                    "collation" : {
+                        "tokenizer" : "keyword",
+                        "filter" : ["myCollator"]
+                    }
+                },
+                "filter" : {
+                    "myCollator" : {
+                        "type" : "icu_collation",
+                        "language" : "en"
+                    }
                 }
             }
         }
     }
 }
 --------------------------------------------------
+// AUTOSENSE
 
 
 .Optional options
@@ -211,28 +243,32 @@ And here is a sample of custom collation:
 
 
 [analysis-icu-tokenizer]
-== ICU Tokenizer
+==== ICU Tokenizer
 
 Breaks text into words according to http://www.unicode.org/reports/tr29/[UAX #29: Unicode Text Segmentation].
 
 [source,json]
 --------------------------------------------------
+PUT icu_sample
 {
-    "index" : {
-        "analysis" : {
-            "analyzer" : {
-                "tokenized" : {
-                    "tokenizer" : "icu_tokenizer",
+    "settings": {
+        "index" : {
+            "analysis" : {
+                "analyzer" : {
+                    "tokenized" : {
+                        "tokenizer" : "icu_tokenizer",
+                    }
                 }
             }
         }
     }
 }
 --------------------------------------------------
+// AUTOSENSE
 
 
 [analysis-icu-normalization-charfilter]
-== ICU Normalization CharFilter
+==== ICU Normalization CharFilter
 
 Normalizes characters as explained http://userguide.icu-project.org/transforms/normalization[here].
 It registers itself by default under `icu_normalizer` or `icuNormalizer` using the default settings.
@@ -244,22 +280,26 @@ Here is a sample settings:
 
 [source,json]
 --------------------------------------------------
+PUT icu_sample
 {
-    "index" : {
-        "analysis" : {
-            "analyzer" : {
-                "normalized" : {
-                    "tokenizer" : "keyword",
-                    "char_filter" : ["icu_normalizer"]
+    "settings": {
+        "index" : {
+            "analysis" : {
+                "analyzer" : {
+                    "normalized" : {
+                        "tokenizer" : "keyword",
+                        "char_filter" : ["icu_normalizer"]
+                    }
                 }
             }
         }
     }
 }
 --------------------------------------------------
+// AUTOSENSE
 
 [analysis-icu-transform]
-== ICU Transform
+==== ICU Transform
 
 Transforms are used to process Unicode text in many different ways. Some include case mapping, normalization,
 transliteration and bidirectional text handling.
@@ -271,25 +311,29 @@ For example:
 
 [source,json]
 --------------------------------------------------
+PUT icu_sample
 {
-    "index" : {
-        "analysis" : {
-            "analyzer" : {
-                "latin" : {
-                    "tokenizer" : "keyword",
-                    "filter" : ["myLatinTransform"]
-                }
-            },
-            "filter" : {
-                "myLatinTransform" : {
-                    "type" : "icu_transform",
-                    "id" : "Any-Latin; NFD; [:Nonspacing Mark:] Remove; NFC"
+    "settings": {
+        "index" : {
+            "analysis" : {
+                "analyzer" : {
+                    "latin" : {
+                        "tokenizer" : "keyword",
+                        "filter" : ["myLatinTransform"]
+                    }
+                },
+                "filter" : {
+                    "myLatinTransform" : {
+                        "type" : "icu_transform",
+                        "id" : "Any-Latin; NFD; [:Nonspacing Mark:] Remove; NFC"
+                    }
                 }
             }
         }
     }
 }
 --------------------------------------------------
+// AUTOSENSE
 
 This transform transliterated characters to latin, and separates accents from their base characters, removes the accents,
 and then puts the remaining text into an unaccented form.
@@ -304,4 +348,4 @@ The results are:
 
 Currently the filter only supports identifier and direction, custom rulesets are not yet supported.
 
-For more documentation, Please see the [user guide of ICU Transform](http://userguide.icu-project.org/transforms/general).
+For more documentation, Please see the http://userguide.icu-project.org/transforms/general[user guide of ICU Transform].

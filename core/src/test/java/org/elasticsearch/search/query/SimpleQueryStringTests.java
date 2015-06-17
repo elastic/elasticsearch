@@ -60,12 +60,14 @@ public class SimpleQueryStringTests extends ElasticsearchIntegrationTest {
         assertHitCount(searchResponse, 3l);
         assertSearchHits(searchResponse, "1", "2", "3");
 
+        // Tests boost value setting. In this case doc 1 should always be ranked above the other
+        // two matches.
         searchResponse = client().prepareSearch().setQuery(
                 boolQuery()
-                    .should(simpleQueryStringQuery("foo").boost(-10.0f))
+                    .should(simpleQueryStringQuery("\"foo bar\"").boost(10.0f))
                     .should(termQuery("body", "eggplant"))).get();
-        assertHitCount(searchResponse, 3l);
-        assertFirstHit(searchResponse, hasId("4"));
+        assertHitCount(searchResponse, 2l);
+        assertFirstHit(searchResponse, hasId("3"));
 
         searchResponse = client().prepareSearch().setQuery(
                 simpleQueryStringQuery("foo bar").defaultOperator(SimpleQueryStringBuilder.Operator.AND)).get();

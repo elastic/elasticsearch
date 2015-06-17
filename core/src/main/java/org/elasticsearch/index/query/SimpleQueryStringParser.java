@@ -234,8 +234,11 @@ public class SimpleQueryStringParser implements QueryParser {
         if (minimumShouldMatch != null && query instanceof BooleanQuery) {
             Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
         }
-        
-        query.setBoost(boost);
+
+        if (query != null) {
+            query.setBoost(boost);
+        }
+
         return query;
     }
 }

@@ -39,7 +39,7 @@ public class SimpleQueryStringBuilder extends QueryBuilder implements BoostableQ
     private String queryName;
     private String minimumShouldMatch;
     private int flags = -1;
-    private float boost = 1.0f;
+    private float boost = -1.0f;
     private Boolean lowercaseExpandedTerms;
     private Boolean lenient;
     private Boolean analyzeWildcard;
@@ -210,7 +210,7 @@ public class SimpleQueryStringBuilder extends QueryBuilder implements BoostableQ
             builder.field("minimum_should_match", minimumShouldMatch);
         }
         
-        if (boost != 1.0f) {
+        if (boost != -1.0f) {
             builder.field("boost", boost);
         }
 

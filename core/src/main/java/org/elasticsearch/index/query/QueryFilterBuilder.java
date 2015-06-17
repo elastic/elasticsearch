@@ -19,9 +19,14 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.Query;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * A filter that simply wraps a query.
@@ -35,8 +40,6 @@ public class QueryFilterBuilder extends AbstractQueryBuilder<QueryFilterBuilder>
 
     private final QueryBuilder queryBuilder;
 
-    private String queryName;
-
     static final QueryFilterBuilder PROTOTYPE = new QueryFilterBuilder(null);
 
     /**
@@ -49,32 +52,57 @@ public class QueryFilterBuilder extends AbstractQueryBuilder<QueryFilterBuilder>
     }
 
     /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     * @return the query builder that is wrapped by this {@link QueryFilterBuilder}
      */
-    public QueryFilterBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
+    public QueryBuilder innerQuery() {
+        return this.queryBuilder;
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        if (queryName == null) {
-            builder.field(NAME);
-            queryBuilder.toXContent(builder, params);
-        } else {
-            //fallback fo fquery when needed, for bw comp
-            buildFQuery(builder, params);
-        }
+        builder.field(NAME);
+        queryBuilder.toXContent(builder, params);
     }
 
-    protected void buildFQuery(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(FQueryFilterBuilder.NAME);
-        builder.field("query");
-        queryBuilder.toXContent(builder, params);
-        if (queryName != null) {
-            builder.field("_name", queryName);
+    @Override
+    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+        // inner query builder can potentially be `null`, in that case we ignore it
+        if (this.queryBuilder == null) {
+            return null;
         }
-        builder.endObject();
+        Query innerQuery = this.queryBuilder.toQuery(parseContext);
+        if (innerQuery == null) {
+            return null;
+        }
+        return new ConstantScoreQuery(innerQuery);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(queryBuilder);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        QueryFilterBuilder other = (QueryFilterBuilder) obj;
+        return Objects.equals(queryBuilder, other.queryBuilder);
+    }
+
+    @Override
+    public QueryFilterBuilder readFrom(StreamInput in) throws IOException {
+        QueryBuilder innerQueryBuilder = in.readNamedWriteable();
+        return new QueryFilterBuilder(innerQueryBuilder);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteable(this.queryBuilder);
     }
 
     @Override

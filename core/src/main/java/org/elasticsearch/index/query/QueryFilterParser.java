@@ -19,14 +19,12 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
 
 import java.io.IOException;
 
 @Deprecated
-public class QueryFilterParser extends BaseQueryParserTemp {
+public class QueryFilterParser extends BaseQueryParser {
 
     @Inject
     public QueryFilterParser() {
@@ -38,8 +36,8 @@ public class QueryFilterParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
-        return new ConstantScoreQuery(parseContext.parseInnerQuery());
+    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        return new QueryFilterBuilder(parseContext.parseInnerQueryBuilder());
     }
 
     @Override

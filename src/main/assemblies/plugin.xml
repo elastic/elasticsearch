@@ -25,7 +25,7 @@
             <outputDirectory>/</outputDirectory>
             <useTransitiveDependencies>false</useTransitiveDependencies>
             <includes>
-                <include>javax.mail:mail</include>
+                <include>com.sun.mail:javax.mail</include>
                 <include>javax.activation:activation</include>
             </includes>
         </dependencySet>

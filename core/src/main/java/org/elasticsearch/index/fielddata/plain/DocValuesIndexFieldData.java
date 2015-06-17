@@ -104,11 +104,9 @@ public abstract class DocValuesIndexFieldData {
             if (BINARY_INDEX_FIELD_NAMES.contains(fieldNames.indexName())) {
                 assert numericType == null;
                 return new BinaryDVIndexFieldData(index, fieldNames, fieldType.fieldDataType());
-            } else if (NUMERIC_INDEX_FIELD_NAMES.contains(fieldNames.indexName())) {
-                assert !numericType.isFloatingPoint();
-                return new NumericDVIndexFieldData(index, fieldNames, fieldType.fieldDataType());
             } else if (numericType != null) {
-                if (Version.indexCreated(indexSettings).onOrAfter(Version.V_1_4_0_Beta1)) {
+                if (TimestampFieldMapper.NAME.equals(fieldNames.indexName())
+                        || Version.indexCreated(indexSettings).onOrAfter(Version.V_1_4_0_Beta1)) {
                     return new SortedNumericDVIndexFieldData(index, fieldNames, numericType, fieldType.fieldDataType());
                 } else {
                     // prior to ES 1.4: multi-valued numerics were boxed inside a byte[] as BINARY

@@ -109,34 +109,30 @@ public class FuzzyQueryBuilder extends MultiTermQueryBuilder implements Boostabl
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        if (boost == -1 && fuzziness == null && prefixLength == null && queryName != null) {
-            builder.field(name, value);
-        } else {
-            builder.startObject(name);
-            builder.field("value", value);
-            if (boost != -1) {
-                builder.field("boost", boost);
-            }
-            if (transpositions != null) {
-                builder.field("transpositions", transpositions);
-            }
-            if (fuzziness != null) {
-                fuzziness.toXContent(builder, params);
-            }
-            if (prefixLength != null) {
-                builder.field("prefix_length", prefixLength);
-            }
-            if (maxExpansions != null) {
-                builder.field("max_expansions", maxExpansions);
-            }
-            if (rewrite != null) {
-                builder.field("rewrite", rewrite);
-            }
-            if (queryName != null) {
-                builder.field("_name", queryName);
-            }
-            builder.endObject();
+        builder.startObject(name);
+        builder.field("value", value);
+        if (boost != -1) {
+            builder.field("boost", boost);
         }
+        if (transpositions != null) {
+            builder.field("transpositions", transpositions);
+        }
+        if (fuzziness != null) {
+            fuzziness.toXContent(builder, params);
+        }
+        if (prefixLength != null) {
+            builder.field("prefix_length", prefixLength);
+        }
+        if (maxExpansions != null) {
+            builder.field("max_expansions", maxExpansions);
+        }
+        if (rewrite != null) {
+            builder.field("rewrite", rewrite);
+        }
+        if (queryName != null) {
+            builder.field("_name", queryName);
+        }
+        builder.endObject();
         builder.endObject();
     }
 

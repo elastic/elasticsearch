@@ -34,6 +34,13 @@ public class IndexAuditTrailEnabledTests extends ShieldIntegrationTest {
         return builder.build();
     }
 
+    @Override
+    public void beforeIndexDeletion() {
+        // For this test, this is a NO-OP because the index audit trail will continue to capture events and index after
+        // the tests have completed. The default implementation of this method expects that nothing is performing operations
+        // after the test has completed
+    }
+
     @Test
     public void testIndexAuditTrailIndexExists() throws Exception {
         awaitIndexCreation();

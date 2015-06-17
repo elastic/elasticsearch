@@ -617,6 +617,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
             }
 
             authenticationService.attachUserHeaderIfMissing(request, auditUser.user());
+            assert !Thread.currentThread().isInterrupted() : "current thread has been interrupted before putting index template!!!";
             PutIndexTemplateResponse response = client.admin().indices().putTemplate(request).actionGet();
             if (!response.isAcknowledged()) {
                 throw new ShieldException("failed to put index template for audit logging");

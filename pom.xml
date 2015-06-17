@@ -26,7 +26,7 @@
         <license.plugin.version>2.0.0-SNAPSHOT</license.plugin.version>
         <shield.plugin.version>2.0.0-SNAPSHOT</shield.plugin.version>
         <tests.security.manager>false</tests.security.manager> <!-- some tests fail since they need setFactory permission -->
-        <tests.rest>false</tests.rest> <!-- watcher can't run REST tests at this point -->
+        <tests.rest.load_packaged>false</tests.rest.load_packaged>
     </properties>
 
     <dependencies>

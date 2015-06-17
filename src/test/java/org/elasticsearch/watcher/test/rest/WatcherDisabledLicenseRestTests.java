@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.core.LicenseExpiredException;
@@ -47,13 +48,8 @@ public class WatcherDisabledLicenseRestTests extends WatcherRestTests {
                 //This was a test testing the "hijacked" methods
                 return;
             }
-            if (shieldEnabled) {
-                assertThat(ae.getMessage(), containsString("returned [403 Forbidden]"));
-                assertThat(ae.getMessage(), containsString("is unauthorized for user [admin]"));
-            } else {
-                assertThat(ae.getMessage(), containsString("unauthorized"));
-                assertThat(ae.getMessage(), containsString(LicenseExpiredException.class.getSimpleName()));
-            }
+            assertThat(ae.getMessage(), containsString("license expired for feature [watcher]"));
+            assertThat(ae.getMessage(), containsString(Strings.toUnderscoreCase(LicenseExpiredException.class.getSimpleName())));
         }
     }
 

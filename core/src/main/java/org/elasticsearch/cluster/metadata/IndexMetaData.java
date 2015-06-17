@@ -47,6 +47,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
+import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -160,9 +161,12 @@ public class IndexMetaData implements Diffable<IndexMetaData> {
     public static final String SETTING_BLOCKS_WRITE = "index.blocks.write";
     public static final String SETTING_BLOCKS_METADATA = "index.blocks.metadata";
     public static final String SETTING_VERSION_CREATED = "index.version.created";
+    public static final String SETTING_VERSION_CREATED_STRING = "index.version.created_string";
     public static final String SETTING_VERSION_UPGRADED = "index.version.upgraded";
+    public static final String SETTING_VERSION_UPGRADED_STRING = "index.version.upgraded_string";
     public static final String SETTING_VERSION_MINIMUM_COMPATIBLE = "index.version.minimum_compatible";
     public static final String SETTING_CREATION_DATE = "index.creation_date";
+    public static final String SETTING_CREATION_DATE_STRING = "index.creation_date_string";
     public static final String SETTING_UUID = "index.uuid";
     public static final String SETTING_LEGACY_ROUTING_HASH_FUNCTION = "index.legacy.routing.hash.type";
     public static final String SETTING_LEGACY_ROUTING_USE_TYPE = "index.legacy.routing.use_type";
@@ -918,6 +922,28 @@ public class IndexMetaData implements Diffable<IndexMetaData> {
      */
     public static boolean isIndexUsingShadowReplicas(Settings settings) {
         return settings.getAsBoolean(SETTING_SHADOW_REPLICAS, false);
+    }
+
+    /**
+     * Adds human readable version and creation date settings.
+     * This method is used to display the settings in a human readable format in REST API
+     */
+    public static Settings addHumanReadableSettings(Settings settings) {
+        Settings.Builder builder = Settings.builder().put(settings);
+        Version version = settings.getAsVersion(SETTING_VERSION_CREATED, null);
+        if (version != null) {
+            builder.put(SETTING_VERSION_CREATED_STRING, version.toString());
+        }
+        Version versionUpgraded = settings.getAsVersion(SETTING_VERSION_UPGRADED, null);
+        if (versionUpgraded != null) {
+            builder.put(SETTING_VERSION_UPGRADED_STRING, versionUpgraded.toString());
+        }
+        Long creationDate = settings.getAsLong(SETTING_CREATION_DATE, null);
+        if (creationDate != null) {
+            DateTime creationDateTime = new DateTime(creationDate);
+            builder.put(SETTING_CREATION_DATE_STRING, creationDateTime.toString());
+        }
+        return builder.build();
     }
 
 }

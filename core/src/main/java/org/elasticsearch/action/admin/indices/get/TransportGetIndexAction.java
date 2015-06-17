@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -102,7 +103,11 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
                     if (!doneSettings) {
                         ImmutableOpenMap.Builder<String, Settings> settingsMapBuilder = ImmutableOpenMap.builder();
                         for (String index : concreteIndices) {
-                            settingsMapBuilder.put(index, state.metaData().index(index).getSettings());
+                            Settings indexSettings = state.metaData().index(index).getSettings();
+                            if (request.humanReadable()) {
+                                indexSettings = IndexMetaData.addHumanReadableSettings(indexSettings);
+                            }
+                            settingsMapBuilder.put(index, indexSettings);
                         }
                         settings = settingsMapBuilder.build();
                         doneSettings = true;

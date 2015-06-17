@@ -37,6 +37,7 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true);
     private String[] names = Strings.EMPTY_ARRAY;
+    private boolean humanReadable = false;
 
     @Override
     public GetSettingsRequest indices(String... indices) {
@@ -68,6 +69,15 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
         return this;
     }
 
+    public boolean humanReadable() {
+        return humanReadable;
+    }
+
+    public GetSettingsRequest humanReadable(boolean humanReadable) {
+        this.humanReadable = humanReadable;
+        return this;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -83,6 +93,7 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         names = in.readStringArray();
+        humanReadable = in.readBoolean();
     }
 
     @Override
@@ -91,5 +102,6 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
         out.writeStringArray(names);
+        out.writeBoolean(humanReadable);
     }
 }

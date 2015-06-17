@@ -36,8 +36,6 @@ import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
 
 @Rest
 @ClusterScope(scope = SUITE, randomDynamicTemplates = false)
-@Ignore
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/11721")
 public class DeleteByQueryRestTests extends ElasticsearchRestTestCase {
 
     public DeleteByQueryRestTests(@Name("yaml") RestTestCandidate testCandidate) {

@@ -187,6 +187,24 @@
                         </excludes>
                     </configuration>
                 </plugin>
+                <plugin>
+                    <groupId>de.thetaphi</groupId>
+                    <artifactId>forbiddenapis</artifactId>
+                    <executions>
+                        <execution>
+                            <id>check-forbidden-test-apis</id>
+                            <configuration>
+                                <signaturesFiles combine.children="append">
+                                    <signaturesFile>test-signatures.txt</signaturesFile>
+                                </signaturesFiles>
+                            </configuration>
+                            <phase>test-compile</phase>
+                            <goals>
+                                <goal>testCheck</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
             </plugins>
         </pluginManagement>
     </build>

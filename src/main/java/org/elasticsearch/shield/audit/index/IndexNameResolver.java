@@ -5,17 +5,11 @@
  */
 package org.elasticsearch.shield.audit.index;
 
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Locale;
+import org.joda.time.DateTime;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
 
-/**
- *
- */
 public class IndexNameResolver {
-
-    private final DateFormat formatter = DateFormat.getDateTimeInstance(DateFormat.LONG, DateFormat.LONG, Locale.ROOT);
 
     public enum Rollover {
         HOURLY  ("-yyyy-MM-dd-HH"),
@@ -23,20 +17,24 @@ public class IndexNameResolver {
         WEEKLY  ("-yyyy-w"),
         MONTHLY ("-yyyy-MM");
 
-        private final String format;
+        private final DateTimeFormatter formatter;
 
         Rollover(String format) {
-            this.format = format;
+            this.formatter = DateTimeFormat.forPattern(format);
+        }
+
+        DateTimeFormatter formatter() {
+            return formatter;
         }
     }
 
-    public String resolve(long timestamp, Rollover rollover) {
-        Date date = new Date(timestamp);
-        ((SimpleDateFormat) formatter).applyPattern(rollover.format);
-        return formatter.format(date);
+    private IndexNameResolver() {}
+
+    public static String resolve(DateTime timestamp, Rollover rollover) {
+        return rollover.formatter().print(timestamp);
     }
 
-    public String resolve(String indexNamePrefix, long timestamp, Rollover rollover) {
+    public static String resolve(String indexNamePrefix, DateTime timestamp, Rollover rollover) {
         return indexNamePrefix + resolve(timestamp, rollover);
     }
 }

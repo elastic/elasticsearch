@@ -12,6 +12,8 @@ import org.elasticsearch.shield.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.elasticsearch.test.ShieldIntegrationTest;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 import org.junit.Test;
 
 @ClusterScope(scope = Scope.TEST, randomDynamicTemplates = false)
@@ -47,8 +49,7 @@ public class IndexAuditTrailEnabledTests extends ShieldIntegrationTest {
     }
 
     void awaitIndexCreation() throws Exception {
-        IndexNameResolver resolver = new IndexNameResolver();
-        final String indexName = resolver.resolve(IndexAuditTrail.INDEX_NAME_PREFIX, System.currentTimeMillis(), rollover);
+        final String indexName = IndexNameResolver.resolve(IndexAuditTrail.INDEX_NAME_PREFIX, DateTime.now(DateTimeZone.UTC), rollover);
         boolean success = awaitBusy(new Predicate<Void>() {
             @Override
             public boolean apply(Void o) {

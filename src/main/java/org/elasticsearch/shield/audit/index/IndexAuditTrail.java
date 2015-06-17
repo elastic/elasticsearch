@@ -47,6 +47,8 @@ import org.elasticsearch.shield.rest.RemoteHostHeader;
 import org.elasticsearch.shield.transport.filter.ShieldIpFilterRule;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.transport.TransportRequest;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -59,6 +61,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.shield.audit.AuditUtil.indices;
 import static org.elasticsearch.shield.audit.AuditUtil.restRequestContent;
 import static org.elasticsearch.shield.audit.index.IndexAuditLevel.*;
+import static org.elasticsearch.shield.audit.index.IndexNameResolver.resolve;
 
 /**
  * Audit trail implementation that writes events into an index.
@@ -92,7 +95,6 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
     private final IndexAuditUserHolder auditUser;
     private final Provider<Client> clientProvider;
     private final AuthenticationService authenticationService;
-    private final IndexNameResolver resolver;
     private final Environment environment;
 
     private BulkProcessor bulkProcessor;
@@ -118,7 +120,6 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
         this.authenticationService = authenticationService;
         this.clientProvider = clientProvider;
         this.environment = environment;
-        this.resolver = new IndexNameResolver();
         this.nodeName = settings.get("name");
 
         // we have to initialize this here since we use rollover in determining if we can start...
@@ -176,7 +177,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
             return false;
         }
 
-        String index = resolver.resolve(INDEX_NAME_PREFIX, System.currentTimeMillis(), rollover);
+        String index = resolve(INDEX_NAME_PREFIX, DateTime.now(DateTimeZone.UTC), rollover);
         IndexMetaData metaData = clusterState.metaData().index(index);
         if (metaData == null) {
             logger.debug("shield audit index [{}] does not exist, so service can start", index);
@@ -529,7 +530,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
         }
 
         IndexRequest indexRequest = client.prepareIndex()
-                .setIndex(resolver.resolve(INDEX_NAME_PREFIX, message.timestamp, rollover))
+                .setIndex(resolve(INDEX_NAME_PREFIX, message.timestamp, rollover))
                 .setType(DOC_TYPE).setSource(message.builder).request();
         authenticationService.attachUserHeaderIfMissing(indexRequest, auditUser.user());
         bulkProcessor.add(indexRequest);
@@ -669,11 +670,11 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
 
     static class Message {
 
-        final long timestamp;
+        final DateTime timestamp;
         final XContentBuilder builder;
 
         Message() throws IOException {
-            this.timestamp = System.currentTimeMillis();
+            this.timestamp = DateTime.now(DateTimeZone.UTC);
             this.builder = XContentFactory.jsonBuilder();
         }
 

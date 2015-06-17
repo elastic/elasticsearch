@@ -16,7 +16,8 @@
       },
       "properties": {
         "@timestamp": {
-          "type": "date"
+          "type": "date",
+          "format": "date_time"
         },
         "node_name": {
           "type": "string",

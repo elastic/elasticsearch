@@ -103,13 +103,13 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
             bulkRequest.add(indexRequest);
         }
         BulkResponse bulkResponse = client.bulk(bulkRequest);
-        XContentBuilder jsonBuilder = jsonBuilder().startObject().startArray("items");
+        XContentBuilder jsonBuilder = jsonBuilder().startArray();
         for (BulkItemResponse item : bulkResponse) {
             IndexResponse response = item.getResponse();
             indexResponseToXContent(jsonBuilder, response);
         }
-        jsonBuilder.endArray().endObject();
-        return new IndexAction.Result.Success(new XContentSource(jsonBuilder.bytes()));
+        jsonBuilder.endArray();
+        return new IndexAction.Result.Success(new XContentSource(jsonBuilder.bytes(), XContentType.JSON));
     }
 
     static void indexResponseToXContent(XContentBuilder builder, IndexResponse response) throws IOException {

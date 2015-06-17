@@ -98,7 +98,7 @@ public class TriggeredWatchStoreTests extends ElasticsearchTestCase {
                 state = ShardRoutingState.UNASSIGNED;
             }
             indexRoutingTableBuilder.addIndexShard(new IndexShardRoutingTable.Builder(new ShardId(indexName, 0), false)
-                    .addShard(new ImmutableShardRouting(indexName, 0, "_node_id", null, true, state, 1))
+                    .addShard(new ImmutableShardRouting(indexName, 0, "_node_id", null, null, true, state, 1, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")))
                     .build());
             indexRoutingTableBuilder.addReplica();
         }

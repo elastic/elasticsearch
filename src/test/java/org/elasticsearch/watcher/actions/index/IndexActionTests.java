@@ -144,14 +144,14 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
         assertThat(result, instanceOf(IndexAction.Result.Success.class));
         IndexAction.Result.Success successResult = (IndexAction.Result.Success) result;
         XContentSource response = successResult.response();
-        assertThat(successResult.toString(), response.getValue("items.0.created"), equalTo((Object)Boolean.TRUE));
-        assertThat(successResult.toString(), response.getValue("items.0.version"), equalTo((Object) 1));
-        assertThat(successResult.toString(), response.getValue("items.0.type").toString(), equalTo("test-type"));
-        assertThat(successResult.toString(), response.getValue("items.0.index").toString(), equalTo("test-index"));
-        assertThat(successResult.toString(), response.getValue("items.1.created"), equalTo((Object)Boolean.TRUE));
-        assertThat(successResult.toString(), response.getValue("items.1.version"), equalTo((Object) 1));
-        assertThat(successResult.toString(), response.getValue("items.1.type").toString(), equalTo("test-type"));
-        assertThat(successResult.toString(), response.getValue("items.1.index").toString(), equalTo("test-index"));
+        assertThat(successResult.toString(), response.getValue("0.created"), equalTo((Object)Boolean.TRUE));
+        assertThat(successResult.toString(), response.getValue("0.version"), equalTo((Object) 1));
+        assertThat(successResult.toString(), response.getValue("0.type").toString(), equalTo("test-type"));
+        assertThat(successResult.toString(), response.getValue("0.index").toString(), equalTo("test-index"));
+        assertThat(successResult.toString(), response.getValue("1.created"), equalTo((Object)Boolean.TRUE));
+        assertThat(successResult.toString(), response.getValue("1.version"), equalTo((Object) 1));
+        assertThat(successResult.toString(), response.getValue("1.type").toString(), equalTo("test-type"));
+        assertThat(successResult.toString(), response.getValue("1.index").toString(), equalTo("test-index"));
 
         refresh(); //Manually refresh to make sure data is available
 

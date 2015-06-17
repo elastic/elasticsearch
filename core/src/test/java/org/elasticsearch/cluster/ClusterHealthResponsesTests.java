@@ -192,12 +192,14 @@ public class ClusterHealthResponsesTests extends ElasticsearchTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
         int pendingTasks = randomIntBetween(0, 200);
         int inFlight = randomIntBetween(0, 200);
-        ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", clusterState.metaData().concreteIndices(IndicesOptions.strictExpand(), (String[]) null), clusterState, pendingTasks, inFlight);
+        int delayedUnassigned = randomIntBetween(0, 200);
+        ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", clusterState.metaData().concreteIndices(IndicesOptions.strictExpand(), (String[]) null), clusterState, pendingTasks, inFlight, delayedUnassigned);
         logger.info("cluster status: {}, expected {}", clusterHealth.getStatus(), counter.status());
         clusterHealth = maybeSerialize(clusterHealth);
         assertClusterHealth(clusterHealth, counter);
         assertThat(clusterHealth.getNumberOfPendingTasks(), Matchers.equalTo(pendingTasks));
         assertThat(clusterHealth.getNumberOfInFlightFetch(), Matchers.equalTo(inFlight));
+        assertThat(clusterHealth.getDelayedUnassignedShards(), Matchers.equalTo(delayedUnassigned));
     }
 
     ClusterHealthResponse maybeSerialize(ClusterHealthResponse clusterHealth) throws IOException {
@@ -225,7 +227,7 @@ public class ClusterHealthResponsesTests extends ElasticsearchTestCase {
         metaData.put(indexMetaData, true);
         routingTable.add(indexRoutingTable);
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
-        ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", clusterState.metaData().concreteIndices(IndicesOptions.strictExpand(), (String[]) null), clusterState, 0, 0);
+        ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", clusterState.metaData().concreteIndices(IndicesOptions.strictExpand(), (String[]) null), clusterState, 0, 0, 0);
         clusterHealth = maybeSerialize(clusterHealth);
         // currently we have no cluster level validation failures as index validation issues are reported per index.
         assertThat(clusterHealth.getValidationFailures(), Matchers.hasSize(0));

@@ -48,6 +48,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
@@ -419,6 +420,8 @@ public class GatewayAllocator extends AbstractComponent {
             long lastSizeMatched = 0;
             DiscoveryNode lastDiscoNodeMatched = null;
             RoutingNode lastNodeMatched = null;
+            boolean hasReplicaData = false;
+            IndexMetaData indexMetaData = metaData.index(shard.getIndex());
 
             for (Map.Entry<DiscoveryNode, TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> nodeStoreEntry : shardStores.getData().entrySet()) {
                 DiscoveryNode discoNode = nodeStoreEntry.getKey();
@@ -449,6 +452,7 @@ public class GatewayAllocator extends AbstractComponent {
                 }
 
                 if (!shard.primary()) {
+                    hasReplicaData |= storeFilesMetaData.iterator().hasNext();
                     MutableShardRouting primaryShard = routingNodes.activePrimary(shard);
                     if (primaryShard != null) {
                         assert primaryShard.active();
@@ -508,6 +512,23 @@ public class GatewayAllocator extends AbstractComponent {
                     changed = true;
                     allocation.routingNodes().assign(shard, lastNodeMatched.nodeId());
                     unassignedIterator.remove();
+                }
+            } else if (hasReplicaData == false) {
+                // if we didn't manage to find *any* data (regardless of matching sizes), check if the allocation
+                // of the replica shard needs to be delayed, and if so, add it to the ignore unassigned list
+                // note: we only care about replica in delayed allocation, since if we have an unassigned primary it
+                //       will anyhow wait to find an existing copy of the shard to be allocated
+                // note: the other side of the equation is scheduling a reroute in a timely manner, which happens in the RoutingService
+                long delay = shard.unassignedInfo().getDelayAllocationExpirationIn(settings, indexMetaData.getSettings());
+                if (delay > 0) {
+                    logger.debug("[{}][{}]: delaying allocation of [{}] for [{}]", shard.index(), shard.id(), shard, TimeValue.timeValueMillis(delay));
+                    /**
+                     * mark it as changed, since we want to kick a publishing to schedule future allocation,
+                     * see {@link org.elasticsearch.cluster.routing.RoutingService#clusterChanged(ClusterChangedEvent)}).
+                     */
+                    changed = true;
+                    unassignedIterator.remove();
+                    routingNodes.ignoredUnassigned().add(shard);
                 }
             }
         }

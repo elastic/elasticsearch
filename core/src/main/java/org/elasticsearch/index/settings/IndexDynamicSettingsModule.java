@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.settings;
 
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDecider;
@@ -110,6 +111,7 @@ public class IndexDynamicSettingsModule extends AbstractModule {
         indexDynamicSettings.addDynamicSetting(TranslogConfig.INDEX_TRANSLOG_DURABILITY);
         indexDynamicSettings.addDynamicSetting(IndicesWarmer.INDEX_WARMER_ENABLED);
         indexDynamicSettings.addDynamicSetting(IndicesQueryCache.INDEX_CACHE_QUERY_ENABLED, Validator.BOOLEAN);
+        indexDynamicSettings.addDynamicSetting(UnassignedInfo.DELAYED_NODE_LEFT_TIMEOUT, Validator.TIME);
     }
 
     public void addDynamicSettings(String... settings) {

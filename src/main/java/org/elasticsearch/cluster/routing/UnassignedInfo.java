@@ -44,6 +44,12 @@ public class UnassignedInfo implements ToXContent {
      */
     public enum Reason {
         /**
+         * In 1.x, due to backward comp serialization, there might be a
+         * case where there is no knowledge of what caused the shard to be
+         * unassigned.
+         */
+        UNKNOWN,
+        /**
          * Unassigned as a result of an API creation of an index.
          */
         INDEX_CREATED,

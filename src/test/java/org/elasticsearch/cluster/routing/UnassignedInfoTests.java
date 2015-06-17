@@ -45,6 +45,7 @@ public class UnassignedInfoTests extends ElasticsearchAllocationTestCase {
     @Test
     public void testReasonOrdinalOrder() {
         UnassignedInfo.Reason[] order = new UnassignedInfo.Reason[]{
+                UnassignedInfo.Reason.UNKNOWN,
                 UnassignedInfo.Reason.INDEX_CREATED,
                 UnassignedInfo.Reason.CLUSTER_RECOVERED,
                 UnassignedInfo.Reason.INDEX_REOPENED,

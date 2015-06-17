@@ -246,6 +246,10 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
             if (in.readBoolean()) {
                 unassignedInfo = new UnassignedInfo(in);
             }
+        } else if (state == ShardRoutingState.UNASSIGNED) {
+            // we need to fill the unassigned info if we are before 1.7 since
+            // we assert that we have it in such a case
+            unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.UNKNOWN, null);
         }
     }
 

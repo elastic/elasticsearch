@@ -120,6 +120,8 @@ public abstract class ElasticsearchRestTestCase extends ElasticsearchIntegration
      */
     public static final String REST_TESTS_SPEC = "tests.rest.spec";
 
+    public static final String REST_LOAD_PACKAGED_TESTS = "tests.rest.load_packaged";
+
     private static final String DEFAULT_TESTS_PATH = "/rest-api-spec/test";
     private static final String DEFAULT_SPEC_PATH = "/rest-api-spec/api";
 
@@ -239,8 +241,8 @@ public abstract class ElasticsearchRestTestCase extends ElasticsearchIntegration
         // REST suite handling is currently complicated, with lots of filtering and so on
         // For now, to work embedded in a jar, return a ZipFileSystem over the jar contents. 
         URL codeLocation = FileUtils.class.getProtectionDomain().getCodeSource().getLocation();
-
-        if (codeLocation.getFile().endsWith(".jar")) {
+        boolean loadPackaged = RandomizedTest.systemPropertyAsBoolean(REST_LOAD_PACKAGED_TESTS, true);
+        if (codeLocation.getFile().endsWith(".jar") && loadPackaged) {
             try {
                 // hack around a bug in the zipfilesystem implementation before java 9,
                 // its checkWritable was incorrect and it won't work without write permissions. 

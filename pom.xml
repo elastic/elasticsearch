@@ -96,6 +96,7 @@
         <tests.network></tests.network>
         <tests.cluster></tests.cluster>
         <tests.filter></tests.filter>
+        <tests.rest.load_packaged></tests.rest.load_packaged>
         <env.ES_TEST_LOCAL></env.ES_TEST_LOCAL>
         <tests.security.manager>true</tests.security.manager>
         <tests.compatibility></tests.compatibility>
@@ -660,6 +661,7 @@
                                     <tests.filter>${tests.filter}</tests.filter>
                                     <tests.version>${elasticsearch.version}</tests.version>
                                     <tests.locale>${tests.locale}</tests.locale>
+                                    <tests.rest.load_packaged>${tests.rest.load_packaged}</tests.rest.load_packaged>
                                     <tests.timezone>${tests.timezone}</tests.timezone>
                                     <project.basedir>${project.basedir}</project.basedir>
                                     <m2.repository>${settings.localRepository}</m2.repository>

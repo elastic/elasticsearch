@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.actions.throttler;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchException;
 import org.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
@@ -258,7 +259,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTests {
     public void testWatchThrottlePeriod() throws Exception {
         WatchSourceBuilder watchSourceBuilder = watchBuilder()
                 .trigger(schedule(interval("60m")))
-                .defaultThrottlePeriod(new TimeValue(1, TimeUnit.SECONDS));
+                .defaultThrottlePeriod(new TimeValue(20, TimeUnit.SECONDS));
 
         AvailableAction availableAction = randomFrom(AvailableAction.values());
         watchSourceBuilder.addAction("default_global_throttle", availableAction.action());
@@ -294,7 +295,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTests {
         assertThat(resultStatus.toString(), equalTo("throttled"));
 
         if (timeWarped()) {
-            timeWarp().clock().fastForwardSeconds(1);
+            timeWarp().clock().fastForwardSeconds(20);
         }
         assertBusy(new Runnable() {
             @Override
@@ -313,7 +314,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTests {
                     throw new ElasticsearchException("failed to execute", ioe);
                 }
             }
-        }, 1, TimeUnit.SECONDS);
+        }, 20, TimeUnit.SECONDS);
     }
 
     @Test @Slow

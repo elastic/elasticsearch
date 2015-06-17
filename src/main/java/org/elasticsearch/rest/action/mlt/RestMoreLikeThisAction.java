@@ -57,12 +57,12 @@ public class RestMoreLikeThisAction extends BaseRestHandler {
         //needs some work if it is to be used in a REST context like this too
         // See the MoreLikeThisQueryParser constants that hold the valid syntax
         mltRequest.fields(request.paramAsStringArray("mlt_fields", null));
+        mltRequest.minimumShouldMatch(request.param("minimum_should_match", "0"));
         if (request.hasParam("percent_terms_to_match") && request.hasParam("minimum_should_match") == false) {
             // percent_terms_to_match is deprecated!!!
             // only set if it's really set AND the new parameter is not present (prefer non-deprecated
             mltRequest.percentTermsToMatch(request.paramAsFloat("percent_terms_to_match", 0));
         }
-        mltRequest.minimumShouldMatch(request.param("minimum_should_match", "0"));
         mltRequest.minTermFreq(request.paramAsInt("min_term_freq", -1));
         mltRequest.maxQueryTerms(request.paramAsInt("max_query_terms", -1));
         mltRequest.stopWords(request.paramAsStringArray("stop_words", null));

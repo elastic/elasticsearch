@@ -8,6 +8,7 @@ package org.elasticsearch.watcher.transform;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
@@ -15,7 +16,12 @@ import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.junit.Test;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -37,13 +43,19 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTests {
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
-        //Set path so ScriptService will pick up the test scripts
+        Path configDir = createTempDir();
+        Path scripts = configDir.resolve("scripts");
         try {
-            return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
-                    .put("path.conf", TransformIntegrationTests.class.getResource("/config").toURI().getPath()).build();
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
+            Files.createDirectories(scripts);
+            try (InputStream stream = TransformIntegrationTests.class.getResourceAsStream("/config/scripts/my-script.groovy");
+                 OutputStream output = Files.newOutputStream(scripts.resolve("my-script.groovy"))) {
+                Streams.copy(stream, output);
+            }
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
         }
+        //Set path so ScriptService will pick up the test scripts
+        return settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put("path.conf", configDir.toString()).build();
     }
 
     @Test

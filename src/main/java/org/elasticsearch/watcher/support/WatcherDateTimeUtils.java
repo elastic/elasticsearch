@@ -10,14 +10,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
-import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.support.clock.Clock;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.concurrent.Callable;
@@ -28,7 +28,7 @@ import java.util.concurrent.TimeUnit;
 public class WatcherDateTimeUtils {
 
     public static final FormatDateTimeFormatter dateTimeFormatter = DateFieldMapper.Defaults.DATE_TIME_FORMATTER;
-    public static final DateMathParser dateMathParser = new DateMathParser(dateTimeFormatter, TimeUnit.SECONDS);
+    public static final DateMathParser dateMathParser = new DateMathParser(dateTimeFormatter);
 
     private WatcherDateTimeUtils() {
     }
@@ -130,11 +130,11 @@ public class WatcherDateTimeUtils {
         return in.readBoolean() ? new DateTime(in.readLong(), timeZone) : null;
     }
 
-    public static TimeValue parseTimeValue(XContentParser parser, TimeValue defaultValue) throws IOException {
-        return parseTimeValue(parser, TimeUnit.MILLISECONDS, defaultValue);
+    public static TimeValue parseTimeValue(XContentParser parser, TimeValue defaultValue, String settingName) throws IOException {
+        return parseTimeValue(parser, TimeUnit.MILLISECONDS, defaultValue, settingName);
     }
 
-    public static TimeValue parseTimeValue(XContentParser parser, TimeUnit defaultTimeUnit, TimeValue defaultValue) throws IOException {
+    public static TimeValue parseTimeValue(XContentParser parser, TimeUnit defaultTimeUnit, TimeValue defaultValue, String settingName) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_NULL) {
             return defaultValue;
@@ -147,11 +147,16 @@ public class WatcherDateTimeUtils {
             return new TimeValue(millis, defaultTimeUnit);
         }
         if (token == XContentParser.Token.VALUE_STRING) {
-            TimeValue value = TimeValue.parseTimeValue(parser.text(), defaultValue);
-            if (value.millis() < 0) {
-                throw new ParseException("could not parse time value [{}]. Time value cannot be negative.", parser.text());
+            try {
+                TimeValue value = TimeValue.parseTimeValue(parser.text(), defaultValue, settingName);
+                if (value.millis() < 0) {
+                    throw new ParseException("could not parse time value [{}]. Time value cannot be negative.", parser.text());
+                }
+                return value;
+            } catch (ElasticsearchParseException ex) {
+                throw new ParseException("failed to parse time unit", ex);
             }
-            return value;
+
         }
         throw new ParseException("could not parse time value. expected either a string or a numeric value but found [{}] instead", token);
     }

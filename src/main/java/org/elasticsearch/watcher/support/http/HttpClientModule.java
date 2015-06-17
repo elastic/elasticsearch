@@ -5,11 +5,12 @@
  */
 package org.elasticsearch.watcher.support.http;
 
-import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.watcher.support.http.auth.AuthModule;
+
+import java.util.Collections;
 
 
 /**
@@ -18,7 +19,7 @@ public class HttpClientModule extends AbstractModule implements SpawnModules {
 
     @Override
     public Iterable<? extends Module> spawnModules() {
-        return ImmutableList.of(new AuthModule());
+        return Collections.singletonList(new AuthModule());
     }
 
     @Override

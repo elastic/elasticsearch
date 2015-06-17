@@ -7,16 +7,18 @@ package org.elasticsearch.watcher.transport.actions.stats;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.client.Client;
 
 /**
  * Watcher stats request builder.
  */
-public class WatcherStatsRequestBuilder extends MasterNodeOperationRequestBuilder<WatcherStatsRequest, WatcherStatsResponse, WatcherStatsRequestBuilder, Client> {
+public class WatcherStatsRequestBuilder extends MasterNodeReadOperationRequestBuilder<WatcherStatsRequest, WatcherStatsResponse, WatcherStatsRequestBuilder> {
 
-    public WatcherStatsRequestBuilder(Client client) {
-        super(client, new WatcherStatsRequest());
+    public WatcherStatsRequestBuilder(ElasticsearchClient client) {
+        super(client, WatcherStatsAction.INSTANCE, new WatcherStatsRequest());
     }
 
     public WatcherStatsRequestBuilder setIncludeCurrentWatches(boolean includeCurrentWatches) {
@@ -27,10 +29,4 @@ public class WatcherStatsRequestBuilder extends MasterNodeOperationRequestBuilde
         request().includeQueuedWatches(includeQueuedWatches);
         return this;
     }
-
-    @Override
-    protected void doExecute(final ActionListener<WatcherStatsResponse> listener) {
-        new WatcherClient(client).watcherStats(request, listener);
-    }
-
 }

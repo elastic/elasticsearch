@@ -5,14 +5,12 @@
  */
 package org.elasticsearch.watcher.input.http;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.netty.handler.codec.http.HttpHeaders;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.jboss.netty.handler.codec.http.HttpHeaders;
+import org.joda.time.DateTime;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -46,10 +44,11 @@ import org.elasticsearch.watcher.watch.WatchStatus;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Map;
 
-import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
+import static org.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.*;
 import static org.mockito.Matchers.any;
@@ -72,10 +71,10 @@ public class HttpInputTests extends ElasticsearchTestCase {
         templateEngine = mock(TemplateEngine.class);
         secretService = mock(SecretService.class);
         HttpAuthRegistry registry = new HttpAuthRegistry(ImmutableMap.<String, HttpAuthFactory>of("basic", new BasicAuthFactory(secretService)));
-        httpParser = new HttpInputFactory(ImmutableSettings.EMPTY, httpClient, templateEngine, new HttpRequest.Parser(registry), new HttpRequestTemplate.Parser(registry));
+        httpParser = new HttpInputFactory(Settings.EMPTY, httpClient, templateEngine, new HttpRequest.Parser(registry), new HttpRequestTemplate.Parser(registry));
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void testExecute() throws Exception {
         String host = "_host";
         int port = 123;
@@ -87,27 +86,27 @@ public class HttpInputTests extends ElasticsearchTestCase {
         HttpResponse response;
         switch (randomIntBetween(1, 6)) {
             case 1:
-                response = new HttpResponse(123, "{\"key\" : \"value\"}".getBytes(UTF8));
+                response = new HttpResponse(123, "{\"key\" : \"value\"}".getBytes(StandardCharsets.UTF_8));
                 httpInput = InputBuilders.httpInput(request.build()).build();
                 break;
             case 2:
-                response = new HttpResponse(123, "---\nkey : value".getBytes(UTF8));
+                response = new HttpResponse(123, "---\nkey : value".getBytes(StandardCharsets.UTF_8));
                 httpInput = InputBuilders.httpInput(request.build()).expectedResponseXContentType(HttpContentType.YAML).build();
                 break;
             case 3:
-                response = new HttpResponse(123, "{\"key\" : \"value\"}".getBytes(UTF8), ImmutableMap.of(HttpHeaders.Names.CONTENT_TYPE, new String[] { XContentType.JSON.restContentType() }));
+                response = new HttpResponse(123, "{\"key\" : \"value\"}".getBytes(StandardCharsets.UTF_8), ImmutableMap.of(HttpHeaders.Names.CONTENT_TYPE, new String[] { XContentType.JSON.restContentType() }));
                 httpInput = InputBuilders.httpInput(request.build()).build();
                 break;
             case 4:
-                response = new HttpResponse(123, "key: value".getBytes(UTF8), ImmutableMap.of(HttpHeaders.Names.CONTENT_TYPE, new String[] { XContentType.YAML.restContentType() }));
+                response = new HttpResponse(123, "key: value".getBytes(StandardCharsets.UTF_8), ImmutableMap.of(HttpHeaders.Names.CONTENT_TYPE, new String[] { XContentType.YAML.restContentType() }));
                 httpInput = InputBuilders.httpInput(request.build()).build();
                 break;
             case 5:
-                response = new HttpResponse(123, "---\nkey: value".getBytes(UTF8), ImmutableMap.of(HttpHeaders.Names.CONTENT_TYPE, new String[] { "unrecognized_content_type" }));
+                response = new HttpResponse(123, "---\nkey: value".getBytes(StandardCharsets.UTF_8), ImmutableMap.of(HttpHeaders.Names.CONTENT_TYPE, new String[] { "unrecognized_content_type" }));
                 httpInput = InputBuilders.httpInput(request.build()).expectedResponseXContentType(HttpContentType.YAML).build();
                 break;
             default:
-                response = new HttpResponse(123, "{\"key\" : \"value\"}".getBytes(UTF8), ImmutableMap.of(HttpHeaders.Names.CONTENT_TYPE, new String[] { "unrecognized_content_type" }));
+                response = new HttpResponse(123, "{\"key\" : \"value\"}".getBytes(StandardCharsets.UTF_8), ImmutableMap.of(HttpHeaders.Names.CONTENT_TYPE, new String[] { "unrecognized_content_type" }));
                 httpInput = InputBuilders.httpInput(request.build()).build();
                 break;
         }
@@ -146,7 +145,7 @@ public class HttpInputTests extends ElasticsearchTestCase {
         HttpInput httpInput = InputBuilders.httpInput(request.build()).expectedResponseXContentType(HttpContentType.TEXT).build();
         ExecutableHttpInput input = new ExecutableHttpInput(httpInput, logger, httpClient, templateEngine);
         String notJson = "This is not json";
-        HttpResponse response = new HttpResponse(123, notJson.getBytes(UTF8));
+        HttpResponse response = new HttpResponse(123, notJson.getBytes(StandardCharsets.UTF_8));
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
         when(templateEngine.render(eq(Template.inline("_body").build()), any(Map.class))).thenReturn("_body");
         Watch watch = new Watch("test-watch",
@@ -168,7 +167,7 @@ public class HttpInputTests extends ElasticsearchTestCase {
     }
 
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void testParser() throws Exception {
         final HttpMethod httpMethod = rarely() ? null : randomFrom(HttpMethod.values());
         Scheme scheme = randomFrom(Scheme.HTTP, Scheme.HTTPS, null);
@@ -235,7 +234,7 @@ public class HttpInputTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test(expected = ElasticsearchIllegalArgumentException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void testParser_invalidHttpMethod() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject()
                 .startObject("request")

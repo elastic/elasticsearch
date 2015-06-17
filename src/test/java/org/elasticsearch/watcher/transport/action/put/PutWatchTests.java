@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.watcher.transport.action.put;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class PutWatchTests extends AbstractWatcherIntegrationTests {
 
     @Test
-    @Repeat(iterations = 10)
+
     public void testPut() throws Exception {
         ensureWatcherStarted();
 

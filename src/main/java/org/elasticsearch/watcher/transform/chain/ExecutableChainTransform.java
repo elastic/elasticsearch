@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.watcher.transform.chain;
 
-import org.elasticsearch.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.transform.ExecutableTransform;
@@ -13,6 +13,7 @@ import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.watch.Payload;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  *
@@ -26,7 +27,7 @@ public class ExecutableChainTransform extends ExecutableTransform<ChainTransform
         this.transforms = transforms;
     }
 
-    public ImmutableList<ExecutableTransform> executableTransforms() {
+    public List<ExecutableTransform> executableTransforms() {
         return transforms;
     }
 

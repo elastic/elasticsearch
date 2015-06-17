@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.watcher.trigger.schedule.support;
 
-import org.elasticsearch.common.base.Joiner;
-import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.primitives.Ints;
+import com.google.common.base.Joiner;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.primitives.Ints;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.WatcherException;

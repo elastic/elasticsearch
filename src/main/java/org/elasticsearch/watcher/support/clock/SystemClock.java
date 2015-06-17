@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.watcher.support.clock;
 
-import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.joda.time.DateTimeZone;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**

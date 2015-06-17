@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.watcher.support.xcontent;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.is;
  */
 public class XContentSourceTests extends ElasticsearchTestCase {
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void testToXContent() throws Exception {
         XContentBuilder builder = randomBoolean() ? jsonBuilder() : randomBoolean() ? yamlBuilder() : smileBuilder();
         BytesReference bytes = randomBoolean() ?

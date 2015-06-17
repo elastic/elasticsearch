@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.watcher.condition.never;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -29,7 +29,7 @@ public class NeverConditionTests extends ElasticsearchTestCase {
 
     @Test
     public void testParser_Valid() throws Exception {
-        NeverConditionFactory factory = new NeverConditionFactory(ImmutableSettings.settingsBuilder().build());
+        NeverConditionFactory factory = new NeverConditionFactory(Settings.settingsBuilder().build());
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
         builder.endObject();
@@ -43,7 +43,7 @@ public class NeverConditionTests extends ElasticsearchTestCase {
 
     @Test(expected = NeverConditionException.class)
     public void testParser_Invalid() throws Exception {
-        ConditionFactory factory = new NeverConditionFactory(ImmutableSettings.settingsBuilder().build());
+        ConditionFactory factory = new NeverConditionFactory(Settings.settingsBuilder().build());
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
         builder.field("foo", "bar");

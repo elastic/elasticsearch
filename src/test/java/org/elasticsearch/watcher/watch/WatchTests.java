@@ -7,12 +7,11 @@ package org.elasticsearch.watcher.watch;
 
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.joda.time.DateTime;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import org.joda.time.DateTime;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -101,7 +100,7 @@ import org.junit.Test;
 import java.util.Collection;
 import java.util.Map;
 
-import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
+import static org.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.matchAllRequest;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
@@ -120,7 +119,7 @@ public class WatchTests extends ElasticsearchTestCase {
     private SecretService secretService;
     private LicenseService licenseService;
     private ESLogger logger;
-    private Settings settings = ImmutableSettings.EMPTY;
+    private Settings settings = Settings.EMPTY;
 
     @Before
     public void init() throws Exception {
@@ -146,8 +145,8 @@ public class WatchTests extends ElasticsearchTestCase {
         Schedule schedule = randomSchedule();
         Trigger trigger = new ScheduleTrigger(schedule);
         ScheduleRegistry scheduleRegistry = registry(schedule);
-        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(ImmutableSettings.EMPTY, scheduleRegistry, clock);
-        TriggerService triggerService = new TriggerService(ImmutableSettings.EMPTY, ImmutableSet.of(triggerEngine));
+        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(Settings.EMPTY, scheduleRegistry, clock);
+        TriggerService triggerService = new TriggerService(Settings.EMPTY, ImmutableSet.of(triggerEngine));
         SecretService secretService = new SecretService.PlainText();
 
         ExecutableInput input = randomInput();
@@ -196,8 +195,8 @@ public class WatchTests extends ElasticsearchTestCase {
     public void testParser_BadActions() throws Exception {
         ClockMock clock = new ClockMock();
         ScheduleRegistry scheduleRegistry = registry(randomSchedule());
-        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(ImmutableSettings.EMPTY, scheduleRegistry, clock);
-        TriggerService triggerService = new TriggerService(ImmutableSettings.EMPTY, ImmutableSet.of(triggerEngine));
+        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(Settings.EMPTY, scheduleRegistry, clock);
+        TriggerService triggerService = new TriggerService(Settings.EMPTY, ImmutableSet.of(triggerEngine));
         SecretService secretService = new SecretService.PlainText();
         ExecutableCondition condition = randomCondition();
         ConditionRegistry conditionRegistry = registry(condition);
@@ -227,8 +226,8 @@ public class WatchTests extends ElasticsearchTestCase {
     public void testParser_Defaults() throws Exception {
         Schedule schedule = randomSchedule();
         ScheduleRegistry scheduleRegistry = registry(schedule);
-        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(ImmutableSettings.EMPTY, scheduleRegistry, SystemClock.INSTANCE);
-        TriggerService triggerService = new TriggerService(ImmutableSettings.EMPTY, ImmutableSet.of(triggerEngine));
+        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(Settings.EMPTY, scheduleRegistry, SystemClock.INSTANCE);
+        TriggerService triggerService = new TriggerService(Settings.EMPTY, ImmutableSet.of(triggerEngine));
         SecretService secretService = new SecretService.PlainText();
 
         ConditionRegistry conditionRegistry = registry(new ExecutableAlwaysCondition(logger));

@@ -10,7 +10,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogram;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
@@ -32,6 +32,7 @@ import static org.mockito.Mockito.when;
 public class CompareConditionSearchTests extends AbstractWatcherIntegrationTests {
 
     @Test
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/11692")
     public void testExecute_withAggs() throws Exception {
 
         client().admin().indices().prepareCreate("my-index")
@@ -45,11 +46,10 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTests
         refresh();
 
         SearchResponse response = client().prepareSearch("my-index")
-                .addAggregation(AggregationBuilders.dateHistogram("rate").field("_timestamp").interval(DateHistogram.Interval.HOUR).order(Histogram.Order.COUNT_DESC))
+                .addAggregation(AggregationBuilders.dateHistogram("rate").field("_timestamp").interval(DateHistogramInterval.HOUR).order(Histogram.Order.COUNT_DESC))
                 .get();
 
         ExecutableCompareCondition condition = new ExecutableCompareCondition(new CompareCondition("ctx.payload.aggregations.rate.buckets.0.doc_count", CompareCondition.Op.GTE, 5), logger, SystemClock.INSTANCE);
-
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
         CompareCondition.Result result = condition.execute(ctx);
         assertThat(result.met(), is(false));
@@ -62,7 +62,7 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTests
         refresh();
 
         response = client().prepareSearch("my-index")
-                .addAggregation(AggregationBuilders.dateHistogram("rate").field("_timestamp").interval(DateHistogram.Interval.HOUR).order(Histogram.Order.COUNT_DESC))
+                .addAggregation(AggregationBuilders.dateHistogram("rate").field("_timestamp").interval(DateHistogramInterval.HOUR).order(Histogram.Order.COUNT_DESC))
                 .get();
 
         ctx = mockExecutionContext("_name", new Payload.XContent(response));
@@ -81,7 +81,7 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTests
         hit.score(1f);
         hit.shard(new SearchShardTarget("a", "a", 0));
 
-        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(new InternalSearchHits(new InternalSearchHit[]{hit}, 1l, 1f), null, null, null, false, null);
+        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(new InternalSearchHits(new InternalSearchHit[]{hit}, 1l, 1f), null, null, false, false);
         SearchResponse response = new SearchResponse(internalSearchResponse, "", 3, 3, 500l, new ShardSearchFailure[0]);
 
         WatchExecutionContext ctx = mockExecutionContext("_watch_name", new Payload.XContent(response));

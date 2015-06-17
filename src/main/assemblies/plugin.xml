@@ -22,12 +22,12 @@
             </excludes>
         </dependencySet>
         <dependencySet>
-	  <outputDirectory>/</outputDirectory>
-          <useTransitiveDependencies>false</useTransitiveDependencies>
-          <includes>
-            <include>javax.mail:mail</include>
-            <include>javax.activation:activation</include>
-          </includes>
+            <outputDirectory>/</outputDirectory>
+            <useTransitiveDependencies>false</useTransitiveDependencies>
+            <includes>
+                <include>javax.mail:mail</include>
+                <include>javax.activation:activation</include>
+            </includes>
         </dependencySet>
     </dependencySets>
 </assembly>

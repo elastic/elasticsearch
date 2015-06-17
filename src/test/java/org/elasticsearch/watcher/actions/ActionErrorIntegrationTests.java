@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.watcher.actions;
 
-import org.elasticsearch.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
@@ -26,10 +27,8 @@ import org.junit.Test;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.index.query.FilterBuilders.boolFilter;
-import static org.elasticsearch.index.query.FilterBuilders.termFilter;
-import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
@@ -81,9 +80,9 @@ public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTests
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                long count = watchRecordCount(filteredQuery(matchAllQuery(), boolFilter()
-                        .must(termFilter("result.actions.id", "_action"))
-                        .must(termFilter("result.actions.status", "failure"))));
+                long count = watchRecordCount(QueryBuilders.boolQuery()
+                        .must(termsQuery("result.actions.id", "_action"))
+                        .must(termsQuery("result.actions.status", "failure")));
                 assertThat(count, is(1L));
             }
         });
@@ -101,9 +100,9 @@ public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTests
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                long count = watchRecordCount(filteredQuery(matchAllQuery(), boolFilter()
-                        .must(termFilter("result.actions.id", "_action"))
-                        .must(termFilter("result.actions.status", "failure"))));
+                long count = watchRecordCount(QueryBuilders.boolQuery()
+                        .must(termsQuery("result.actions.id", "_action"))
+                        .must(termsQuery("result.actions.status", "failure")));
                 assertThat(count, is(2L));
             }
         });

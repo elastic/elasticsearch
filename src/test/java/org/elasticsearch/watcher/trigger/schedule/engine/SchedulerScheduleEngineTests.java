@@ -6,7 +6,7 @@
 package org.elasticsearch.watcher.trigger.schedule.engine;
 
 import org.apache.lucene.util.LuceneTestCase.Slow;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.trigger.TriggerEngine;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleRegistry;
@@ -20,7 +20,7 @@ import static org.mockito.Mockito.mock;
 public class SchedulerScheduleEngineTests extends BaseTriggerEngineTests {
 
     protected TriggerEngine createEngine() {
-        return new SchedulerScheduleTriggerEngine(ImmutableSettings.EMPTY, mock(ScheduleRegistry.class), SystemClock.INSTANCE);
+        return new SchedulerScheduleTriggerEngine(Settings.EMPTY, mock(ScheduleRegistry.class), SystemClock.INSTANCE);
     }
 
 }

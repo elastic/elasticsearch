@@ -7,7 +7,7 @@ package org.elasticsearch.watcher.transport.actions.ack;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,7 +19,7 @@ import java.io.IOException;
 /**
  * A ack watch request to ack a watch by name (id)
  */
-public class AckWatchRequest extends MasterNodeOperationRequest<AckWatchRequest> {
+public class AckWatchRequest extends MasterNodeRequest<AckWatchRequest> {
 
     private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(10);
 

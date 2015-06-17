@@ -12,6 +12,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.ExecutableAction;
@@ -108,7 +109,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
             indexResponseToXContent(jsonBuilder, response);
         }
         jsonBuilder.endArray();
-        return new IndexAction.Result.Success(new XContentSource(jsonBuilder.bytes()));
+        return new IndexAction.Result.Success(new XContentSource(jsonBuilder.bytes(), XContentType.JSON));
     }
 
     static void indexResponseToXContent(XContentBuilder builder, IndexResponse response) throws IOException {

@@ -5,13 +5,14 @@
  */
 package org.elasticsearch.watcher.input.search;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.plugins.PluginsService;
+import org.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -35,20 +36,24 @@ import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.watch.WatchStatus;
+import org.joda.time.DateTimeZone;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.rangeFilter;
 import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.areJsonEquivalent;
@@ -67,15 +72,41 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
+        final Path tempDir = createTempDir();
+        final Path configPath = tempDir.resolve("config");
+        final Path scriptPath = configPath.resolve("scripts");
+        try {
+            Files.createDirectories(scriptPath);
+        } catch (IOException e) {
+            throw new RuntimeException("failed to create config dir");
+
+        }
+        try (InputStream stream  = SearchInputTests.class.getResourceAsStream("/org/elasticsearch/watcher/input/search/config/scripts/test_disk_template.mustache");
+            OutputStream out = Files.newOutputStream(scriptPath.resolve("test_disk_template.mustache"))) {
+            Streams.copy(stream, out);
+        } catch (IOException e) {
+            throw new RuntimeException("failed to copy mustache template");
+        }
+
+
         //Set path so ScriptService will pick up the test scripts
         return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
-                .put("path.conf", this.getResource("config").getPath()).build();
+                .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
+                .put("path.conf", configPath).build();
+    }
+
+    @Override
+    protected Settings transportClientSettings() {
+        return Settings.builder()
+                .put(super.transportClientSettings())
+                .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
+                .build();
     }
 
     @Test
     public void testExecute() throws Exception {
         SearchSourceBuilder searchSourceBuilder = searchSource().query(
-                filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}")));
+                filteredQuery(matchQuery("event_type", "a"), rangeQuery("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}")));
         SearchRequest request = client()
                 .prepareSearch()
                 .setSearchType(ExecutableSearchInput.DEFAULT_SEARCH_TYPE)
@@ -93,8 +124,8 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
                         new ExecutableActions(new ArrayList<ActionWrapper>()),
                         null,
                         new WatchStatus(ImmutableMap.<String, ActionStatus>of())),
-                new DateTime(0, UTC),
-                new ScheduleTriggerEvent("test-watch", new DateTime(0, UTC), new DateTime(0, UTC)),
+                new DateTime(0, DateTimeZone.UTC),
+                new ScheduleTriggerEvent("test-watch", new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC)),
                 timeValueSeconds(5));
         SearchInput.Result result = searchInput.execute(ctx);
 
@@ -179,7 +210,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
     @Test
     public void testDifferentSearchType() throws Exception {
         SearchSourceBuilder searchSourceBuilder = searchSource().query(
-                filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}"))
+                filteredQuery(matchQuery("event_type", "a"), rangeQuery("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}"))
         );
         SearchType searchType = getRandomSupportedSearchType();
 
@@ -200,8 +231,8 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
                         new ExecutableActions(new ArrayList<ActionWrapper>()),
                         null,
                         new WatchStatus(ImmutableMap.<String, ActionStatus>of())),
-                new DateTime(0, UTC),
-                new ScheduleTriggerEvent("test-watch", new DateTime(0, UTC), new DateTime(0, UTC)),
+                new DateTime(0, DateTimeZone.UTC),
+                new ScheduleTriggerEvent("test-watch", new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC)),
                 timeValueSeconds(5));
         SearchInput.Result result = searchInput.execute(ctx);
 
@@ -218,13 +249,13 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
                 .setSearchType(ExecutableSearchInput.DEFAULT_SEARCH_TYPE)
                 .request()
                 .source(searchSource()
-                        .query(filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}"))));
+                        .query(filteredQuery(matchQuery("event_type", "a"), rangeQuery("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}"))));
 
         XContentBuilder builder = jsonBuilder().value(new SearchInput(request, null));
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 
-        SearchInputFactory factory = new SearchInputFactory(ImmutableSettings.EMPTY, ClientProxy.of(client()));
+        SearchInputFactory factory = new SearchInputFactory(Settings.EMPTY, ClientProxy.of(client()));
 
         SearchInput searchInput = factory.parseInput("_id", parser);
         assertEquals(SearchInput.TYPE, searchInput.type());
@@ -236,13 +267,13 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
                 .setSearchType(SearchType.SCAN)
                 .request()
                 .source(searchSource()
-                        .query(filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}"))));
+                        .query(filteredQuery(matchQuery("event_type", "a"), rangeQuery("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}"))));
 
         XContentBuilder builder = jsonBuilder().value(new SearchInput(request, null));
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 
-        SearchInputFactory factory = new SearchInputFactory(ImmutableSettings.EMPTY, ClientProxy.of(client()));
+        SearchInputFactory factory = new SearchInputFactory(Settings.EMPTY, ClientProxy.of(client()));
 
         factory.parseInput("_id", parser);
         fail("expected a SearchInputException as search type SCAN should not be supported");
@@ -259,8 +290,8 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
                         new ExecutableActions(new ArrayList<ActionWrapper>()),
                         null,
                         new WatchStatus(ImmutableMap.<String, ActionStatus>of())),
-                new DateTime(60000, UTC),
-                new ScheduleTriggerEvent("test-watch", new DateTime(60000, UTC), new DateTime(60000, UTC)),
+                new DateTime(60000, DateTimeZone.UTC),
+                new ScheduleTriggerEvent("test-watch", new DateTime(60000, DateTimeZone.UTC), new DateTime(60000, DateTimeZone.UTC)),
                 timeValueSeconds(5));
     }
 

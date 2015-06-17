@@ -5,11 +5,10 @@
  */
 package org.elasticsearch.watcher.condition.compare;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import org.joda.time.DateTime;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -132,7 +131,7 @@ public class CompareConditionTests extends ElasticsearchTestCase {
         assertThat(Op.LT.eval("aa", "ab"), is(true));
     }
 
-    @Test @Repeat(iterations = 10)
+    @Test
     public void testExecute() throws Exception {
         Op op = randomFrom(Op.values());
         int value = randomInt(10);
@@ -144,7 +143,7 @@ public class CompareConditionTests extends ElasticsearchTestCase {
         assertThat(condition.execute(ctx).met(), is(met));
     }
 
-    @Test @Repeat(iterations = 10)
+    @Test
     public void testExecute_DateMath() throws Exception {
         ClockMock clock = new ClockMock();
         boolean met = randomBoolean();
@@ -157,7 +156,7 @@ public class CompareConditionTests extends ElasticsearchTestCase {
         assertThat(condition.execute(ctx).met(), is(met));
     }
 
-    @Test @Repeat(iterations = 5)
+    @Test
     public void testExecute_Path() throws Exception {
         ClockMock clock = new ClockMock();
         boolean met = randomBoolean();
@@ -171,11 +170,11 @@ public class CompareConditionTests extends ElasticsearchTestCase {
     }
 
 
-    @Test @Repeat(iterations =  10)
+    @Test
     public void testParse_Valid() throws Exception {
         Op op = randomFrom(Op.values());
         Object value = randomFrom("value", 1, null);
-        CompareConditionFactory factory = new CompareConditionFactory(ImmutableSettings.EMPTY, SystemClock.INSTANCE);
+        CompareConditionFactory factory = new CompareConditionFactory(Settings.EMPTY, SystemClock.INSTANCE);
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
         builder.startObject("key1.key2");
@@ -196,7 +195,7 @@ public class CompareConditionTests extends ElasticsearchTestCase {
 
     @Test(expected = CompareConditionException.class)
     public void testParse_InValid_NoOperationBody() throws Exception {
-        CompareConditionFactory factory = new CompareConditionFactory(ImmutableSettings.EMPTY, SystemClock.INSTANCE);
+        CompareConditionFactory factory = new CompareConditionFactory(Settings.EMPTY, SystemClock.INSTANCE);
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
         builder.startObject("key1.key2");
@@ -210,7 +209,7 @@ public class CompareConditionTests extends ElasticsearchTestCase {
     @Test(expected = CompareConditionException.class)
     public void testParse_InValid_UnknownOp() throws Exception {
         Object value = randomFrom("value", 1, null);
-        CompareConditionFactory factory = new CompareConditionFactory(ImmutableSettings.EMPTY, SystemClock.INSTANCE);
+        CompareConditionFactory factory = new CompareConditionFactory(Settings.EMPTY, SystemClock.INSTANCE);
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
         builder.startObject("key1.key2");
@@ -224,11 +223,11 @@ public class CompareConditionTests extends ElasticsearchTestCase {
         factory.parseCondition("_id", parser);
     }
 
-    @Test(expected = CompareConditionException.class) @Repeat(iterations = 10)
+    @Test(expected = CompareConditionException.class)
     public void testParse_InValid_WrongValueForOp() throws Exception {
         Object value = randomFrom(ImmutableList.of("1", "2"), ImmutableMap.of("key", "value"));
         String op = randomFrom("lt", "lte", "gt", "gte");
-        CompareConditionFactory factory = new CompareConditionFactory(ImmutableSettings.EMPTY, SystemClock.INSTANCE);
+        CompareConditionFactory factory = new CompareConditionFactory(Settings.EMPTY, SystemClock.INSTANCE);
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
         builder.startObject("key1.key2");

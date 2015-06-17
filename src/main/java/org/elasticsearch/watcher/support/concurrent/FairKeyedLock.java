@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.support.concurrent;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 import java.util.concurrent.ConcurrentMap;
@@ -28,7 +27,7 @@ public class FairKeyedLock<T>  {
         while (true) {
             if (threadLocal.get() != null) {
                 // if we are here, the thread already has the lock
-                throw new ElasticsearchIllegalStateException("Lock already acquired in Thread" + Thread.currentThread().getId()
+                throw new IllegalArgumentException("Lock already acquired in Thread" + Thread.currentThread().getId()
                         + " for key " + key);
             }
             KeyLock perNodeLock = map.get(key);
@@ -55,7 +54,7 @@ public class FairKeyedLock<T>  {
         while (true) {
             if (threadLocal.get() != null) {
                 // if we are here, the thread already has the lock
-                throw new ElasticsearchIllegalStateException("Lock already acquired in Thread" + Thread.currentThread().getId()
+                throw new IllegalArgumentException("Lock already acquired in Thread" + Thread.currentThread().getId()
                         + " for key " + key);
             }
             KeyLock perNodeLock = map.get(key);
@@ -85,7 +84,7 @@ public class FairKeyedLock<T>  {
     public void release(T key) {
         KeyLock lock = threadLocal.get();
         if (lock == null) {
-            throw new ElasticsearchIllegalStateException("Lock not acquired");
+            throw new IllegalArgumentException("Lock not acquired");
         }
         release(key, lock);
     }
@@ -141,7 +140,7 @@ public class FairKeyedLock<T>  {
         public void release(T key) {
             KeyLock keyLock = threadLocal.get();
             if (keyLock == null) {
-                throw new ElasticsearchIllegalStateException("Lock not acquired");
+                throw new IllegalArgumentException("Lock not acquired");
             }
             try {
                 release(key, keyLock);

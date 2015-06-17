@@ -5,8 +5,7 @@
  */
 package org.elasticsearch.watcher.actions.email.service;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -18,7 +17,7 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class HtmlSanitizerTests extends ElasticsearchTestCase {
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void testDefault_WithTemplatePlaceholders() {
         String blockTag = randomFrom(HtmlSanitizer.BLOCK_TAGS);
         while (blockTag.equals("li")) {
@@ -34,7 +33,7 @@ public class HtmlSanitizerTests extends ElasticsearchTestCase {
                         "meta <a href='https://www.google.com/search?q={{ctx.metadata.name}}'>Testlink</a> meta" +
                         "</body>" +
                         "</html>";
-        HtmlSanitizer sanitizer = new HtmlSanitizer(ImmutableSettings.EMPTY);
+        HtmlSanitizer sanitizer = new HtmlSanitizer(Settings.EMPTY);
         String sanitizedHtml = sanitizer.sanitize(html);
         if (blockTag.equals("ol") || blockTag.equals("ul")) {
             assertThat(sanitizedHtml, equalTo(
@@ -61,7 +60,7 @@ public class HtmlSanitizerTests extends ElasticsearchTestCase {
         String badHtml = "<button type=\"button\"" +
                 "onclick=\"document.getElementById('demo').innerHTML = Date()\">" +
                 "Click me to display Date and Time.</button>";
-        HtmlSanitizer sanitizer = new HtmlSanitizer(ImmutableSettings.EMPTY);
+        HtmlSanitizer sanitizer = new HtmlSanitizer(Settings.EMPTY);
         String sanitizedHtml = sanitizer.sanitize(badHtml);
         assertThat(sanitizedHtml, equalTo("Click me to display Date and Time."));
     }
@@ -69,7 +68,7 @@ public class HtmlSanitizerTests extends ElasticsearchTestCase {
     @Test
     public void testDefault_ExternalImage_Disallowed() {
         String html = "<img src=\"http://test.com/nastyimage.jpg\"/>This is a bad image";
-        HtmlSanitizer sanitizer = new HtmlSanitizer(ImmutableSettings.EMPTY);
+        HtmlSanitizer sanitizer = new HtmlSanitizer(Settings.EMPTY);
         String sanitizedHtml = sanitizer.sanitize(html);
         assertThat(sanitizedHtml, equalTo("This is a bad image"));
     }
@@ -77,7 +76,7 @@ public class HtmlSanitizerTests extends ElasticsearchTestCase {
     @Test
     public void testDefault_EmbeddedImage_Allowed() {
         String html = "<img src=\"cid:foo\" />This is a good image";
-        HtmlSanitizer sanitizer = new HtmlSanitizer(ImmutableSettings.EMPTY);
+        HtmlSanitizer sanitizer = new HtmlSanitizer(Settings.EMPTY);
         String sanitizedHtml = sanitizer.sanitize(html);
         assertThat(sanitizedHtml, equalTo(html));
     }
@@ -85,7 +84,7 @@ public class HtmlSanitizerTests extends ElasticsearchTestCase {
     @Test
     public void testDefault_Tables_Allowed() {
         String html = "<table><tr><td>cell1</td><td>cell2</td></tr></table>";
-        HtmlSanitizer sanitizer = new HtmlSanitizer(ImmutableSettings.EMPTY);
+        HtmlSanitizer sanitizer = new HtmlSanitizer(Settings.EMPTY);
         String sanitizedHtml = sanitizer.sanitize(html);
         assertThat(sanitizedHtml, equalTo(html));
     }
@@ -93,7 +92,7 @@ public class HtmlSanitizerTests extends ElasticsearchTestCase {
     @Test
     public void testDefault_Scipts_Disallowed() {
         String html = "<script>doSomethingNefarious()</script>This was a dangerous script";
-        HtmlSanitizer sanitizer = new HtmlSanitizer(ImmutableSettings.EMPTY);
+        HtmlSanitizer sanitizer = new HtmlSanitizer(Settings.EMPTY);
         String sanitizedHtml = sanitizer.sanitize(html);
         assertThat(sanitizedHtml, equalTo("This was a dangerous script"));
     }
@@ -101,7 +100,7 @@ public class HtmlSanitizerTests extends ElasticsearchTestCase {
     @Test
     public void testCustom_Disabled() {
         String html = "<img src=\"http://test.com/nastyimage.jpg\" />This is a bad image";
-        HtmlSanitizer sanitizer = new HtmlSanitizer(ImmutableSettings.builder()
+        HtmlSanitizer sanitizer = new HtmlSanitizer(Settings.builder()
                 .put("watcher.actions.email.html.sanitization.enabled", false)
                 .build());
         String sanitizedHtml = sanitizer.sanitize(html);
@@ -111,7 +110,7 @@ public class HtmlSanitizerTests extends ElasticsearchTestCase {
     @Test
     public void testCustom_AllImage_Allowed() {
         String html = "<img src=\"http://test.com/nastyimage.jpg\" />This is a bad image";
-        HtmlSanitizer sanitizer = new HtmlSanitizer(ImmutableSettings.builder()
+        HtmlSanitizer sanitizer = new HtmlSanitizer(Settings.builder()
                 .put("watcher.actions.email.html.sanitization.allow", "img:all")
                 .build());
         String sanitizedHtml = sanitizer.sanitize(html);
@@ -121,7 +120,7 @@ public class HtmlSanitizerTests extends ElasticsearchTestCase {
     @Test
     public void testCustom_Tables_Disallowed() {
         String html = "<table><tr><td>cell1</td><td>cell2</td></tr></table>";
-        HtmlSanitizer sanitizer = new HtmlSanitizer(ImmutableSettings.builder()
+        HtmlSanitizer sanitizer = new HtmlSanitizer(Settings.builder()
                 .put("watcher.actions.email.html.sanitization.disallow", "_tables")
                 .build());
         String sanitizedHtml = sanitizer.sanitize(html);

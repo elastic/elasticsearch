@@ -7,18 +7,18 @@ package org.elasticsearch.watcher.execution;
 
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.common.joda.time.DateTime;
+import org.joda.time.DateTime;
 import org.elasticsearch.watcher.condition.ExecutableCondition;
 import org.elasticsearch.watcher.condition.always.ExecutableAlwaysCondition;
 import org.elasticsearch.watcher.input.none.ExecutableNoneInput;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Watch;
+import org.joda.time.DateTimeZone;
 import org.junit.Test;
 
 import java.util.Collection;
 
-import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -34,9 +34,9 @@ public class TriggeredWatchStoreLifeCycleTests extends AbstractWatcherIntegratio
         // Put watch records and verify that these are stored
         TriggeredWatch[] triggeredWatches = new TriggeredWatch[randomIntBetween(1, 50)];
         for (int i = 0; i < triggeredWatches.length; i++) {
-            DateTime dateTime = new DateTime(i, UTC);
+            DateTime dateTime = new DateTime(i, DateTimeZone.UTC);
             ScheduleTriggerEvent event = new ScheduleTriggerEvent(watch.id(), dateTime, dateTime);
-            Wid wid = new Wid("record_" + i, randomLong(), DateTime.now(UTC));
+            Wid wid = new Wid("record_" + i, randomLong(), DateTime.now(DateTimeZone.UTC));
             triggeredWatches[i] = new TriggeredWatch(wid, event);
             triggeredWatchStore.put(triggeredWatches[i]);
             GetResponse getResponse = client().prepareGet(TriggeredWatchStore.INDEX_NAME, TriggeredWatchStore.DOC_TYPE, triggeredWatches[i].id().value())

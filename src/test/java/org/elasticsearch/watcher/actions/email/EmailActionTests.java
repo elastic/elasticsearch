@@ -5,12 +5,11 @@
  */
 package org.elasticsearch.watcher.actions.email;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.joda.time.DateTime;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -25,12 +24,12 @@ import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.support.template.TemplateEngine;
 import org.elasticsearch.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.watcher.watch.Payload;
+import org.joda.time.DateTimeZone;
 import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.mockExecutionContextBuilder;
 import static org.hamcrest.Matchers.*;
@@ -42,7 +41,7 @@ import static org.mockito.Mockito.when;
  */
 public class EmailActionTests extends ElasticsearchTestCase {
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void testExecute() throws Exception {
         final String account = "account1";
         EmailService service = new EmailService() {
@@ -90,7 +89,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
 
         Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder().put("_key", "_val").map();
 
-        DateTime now = DateTime.now(UTC);
+        DateTime now = DateTime.now(DateTimeZone.UTC);
 
         Wid wid = new Wid(randomAsciiOfLength(5), randomLong(), now);
         WatchExecutionContext ctx = mockExecutionContextBuilder("watch1")
@@ -141,7 +140,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void testParser() throws Exception {
         TemplateEngine engine = mock(TemplateEngine.class);
         HtmlSanitizer htmlSanitizer = mock(HtmlSanitizer.class);
@@ -244,7 +243,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
 
-        ExecutableEmailAction executable = new EmailActionFactory(ImmutableSettings.EMPTY, emailService, engine, htmlSanitizer)
+        ExecutableEmailAction executable = new EmailActionFactory(Settings.EMPTY, emailService, engine, htmlSanitizer)
                 .parseExecutable(randomAsciiOfLength(8), randomAsciiOfLength(3), parser);
 
         assertThat(executable, notNullValue());
@@ -288,7 +287,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
         return templates;
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void testParser_SelfGenerated() throws Exception {
         EmailService service = mock(EmailService.class);
         TemplateEngine engine = mock(TemplateEngine.class);
@@ -336,7 +335,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
         logger.info(bytes.toUtf8());
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
-        ExecutableEmailAction parsed = new EmailActionFactory(ImmutableSettings.EMPTY, service, engine, htmlSanitizer)
+        ExecutableEmailAction parsed = new EmailActionFactory(Settings.EMPTY, service, engine, htmlSanitizer)
                 .parseExecutable(randomAsciiOfLength(4), randomAsciiOfLength(10), parser);
 
         if (!hideSecrets) {
@@ -357,7 +356,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test(expected = EmailActionException.class) @Repeat(iterations = 100)
+    @Test(expected = EmailActionException.class)
     public void testParser_Invalid() throws Exception {
         EmailService emailService = mock(EmailService.class);
         TemplateEngine engine = mock(TemplateEngine.class);
@@ -365,7 +364,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
         XContentBuilder builder = jsonBuilder().startObject().field("unknown_field", "value");
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
-        new EmailActionFactory(ImmutableSettings.EMPTY, emailService, engine, htmlSanitizer)
+        new EmailActionFactory(Settings.EMPTY, emailService, engine, htmlSanitizer)
                 .parseExecutable(randomAsciiOfLength(3), randomAsciiOfLength(7), parser);
     }
 

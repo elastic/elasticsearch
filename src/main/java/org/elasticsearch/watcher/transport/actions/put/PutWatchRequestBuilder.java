@@ -7,19 +7,19 @@ package org.elasticsearch.watcher.transport.actions.put;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.client.WatcherClient;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 
-public class PutWatchRequestBuilder extends MasterNodeOperationRequestBuilder<PutWatchRequest, PutWatchResponse, PutWatchRequestBuilder, Client> {
+public class PutWatchRequestBuilder extends MasterNodeOperationRequestBuilder<PutWatchRequest, PutWatchResponse, PutWatchRequestBuilder> {
 
-    public PutWatchRequestBuilder(Client client) {
-        super(client, new PutWatchRequest());
+    public PutWatchRequestBuilder(ElasticsearchClient client) {
+        super(client, PutWatchAction.INSTANCE, new PutWatchRequest());
     }
 
-    public PutWatchRequestBuilder(Client client, String id) {
-        super(client, new PutWatchRequest());
+    public PutWatchRequestBuilder(ElasticsearchClient client, String id) {
+        super(client, PutWatchAction.INSTANCE, new PutWatchRequest());
         request.setId(id);
     }
 
@@ -45,10 +45,5 @@ public class PutWatchRequestBuilder extends MasterNodeOperationRequestBuilder<Pu
     public PutWatchRequestBuilder setSource(WatchSourceBuilder source) {
         request.setSource(source);
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<PutWatchResponse> listener) {
-        new WatcherClient(client).putWatch(request, listener);
     }
 }

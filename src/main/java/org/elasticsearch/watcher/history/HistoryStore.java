@@ -14,10 +14,9 @@ import org.elasticsearch.cluster.settings.ClusterDynamicSettings;
 import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.joda.time.format.DateTimeFormat;
-import org.elasticsearch.common.joda.time.format.DateTimeFormatter;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.joda.time.DateTime;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.node.settings.NodeSettingsService;
@@ -52,7 +51,7 @@ public class HistoryStore extends AbstractComponent implements NodeSettingsServi
     private final Lock stopLock = readWriteLock.writeLock();
     private final AtomicBoolean started = new AtomicBoolean(false);
 
-    private volatile Settings customIndexSettings = ImmutableSettings.EMPTY;
+    private volatile Settings customIndexSettings = Settings.EMPTY;
 
     @Inject
     public HistoryStore(Settings settings, ClientProxy client, TemplateUtils templateUtils, NodeSettingsService nodeSettingsService,
@@ -73,7 +72,7 @@ public class HistoryStore extends AbstractComponent implements NodeSettingsServi
     }
 
     private void updateHistorySettings(Settings settings, boolean updateIndexTemplate) {
-        Settings newSettings = ImmutableSettings.builder()
+        Settings newSettings = Settings.builder()
                 .put(settings.getAsSettings("watcher.history.index"))
                 .build();
         if (newSettings.names().isEmpty()) {
@@ -81,7 +80,7 @@ public class HistoryStore extends AbstractComponent implements NodeSettingsServi
         }
 
         boolean changed = false;
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(customIndexSettings);
+        Settings.Builder builder = Settings.builder().put(customIndexSettings);
 
         for (Map.Entry<String, String> entry : newSettings.getAsMap().entrySet()) {
             String name = "index." + entry.getKey();

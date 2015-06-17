@@ -35,7 +35,7 @@ public class XMustacheTemplateEngine extends AbstractComponent implements Templa
         Map<String, Object> mergedModel = new HashMap<>();
         mergedModel.putAll(template.getParams());
         mergedModel.putAll(model);
-        ExecutableScript executable = service.executable(XMustacheScriptEngineService.NAME, template.getTemplate(), template.getType(), mergedModel);
+        ExecutableScript executable = service.executable(new org.elasticsearch.script.Template(template.getTemplate(), template.getType(), XMustacheScriptEngineService.NAME, template.getContentType(), mergedModel));
         Object result = executable.run();
         if (result instanceof BytesReference) {
             return ((BytesReference) result).toUtf8();

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.watcher.actions.email.service;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.actions.email.service.support.EmailServer;
@@ -48,7 +48,7 @@ public class AccountTests extends ElasticsearchTestCase {
     @Test
     public void testConfig() throws Exception {
 
-        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        Settings.Builder builder = Settings.builder();
 
         Profile profile = rarely() ? Profile.STANDARD : randomFrom(Profile.values());
         if (profile != Profile.STANDARD) {
@@ -57,7 +57,7 @@ public class AccountTests extends ElasticsearchTestCase {
 
         Account.Config.EmailDefaults emailDefaults;
         if (randomBoolean()) {
-            ImmutableSettings.Builder sb = ImmutableSettings.builder();
+            Settings.Builder sb = Settings.builder();
             if (randomBoolean()) {
                 sb.put(Email.Field.FROM.getPreferredName(), "from@domain");
             }
@@ -85,11 +85,11 @@ public class AccountTests extends ElasticsearchTestCase {
                 builder.put("email_defaults." + name, settings.get(name));
             }
         } else {
-            emailDefaults = new Account.Config.EmailDefaults(ImmutableSettings.EMPTY);
+            emailDefaults = new Account.Config.EmailDefaults(Settings.EMPTY);
         }
 
         Properties smtpProps = new Properties();
-        ImmutableSettings.Builder smtpBuilder = ImmutableSettings.builder();
+        Settings.Builder smtpBuilder = Settings.builder();
         String host = "somehost";
         String setting = randomFrom("host", "localaddress", "local_address");
         smtpBuilder.put(setting, host);
@@ -154,7 +154,7 @@ public class AccountTests extends ElasticsearchTestCase {
 
     @Test
     public void testSend() throws Exception {
-        Account account = new Account(new Account.Config("default", ImmutableSettings.builder()
+        Account account = new Account(new Account.Config("default", Settings.builder()
                 .put("smtp.host", "localhost")
                 .put("smtp.port", server.port())
                 .put("smtp.user", USERNAME)
@@ -194,7 +194,7 @@ public class AccountTests extends ElasticsearchTestCase {
 
     @Test
     public void testSend_CC_BCC() throws Exception {
-        Account account = new Account(new Account.Config("default", ImmutableSettings.builder()
+        Account account = new Account(new Account.Config("default", Settings.builder()
                 .put("smtp.host", "localhost")
                 .put("smtp.port", server.port())
                 .put("smtp.user", USERNAME)
@@ -239,7 +239,7 @@ public class AccountTests extends ElasticsearchTestCase {
 
     @Test
     public void testSend_Authentication() throws Exception {
-        Account account = new Account(new Account.Config("default", ImmutableSettings.builder()
+        Account account = new Account(new Account.Config("default", Settings.builder()
                 .put("smtp.host", "localhost")
                 .put("smtp.port", server.port())
                 .build()), new SecretService.PlainText(), logger);

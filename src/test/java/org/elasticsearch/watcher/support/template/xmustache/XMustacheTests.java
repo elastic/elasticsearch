@@ -6,12 +6,12 @@
 package org.elasticsearch.watcher.support.template.xmustache;
 
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.ImmutableList;
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
+import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.jackson.core.io.JsonStringEncoder;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -34,10 +34,10 @@ public class XMustacheTests extends ElasticsearchTestCase {
 
     @Before
     public void init() throws Exception {
-        engine = new XMustacheScriptEngineService(ImmutableSettings.EMPTY);
+        engine = new XMustacheScriptEngineService(Settings.EMPTY);
     }
 
-    @Test @Repeat(iterations = 10)
+    @Test
     public void testArrayAccess() throws Exception {
         String template = "{{data.0}} {{data.1}}";
         Object mustache = engine.compile(template);
@@ -54,7 +54,7 @@ public class XMustacheTests extends ElasticsearchTestCase {
         assertThat(bytes.toUtf8(), equalTo("foo bar"));
     }
 
-    @Test @Repeat(iterations = 10)
+    @Test
     public void testArrayInArrayAccess() throws Exception {
         String template = "{{data.0.0}} {{data.0.1}}";
         Object mustache = engine.compile(template);
@@ -72,7 +72,7 @@ public class XMustacheTests extends ElasticsearchTestCase {
         assertThat(bytes.toUtf8(), equalTo("foo bar"));
     }
 
-    @Test @Repeat(iterations = 10)
+    @Test
     public void testMapInArrayAccess() throws Exception {
         String template = "{{data.0.key}} {{data.1.key}}";
         Object mustache = engine.compile(template);
@@ -89,7 +89,7 @@ public class XMustacheTests extends ElasticsearchTestCase {
         assertThat(bytes.toUtf8(), equalTo("foo bar"));
     }
 
-    @Test @Repeat(iterations = 10)
+    @Test
     public void testEscaping() throws Exception {
         XContentType contentType = randomFrom(XContentType.values());
         if (rarely()) {

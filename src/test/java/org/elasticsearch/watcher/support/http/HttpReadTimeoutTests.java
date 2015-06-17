@@ -9,8 +9,9 @@ import com.squareup.okhttp.mockwebserver.MockResponse;
 import com.squareup.okhttp.mockwebserver.MockWebServer;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 import org.elasticsearch.watcher.support.secret.SecretService;
@@ -54,7 +55,8 @@ public class HttpReadTimeoutTests extends ElasticsearchTestCase {
 
     @Test
     public void testDefaultTimeout() throws Exception {
-        HttpClient httpClient = new HttpClient(ImmutableSettings.EMPTY, mock(HttpAuthRegistry.class)).start();
+        Environment environment = new Environment(Settings.builder().put("path.home", createTempDir()).build());
+        HttpClient httpClient = new HttpClient(Settings.EMPTY, mock(HttpAuthRegistry.class), environment).start();
 
         // we're not going to enqueue an response... so the server will just hang
 
@@ -84,10 +86,12 @@ public class HttpReadTimeoutTests extends ElasticsearchTestCase {
 
     @Test
     public void testDefaultTimeout_Custom() throws Exception {
-        HttpClient httpClient = new HttpClient(ImmutableSettings.builder()
+        Environment environment = new Environment(Settings.builder().put("path.home", createTempDir()).build());
+
+        HttpClient httpClient = new HttpClient(Settings.builder()
                 .put("watcher.http.default_read_timeout", "5s")
                 .build()
-                , mock(HttpAuthRegistry.class)).start();
+                , mock(HttpAuthRegistry.class), environment).start();
 
         // we're not going to enqueue an response... so the server will just hang
 
@@ -117,10 +121,12 @@ public class HttpReadTimeoutTests extends ElasticsearchTestCase {
 
     @Test
     public void testTimeout_CustomPerRequest() throws Exception {
-        HttpClient httpClient = new HttpClient(ImmutableSettings.builder()
+        Environment environment = new Environment(Settings.builder().put("path.home", createTempDir()).build());
+
+        HttpClient httpClient = new HttpClient(Settings.builder()
                 .put("watcher.http.default_read_timeout", "10s")
                 .build()
-                , mock(HttpAuthRegistry.class)).start();
+                , mock(HttpAuthRegistry.class), environment).start();
 
         // we're not going to enqueue an response... so the server will just hang
 

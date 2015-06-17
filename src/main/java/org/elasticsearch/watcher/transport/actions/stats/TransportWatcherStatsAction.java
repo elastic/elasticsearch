@@ -35,7 +35,7 @@ public class TransportWatcherStatsAction extends WatcherTransportAction<WatcherS
     public TransportWatcherStatsAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                        ThreadPool threadPool, ActionFilters actionFilters, WatcherService watcherService,
                                        ExecutionService executionService, LicenseService licenseService) {
-        super(settings, WatcherStatsAction.NAME, transportService, clusterService, threadPool, actionFilters, licenseService);
+        super(settings, WatcherStatsAction.NAME, transportService, clusterService, threadPool, actionFilters, licenseService, WatcherStatsRequest.class);
         this.watcherService = watcherService;
         this.executionService = executionService;
     }
@@ -44,11 +44,6 @@ public class TransportWatcherStatsAction extends WatcherTransportAction<WatcherS
     protected String executor() {
         // cheap operation, no need to fork into another thread
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected WatcherStatsRequest newRequest() {
-        return new WatcherStatsRequest();
     }
 
     @Override
@@ -78,7 +73,7 @@ public class TransportWatcherStatsAction extends WatcherTransportAction<WatcherS
 
     @Override
     protected ClusterBlockException checkBlock(WatcherStatsRequest request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
 

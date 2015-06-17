@@ -5,10 +5,9 @@
  */
 package org.elasticsearch.watcher.trigger.schedule;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Collections2;
-import org.elasticsearch.common.primitives.Ints;
+import com.google.common.collect.Collections2;
+import com.google.common.primitives.Ints;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -30,7 +29,7 @@ public class HourlyScheduleTests extends ScheduleTestCase {
         assertThat(crons, arrayContaining("0 0 * * * ?"));
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void test_SingleMinute() throws Exception {
         int minute = validMinute();
         HourlySchedule schedule = new HourlySchedule(minute);
@@ -39,12 +38,12 @@ public class HourlyScheduleTests extends ScheduleTestCase {
         assertThat(crons, arrayContaining("0 " + minute + " * * * ?"));
     }
 
-    @Test(expected = ScheduleTriggerException.class) @Repeat(iterations = 20)
+    @Test(expected = ScheduleTriggerException.class)
     public void test_SingleMinute_Invalid() throws Exception {
         new HourlySchedule(invalidMinute());
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void test_MultipleMinutes() throws Exception {
         int[] minutes = validMinutes();
         String minutesStr = Ints.join(",", minutes);
@@ -54,7 +53,7 @@ public class HourlyScheduleTests extends ScheduleTestCase {
         assertThat(crons, arrayContaining("0 " + minutesStr + " * * * ?"));
     }
 
-    @Test(expected = ScheduleTriggerException.class) @Repeat(iterations = 20)
+    @Test(expected = ScheduleTriggerException.class)
     public void test_MultipleMinutes_Invalid() throws Exception {
         int[] minutes = invalidMinutes();
         new HourlySchedule(minutes);
@@ -72,7 +71,7 @@ public class HourlyScheduleTests extends ScheduleTestCase {
         assertThat(schedule.minutes()[0], is(0));
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void testParser_SingleMinute_Number() throws Exception {
         int minute = validMinute();
         XContentBuilder builder = jsonBuilder()
@@ -88,7 +87,7 @@ public class HourlyScheduleTests extends ScheduleTestCase {
         assertThat(schedule.minutes()[0], is(minute));
     }
 
-    @Test(expected = ScheduleTriggerException.class) @Repeat(iterations = 20)
+    @Test(expected = ScheduleTriggerException.class)
     public void testParser_SingleMinute_Number_Invalid() throws Exception {
         XContentBuilder builder = jsonBuilder()
                 .startObject()
@@ -100,7 +99,7 @@ public class HourlyScheduleTests extends ScheduleTestCase {
         new HourlySchedule.Parser().parse(parser);
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void testParser_SingleMinute_String() throws Exception {
         int minute = validMinute();
         XContentBuilder builder = jsonBuilder()
@@ -116,7 +115,7 @@ public class HourlyScheduleTests extends ScheduleTestCase {
         assertThat(schedule.minutes()[0], is(minute));
     }
 
-    @Test(expected = ScheduleTriggerException.class) @Repeat(iterations = 20)
+    @Test(expected = ScheduleTriggerException.class)
     public void testParser_SingleMinute_String_Invalid() throws Exception {
         XContentBuilder builder = jsonBuilder()
                 .startObject()
@@ -128,7 +127,7 @@ public class HourlyScheduleTests extends ScheduleTestCase {
         new HourlySchedule.Parser().parse(parser);
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void testParser_MultipleMinutes_Numbers() throws Exception {
         int[] minutes = validMinutes();
         XContentBuilder builder = jsonBuilder()
@@ -146,7 +145,7 @@ public class HourlyScheduleTests extends ScheduleTestCase {
         }
     }
 
-    @Test(expected = ScheduleTriggerException.class) @Repeat(iterations = 20)
+    @Test(expected = ScheduleTriggerException.class)
     public void testParser_MultipleMinutes_Numbers_Invalid() throws Exception {
         int[] minutes = invalidMinutes();
         XContentBuilder builder = jsonBuilder()
@@ -159,7 +158,7 @@ public class HourlyScheduleTests extends ScheduleTestCase {
         new HourlySchedule.Parser().parse(parser);
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void testParser_MultipleMinutes_Strings() throws Exception {
         int[] minutes = validMinutes();
         XContentBuilder builder = jsonBuilder()
@@ -177,7 +176,7 @@ public class HourlyScheduleTests extends ScheduleTestCase {
         }
     }
 
-    @Test(expected = ScheduleTriggerException.class) @Repeat(iterations = 20)
+    @Test(expected = ScheduleTriggerException.class)
     public void testParser_MultipleMinutes_Strings_Invalid() throws Exception {
         int[] minutes = invalidMinutes();
         XContentBuilder builder = jsonBuilder()

@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.watch;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.ClearScrollResponse;
@@ -18,7 +19,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.unit.TimeValue;
@@ -54,7 +54,7 @@ public class WatchStoreTests extends ElasticsearchTestCase {
         clientProxy = mock(ClientProxy.class);
         templateUtils = mock(TemplateUtils.class);
         parser = mock(Watch.Parser.class);
-        watchStore = new WatchStore(ImmutableSettings.EMPTY, clientProxy, templateUtils, parser);
+        watchStore = new WatchStore(Settings.EMPTY, clientProxy, templateUtils, parser);
     }
 
     @Test
@@ -81,14 +81,14 @@ public class WatchStoreTests extends ElasticsearchTestCase {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         MetaData.Builder metaDateBuilder = MetaData.builder();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = settings(Version.CURRENT)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                 .build();
         metaDateBuilder.put(IndexMetaData.builder(WatchStore.INDEX).settings(settings).numberOfShards(1).numberOfReplicas(1));
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(WatchStore.INDEX);
         indexRoutingTableBuilder.addIndexShard(new IndexShardRoutingTable.Builder(new ShardId(WatchStore.INDEX, 0), false)
-                .addShard(new ImmutableShardRouting(WatchStore.INDEX, 0, "_node_id", null, true, ShardRoutingState.UNASSIGNED, 1))
+                .addShard(new ImmutableShardRouting(WatchStore.INDEX, 0, "_node_id", null, null, true, ShardRoutingState.UNASSIGNED, 1, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")))
                 .build());
         indexRoutingTableBuilder.addReplica();
         routingTableBuilder.add(indexRoutingTableBuilder.build());
@@ -106,7 +106,7 @@ public class WatchStoreTests extends ElasticsearchTestCase {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         MetaData.Builder metaDateBuilder = MetaData.builder();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = settings(Version.CURRENT)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                 .build();
@@ -142,7 +142,7 @@ public class WatchStoreTests extends ElasticsearchTestCase {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         MetaData.Builder metaDateBuilder = MetaData.builder();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = settings(Version.CURRENT)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                 .build();
@@ -182,7 +182,7 @@ public class WatchStoreTests extends ElasticsearchTestCase {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         MetaData.Builder metaDateBuilder = MetaData.builder();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = settings(Version.CURRENT)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                 .build();
@@ -220,7 +220,7 @@ public class WatchStoreTests extends ElasticsearchTestCase {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         MetaData.Builder metaDateBuilder = MetaData.builder();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = settings(Version.CURRENT)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                 .build();

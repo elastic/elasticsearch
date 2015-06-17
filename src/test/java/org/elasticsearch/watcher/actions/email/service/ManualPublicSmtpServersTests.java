@@ -7,7 +7,7 @@ package org.elasticsearch.watcher.actions.email.service;
 
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.inject.Provider;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -30,7 +30,7 @@ public class ManualPublicSmtpServersTests {
     public static class Gmail {
 
         public static void main(String[] args) throws Exception {
-            test(Profile.GMAIL, ImmutableSettings.builder()
+            test(Profile.GMAIL, Settings.builder()
                     .put("watcher.actions.email.service.account.gmail.smtp.auth", true)
                     .put("watcher.actions.email.service.account.gmail.smtp.starttls.enable", true)
                     .put("watcher.actions.email.service.account.gmail.smtp.host", "smtp.gmail.com")
@@ -45,7 +45,7 @@ public class ManualPublicSmtpServersTests {
     public static class OutlookDotCom {
 
         public static void main(String[] args) throws Exception {
-            test(Profile.STANDARD, ImmutableSettings.builder()
+            test(Profile.STANDARD, Settings.builder()
                     .put("watcher.actions.email.service.account.outlook.smtp.auth", true)
                     .put("watcher.actions.email.service.account.outlook.smtp.starttls.enable", true)
                     .put("watcher.actions.email.service.account.outlook.smtp.host", "smtp-mail.outlook.com")
@@ -61,7 +61,7 @@ public class ManualPublicSmtpServersTests {
     public static class YahooMail {
 
         public static void main(String[] args) throws Exception {
-            test(Profile.STANDARD, ImmutableSettings.builder()
+            test(Profile.STANDARD, Settings.builder()
                             .put("watcher.actions.email.service.account.yahoo.smtp.starttls.enable", true)
                             .put("watcher.actions.email.service.account.yahoo.smtp.auth", true)
                             .put("watcher.actions.email.service.account.yahoo.smtp.host", "smtp.mail.yahoo.com")
@@ -79,7 +79,7 @@ public class ManualPublicSmtpServersTests {
     public static class SES {
 
         public static void main(String[] args) throws Exception {
-            test(Profile.STANDARD, ImmutableSettings.builder()
+            test(Profile.STANDARD, Settings.builder()
                             .put("watcher.actions.email.service.account.ses.smtp.auth", true)
                             .put("watcher.actions.email.service.account.ses.smtp.starttls.enable", true)
                             .put("watcher.actions.email.service.account.ses.smtp.starttls.required", true)

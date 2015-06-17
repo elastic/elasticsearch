@@ -7,8 +7,7 @@ package org.elasticsearch.watcher.watch;
 
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.joda.time.PeriodType;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.joda.time.PeriodType;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.watcher.WatcherException;
@@ -37,7 +36,7 @@ public class WatchLockService extends AbstractComponent {
     }
 
     WatchLockService(TimeValue maxStopTimeout){
-        super(ImmutableSettings.EMPTY);
+        super(Settings.EMPTY);
         this.maxStopTimeout = maxStopTimeout;
     }
 

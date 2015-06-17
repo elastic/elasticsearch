@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.watcher.support.template.xmustache;
 
-import org.elasticsearch.common.collect.Iterables;
-import org.elasticsearch.common.jackson.core.io.JsonStringEncoder;
-import org.elasticsearch.common.mustache.DefaultMustacheFactory;
-import org.elasticsearch.common.mustache.MustacheException;
-import org.elasticsearch.common.mustache.reflect.ReflectionObjectHandler;
+import com.fasterxml.jackson.core.io.JsonStringEncoder;
+import com.github.mustachejava.DefaultMustacheFactory;
+import com.github.mustachejava.MustacheException;
+import com.github.mustachejava.reflect.ReflectionObjectHandler;
+import com.google.common.collect.Iterables;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.watcher.support.ArrayObjectIterator;
 

@@ -5,10 +5,7 @@
  */
 package org.elasticsearch.watcher.support.http;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import com.carrotsearch.randomizedtesting.annotations.Seed;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.netty.handler.codec.http.HttpHeaders;
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -23,6 +20,7 @@ import org.elasticsearch.watcher.support.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.watcher.support.secret.SecretService;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.support.template.TemplateEngine;
+import org.jboss.netty.handler.codec.http.HttpHeaders;
 import org.junit.Test;
 
 import java.util.Map;
@@ -35,7 +33,7 @@ import static org.hamcrest.Matchers.*;
  */
 public class HttpRequestTemplateTests extends ElasticsearchTestCase {
 
-    @Test @Repeat(iterations = 5)
+    @Test
     public void testBody_WithXContent() throws Exception {
         XContentType type = randomFrom(XContentType.JSON, XContentType.YAML);
         HttpRequestTemplate template = HttpRequestTemplate.builder("_host", 1234)
@@ -54,7 +52,7 @@ public class HttpRequestTemplateTests extends ElasticsearchTestCase {
         assertThat(request.headers.size(), is(0));
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void testParse_SelfGenerated() throws Exception {
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("_host", 1234);
 

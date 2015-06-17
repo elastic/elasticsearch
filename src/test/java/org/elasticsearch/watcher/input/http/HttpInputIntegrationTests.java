@@ -7,10 +7,9 @@ package org.elasticsearch.watcher.input.http;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.history.HistoryStore;
@@ -19,6 +18,7 @@ import org.elasticsearch.watcher.support.http.auth.basic.BasicAuth;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
 import org.junit.Test;
 
@@ -40,9 +40,9 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTests {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder()
-                .put(InternalNode.HTTP_ENABLED, true)
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
+                .put(Node.HTTP_ENABLED, true)
                 .build();
     }
 
@@ -72,19 +72,19 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTests {
     }
 
     @Test
-    @TestLogging("watcher.support.http:TRACE")
     public void testHttpInput_clusterStats() throws Exception {
         InetSocketAddress address = internalTestCluster().httpAddresses()[0];
-        watcherClient().preparePutWatch("_name")
+        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_name")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("1s")))
                         .input(httpInput(HttpRequestTemplate.builder(address.getHostName(), address.getPort())
                                 .path("/_cluster/stats")
                                 .auth(shieldEnabled() ? new BasicAuth("test", "changeme".toCharArray()) : null)))
-                        .condition(scriptCondition("ctx.payload.nodes.count.total > 1"))
+                        .condition(scriptCondition("ctx.payload.nodes.count.total >= 1"))
                         .addAction("_id", loggingAction("watch [{{ctx.watch_id}}] matched")))
                 .get();
 
+        assertTrue(putWatchResponse.isCreated());
         if (timeWarped()) {
             timeWarp().scheduler().trigger("_name");
             refresh();

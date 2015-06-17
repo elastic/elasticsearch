@@ -6,7 +6,7 @@
 package org.elasticsearch.watcher.actions.email;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
 import org.elasticsearch.watcher.actions.email.service.support.EmailServer;
@@ -52,7 +52,7 @@ public class EmailActionIntegrationTests extends AbstractWatcherIntegrationTests
             //Need to construct the Email Server here as this happens before init()
             server = EmailServer.localhost("2500-2600", USERNAME, PASSWORD, logger);
         }
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("watcher.actions.email.service.account.test.smtp.auth", true)
                 .put("watcher.actions.email.service.account.test.smtp.user", USERNAME)

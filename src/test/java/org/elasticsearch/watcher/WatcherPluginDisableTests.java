@@ -10,11 +10,11 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.license.plugin.LicensePlugin;
-import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.node.Node;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
@@ -36,11 +36,20 @@ public class WatcherPluginDisableTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.settingsBuilder()
+        return Settings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("plugin.types", WatcherPlugin.class.getName() + "," + LicensePlugin.class.getName())
+                .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
                 .put(WatcherPlugin.ENABLED_SETTING, false)
-                .put(InternalNode.HTTP_ENABLED, true)
+                .put(Node.HTTP_ENABLED, true)
+                .build();
+    }
+
+    @Override
+    protected Settings transportClientSettings() {
+        return Settings.builder()
+                .put(super.transportClientSettings())
+                .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
                 .build();
     }
 

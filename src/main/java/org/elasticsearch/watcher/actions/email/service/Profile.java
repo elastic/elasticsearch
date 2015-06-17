@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.actions.email.service;
 
-import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -16,6 +15,7 @@ import javax.mail.internet.MimeBodyPart;
 import javax.mail.internet.MimeMessage;
 import javax.mail.internet.MimeMultipart;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
 /**
@@ -79,15 +79,15 @@ public enum Profile implements ToXContent {
 
             MimeBodyPart text = new MimeBodyPart();
             if (email.textBody != null) {
-                text.setText(email.textBody, Charsets.UTF_8.name());
+                text.setText(email.textBody, StandardCharsets.UTF_8.name());
             } else {
-                text.setText("", Charsets.UTF_8.name());
+                text.setText("", StandardCharsets.UTF_8.name());
             }
             alternative.addBodyPart(text);
 
             if (email.htmlBody != null) {
                 MimeBodyPart html = new MimeBodyPart();
-                html.setText(email.htmlBody, Charsets.UTF_8.name(), "html");
+                html.setText(email.htmlBody, StandardCharsets.UTF_8.name(), "html");
                 alternative.addBodyPart(html);
             }
 
@@ -199,9 +199,9 @@ public enum Profile implements ToXContent {
             message.setRecipients(Message.RecipientType.BCC, email.bcc.toArray());
         }
         if (email.subject != null) {
-            message.setSubject(email.subject, Charsets.UTF_8.name());
+            message.setSubject(email.subject, StandardCharsets.UTF_8.name());
         } else {
-            message.setSubject("", Charsets.UTF_8.name());
+            message.setSubject("", StandardCharsets.UTF_8.name());
         }
 
         return message;

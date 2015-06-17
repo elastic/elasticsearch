@@ -32,18 +32,13 @@ public class TransportDeleteWatchAction extends WatcherTransportAction<DeleteWat
     @Inject
     public TransportDeleteWatchAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                       ThreadPool threadPool, ActionFilters actionFilters, WatcherService watcherService, LicenseService licenseService) {
-        super(settings, DeleteWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, licenseService);
+        super(settings, DeleteWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, licenseService, DeleteWatchRequest.class);
         this.watcherService = watcherService;
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected DeleteWatchRequest newRequest() {
-        return new DeleteWatchRequest();
     }
 
     @Override

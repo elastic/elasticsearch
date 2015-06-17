@@ -5,9 +5,8 @@
  */
 package org.elasticsearch.watcher.trigger.schedule;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.primitives.Ints;
+import com.google.common.primitives.Ints;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -30,7 +29,7 @@ public class DailyScheduleTests extends ScheduleTestCase {
         assertThat(crons, arrayContaining("0 0 0 * * ?"));
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void test_SingleTime() throws Exception {
         DayTimes time = validDayTime();
         DailySchedule schedule = new DailySchedule(time);
@@ -39,7 +38,7 @@ public class DailyScheduleTests extends ScheduleTestCase {
         assertThat(crons, arrayContaining("0 " + Ints.join(",", time.minute()) + " " + Ints.join(",", time.hour()) + " * * ?"));
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void test_SingleTime_Invalid() throws Exception {
         try {
             HourAndMinute ham = invalidDayTime();
@@ -52,7 +51,7 @@ public class DailyScheduleTests extends ScheduleTestCase {
         }
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void test_MultipleTimes() throws Exception {
         DayTimes[] times = validDayTimes();
         DailySchedule schedule = new DailySchedule(times);
@@ -75,7 +74,7 @@ public class DailyScheduleTests extends ScheduleTestCase {
         assertThat(schedule.times()[0], is(new DayTimes(0, 0)));
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void testParser_SingleTime_Object() throws Exception {
         DayTimes time = validDayTime();
         XContentBuilder builder = jsonBuilder()
@@ -94,7 +93,7 @@ public class DailyScheduleTests extends ScheduleTestCase {
         assertThat(schedule.times()[0], is(time));
     }
 
-    @Test(expected = ScheduleTriggerException.class) @Repeat(iterations = 20)
+    @Test(expected = ScheduleTriggerException.class)
     public void testParser_SingleTime_Object_Invalid() throws Exception {
         HourAndMinute time = invalidDayTime();
         XContentBuilder builder = jsonBuilder()
@@ -110,7 +109,7 @@ public class DailyScheduleTests extends ScheduleTestCase {
         new DailySchedule.Parser().parse(parser);
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void testParser_SingleTime_String() throws Exception {
         String timeStr = validDayTimeStr();
         XContentBuilder builder = jsonBuilder()
@@ -126,7 +125,7 @@ public class DailyScheduleTests extends ScheduleTestCase {
         assertThat(schedule.times()[0], is(DayTimes.parse(timeStr)));
     }
 
-    @Test(expected = ScheduleTriggerException.class) @Repeat(iterations = 20)
+    @Test(expected = ScheduleTriggerException.class)
     public void testParser_SingleTime_String_Invalid() throws Exception {
         XContentBuilder builder = jsonBuilder()
                 .startObject()
@@ -138,7 +137,7 @@ public class DailyScheduleTests extends ScheduleTestCase {
         new DailySchedule.Parser().parse(parser);
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void testParser_MultipleTimes_Objects() throws Exception {
         DayTimes[] times = validDayTimesFromNumbers();
         XContentBuilder builder = jsonBuilder()
@@ -156,7 +155,7 @@ public class DailyScheduleTests extends ScheduleTestCase {
         }
     }
 
-    @Test(expected = ScheduleTriggerException.class) @Repeat(iterations = 20)
+    @Test(expected = ScheduleTriggerException.class)
     public void testParser_MultipleTimes_Objects_Invalid() throws Exception {
         HourAndMinute[] times = invalidDayTimes();
         XContentBuilder builder = jsonBuilder()
@@ -169,7 +168,7 @@ public class DailyScheduleTests extends ScheduleTestCase {
         new DailySchedule.Parser().parse(parser);
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void testParser_MultipleTimes_Strings() throws Exception {
         DayTimes[] times = validDayTimesFromStrings();
         XContentBuilder builder = jsonBuilder()
@@ -187,7 +186,7 @@ public class DailyScheduleTests extends ScheduleTestCase {
         }
     }
 
-    @Test(expected = ScheduleTriggerException.class) @Repeat(iterations = 20)
+    @Test(expected = ScheduleTriggerException.class)
     public void testParser_MultipleTimes_Strings_Invalid() throws Exception {
         String[] times = invalidDayTimesAsStrings();
         XContentBuilder builder = jsonBuilder()

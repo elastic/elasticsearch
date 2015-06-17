@@ -5,9 +5,8 @@
  */
 package org.elasticsearch.watcher.support.xcontent;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -32,7 +31,7 @@ public class MapPathTests extends ElasticsearchTestCase {
         assertThat(ObjectPath.eval("key1", map), nullValue());
     }
 
-    @Test @Repeat(iterations = 5)
+    @Test
     public void testEval_List() throws Exception {
         List list = ImmutableList.of(1, 2, 3, 4);
         Map<String, Object> map = ImmutableMap.<String, Object>builder()
@@ -43,7 +42,7 @@ public class MapPathTests extends ElasticsearchTestCase {
         assertThat(ObjectPath.eval("key." + index, map), is(list.get(index)));
     }
 
-    @Test @Repeat(iterations = 5)
+    @Test
     public void testEval_Array() throws Exception {
         int[] array = new int[] { 1, 2, 3, 4 };
         Map<String, Object> map = ImmutableMap.<String, Object>builder()

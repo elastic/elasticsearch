@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.test;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -15,20 +16,18 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.base.Charsets;
-import org.elasticsearch.common.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.netty.util.internal.SystemPropertyUtil;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
+import org.elasticsearch.shield.authc.support.Hasher;
+import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
@@ -58,13 +57,17 @@ import org.elasticsearch.watcher.trigger.schedule.ScheduleModule;
 import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.watch.WatchStore;
 import org.hamcrest.Matcher;
+import org.jboss.netty.util.internal.SystemPropertyUtil;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 
-import java.io.File;
+import java.io.BufferedWriter;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 
@@ -92,13 +95,14 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
     protected Settings nodeSettings(int nodeOrdinal) {
         String scheduleImplName = scheduleEngine().name().toLowerCase(Locale.ROOT);
         logger.info("using schedule engine [" + scheduleImplName + "]");
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 // we do this by default in core, but for watcher this isn't needed and only adds noise.
                 .put("index.store.mock.check_index_on_close", false)
                 .put("scroll.size", randomIntBetween(1, 100))
                 .put("plugin.types", Strings.collectionToCommaDelimitedString(pluginTypes()))
                 .put(ShieldSettings.settings(shieldEnabled))
+                .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
                 .put("watcher.trigger.schedule.engine", scheduleImplName)
                 .build();
     }
@@ -180,16 +184,18 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
 
     @Override
     protected Settings transportClientSettings() {
-        if (!shieldEnabled) {
-            return ImmutableSettings.builder()
+        if (shieldEnabled == false) {
+            return Settings.builder()
                     .put(super.transportClientSettings())
+                    .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
                     .put("plugin.types", WatcherPlugin.class.getName())
                     .build();
         }
 
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .put("client.transport.sniff", false)
                 .put("plugin.types", ShieldPlugin.class.getName() + "," + WatcherPlugin.class.getName())
+                .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
                 .put("shield.user", "admin:changeme")
                 .build();
     }
@@ -567,11 +573,6 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
         }
 
         @Override
-        public boolean hasFilterCache() {
-            return testCluster.hasFilterCache();
-        }
-
-        @Override
         public String getClusterName() {
             return testCluster.getClusterName();
         }
@@ -622,6 +623,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
 
         public static final String TEST_USERNAME = "test";
         public static final String TEST_PASSWORD = "changeme";
+        private static final String TEST_PASSWORD_HASHED =  new String(Hasher.BCRYPT.hash(new SecuredString(TEST_PASSWORD.toCharArray())));
 
         static boolean auditLogsEnabled = SystemPropertyUtil.getBoolean("tests.audit_logs", true);
         static byte[] systemKey = generateKey(); // must be the same for all nodes
@@ -629,10 +631,10 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
         public static final String IP_FILTER = "allow: all\n";
 
         public static final String USERS =
-                "transport_client:{plain}changeme\n" +
-                TEST_USERNAME + ":{plain}" + TEST_PASSWORD + "\n" +
-                "admin:{plain}changeme\n" +
-                "monitor:{plain}changeme";
+                "transport_client:" + TEST_PASSWORD_HASHED + "\n" +
+                TEST_USERNAME + ":" + TEST_PASSWORD_HASHED + "\n" +
+                "admin:" + TEST_PASSWORD_HASHED + "\n" +
+                "monitor:" + TEST_PASSWORD_HASHED;
 
         public static final String USER_ROLES =
                 "transport_client:transport_client\n" +
@@ -642,38 +644,43 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
 
         public static final String ROLES =
                 "test:\n" + // a user for the test infra.
-                "  cluster: cluster:monitor/nodes/info, cluster:monitor/state, cluster:monitor/health, cluster:monitor/stats, cluster:admin/settings/update, cluster:admin/repository/delete, indices:admin/template/get, indices:admin/template/put, indices:admin/template/delete\n" +
+                "  cluster: cluster:monitor/nodes/info, cluster:monitor/state, cluster:monitor/health, cluster:monitor/stats, cluster:admin/settings/update, cluster:admin/repository/delete, cluster:monitor/nodes/liveness, indices:admin/template/get, indices:admin/template/put, indices:admin/template/delete\n" +
                 "  indices:\n" +
                 "    '*': all\n" +
                 "\n" +
                 "admin:\n" +
-                "  cluster: manage_watcher, cluster:monitor/nodes/info\n" +
+                "  cluster: manage_watcher, cluster:monitor/nodes/info, cluster:monitor/nodes/liveness\n" +
                 "transport_client:\n" +
-                "  cluster: cluster:monitor/nodes/info\n" +
+                "  cluster: cluster:monitor/nodes/info, cluster:monitor/nodes/liveness\n" +
                 "\n" +
                 "monitor:\n" +
-                "  cluster: monitor_watcher, cluster:monitor/nodes/info\n"
+                "  cluster: monitor_watcher, cluster:monitor/nodes/info, cluster:monitor/nodes/liveness\n"
                 ;
 
-        static Settings settings(boolean enabled) {
-            ImmutableSettings.Builder builder = ImmutableSettings.builder();
+
+        public static Settings settings(boolean enabled)  {
+            Settings.Builder builder = Settings.builder();
             if (!enabled) {
                 return builder.put("shield.enabled", false).build();
             }
-
-            File folder = createFolder(globalTempDir(), "watcher_shield");
-            return builder.put("shield.enabled", true)
-                    .put("shield.user", "test:changeme")
-                    .put("shield.authc.realms.esusers.type", ESUsersRealm.TYPE)
-                    .put("shield.authc.realms.esusers.order", 0)
-                    .put("shield.authc.realms.esusers.files.users", writeFile(folder, "users", USERS))
-                    .put("shield.authc.realms.esusers.files.users_roles", writeFile(folder, "users_roles", USER_ROLES))
-                    .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", ROLES))
-                    .put("shield.transport.n2n.ip_filter.file", writeFile(folder, "ip_filter.yml", IP_FILTER))
-                    .put("shield.system_key.file", writeFile(folder, "system_key.yml", systemKey))
-                    .put("shield.authc.sign_user_header", false)
-                    .put("shield.audit.enabled", auditLogsEnabled)
-                    .build();
+            try {
+                Path folder = createTempDir().resolve("watcher_shield");
+                Files.createDirectories(folder);
+                return builder.put("shield.enabled", true)
+                        .put("shield.user", "test:changeme")
+                        .put("shield.authc.realms.esusers.type", ESUsersRealm.TYPE)
+                        .put("shield.authc.realms.esusers.order", 0)
+                        .put("shield.authc.realms.esusers.files.users", writeFile(folder, "users", USERS))
+                        .put("shield.authc.realms.esusers.files.users_roles", writeFile(folder, "users_roles", USER_ROLES))
+                        .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", ROLES))
+                        .put("shield.transport.n2n.ip_filter.file", writeFile(folder, "ip_filter.yml", IP_FILTER))
+                        .put("shield.system_key.file", writeFile(folder, "system_key.yml", systemKey))
+                        .put("shield.authc.sign_user_header", false)
+                        .put("shield.audit.enabled", auditLogsEnabled)
+                        .build();
+            } catch (IOException ex) {
+                throw new RuntimeException("failed to build settings for shield", ex);
+            }
         }
 
         static byte[] generateKey() {
@@ -684,32 +691,24 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
             }
         }
 
-        static File createFolder(File parent, String name) {
-            File createdFolder = new File(parent, name);
-            //the directory might exist e.g. if the global cluster gets restarted, then we recreate the directory as well
-            if (createdFolder.exists()) {
-                if (!FileSystemUtils.deleteRecursively(createdFolder)) {
-                    throw new RuntimeException("could not delete existing temporary folder: " + createdFolder.getAbsolutePath());
-                }
-            }
-            if (!createdFolder.mkdir()) {
-                throw new RuntimeException("could not create temporary folder: " + createdFolder.getAbsolutePath());
-            }
-            return createdFolder;
-        }
-
-        static String writeFile(File folder, String name, String content) {
-            return writeFile(folder, name, content.getBytes(Charsets.UTF_8));
-        }
-
-        static String writeFile(File folder, String name, byte[] content) {
-            Path file = folder.toPath().resolve(name);
-            try {
-                Streams.copy(content, file.toFile());
+        public static String writeFile(Path folder, String name, String content) throws IOException {
+            Path file = folder.resolve(name);
+            try (BufferedWriter stream = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
+                Streams.copy(content, stream);
             } catch (IOException e) {
                 throw new ElasticsearchException("error writing file in test", e);
             }
-            return file.toFile().getAbsolutePath();
+            return file.toAbsolutePath().toString();
+        }
+
+        public static String writeFile(Path folder, String name, byte[] content) throws IOException {
+            Path file = folder.resolve(name);
+            try (OutputStream stream = Files.newOutputStream(file)) {
+                Streams.copy(content, stream);
+            } catch (IOException e) {
+                throw new ElasticsearchException("error writing file in test", e);
+            }
+            return file.toAbsolutePath().toString();
         }
     }
 

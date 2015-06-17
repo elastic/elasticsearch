@@ -5,15 +5,15 @@
  */
 package org.elasticsearch.watcher.support.http;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class HttpResponseTests extends ElasticsearchTestCase {
 
-    @Test @Repeat(iterations = 20)
+    @Test
     public void testParse_SelfGenerated() throws Exception {
         int status = randomIntBetween(200, 600);
         ImmutableMap<String, String[]> headers = ImmutableMap.of();
@@ -45,7 +45,7 @@ public class HttpResponseTests extends ElasticsearchTestCase {
                     response = new HttpResponse(status, body, headers);
                     break;
                 case 1:
-                    response = new HttpResponse(status, body.getBytes(UTF8), headers);
+                    response = new HttpResponse(status, body.getBytes(StandardCharsets.UTF_8), headers);
                     break;
                 default: // 2
                     response = new HttpResponse(status, new BytesArray(body), headers);

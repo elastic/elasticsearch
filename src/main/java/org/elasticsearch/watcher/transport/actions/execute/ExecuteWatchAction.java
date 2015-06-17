@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.watcher.transport.actions.execute;
 
-import org.elasticsearch.client.Client;
-import org.elasticsearch.watcher.client.WatcherAction;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * This action executes a watch, either ignoring the schedule and condition or just the schedule and can execute a subset of the actions, optionally persisting the history entry
  */
-public class ExecuteWatchAction extends WatcherAction<ExecuteWatchRequest, ExecuteWatchResponse, ExecuteWatchRequestBuilder> {
+public class ExecuteWatchAction extends Action<ExecuteWatchRequest, ExecuteWatchResponse, ExecuteWatchRequestBuilder> {
 
     public static final ExecuteWatchAction INSTANCE = new ExecuteWatchAction();
     public static final String NAME = "cluster:admin/watcher/watch/execute";
@@ -26,7 +26,7 @@ public class ExecuteWatchAction extends WatcherAction<ExecuteWatchRequest, Execu
     }
 
     @Override
-    public ExecuteWatchRequestBuilder newRequestBuilder(Client client) {
+    public ExecuteWatchRequestBuilder newRequestBuilder(ElasticsearchClient client) {
         return new ExecuteWatchRequestBuilder(client);
     }
 

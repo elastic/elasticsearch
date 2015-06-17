@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.watcher.transport.action.execute;
 
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.joda.time.DateTime;
+import com.google.common.collect.ImmutableMap;
+import org.joda.time.DateTime;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.support.WatcherDateTimeUtils;

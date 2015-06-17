@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.watcher.trigger.schedule;
 
-import org.elasticsearch.common.joda.time.DateTimeZone;
-import org.elasticsearch.common.joda.time.format.DateTimeFormat;
-import org.elasticsearch.common.joda.time.format.DateTimeFormatter;
+import org.joda.time.DateTimeZone;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
 import org.elasticsearch.watcher.trigger.TriggerException;
 
 import java.util.*;

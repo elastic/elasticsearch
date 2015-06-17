@@ -20,10 +20,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -63,24 +61,24 @@ public class TriggeredWatchStore extends AbstractComponent {
     @Inject
     public TriggeredWatchStore(Settings settings, ClientProxy client, TemplateUtils templateUtils, TriggeredWatch.Parser triggeredWatchParser) {
         super(settings);
-        this.scrollSize = componentSettings.getAsInt("scroll.size", 100);
+        this.scrollSize = settings.getAsInt("watcher.execution.scroll.size", 100);
         this.client = client;
-        this.scrollTimeout = componentSettings.getAsTime("scroll.timeout", TimeValue.timeValueSeconds(30));
+        this.scrollTimeout = settings.getAsTime("watcher.execution.scroll.timeout", TimeValue.timeValueSeconds(30));
         this.templateUtils = templateUtils;
         this.customIndexSettings = updateTriggerWatchesSettings(settings);
         this.triggeredWatchParser = triggeredWatchParser;
     }
 
     private Settings updateTriggerWatchesSettings(Settings nodeSettings) {
-        Settings newSettings = ImmutableSettings.builder()
+        Settings newSettings = Settings.builder()
                 .put(nodeSettings.getAsSettings("watcher.triggered_watches.index"))
                 .build();
         if (newSettings.names().isEmpty()) {
-            return ImmutableSettings.EMPTY;
+            return Settings.EMPTY;
         }
 
         // Filter out forbidden settings:
-        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        Settings.Builder builder = Settings.builder();
         for (Map.Entry<String, String> entry : newSettings.getAsMap().entrySet()) {
             String name = "index." + entry.getKey();
             if (forbiddenIndexSettings.contains(name)) {
@@ -161,7 +159,7 @@ public class TriggeredWatchStore extends AbstractComponent {
     public void putAll(final List<TriggeredWatch> triggeredWatches, final ActionListener<List<Integer>> listener) throws TriggeredWatchException {
 
         if (triggeredWatches.isEmpty()) {
-            listener.onResponse(ImmutableList.<Integer>of());
+            listener.onResponse(Collections.EMPTY_LIST);
             return;
         }
 
@@ -169,7 +167,7 @@ public class TriggeredWatchStore extends AbstractComponent {
             put(triggeredWatches.get(0), new ActionListener<Boolean>() {
                 @Override
                 public void onResponse(Boolean success) {
-                    listener.onResponse(ImmutableList.of(0));
+                    listener.onResponse(Collections.singletonList(0));
                 }
 
                 @Override

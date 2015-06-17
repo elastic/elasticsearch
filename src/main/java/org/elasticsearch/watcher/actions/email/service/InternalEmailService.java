@@ -5,11 +5,12 @@
  */
 package org.elasticsearch.watcher.actions.email.service;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.watcher.shield.WatcherSettingsFilter;
@@ -77,11 +78,19 @@ public class InternalEmailService extends AbstractLifecycleComponent<InternalEma
     }
 
     void reset(Settings nodeSettings) {
-        Settings settings = ImmutableSettings.builder()
-                .put(componentSettings)
-                .put(nodeSettings.getComponentSettings(InternalEmailService.class))
-                .build();
-        accounts = createAccounts(settings, logger);
+        Settings.Builder builder = Settings.builder();
+        String prefix = "watcher.actions.email.service";
+        for (String setting : settings.getAsMap().keySet()) {
+            if (setting.startsWith("watcher.actions.email.service")) {
+                builder.put(setting.substring(prefix.length()+1), settings.get(setting));
+            }
+        }
+        for (String setting : nodeSettings.getAsMap().keySet()) {
+            if (setting.startsWith("watcher.actions.email.service")) {
+                builder.put(setting.substring(prefix.length()+1), settings.get(setting));
+            }
+        }
+        accounts = createAccounts(builder.build(), logger);
     }
 
     protected Accounts createAccounts(Settings settings, ESLogger logger) {

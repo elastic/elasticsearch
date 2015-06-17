@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.watcher.execution;
 
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.joda.time.DateTime;
+import com.google.common.collect.ImmutableMap;
+import org.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.ActionWrapper;
@@ -14,10 +14,9 @@ import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.trigger.manual.ManualTriggerEvent;
 import org.elasticsearch.watcher.watch.Watch;
+import org.joda.time.DateTimeZone;
 
 import java.util.Map;
-
-import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 
 /**
  */
@@ -147,7 +146,7 @@ public class ManualExecutionContext extends WatchExecutionContext {
 
         public ManualExecutionContext build() {
             if (executionTime == null) {
-                executionTime = DateTime.now(UTC);
+                executionTime = DateTime.now(DateTimeZone.UTC);
             }
             return new ManualExecutionContext(watch, knownWatch, executionTime, triggerEvent, defaultThrottlePeriod, inputResult, conditionResult, actionModes.build(), recordExecution);
         }

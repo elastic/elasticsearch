@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.watcher.support.http;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 import org.junit.Test;
@@ -26,7 +26,8 @@ public class HttpConnectionTimeoutTests extends ElasticsearchTestCase {
 
     @Test @Slow
     public void testDefaultTimeout() throws Exception {
-        HttpClient httpClient = new HttpClient(ImmutableSettings.EMPTY, mock(HttpAuthRegistry.class)).start();
+        Environment environment = new Environment(Settings.builder().put("path.home", createTempDir()).build());
+        HttpClient httpClient = new HttpClient(Settings.EMPTY, mock(HttpAuthRegistry.class), environment).start();
 
         HttpRequest request = HttpRequest.builder(UNROUTABLE_IP, 12345)
                 .method(HttpMethod.POST)
@@ -49,10 +50,11 @@ public class HttpConnectionTimeoutTests extends ElasticsearchTestCase {
 
     @Test @Slow
     public void testDefaultTimeout_Custom() throws Exception {
-        HttpClient httpClient = new HttpClient(ImmutableSettings.builder()
+        Environment environment = new Environment(Settings.builder().put("path.home", createTempDir()).build());
+        HttpClient httpClient = new HttpClient(Settings.builder()
                 .put("watcher.http.default_connection_timeout", "5s")
                 .build()
-                , mock(HttpAuthRegistry.class)).start();
+                , mock(HttpAuthRegistry.class), environment).start();
 
         HttpRequest request = HttpRequest.builder(UNROUTABLE_IP, 12345)
                 .method(HttpMethod.POST)
@@ -75,10 +77,11 @@ public class HttpConnectionTimeoutTests extends ElasticsearchTestCase {
 
     @Test @Slow
     public void testTimeout_CustomPerRequest() throws Exception {
-        HttpClient httpClient = new HttpClient(ImmutableSettings.builder()
+        Environment environment = new Environment(Settings.builder().put("path.home", createTempDir()).build());
+        HttpClient httpClient = new HttpClient(Settings.builder()
                 .put("watcher.http.default_connection_timeout", "10s")
                 .build()
-                , mock(HttpAuthRegistry.class)).start();
+                , mock(HttpAuthRegistry.class), environment).start();
 
         HttpRequest request = HttpRequest.builder(UNROUTABLE_IP, 12345)
                 .connectionTimeout(TimeValue.timeValueSeconds(5))

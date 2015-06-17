@@ -6,7 +6,7 @@
 package org.elasticsearch.watcher.execution;
 
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
@@ -28,7 +28,7 @@ public class InternalWatchExecutor implements WatchExecutor {
         if (!settings.names().isEmpty()) {
             // the TP is already configured in the node settings
             // no need for additional settings
-            return ImmutableSettings.EMPTY;
+            return Settings.EMPTY;
         }
         int availableProcessors = EsExecutors.boundedNumberOfProcessors(nodeSettings);
         return new ThreadPoolSettingsBuilder.Fixed(THREAD_POOL_NAME)

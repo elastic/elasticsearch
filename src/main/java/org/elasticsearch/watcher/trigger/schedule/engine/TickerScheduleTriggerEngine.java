@@ -5,14 +5,15 @@
  */
 package org.elasticsearch.watcher.trigger.schedule.engine;
 
-import org.elasticsearch.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.joda.time.DateTime;
+import org.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.trigger.schedule.*;
+import org.joda.time.DateTimeZone;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -21,7 +22,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 
-import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 /**
  *
  */
@@ -75,8 +75,8 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
         for (ActiveSchedule schedule : schedules.values()) {
             long scheduledTime = schedule.check(triggeredTime);
             if (scheduledTime > 0) {
-                logger.trace("triggered job [{}] at [{}] (scheduled time was [{}])", schedule.name, new DateTime(triggeredTime, UTC), new DateTime(scheduledTime, UTC));
-                events.add(new ScheduleTriggerEvent(schedule.name, new DateTime(triggeredTime, UTC), new DateTime(scheduledTime, UTC)));
+                logger.trace("triggered job [{}] at [{}] (scheduled time was [{}])", schedule.name, new DateTime(triggeredTime, DateTimeZone.UTC), new DateTime(scheduledTime, DateTimeZone.UTC));
+                events.add(new ScheduleTriggerEvent(schedule.name, new DateTime(triggeredTime, DateTimeZone.UTC), new DateTime(scheduledTime, DateTimeZone.UTC)));
                 if (events.size() >= 1000) {
                     notifyListeners(ImmutableList.copyOf(events));
                     events.clear();

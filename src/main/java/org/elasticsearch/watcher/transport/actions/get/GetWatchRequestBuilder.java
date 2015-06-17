@@ -7,6 +7,9 @@ package org.elasticsearch.watcher.transport.actions.get;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.elasticsearch.bootstrap.Elasticsearch;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.index.VersionType;
@@ -14,15 +17,15 @@ import org.elasticsearch.index.VersionType;
 /**
  * A delete document action request builder.
  */
-public class GetWatchRequestBuilder extends ActionRequestBuilder<GetWatchRequest, GetWatchResponse, GetWatchRequestBuilder, Client> {
+public class GetWatchRequestBuilder extends MasterNodeReadOperationRequestBuilder<GetWatchRequest, GetWatchResponse, GetWatchRequestBuilder> {
 
-    public GetWatchRequestBuilder(Client client, String id) {
-        super(client, new GetWatchRequest(id));
+    public GetWatchRequestBuilder(ElasticsearchClient client, String id) {
+        super(client, GetWatchAction.INSTANCE, new GetWatchRequest(id));
     }
 
 
-    public GetWatchRequestBuilder(Client client) {
-        super(client, new GetWatchRequest());
+    public GetWatchRequestBuilder(ElasticsearchClient client) {
+        super(client, GetWatchAction.INSTANCE, new GetWatchRequest());
     }
 
     public GetWatchRequestBuilder setId(String id) {
@@ -36,10 +39,5 @@ public class GetWatchRequestBuilder extends ActionRequestBuilder<GetWatchRequest
     public GetWatchRequestBuilder setVersionType(VersionType versionType) {
         request.setVersionType(versionType);
         return this;
-    }
-
-    @Override
-    protected void doExecute(final ActionListener<GetWatchResponse> listener) {
-        new WatcherClient(client).getWatch(request, listener);
     }
 }

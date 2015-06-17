@@ -6,14 +6,15 @@
 package org.elasticsearch.watcher.watch;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.joda.time.PeriodType;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
+import org.joda.time.PeriodType;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -46,7 +47,6 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class Watch implements TriggerEngine.Job, ToXContent {
@@ -292,7 +292,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                     transform = transformRegistry.parse(id, parser);
                 } else if (Field.THROTTLE_PERIOD.match(currentFieldName)) {
                     try {
-                        throttlePeriod = WatcherDateTimeUtils.parseTimeValue(parser, null);
+                        throttlePeriod = WatcherDateTimeUtils.parseTimeValue(parser, null, Field.THROTTLE_PERIOD.toString());
                     } catch (WatcherDateTimeUtils.ParseException pe) {
                         throw new ParseException("could not parse watch [{}]. failed to parse time value for field [{}]", pe, id, currentFieldName);
                     }
@@ -324,7 +324,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
             } else {
                 // we need to create the initial statuses for the actions
                 ImmutableMap.Builder<String, ActionStatus> actionsStatuses = ImmutableMap.builder();
-                DateTime now = clock.now(UTC);
+                DateTime now = clock.now(DateTimeZone.UTC);
                 for (ActionWrapper action : actions) {
                     actionsStatuses.put(action.id(), new ActionStatus(now));
                 }

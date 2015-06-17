@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.watcher.trigger.schedule;
 
+import com.google.common.primitives.Ints;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.primitives.Ints;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.trigger.schedule.support.DayTimes;

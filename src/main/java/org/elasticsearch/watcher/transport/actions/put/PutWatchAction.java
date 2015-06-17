@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.watcher.transport.actions.put;
 
-import org.elasticsearch.watcher.client.WatcherAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * This action puts an watch into the watch index and adds it to the scheduler
  */
-public class PutWatchAction extends WatcherAction<PutWatchRequest, PutWatchResponse, PutWatchRequestBuilder> {
+public class PutWatchAction extends Action<PutWatchRequest, PutWatchResponse, PutWatchRequestBuilder> {
 
     public static final PutWatchAction INSTANCE = new PutWatchAction();
     public static final String NAME = "cluster:admin/watcher/watch/put";
@@ -21,12 +21,12 @@ public class PutWatchAction extends WatcherAction<PutWatchRequest, PutWatchRespo
     }
 
     @Override
-    public PutWatchRequestBuilder newRequestBuilder(Client client) {
-        return new PutWatchRequestBuilder(client);
+    public PutWatchResponse newResponse() {
+        return new PutWatchResponse();
     }
 
     @Override
-    public PutWatchResponse newResponse() {
-        return new PutWatchResponse();
+    public PutWatchRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new PutWatchRequestBuilder(client);
     }
 }

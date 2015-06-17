@@ -5,12 +5,10 @@
  */
 package org.elasticsearch.watcher.transport.actions.execute;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
-import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 
@@ -20,14 +18,14 @@ import java.util.Map;
 /**
  * A execute watch action request builder.
  */
-public class ExecuteWatchRequestBuilder extends MasterNodeOperationRequestBuilder<ExecuteWatchRequest, ExecuteWatchResponse, ExecuteWatchRequestBuilder, Client> {
+public class ExecuteWatchRequestBuilder extends MasterNodeOperationRequestBuilder<ExecuteWatchRequest, ExecuteWatchResponse, ExecuteWatchRequestBuilder> {
 
-    public ExecuteWatchRequestBuilder(Client client) {
-        super(client, new ExecuteWatchRequest());
+    public ExecuteWatchRequestBuilder(ElasticsearchClient client) {
+        super(client, ExecuteWatchAction.INSTANCE, new ExecuteWatchRequest());
     }
 
-    public ExecuteWatchRequestBuilder(Client client, String watchName) {
-        super(client, new ExecuteWatchRequest(watchName));
+    public ExecuteWatchRequestBuilder(ElasticsearchClient client, String watchName) {
+        super(client, ExecuteWatchAction.INSTANCE, new ExecuteWatchRequest(watchName));
     }
 
     /**
@@ -102,10 +100,5 @@ public class ExecuteWatchRequestBuilder extends MasterNodeOperationRequestBuilde
     public ExecuteWatchRequestBuilder setActionMode(String actionId, ActionExecutionMode actionMode) {
         request.setActionMode(actionId, actionMode);
         return this;
-    }
-
-    @Override
-    protected void doExecute(final ActionListener<ExecuteWatchResponse> listener) {
-        new WatcherClient(client).executeWatch(request, listener);
     }
 }

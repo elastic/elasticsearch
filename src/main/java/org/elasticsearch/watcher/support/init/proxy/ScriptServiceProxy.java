@@ -5,13 +5,8 @@
  */
 package org.elasticsearch.watcher.support.init.proxy;
 
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.script.*;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.init.InitializingService;
 
@@ -39,33 +34,30 @@ public class ScriptServiceProxy implements InitializingService.Initializable {
         this.service = injector.getInstance(ScriptService.class);
     }
 
-    public CompiledScript compile(String lang, String script, ScriptService.ScriptType scriptType) {
-        return service.compile(lang, script, scriptType);
+    public CompiledScript compile(Script script) {
+        return compile(new org.elasticsearch.script.Script(script.script(), script.type(), script.lang(), script.params()));
     }
 
-    public CompiledScript compile(Script script) {
-        return compile(script.lang(), script.script(), script.type());
+    public CompiledScript compile(org.elasticsearch.script.Script script) {
+        return service.compile(script, WatcherScriptContext.CTX);
     }
 
     public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> vars) {
         return service.executable(compiledScript, vars);
     }
 
-    public ExecutableScript executable(Script script, Map<String, Object> vars) {
-        if (script.params() != null && !script.params().isEmpty()) {
-            vars = ImmutableMap.<String, Object>builder()
-                    .putAll(script.params())
-                    .putAll(vars)
-                    .build();
+
+    public ExecutableScript executable(org.elasticsearch.script.Script script) {
+        return service.executable(script, WatcherScriptContext.CTX);
+    }
+
+    public static final ScriptContext.Plugin INSTANCE = new ScriptContext.Plugin("elasticsearch-watcher", "watch");
+
+    private static class WatcherScriptContext implements ScriptContext {
+        public static final ScriptContext CTX = new WatcherScriptContext();
+        @Override
+        public String getKey() {
+            return INSTANCE.getKey();
         }
-        return executable(script.lang(), script.script(), script.type(), vars);
-    }
-
-    public ExecutableScript executable(String lang, String script, ScriptService.ScriptType scriptType, Map<String, Object> vars) {
-        return service.executable(lang, script, scriptType, vars);
-    }
-
-    public SearchScript search(SearchLookup lookup, String lang, String script, ScriptService.ScriptType scriptType, Map<String, Object> vars) {
-        return service.search(lookup, lang, script, scriptType, vars);
     }
 }

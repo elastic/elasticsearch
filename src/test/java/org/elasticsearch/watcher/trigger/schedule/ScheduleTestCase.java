@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.watcher.trigger.schedule;
 
-import org.elasticsearch.common.primitives.Ints;
+import com.google.common.primitives.Ints;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ElasticsearchTestCase;

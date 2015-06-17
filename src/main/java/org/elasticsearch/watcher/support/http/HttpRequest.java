@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.watcher.support.http;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -206,13 +206,13 @@ public class HttpRequest implements ToXContent {
                     builder.auth(httpAuthRegistry.parse(parser));
                 } else if (Field.CONNECTION_TIMEOUT.match(currentFieldName)) {
                     try {
-                        builder.connectionTimeout(WatcherDateTimeUtils.parseTimeValue(parser, null));
+                        builder.connectionTimeout(WatcherDateTimeUtils.parseTimeValue(parser, null, Field.CONNECTION_TIMEOUT.toString()));
                     } catch (WatcherDateTimeUtils.ParseException pe) {
                         throw new ParseException("could not parse http request. invalid time value for [{}] field", pe, currentFieldName);
                     }
                 } else if (Field.READ_TIMEOUT.match(currentFieldName)) {
                     try {
-                        builder.readTimeout(WatcherDateTimeUtils.parseTimeValue(parser, null));
+                        builder.readTimeout(WatcherDateTimeUtils.parseTimeValue(parser, null, Field.READ_TIMEOUT.toString()));
                     } catch (WatcherDateTimeUtils.ParseException pe) {
                         throw new ParseException("could not parse http request. invalid time value for [{}] field", pe, currentFieldName);
                     }

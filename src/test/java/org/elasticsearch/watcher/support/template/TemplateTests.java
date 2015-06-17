@@ -5,11 +5,10 @@
  */
 package org.elasticsearch.watcher.support.template;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import com.carrotsearch.randomizedtesting.annotations.Seed;
+
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -43,7 +42,7 @@ public class TemplateTests extends ElasticsearchTestCase {
     public void init() throws Exception {
         proxy = mock(ScriptServiceProxy.class);
         script = mock(ExecutableScript.class);
-        engine = new XMustacheTemplateEngine(ImmutableSettings.EMPTY, proxy);
+        engine = new XMustacheTemplateEngine(Settings.EMPTY, proxy);
     }
 
     @Test
@@ -54,7 +53,7 @@ public class TemplateTests extends ElasticsearchTestCase {
         Map<String, Object> merged = ImmutableMap.<String, Object>builder().putAll(params).putAll(model).build();
         ScriptType type = randomFrom(ScriptType.values());
 
-        when(proxy.executable(lang, templateText, type, merged)).thenReturn(script);
+        when(proxy.executable(new org.elasticsearch.script.Template(templateText, type, lang, null, merged))).thenReturn(script);
         when(script.run()).thenReturn("rendered_text");
 
         Template template = templateBuilder(type, templateText).params(params).build();
@@ -68,7 +67,7 @@ public class TemplateTests extends ElasticsearchTestCase {
         Map<String, Object> model = ImmutableMap.<String, Object>of("key", "model_val");
         ScriptType scriptType = randomFrom(ScriptType.values());
 
-        when(proxy.executable(lang, templateText, scriptType, model)).thenReturn(script);
+        when(proxy.executable(new org.elasticsearch.script.Template(templateText, scriptType, lang, null, model))).thenReturn(script);
         when(script.run()).thenReturn("rendered_text");
 
         Template template = templateBuilder(scriptType, templateText).params(params).build();
@@ -80,14 +79,14 @@ public class TemplateTests extends ElasticsearchTestCase {
         String templateText = "_template";
         Map<String, Object> model = ImmutableMap.<String, Object>of("key", "model_val");
 
-        when(proxy.executable(lang, templateText, ScriptType.INLINE, model)).thenReturn(script);
+        when(proxy.executable(new org.elasticsearch.script.Template(templateText, ScriptType.INLINE, lang, null, model))).thenReturn(script);
         when(script.run()).thenReturn("rendered_text");
 
         Template template = new Template(templateText);
         assertThat(engine.render(template, model), is("rendered_text"));
     }
 
-    @Test @Repeat(iterations = 5)
+    @Test
     public void testParser() throws Exception {
         ScriptType type = randomScriptType();
         Template template = templateBuilder(type, "_template").params(ImmutableMap.<String, Object>of("param_key", "param_val")).build();

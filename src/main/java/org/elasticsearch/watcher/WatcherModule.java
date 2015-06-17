@@ -6,7 +6,6 @@
 package org.elasticsearch.watcher;
 
 
-import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.SpawnModules;
@@ -32,6 +31,8 @@ import org.elasticsearch.watcher.transport.WatcherTransportModule;
 import org.elasticsearch.watcher.trigger.TriggerModule;
 import org.elasticsearch.watcher.watch.WatchModule;
 
+import java.util.Arrays;
+
 
 public class WatcherModule extends AbstractModule implements SpawnModules {
 
@@ -43,7 +44,7 @@ public class WatcherModule extends AbstractModule implements SpawnModules {
 
     @Override
     public Iterable<? extends Module> spawnModules() {
-        return ImmutableList.of(
+        return Arrays.asList(
                 new InitializingModule(),
                 new LicenseModule(),
                 new WatchModule(),

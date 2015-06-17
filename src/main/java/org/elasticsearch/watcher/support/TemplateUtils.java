@@ -10,7 +10,7 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRespo
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
@@ -42,10 +42,14 @@ public class TemplateUtils extends AbstractComponent {
             if (is == null) {
                 throw new FileNotFoundException("Resource [/" + templateName + ".json] not found in classpath");
             }
-            final byte[] template = Streams.copyToByteArray(is);
+            final byte[] template;
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                Streams.copy(is, out);
+                template = out.bytes().toBytes();
+            }
             PutIndexTemplateRequest request = new PutIndexTemplateRequest(templateName).source(template);
             if (customSettings != null && customSettings.names().size() > 0) {
-                Settings updatedSettings = ImmutableSettings.builder()
+                Settings updatedSettings = Settings.builder()
                         .put(request.settings())
                         .put(customSettings)
                         .build();

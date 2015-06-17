@@ -9,16 +9,15 @@ import com.squareup.okhttp.mockwebserver.MockResponse;
 import com.squareup.okhttp.mockwebserver.MockWebServer;
 import com.squareup.okhttp.mockwebserver.QueueDispatcher;
 import com.squareup.okhttp.mockwebserver.RecordedRequest;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.watcher.actions.ActionBuilders;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.support.http.HttpClient;
-import org.elasticsearch.watcher.support.http.HttpClientTests;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.http.Scheme;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuth;
@@ -30,9 +29,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.net.BindException;
-import java.net.URISyntaxException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -44,6 +41,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
+@LuceneTestCase.Slow
 public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTests {
 
     private int webPort;
@@ -51,13 +49,8 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        Path resource;
-        try {
-            resource = Paths.get(HttpClientTests.class.getResource("/org/elasticsearch/shield/keystore/testnode.jks").toURI());
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
-        return ImmutableSettings.builder()
+        Path resource = getDataPath("/org/elasticsearch/shield/keystore/testnode.jks");
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(HttpClient.SETTINGS_SSL_KEYSTORE, resource.toString())
                 .put(HttpClient.SETTINGS_SSL_KEYSTORE_PASSWORD, "testnode")

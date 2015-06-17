@@ -6,7 +6,7 @@
 package org.elasticsearch.watcher.trigger.schedule.engine;
 
 import org.apache.lucene.util.LuceneTestCase.Slow;
-import org.elasticsearch.common.joda.time.DateTime;
+import org.joda.time.DateTime;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.trigger.Trigger;
 import org.elasticsearch.watcher.trigger.TriggerEngine;
@@ -27,7 +27,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
+import static org.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.*;
 import static org.hamcrest.Matchers.is;
 

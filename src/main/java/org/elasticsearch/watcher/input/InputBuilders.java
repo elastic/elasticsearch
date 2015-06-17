@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.watcher.input;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.watcher.input.http.HttpInput;
 import org.elasticsearch.watcher.input.none.NoneInput;

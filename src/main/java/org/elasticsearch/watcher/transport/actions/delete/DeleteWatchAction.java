@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.watcher.transport.actions.delete;
 
-import org.elasticsearch.watcher.client.WatcherAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * This action deletes an watch from in memory, the scheduler and the index
  */
-public class DeleteWatchAction extends WatcherAction<DeleteWatchRequest, DeleteWatchResponse, DeleteWatchRequestBuilder> {
+public class DeleteWatchAction extends Action<DeleteWatchRequest, DeleteWatchResponse, DeleteWatchRequestBuilder> {
 
     public static final DeleteWatchAction INSTANCE = new DeleteWatchAction();
     public static final String NAME = "cluster:admin/watcher/watch/delete";
@@ -26,7 +26,7 @@ public class DeleteWatchAction extends WatcherAction<DeleteWatchRequest, DeleteW
     }
 
     @Override
-    public DeleteWatchRequestBuilder newRequestBuilder(Client client) {
+    public DeleteWatchRequestBuilder newRequestBuilder(ElasticsearchClient client) {
         return new DeleteWatchRequestBuilder(client);
     }
 }

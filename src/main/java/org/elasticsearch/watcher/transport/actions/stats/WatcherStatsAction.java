@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.watcher.transport.actions.stats;
 
-import org.elasticsearch.watcher.client.WatcherAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * This Action gets the stats for the watcher plugin
  */
-public class WatcherStatsAction extends WatcherAction<WatcherStatsRequest, WatcherStatsResponse, WatcherStatsRequestBuilder> {
+public class WatcherStatsAction extends Action<WatcherStatsRequest, WatcherStatsResponse, WatcherStatsRequestBuilder> {
 
     public static final WatcherStatsAction INSTANCE = new WatcherStatsAction();
     public static final String NAME = "cluster:monitor/watcher/stats";
@@ -26,7 +26,7 @@ public class WatcherStatsAction extends WatcherAction<WatcherStatsRequest, Watch
     }
 
     @Override
-    public WatcherStatsRequestBuilder newRequestBuilder(Client client) {
+    public WatcherStatsRequestBuilder newRequestBuilder(ElasticsearchClient client) {
         return new WatcherStatsRequestBuilder(client);
     }
 

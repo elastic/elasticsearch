@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.support;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -25,7 +24,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class FilterXContentTests extends ElasticsearchTestCase {
 
     @Test
-    @Repeat(iterations = 12)
     public void testPayloadFiltering() throws Exception {
         Map<String, Object> data = new HashMap<>();
         data.put("key0", "value1");

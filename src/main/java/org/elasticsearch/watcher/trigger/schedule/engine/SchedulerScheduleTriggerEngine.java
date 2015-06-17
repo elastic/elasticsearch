@@ -5,15 +5,17 @@
  */
 package org.elasticsearch.watcher.trigger.schedule.engine;
 
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.trigger.schedule.*;
+import org.joda.time.DateTimeZone;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -23,7 +25,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 /**
  *
  */
@@ -84,8 +85,8 @@ public class SchedulerScheduleTriggerEngine extends ScheduleTriggerEngine {
     }
 
     protected void notifyListeners(String name, long triggeredTime, long scheduledTime) {
-        logger.trace("triggered job [{}] at [{}] (scheduled time was [{}])", name, new DateTime(triggeredTime, UTC), new DateTime(scheduledTime, UTC));
-        final ScheduleTriggerEvent event = new ScheduleTriggerEvent(name, new DateTime(triggeredTime, UTC), new DateTime(scheduledTime, UTC));
+        logger.trace("triggered job [{}] at [{}] (scheduled time was [{}])", name, new DateTime(triggeredTime, DateTimeZone.UTC), new DateTime(scheduledTime, DateTimeZone.UTC));
+        final ScheduleTriggerEvent event = new ScheduleTriggerEvent(name, new DateTime(triggeredTime, DateTimeZone.UTC), new DateTime(scheduledTime, DateTimeZone.UTC));
         for (Listener listener : listeners) {
             listener.triggered(ImmutableList.<TriggerEvent>of(event));
         }
@@ -123,9 +124,7 @@ public class SchedulerScheduleTriggerEngine extends ScheduleTriggerEngine {
         }
 
         public void cancel() {
-            if (future != null) {
-                future.cancel(true);
-            }
+            FutureUtils.cancel(future);
         }
     }
 

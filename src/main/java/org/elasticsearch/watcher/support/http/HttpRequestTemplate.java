@@ -5,11 +5,10 @@
  */
 package org.elasticsearch.watcher.support.http;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.netty.handler.codec.http.HttpHeaders;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -21,6 +20,7 @@ import org.elasticsearch.watcher.support.http.auth.HttpAuth;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.support.template.TemplateEngine;
+import org.jboss.netty.handler.codec.http.HttpHeaders;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -254,13 +254,13 @@ public class HttpRequestTemplate implements ToXContent {
                     builder.body(parseFieldTemplate(currentFieldName, parser));
                 } else if (Field.CONNECTION_TIMEOUT.match(currentFieldName)) {
                     try {
-                        builder.connectionTimeout(WatcherDateTimeUtils.parseTimeValue(parser, null));
+                        builder.connectionTimeout(WatcherDateTimeUtils.parseTimeValue(parser, null, Field.CONNECTION_TIMEOUT.toString()));
                     } catch (WatcherDateTimeUtils.ParseException pe) {
                         throw new ParseException("could not parse http request template. invalid time value for [{}] field", pe, currentFieldName);
                     }
                 } else if (Field.READ_TIMEOUT.match(currentFieldName)) {
                     try {
-                        builder.readTimeout(WatcherDateTimeUtils.parseTimeValue(parser, null));
+                        builder.readTimeout(WatcherDateTimeUtils.parseTimeValue(parser, null, Field.READ_TIMEOUT.toString()));
                     } catch (WatcherDateTimeUtils.ParseException pe) {
                         throw new ParseException("could not parse http request template. invalid time value for [{}] field", pe, currentFieldName);
                     }
@@ -304,7 +304,7 @@ public class HttpRequestTemplate implements ToXContent {
         private static Template parseFieldTemplate(String field, XContentParser parser) throws IOException {
             try {
                 return Template.parse(parser);
-            } catch (Template.ParseException pe) {
+            } catch (ParseException pe) {
                 throw new ParseException("could not parse http request template. could not parse value for [{}] field", pe, field);
             }
         }

@@ -5,17 +5,15 @@
  */
 package org.elasticsearch.watcher.actions.index;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.joda.time.DateTimeZone;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortOrder;
@@ -28,6 +26,8 @@ import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.watch.Payload;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 import org.junit.Test;
 
 import java.util.Map;
@@ -42,7 +42,23 @@ import static org.hamcrest.Matchers.*;
  */
 public class IndexActionTests extends ElasticsearchIntegrationTest {
 
-    @Test @Repeat(iterations = 6)
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
+                .build();
+    }
+
+    @Override
+    protected Settings transportClientSettings() {
+        return Settings.builder()
+                .put(super.transportClientSettings())
+                .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
+                .build();
+    }
+
+    @Test
     public void testIndexActionExecute_SingleDoc() throws Exception {
 
         String timestampField = randomFrom(null, "_timestamp", "@timestamp");
@@ -99,7 +115,7 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
         assertThat(terms.getBuckets().get(0).getDocCount(), is(1L));
     }
 
-    @Test @Repeat(iterations = 6)
+    @Test
     public void testIndexActionExecute_MultiDoc() throws Exception {
 
         String timestampField = randomFrom(null, "_timestamp", "@timestamp");
@@ -128,14 +144,14 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
         assertThat(result, instanceOf(IndexAction.Result.Success.class));
         IndexAction.Result.Success successResult = (IndexAction.Result.Success) result;
         XContentSource response = successResult.response();
-        assertThat(response.getValue("0.created"), equalTo((Object)Boolean.TRUE));
-        assertThat(response.getValue("0.version"), equalTo((Object) 1));
-        assertThat(response.getValue("0.type").toString(), equalTo("test-type"));
-        assertThat(response.getValue("0.index").toString(), equalTo("test-index"));
-        assertThat(response.getValue("1.created"), equalTo((Object)Boolean.TRUE));
-        assertThat(response.getValue("1.version"), equalTo((Object) 1));
-        assertThat(response.getValue("1.type").toString(), equalTo("test-type"));
-        assertThat(response.getValue("1.index").toString(), equalTo("test-index"));
+        assertThat(successResult.toString(), response.getValue("0.created"), equalTo((Object)Boolean.TRUE));
+        assertThat(successResult.toString(), response.getValue("0.version"), equalTo((Object) 1));
+        assertThat(successResult.toString(), response.getValue("0.type").toString(), equalTo("test-type"));
+        assertThat(successResult.toString(), response.getValue("0.index").toString(), equalTo("test-index"));
+        assertThat(successResult.toString(), response.getValue("1.created"), equalTo((Object)Boolean.TRUE));
+        assertThat(successResult.toString(), response.getValue("1.version"), equalTo((Object) 1));
+        assertThat(successResult.toString(), response.getValue("1.type").toString(), equalTo("test-type"));
+        assertThat(successResult.toString(), response.getValue("1.index").toString(), equalTo("test-index"));
 
         refresh(); //Manually refresh to make sure data is available
 
@@ -169,7 +185,7 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    @Test @Repeat(iterations = 10)
+    @Test
     public void testParser() throws Exception {
         String timestampField = randomBoolean() ? "@timestamp" : null;
         XContentBuilder builder = jsonBuilder();
@@ -181,7 +197,7 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
         }
         builder.endObject();
 
-        IndexActionFactory actionParser = new IndexActionFactory(ImmutableSettings.EMPTY, ClientProxy.of(client()));
+        IndexActionFactory actionParser = new IndexActionFactory(Settings.EMPTY, ClientProxy.of(client()));
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 
@@ -194,7 +210,7 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    @Test @Repeat(iterations = 10)
+    @Test
     public void testParser_Failure() throws Exception {
         XContentBuilder builder = jsonBuilder();
         boolean useIndex = randomBoolean();
@@ -209,7 +225,7 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
             }
         }
         builder.endObject();
-        IndexActionFactory actionParser = new IndexActionFactory(ImmutableSettings.EMPTY, ClientProxy.of(client()));
+        IndexActionFactory actionParser = new IndexActionFactory(Settings.EMPTY, ClientProxy.of(client()));
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
         try {

@@ -6,17 +6,16 @@
 package org.elasticsearch.watcher.trigger.schedule;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.joda.time.DateTime;
+import org.joda.time.DateTime;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
-
-import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 
 /**
  *
@@ -70,14 +69,14 @@ public class ScheduleTriggerEvent extends TriggerEvent {
                 currentFieldName = parser.currentName();
             } else if (Field.TRIGGERED_TIME.match(currentFieldName)) {
                 try {
-                    triggeredTime = WatcherDateTimeUtils.parseDateMath(currentFieldName, parser, UTC, clock);
+                    triggeredTime = WatcherDateTimeUtils.parseDateMath(currentFieldName, parser, DateTimeZone.UTC, clock);
                 } catch (WatcherDateTimeUtils.ParseException pe) {
                     //Failed to parse as a date try datemath parsing
                     throw new ParseException("could not parse [{}] trigger event for [{}] for watch [{}]. failed to parse date field [{}]", pe, ScheduleTriggerEngine.TYPE, context, watchId, currentFieldName);
                 }
             }  else if (Field.SCHEDULED_TIME.match(currentFieldName)) {
                 try {
-                    scheduledTime = WatcherDateTimeUtils.parseDateMath(currentFieldName, parser, UTC, clock);
+                    scheduledTime = WatcherDateTimeUtils.parseDateMath(currentFieldName, parser, DateTimeZone.UTC, clock);
                 } catch (WatcherDateTimeUtils.ParseException pe) {
                     throw new ParseException("could not parse [{}] trigger event for [{}] for watch [{}]. failed to parse date field [{}]", pe, ScheduleTriggerEngine.TYPE, context, watchId, currentFieldName);
                 }

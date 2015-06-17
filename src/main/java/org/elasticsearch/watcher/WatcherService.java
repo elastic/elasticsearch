@@ -6,13 +6,13 @@
 package org.elasticsearch.watcher;
 
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.joda.time.PeriodType;
+import org.joda.time.DateTimeZone;
+import org.joda.time.PeriodType;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -27,7 +27,6 @@ import org.elasticsearch.watcher.watch.WatchStore;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 
 public class WatcherService extends AbstractComponent {
 
@@ -156,7 +155,8 @@ public class WatcherService extends AbstractComponent {
             if (watch == null) {
                 throw new WatcherException("watch [{}] does not exist", id);
             }
-            if (watch.ack(clock.now(UTC), actionIds)) {
+            // we need to create a safe copy of the status
+            if (watch.ack(clock.now(DateTimeZone.UTC), actionIds)) {
                 try {
                     watchStore.updateStatus(watch);
                 } catch (IOException ioe) {
@@ -165,7 +165,6 @@ public class WatcherService extends AbstractComponent {
                     throw new WatcherException("failed to update the watch [{}] on ack, perhaps it was force deleted", vcee, watch.id());
                 }
             }
-            // we need to create a safe copy of the status
             return new WatchStatus(watch.status());
         } finally {
             lock.release();
@@ -178,7 +177,7 @@ public class WatcherService extends AbstractComponent {
 
     private void ensureStarted() {
         if (state.get() != WatcherState.STARTED) {
-            throw new ElasticsearchIllegalStateException("not started");
+            throw new IllegalStateException("not started");
         }
     }
 

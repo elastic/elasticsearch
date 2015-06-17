@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.watcher.support;
 
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.joda.time.DateTime;
+import com.google.common.collect.ImmutableMap;
+import org.joda.time.DateTime;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.execution.Wid;
@@ -18,7 +18,7 @@ import org.junit.Test;
 
 import java.util.Map;
 
-import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
+import static org.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.assertValue;
 import static org.hamcrest.Matchers.*;
 

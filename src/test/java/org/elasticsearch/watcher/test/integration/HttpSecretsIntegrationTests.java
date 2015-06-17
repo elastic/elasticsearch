@@ -9,8 +9,8 @@ import com.squareup.okhttp.mockwebserver.MockResponse;
 import com.squareup.okhttp.mockwebserver.MockWebServer;
 import com.squareup.okhttp.mockwebserver.RecordedRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.joda.time.DateTime;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.watcher.WatcherException;
@@ -35,7 +35,7 @@ import org.junit.Test;
 import java.net.BindException;
 import java.util.Map;
 
-import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
+import static org.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.watcher.actions.ActionBuilders.webhookAction;
@@ -84,7 +84,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTests
         if (encryptSensitiveData == null) {
             encryptSensitiveData = shieldEnabled() && randomBoolean();
         }
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("watcher.shield.encrypt_sensitive_data", encryptSensitiveData)
                 .build();

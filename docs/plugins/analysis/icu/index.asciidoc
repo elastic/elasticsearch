@@ -111,7 +111,7 @@ PUT icu_sample
                 },
                 "filter" : {
                     "my_icu_folding" : {
-                        "type" : "icu_folding"
+                        "type" : "icu_folding",
                         "unicodeSetFilter" : "[^åäöÅÄÖ]"
                     }
                 }

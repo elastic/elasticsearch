@@ -147,6 +147,7 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
                     @Override
                     protected void doRun() throws Exception {
                         routingTableDirty = true;
+                        registeredNextDelaySetting = Long.MAX_VALUE;
                         reroute();
                     }
 

@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.routing;
 import com.carrotsearch.hppc.IntOpenHashSet;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.collect.ImmutableList;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -34,7 +33,6 @@ import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.junit.Test;
@@ -266,12 +264,12 @@ public class UnassignedInfoTests extends ElasticsearchAllocationTestCase {
     @Test
     public void testUnassignedDelayedOnlyOnNodeLeft() throws Exception {
         final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, null);
-        long delay = unassignedInfo.getAllocationDelayTimeoutSetting(ImmutableSettings.builder().put(UnassignedInfo.DELAYED_NODE_LEFT_TIMEOUT, "10h").build(), ImmutableSettings.EMPTY);
+        long delay = unassignedInfo.getAllocationDelayTimeoutSetting(ImmutableSettings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, "10h").build(), ImmutableSettings.EMPTY);
         assertThat(delay, equalTo(TimeValue.timeValueHours(10).millis()));
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                long delay = unassignedInfo.getDelayAllocationExpirationIn(ImmutableSettings.builder().put(UnassignedInfo.DELAYED_NODE_LEFT_TIMEOUT, "10h").build(), ImmutableSettings.EMPTY);
+                long delay = unassignedInfo.getDelayAllocationExpirationIn(ImmutableSettings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, "10h").build(), ImmutableSettings.EMPTY);
                 assertThat(delay, greaterThan(0l));
                 assertThat(delay, lessThan(TimeValue.timeValueHours(10).millis()));
             }
@@ -286,9 +284,9 @@ public class UnassignedInfoTests extends ElasticsearchAllocationTestCase {
         EnumSet<UnassignedInfo.Reason> reasons = EnumSet.allOf(UnassignedInfo.Reason.class);
         reasons.remove(UnassignedInfo.Reason.NODE_LEFT);
         UnassignedInfo unassignedInfo = new UnassignedInfo(RandomPicks.randomFrom(getRandom(), reasons), null);
-        long delay = unassignedInfo.getAllocationDelayTimeoutSetting(ImmutableSettings.builder().put(UnassignedInfo.DELAYED_NODE_LEFT_TIMEOUT, "10h").build(), ImmutableSettings.EMPTY);
+        long delay = unassignedInfo.getAllocationDelayTimeoutSetting(ImmutableSettings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, "10h").build(), ImmutableSettings.EMPTY);
         assertThat(delay, equalTo(0l));
-        delay = unassignedInfo.getDelayAllocationExpirationIn(ImmutableSettings.builder().put(UnassignedInfo.DELAYED_NODE_LEFT_TIMEOUT, "10h").build(), ImmutableSettings.EMPTY);
+        delay = unassignedInfo.getDelayAllocationExpirationIn(ImmutableSettings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, "10h").build(), ImmutableSettings.EMPTY);
         assertThat(delay, equalTo(0l));
     }
 
@@ -304,7 +302,7 @@ public class UnassignedInfoTests extends ElasticsearchAllocationTestCase {
                 .routingTable(RoutingTable.builder().addAsNew(metaData.index("test1")).addAsNew(metaData.index("test2"))).build();
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2"))).build();
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState)).build();
-        assertThat(UnassignedInfo.getNumberOfDelayedUnassigned(ImmutableSettings.builder().put(UnassignedInfo.DELAYED_NODE_LEFT_TIMEOUT, "10h").build(), clusterState), equalTo(0));
+        assertThat(UnassignedInfo.getNumberOfDelayedUnassigned(ImmutableSettings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, "10h").build(), clusterState), equalTo(0));
         // starting primaries
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING))).build();
         // starting replicas
@@ -313,7 +311,7 @@ public class UnassignedInfoTests extends ElasticsearchAllocationTestCase {
         // remove node2 and reroute
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node2")).build();
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState)).build();
-        assertThat(clusterState.prettyPrint(), UnassignedInfo.getNumberOfDelayedUnassigned(ImmutableSettings.builder().put(UnassignedInfo.DELAYED_NODE_LEFT_TIMEOUT, "10h").build(), clusterState), equalTo(2));
+        assertThat(clusterState.prettyPrint(), UnassignedInfo.getNumberOfDelayedUnassigned(ImmutableSettings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, "10h").build(), clusterState), equalTo(2));
     }
 
     @Test
@@ -328,7 +326,7 @@ public class UnassignedInfoTests extends ElasticsearchAllocationTestCase {
                 .routingTable(RoutingTable.builder().addAsNew(metaData.index("test1")).addAsNew(metaData.index("test2"))).build();
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2"))).build();
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState)).build();
-        assertThat(UnassignedInfo.getNumberOfDelayedUnassigned(ImmutableSettings.builder().put(UnassignedInfo.DELAYED_NODE_LEFT_TIMEOUT, "10h").build(), clusterState), equalTo(0));
+        assertThat(UnassignedInfo.getNumberOfDelayedUnassigned(ImmutableSettings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, "10h").build(), clusterState), equalTo(0));
         // starting primaries
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING))).build();
         // starting replicas
@@ -338,10 +336,10 @@ public class UnassignedInfoTests extends ElasticsearchAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node2")).build();
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState)).build();
 
-        long nextDelaySetting = UnassignedInfo.findSmallestDelayedAllocationSetting(ImmutableSettings.builder().put(UnassignedInfo.DELAYED_NODE_LEFT_TIMEOUT, "10h").build(), clusterState);
+        long nextDelaySetting = UnassignedInfo.findSmallestDelayedAllocationSetting(ImmutableSettings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, "10h").build(), clusterState);
         assertThat(nextDelaySetting, equalTo(TimeValue.timeValueHours(10).millis()));
 
-        long nextDelay = UnassignedInfo.findNextDelayedAllocationIn(ImmutableSettings.builder().put(UnassignedInfo.DELAYED_NODE_LEFT_TIMEOUT, "10h").build(), clusterState);
+        long nextDelay = UnassignedInfo.findNextDelayedAllocationIn(ImmutableSettings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, "10h").build(), clusterState);
         assertThat(nextDelay, greaterThan(TimeValue.timeValueHours(9).millis()));
         assertThat(nextDelay, lessThanOrEqualTo(TimeValue.timeValueHours(10).millis()));
     }

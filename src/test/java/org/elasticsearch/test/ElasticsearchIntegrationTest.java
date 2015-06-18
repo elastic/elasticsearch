@@ -68,6 +68,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
@@ -92,7 +93,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -131,7 +131,6 @@ import org.junit.*;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.lang.annotation.*;
 import java.net.InetSocketAddress;
 import java.nio.file.DirectoryStream;
@@ -497,6 +496,10 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
         if (random.nextBoolean()) {
             builder.put(NettyTransport.PING_SCHEDULE, RandomInts.randomIntBetween(random, 100, 2000) + "ms");
+        }
+        if (randomBoolean()) {
+            // keep this low so we don't stall tests
+            builder.put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, RandomInts.randomIntBetween(random, 1, 15) + "ms");
         }
         return builder;
     }

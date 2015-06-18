@@ -69,7 +69,7 @@ public class WatcherVersion implements Serializable {
             return WatcherVersion.CURRENT;
         }
 
-        String[] parts = version.split("\\.");
+        String[] parts = version.split("\\.|\\-");
         if (parts.length < 3 || parts.length > 4) {
             throw new IllegalArgumentException("the version needs to contain major, minor and revision, and optionally the build");
         }
@@ -179,9 +179,9 @@ public class WatcherVersion implements Serializable {
         StringBuilder sb = new StringBuilder();
         sb.append(major).append('.').append(minor).append('.').append(revision);
         if (build < 50) {
-            sb.append(".Beta").append(build);
+            sb.append("-beta").append(build);
         } else if (build < 99) {
-            sb.append(".RC").append(build - 50);
+            sb.append("-rc").append(build - 50);
         }
         return sb.toString();
     }

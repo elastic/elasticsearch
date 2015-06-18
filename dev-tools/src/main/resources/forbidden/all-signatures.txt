@@ -45,3 +45,11 @@ java.nio.file.FileSystems#getDefault() @ use PathUtils.getDefault instead.
 @defaultMessage Specify a location for the temp file/directory instead.
 java.nio.file.Files#createTempDirectory(java.lang.String,java.nio.file.attribute.FileAttribute[])
 java.nio.file.Files#createTempFile(java.lang.String,java.lang.String,java.nio.file.attribute.FileAttribute[])
+
+@defaultMessage Constructing a DateTime without a time zone is dangerous - use DateTime(DateTimeZone.getDefault()) if you really want the default timezone
+org.joda.time.DateTime#<init>()
+org.joda.time.DateTime#<init>(long)
+org.joda.time.DateTime#<init>(int, int, int, int, int)
+org.joda.time.DateTime#<init>(int, int, int, int, int, int)
+org.joda.time.DateTime#<init>(int, int, int, int, int, int, int)
+org.joda.time.DateTime#now()

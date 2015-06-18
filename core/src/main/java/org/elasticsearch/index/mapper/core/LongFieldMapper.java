@@ -202,7 +202,7 @@ public class LongFieldMapper extends NumberFieldMapper {
 
     @Override
     public LongFieldType fieldType() {
-        return (LongFieldType)fieldType;
+        return (LongFieldType) super.fieldType();
     }
 
     @Override
@@ -223,7 +223,7 @@ public class LongFieldMapper extends NumberFieldMapper {
     @Override
     protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
         long value;
-        float boost = this.fieldType.boost();
+        float boost = fieldType().boost();
         if (context.externalValueSet()) {
             Object externalValue = context.externalValue();
             if (externalValue == null) {
@@ -245,7 +245,7 @@ public class LongFieldMapper extends NumberFieldMapper {
                 value = ((Number) externalValue).longValue();
             }
             if (context.includeInAll(includeInAll, this)) {
-                context.allEntries().addText(fieldType.names().fullName(), Long.toString(value), boost);
+                context.allEntries().addText(fieldType().names().fullName(), Long.toString(value), boost);
             }
         } else {
             XContentParser parser = context.parser();
@@ -256,7 +256,7 @@ public class LongFieldMapper extends NumberFieldMapper {
                 }
                 value = fieldType().nullValue();
                 if (fieldType().nullValueAsString() != null && (context.includeInAll(includeInAll, this))) {
-                    context.allEntries().addText(fieldType.names().fullName(), fieldType().nullValueAsString(), boost);
+                    context.allEntries().addText(fieldType().names().fullName(), fieldType().nullValueAsString(), boost);
                 }
             } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                 XContentParser.Token token;
@@ -285,12 +285,12 @@ public class LongFieldMapper extends NumberFieldMapper {
             } else {
                 value = parser.longValue(coerce.value());
                 if (context.includeInAll(includeInAll, this)) {
-                    context.allEntries().addText(fieldType.names().fullName(), parser.text(), boost);
+                    context.allEntries().addText(fieldType().names().fullName(), parser.text(), boost);
                 }
             }
         }
-        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            CustomLongNumericField field = new CustomLongNumericField(this, value, (NumberFieldType)fieldType);
+        if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
+            CustomLongNumericField field = new CustomLongNumericField(this, value, fieldType());
             field.setBoost(boost);
             fields.add(field);
         }
@@ -305,24 +305,11 @@ public class LongFieldMapper extends NumberFieldMapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
-        super.merge(mergeWith, mergeResult);
-        if (!this.getClass().equals(mergeWith.getClass())) {
-            return;
-        }
-        if (!mergeResult.simulate()) {
-            this.fieldType = this.fieldType.clone();
-            this.fieldType.setNullValue(((LongFieldMapper) mergeWith).fieldType().nullValue());
-            this.fieldType.freeze();
-        }
-    }
-
-    @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (includeDefaults || fieldType.numericPrecisionStep() != Defaults.PRECISION_STEP_64_BIT) {
-            builder.field("precision_step", fieldType.numericPrecisionStep());
+        if (includeDefaults || fieldType().numericPrecisionStep() != Defaults.PRECISION_STEP_64_BIT) {
+            builder.field("precision_step", fieldType().numericPrecisionStep());
         }
         if (includeDefaults || fieldType().nullValue() != null) {
             builder.field("null_value", fieldType().nullValue());

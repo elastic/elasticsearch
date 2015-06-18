@@ -236,7 +236,7 @@ public class TTLFieldMapper extends LongFieldMapper implements RootMapper {
                     throw new AlreadyExpiredException(context.index(), context.type(), context.id(), timestamp, ttl, now);
                 }
                 // the expiration timestamp (timestamp + ttl) is set as field
-                fields.add(new CustomLongNumericField(this, expire, (NumberFieldType)fieldType));
+                fields.add(new CustomLongNumericField(this, expire, fieldType()));
             }
         }
     }

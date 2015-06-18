@@ -353,9 +353,6 @@ public class StringFieldMapper extends AbstractFieldMapper implements AllFieldMa
         if (!mergeResult.simulate()) {
             this.includeInAll = ((StringFieldMapper) mergeWith).includeInAll;
             this.ignoreAbove = ((StringFieldMapper) mergeWith).ignoreAbove;
-            this.fieldType = this.fieldType().clone();
-            this.fieldType().setNullValue(((StringFieldMapper) mergeWith).fieldType().nullValue());
-            this.fieldType().freeze();
         }
     }
 

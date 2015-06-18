@@ -78,30 +78,12 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
             return;
         }
 
-        int attempts = 0;
-        for (; attempts < 3; attempts++) {
-            try {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("start attempt [{}]...", attempts);
-                } else if (logger.isTraceEnabled()) {
-                    logger.trace("starting... (attempt [{}] - based on cluster state version [{}])", attempts, state.getVersion());
-                }
-                watcherService.start(state);
-                return;
-            } catch (Exception e) {
-                logger.warn("error occurred while starting, retrying...", e);
-                try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                }
-                if (!clusterService.localNode().masterNode()) {
-                    logger.error("abort retry, we are no longer master");
-                    return;
-                }
-            }
+        logger.trace("starting... (based on cluster state version [{}])", state.getVersion());
+        try {
+            watcherService.start(state);
+        } catch (Exception e) {
+            logger.debug("failed to start watcher. please wait for the cluster to become ready or try to start Watcher manually");
         }
-        logger.error("failed to start watcher. attempted to start [{}] times. please try to start Watcher manually", attempts);
     }
 
     @Override

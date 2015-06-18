@@ -184,7 +184,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper implements RootMappe
     }
 
     public String value(Document document) {
-        Field field = (Field) document.getField(fieldType.names().indexName());
+        Field field = (Field) document.getField(fieldType().names().indexName());
         return field == null ? null : (String)fieldType().value(field);
     }
 
@@ -210,11 +210,11 @@ public class RoutingFieldMapper extends AbstractFieldMapper implements RootMappe
         if (context.sourceToParse().routing() != null) {
             String routing = context.sourceToParse().routing();
             if (routing != null) {
-                if (fieldType.indexOptions() == IndexOptions.NONE && !fieldType.stored()) {
-                    context.ignoredValue(fieldType.names().indexName(), routing);
+                if (fieldType().indexOptions() == IndexOptions.NONE && !fieldType().stored()) {
+                    context.ignoredValue(fieldType().names().indexName(), routing);
                     return;
                 }
-                fields.add(new Field(fieldType.names().indexName(), routing, fieldType));
+                fields.add(new Field(fieldType().names().indexName(), routing, fieldType()));
             }
         }
     }
@@ -229,18 +229,18 @@ public class RoutingFieldMapper extends AbstractFieldMapper implements RootMappe
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
         // if all are defaults, no sense to write it at all
-        boolean indexed = fieldType.indexOptions() != IndexOptions.NONE;
+        boolean indexed = fieldType().indexOptions() != IndexOptions.NONE;
         boolean indexedDefault = Defaults.FIELD_TYPE.indexOptions() != IndexOptions.NONE;
         if (!includeDefaults && indexed == indexedDefault &&
-                fieldType.stored() == Defaults.FIELD_TYPE.stored() && required == Defaults.REQUIRED && path == Defaults.PATH) {
+                fieldType().stored() == Defaults.FIELD_TYPE.stored() && required == Defaults.REQUIRED && path == Defaults.PATH) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
         if (indexCreatedBefore2x && (includeDefaults || indexed != indexedDefault)) {
-            builder.field("index", indexTokenizeOptionToString(indexed, fieldType.tokenized()));
+            builder.field("index", indexTokenizeOptionToString(indexed, fieldType().tokenized()));
         }
-        if (indexCreatedBefore2x && (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored())) {
-            builder.field("store", fieldType.stored());
+        if (indexCreatedBefore2x && (includeDefaults || fieldType().stored() != Defaults.FIELD_TYPE.stored())) {
+            builder.field("store", fieldType().stored());
         }
         if (includeDefaults || required != Defaults.REQUIRED) {
             builder.field("required", required);

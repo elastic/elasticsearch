@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper.internal;
 
 import com.google.common.collect.UnmodifiableIterator;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
@@ -39,7 +38,6 @@ import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
-import org.elasticsearch.search.highlight.HighlightBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -201,15 +199,15 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper implements RootMa
         this.defaultFieldType = Defaults.FIELD_TYPE;
         this.pre13Index = Version.indexCreated(indexSettings).before(Version.V_1_3_0);
         if (this.pre13Index) {
-            this.fieldType = this.fieldType.clone();
+            this.fieldType = fieldType().clone();
             fieldType().setEnabled(false);
-            this.fieldType.freeze();
+            fieldType().freeze();
         }
     }
 
     @Override
     public FieldNamesFieldType fieldType() {
-        return (FieldNamesFieldType)fieldType;
+        return (FieldNamesFieldType) super.fieldType();
     }
 
     @Override
@@ -281,8 +279,8 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper implements RootMa
             }
             for (String path : paths) {
                 for (String fieldName : extractFieldNames(path)) {
-                    if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-                        document.add(new Field(fieldType().names().indexName(), fieldName, fieldType));
+                    if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
+                        document.add(new Field(fieldType().names().indexName(), fieldName, fieldType()));
                     }
                 }
             }

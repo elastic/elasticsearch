@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper.geo;
 
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.google.common.base.Objects;
 import com.google.common.collect.Iterators;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
@@ -568,7 +567,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper implements ArrayVal
 
     @Override
     public GeoPointFieldType fieldType() {
-        return (GeoPointFieldType)fieldType;
+        return (GeoPointFieldType) super.fieldType();
     }
 
     @Override
@@ -679,8 +678,8 @@ public class GeoPointFieldMapper extends AbstractFieldMapper implements ArrayVal
             }
         }
 
-        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            Field field = new Field(fieldType.names().indexName(), Double.toString(point.lat()) + ',' + Double.toString(point.lon()), fieldType);
+        if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
+            Field field = new Field(fieldType().names().indexName(), Double.toString(point.lat()) + ',' + Double.toString(point.lon()), fieldType());
             context.doc().add(field);
         }
         if (fieldType().isGeohashEnabled()) {
@@ -728,32 +727,32 @@ public class GeoPointFieldMapper extends AbstractFieldMapper implements ArrayVal
         GeoPointFieldMapper fieldMergeWith = (GeoPointFieldMapper) mergeWith;
 
         if (this.fieldType().isLatLonEnabled() != fieldMergeWith.fieldType().isLatLonEnabled()) {
-            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different lat_lon");
+            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different lat_lon");
         }
         if (this.fieldType().isGeohashEnabled() != fieldMergeWith.fieldType().isGeohashEnabled()) {
-            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different geohash");
+            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different geohash");
         }
         if (this.fieldType().geohashPrecision() != fieldMergeWith.fieldType().geohashPrecision()) {
-            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different geohash_precision");
+            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different geohash_precision");
         }
         if (this.fieldType().isGeohashPrefixEnabled() != fieldMergeWith.fieldType().isGeohashPrefixEnabled()) {
-            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different geohash_prefix");
+            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different geohash_prefix");
         }
         if (this.fieldType().normalizeLat() != fieldMergeWith.fieldType().normalizeLat()) {
-            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different normalize_lat");
+            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different normalize_lat");
         }
         if (this.fieldType().normalizeLon() != fieldMergeWith.fieldType().normalizeLon()) {
-            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different normalize_lon");
+            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different normalize_lon");
         }
         if (fieldType().isLatLonEnabled() &&
             this.fieldType().latFieldType().numericPrecisionStep() != fieldMergeWith.fieldType().latFieldType().numericPrecisionStep()) {
-            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different precision_step");
+            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different precision_step");
         }
         if (this.fieldType().validateLat() != fieldMergeWith.fieldType().validateLat()) {
-            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different validate_lat");
+            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different validate_lat");
         }
         if (this.fieldType().validateLon() != fieldMergeWith.fieldType().validateLon()) {
-            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different validate_lon");
+            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different validate_lon");
         }
     }
 

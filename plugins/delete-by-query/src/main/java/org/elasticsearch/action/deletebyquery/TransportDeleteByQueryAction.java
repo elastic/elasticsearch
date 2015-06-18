@@ -123,7 +123,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
                         addShardFailures(searchResponse.getShardFailures());
 
                         if (hits == 0) {
-                            listener.onResponse(buildResponse());
+                            finishHim(searchResponse.getScrollId(), false, null);
                             return;
                         }
                         total.set(hits);
@@ -221,9 +221,10 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
                     if (item.isFailed()) {
                         indexCounter.incrementFailed();
                     } else {
-                        indexCounter.incrementDeleted();
                         DeleteResponse delete = item.getResponse();
-                        if (!delete.isFound()) {
+                        if (delete.isFound()) {
+                            indexCounter.incrementDeleted();
+                        } else {
                             indexCounter.incrementMissing();
                         }
                     }

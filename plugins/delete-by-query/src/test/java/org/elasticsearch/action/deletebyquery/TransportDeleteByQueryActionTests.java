@@ -270,13 +270,84 @@ public class TransportDeleteByQueryActionTests extends ElasticsearchSingleNodeTe
             DeleteByQueryRequest delete = new DeleteByQueryRequest();
             TestActionListener listener = new TestActionListener();
 
-            newAsyncAction(delete, listener).onBulkResponse(searchResponse.getScrollId(), new BulkResponse(items, 0L));
+            newAsyncAction(delete, listener).onBulkResponse(scrollId, new BulkResponse(items, 0L));
             waitForCompletion("waiting for bulk response to complete", listener);
 
             assertNoFailures(listener);
             assertThat(listener.getResponse().getTotalDeleted(), equalTo(deleted));
             assertThat(listener.getResponse().getTotalFailed(), equalTo(failed));
             assertThat(listener.getResponse().getTotalMissing(), equalTo(missing));
+        } finally {
+            client().prepareClearScroll().addScrollId(scrollId).get();
+        }
+    }
+
+    @Test
+    public void testOnBulkResponseMultipleIndices() {
+        final int nbIndices = randomIntBetween(2, 5);
+
+        // Holds counters for the total + all indices
+        final long[] found = new long[1 + nbIndices];
+        final long[] deleted = new long[1 + nbIndices];
+        final long[] missing = new long[1 + nbIndices];
+        final long[] failed = new long[1 + nbIndices];
+
+        final int nbItems = randomIntBetween(0, 100);
+        found[0] = nbItems;
+
+        BulkItemResponse[] items = new BulkItemResponse[nbItems];
+        for (int i = 0; i < nbItems; i++) {
+            int index = randomIntBetween(1, nbIndices);
+            found[index] = found[index] + 1;
+
+            if (randomBoolean()) {
+                boolean delete = true;
+                if (rarely()) {
+                    delete = false;
+                    missing[0] = missing[0] + 1;
+                    missing[index] = missing[index] + 1;
+                } else {
+                    deleted[0] = deleted[0] + 1;
+                    deleted[index] = deleted[index] + 1;
+                }
+                items[i] = new BulkItemResponse(i, "delete", new DeleteResponse("test-" + index, "type", String.valueOf(i), 1, delete));
+            } else {
+                items[i] = new BulkItemResponse(i, "delete", new BulkItemResponse.Failure("test-" + index, "type", String.valueOf(i), new Throwable("item failed")));
+                failed[0] = failed[0] + 1;
+                failed[index] = failed[index] + 1;
+            }
+        }
+
+        // We just need a valid scroll id
+        createIndex("test");
+        SearchResponse searchResponse = client().prepareSearch().setSearchType(SearchType.SCAN).setScroll(TimeValue.timeValueSeconds(10)).get();
+        String scrollId = searchResponse.getScrollId();
+        assertTrue(Strings.hasText(scrollId));
+
+        try {
+            DeleteByQueryRequest delete = new DeleteByQueryRequest();
+            TestActionListener listener = new TestActionListener();
+
+            newAsyncAction(delete, listener).onBulkResponse(scrollId, new BulkResponse(items, 0L));
+            waitForCompletion("waiting for bulk response to complete", listener);
+
+            assertNoFailures(listener);
+            assertThat(listener.getResponse().getTotalDeleted(), equalTo(deleted[0]));
+            assertThat(listener.getResponse().getTotalFailed(), equalTo(failed[0]));
+            assertThat(listener.getResponse().getTotalMissing(), equalTo(missing[0]));
+
+            for (int i = 1; i <= nbIndices; i++) {
+                IndexDeleteByQueryResponse indexResponse = listener.getResponse().getIndex("test-" + i);
+                if (found[i] >= 1) {
+                    assertNotNull(indexResponse);
+                    assertThat(indexResponse.getFound(), equalTo(found[i]));
+                    assertThat(indexResponse.getDeleted(), equalTo(deleted[i]));
+                    assertThat(indexResponse.getFailed(), equalTo(failed[i]));
+                    assertThat(indexResponse.getMissing(), equalTo(missing[i]));
+                } else {
+                    assertNull(indexResponse);
+                }
+            }
         } finally {
             client().prepareClearScroll().addScrollId(scrollId).get();
         }

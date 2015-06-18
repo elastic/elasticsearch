@@ -57,7 +57,6 @@ public class AwarenessAllocationTests extends ElasticsearchIntegrationTest {
     @Test
     public void testSimpleAwareness() throws Exception {
         Settings commonSettings = Settings.settingsBuilder()
-                .put("cluster.routing.schedule", "10ms")
                 .put("cluster.routing.allocation.awareness.attributes", "rack_id")
                 .build();
 

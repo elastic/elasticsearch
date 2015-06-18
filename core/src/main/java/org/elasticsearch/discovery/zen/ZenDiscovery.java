@@ -932,7 +932,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     if (modified) {
                         stateBuilder.nodes(nodesBuilder);
                     }
-                    return stateBuilder.build();
+                    currentState = stateBuilder.build();
+                    // eagerly run reroute to apply the node addition
+                    RoutingAllocation.Result result = allocationService.reroute(currentState);
+                    return ClusterState.builder(currentState).routingResult(result).build();
                 }
 
                 @Override

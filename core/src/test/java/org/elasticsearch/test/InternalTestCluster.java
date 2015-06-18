@@ -369,8 +369,6 @@ public final class InternalTestCluster extends TestCluster {
     private static Settings getRandomNodeSettings(long seed) {
         Random random = new Random(seed);
         Builder builder = Settings.settingsBuilder()
-                // decrease the routing schedule so new nodes will be added quickly - some random value between 30 and 80 ms
-                .put("cluster.routing.schedule", (30 + random.nextInt(50)) + "ms")
                 .put(SETTING_CLUSTER_NODE_SEED, seed);
         if (ENABLE_MOCK_MODULES && usually(random)) {
             builder.put(IndexStoreModule.STORE_TYPE, MockFSIndexStoreModule.class.getName());

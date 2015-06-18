@@ -47,7 +47,6 @@ public class PercolatorStressBenchmark {
 
     public static void main(String[] args) throws Exception {
         Settings settings = settingsBuilder()
-                .put("cluster.routing.schedule", 200, TimeUnit.MILLISECONDS)
                 .put(SETTING_NUMBER_OF_SHARDS, 4)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .build();

@@ -48,6 +48,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -940,7 +941,7 @@ public class IndexMetaData implements Diffable<IndexMetaData> {
         }
         Long creationDate = settings.getAsLong(SETTING_CREATION_DATE, null);
         if (creationDate != null) {
-            DateTime creationDateTime = new DateTime(creationDate);
+            DateTime creationDateTime = new DateTime(creationDate, DateTimeZone.UTC);
             builder.put(SETTING_CREATION_DATE_STRING, creationDateTime.toString());
         }
         return builder.build();

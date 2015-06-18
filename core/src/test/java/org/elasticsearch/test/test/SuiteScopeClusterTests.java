@@ -20,6 +20,7 @@ package org.elasticsearch.test.test;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
 
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.TestCluster;
 import org.junit.Test;
@@ -39,6 +40,7 @@ public class SuiteScopeClusterTests extends ElasticsearchIntegrationTest {
     private static Long CLUSTER_SEED = null;
 
     @Test
+    @SuppressForbidden(reason = "repeat is a feature here")
     @Repeat(iterations = 10, useConstantSeed = true)
     public void testReproducible() throws IOException {
         if (ITER++ == 0) {

@@ -136,12 +136,12 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        ValueAndBoost valueAndBoost = StringFieldMapper.parseCreateFieldForString(context, null /* Out null value is an int so we convert*/, fieldType.boost());
+        ValueAndBoost valueAndBoost = StringFieldMapper.parseCreateFieldForString(context, null /* Out null value is an int so we convert*/, fieldType().boost());
         if (valueAndBoost.value() == null && fieldType().nullValue() == null) {
             return;
         }
 
-        if (fieldType.indexOptions() != NONE || fieldType.stored() || fieldType().hasDocValues()) {
+        if (fieldType().indexOptions() != NONE || fieldType().stored() || fieldType().hasDocValues()) {
             int count;
             if (valueAndBoost.value() == null) {
                 count = fieldType().nullValue();
@@ -151,7 +151,7 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
             addIntegerFields(context, fields, count, valueAndBoost.boost());
         }
         if (fields.isEmpty()) {
-            context.ignoredValue(fieldType.names().indexName(), valueAndBoost.value());
+            context.ignoredValue(fieldType().names().indexName(), valueAndBoost.value());
         }
     }
 

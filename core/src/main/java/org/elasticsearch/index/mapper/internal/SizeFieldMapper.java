@@ -162,7 +162,7 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
         if (context.flyweight()) {
             return;
         }
-        fields.add(new CustomIntegerNumericField(this, context.source().length(), fieldType));
+        fields.add(new CustomIntegerNumericField(this, context.source().length(), fieldType()));
     }
 
     @Override

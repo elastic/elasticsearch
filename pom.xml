@@ -27,6 +27,7 @@
         <shield.plugin.version>2.0.0-SNAPSHOT</shield.plugin.version>
         <tests.security.manager>false</tests.security.manager> <!-- some tests fail since they need setFactory permission -->
         <tests.rest.load_packaged>false</tests.rest.load_packaged>
+        <tests.timewarp>true</tests.timewarp>
     </properties>
 
     <dependencies>
@@ -249,6 +250,15 @@
                 <version>2.4</version>
                 <configuration>
                     <attach>false</attach>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>com.carrotsearch.randomizedtesting</groupId>
+                <artifactId>junit4-maven-plugin</artifactId>
+                <configuration>
+                    <systemProperties>
+                        <tests.timewarp>${tests.timewarp}</tests.timewarp>
+                    </systemProperties>
                 </configuration>
             </plugin>
         </plugins>

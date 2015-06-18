@@ -6,6 +6,7 @@
 package org.elasticsearch.shield.support;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -19,6 +20,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  *
  */
+@SuppressForbidden(reason = "these tests should repeat")
 public class ValidationTests extends ElasticsearchTestCase {
 
 

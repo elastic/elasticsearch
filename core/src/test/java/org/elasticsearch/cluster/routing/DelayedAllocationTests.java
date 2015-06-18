@@ -94,6 +94,11 @@ public class DelayedAllocationTests extends ElasticsearchIntegrationTest {
         indexRandomData();
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(findNodeWithShard()));
         ensureGreen("test");
+        internalCluster().startNode();
+        // do a second round with longer delay to make sure it happens
+        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(UnassignedInfo.DELAYED_NODE_LEFT_TIMEOUT, TimeValue.timeValueMillis(100))).get());
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(findNodeWithShard()));
+        ensureGreen("test");
     }
 
     /**

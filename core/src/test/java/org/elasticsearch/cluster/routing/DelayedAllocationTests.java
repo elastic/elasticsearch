@@ -73,7 +73,12 @@ public class DelayedAllocationTests extends ElasticsearchIntegrationTest {
         ensureGreen("test");
         indexRandomData();
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(findNodeWithShard()));
-        assertThat(client().admin().cluster().prepareState().all().get().getState().routingNodes().hasUnassigned(), equalTo(true));
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                assertThat(client().admin().cluster().prepareState().all().get().getState().routingNodes().hasUnassigned(), equalTo(true));
+            }
+        });
         assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1));
         internalCluster().startNode(); // this will use the same data location as the stopped node
         ensureGreen("test");
@@ -116,7 +121,12 @@ public class DelayedAllocationTests extends ElasticsearchIntegrationTest {
         ensureGreen("test");
         indexRandomData();
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(findNodeWithShard()));
-        assertThat(client().admin().cluster().prepareState().all().get().getState().routingNodes().hasUnassigned(), equalTo(true));
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                assertThat(client().admin().cluster().prepareState().all().get().getState().routingNodes().hasUnassigned(), equalTo(true));
+            }
+        });
         assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1));
         assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, TimeValue.timeValueMillis(100))).get());
         ensureGreen("test");
@@ -138,7 +148,12 @@ public class DelayedAllocationTests extends ElasticsearchIntegrationTest {
         ensureGreen("test");
         indexRandomData();
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(findNodeWithShard()));
-        assertThat(client().admin().cluster().prepareState().all().get().getState().routingNodes().hasUnassigned(), equalTo(true));
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                assertThat(client().admin().cluster().prepareState().all().get().getState().routingNodes().hasUnassigned(), equalTo(true));
+            }
+        });
         assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1));
         assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, TimeValue.timeValueMillis(0))).get());
         ensureGreen("test");

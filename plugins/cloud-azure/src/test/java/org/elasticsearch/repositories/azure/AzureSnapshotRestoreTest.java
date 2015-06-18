@@ -27,6 +27,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cloud.azure.storage.AzureStorageServiceMock;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -52,7 +53,7 @@ public class AzureSnapshotRestoreTest extends AbstractAzureRepositoryServiceTest
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("azure").setSettings(Settings.settingsBuilder()
                         .put("base_path", basePath)
-                        .put("chunk_size", randomIntBetween(1000, 10000))
+                        .put("chunk_size", randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 

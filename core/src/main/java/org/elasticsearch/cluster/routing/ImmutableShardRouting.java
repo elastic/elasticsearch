@@ -242,10 +242,8 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
         state = ShardRoutingState.fromValue(in.readByte());
 
         restoreSource = RestoreSource.readOptionalRestoreSource(in);
-        if (in.getVersion().onOrAfter(Version.V_1_7_0)) {
-            if (in.readBoolean()) {
-                unassignedInfo = new UnassignedInfo(in);
-            }
+        if (in.readBoolean()) {
+            unassignedInfo = new UnassignedInfo(in);
         }
     }
 
@@ -286,13 +284,11 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.V_1_7_0)) {
-            if (unassignedInfo != null) {
-                out.writeBoolean(true);
-                unassignedInfo.writeTo(out);
-            } else {
-                out.writeBoolean(false);
-            }
+        if (unassignedInfo != null) {
+            out.writeBoolean(true);
+            unassignedInfo.writeTo(out);
+        } else {
+            out.writeBoolean(false);
         }
     }
 

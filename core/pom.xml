@@ -281,7 +281,7 @@
                 </includes>
             </testResource>
             <testResource>
-                <directory>${project.basedir}/../rest-api-spec</directory>
+                <directory>${elasticsearch.tools.directory}/rest-api-spec</directory>
                 <targetPath>rest-api-spec</targetPath>
                 <includes>
                     <include>api/*.json</include>

@@ -623,6 +623,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
                 throw new ShieldException("failed to put index template for audit logging");
             }
         } catch (Exception e) {
+            logger.debug("unexpected exception while putting index template", e);
             throw new ShieldException("failed to load [" + INDEX_TEMPLATE_NAME + ".json]", e);
         }
     }

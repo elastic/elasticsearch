@@ -61,8 +61,8 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
         } else {
             // use mapped date field, using date string representation
             query = new RangeQueryBuilder(DATE_FIELD_NAME);
-            query.from(new DateTime(System.currentTimeMillis() - randomIntBetween(0, 1000000)).toString());
-            query.to(new DateTime(System.currentTimeMillis() + randomIntBetween(0, 1000000)).toString());
+            query.from(new DateTime(System.currentTimeMillis() - randomIntBetween(0, 1000000), DateTimeZone.UTC).toString());
+            query.to(new DateTime(System.currentTimeMillis() + randomIntBetween(0, 1000000), DateTimeZone.UTC).toString());
             // Create timestamp option only then we have a date mapper, otherwise we could trigger exception.
             if (createContext().mapperService().smartNameFieldType(DATE_FIELD_NAME) != null) {
                 if (randomBoolean()) {

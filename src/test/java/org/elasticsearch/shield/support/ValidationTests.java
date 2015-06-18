@@ -31,7 +31,7 @@ public class ValidationTests extends ElasticsearchTestCase {
 
     private static final char[] allowedFirstChars = add(alphabet, '_');
 
-    private static final char[] allowedSubsequent = addAll(addAll(alphabet, numbers), new char[] { '_', '@', '-', '$' });
+    private static final char[] allowedSubsequent = addAll(addAll(alphabet, numbers), new char[] { '_', '@', '-', '$', '.' });
 
     static {
         Arrays.sort(allowedFirstChars);

@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.routing.SimpleHashFunction;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import com.google.common.collect.ImmutableSet;
 
@@ -181,7 +180,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
                                     "index.translog.flush_threshold_period",
                                     "index.translog.interval",
                                     "index.translog.sync_interval",
-                                    UnassignedInfo.DELAYED_NODE_LEFT_TIMEOUT);
+                                    UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING);
 
     /**
      * Elasticsearch 2.0 requires units on byte/memory and time settings; this method adds the default unit to any such settings that are

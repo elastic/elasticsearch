@@ -310,14 +310,14 @@ the index `index_1` without creating any replicas while switching back to defaul
 -----------------------------------
 $ curl -XPOST "localhost:9200/_snapshot/my_backup/snapshot_1/_restore" -d '{
     "indices": "index_1",
-    "index_settings" : {
-        "index.number_of_replicas": 0
+    "settings" : {
+        "number_of_replicas": 0
     },
     "ignore_index_settings": ["index.refresh_interval"]
 }'
 -----------------------------------
 
-Please note, that some settings such as `index.number_of_shards` cannot be changed during restore operation.
+Please note, that some settings such as `number_of_shards` cannot be changed during restore operation.
 
 [float]
 ==== Restoring to a different cluster

@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.shield.support;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -20,7 +18,6 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  *
  */
-@SuppressForbidden(reason = "these tests should repeat")
 public class ValidationTests extends ElasticsearchTestCase {
 
 
@@ -41,14 +38,13 @@ public class ValidationTests extends ElasticsearchTestCase {
     }
 
     @Test
-    @Repeat(iterations = 100)
     public void testESUsers_validateUsername() throws Exception {
         int length = randomIntBetween(1, 30);
         String name = new String(generateValidName(length));
         assertThat(Validation.ESUsers.validateUsername(name), nullValue());
     }
 
-    @Test @Repeat(iterations = 100)
+    @Test
     public void testESUsers_validateUsername_Invalid_Length() throws Exception {
         int length = frequently() ? randomIntBetween(31, 200) : 0; // invalid length
         char[] name = new char[length];
@@ -58,14 +54,14 @@ public class ValidationTests extends ElasticsearchTestCase {
         assertThat(Validation.ESUsers.validateUsername(new String(name)), notNullValue());
     }
 
-    @Test @Repeat(iterations = 100)
+    @Test
     public void testESUsers_validateUsername_Invalid_Characters() throws Exception {
         int length = randomIntBetween(1, 30); // valid length
         String name = new String(generateInvalidName(length));
         assertThat(Validation.ESUsers.validateUsername(name), notNullValue());
     }
 
-    @Test @Repeat(iterations = 100)
+    @Test
     public void testESUsers_validatePassword() throws Exception {
         String passwd = randomAsciiOfLength(randomIntBetween(0, 20));
         logger.info(passwd + "[{}]", passwd.length());
@@ -76,14 +72,14 @@ public class ValidationTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test @Repeat(iterations = 100)
+    @Test
     public void testRoles_validateRoleName() throws Exception {
         int length = randomIntBetween(1, 30);
         String name = new String(generateValidName(length));
         assertThat(Validation.Roles.validateRoleName(name), nullValue());
     }
 
-    @Test @Repeat(iterations = 100)
+    @Test
     public void testRoles_validateRoleName_Invalid_Length() throws Exception {
         int length = frequently() ? randomIntBetween(31, 200) : 0; // invalid length
         char[] name = new char[length];
@@ -93,7 +89,7 @@ public class ValidationTests extends ElasticsearchTestCase {
         assertThat(Validation.ESUsers.validateUsername(new String(name)), notNullValue());
     }
 
-    @Test @Repeat(iterations = 100)
+    @Test
     public void testRoles_validateRoleName_Invalid_Characters() throws Exception {
         int length = randomIntBetween(1, 30); // valid length
         String name = new String(generateInvalidName(length));

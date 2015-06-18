@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authc.esusers;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
@@ -16,7 +15,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.support.Headers;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -82,8 +80,7 @@ public class ESUsersRealmTests extends ElasticsearchTestCase {
         assertThat(user.roles(), arrayContaining("role1", "role2"));
     }
 
-    @SuppressForbidden(reason = "this test should repeat")
-    @Test @Repeat(iterations = 20)
+    @Test
     public void testAuthenticate_Caching() throws Exception {
         Settings settings = Settings.builder()
                 .put("cache.hash_algo", Hasher.values()[randomIntBetween(0, Hasher.values().length - 1)].name().toLowerCase(Locale.ROOT))

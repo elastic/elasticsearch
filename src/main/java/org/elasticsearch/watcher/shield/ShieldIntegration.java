@@ -20,7 +20,7 @@ import org.elasticsearch.watcher.WatcherVersion;
  */
 public class ShieldIntegration {
 
-    private static final int minCompatibleShieldVersionId = /*00*/1020199; // V_1_2_1
+    private static final int MIN_SHIELD_VERSION = /*00*/2000099; // 2.0.0
 
     private final boolean installed;
     private final boolean enabled;
@@ -66,10 +66,10 @@ public class ShieldIntegration {
             }
 
             // lets check min compatibility
-            ShieldVersion minVersion = ShieldVersion.fromId(minCompatibleShieldVersionId);
-            if (!ShieldVersion.CURRENT.onOrAfter(minVersion)) {
+            ShieldVersion minShieldVersion = ShieldVersion.fromId(MIN_SHIELD_VERSION);
+            if (!ShieldVersion.CURRENT.onOrAfter(minShieldVersion)) {
                 throw new IllegalStateException("watcher [" + WatcherVersion.CURRENT + "] requires " +
-                        "minimum shield plugin version [" + minVersion + "], but installed shield plugin version is " +
+                        "minimum shield plugin version [" + minShieldVersion + "], but installed shield plugin version is " +
                         "[" + ShieldVersion.CURRENT + "]");
             }
 

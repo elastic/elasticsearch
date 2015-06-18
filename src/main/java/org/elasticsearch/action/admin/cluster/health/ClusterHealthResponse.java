@@ -57,6 +57,7 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
     int activePrimaryShards = 0;
     int initializingShards = 0;
     int unassignedShards = 0;
+    int delayedUnassignedShards = 0;
     int numberOfPendingTasks = 0;
     int numberOfInFlightFetch = 0;
     boolean timedOut = false;
@@ -69,14 +70,15 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
 
     /** needed for plugins BWC */
     public ClusterHealthResponse(String clusterName, String[] concreteIndices, ClusterState clusterState) {
-        this(clusterName, concreteIndices, clusterState, -1, -1);
+        this(clusterName, concreteIndices, clusterState, -1, -1, -1);
     }
 
     public ClusterHealthResponse(String clusterName, String[] concreteIndices, ClusterState clusterState, int numberOfPendingTasks,
-                                 int numberOfInFlightFetch) {
+                                 int numberOfInFlightFetch, int delayedUnassignedShards) {
         this.clusterName = clusterName;
         this.numberOfPendingTasks = numberOfPendingTasks;
         this.numberOfInFlightFetch = numberOfInFlightFetch;
+        this.delayedUnassignedShards = delayedUnassignedShards;
         RoutingTableValidation validation = clusterState.routingTable().validate(clusterState.metaData());
         validationFailures = validation.failures();
         numberOfNodes = clusterState.nodes().size();
@@ -175,6 +177,15 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
     }
 
     /**
+     * The number of unassigned shards that are currently being delayed (for example,
+     * due to node leaving the cluster and waiting for a timeout for the node to come
+     * back in order to allocate the shards back to it).
+     */
+    public int getDelayedUnassignedShards() {
+        return this.delayedUnassignedShards;
+    }
+
+    /**
      * <tt>true</tt> if the waitForXXX has timeout out and did not match.
      */
     public boolean isTimedOut() {
@@ -236,6 +247,9 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         if (in.getVersion().onOrAfter(Version.V_1_6_0)) {
             numberOfInFlightFetch = in.readInt();
         }
+        if (in.getVersion().onOrAfter(Version.V_1_7_0)) {
+            delayedUnassignedShards= in.readInt();
+        }
     }
 
     @Override
@@ -267,6 +281,9 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         if (out.getVersion().onOrAfter(Version.V_1_6_0)) {
             out.writeInt(numberOfInFlightFetch);
         }
+        if (out.getVersion().onOrAfter(Version.V_1_7_0)) {
+            out.writeInt(delayedUnassignedShards);
+        }
     }
 
 
@@ -296,6 +313,7 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         static final XContentBuilderString RELOCATING_SHARDS = new XContentBuilderString("relocating_shards");
         static final XContentBuilderString INITIALIZING_SHARDS = new XContentBuilderString("initializing_shards");
         static final XContentBuilderString UNASSIGNED_SHARDS = new XContentBuilderString("unassigned_shards");
+        static final XContentBuilderString DELAYED_UNASSIGNED_SHARDS = new XContentBuilderString("delayed_unassigned_shards");
         static final XContentBuilderString VALIDATION_FAILURES = new XContentBuilderString("validation_failures");
         static final XContentBuilderString INDICES = new XContentBuilderString("indices");
     }
@@ -312,6 +330,7 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         builder.field(Fields.RELOCATING_SHARDS, getRelocatingShards());
         builder.field(Fields.INITIALIZING_SHARDS, getInitializingShards());
         builder.field(Fields.UNASSIGNED_SHARDS, getUnassignedShards());
+        builder.field(Fields.DELAYED_UNASSIGNED_SHARDS, getDelayedUnassignedShards());
         builder.field(Fields.NUMBER_OF_PENDING_TASKS, getNumberOfPendingTasks());
         builder.field(Fields.NUMBER_OF_IN_FLIGHT_FETCH, getNumberOfInFlightFetch());
 

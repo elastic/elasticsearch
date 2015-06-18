@@ -29,10 +29,13 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
@@ -63,6 +66,10 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
     private volatile boolean routingTableDirty = false;
 
     private volatile Future scheduledRoutingTableFuture;
+    private AtomicBoolean rerouting = new AtomicBoolean();
+
+    private volatile long registeredNextDelaySetting = Long.MAX_VALUE;
+    private volatile ScheduledFuture registeredNextDelayFuture;
 
     @Inject
     public RoutingService(Settings settings, ThreadPool threadPool, ClusterService clusterService, AllocationService allocationService) {
@@ -126,6 +133,31 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
                     }
                 }
             }
+
+            // figure out when the next unassigned allocation need to happen from now. If this is larger or equal
+            // then the last time we checked and scheduled, we are guaranteed to have a reroute until then, so no need
+            // to schedule again
+            long nextDelaySetting = UnassignedInfo.findSmallestDelayedAllocationSetting(settings, event.state());
+            if (nextDelaySetting > 0 && nextDelaySetting < registeredNextDelaySetting) {
+                FutureUtils.cancel(registeredNextDelayFuture);
+                registeredNextDelaySetting = nextDelaySetting;
+                TimeValue nextDelay = TimeValue.timeValueMillis(UnassignedInfo.findNextDelayedAllocationIn(settings, event.state()));
+                logger.info("delaying allocation for [{}] unassigned shards, next check in [{}]", UnassignedInfo.getNumberOfDelayedUnassigned(settings, event.state()), nextDelay);
+                registeredNextDelayFuture = threadPool.schedule(nextDelay, ThreadPool.Names.SAME, new AbstractRunnable() {
+                    @Override
+                    protected void doRun() throws Exception {
+                        routingTableDirty = true;
+                        reroute();
+                    }
+
+                    @Override
+                    public void onFailure(Throwable t) {
+                        logger.warn("failed to schedule/execute reroute post unassigned shard", t);
+                    }
+                });
+            } else {
+                logger.trace("no need to schedule reroute due to delayed unassigned, next_delay_setting [{}], registered [{}]", nextDelaySetting, registeredNextDelaySetting);
+            }
         } else {
             FutureUtils.cancel(scheduledRoutingTableFuture);
             scheduledRoutingTableFuture = null;
@@ -140,9 +172,14 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
             if (lifecycle.stopped()) {
                 return;
             }
+            if (rerouting.compareAndSet(false, true) == false) {
+                logger.trace("already has pending reroute, ignoring");
+                return;
+            }
             clusterService.submitStateUpdateTask(CLUSTER_UPDATE_TASK_SOURCE, Priority.HIGH, new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
+                    rerouting.set(false);
                     RoutingAllocation.Result routingResult = allocationService.reroute(currentState);
                     if (!routingResult.changed()) {
                         // no state changed
@@ -153,11 +190,13 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
 
                 @Override
                 public void onNoLongerMaster(String source) {
+                    rerouting.set(false);
                     // no biggie
                 }
 
                 @Override
                 public void onFailure(String source, Throwable t) {
+                    rerouting.set(false);
                     ClusterState state = clusterService.state();
                     if (logger.isTraceEnabled()) {
                         logger.error("unexpected failure during [{}], current state:\n{}", t, source, state.prettyPrint());
@@ -167,7 +206,8 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
                 }
             });
             routingTableDirty = false;
-        } catch (Exception e) {
+        } catch (Throwable e) {
+            rerouting.set(false);
             ClusterState state = clusterService.state();
             logger.warn("Failed to reroute routing table, current state:\n{}", e, state.prettyPrint());
         }

@@ -53,3 +53,5 @@ org.joda.time.DateTime#<init>(int, int, int, int, int)
 org.joda.time.DateTime#<init>(int, int, int, int, int, int)
 org.joda.time.DateTime#<init>(int, int, int, int, int, int, int)
 org.joda.time.DateTime#now()
+
+com.google.common.collect.Iterators#emptyIterator() @ Use Collections.emptyIterator instead

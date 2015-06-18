@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 import org.junit.Test;
 
 import static com.google.common.collect.Sets.newHashSet;
@@ -45,6 +46,6 @@ public class HumanReadableIndexSettingsTests extends ElasticsearchTestCase {
 
         assertEquals(versionCreated.toString(), humanSettings.get(IndexMetaData.SETTING_VERSION_CREATED_STRING, null));
         assertEquals(versionUpgraded.toString(), humanSettings.get(IndexMetaData.SETTING_VERSION_UPGRADED_STRING, null));
-        assertEquals(new DateTime(created).toString(), humanSettings.get(IndexMetaData.SETTING_CREATION_DATE_STRING, null));
+        assertEquals(new DateTime(created, DateTimeZone.UTC).toString(), humanSettings.get(IndexMetaData.SETTING_CREATION_DATE_STRING, null));
     }
 }

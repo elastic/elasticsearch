@@ -63,6 +63,8 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.*;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -325,7 +327,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     }
 
                     if (indexSettingsBuilder.get(SETTING_CREATION_DATE) == null) {
-                        indexSettingsBuilder.put(SETTING_CREATION_DATE, System.currentTimeMillis());
+                        indexSettingsBuilder.put(SETTING_CREATION_DATE, new DateTime(DateTimeZone.UTC).getMillis());
                     }
 
                     indexSettingsBuilder.put(SETTING_UUID, Strings.randomBase64UUID());

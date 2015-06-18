@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.trigger.schedule.engine;
 
 import org.apache.lucene.util.LuceneTestCase.Slow;
+import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.joda.time.DateTime;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.trigger.Trigger;
@@ -68,11 +69,11 @@ public abstract class BaseTriggerEngineTests extends ElasticsearchTestCase {
                 for (TriggerEvent event : events) {
                     int index = Integer.parseInt(event.jobName());
                     if (!bits.get(index)) {
-                        logger.info("job [" + index + "] first fire: " + new DateTime());
+                        logger.info("job [{}] first fire: {}", index, SystemClock.INSTANCE.now());
                         bits.set(index);
                     } else {
                         latch.countDown();
-                        logger.info("job [" + index + "] second fire: " + new DateTime());
+                        logger.info("job [{}] second fire: {}", index, SystemClock.INSTANCE.now());
                     }
                 }
             }
@@ -96,7 +97,7 @@ public abstract class BaseTriggerEngineTests extends ElasticsearchTestCase {
             public void triggered(Iterable<TriggerEvent> events) {
                 for (TriggerEvent event : events) {
                     assertThat(event.jobName(), is(name));
-                    logger.info("triggered job on [{}]", new DateTime());
+                    logger.info("triggered job on [{}]", SystemClock.INSTANCE.now());
                 }
                 latch.countDown();
             }
@@ -130,7 +131,7 @@ public abstract class BaseTriggerEngineTests extends ElasticsearchTestCase {
             public void triggered(Iterable<TriggerEvent> events) {
                 for (TriggerEvent event : events) {
                     assertThat(event.jobName(), is(name));
-                    logger.info("triggered job on [{}]", new DateTime());
+                    logger.info("triggered job on [{}]", SystemClock.INSTANCE.now());
                     latch.countDown();
                 }
             }
@@ -166,7 +167,7 @@ public abstract class BaseTriggerEngineTests extends ElasticsearchTestCase {
             public void triggered(Iterable<TriggerEvent> events) {
                 for (TriggerEvent event : events) {
                     assertThat(event.jobName(), is(name));
-                    logger.info("triggered job on [{}]", new DateTime());
+                    logger.info("triggered job on [{}]", SystemClock.INSTANCE.now());
                 }
                 latch.countDown();
             }
@@ -200,7 +201,7 @@ public abstract class BaseTriggerEngineTests extends ElasticsearchTestCase {
 
             @Override
             public void triggered(Iterable<TriggerEvent> events) {
-                logger.info("triggered job on [{}]", new DateTime());
+                logger.info("triggered job on [{}]", SystemClock.INSTANCE.now());
             }
         });
 

@@ -6,25 +6,29 @@
 package org.elasticsearch.watcher.support;
 
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import org.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.input.search.ExecutableSearchInput;
+import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.support.template.Template;
+import org.joda.time.DateTime;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.watcher.support.WatcherDateTimeUtils.formatDate;
@@ -40,7 +44,7 @@ public class WatcherUtilsTests extends ElasticsearchTestCase {
 
     @Test
     public void testFlattenModel() throws Exception {
-        DateTime now = new DateTime();
+        DateTime now = SystemClock.INSTANCE.now();
         Map<String, Object> map = ImmutableMap.<String, Object>builder()
                 .put("a", ImmutableMap.builder().put("a1", new int[] { 0, 1, 2 }).build())
                 .put("b", new String[] { "b0", "b1", "b2" })

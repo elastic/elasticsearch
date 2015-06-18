@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.execution;
 
+import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.joda.time.DateTime;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.unit.TimeValue;
@@ -260,9 +261,9 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
                 .addAction("log", loggingAction("foobar"));
         watcherClient().putWatch(new PutWatchRequest("_id", watchBuilder)).actionGet();
 
-        TriggerEvent triggerEvent = new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC));
+        TriggerEvent triggerEvent = new ScheduleTriggerEvent(SystemClock.INSTANCE.nowUTC(), SystemClock.INSTANCE.nowUTC());
 
-        Wid wid = new Wid("_watchId",1,new DateTime());
+        Wid wid = new Wid("_watchId",1, SystemClock.INSTANCE.nowUTC());
 
 
         Map<String, Object> executeWatchResult = watcherClient().prepareExecuteWatch()

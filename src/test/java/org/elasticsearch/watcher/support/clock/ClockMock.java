@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class ClockMock implements Clock {
 
-    private DateTime now = DateTime.now();
+    private DateTime now = DateTime.now(DateTimeZone.getDefault());
 
     @Override
     public long millis() {

@@ -49,7 +49,7 @@ public class DelayedAllocationTests extends ElasticsearchIntegrationTest {
         prepareCreate("test").setSettings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(UnassignedInfo.DEFAULT_DELAYED_NODE_LEFT_TIMEOUT, 0)).get();
+                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, 0)).get();
         ensureGreen("test");
         indexRandomData();
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(findNodeWithShard()));

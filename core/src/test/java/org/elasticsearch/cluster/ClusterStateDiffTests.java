@@ -456,7 +456,7 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
             public IndexMetaData randomCreate(String name) {
                 IndexMetaData.Builder builder = IndexMetaData.builder(name);
                 Settings.Builder settingsBuilder = Settings.builder();
-                setRandomSettings(getRandom(), settingsBuilder);
+                setRandomIndexSettings(getRandom(), settingsBuilder);
                 settingsBuilder.put(randomSettings(Settings.EMPTY)).put(IndexMetaData.SETTING_VERSION_CREATED, randomVersion(random()));
                 builder.settings(settingsBuilder);
                 builder.numberOfShards(randomIntBetween(1, 10)).numberOfReplicas(randomInt(10));

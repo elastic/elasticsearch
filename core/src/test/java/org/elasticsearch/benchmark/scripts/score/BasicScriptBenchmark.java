@@ -35,6 +35,7 @@ import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBui
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -172,7 +173,7 @@ public class BasicScriptBenchmark {
             out.write("\n\n\n\n");
             out.write("######################################\n");
             out.write("# Octave script for plotting results\n");
-            String filename = "scriptScoreBenchmark" + new DateTime().toString();
+            String filename = "scriptScoreBenchmark" + new DateTime(DateTimeZone.UTC).toString();
             out.write("#Call '" + args[0] + "' from the command line. The plot is then in " + filename + "\n\n");
 
             out.write("handleArray = [];\n tagArray = [];\n plot([]);\n hold on;\n");

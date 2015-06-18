@@ -232,8 +232,8 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
         } finally {
             SearchContext.removeCurrent();
         }
-        assertThat(rangeQuery.getMax(), equalTo(new DateTime(TimeValue.timeValueHours(11).millis()).getMillis()));
-        assertThat(rangeQuery.getMin(), equalTo(new DateTime(TimeValue.timeValueHours(10).millis()).getMillis()));
+        assertThat(rangeQuery.getMax(), equalTo(new DateTime(TimeValue.timeValueHours(11).millis(), DateTimeZone.UTC).getMillis()));
+        assertThat(rangeQuery.getMin(), equalTo(new DateTime(TimeValue.timeValueHours(10).millis(), DateTimeZone.UTC).getMillis()));
     }
     
     public void testDayWithoutYearFormat() throws Exception {
@@ -258,8 +258,8 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
         } finally {
             SearchContext.removeCurrent();
         }
-        assertThat(rangeQuery.getMax(), equalTo(new DateTime(TimeValue.timeValueHours(35).millis()).getMillis()));
-        assertThat(rangeQuery.getMin(), equalTo(new DateTime(TimeValue.timeValueHours(34).millis()).getMillis()));
+        assertThat(rangeQuery.getMax(), equalTo(new DateTime(TimeValue.timeValueHours(35).millis(), DateTimeZone.UTC).getMillis()));
+        assertThat(rangeQuery.getMin(), equalTo(new DateTime(TimeValue.timeValueHours(34).millis(), DateTimeZone.UTC).getMillis()));
     }
     
     public void testIgnoreMalformedOption() throws Exception {

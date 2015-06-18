@@ -35,6 +35,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
 
 import java.util.ArrayList;
@@ -78,7 +79,7 @@ public class MinDocCountTests extends AbstractTermsTests {
                 longTerm = randomInt(cardinality * 2);
             } while (!longTerms.add(longTerm));
             double doubleTerm = longTerm * Math.PI;
-            String dateTerm = DateTimeFormat.forPattern("yyyy-MM-dd").print(new DateTime(2014, 1, ((int) longTerm % 20) + 1, 0, 0));
+            String dateTerm = DateTimeFormat.forPattern("yyyy-MM-dd").print(new DateTime(2014, 1, ((int) longTerm % 20) + 1, 0, 0, DateTimeZone.UTC));
             final int frequency = randomBoolean() ? 1 : randomIntBetween(2, 20);
             for (int j = 0; j < frequency; ++j) {
                 indexRequests.add(client().prepareIndex("idx", "type").setSource(jsonBuilder()

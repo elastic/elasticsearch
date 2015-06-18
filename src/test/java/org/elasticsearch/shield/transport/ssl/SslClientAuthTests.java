@@ -63,7 +63,7 @@ public class SslClientAuthTests extends ShieldIntegrationTest {
         CloseableHttpClient client = HttpClients.custom().setSSLSocketFactory(socketFactory).build();
 
         new HttpRequestBuilder(client)
-                .httpTransport(internalCluster().getInstance(HttpServerTransport.class))
+                .httpTransport(internalTestCluster().getInstance(HttpServerTransport.class))
                 .method("GET").path("/")
                 .protocol("https")
                 .execute();
@@ -82,7 +82,7 @@ public class SslClientAuthTests extends ShieldIntegrationTest {
         CloseableHttpClient client = HttpClients.custom().setSSLSocketFactory(socketFactory).build();
 
         HttpResponse response = new HttpRequestBuilder(client)
-                .httpTransport(internalCluster().getInstance(HttpServerTransport.class))
+                .httpTransport(internalTestCluster().getInstance(HttpServerTransport.class))
                 .method("GET").path("/")
                 .protocol("https")
                 .addHeader("Authorization", basicAuthHeaderValue(transportClientUsername(), transportClientPassword()))
@@ -104,11 +104,11 @@ public class SslClientAuthTests extends ShieldIntegrationTest {
                 .put("shield.transport.ssl", true)
                 .put("shield.ssl.keystore.path", store)
                 .put("shield.ssl.keystore.password", "testclient-client-profile")
-                .put("cluster.name", internalCluster().getClusterName())
+                .put("cluster.name", internalTestCluster().getClusterName())
                 .put("shield.user", transportClientUsername() + ":" + new String(transportClientPassword().internalChars()))
                 .build();
         try (TransportClient client = TransportClient.builder().settings(settings).build()) {
-            Transport transport = internalCluster().getDataNodeInstance(Transport.class);
+            Transport transport = internalTestCluster().getDataNodeInstance(Transport.class);
             TransportAddress transportAddress = transport.boundAddress().publishAddress();
             client.addTransportAddress(transportAddress);
 

@@ -76,10 +76,10 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegrationTest
 
     @Test
     public void testThatConnectionToServerTypeConnectionWorks() {
-        Settings dataNodeSettings = internalCluster().getDataNodeInstance(Settings.class);
+        Settings dataNodeSettings = internalTestCluster().getDataNodeInstance(Settings.class);
         String systemKeyFile = dataNodeSettings.get(InternalCryptoService.FILE_SETTING);
 
-        Transport transport = internalCluster().getDataNodeInstance(Transport.class);
+        Transport transport = internalTestCluster().getDataNodeInstance(Transport.class);
         TransportAddress transportAddress = transport.boundAddress().publishAddress();
         assertThat(transportAddress, instanceOf(InetSocketTransportAddress.class));
         InetSocketAddress inetSocketAddress = ((InetSocketTransportAddress) transportAddress).address();
@@ -91,7 +91,7 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegrationTest
                 .put("node.mode", "network")
                 .put("node.name", "my-test-node")
                 .put("network.host", "localhost")
-                .put("cluster.name", internalCluster().getClusterName())
+                .put("cluster.name", internalTestCluster().getClusterName())
                 .put("discovery.zen.ping.multicast.enabled", false)
                 .put("discovery.zen.ping.unicast.hosts", unicastHost)
                 .put("shield.transport.ssl", sslTransportEnabled())
@@ -107,7 +107,7 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegrationTest
 
     @Test
     public void testThatConnectionToClientTypeConnectionIsRejected() {
-        Settings dataNodeSettings = internalCluster().getDataNodeInstance(Settings.class);
+        Settings dataNodeSettings = internalTestCluster().getDataNodeInstance(Settings.class);
         String systemKeyFile = dataNodeSettings.get(InternalCryptoService.FILE_SETTING);
 
         Path folder = createFolder(createTempDir(), getClass().getSimpleName() + "-" + randomAsciiOfLength(10));
@@ -123,7 +123,7 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegrationTest
                 .put("node.mode", "network")
                 .put("node.name", "my-test-node")
                 .put("shield.user", "test_user:changeme")
-                .put("cluster.name", internalCluster().getClusterName())
+                .put("cluster.name", internalTestCluster().getClusterName())
                 .put("discovery.zen.ping.multicast.enabled", false)
                 .put("discovery.zen.ping.unicast.hosts", "localhost:" + randomClientPort)
                 .put("shield.transport.ssl", sslTransportEnabled())

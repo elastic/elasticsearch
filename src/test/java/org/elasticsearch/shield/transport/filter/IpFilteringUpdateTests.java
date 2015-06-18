@@ -154,7 +154,7 @@ public class IpFilteringUpdateTests extends ShieldIntegrationTest {
             return;
         }
 
-        IPFilter ipFilter = internalCluster().getDataNodeInstance(IPFilter.class);
+        IPFilter ipFilter = internalTestCluster().getDataNodeInstance(IPFilter.class);
         String message = String.format(Locale.ROOT, "Expected allowed connection for profile %s against host %s", profile, host);
         assertThat(message, ipFilter.accept(profile, InetAddress.getByName(host)), is(true));
     }
@@ -165,7 +165,7 @@ public class IpFilteringUpdateTests extends ShieldIntegrationTest {
             return;
         }
 
-        IPFilter ipFilter = internalCluster().getDataNodeInstance(IPFilter.class);
+        IPFilter ipFilter = internalTestCluster().getDataNodeInstance(IPFilter.class);
         String message = String.format(Locale.ROOT, "Expected rejection for profile %s against host %s", profile, host);
         assertThat(message, ipFilter.accept(profile, InetAddress.getByName(host)), is(false));
     }

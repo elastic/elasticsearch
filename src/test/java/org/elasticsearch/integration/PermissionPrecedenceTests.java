@@ -88,7 +88,7 @@ public class PermissionPrecedenceTests extends ShieldIntegrationTest {
     @Test
     public void testDifferentCombinationsOfIndices() throws Exception {
 
-        Client client = internalCluster().transportClient();
+        Client client = internalTestCluster().transportClient();
 
         // first lets try with "admin"... all should work
 

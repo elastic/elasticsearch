@@ -12,6 +12,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.shield.audit.index.IndexAuditTrail;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -54,12 +55,19 @@ public class ShieldLifecycleService extends AbstractComponent implements Cluster
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         // TODO if/when we have more services this should not be checking the audit trail
-        if (indexAuditTrail.state() == IndexAuditTrail.State.STOPPED) {
+        if (indexAuditTrail.state() == IndexAuditTrail.State.INITIALIZED) {
             final boolean master = event.localNodeMaster();
             if (indexAuditTrail.canStart(event, master)) {
-                threadPool.generic().execute(new Runnable() {
+                threadPool.generic().execute(new AbstractRunnable() {
+
                     @Override
-                    public void run() {
+                    public void onFailure(Throwable throwable) {
+                        logger.error("failed to start shield lifecycle services", throwable);
+                        assert false : "shield lifecycle services startup failed";
+                    }
+
+                    @Override
+                    public void doRun() {
                         indexAuditTrail.start(master);
                     }
                 });

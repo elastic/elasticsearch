@@ -103,7 +103,7 @@ public class ScrollIdSigningTests extends ShieldIntegrationTest {
     }
 
     private void assertSigned(String scrollId) {
-        CryptoService cryptoService = internalCluster().getDataNodeInstance(InternalCryptoService.class);
+        CryptoService cryptoService = internalTestCluster().getDataNodeInstance(InternalCryptoService.class);
         String message = String.format(Locale.ROOT, "Expected scrollId [%s] to be signed, but was not", scrollId);
         assertThat(message, cryptoService.signed(scrollId), is(true));
     }

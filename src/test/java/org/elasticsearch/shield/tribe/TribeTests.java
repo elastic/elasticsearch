@@ -50,7 +50,7 @@ public class TribeTests extends ShieldIntegrationTest {
 
     @Before
     public void setupSecondClusterAndTribeNode() throws Exception {
-        final Settings globalClusterSettings = internalCluster().getInstance(Settings.class);
+        final Settings globalClusterSettings = internalTestCluster().getInstance(Settings.class);
 
         //TODO tribe nodes and all of the tribes need to have either ssl disabled or enabled as a whole
         //we read the randomized setting from the global cluster and apply it to the other cluster that we are going to start
@@ -89,8 +89,8 @@ public class TribeTests extends ShieldIntegrationTest {
                         }
                     }
 
-                    return builder.put("tribe.t1.cluster.name", internalCluster().getClusterName())
-                            .putArray("tribe.t1.discovery.zen.ping.unicast.hosts", unicastHosts(internalCluster()))
+                    return builder.put("tribe.t1.cluster.name", internalTestCluster().getClusterName())
+                            .putArray("tribe.t1.discovery.zen.ping.unicast.hosts", unicastHosts(internalTestCluster()))
                             .put("tribe.t1.shield.transport.ssl", sslTransportEnabled)
                             .put("tribe.t2.cluster.name", cluster2.getClusterName())
                             .putArray("tribe.t2.discovery.zen.ping.unicast.hosts", unicastHosts(cluster2))
@@ -193,7 +193,7 @@ public class TribeTests extends ShieldIntegrationTest {
 
     @Test
     public void testIndexRefreshAndSearch() throws Exception {
-        internalCluster().client().admin().indices().prepareCreate("test1").get();
+        internalTestCluster().client().admin().indices().prepareCreate("test1").get();
         cluster2.client().admin().indices().prepareCreate("test2").get();
         assertThat(tribeNodeCluster.client().admin().cluster().prepareHealth().setWaitForGreenStatus().get().getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
@@ -209,7 +209,7 @@ public class TribeTests extends ShieldIntegrationTest {
             @Override
             public void run() {
                 DiscoveryNodes tribeNodes = tribeNodeCluster.client().admin().cluster().prepareState().get().getState().getNodes();
-                assertThat(countDataNodesForTribe("t1", tribeNodes), equalTo(internalCluster().client().admin().cluster().prepareState().get().getState().getNodes().dataNodes().size()));
+                assertThat(countDataNodesForTribe("t1", tribeNodes), equalTo(internalTestCluster().client().admin().cluster().prepareState().get().getState().getNodes().dataNodes().size()));
                 assertThat(countDataNodesForTribe("t2", tribeNodes), equalTo(cluster2.client().admin().cluster().prepareState().get().getState().getNodes().dataNodes().size()));
             }
         });

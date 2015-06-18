@@ -74,7 +74,7 @@ public class PkiOptionalClientAuthTests extends ShieldIntegrationTest {
 
     @Test
     public void testRestClientWithoutClientCertificate() throws Exception {
-        HttpServerTransport httpServerTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
+        HttpServerTransport httpServerTransport = internalTestCluster().getDataNodeInstance(HttpServerTransport.class);
 
         try (CloseableHttpClient httpClient = HttpClients.custom().setSslcontext(getSSLContext()).build()) {
             HttpRequestBuilder requestBuilder = new HttpRequestBuilder(httpClient)
@@ -94,13 +94,13 @@ public class PkiOptionalClientAuthTests extends ShieldIntegrationTest {
 
     @Test
     public void testTransportClientWithoutClientCertificate() {
-        Transport transport = internalCluster().getDataNodeInstance(Transport.class);
+        Transport transport = internalTestCluster().getDataNodeInstance(Transport.class);
         int port = ((InetSocketTransportAddress)transport.profileBoundAddresses().get("want_client_auth").boundAddress()).address().getPort();
 
         Settings settings = Settings.builder()
                 .put(ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/truststore-testnode-only.jks", "truststore-testnode-only"))
                 .put("shield.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
-                .put("cluster.name", internalCluster().getClusterName())
+                .put("cluster.name", internalTestCluster().getClusterName())
                 .put("shield.transport.ssl", true)
                 .put("path.home", createTempDir())
                 .build();

@@ -171,7 +171,7 @@ public class SettingsFilterTests extends ShieldIntegrationTest {
     }
 
     protected HttpResponse executeRequest(String method, String uri, String body, Map<String, String> params) throws IOException {
-        HttpServerTransport httpServerTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
+        HttpServerTransport httpServerTransport = internalTestCluster().getDataNodeInstance(HttpServerTransport.class);
         HttpRequestBuilder requestBuilder = new HttpRequestBuilder(httpClient)
                 .httpTransport(httpServerTransport)
                 .method(method)

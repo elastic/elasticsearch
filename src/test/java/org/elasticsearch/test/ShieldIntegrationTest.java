@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.test;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Function;
 import com.google.common.collect.Collections2;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -13,14 +14,24 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.info.PluginInfo;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.ShieldPlugin;
+import org.elasticsearch.shield.audit.index.IndexAuditTrail;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.junit.*;
 import org.junit.rules.ExternalResource;
 
+import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Random;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.CoreMatchers.is;
@@ -132,6 +143,14 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
                 }
             }), contains(ShieldPlugin.NAME, licensePluginName()));
         }
+    }
+
+    @Override
+    protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
+        // This overwrites the wipe logic of the test cluster to not remove the shield_audit_log template. By default all templates are removed
+        // TODO: We should have the notion of a hidden template (like hidden index / type) that only gets removed when specifically mentioned.
+        final TestCluster testCluster = super.buildTestCluster(scope, seed);
+        return new ShieldWrappingCluster(seed, testCluster);
     }
 
     @Override
@@ -284,5 +303,101 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
         ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().get();
         assertNoTimeout(clusterHealthResponse);
         assertThat(clusterHealthResponse.getStatus(), is(ClusterHealthStatus.GREEN));
+    }
+
+    protected static InternalTestCluster internalTestCluster() {
+        return (InternalTestCluster) ((ShieldWrappingCluster) cluster()).testCluster;
+    }
+
+    @Override
+    public ClusterService clusterService() {
+        return internalTestCluster().clusterService();
+    }
+
+    // We need this custom impl, because we have custom wipe logic. We don't want the audit index templates to get deleted between tests
+    private final class ShieldWrappingCluster extends TestCluster {
+
+        private final TestCluster testCluster;
+
+        private ShieldWrappingCluster(long seed, TestCluster testCluster) {
+            super(seed);
+            this.testCluster = testCluster;
+        }
+
+        @Override
+        public void beforeTest(Random random, double transportClientRatio) throws IOException {
+            testCluster.beforeTest(random, transportClientRatio);
+        }
+
+        @Override
+        public void wipe() {
+            wipeIndices("_all");
+            wipeRepositories();
+
+            if (size() > 0) {
+                List<String> templatesToWipe = new ArrayList<>();
+                ClusterState state = client().admin().cluster().prepareState().get().getState();
+                for (ObjectObjectCursor<String, IndexTemplateMetaData> cursor : state.getMetaData().templates()) {
+                    if (cursor.key.equals(IndexAuditTrail.INDEX_TEMPLATE_NAME)) {
+                        continue;
+                    }
+                    templatesToWipe.add(cursor.key);
+                }
+                if (!templatesToWipe.isEmpty()) {
+                    wipeTemplates(templatesToWipe.toArray(new String[templatesToWipe.size()]));
+                }
+            }
+        }
+
+        @Override
+        public void afterTest() throws IOException {
+            testCluster.afterTest();
+        }
+
+        @Override
+        public Client client() {
+            return testCluster.client();
+        }
+
+        @Override
+        public int size() {
+            return testCluster.size();
+        }
+
+        @Override
+        public int numDataNodes() {
+            return testCluster.numDataNodes();
+        }
+
+        @Override
+        public int numDataAndMasterNodes() {
+            return testCluster.numDataAndMasterNodes();
+        }
+
+        @Override
+        public InetSocketAddress[] httpAddresses() {
+            return testCluster.httpAddresses();
+        }
+
+        @Override
+        public void close() throws IOException {
+            testCluster.close();
+        }
+
+        @Override
+        public void ensureEstimatedStats() {
+            testCluster.ensureEstimatedStats();
+        }
+
+        @Override
+        public String getClusterName() {
+            return testCluster.getClusterName();
+        }
+
+        @Override
+        public Iterator<Client> iterator() {
+            return testCluster.iterator();
+        }
+
     }
 }

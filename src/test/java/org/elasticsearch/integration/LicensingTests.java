@@ -111,7 +111,7 @@ public class LicensingTests extends ShieldIntegrationTest {
 
         refresh();
 
-        Client client = internalCluster().transportClient();
+        Client client = internalTestCluster().transportClient();
 
         disableLicensing();
 
@@ -166,13 +166,13 @@ public class LicensingTests extends ShieldIntegrationTest {
     }
 
     public static void disableLicensing() {
-        for (InternalLicensesClientService service : internalCluster().getInstances(InternalLicensesClientService.class)) {
+        for (InternalLicensesClientService service : internalTestCluster().getInstances(InternalLicensesClientService.class)) {
             service.disable();
         }
     }
 
     public static void enableLicensing() {
-        for (InternalLicensesClientService service : internalCluster().getInstances(InternalLicensesClientService.class)) {
+        for (InternalLicensesClientService service : internalTestCluster().getInstances(InternalLicensesClientService.class)) {
             service.enable();
         }
     }

@@ -70,7 +70,7 @@ public class PkiAuthenticationTests extends ShieldIntegrationTest {
     public void testTransportClientCanAuthenticateViaPki() {
         Settings settings = ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode");
         try (TransportClient client = createTransportClient(settings)) {
-            client.addTransportAddress(internalCluster().getInstance(Transport.class).boundAddress().boundAddress());
+            client.addTransportAddress(internalTestCluster().getInstance(Transport.class).boundAddress().boundAddress());
             IndexResponse response = client.prepareIndex("foo", "bar").setSource("pki", "auth").get();
             assertThat(response.isCreated(), is(true));
         }
@@ -83,7 +83,7 @@ public class PkiAuthenticationTests extends ShieldIntegrationTest {
     @Test(expected = NoNodeAvailableException.class)
     public void testTransportClientAuthenticationFailure() {
         try (TransportClient client = createTransportClient(Settings.EMPTY)) {
-            client.addTransportAddress(internalCluster().getInstance(Transport.class).boundAddress().boundAddress());
+            client.addTransportAddress(internalTestCluster().getInstance(Transport.class).boundAddress().boundAddress());
             client.prepareIndex("foo", "bar").setSource("pki", "auth").get();
             fail("transport client should not have been able to authenticate");
         }
@@ -137,14 +137,14 @@ public class PkiAuthenticationTests extends ShieldIntegrationTest {
                 .put(transportClientSettings())
                 .put(additionalSettings)
                 .put("path.home", createTempDir())
-                .put("cluster.name", internalCluster().getClusterName());
+                .put("cluster.name", internalTestCluster().getClusterName());
         builder.remove("shield.user");
         builder.remove("request.headers.Authorization");
         return TransportClient.builder().settings(builder).build();
     }
 
     private String getNodeUrl() {
-        TransportAddress transportAddress = internalCluster().getInstance(HttpServerTransport.class).boundAddress().boundAddress();
+        TransportAddress transportAddress = internalTestCluster().getInstance(HttpServerTransport.class).boundAddress().boundAddress();
         assertThat(transportAddress, is(instanceOf(InetSocketTransportAddress.class)));
         InetSocketTransportAddress inetSocketTransportAddress = (InetSocketTransportAddress) transportAddress;
         return String.format(Locale.ROOT, "https://localhost:%s/", inetSocketTransportAddress.address().getPort());

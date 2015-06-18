@@ -33,6 +33,7 @@ import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndicesService;
@@ -204,6 +205,24 @@ public class IndexShardTests extends ElasticsearchSingleNodeTest {
         assertNull("no shard state expected after delete on initializing", load(logger, env.availableShardPaths(shard.shardId)));
 
 
+    }
+
+    public void testFailShard() throws Exception {
+        createIndex("test");
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        NodeEnvironment env = getInstanceFromNode(NodeEnvironment.class);
+        IndexService test = indicesService.indexService("test");
+        IndexShard shard = test.shard(0);
+        // fail shard
+        shard.failShard("test shard fail", new IOException("corrupted"));
+        // check state file still exists
+        ShardStateMetaData shardStateMetaData = load(logger, env.availableShardPaths(shard.shardId));
+        assertEquals(shardStateMetaData, getShardStateMetadata(shard));
+        ShardPath shardPath = ShardPath.loadShardPath(logger, env, shard.shardId(), test.getIndexSettings());
+        assertNotNull(shardPath);
+        // but index can't be opened for a failed shard
+        assertThat("store index should be corrupted", Store.canOpenIndex(logger, shardPath.resolveIndex()), equalTo(false));
     }
 
     ShardStateMetaData getShardStateMetadata(IndexShard shard) {

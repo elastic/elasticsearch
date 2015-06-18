@@ -253,7 +253,7 @@ public class Node implements Releasable {
         injector.getInstance(RestController.class).start();
 
         // TODO hack around circular dependecncies problems
-        injector.getInstance(GatewayAllocator.class).setReallocation(injector.getInstance(ClusterService.class), injector.getInstance(AllocationService.class));
+        injector.getInstance(GatewayAllocator.class).setReallocation(injector.getInstance(ClusterService.class), injector.getInstance(RoutingService.class));
 
         DiscoveryService discoService = injector.getInstance(DiscoveryService.class).start();
         discoService.waitForInitialState();

@@ -19,27 +19,34 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.Query;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-
-import static com.google.common.collect.Lists.newArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Objects;
 
 /**
  * A query that generates the union of documents produced by its sub-queries, and that scores each document
  * with the maximum score for that document as produced by any sub-query, plus a tie breaking increment for any
  * additional matching sub-queries.
  */
-public class DisMaxQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<DisMaxQueryBuilder> {
+public class DisMaxQueryBuilder extends QueryBuilder<DisMaxQueryBuilder> implements BoostableQueryBuilder<DisMaxQueryBuilder> {
 
     public static final String NAME = "dis_max";
 
-    private ArrayList<QueryBuilder> queries = newArrayList();
+    private final ArrayList<QueryBuilder> queries = new ArrayList<>();
 
-    private float boost = -1;
+    private float boost = 1.0f;
 
-    private float tieBreaker = -1;
+    /** Default multiplication factor for breaking ties in document scores.*/
+    public static float DEFAULT_TIE_BREAKER = 0.0f;
+    private float tieBreaker = DEFAULT_TIE_BREAKER;
 
     private String queryName;
 
@@ -54,6 +61,13 @@ public class DisMaxQueryBuilder extends QueryBuilder implements BoostableQueryBu
     }
 
     /**
+     * @return an immutable list copy of the current sub-queries of this disjunction
+     */
+    public List<QueryBuilder> queries() {
+        return this.queries;
+    }
+
+    /**
      * Sets the boost for this query.  Documents matching this query will (in addition to the normal
      * weightings) have their score multiplied by the boost provided.
      */
@@ -61,6 +75,13 @@ public class DisMaxQueryBuilder extends QueryBuilder implements BoostableQueryBu
     public DisMaxQueryBuilder boost(float boost) {
         this.boost = boost;
         return this;
+    }
+
+    /**
+     * @return the boost for this query
+     */
+    public float boost() {
+        return this.boost;
     }
 
     /**
@@ -75,6 +96,14 @@ public class DisMaxQueryBuilder extends QueryBuilder implements BoostableQueryBu
     }
 
     /**
+     * @return the tie breaker score
+     * @see DisMaxQueryBuilder#tieBreaker(float)
+     */
+    public float tieBreaker() {
+        return this.tieBreaker;
+    }
+
+    /**
      * Sets the query name for the filter that can be used when searching for matched_filters per hit.
      */
     public DisMaxQueryBuilder queryName(String queryName) {
@@ -82,15 +111,18 @@ public class DisMaxQueryBuilder extends QueryBuilder implements BoostableQueryBu
         return this;
     }
 
+    /**
+     * @return the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public String queryName() {
+        return this.queryName;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        if (tieBreaker != -1) {
-            builder.field("tie_breaker", tieBreaker);
-        }
-        if (boost != -1) {
-            builder.field("boost", boost);
-        }
+        builder.field("tie_breaker", tieBreaker);
+        builder.field("boost", boost);
         if (queryName != null) {
             builder.field("_name", queryName);
         }
@@ -100,6 +132,67 @@ public class DisMaxQueryBuilder extends QueryBuilder implements BoostableQueryBu
         }
         builder.endArray();
         builder.endObject();
+    }
+
+    @Override
+    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+        // return null if there are no queries at all
+        Collection<Query> luceneQueries = toQueries(queries, parseContext);
+        if (luceneQueries.isEmpty()) {
+            return null;
+        }
+
+        DisjunctionMaxQuery query = new DisjunctionMaxQuery(luceneQueries, tieBreaker);
+        query.setBoost(boost);
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
+        }
+        return query;
+    }
+
+    @Override
+    public QueryValidationException validate() {
+        // nothing to validate, clauses are optional
+        return null;
+    }
+
+    @Override
+    public DisMaxQueryBuilder readFrom(StreamInput in) throws IOException {
+        DisMaxQueryBuilder disMax = new DisMaxQueryBuilder();
+        List<QueryBuilder> queryBuilders = in.readNamedWritableList();
+        disMax.queries.addAll(queryBuilders);
+        disMax.tieBreaker = in.readFloat();
+        disMax.queryName = in.readOptionalString();
+        disMax.boost = in.readFloat();
+        return disMax;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeNamedWritableList(this.queries);
+        out.writeFloat(tieBreaker);
+        out.writeOptionalString(queryName);
+        out.writeFloat(boost);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(queries, tieBreaker, boost, queryName);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        DisMaxQueryBuilder other = (DisMaxQueryBuilder) obj;
+        return Objects.equals(queries, other.queries) &&
+               Objects.equals(tieBreaker, other.tieBreaker) &&
+               Objects.equals(boost, other.boost) &&
+               Objects.equals(queryName, other.queryName);
     }
 
     @Override

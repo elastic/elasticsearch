@@ -30,6 +30,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 
 /**
  * Base class for all classes producing lucene queries.
@@ -111,6 +114,27 @@ public abstract class QueryBuilder<QB extends QueryBuilder> extends ToXContentTo
             return ((BytesRef) obj).utf8ToString();
         }
         return obj;
+    }
+
+    /**
+     * Helper method to convert collection of {@link QueryBuilder} instances to lucene
+     * {@link Query} instances. {@link QueryBuilder} that return <tt>null</tt> calling
+     * their {@link QueryBuilder#toQuery(QueryParseContext)} method are not added to the
+     * resulting collection.
+     *
+     * @throws IOException
+     * @throws QueryParsingException
+     */
+    protected static Collection<Query> toQueries(Collection<QueryBuilder> queryBuilders, QueryParseContext parseContext) throws QueryParsingException,
+            IOException {
+        List<Query> queries = new ArrayList<>(queryBuilders.size());
+        for (QueryBuilder queryBuilder : queryBuilders) {
+            Query query = queryBuilder.toQuery(parseContext);
+            if (query != null) {
+                queries.add(query);
+            }
+        }
+        return queries;
     }
 
     //norelease remove this once all builders implement readFrom themselves

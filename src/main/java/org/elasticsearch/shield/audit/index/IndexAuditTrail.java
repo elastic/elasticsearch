@@ -73,7 +73,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
     public static final TimeValue DEFAULT_FLUSH_INTERVAL = TimeValue.timeValueSeconds(1);
     public static final IndexNameResolver.Rollover DEFAULT_ROLLOVER = IndexNameResolver.Rollover.DAILY;
     public static final String NAME = "index";
-    public static final String INDEX_NAME_PREFIX = ".shield-audit-log";
+    public static final String INDEX_NAME_PREFIX = ".shield_audit_log";
     public static final String DOC_TYPE = "event";
     public static final String ROLLOVER_SETTING = "shield.audit.index.rollover";
 

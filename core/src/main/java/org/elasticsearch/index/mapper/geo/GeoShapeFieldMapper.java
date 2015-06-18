@@ -38,7 +38,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -340,7 +339,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper {
 
     @Override
     public GeoShapeFieldType fieldType() {
-        return (GeoShapeFieldType)fieldType;
+        return (GeoShapeFieldType) super.fieldType();
     }
 
     @Override
@@ -370,12 +369,12 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper {
             }
             for (Field field : fields) {
                 if (!customBoost()) {
-                    field.setBoost(fieldType.boost());
+                    field.setBoost(fieldType().boost());
                 }
                 context.doc().add(field);
             }
         } catch (Exception e) {
-            throw new MapperParsingException("failed to parse [" + fieldType.names().fullName() + "]", e);
+            throw new MapperParsingException("failed to parse [" + fieldType().names().fullName() + "]", e);
         }
         return null;
     }
@@ -384,28 +383,28 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper {
     public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
         super.merge(mergeWith, mergeResult);
         if (!this.getClass().equals(mergeWith.getClass())) {
-            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different field type");
+            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different field type");
             return;
         }
         final GeoShapeFieldMapper fieldMergeWith = (GeoShapeFieldMapper) mergeWith;
 
         // prevent user from changing strategies
         if (fieldType().strategyName().equals(fieldMergeWith.fieldType().strategyName()) == false) {
-            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different strategy");
+            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different strategy");
         }
 
         // prevent user from changing trees (changes encoding)
         if (fieldType().tree().equals(fieldMergeWith.fieldType().tree()) == false) {
-            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different tree");
+            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different tree");
         }
 
         // TODO we should allow this, but at the moment levels is used to build bookkeeping variables
         // in lucene's SpatialPrefixTree implementations, need a patch to correct that first
         if (fieldType().treeLevels() != fieldMergeWith.fieldType().treeLevels()) {
-            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different tree_levels");
+            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different tree_levels");
         }
         if (fieldType().precisionInMeters() != fieldMergeWith.fieldType().precisionInMeters()) {
-            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different precision");
+            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different precision");
         }
 
         // bail if there were merge conflicts
@@ -414,12 +413,12 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper {
         }
 
         // change distance error percent
-        this.fieldType = this.fieldType.clone();
+        this.fieldType = fieldType().clone();
         this.fieldType().setDistanceErrorPct(fieldMergeWith.fieldType().distanceErrorPct());
         // change orientation - this is allowed because existing dateline spanning shapes
         // have already been unwound and segmented
         this.fieldType().setOrientation(fieldMergeWith.fieldType().orientation());
-        this.fieldType.freeze();
+        fieldType().freeze();
     }
 
     @Override

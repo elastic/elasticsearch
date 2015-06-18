@@ -178,12 +178,12 @@ public class TypeFieldMapper extends AbstractFieldMapper implements RootMapper {
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        if (fieldType.indexOptions() == IndexOptions.NONE && !fieldType.stored()) {
+        if (fieldType().indexOptions() == IndexOptions.NONE && !fieldType().stored()) {
             return;
         }
-        fields.add(new Field(fieldType.names().indexName(), context.type(), fieldType));
+        fields.add(new Field(fieldType().names().indexName(), context.type(), fieldType()));
         if (fieldType().hasDocValues()) {
-            fields.add(new SortedSetDocValuesField(fieldType.names().indexName(), new BytesRef(context.type())));
+            fields.add(new SortedSetDocValuesField(fieldType().names().indexName(), new BytesRef(context.type())));
         }
     }
 
@@ -200,17 +200,17 @@ public class TypeFieldMapper extends AbstractFieldMapper implements RootMapper {
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
         // if all are defaults, no sense to write it at all
-        boolean indexed = fieldType.indexOptions() != IndexOptions.NONE;
+        boolean indexed = fieldType().indexOptions() != IndexOptions.NONE;
         boolean defaultIndexed = Defaults.FIELD_TYPE.indexOptions() != IndexOptions.NONE;
-        if (!includeDefaults && fieldType.stored() == Defaults.FIELD_TYPE.stored() && indexed == defaultIndexed) {
+        if (!includeDefaults && fieldType().stored() == Defaults.FIELD_TYPE.stored() && indexed == defaultIndexed) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
-            builder.field("store", fieldType.stored());
+        if (includeDefaults || fieldType().stored() != Defaults.FIELD_TYPE.stored()) {
+            builder.field("store", fieldType().stored());
         }
         if (includeDefaults || indexed != defaultIndexed) {
-            builder.field("index", indexTokenizeOptionToString(indexed, fieldType.tokenized()));
+            builder.field("index", indexTokenizeOptionToString(indexed, fieldType().tokenized()));
         }
         builder.endObject();
         return builder;

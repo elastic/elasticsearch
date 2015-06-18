@@ -198,7 +198,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper {
 
     @Override
     public BooleanFieldType fieldType() {
-        return (BooleanFieldType)fieldType;
+        return (BooleanFieldType) super.fieldType();
     }
 
     @Override
@@ -233,9 +233,9 @@ public class BooleanFieldMapper extends AbstractFieldMapper {
         if (value == null) {
             return;
         }
-        fields.add(new Field(fieldType.names().indexName(), value ? "T" : "F", fieldType));
+        fields.add(new Field(fieldType().names().indexName(), value ? "T" : "F", fieldType()));
         if (fieldType().hasDocValues()) {
-            fields.add(new SortedNumericDocValuesField(fieldType.names().indexName(), value ? 1 : 0));
+            fields.add(new SortedNumericDocValuesField(fieldType().names().indexName(), value ? 1 : 0));
         }
     }
 
@@ -247,9 +247,9 @@ public class BooleanFieldMapper extends AbstractFieldMapper {
         }
 
         if (!mergeResult.simulate()) {
-            this.fieldType = this.fieldType.clone();
-            this.fieldType.setNullValue(((BooleanFieldMapper) mergeWith).fieldType().nullValue());
-            this.fieldType.freeze();
+            this.fieldType = fieldType().clone();
+            fieldType().setNullValue(((BooleanFieldMapper) mergeWith).fieldType().nullValue());
+            fieldType().freeze();
         }
     }
 

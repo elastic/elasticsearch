@@ -107,7 +107,6 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
     }
 
     @Test
-    @Repeat(iterations = 3)
     public void testVars_Manual() throws Exception {
         WatcherClient watcherClient = watcherClient();
 

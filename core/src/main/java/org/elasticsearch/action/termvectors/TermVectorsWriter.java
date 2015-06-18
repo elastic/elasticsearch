@@ -92,7 +92,6 @@ final class TermVectorsWriter {
             final boolean useDocsAndPos = positions || offsets || payloads;
             while (iterator.next() != null) { // iterate all terms of the current field
                 BytesRef termBytesRef = iterator.term();
-                boolean foundTerm = topLevelIterator.seekExact(termBytesRef);
                 Term term = new Term(field, termBytesRef);
 
                 // with filtering we only keep the best terms
@@ -107,6 +106,7 @@ final class TermVectorsWriter {
                         final TermStatistics statistics = dfs.termStatistics().get(term);
                         writeTermStatistics(statistics == null ? new TermStatistics(termBytesRef, 0, 0) : statistics);
                     } else {
+                        boolean foundTerm = topLevelIterator.seekExact(termBytesRef);
                         if (foundTerm) {
                             writeTermStatistics(topLevelIterator);
                         } else {

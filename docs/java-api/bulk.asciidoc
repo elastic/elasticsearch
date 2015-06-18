@@ -7,8 +7,6 @@ single request. Here is a sample usage:
 [source,java]
 --------------------------------------------------
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 
 BulkRequestBuilder bulkRequest = client.prepareBulk();
 
@@ -50,6 +48,8 @@ To use it, first create a `BulkProcessor` instance:
 [source,java]
 --------------------------------------------------
 import org.elasticsearch.action.bulk.BulkProcessor;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 
 BulkProcessor bulkProcessor = BulkProcessor.builder(
         client,  <1>

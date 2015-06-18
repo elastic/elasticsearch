@@ -6,7 +6,6 @@
 package org.elasticsearch.shield.audit;
 
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportMessage;
@@ -29,9 +28,9 @@ public class AuditUtil {
         return "";
     }
 
-    public static String indices(TransportMessage message) {
+    public static String[] indices(TransportMessage message) {
         if (message instanceof IndicesRequest) {
-            return Strings.arrayToCommaDelimitedString(((IndicesRequest) message).indices());
+            return ((IndicesRequest) message).indices();
         }
         return null;
     }

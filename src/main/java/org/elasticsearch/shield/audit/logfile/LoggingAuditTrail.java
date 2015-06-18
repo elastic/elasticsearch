@@ -26,6 +26,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 
+import static org.elasticsearch.common.Strings.arrayToCommaDelimitedString;
 import static org.elasticsearch.shield.audit.AuditUtil.indices;
 import static org.elasticsearch.shield.audit.AuditUtil.restRequestContent;
 
@@ -60,7 +61,7 @@ public class LoggingAuditTrail implements AuditTrail {
 
     @Override
     public void anonymousAccessDenied(String action, TransportMessage<?> message) {
-        String indices = indices(message);
+        String indices = indicesString(message);
         if (indices != null) {
             if (logger.isDebugEnabled()) {
                 logger.debug("{}[transport] [anonymous_access_denied]\t{}, action=[{}], indices=[{}], request=[{}]", prefix, originAttributes(message), action, indices, message.getClass().getSimpleName());
@@ -87,7 +88,7 @@ public class LoggingAuditTrail implements AuditTrail {
 
     @Override
     public void authenticationFailed(AuthenticationToken token, String action, TransportMessage<?> message) {
-        String indices = indices(message);
+        String indices = indicesString(message);
         if (indices != null) {
             if (logger.isDebugEnabled()) {
                 logger.debug("{}[transport] [authentication_failed]\t{}, principal=[{}], action=[{}], indices=[{}], request=[{}]", prefix, originAttributes(message), token.principal(), action, indices, message.getClass().getSimpleName());
@@ -114,7 +115,7 @@ public class LoggingAuditTrail implements AuditTrail {
 
     @Override
     public void authenticationFailed(String action, TransportMessage<?> message) {
-        String indices = indices(message);
+        String indices = indicesString(message);
         if (indices != null) {
             if (logger.isDebugEnabled()) {
                 logger.debug("{}[transport] [authentication_failed]\t{}, action=[{}], indices=[{}], request=[{}]", prefix, originAttributes(message), action, indices, message.getClass().getSimpleName());
@@ -142,7 +143,7 @@ public class LoggingAuditTrail implements AuditTrail {
     @Override
     public void authenticationFailed(String realm, AuthenticationToken token, String action, TransportMessage<?> message) {
         if (logger.isTraceEnabled()) {
-            String indices = indices(message);
+            String indices = indicesString(message);
             if (indices != null) {
                 logger.trace("{}[transport] [authentication_failed]\trealm=[{}], {}, principal=[{}], action=[{}], indices=[{}], request=[{}]", prefix, realm, originAttributes(message), token.principal(), action, indices, message.getClass().getSimpleName());
             } else {
@@ -160,7 +161,7 @@ public class LoggingAuditTrail implements AuditTrail {
 
     @Override
     public void accessGranted(User user, String action, TransportMessage<?> message) {
-        String indices = indices(message);
+        String indices = indicesString(message);
 
         // special treatment for internal system actions - only log on trace
         if (user.isSystem() && Privilege.SYSTEM.predicate().apply(action)) {
@@ -191,7 +192,7 @@ public class LoggingAuditTrail implements AuditTrail {
 
     @Override
     public void accessDenied(User user, String action, TransportMessage<?> message) {
-        String indices = indices(message);
+        String indices = indicesString(message);
         if (indices != null) {
             if (logger.isDebugEnabled()) {
                 logger.debug("{}[transport] [access_denied]\t{}, principal=[{}], action=[{}], indices=[{}], request=[{}]", prefix, originAttributes(message), user.principal(), action, indices, message.getClass().getSimpleName());
@@ -209,7 +210,7 @@ public class LoggingAuditTrail implements AuditTrail {
 
     @Override
     public void tamperedRequest(User user, String action, TransportRequest request) {
-        String indices = indices(request);
+        String indices = indicesString(request);
         if (indices != null) {
             if (logger.isDebugEnabled()) {
                 logger.debug("{}[transport] [tampered_request]\t{}, principal=[{}], action=[{}], indices=[{}], request=[{}]", prefix, request.remoteAddress(), user.principal(), action, indices, request.getClass().getSimpleName());
@@ -295,5 +296,10 @@ public class LoggingAuditTrail implements AuditTrail {
             }
         }
         return builder.toString();
+    }
+
+    static String indicesString(TransportMessage<?> message) {
+        String[] indices = indices(message);
+        return indices == null ? null : arrayToCommaDelimitedString(indices);
     }
 }

@@ -6,11 +6,13 @@
 package org.elasticsearch.shield.audit.index;
 
 import com.google.common.base.Predicate;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.exists.ExistsResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.Settings;
@@ -36,6 +38,7 @@ import org.junit.Test;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
@@ -163,7 +166,7 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
     public void testAnonymousAccessDenied_Transport() throws Exception {
 
         initialize();
-        TransportMessage message = randomBoolean() ? new RemoteHostMockMessage() : new LocalHostMockMessage();
+        TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
         auditor.anonymousAccessDenied("_action", message);
         awaitIndexCreation(resolveIndexName());
 
@@ -178,12 +181,16 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
 
         assertEquals("_action", hit.field("action").getValue());
         assertEquals("transport", hit.field("origin_type").getValue());
+        if (message instanceof IndicesRequest) {
+            List<Object> indices = hit.field("indices").getValues();
+            assertThat(indices, contains((Object[]) ((IndicesRequest)message).indices()));
+        }
     }
 
     @Test(expected = IndexMissingException.class)
     public void testAnonymousAccessDenied_Transport_Muted() throws Exception {
         initialize("anonymous_access_denied");
-        TransportMessage message = randomBoolean() ? new RemoteHostMockMessage() : new LocalHostMockMessage();
+        TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
         auditor.anonymousAccessDenied("_action", message);
         getClient().prepareExists(resolveIndexName()).execute().actionGet();
     }
@@ -237,7 +244,7 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
     @Test
     public void testAuthenticationFailed_Transport_NoToken() throws Exception {
         initialize();
-        TransportMessage message = randomBoolean() ? new RemoteHostMockMessage() : new LocalHostMockMessage();
+        TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
         auditor.authenticationFailed("_action", message);
         awaitIndexCreation(resolveIndexName());
 
@@ -254,12 +261,16 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
         assertThat(hit.field("principal"), nullValue());
         assertEquals("_action", hit.field("action").getValue());
         assertEquals("transport", hit.field("origin_type").getValue());
+        if (message instanceof IndicesRequest) {
+            List<Object> indices = hit.field("indices").getValues();
+            assertThat(indices, contains((Object[]) ((IndicesRequest)message).indices()));
+        }
     }
 
     @Test(expected = IndexMissingException.class)
     public void testAuthenticationFailed_Transport_Muted() throws Exception {
         initialize("authentication_failed");
-        TransportMessage message = randomBoolean() ? new RemoteHostMockMessage() : new LocalHostMockMessage();
+        TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
         auditor.authenticationFailed(new MockToken(), "_action", message);
         getClient().prepareExists(resolveIndexName()).execute().actionGet();
     }
@@ -267,7 +278,7 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
     @Test(expected = IndexMissingException.class)
     public void testAuthenticationFailed_Transport_NoToken_Muted() throws Exception {
         initialize("authentication_failed");
-        TransportMessage message = randomBoolean() ? new RemoteHostMockMessage() : new LocalHostMockMessage();
+        TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
         auditor.authenticationFailed("_action", message);
         getClient().prepareExists(resolveIndexName()).execute().actionGet();
     }
@@ -323,7 +334,7 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
     public void testAuthenticationFailed_Transport_Realm() throws Exception {
 
         initialize();
-        TransportMessage message = randomBoolean() ? new RemoteHostMockMessage() : new LocalHostMockMessage();
+        TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
         auditor.authenticationFailed("_realm", new MockToken(), "_action", message);
         awaitIndexCreation(resolveIndexName());
 
@@ -341,12 +352,16 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
         assertEquals("_principal", hit.field("principal").getValue());
         assertEquals("_action", hit.field("action").getValue());
         assertEquals("_realm", hit.field("realm").getValue());
+        if (message instanceof IndicesRequest) {
+            List<Object> indices = hit.field("indices").getValues();
+            assertThat(indices, contains((Object[]) ((IndicesRequest)message).indices()));
+        }
     }
 
     @Test(expected = IndexMissingException.class)
     public void testAuthenticationFailed_Transport_Realm_Muted() throws Exception {
         initialize("authentication_failed");
-        TransportMessage message = randomBoolean() ? new RemoteHostMockMessage() : new LocalHostMockMessage();
+        TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
         auditor.authenticationFailed("_realm", new MockToken(), "_action", message);
         getClient().prepareExists(resolveIndexName()).execute().actionGet();
     }
@@ -379,7 +394,7 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
     public void testAccessGranted() throws Exception {
 
         initialize();
-        TransportMessage message = randomBoolean() ? new RemoteHostMockMessage() : new LocalHostMockMessage();
+        TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
         auditor.accessGranted(new User.Simple("_username", "r1"), "_action", message);
         awaitIndexCreation(resolveIndexName());
 
@@ -388,12 +403,16 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
         assertEquals("transport", hit.field("origin_type").getValue());
         assertEquals("_username", hit.field("principal").getValue());
         assertEquals("_action", hit.field("action").getValue());
+        if (message instanceof IndicesRequest) {
+            List<Object> indices = hit.field("indices").getValues();
+            assertThat(indices, contains((Object[]) ((IndicesRequest)message).indices()));
+        }
     }
 
     @Test(expected = IndexMissingException.class)
     public void testAccessGranted_Muted() throws Exception {
         initialize("access_granted");
-        TransportMessage message = randomBoolean() ? new RemoteHostMockMessage() : new LocalHostMockMessage();
+        TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
         auditor.accessGranted(new User.Simple("_username", "r1"), "_action", message);
         getClient().prepareExists(resolveIndexName()).execute().actionGet();
     }
@@ -425,7 +444,7 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
     public void testAccessDenied() throws Exception {
 
         initialize();
-        TransportMessage message = randomBoolean() ? new RemoteHostMockMessage() : new LocalHostMockMessage();
+        TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
         auditor.accessDenied(new User.Simple("_username", "r1"), "_action", message);
         awaitIndexCreation(resolveIndexName());
 
@@ -434,12 +453,16 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
         assertEquals("transport", hit.field("origin_type").getValue());
         assertEquals("_username", hit.field("principal").getValue());
         assertEquals("_action", hit.field("action").getValue());
+        if (message instanceof IndicesRequest) {
+            List<Object> indices = hit.field("indices").getValues();
+            assertThat(indices, contains((Object[]) ((IndicesRequest)message).indices()));
+        }
     }
 
     @Test(expected = IndexMissingException.class)
     public void testAccessDenied_Muted() throws Exception {
         initialize("access_denied");
-        TransportMessage message = randomBoolean() ? new RemoteHostMockMessage() : new LocalHostMockMessage();
+        TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
         auditor.accessDenied(new User.Simple("_username", "r1"), "_action", message);
         getClient().prepareExists(resolveIndexName()).execute().actionGet();
     }
@@ -543,6 +566,22 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
     private static class RemoteHostMockTransportRequest extends TransportRequest {
         RemoteHostMockTransportRequest() throws Exception {
             remoteAddress(new InetSocketTransportAddress(InetAddress.getLocalHost(), 1234));
+        }
+    }
+
+    private static class MockIndicesTransportMessage extends RemoteHostMockMessage implements IndicesRequest {
+        MockIndicesTransportMessage() throws Exception {
+            super();
+        }
+
+        @Override
+        public String[] indices() {
+            return new String[] { "foo", "bar", "baz" };
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return null;
         }
     }
 

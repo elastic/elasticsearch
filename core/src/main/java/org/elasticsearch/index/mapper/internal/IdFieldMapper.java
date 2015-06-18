@@ -31,7 +31,6 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
@@ -288,11 +287,11 @@ public class IdFieldMapper extends AbstractFieldMapper implements RootMapper {
             context.id(id);
         } // else we are in the pre/post parse phase
 
-        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            fields.add(new Field(fieldType.names().indexName(), context.id(), fieldType));
+        if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
+            fields.add(new Field(fieldType().names().indexName(), context.id(), fieldType()));
         }
         if (fieldType().hasDocValues()) {
-            fields.add(new BinaryDocValuesField(fieldType.names().indexName(), new BytesRef(context.id())));
+            fields.add(new BinaryDocValuesField(fieldType().names().indexName(), new BytesRef(context.id())));
         }
     }
 
@@ -309,18 +308,18 @@ public class IdFieldMapper extends AbstractFieldMapper implements RootMapper {
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
         // if all are defaults, no sense to write it at all
-        if (!includeDefaults && fieldType.stored() == Defaults.FIELD_TYPE.stored()
-                && fieldType.indexOptions() == Defaults.FIELD_TYPE.indexOptions()
+        if (!includeDefaults && fieldType().stored() == Defaults.FIELD_TYPE.stored()
+                && fieldType().indexOptions() == Defaults.FIELD_TYPE.indexOptions()
                 && path == Defaults.PATH
                 && customFieldDataSettings == null) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
-            builder.field("store", fieldType.stored());
+        if (includeDefaults || fieldType().stored() != Defaults.FIELD_TYPE.stored()) {
+            builder.field("store", fieldType().stored());
         }
-        if (includeDefaults || fieldType.indexOptions() != Defaults.FIELD_TYPE.indexOptions()) {
-            builder.field("index", indexTokenizeOptionToString(fieldType.indexOptions() != IndexOptions.NONE, fieldType.tokenized()));
+        if (includeDefaults || fieldType().indexOptions() != Defaults.FIELD_TYPE.indexOptions()) {
+            builder.field("index", indexTokenizeOptionToString(fieldType().indexOptions() != IndexOptions.NONE, fieldType().tokenized()));
         }
         if (includeDefaults || path != Defaults.PATH) {
             builder.field("path", path);
@@ -329,7 +328,7 @@ public class IdFieldMapper extends AbstractFieldMapper implements RootMapper {
         if (customFieldDataSettings != null) {
             builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
         } else if (includeDefaults) {
-            builder.field("fielddata", (Map) fieldType.fieldDataType().getSettings().getAsMap());
+            builder.field("fielddata", (Map) fieldType().fieldDataType().getSettings().getAsMap());
         }
         builder.endObject();
         return builder;

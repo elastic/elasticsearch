@@ -26,6 +26,7 @@ import static org.mockito.Mockito.*;
  */
 public class WatcherLifeCycleServiceTests extends ElasticsearchTestCase {
 
+    private ClusterService clusterService;
     private WatcherService watcherService;
     private WatcherLifeCycleService lifeCycleService;
 
@@ -34,7 +35,7 @@ public class WatcherLifeCycleServiceTests extends ElasticsearchTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.executor(anyString())).thenReturn(MoreExecutors.newDirectExecutorService());
         watcherService = mock(WatcherService.class);
-        ClusterService clusterService = mock(ClusterService.class);
+        clusterService = mock(ClusterService.class);
         lifeCycleService = new WatcherLifeCycleService(Settings.EMPTY, clusterService, threadPool, watcherService);
     }
 
@@ -78,6 +79,14 @@ public class WatcherLifeCycleServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testManualStartStop() {
+        DiscoveryNodes.Builder nodes = new DiscoveryNodes.Builder().masterNodeId("id1").localNodeId("id1");
+        ClusterState clusterState = ClusterState.builder(new ClusterName("my-cluster"))
+                .nodes(nodes).build();
+        when(clusterService.state()).thenReturn(clusterState);
+        when(watcherService.state()).thenReturn(WatcherState.STOPPED);
+        when(watcherService.validate(clusterState)).thenReturn(true);
+
+
         lifeCycleService.start();
         verify(watcherService, times(1)).start(any(ClusterState.class));
         verify(watcherService, never()).stop();
@@ -87,9 +96,6 @@ public class WatcherLifeCycleServiceTests extends ElasticsearchTestCase {
         verify(watcherService, times(1)).stop();
 
         // Starting via cluster state update, we shouldn't start because we have been stopped manually.
-        DiscoveryNodes.Builder nodes = new DiscoveryNodes.Builder().masterNodeId("id1").localNodeId("id1");
-        ClusterState clusterState = ClusterState.builder(new ClusterName("my-cluster"))
-                .nodes(nodes).build();
         when(watcherService.state()).thenReturn(WatcherState.STOPPED);
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterState, clusterState));
         verify(watcherService, times(1)).start(any(ClusterState.class));
@@ -118,6 +124,36 @@ public class WatcherLifeCycleServiceTests extends ElasticsearchTestCase {
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterState, clusterState));
         verify(watcherService, times(3)).start(any(ClusterState.class));
         verify(watcherService, times(2)).stop();
+    }
+
+    @Test
+    public void testManualStartStop_clusterStateNotValid() {
+        DiscoveryNodes.Builder nodes = new DiscoveryNodes.Builder().masterNodeId("id1").localNodeId("id1");
+        ClusterState clusterState = ClusterState.builder(new ClusterName("my-cluster"))
+                .nodes(nodes).build();
+        when(clusterService.state()).thenReturn(clusterState);
+        when(watcherService.state()).thenReturn(WatcherState.STOPPED);
+        when(watcherService.validate(clusterState)).thenReturn(false);
+
+
+        lifeCycleService.start();
+        verify(watcherService, never()).start(any(ClusterState.class));
+        verify(watcherService, never()).stop();
+    }
+
+    @Test
+    public void testManualStartStop_watcherNotStopped() {
+        DiscoveryNodes.Builder nodes = new DiscoveryNodes.Builder().masterNodeId("id1").localNodeId("id1");
+        ClusterState clusterState = ClusterState.builder(new ClusterName("my-cluster"))
+                .nodes(nodes).build();
+        when(clusterService.state()).thenReturn(clusterState);
+        when(watcherService.state()).thenReturn(WatcherState.STOPPING);
+
+
+        lifeCycleService.start();
+        verify(watcherService, never()).validate(any(ClusterState.class));
+        verify(watcherService, never()).start(any(ClusterState.class));
+        verify(watcherService, never()).stop();
     }
 
 }

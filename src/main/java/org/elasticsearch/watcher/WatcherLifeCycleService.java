@@ -24,7 +24,8 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
     private final WatcherService watcherService;
     private final ClusterService clusterService;
 
-    // Maybe this should be a setting in the cluster settings?
+    // TODO: If Watcher was stopped via api and the master is changed then Watcher will start regardless of the previous
+    // stop command, so at some point this needs to be a cluster setting
     private volatile boolean manuallyStopped;
 
     @Inject
@@ -46,15 +47,11 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
     }
 
     public void start() {
-        start(clusterService.state());
+        start(clusterService.state(), true);
     }
 
     public void stop() {
         stop(true);
-    }
-
-    private synchronized void start(ClusterState state) {
-        watcherService.start(state);
     }
 
     private synchronized void stop(boolean manual) {
@@ -62,8 +59,53 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
         watcherService.stop();
     }
 
+    private synchronized void start(ClusterState state, boolean manual) {
+        WatcherState watcherState = watcherService.state();
+        if (watcherState != WatcherState.STOPPED) {
+            logger.debug("Not starting, because state [{}] while [{}] is expected", watcherState, WatcherState.STOPPED);
+            return;
+        }
+
+        // If we start from a cluster state update we need to check if previously we stopped manually
+        // otherwise Watcher would start upon the next cluster state update while the user instructed Watcher to not run
+        if (!manual && manuallyStopped) {
+            logger.debug("Not starting, because watcher has been stopped manually, so watcher can't be started automatically");
+            return;
+        }
+
+        if (!watcherService.validate(state)) {
+            logger.debug("Not starting, because the cluster state isn't valid");
+            return;
+        }
+
+        int attempts = 0;
+        while(true) {
+            try {
+                logger.debug("Start attempt [{}], based on cluster state version [{}]", attempts, state.getVersion());
+                watcherService.start(state);
+                return;
+            } catch (Exception e) {
+                if (++attempts < 3) {
+                    logger.warn("error occurred while starting, retrying...", e);
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                    }
+                    if (!clusterService.localNode().masterNode()) {
+                        logger.error("abort retry, we are no longer master");
+                        return;
+                    }
+                } else {
+                    logger.error("attempted to start Watcher [{}] times, aborting now, please try to start Watcher manually", attempts);
+                    return;
+                }
+            }
+        }
+    }
+
     @Override
-    public void clusterChanged(ClusterChangedEvent event) {
+    public void clusterChanged(final ClusterChangedEvent event) {
         if (!event.localNodeMaster()) {
             // We're no longer the master so we need to stop the watcher.
             // Stopping the watcher may take a while since it will wait on the scheduler to complete shutdown,
@@ -77,46 +119,18 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
             });
         } else {
             if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-                // wait until the gateway has recovered from disk, otherwise we think may not have .watchs and
-                // a .watch_history index, but they may not have been restored from the cluster state on disk
+                // wait until the gateway has recovered from disk, otherwise we think may not have .watches and
+                // a .triggered_watches index, but they may not have been restored from the cluster state on disk
                 return;
             }
 
             final ClusterState state = event.state();
-            if (!watcherService.validate(state)) {
-                return;
-            }
-
-            if (watcherService.state() == WatcherState.STOPPED && !manuallyStopped) {
-                threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        int attempts = 0;
-                        while(true) {
-                            try {
-                                start(state);
-                                return;
-                            } catch (Exception e) {
-                                if (++attempts < 3) {
-                                    logger.warn("error occurred while starting, retrying...", e);
-                                    try {
-                                        Thread.sleep(1000);
-                                    } catch (InterruptedException ie) {
-                                        Thread.currentThread().interrupt();
-                                    }
-                                    if (!clusterService.localNode().masterNode()) {
-                                        logger.error("abort retry, we are no longer master");
-                                        return;
-                                    }
-                                } else {
-                                    logger.error("attempted to start Watcher [{}] times, aborting now, please try to start Watcher manually", attempts);
-                                    return;
-                                }
-                            }
-                        }
-                    }
-                });
-            }
+            threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
+                @Override
+                public void run() {
+                    start(state, false);
+                }
+            });
         }
     }
 }

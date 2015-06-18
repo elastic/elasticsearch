@@ -20,7 +20,7 @@ import static org.hamcrest.core.Is.is;
 
 /**
  */
-@TestLogging("cluster:DEBUG,action.admin.cluster.settings:DEBUG")
+@TestLogging("cluster:DEBUG,action.admin.cluster.settings:DEBUG,watcher:DEBUG")
 @ElasticsearchIntegrationTest.ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 1)
 public class HistoryStoreSettingsTests extends AbstractWatcherIntegrationTests {
 

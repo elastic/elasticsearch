@@ -55,6 +55,12 @@
             <artifactId>log4j</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- Required by the REST test framework -->
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <!-- typical layout for plugins -->
@@ -90,6 +96,30 @@
                 <includes>
                     <include>elasticsearch.yml</include>
                     <include>**/*.properties</include>
+                </includes>
+            </testResource>
+            <!-- REST API specification and test suites -->
+            <testResource>
+                <directory>${project.basedir}/rest-api-spec</directory>
+                <targetPath>rest-api-spec</targetPath>
+                <includes>
+                    <include>api/*.json</include>
+                    <include>test/**/*.yaml</include>
+                </includes>
+            </testResource>
+            <!-- REST API specifications copied from main Elasticsearch specs
+                 because they are required to execute the REST tests in plugins  -->
+            <testResource>
+                <directory>${project.basedir}/../../rest-api-spec</directory>
+                <targetPath>rest-api-spec</targetPath>
+                <includes>
+                    <!-- required by the test framework -->
+                    <include>api/info.json</include>
+                    <include>api/cluster.health.json</include>
+                    <!-- used in plugin REST tests -->
+                    <include>api/index.json</include>
+                    <include>api/indices.refresh.json</include>
+                    <include>api/count.json</include>
                 </includes>
             </testResource>
             <!-- shared test resources like log4j.properties -->
@@ -135,5 +165,6 @@
         <module>cloud-aws</module>
         <module>lang-python</module>
         <module>lang-javascript</module>
+        <module>delete-by-query</module>
     </modules>
 </project>

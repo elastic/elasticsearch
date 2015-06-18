@@ -116,6 +116,29 @@ setup:
   - is_false: test_index.warmers
 
 ---
+"Get index infos with human settings should return index creation date and version in readable format":
+
+  - do:
+      indices.get:
+        index: test_index
+        feature: _settings
+        human: true
+
+  - is_true: test_index.settings.index.creation_date_string
+  - is_true: test_index.settings.index.version.created_string
+
+---
+"Get index infos by default shouldn't return index creation date and version in readable format":
+
+  - do:
+      indices.get:
+        index: test_index
+        feature: _settings
+
+  - is_false: test_index.settings.index.creation_date_string
+  - is_false: test_index.settings.index.version.created_string
+
+---
 "Missing index should throw an Error":
 
   - do:

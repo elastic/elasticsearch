@@ -96,6 +96,7 @@
         <tests.network></tests.network>
         <tests.cluster></tests.cluster>
         <tests.filter></tests.filter>
+        <tests.rest.load_packaged></tests.rest.load_packaged>
         <env.ES_TEST_LOCAL></env.ES_TEST_LOCAL>
         <tests.security.manager>true</tests.security.manager>
         <tests.compatibility></tests.compatibility>
@@ -174,7 +175,7 @@
             <dependency>
                 <groupId>org.apache.httpcomponents</groupId>
                 <artifactId>httpclient</artifactId>
-                <version>4.3.5</version>
+                <version>4.3.6</version>
             </dependency>
 
             <dependency>
@@ -314,7 +315,7 @@
                 <artifactId>joda-time</artifactId>
                 <!-- joda 2.0 moved to using volatile fields for datetime -->
                 <!-- When updating to a new version, make sure to update our copy of BaseDateTime -->
-                <version>2.7</version>
+                <version>2.8</version>
             </dependency>
             <dependency>
                 <groupId>org.joda</groupId>
@@ -660,6 +661,7 @@
                                     <tests.filter>${tests.filter}</tests.filter>
                                     <tests.version>${elasticsearch.version}</tests.version>
                                     <tests.locale>${tests.locale}</tests.locale>
+                                    <tests.rest.load_packaged>${tests.rest.load_packaged}</tests.rest.load_packaged>
                                     <tests.timezone>${tests.timezone}</tests.timezone>
                                     <project.basedir>${project.basedir}</project.basedir>
                                     <m2.repository>${settings.localRepository}</m2.repository>
@@ -1127,6 +1129,26 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                     <artifactId>maven-antrun-plugin</artifactId>
                     <version>1.8</version>
                     <executions>
+                        <execution>
+                            <id>check-license</id>
+                            <phase>verify</phase>
+                            <goals>
+                                <goal>run</goal>
+                            </goals>
+                            <configuration>
+                                <target>
+                                    <condition property="licenses.exists">
+                                        <available file="${basedir}/licenses" type="dir"/>
+                                    </condition>
+                                    <echo taskName="license check">Running license check</echo>
+                                    <exec failonerror="${licenses.exists}" executable="perl" dir="${elasticsearch.tools.directory}/license-check" >
+                                        <arg value="check_license_and_sha.pl"/>
+                                        <arg value="--check"/>
+                                        <arg value="${basedir}"/>
+                                    </exec>
+                                </target>
+                            </configuration>
+                        </execution>
                         <execution>
                             <id>print-jvm</id>
                             <phase>validate</phase>

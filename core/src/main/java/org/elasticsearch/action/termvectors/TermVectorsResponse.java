@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.termvectors;
 
-import com.google.common.collect.Iterators;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
@@ -43,6 +42,7 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.Set;
@@ -154,7 +154,7 @@ public class TermVectorsResponse extends ActionResponse implements ToXContent {
             return new Fields() {
                 @Override
                 public Iterator<String> iterator() {
-                    return Iterators.emptyIterator();
+                    return Collections.emptyIterator();
                 }
 
                 @Override

@@ -374,6 +374,7 @@ public abstract class StreamOutput extends OutputStream {
             writeLong(((Date) value).getTime());
         } else if (value instanceof ReadableInstant) {
             writeByte((byte) 13);
+            writeString(((ReadableInstant) value).getZone().getID());
             writeLong(((ReadableInstant) value).getMillis());
         } else if (value instanceof BytesReference) {
             writeByte((byte) 14);

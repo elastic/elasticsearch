@@ -60,8 +60,10 @@ import org.elasticsearch.plugins.ShardsPluginsModule;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -114,6 +116,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                         SimilarityService similarityService, IndexAliasesService aliasesService, IndexCache indexCache,
                         IndexSettingsService settingsService,
                         IndexFieldDataService indexFieldData, BitsetFilterCache bitSetFilterCache, IndicesService indicesServices) {
+
         super(index, indexSettings);
         this.injector = injector;
         this.indexSettings = indexSettings;
@@ -255,6 +258,21 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         return indexSettings.get(IndexMetaData.SETTING_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
     }
 
+    // NOTE: O(numShards) cost, but numShards should be smallish?
+    private long getAvgShardSizeInBytes() throws IOException {
+        long sum = 0;
+        int count = 0;
+        for(IndexShard indexShard : this) {
+            sum += indexShard.store().stats().sizeInBytes();
+            count++;
+        }
+        if (count == 0) {
+            return -1L;
+        } else {
+            return sum / count;
+        }
+    }
+
     public synchronized IndexShard createShard(int sShardId, boolean primary) {
         /*
          * TODO: we execute this in parallel but it's a synced method. Yet, we might
@@ -272,7 +290,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
 
             ShardPath path = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
             if (path == null) {
-                path = ShardPath.selectNewPathForShard(nodeEnv, shardId, indexSettings);
+                path = ShardPath.selectNewPathForShard(nodeEnv, shardId, indexSettings, getAvgShardSizeInBytes(), this);
                 logger.debug("{} creating using a new path [{}]", shardId, path);
             } else {
                 logger.debug("{} creating using an existing path [{}]", shardId, path);

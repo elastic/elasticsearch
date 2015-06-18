@@ -19,12 +19,16 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -36,6 +40,9 @@ import java.io.IOException;
 public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
 
     public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("dateOptionalTime");
+
+    public static final String DELAYED_NODE_LEFT_TIMEOUT = "index.unassigned.node_left.delayed_timeout";
+    public static final TimeValue DEFAULT_DELAYED_NODE_LEFT_TIMEOUT = TimeValue.timeValueMillis(0);
 
     /**
      * Reason why the shard is in unassigned state.
@@ -139,6 +146,86 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
     @Nullable
     public String getDetails() {
         return this.details;
+    }
+
+    /**
+     * The allocation delay value associated with the index (defaulting to node settings if not set).
+     */
+    public long getAllocationDelayTimeoutSetting(Settings settings, Settings indexSettings) {
+        if (reason != Reason.NODE_LEFT) {
+            return 0;
+        }
+        TimeValue delayTimeout = indexSettings.getAsTime(DELAYED_NODE_LEFT_TIMEOUT, settings.getAsTime(DELAYED_NODE_LEFT_TIMEOUT, DEFAULT_DELAYED_NODE_LEFT_TIMEOUT));
+        return Math.max(0l, delayTimeout.millis());
+    }
+
+    /**
+     * The time in millisecond until this unassigned shard can be reassigned.
+     */
+    public long getDelayAllocationExpirationIn(Settings settings, Settings indexSettings) {
+        long delayTimeout = getAllocationDelayTimeoutSetting(settings, indexSettings);
+        if (delayTimeout == 0) {
+            return 0;
+        }
+        long delta = System.currentTimeMillis() - timestamp;
+        // account for time drift, treat it as no timeout
+        if (delta < 0) {
+            return 0;
+        }
+        return delayTimeout - delta;
+    }
+
+
+    /**
+     * Returns the number of shards that are unassigned and currently being delayed.
+     */
+    public static int getNumberOfDelayedUnassigned(Settings settings, ClusterState state) {
+        int count = 0;
+        for (ShardRouting shard : state.routingTable().shardsWithState(ShardRoutingState.UNASSIGNED)) {
+            if (shard.primary() == false) {
+                IndexMetaData indexMetaData = state.metaData().index(shard.getIndex());
+                long delay = shard.unassignedInfo().getDelayAllocationExpirationIn(settings, indexMetaData.getSettings());
+                if (delay > 0) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    /**
+     * Finds the smallest delay expiration setting of an unassigned shard. Returns 0 if there are none.
+     */
+    public static long findSmallestDelayedAllocationSetting(Settings settings, ClusterState state) {
+        long nextDelaySetting = Long.MAX_VALUE;
+        for (ShardRouting shard : state.routingTable().shardsWithState(ShardRoutingState.UNASSIGNED)) {
+            if (shard.primary() == false) {
+                IndexMetaData indexMetaData = state.metaData().index(shard.getIndex());
+                long delayTimeoutSetting = shard.unassignedInfo().getAllocationDelayTimeoutSetting(settings, indexMetaData.getSettings());
+                if (delayTimeoutSetting > 0 && delayTimeoutSetting < nextDelaySetting) {
+                    nextDelaySetting = delayTimeoutSetting;
+                }
+            }
+        }
+        return nextDelaySetting == Long.MAX_VALUE ? 0l : nextDelaySetting;
+    }
+
+
+    /**
+     * Finds the next (closest) delay expiration of an unassigned shard. Returns 0 if there are none.
+     */
+    public static long findNextDelayedAllocationIn(Settings settings, ClusterState state) {
+        long nextDelay = Long.MAX_VALUE;
+        for (ShardRouting shard : state.routingTable().shardsWithState(ShardRoutingState.UNASSIGNED)) {
+            if (shard.primary() == false) {
+                IndexMetaData indexMetaData = state.metaData().index(shard.getIndex());
+                long nextShardDelay = shard.unassignedInfo().getDelayAllocationExpirationIn(settings, indexMetaData.getSettings());
+                if (nextShardDelay > 0 && nextShardDelay < nextDelay) {
+                    nextDelay = nextShardDelay;
+                }
+            }
+        }
+        return nextDelay == Long.MAX_VALUE ? 0l : nextDelay;
     }
 
     @Override

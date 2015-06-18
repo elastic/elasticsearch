@@ -88,6 +88,7 @@ public class SimpleQueryStringParser extends BaseQueryParserTemp {
 
         String currentFieldName = null;
         String queryBody = null;
+        float boost = 1.0f; 
         String queryName = null;
         String field = null;
         String minimumShouldMatch = null;
@@ -145,6 +146,8 @@ public class SimpleQueryStringParser extends BaseQueryParserTemp {
             } else if (token.isValue()) {
                 if ("query".equals(currentFieldName)) {
                     queryBody = parser.text();
+                } else if ("boost".equals(currentFieldName)) {
+                    boost = parser.floatValue();
                 } else if ("analyzer".equals(currentFieldName)) {
                     analyzer = parseContext.analysisService().analyzer(parser.text());
                     if (analyzer == null) {
@@ -196,7 +199,7 @@ public class SimpleQueryStringParser extends BaseQueryParserTemp {
         if (queryBody == null) {
             throw new QueryParsingException(parseContext, "[" + SimpleQueryStringBuilder.NAME + "] query text missing");
         }
-
+        
         // Support specifying only a field instead of a map
         if (field == null) {
             field = currentFieldName;
@@ -229,6 +232,11 @@ public class SimpleQueryStringParser extends BaseQueryParserTemp {
         if (minimumShouldMatch != null && query instanceof BooleanQuery) {
             Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
         }
+
+        if (query != null) {
+            query.setBoost(boost);
+        }
+
         return query;
     }
 

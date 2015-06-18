@@ -100,6 +100,7 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
 
     private static final Feature[] DEFAULT_FEATURES = new Feature[] { Feature.ALIASES, Feature.MAPPINGS, Feature.SETTINGS, Feature.WARMERS };
     private Feature[] features = DEFAULT_FEATURES;
+    private boolean humanReadable = false;
 
     public GetIndexRequest features(Feature... features) {
         if (features == null) {
@@ -135,6 +136,15 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
         return null;
     }
 
+    public GetIndexRequest humanReadable(boolean humanReadable) {
+        this.humanReadable = humanReadable;
+        return this;
+    }
+
+    public boolean humanReadable() {
+        return humanReadable;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -143,6 +153,7 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
         for (int i = 0; i < size; i++) {
             features[i] = Feature.fromId(in.readByte());
         }
+        humanReadable = in.readBoolean();
     }
 
     @Override
@@ -152,6 +163,7 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
         for (Feature feature : features) {
             out.writeByte(feature.id);
         }
+        out.writeBoolean(humanReadable);
     }
 
 }

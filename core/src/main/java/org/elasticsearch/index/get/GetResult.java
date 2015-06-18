@@ -34,11 +34,11 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static com.google.common.collect.Iterators.emptyIterator;
 import static com.google.common.collect.Maps.newHashMapWithExpectedSize;
 import static org.elasticsearch.index.get.GetField.readGetField;
 
@@ -193,7 +193,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
     @Override
     public Iterator<GetField> iterator() {
         if (fields == null) {
-            return emptyIterator();
+            return Collections.emptyIterator();
         }
         return fields.values().iterator();
     }

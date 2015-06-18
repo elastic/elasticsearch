@@ -62,46 +62,46 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
     private synchronized void start(ClusterState state, boolean manual) {
         WatcherState watcherState = watcherService.state();
         if (watcherState != WatcherState.STOPPED) {
-            logger.debug("Not starting, because state [{}] while [{}] is expected", watcherState, WatcherState.STOPPED);
+            logger.debug("not starting watcher. watcher can only start if its current state is [{}]", WatcherState.STOPPED);
             return;
         }
 
         // If we start from a cluster state update we need to check if previously we stopped manually
         // otherwise Watcher would start upon the next cluster state update while the user instructed Watcher to not run
         if (!manual && manuallyStopped) {
-            logger.debug("Not starting, because watcher has been stopped manually, so watcher can't be started automatically");
+            logger.debug("not starting watcher. watcher was stopped manually and therefore cannot be auto-start");
             return;
         }
 
         if (!watcherService.validate(state)) {
-            logger.debug("Not starting, because the cluster state isn't valid");
+            logger.debug("not starting watcher. because the cluster isn't ready yet to run watcher");
             return;
         }
 
         int attempts = 0;
-        while(true) {
+        for (; attempts < 3; attempts++) {
             try {
-                logger.debug("Start attempt [{}], based on cluster state version [{}]", attempts, state.getVersion());
+                if (logger.isDebugEnabled()) {
+                    logger.debug("start attempt [{}]...", attempts);
+                } else if (logger.isTraceEnabled()) {
+                    logger.trace("starting... (attempt [{}] - based on cluster state version [{}])", attempts, state.getVersion());
+                }
                 watcherService.start(state);
                 return;
             } catch (Exception e) {
-                if (++attempts < 3) {
-                    logger.warn("error occurred while starting, retrying...", e);
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                    }
-                    if (!clusterService.localNode().masterNode()) {
-                        logger.error("abort retry, we are no longer master");
-                        return;
-                    }
-                } else {
-                    logger.error("attempted to start Watcher [{}] times, aborting now, please try to start Watcher manually", attempts);
+                logger.warn("error occurred while starting, retrying...", e);
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                }
+                if (!clusterService.localNode().masterNode()) {
+                    logger.error("abort retry, we are no longer master");
                     return;
                 }
             }
         }
+        logger.error("failed to start watcher. attempted to start [{}] times. please try to start Watcher manually", attempts);
     }
 
     @Override

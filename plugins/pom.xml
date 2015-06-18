@@ -110,7 +110,7 @@
             <!-- REST API specifications copied from main Elasticsearch specs
                  because they are required to execute the REST tests in plugins  -->
             <testResource>
-                <directory>${project.basedir}/../../rest-api-spec</directory>
+                <directory>${elasticsearch.tools.directory}/rest-api-spec</directory>
                 <targetPath>rest-api-spec</targetPath>
                 <includes>
                     <!-- required by the test framework -->

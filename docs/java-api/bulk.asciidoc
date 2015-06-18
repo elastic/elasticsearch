@@ -7,6 +7,8 @@ single request. Here is a sample usage:
 [source,java]
 --------------------------------------------------
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 
 BulkRequestBuilder bulkRequest = client.prepareBulk();
 

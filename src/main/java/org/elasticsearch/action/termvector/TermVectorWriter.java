@@ -79,9 +79,9 @@ final class TermVectorWriter {
                 // current field
                 // get the doc frequency
                 BytesRef term = iterator.term();
-                boolean foundTerm = topLevelIterator.seekExact(term);
                 startTerm(term);
                 if (flags.contains(Flag.TermStatistics)) {
+                    boolean foundTerm = topLevelIterator.seekExact(term);
                     if (foundTerm) {
                         writeTermStatistics(topLevelIterator);
                     } else {

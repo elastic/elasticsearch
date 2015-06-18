@@ -239,11 +239,11 @@ public class AllFieldMapper extends AbstractFieldMapper implements RootMapper {
         // reset the entries
         context.allEntries().reset();
         Analyzer analyzer = findAnalyzer(context);
-        fields.add(new AllField(fieldType.names().indexName(), context.allEntries(), analyzer, fieldType));
+        fields.add(new AllField(fieldType().names().indexName(), context.allEntries(), analyzer, fieldType()));
     }
 
     private Analyzer findAnalyzer(ParseContext context) {
-        Analyzer analyzer = fieldType.indexAnalyzer();
+        Analyzer analyzer = fieldType().indexAnalyzer();
         if (analyzer == null) {
             analyzer = context.docMapper().mappers().indexAnalyzer();
             if (analyzer == null) {
@@ -285,23 +285,23 @@ public class AllFieldMapper extends AbstractFieldMapper implements RootMapper {
         if (includeDefaults || enabledState != Defaults.ENABLED) {
             builder.field("enabled", enabledState.enabled);
         }
-        if (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
-            builder.field("store", fieldType.stored());
+        if (includeDefaults || fieldType().stored() != Defaults.FIELD_TYPE.stored()) {
+            builder.field("store", fieldType().stored());
         }
-        if (includeDefaults || fieldType.storeTermVectors() != Defaults.FIELD_TYPE.storeTermVectors()) {
-            builder.field("store_term_vectors", fieldType.storeTermVectors());
+        if (includeDefaults || fieldType().storeTermVectors() != Defaults.FIELD_TYPE.storeTermVectors()) {
+            builder.field("store_term_vectors", fieldType().storeTermVectors());
         }
-        if (includeDefaults || fieldType.storeTermVectorOffsets() != Defaults.FIELD_TYPE.storeTermVectorOffsets()) {
-            builder.field("store_term_vector_offsets", fieldType.storeTermVectorOffsets());
+        if (includeDefaults || fieldType().storeTermVectorOffsets() != Defaults.FIELD_TYPE.storeTermVectorOffsets()) {
+            builder.field("store_term_vector_offsets", fieldType().storeTermVectorOffsets());
         }
-        if (includeDefaults || fieldType.storeTermVectorPositions() != Defaults.FIELD_TYPE.storeTermVectorPositions()) {
-            builder.field("store_term_vector_positions", fieldType.storeTermVectorPositions());
+        if (includeDefaults || fieldType().storeTermVectorPositions() != Defaults.FIELD_TYPE.storeTermVectorPositions()) {
+            builder.field("store_term_vector_positions", fieldType().storeTermVectorPositions());
         }
-        if (includeDefaults || fieldType.storeTermVectorPayloads() != Defaults.FIELD_TYPE.storeTermVectorPayloads()) {
-            builder.field("store_term_vector_payloads", fieldType.storeTermVectorPayloads());
+        if (includeDefaults || fieldType().storeTermVectorPayloads() != Defaults.FIELD_TYPE.storeTermVectorPayloads()) {
+            builder.field("store_term_vector_payloads", fieldType().storeTermVectorPayloads());
         }
-        if (includeDefaults || fieldType.omitNorms() != Defaults.FIELD_TYPE.omitNorms()) {
-            builder.field("omit_norms", fieldType.omitNorms());
+        if (includeDefaults || fieldType().omitNorms() != Defaults.FIELD_TYPE.omitNorms()) {
+            builder.field("omit_norms", fieldType().omitNorms());
         }
         
         doXContentAnalyzers(builder, includeDefaults);
@@ -315,14 +315,14 @@ public class AllFieldMapper extends AbstractFieldMapper implements RootMapper {
         if (customFieldDataSettings != null) {
             builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
         } else if (includeDefaults) {
-            builder.field("fielddata", (Map) fieldType.fieldDataType().getSettings().getAsMap());
+            builder.field("fielddata", (Map) fieldType().fieldDataType().getSettings().getAsMap());
         }
     }
 
     @Override
     public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
         if (((AllFieldMapper)mergeWith).enabled() != this.enabled() && ((AllFieldMapper)mergeWith).enabledState != Defaults.ENABLED) {
-            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] enabled is " + this.enabled() + " now encountering "+ ((AllFieldMapper)mergeWith).enabled());
+            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] enabled is " + this.enabled() + " now encountering "+ ((AllFieldMapper)mergeWith).enabled());
         }
         super.merge(mergeWith, mergeResult);
     }

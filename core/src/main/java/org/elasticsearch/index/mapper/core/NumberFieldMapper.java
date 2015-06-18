@@ -188,7 +188,7 @@ public abstract class NumberFieldMapper extends AbstractFieldMapper implements A
     private ThreadLocal<NumericTokenStream> tokenStream = new ThreadLocal<NumericTokenStream>() {
         @Override
         protected NumericTokenStream initialValue() {
-            return new NumericTokenStream(fieldType.numericPrecisionStep());
+            return new NumericTokenStream(fieldType().numericPrecisionStep());
         }
     };
 
@@ -319,9 +319,9 @@ public abstract class NumberFieldMapper extends AbstractFieldMapper implements A
         }
         if (!mergeResult.simulate()) {
             NumberFieldMapper nfmMergeWith = (NumberFieldMapper) mergeWith;
-            this.fieldType = this.fieldType.clone();
-            this.fieldType.setNumericPrecisionStep(nfmMergeWith.fieldType.numericPrecisionStep());
-            this.fieldType.freeze();
+            this.fieldType = this.fieldType().clone();
+            this.fieldType().setNumericPrecisionStep(nfmMergeWith.fieldType().numericPrecisionStep());
+            this.fieldType().freeze();
             this.includeInAll = nfmMergeWith.includeInAll;
             if (nfmMergeWith.ignoreMalformed.explicit()) {
                 this.ignoreMalformed = nfmMergeWith.ignoreMalformed;
@@ -337,13 +337,13 @@ public abstract class NumberFieldMapper extends AbstractFieldMapper implements A
     }
 
     protected NumericTokenStream popCachedStream() {
-        if (fieldType.numericPrecisionStep() == 4) {
+        if (fieldType().numericPrecisionStep() == 4) {
             return tokenStream4.get();
-        } else if (fieldType.numericPrecisionStep() == 8) {
+        } else if (fieldType().numericPrecisionStep() == 8) {
             return tokenStream8.get();
-        } else if (fieldType.numericPrecisionStep() == 16) {
+        } else if (fieldType().numericPrecisionStep() == 16) {
             return tokenStream16.get();
-        } else if (fieldType.numericPrecisionStep() == Integer.MAX_VALUE) {
+        } else if (fieldType().numericPrecisionStep() == Integer.MAX_VALUE) {
             return tokenStreamMax.get();
         }
         return tokenStream.get();

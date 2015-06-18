@@ -313,7 +313,7 @@ public class SourceFieldMapper extends AbstractFieldMapper implements RootMapper
         if (!enabled) {
             return;
         }
-        if (!fieldType.stored()) {
+        if (!fieldType().stored()) {
             return;
         }
         if (context.flyweight()) {

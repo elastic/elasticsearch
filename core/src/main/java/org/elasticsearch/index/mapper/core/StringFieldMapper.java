@@ -276,7 +276,7 @@ public class StringFieldMapper extends AbstractFieldMapper implements AllFieldMa
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        ValueAndBoost valueAndBoost = parseCreateFieldForString(context, fieldType().nullValueAsString(), fieldType.boost());
+        ValueAndBoost valueAndBoost = parseCreateFieldForString(context, fieldType().nullValueAsString(), fieldType().boost());
         if (valueAndBoost.value() == null) {
             return;
         }
@@ -284,19 +284,19 @@ public class StringFieldMapper extends AbstractFieldMapper implements AllFieldMa
             return;
         }
         if (context.includeInAll(includeInAll, this)) {
-            context.allEntries().addText(fieldType.names().fullName(), valueAndBoost.value(), valueAndBoost.boost());
+            context.allEntries().addText(fieldType().names().fullName(), valueAndBoost.value(), valueAndBoost.boost());
         }
 
-        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            Field field = new Field(fieldType.names().indexName(), valueAndBoost.value(), fieldType);
+        if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
+            Field field = new Field(fieldType().names().indexName(), valueAndBoost.value(), fieldType());
             field.setBoost(valueAndBoost.boost());
             fields.add(field);
         }
         if (fieldType().hasDocValues()) {
-            fields.add(new SortedSetDocValuesField(fieldType.names().indexName(), new BytesRef(valueAndBoost.value())));
+            fields.add(new SortedSetDocValuesField(fieldType().names().indexName(), new BytesRef(valueAndBoost.value())));
         }
         if (fields.isEmpty()) {
-            context.ignoredValue(fieldType.names().indexName(), valueAndBoost.value());
+            context.ignoredValue(fieldType().names().indexName(), valueAndBoost.value());
         }
     }
 
@@ -353,9 +353,9 @@ public class StringFieldMapper extends AbstractFieldMapper implements AllFieldMa
         if (!mergeResult.simulate()) {
             this.includeInAll = ((StringFieldMapper) mergeWith).includeInAll;
             this.ignoreAbove = ((StringFieldMapper) mergeWith).ignoreAbove;
-            this.fieldType = this.fieldType.clone();
-            this.fieldType.setNullValue(((StringFieldMapper) mergeWith).fieldType().nullValue());
-            this.fieldType.freeze();
+            this.fieldType = this.fieldType().clone();
+            this.fieldType().setNullValue(((StringFieldMapper) mergeWith).fieldType().nullValue());
+            this.fieldType().freeze();
         }
     }
 
@@ -375,8 +375,8 @@ public class StringFieldMapper extends AbstractFieldMapper implements AllFieldMa
         if (includeDefaults || positionOffsetGap != Defaults.POSITION_OFFSET_GAP) {
             builder.field("position_offset_gap", positionOffsetGap);
         }
-        NamedAnalyzer searchQuoteAnalyzer = fieldType.searchQuoteAnalyzer();
-        if (searchQuoteAnalyzer != null && !searchQuoteAnalyzer.name().equals(fieldType.searchAnalyzer().name())) {
+        NamedAnalyzer searchQuoteAnalyzer = fieldType().searchQuoteAnalyzer();
+        if (searchQuoteAnalyzer != null && !searchQuoteAnalyzer.name().equals(fieldType().searchAnalyzer().name())) {
             builder.field("search_quote_analyzer", searchQuoteAnalyzer.name());
         } else if (includeDefaults) {
             if (searchQuoteAnalyzer == null) {

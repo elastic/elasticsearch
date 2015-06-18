@@ -23,7 +23,6 @@ import com.google.common.net.InetAddresses;
 import org.apache.lucene.analysis.NumericTokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -275,13 +274,13 @@ public class IpFieldMapper extends NumberFieldMapper {
             return;
         }
         if (context.includeInAll(includeInAll, this)) {
-            context.allEntries().addText(fieldType.names().fullName(), ipAsString, fieldType.boost());
+            context.allEntries().addText(fieldType().names().fullName(), ipAsString, fieldType().boost());
         }
 
         final long value = ipToLong(ipAsString);
-        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            CustomLongNumericField field = new CustomLongNumericField(this, value, fieldType);
-            field.setBoost(fieldType.boost());
+        if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
+            CustomLongNumericField field = new CustomLongNumericField(this, value, fieldType());
+            field.setBoost(fieldType().boost());
             fields.add(field);
         }
         if (fieldType().hasDocValues()) {
@@ -301,8 +300,8 @@ public class IpFieldMapper extends NumberFieldMapper {
             return;
         }
         if (!mergeResult.simulate()) {
-            this.fieldType = this.fieldType.clone();
-            this.fieldType.setNullValue(((IpFieldMapper) mergeWith).fieldType().nullValue());
+            this.fieldType = this.fieldType().clone();
+            this.fieldType().setNullValue(((IpFieldMapper) mergeWith).fieldType().nullValue());
         }
     }
 
@@ -310,8 +309,8 @@ public class IpFieldMapper extends NumberFieldMapper {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (includeDefaults || fieldType.numericPrecisionStep() != Defaults.PRECISION_STEP_64_BIT) {
-            builder.field("precision_step", fieldType.numericPrecisionStep());
+        if (includeDefaults || fieldType().numericPrecisionStep() != Defaults.PRECISION_STEP_64_BIT) {
+            builder.field("precision_step", fieldType().numericPrecisionStep());
         }
         if (includeDefaults || fieldType().nullValueAsString() != null) {
             builder.field("null_value", fieldType().nullValueAsString());

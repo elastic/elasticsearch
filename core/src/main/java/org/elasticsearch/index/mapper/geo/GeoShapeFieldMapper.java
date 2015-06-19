@@ -41,8 +41,6 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
@@ -248,8 +246,8 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper {
         }
         
         @Override
-        public void validateCompatible(MappedFieldType fieldType, List<String> conflicts) {
-            super.validateCompatible(fieldType, conflicts);
+        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts) {
+            super.checkCompatibility(fieldType, conflicts);
             GeoShapeFieldType other = (GeoShapeFieldType)fieldType;
             // prevent user from changing strategies
             if (strategyName().equals(other.strategyName()) == false) {

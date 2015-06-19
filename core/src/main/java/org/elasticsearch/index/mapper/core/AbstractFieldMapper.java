@@ -393,7 +393,7 @@ public abstract class AbstractFieldMapper implements FieldMapper {
         }
         AbstractFieldMapper fieldMergeWith = (AbstractFieldMapper) mergeWith;
         List<String> subConflicts = new ArrayList<>(); // TODO: just expose list from MergeResult?
-        fieldType().validateCompatible(fieldMergeWith.fieldType(), subConflicts);
+        fieldType().checkCompatibility(fieldMergeWith.fieldType(), subConflicts);
         for (String conflict : subConflicts) {
             mergeResult.addConflict(conflict);
         }

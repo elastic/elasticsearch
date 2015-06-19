@@ -44,8 +44,6 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
@@ -332,8 +330,8 @@ public class GeoPointFieldMapper extends AbstractFieldMapper implements ArrayVal
         }
         
         @Override
-        public void validateCompatible(MappedFieldType fieldType, List<String> conflicts) {
-            super.validateCompatible(fieldType, conflicts);
+        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts) {
+            super.checkCompatibility(fieldType, conflicts);
             GeoPointFieldType other = (GeoPointFieldType)fieldType;
             if (isLatLonEnabled() != other.isLatLonEnabled()) {
                 conflicts.add("mapper [" + names().fullName() + "] has different lat_lon");

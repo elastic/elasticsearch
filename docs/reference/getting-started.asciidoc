@@ -28,7 +28,12 @@ Elasticsearch is a near real time search platform. What this means is there is a
 [float]
 === Cluster
 
-A cluster is a collection of one or more nodes (servers) that together holds your entire data and provides federated indexing and search capabilities across all nodes. A cluster is identified by a unique name which by default is "elasticsearch". This name is important because a node can only be part of a cluster if the node is set up to join the cluster by its name. It is good practice to explicitly set the cluster name in production, but it is fine to use the default for testing/development purposes.
+A cluster is a collection of one or more nodes (servers) that together holds your entire data and provides federated indexing and search capabilities across all nodes. A cluster is identified by a unique name which by default is "elasticsearch". This name is important because a node can only be part of a cluster if the node is set up to join the cluster by its name.
+
+Make sure that you don't reuse the same cluster names in different
+environments, otherwise you might end up with nodes joining the wrong cluster.
+For instance you could use `logging-dev`, `logging-stage`, and `logging-prod`
+for the development, staging, and production clusters.
 
 Note that it is valid and perfectly fine to have a cluster with only a single node in it. Furthermore, you may also have multiple independent clusters each with its own unique cluster name.
 

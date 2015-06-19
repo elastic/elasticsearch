@@ -85,7 +85,7 @@ public class IsPrimeSearchScript extends AbstractSearchScript {
         if (docValue != null && !docValue.isEmpty()) {
             try {
                 // Try to parse it as an integer
-                BigInteger bigInteger = new BigInteger(Long.toString(((Longs) docValue).getValue()));
+                BigInteger bigInteger = BigInteger.valueOf(((Longs) docValue).getValue());
                 // Check if it's prime
                 return bigInteger.isProbablePrime(certainty);
             } catch (NumberFormatException ex) {

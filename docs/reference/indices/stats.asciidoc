@@ -80,8 +80,10 @@ curl 'localhost:9200/_stats/search?groups=group1,group2
 --------------------------------------------------
 
 The stats returned are aggregated on the index level, with
-`primaries` and `total` aggregations. In order to get back shard level
-stats, set the `level` parameter to `shards`.
+`primaries` and `total` aggregations, where `primaries` are the values for only the 
+primary shards, and `total` are the cumulated values for both primary and replica shards.
+
+In order to get back shard level stats, set the `level` parameter to `shards`.
 
 Note, as shards move around the cluster, their stats will be cleared as
 they are created on other nodes. On the other hand, even though a shard

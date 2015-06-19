@@ -135,7 +135,6 @@ public class CommonTermsQueryParser extends BaseQueryParser {
                 .cutoffFrequency(cutoffFrequency)
                 .boost(boost)
                 .queryName(queryName);
-        commonTermsQuery.validate();
         return commonTermsQuery;
     }
 

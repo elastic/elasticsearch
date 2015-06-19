@@ -286,17 +286,16 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         Occur highFreqOccur = highFreqOperator.toMustOrShouldClause();
         Occur lowFreqOccur = lowFreqOperator.toMustOrShouldClause();
 
-        ExtendedCommonTermsQuery query = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, cutoffFrequency, disableCoord, mapper);
-        parseQueryString(query, text, field, analyzerObj, lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch);
-
-        query.setBoost(boost);
+        ExtendedCommonTermsQuery commonsQuery = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, cutoffFrequency, disableCoord, mapper);
+        commonsQuery.setBoost(boost);
+        Query query = parseQueryString(commonsQuery, text, field, analyzerObj, lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch);
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);
         }
         return query;
     }
     
-    static final void parseQueryString(ExtendedCommonTermsQuery query, Object queryString, String field, Analyzer analyzer, 
+    static Query parseQueryString(ExtendedCommonTermsQuery query, Object queryString, String field, Analyzer analyzer, 
                                          String lowFreqMinimumShouldMatch, String highFreqMinimumShouldMatch) throws IOException {
         // Logic similar to QueryParser#getFieldQuery
         int count = 0;
@@ -313,10 +312,11 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         }
 
         if (count == 0) {
-            throw new IllegalArgumentException("common terms query could not analyze query string: [" + queryString + "]");
+            return null;
         }
         query.setLowFreqMinimumNumberShouldMatch(lowFreqMinimumShouldMatch);
         query.setHighFreqMinimumNumberShouldMatch(highFreqMinimumShouldMatch);
+        return query;
     }
 
     @Override
@@ -325,8 +325,8 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         if (Strings.isEmpty(this.fieldName)) {
             validationException = QueryValidationException.addValidationError("field name cannot be null or empty.", validationException);
         }
-        if (this.text == null || this.text.toString().isEmpty()) {
-            validationException = QueryValidationException.addValidationError("no text specified for text query", validationException);
+        if (this.text == null) {
+            validationException = QueryValidationException.addValidationError("query text cannot be null", validationException);
         }
         return validationException;
     }

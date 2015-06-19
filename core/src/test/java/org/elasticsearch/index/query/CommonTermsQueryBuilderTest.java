@@ -55,8 +55,8 @@ public class CommonTermsQueryBuilderTest extends BaseQueryTestCase<CommonTermsQu
             query.lowFreqOperator(randomFrom(Operator.values()));
         }
             
-        // if or, number of low frequency terms that must match
-        if (randomBoolean() && query.lowFreqOperator().equals(Operator.OR)) {
+        // number of low frequency terms that must match
+        if (randomBoolean()) {
             query.lowFreqMinimumShouldMatch("" + randomIntBetween(1, 5));
         }
 
@@ -64,8 +64,8 @@ public class CommonTermsQueryBuilderTest extends BaseQueryTestCase<CommonTermsQu
             query.highFreqOperator(randomFrom(Operator.values()));
         }
 
-        // if or, number of high frequency terms that must match
-        if (randomBoolean() && query.highFreqOperator().equals(Operator.OR)) {
+        // number of high frequency terms that must match
+        if (randomBoolean()) {
             query.highFreqMinimumShouldMatch("" + randomIntBetween(1, 5));
         }
         
@@ -129,16 +129,16 @@ public class CommonTermsQueryBuilderTest extends BaseQueryTestCase<CommonTermsQu
         CommonTermsQueryBuilder commonTermsQueryBuilder = new CommonTermsQueryBuilder("", "text");
         assertThat(commonTermsQueryBuilder.validate().validationErrors().size(), is(1));
 
-        commonTermsQueryBuilder = new CommonTermsQueryBuilder("field", "");
+        commonTermsQueryBuilder = new CommonTermsQueryBuilder("field", null);
         assertThat(commonTermsQueryBuilder.validate().validationErrors().size(), is(1));
 
         commonTermsQueryBuilder = new CommonTermsQueryBuilder("field", "text");
         assertNull(commonTermsQueryBuilder.validate());
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void testNotParsableQueryString() throws IOException {
-        CommonTermsQueryBuilder builder = new CommonTermsQueryBuilder("field", "");
-        builder.toQuery(createContext());
+    @Test
+    public void testNoTermsFromQueryString() throws IOException {
+        CommonTermsQueryBuilder builder = new CommonTermsQueryBuilder(STRING_FIELD_NAME, "");
+        assertNull(builder.toQuery(createContext()));
     }
 }

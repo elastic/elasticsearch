@@ -38,7 +38,7 @@ public interface QueryBuilder<QB extends QueryBuilder> extends NamedWriteable<QB
     public static enum Operator {
         OR(0), AND(1);
         
-        private int ordinal;
+        private final int ordinal;
         
         private Operator(int ordinal) {
             this.ordinal = ordinal;

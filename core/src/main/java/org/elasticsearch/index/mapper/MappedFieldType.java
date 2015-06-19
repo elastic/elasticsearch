@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import com.google.common.base.Strings;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.queries.TermsQuery;
@@ -224,6 +225,68 @@ public class MappedFieldType extends FieldType {
     }
 
 // norelease: we need to override freeze() and add safety checks that all settings are actually set
+
+    /**
+     * Checks for any conflicts between this field type and other.
+     */
+    public void validateCompatible(MappedFieldType other, List<String> conflicts) {
+        boolean indexed =  indexOptions() != IndexOptions.NONE;
+        boolean mergeWithIndexed = other.indexOptions() != IndexOptions.NONE;
+        if (indexed != mergeWithIndexed || tokenized() != other.tokenized()) {
+            conflicts.add("mapper [" + names().fullName() + "] has different index values");
+        }
+        if (stored() != other.stored()) {
+            conflicts.add("mapper [" + names().fullName() + "] has different store values");
+        }
+        if (hasDocValues() == false && other.hasDocValues()) {
+            // don't add conflict if this mapper has doc values while the mapper to merge doesn't since doc values are implicitely set
+            // when the doc_values field data format is configured
+            conflicts.add("mapper [" + names().fullName() + "] has different doc_values values");
+        }
+        if (omitNorms() && !other.omitNorms()) {
+            conflicts.add("mapper [" + names().fullName() + "] cannot enable norms (`norms.enabled`)");
+        }
+        if (tokenized() != other.tokenized()) {
+            conflicts.add("mapper [" + names().fullName() + "] has different tokenize values");
+        }
+        if (storeTermVectors() != other.storeTermVectors()) {
+            conflicts.add("mapper [" + names().fullName() + "] has different store_term_vector values");
+        }
+        if (storeTermVectorOffsets() != other.storeTermVectorOffsets()) {
+            conflicts.add("mapper [" + names().fullName() + "] has different store_term_vector_offsets values");
+        }
+        if (storeTermVectorPositions() != other.storeTermVectorPositions()) {
+            conflicts.add("mapper [" + names().fullName() + "] has different store_term_vector_positions values");
+        }
+        if (storeTermVectorPayloads() != other.storeTermVectorPayloads()) {
+            conflicts.add("mapper [" + names().fullName() + "] has different store_term_vector_payloads values");
+        }
+
+        // null and "default"-named index analyzers both mean the default is used
+        if (indexAnalyzer() == null || "default".equals(indexAnalyzer().name())) {
+            if (other.indexAnalyzer() != null && "default".equals(other.indexAnalyzer().name()) == false) {
+                conflicts.add("mapper [" + names().fullName() + "] has different analyzer");
+            }
+        } else if (other.indexAnalyzer() == null || "default".equals(other.indexAnalyzer().name())) {
+            conflicts.add("mapper [" + names().fullName() + "] has different analyzer");
+        } else if (indexAnalyzer().name().equals(other.indexAnalyzer().name()) == false) {
+            conflicts.add("mapper [" + names().fullName() + "] has different analyzer");
+        }
+
+        if (!names().equals(other.names())) {
+            conflicts.add("mapper [" + names().fullName() + "] has different index_name");
+        }
+
+        if (similarity() == null) {
+            if (other.similarity() != null) {
+                conflicts.add("mapper [" + names().fullName() + "] has different similarity");
+            }
+        } else if (other.similarity() == null) {
+            conflicts.add("mapper [" + names().fullName() + "] has different similarity");
+        } else if (!similarity().equals(other.similarity())) {
+            conflicts.add("mapper [" + names().fullName() + "] has different similarity");
+        }
+    }
 
     public boolean isNumeric() {
         return false;

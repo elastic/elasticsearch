@@ -2170,6 +2170,19 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         assertThat(ectQuery.getLowFreqMinimumNumberShouldMatchSpec(), equalTo("2"));
     }
 
+    @Test // see #11730
+    public void testCommonTermsQuery4() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        Query parsedQuery = queryParser.parse(commonTermsQuery("field", "text").disableCoord(false)).query();
+        assertThat(parsedQuery, instanceOf(ExtendedCommonTermsQuery.class));
+        ExtendedCommonTermsQuery ectQuery = (ExtendedCommonTermsQuery) parsedQuery;
+        assertFalse(ectQuery.isCoordDisabled());
+        parsedQuery = queryParser.parse(commonTermsQuery("field", "text").disableCoord(true)).query();
+        assertThat(parsedQuery, instanceOf(ExtendedCommonTermsQuery.class));
+        ectQuery = (ExtendedCommonTermsQuery) parsedQuery;
+        assertTrue(ectQuery.isCoordDisabled());
+    }
+
     @Test(expected = QueryParsingException.class)
     public void assureMalformedThrowsException() throws IOException {
         IndexQueryParserService queryParser;

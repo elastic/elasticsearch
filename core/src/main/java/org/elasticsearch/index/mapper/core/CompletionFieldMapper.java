@@ -243,8 +243,8 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
         }
 
         @Override
-        public void validateCompatible(MappedFieldType fieldType, List<String> conflicts) {
-            super.validateCompatible(fieldType, conflicts);
+        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts) {
+            super.checkCompatibility(fieldType, conflicts);
             CompletionFieldType other = (CompletionFieldType)fieldType;
             if (analyzingSuggestLookupProvider.hasPayloads() != other.analyzingSuggestLookupProvider.hasPayloads()) {
                 conflicts.add("mapper [" + names().fullName() + "] has different payload values");

@@ -348,6 +348,12 @@ public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper
             ParentFieldMapper fieldMergeWith = (ParentFieldMapper) mergeWith;
             this.fieldType = fieldMergeWith.fieldType().clone();
             this.fieldType().freeze();
+
+            if (fieldMergeWith.customFieldDataSettings != null) {
+                if (!Objects.equal(fieldMergeWith.customFieldDataSettings, this.customFieldDataSettings)) {
+                    this.customFieldDataSettings = fieldMergeWith.customFieldDataSettings;
+                }
+            }
         }
     }
 

@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.pipeline.moving.avg;
 
 import com.google.common.collect.EvictingQueue;
 
+import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.*;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
@@ -28,7 +29,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 import org.junit.Test;
 
-import java.util.Arrays;
+import java.text.ParseException;
+import java.util.*;
 
 public class MovAvgUnitTests extends ElasticsearchTestCase {
 
@@ -582,5 +584,51 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
             seasonCounter += 1;
         }
 
+    }
+
+    @Test
+    public void testNumericValidation() {
+
+        List<MovAvgModel.AbstractModelParser> parsers = new ArrayList<>(5);
+
+        // Simple and Linear don't have any settings to test
+        parsers.add(new EwmaModel.SingleExpModelParser());
+        parsers.add(new HoltWintersModel.HoltWintersModelParser());
+        parsers.add(new HoltLinearModel.DoubleExpModelParser());
+
+
+        Object[] values = {(byte)1, 1, 1L, (short)1, (double)1};
+        Map<String, Object> settings = new HashMap<>(2);
+
+        for (MovAvgModel.AbstractModelParser parser : parsers) {
+            for (Object v : values) {
+                settings.put("alpha", v);
+                settings.put("beta", v);
+                settings.put("gamma", v);
+
+                try {
+                    parser.parse(settings, "pipeline", 10);
+                } catch (ParseException e) {
+                    fail(parser.getName() + " parser should not have thrown SearchParseException while parsing [" +
+                            v.getClass().getSimpleName() +"]");
+                }
+
+            }
+        }
+
+        for (MovAvgModel.AbstractModelParser parser : parsers) {
+            settings.put("alpha", "abc");
+            settings.put("beta", "abc");
+            settings.put("gamma", "abc");
+
+            try {
+                parser.parse(settings, "pipeline", 10);
+            } catch (ParseException e) {
+                //all good
+                continue;
+            }
+
+            fail(parser.getName() + " parser should have thrown SearchParseException while parsing [String]");
+        }
     }
 }

@@ -32,6 +32,7 @@ import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.text.ParseException;
 import java.util.*;
 
 /**
@@ -316,17 +317,17 @@ public class HoltWintersModel extends MovAvgModel {
         }
 
         @Override
-        public MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName, SearchContext context, int windowSize) {
+        public MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName, int windowSize) throws ParseException {
 
-            double alpha = parseDoubleParam(context, settings, "alpha", 0.5);
-            double beta = parseDoubleParam(context, settings, "beta", 0.5);
-            double gamma = parseDoubleParam(context, settings, "gamma", 0.5);
-            int period = parseIntegerParam(context, settings, "period", 1);
+            double alpha = parseDoubleParam(settings, "alpha", 0.5);
+            double beta = parseDoubleParam(settings, "beta", 0.5);
+            double gamma = parseDoubleParam(settings, "gamma", 0.5);
+            int period = parseIntegerParam(settings, "period", 1);
 
             if (windowSize < 2 * period) {
-                throw new SearchParseException(context, "Field [window] must be at least twice as large as the period when " +
+                throw new ParseException("Field [window] must be at least twice as large as the period when " +
                         "using Holt-Winters.  Value provided was [" + windowSize + "], which is less than (2*period) == "
-                        + (2 * period), null);
+                        + (2 * period), 0);
             }
 
             SeasonalityType seasonalityType = SeasonalityType.ADDITIVE;
@@ -337,13 +338,13 @@ public class HoltWintersModel extends MovAvgModel {
                     if (value instanceof String) {
                         seasonalityType = SeasonalityType.parse((String)value);
                     } else {
-                        throw new SearchParseException(context, "Parameter [type] must be a String, type `"
-                                + value.getClass().getSimpleName() + "` provided instead", null);
+                        throw new ParseException("Parameter [type] must be a String, type `"
+                                + value.getClass().getSimpleName() + "` provided instead", 0);
                     }
                 }
             }
 
-            boolean pad = parseBoolParam(context, settings, "pad", seasonalityType.equals(SeasonalityType.MULTIPLICATIVE));
+            boolean pad = parseBoolParam(settings, "pad", seasonalityType.equals(SeasonalityType.MULTIPLICATIVE));
 
             return new HoltWintersModel(alpha, beta, gamma, period, seasonalityType, pad);
         }

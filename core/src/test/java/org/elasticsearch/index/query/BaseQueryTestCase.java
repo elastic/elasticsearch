@@ -150,6 +150,7 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends Ela
         index = null;
         queryParserService = null;
         currentTypes = null;
+        namedWriteableRegistry = null;
     }
 
     @Before

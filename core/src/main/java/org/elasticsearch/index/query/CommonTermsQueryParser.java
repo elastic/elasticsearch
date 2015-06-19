@@ -47,7 +47,7 @@ public class CommonTermsQueryParser implements QueryParser {
 
     static final Occur DEFAULT_LOW_FREQ_OCCUR = Occur.SHOULD;
 
-    static final boolean DEFAULT_DISABLE_COORDS = true;
+    static final boolean DEFAULT_DISABLE_COORD = true;
 
 
     @Inject
@@ -72,7 +72,7 @@ public class CommonTermsQueryParser implements QueryParser {
         String queryAnalyzer = null;
         String lowFreqMinimumShouldMatch = null;
         String highFreqMinimumShouldMatch = null;
-        boolean disableCoords = DEFAULT_DISABLE_COORDS;
+        boolean disableCoord = DEFAULT_DISABLE_COORD;
         Occur highFreqOccur = DEFAULT_HIGH_FREQ_OCCUR;
         Occur lowFreqOccur = DEFAULT_LOW_FREQ_OCCUR;
         float maxTermFrequency = DEFAULT_MAX_TERM_DOC_FREQ;
@@ -113,7 +113,7 @@ public class CommonTermsQueryParser implements QueryParser {
                         }
                         queryAnalyzer = analyzer;
                     } else if ("disable_coord".equals(currentFieldName) || "disableCoord".equals(currentFieldName)) {
-                        disableCoords = parser.booleanValue();
+                        disableCoord = parser.booleanValue();
                     } else if ("boost".equals(currentFieldName)) {
                         boost = parser.floatValue();
                     } else if ("high_freq_operator".equals(currentFieldName) || "highFreqOperator".equals(currentFieldName)) {
@@ -188,7 +188,7 @@ public class CommonTermsQueryParser implements QueryParser {
             }
         }
 
-        ExtendedCommonTermsQuery commonsQuery = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency, disableCoords, fieldType);
+        ExtendedCommonTermsQuery commonsQuery = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency, disableCoord, fieldType);
         commonsQuery.setBoost(boost);
         Query query = parseQueryString(commonsQuery, value.toString(), field, parseContext, analyzer, lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch);
         if (queryName != null) {

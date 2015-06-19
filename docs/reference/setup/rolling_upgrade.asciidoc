@@ -151,7 +151,7 @@ cluster health will reach status `green`.
 
 ====================================================
 
-Shards that have not been <<synced-flush,sync-flushed>> may take some time to
+Shards that have not been <<indices-synced-flush,sync-flushed>> may take some time to
 recover.  The recovery status of individual shards can be monitored with the
 <<cat-recovery,`_cat/recovery`>> request:
 

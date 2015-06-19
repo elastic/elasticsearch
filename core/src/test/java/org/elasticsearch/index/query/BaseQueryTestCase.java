@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -60,18 +58,11 @@ import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Ignore;
-import org.junit.Test;
+import org.junit.*;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 @Ignore
 public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends ElasticsearchTestCase {
@@ -205,7 +196,6 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends Ela
      * and asserts equality on the two queries.
      */
     @Test
-    @Repeat(iterations = 20)
     public void testFromXContent() throws IOException {
         QB testQuery = createTestQueryBuilder();
         QueryParseContext context = createContext();
@@ -225,7 +215,6 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends Ela
      * assertions being made on the result to the implementing subclass.
      */
     @Test
-    @Repeat(iterations = 20)
     public void testToQuery() throws IOException {
         QB testQuery = createTestQueryBuilder();
         QueryParseContext context = createContext();
@@ -256,7 +245,6 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends Ela
      * Test serialization and deserialization of the test query.
      */
     @Test
-    @Repeat(iterations = 20)
     public void testSerialization() throws IOException {
         QB testQuery = createTestQueryBuilder();
         try (BytesStreamOutput output = new BytesStreamOutput()) {

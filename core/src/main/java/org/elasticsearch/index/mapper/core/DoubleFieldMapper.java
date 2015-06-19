@@ -199,7 +199,7 @@ public class DoubleFieldMapper extends NumberFieldMapper {
 
     @Override
     public DoubleFieldType fieldType() {
-        return (DoubleFieldType)fieldType;
+        return (DoubleFieldType) super.fieldType();
     }
 
     @Override
@@ -220,7 +220,7 @@ public class DoubleFieldMapper extends NumberFieldMapper {
     @Override
     protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
         double value;
-        float boost = this.fieldType.boost();
+        float boost = fieldType().boost();
         if (context.externalValueSet()) {
             Object externalValue = context.externalValue();
             if (externalValue == null) {
@@ -242,7 +242,7 @@ public class DoubleFieldMapper extends NumberFieldMapper {
                 value = ((Number) externalValue).doubleValue();
             }
             if (context.includeInAll(includeInAll, this)) {
-                context.allEntries().addText(fieldType.names().fullName(), Double.toString(value), boost);
+                context.allEntries().addText(fieldType().names().fullName(), Double.toString(value), boost);
             }
         } else {
             XContentParser parser = context.parser();
@@ -253,7 +253,7 @@ public class DoubleFieldMapper extends NumberFieldMapper {
                 }
                 value = fieldType().nullValue();
                 if (fieldType().nullValueAsString() != null && (context.includeInAll(includeInAll, this))) {
-                    context.allEntries().addText(fieldType.names().fullName(), fieldType().nullValueAsString(), boost);
+                    context.allEntries().addText(fieldType().names().fullName(), fieldType().nullValueAsString(), boost);
                 }
             } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                 XContentParser.Token token;
@@ -282,13 +282,13 @@ public class DoubleFieldMapper extends NumberFieldMapper {
             } else {
                 value = parser.doubleValue(coerce.value());
                 if (context.includeInAll(includeInAll, this)) {
-                    context.allEntries().addText(fieldType.names().fullName(), parser.text(), boost);
+                    context.allEntries().addText(fieldType().names().fullName(), parser.text(), boost);
                 }
             }
         }
 
-        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            CustomDoubleNumericField field = new CustomDoubleNumericField(this, value, (NumberFieldType)fieldType);
+        if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
+            CustomDoubleNumericField field = new CustomDoubleNumericField(this, value, fieldType());
             field.setBoost(boost);
             fields.add(field);
         }
@@ -313,24 +313,11 @@ public class DoubleFieldMapper extends NumberFieldMapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
-        super.merge(mergeWith, mergeResult);
-        if (!this.getClass().equals(mergeWith.getClass())) {
-            return;
-        }
-        if (!mergeResult.simulate()) {
-            this.fieldType = this.fieldType.clone();
-            this.fieldType.setNullValue(((DoubleFieldMapper) mergeWith).fieldType().nullValue());
-            this.fieldType.freeze();
-        }
-    }
-
-    @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (includeDefaults || fieldType.numericPrecisionStep() != Defaults.PRECISION_STEP_64_BIT) {
-            builder.field("precision_step", fieldType.numericPrecisionStep());
+        if (includeDefaults || fieldType().numericPrecisionStep() != Defaults.PRECISION_STEP_64_BIT) {
+            builder.field("precision_step", fieldType().numericPrecisionStep());
         }
         if (includeDefaults || fieldType().nullValue() != null) {
             builder.field("null_value", fieldType().nullValue());

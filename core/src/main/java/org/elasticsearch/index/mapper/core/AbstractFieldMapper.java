@@ -467,6 +467,7 @@ public abstract class AbstractFieldMapper implements FieldMapper {
                     ));
                 }
             }
+            this.fieldType().setNullValue(fieldMergeWith.fieldType().nullValue());
             this.fieldType().freeze();
             this.copyTo = fieldMergeWith.copyTo;
         }

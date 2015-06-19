@@ -29,6 +29,6 @@ between the interval value and 2x the interval value. Defaults to `5s`.
 How often the translog is ++fsync++ed to disk. Defaults to `5s`.
 
 
-Note: these parameters can be updated at runtime using the Index
-Settings Update API (for example, these number can be increased when
+Note: these parameters except `index.gateway.local.sync` can be updated at runtime using the Index
+Settings Update API (for example, these numbers can be increased when
 executing bulk updates to support higher TPS)

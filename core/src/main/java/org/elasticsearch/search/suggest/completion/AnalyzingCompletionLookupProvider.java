@@ -46,6 +46,7 @@ import org.apache.lucene.util.fst.PairOutputs;
 import org.apache.lucene.util.fst.PairOutputs.Pair;
 import org.apache.lucene.util.fst.PositiveIntOutputs;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.CompletionLookupProvider;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.LookupFactory;
@@ -75,11 +76,11 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
     public static final int CODEC_VERSION_CHECKSUMS = 3;
     public static final int CODEC_VERSION_LATEST = CODEC_VERSION_CHECKSUMS;
 
-    private boolean preserveSep;
-    private boolean preservePositionIncrements;
-    private int maxSurfaceFormsPerAnalyzedForm;
-    private int maxGraphExpansions;
-    private boolean hasPayloads;
+    private final boolean preserveSep;
+    private final boolean preservePositionIncrements;
+    private final int maxSurfaceFormsPerAnalyzedForm;
+    private final int maxGraphExpansions;
+    private final boolean hasPayloads;
     private final XAnalyzingSuggester prototype;
 
     public AnalyzingCompletionLookupProvider(boolean preserveSep, boolean exactFirst, boolean preservePositionIncrements, boolean hasPayloads) {
@@ -97,6 +98,18 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
     @Override
     public String getName() {
         return "analyzing";
+    }
+
+    public boolean getPreserveSep() {
+        return preserveSep;
+    }
+
+    public boolean getPreservePositionsIncrements() {
+        return preservePositionIncrements;
+    }
+
+    public boolean hasPayloads() {
+        return hasPayloads;
     }
 
     @Override
@@ -252,18 +265,18 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
         final long ramBytesUsed = sizeInBytes;
         return new LookupFactory() {
             @Override
-            public Lookup getLookup(CompletionFieldMapper mapper, CompletionSuggestionContext suggestionContext) {
-                AnalyzingSuggestHolder analyzingSuggestHolder = lookupMap.get(mapper.fieldType().names().indexName());
+            public Lookup getLookup(CompletionFieldMapper.CompletionFieldType fieldType, CompletionSuggestionContext suggestionContext) {
+                AnalyzingSuggestHolder analyzingSuggestHolder = lookupMap.get(fieldType.names().indexName());
                 if (analyzingSuggestHolder == null) {
                     return null;
                 }
                 int flags = analyzingSuggestHolder.getPreserveSeparator() ? XAnalyzingSuggester.PRESERVE_SEP : 0;
 
                 final XAnalyzingSuggester suggester;
-                final Automaton queryPrefix = mapper.requiresContext() ? ContextQuery.toAutomaton(analyzingSuggestHolder.getPreserveSeparator(), suggestionContext.getContextQueries()) : null;
+                final Automaton queryPrefix = fieldType.requiresContext() ? ContextQuery.toAutomaton(analyzingSuggestHolder.getPreserveSeparator(), suggestionContext.getContextQueries()) : null;
 
                 if (suggestionContext.isFuzzy()) {
-                    suggester = new XFuzzySuggester(mapper.fieldType().indexAnalyzer(), queryPrefix, mapper.fieldType().searchAnalyzer(), flags,
+                    suggester = new XFuzzySuggester(fieldType.indexAnalyzer(), queryPrefix, fieldType.searchAnalyzer(), flags,
                         analyzingSuggestHolder.maxSurfaceFormsPerAnalyzedForm, analyzingSuggestHolder.maxGraphExpansions,
                         suggestionContext.getFuzzyEditDistance(), suggestionContext.isFuzzyTranspositions(),
                         suggestionContext.getFuzzyPrefixLength(), suggestionContext.getFuzzyMinLength(), suggestionContext.isFuzzyUnicodeAware(),
@@ -271,7 +284,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
                         analyzingSuggestHolder.maxAnalyzedPathsForOneInput, analyzingSuggestHolder.sepLabel, analyzingSuggestHolder.payloadSep, analyzingSuggestHolder.endByte,
                         analyzingSuggestHolder.holeCharacter);
                 } else {
-                    suggester = new XAnalyzingSuggester(mapper.fieldType().indexAnalyzer(), queryPrefix, mapper.fieldType().searchAnalyzer(), flags,
+                    suggester = new XAnalyzingSuggester(fieldType.indexAnalyzer(), queryPrefix, fieldType.searchAnalyzer(), flags,
                         analyzingSuggestHolder.maxSurfaceFormsPerAnalyzedForm, analyzingSuggestHolder.maxGraphExpansions,
                         analyzingSuggestHolder.preservePositionIncrements, analyzingSuggestHolder.fst, analyzingSuggestHolder.hasPayloads,
                         analyzingSuggestHolder.maxAnalyzedPathsForOneInput, analyzingSuggestHolder.sepLabel, analyzingSuggestHolder.payloadSep, analyzingSuggestHolder.endByte,
@@ -303,8 +316,8 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
             }
 
             @Override
-            AnalyzingSuggestHolder getAnalyzingSuggestHolder(CompletionFieldMapper mapper) {
-                return lookupMap.get(mapper.fieldType().names().indexName());
+            AnalyzingSuggestHolder getAnalyzingSuggestHolder(MappedFieldType fieldType) {
+                return lookupMap.get(fieldType.names().indexName());
             }
 
             @Override

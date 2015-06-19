@@ -43,6 +43,7 @@ import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.support.NestedInnerQueryParseSupport;
 import org.elasticsearch.search.MultiValueMode;
@@ -139,12 +140,12 @@ public class GeoDistanceSortParser implements SortParser {
             throw new IllegalArgumentException("sort_mode [sum] isn't supported for sorting by geo distance");
         }
 
-        FieldMapper mapper = context.smartNameFieldMapper(fieldName);
-        if (mapper == null) {
+        MappedFieldType fieldType = context.smartNameFieldType(fieldName);
+        if (fieldType == null) {
             throw new IllegalArgumentException("failed to find mapper for [" + fieldName + "] for geo distance based sort");
         }
         final MultiValueMode finalSortMode = sortMode; // final reference for use in the anonymous class
-        final IndexGeoPointFieldData geoIndexFieldData = context.fieldData().getForField(mapper);
+        final IndexGeoPointFieldData geoIndexFieldData = context.fieldData().getForField(fieldType);
         final FixedSourceDistance[] distances = new FixedSourceDistance[geoPoints.size()];
         for (int i = 0; i< geoPoints.size(); i++) {
             distances[i] = geoDistance.fixedSourceDistance(geoPoints.get(i).lat(), geoPoints.get(i).lon(), unit);

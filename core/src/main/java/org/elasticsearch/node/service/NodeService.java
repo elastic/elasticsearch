@@ -80,16 +80,6 @@ public class NodeService extends AbstractComponent {
         this.httpServer = httpServer;
     }
 
-    @Deprecated
-    public void putNodeAttribute(String key, String value) {
-        putAttribute(key, value);
-    }
-
-    @Deprecated
-    public void removeNodeAttribute(String key) {
-        removeAttribute(key);
-    }
-
     public synchronized void putAttribute(String key, String value) {
         serviceAttributes = new MapBuilder<>(serviceAttributes).put(key, value).immutableMap();
     }

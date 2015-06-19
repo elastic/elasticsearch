@@ -114,21 +114,17 @@ public class ClusterHealthResponsesTests extends ElasticsearchTestCase {
             state = ShardRoutingState.STARTED;
         } else if (i > 3) {
             state = ShardRoutingState.RELOCATING;
-        } else if (i > 1) {
-            state = ShardRoutingState.INITIALIZING;
         } else {
-            state = ShardRoutingState.UNASSIGNED;
+            state = ShardRoutingState.INITIALIZING;
         }
 
         switch (state) {
-            case UNASSIGNED:
-                return new MutableShardRouting(index, shardId, null, primary, ShardRoutingState.UNASSIGNED, 1);
             case STARTED:
-                return new MutableShardRouting(index, shardId, "node_" + Integer.toString(node_id++), primary, ShardRoutingState.STARTED, 1);
+                return new MutableShardRouting(index, shardId, "node_" + Integer.toString(node_id++), null, null, primary, ShardRoutingState.STARTED, 1);
             case INITIALIZING:
-                return new MutableShardRouting(index, shardId, "node_" + Integer.toString(node_id++), primary, ShardRoutingState.INITIALIZING, 1);
+                return new MutableShardRouting(index, shardId, "node_" + Integer.toString(node_id++), null, null, primary, ShardRoutingState.INITIALIZING, 1);
             case RELOCATING:
-                return new MutableShardRouting(index, shardId, "node_" + Integer.toString(node_id++), "node_" + Integer.toString(node_id++), primary, ShardRoutingState.RELOCATING, 1);
+                return new MutableShardRouting(index, shardId, "node_" + Integer.toString(node_id++), "node_" + Integer.toString(node_id++), null, primary, ShardRoutingState.RELOCATING, 1);
             default:
                 throw new ElasticsearchException("Unknown state: " + state.name());
         }
@@ -196,12 +192,14 @@ public class ClusterHealthResponsesTests extends ElasticsearchTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
         int pendingTasks = randomIntBetween(0, 200);
         int inFlight = randomIntBetween(0, 200);
-        ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", clusterState.metaData().concreteIndices(IndicesOptions.strictExpand(), (String[]) null), clusterState, pendingTasks, inFlight);
+        int delayedUnassigned = randomIntBetween(0, 200);
+        ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", clusterState.metaData().concreteIndices(IndicesOptions.strictExpand(), (String[]) null), clusterState, pendingTasks, inFlight, delayedUnassigned);
         logger.info("cluster status: {}, expected {}", clusterHealth.getStatus(), counter.status());
         clusterHealth = maybeSerialize(clusterHealth);
         assertClusterHealth(clusterHealth, counter);
         assertThat(clusterHealth.getNumberOfPendingTasks(), Matchers.equalTo(pendingTasks));
         assertThat(clusterHealth.getNumberOfInFlightFetch(), Matchers.equalTo(inFlight));
+        assertThat(clusterHealth.getDelayedUnassignedShards(), Matchers.equalTo(delayedUnassigned));
     }
 
     ClusterHealthResponse maybeSerialize(ClusterHealthResponse clusterHealth) throws IOException {
@@ -229,7 +227,7 @@ public class ClusterHealthResponsesTests extends ElasticsearchTestCase {
         metaData.put(indexMetaData, true);
         routingTable.add(indexRoutingTable);
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
-        ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", clusterState.metaData().concreteIndices(IndicesOptions.strictExpand(), (String[]) null), clusterState, 0, 0);
+        ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", clusterState.metaData().concreteIndices(IndicesOptions.strictExpand(), (String[]) null), clusterState, 0, 0, 0);
         clusterHealth = maybeSerialize(clusterHealth);
         // currently we have no cluster level validation failures as index validation issues are reported per index.
         assertThat(clusterHealth.getValidationFailures(), Matchers.hasSize(0));

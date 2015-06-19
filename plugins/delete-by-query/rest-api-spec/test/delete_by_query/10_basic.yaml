@@ -1,0 +1,42 @@
+---
+"Basic delete_by_query":
+  - do:
+      index:
+          index:  test_1
+          type:   test
+          id:     1
+          body:   { foo: bar }
+
+  - do:
+      index:
+          index:  test_1
+          type:   test
+          id:     2
+          body:   { foo: baz }
+
+  - do:
+      index:
+          index:  test_1
+          type:   test
+          id:     3
+          body:   { foo: foo }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      delete_by_query:
+        index:  test_1
+        body:
+          query:
+            match:
+              foo: bar
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      count:
+        index: test_1
+
+  - match:  { count:     2  }

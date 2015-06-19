@@ -22,7 +22,6 @@ package org.elasticsearch.script.expression;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.function.FunctionValues;
 import org.apache.lucene.queries.function.ValueSource;
-import org.apache.lucene.queries.function.docvalues.DoubleDocValues;
 
 import java.io.IOException;
 import java.util.Map;
@@ -31,16 +30,10 @@ import java.util.Map;
  * A {@link ValueSource} which has a stub {@link FunctionValues} that holds a dynamically replaceable constant double.
  */
 class ReplaceableConstValueSource extends ValueSource {
-    double value;
-    final FunctionValues fv;
+    final ReplaceableConstFunctionValues fv;
 
     public ReplaceableConstValueSource() {
-        fv = new DoubleDocValues(this) {
-            @Override
-            public double doubleVal(int i) {
-                return value;
-            }
-        };
+        fv = new ReplaceableConstFunctionValues();
     }
 
     @Override
@@ -64,6 +57,6 @@ class ReplaceableConstValueSource extends ValueSource {
     }
 
     public void setValue(double v) {
-        value = v;
+        fv.setValue(v);
     }
 }

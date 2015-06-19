@@ -33,9 +33,8 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
-import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.support.NestedInnerQueryParseSupport;
 import org.elasticsearch.search.MultiValueMode;
@@ -208,16 +207,16 @@ public class SortParseElement implements SearchParseElement {
                 sortFields.add(SORT_DOC);
             }
         } else {
-            FieldMapper fieldMapper = context.smartNameFieldMapper(fieldName);
-            if (fieldMapper == null) {
+            MappedFieldType fieldType = context.smartNameFieldType(fieldName);
+            if (fieldType == null) {
                 if (unmappedType != null) {
-                    fieldMapper = context.mapperService().unmappedFieldMapper(unmappedType);
+                    fieldType = context.mapperService().unmappedFieldType(unmappedType);
                 } else {
                     throw new SearchParseException(context, "No mapping found for [" + fieldName + "] in order to sort on", null);
                 }
             }
 
-            if (!fieldMapper.isSortable()) {
+            if (!fieldType.isSortable()) {
                 throw new SearchParseException(context, "Sorting not supported for field[" + fieldName + "]", null);
             }
 
@@ -231,7 +230,7 @@ public class SortParseElement implements SearchParseElement {
             }*/
 
             // We only support AVG and SUM on number based fields
-            if (!(fieldMapper instanceof NumberFieldMapper) && (sortMode == MultiValueMode.SUM || sortMode == MultiValueMode.AVG)) {
+            if (fieldType.isNumeric() == false && (sortMode == MultiValueMode.SUM || sortMode == MultiValueMode.AVG)) {
                 sortMode = null;
             }
             if (sortMode == null) {
@@ -266,9 +265,9 @@ public class SortParseElement implements SearchParseElement {
                 nested = null;
             }
 
-            IndexFieldData.XFieldComparatorSource fieldComparatorSource = context.fieldData().getForField(fieldMapper)
+            IndexFieldData.XFieldComparatorSource fieldComparatorSource = context.fieldData().getForField(fieldType)
                     .comparatorSource(missing, sortMode, nested);
-            sortFields.add(new SortField(fieldMapper.fieldType().names().indexName(), fieldComparatorSource, reverse));
+            sortFields.add(new SortField(fieldType.names().indexName(), fieldComparatorSource, reverse));
         }
     }
 

@@ -30,6 +30,7 @@ import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
@@ -138,10 +139,10 @@ public class MatchQuery {
         return false;
     }
 
-    protected Analyzer getAnalyzer(FieldMapper mapper) {
+    protected Analyzer getAnalyzer(MappedFieldType fieldType) {
         if (this.analyzer == null) {
-            if (mapper != null) {
-                return parseContext.getSearchAnalyzer(mapper);
+            if (fieldType != null) {
+                return parseContext.getSearchAnalyzer(fieldType);
             }
             return parseContext.mapperService().searchAnalyzer();
         } else {
@@ -155,16 +156,16 @@ public class MatchQuery {
 
     public Query parse(Type type, String fieldName, Object value) throws IOException {
         final String field;
-        FieldMapper mapper = parseContext.fieldMapper(fieldName);
-        if (mapper != null) {
-            field = mapper.fieldType().names().indexName();
+        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
+        if (fieldType != null) {
+            field = fieldType.names().indexName();
         } else {
             field = fieldName;
         }
 
-        if (mapper != null && mapper.useTermQueryWithQueryString() && !forceAnalyzeQueryString()) {
+        if (fieldType != null && fieldType.useTermQueryWithQueryString() && !forceAnalyzeQueryString()) {
             try {
-                return mapper.termQuery(value, parseContext);
+                return fieldType.termQuery(value, parseContext);
             } catch (RuntimeException e) {
                 if (lenient) {
                     return null;
@@ -173,9 +174,9 @@ public class MatchQuery {
             }
             
         }
-        Analyzer analyzer = getAnalyzer(mapper);
+        Analyzer analyzer = getAnalyzer(fieldType);
         assert analyzer != null;
-        MatchQueryBuilder builder = new MatchQueryBuilder(analyzer, mapper);
+        MatchQueryBuilder builder = new MatchQueryBuilder(analyzer, fieldType);
         builder.setEnablePositionIncrements(this.enablePositionIncrements);
 
         Query query = null;
@@ -184,7 +185,7 @@ public class MatchQuery {
                 if (commonTermsCutoff == null) {
                     query = builder.createBooleanQuery(field, value.toString(), occur);
                 } else {
-                    query = builder.createCommonTermsQuery(field, value.toString(), occur, occur, commonTermsCutoff, mapper);
+                    query = builder.createCommonTermsQuery(field, value.toString(), occur, occur, commonTermsCutoff, fieldType);
                 }
                 break;
             case PHRASE:
@@ -210,11 +211,11 @@ public class MatchQuery {
 
     private class MatchQueryBuilder extends QueryBuilder {
 
-        private final FieldMapper mapper;
+        private final MappedFieldType mapper;
         /**
          * Creates a new QueryBuilder using the given analyzer.
          */
-        public MatchQueryBuilder(Analyzer analyzer, @Nullable FieldMapper mapper) {
+        public MatchQueryBuilder(Analyzer analyzer, @Nullable MappedFieldType mapper) {
             super(analyzer);
             this.mapper = mapper;
          }
@@ -253,11 +254,11 @@ public class MatchQuery {
             return query;
         }
 
-        public Query createCommonTermsQuery(String field, String queryText, Occur highFreqOccur, Occur lowFreqOccur, float maxTermFrequency, FieldMapper mapper) {
+        public Query createCommonTermsQuery(String field, String queryText, Occur highFreqOccur, Occur lowFreqOccur, float maxTermFrequency, MappedFieldType fieldType) {
             Query booleanQuery = createBooleanQuery(field, queryText, lowFreqOccur);
             if (booleanQuery != null && booleanQuery instanceof BooleanQuery) {
                 BooleanQuery bq = (BooleanQuery) booleanQuery;
-                ExtendedCommonTermsQuery query = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency, ((BooleanQuery)booleanQuery).isCoordDisabled(), mapper);
+                ExtendedCommonTermsQuery query = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency, ((BooleanQuery)booleanQuery).isCoordDisabled(), fieldType);
                 for (BooleanClause clause : bq.clauses()) {
                     if (!(clause.getQuery() instanceof TermQuery)) {
                         return booleanQuery;
@@ -271,10 +272,10 @@ public class MatchQuery {
         }
     }
 
-    protected Query blendTermQuery(Term term, FieldMapper mapper) {
+    protected Query blendTermQuery(Term term, MappedFieldType fieldType) {
         if (fuzziness != null) {
-            if (mapper != null) {
-                Query query = mapper.fuzzyQuery(term.text(), fuzziness, fuzzyPrefixLength, maxExpansions, transpositions);
+            if (fieldType != null) {
+                Query query = fieldType.fuzzyQuery(term.text(), fuzziness, fuzzyPrefixLength, maxExpansions, transpositions);
                 if (query instanceof FuzzyQuery) {
                     QueryParsers.setRewriteMethod((FuzzyQuery) query, fuzzyRewriteMethod);
                 }
@@ -284,8 +285,8 @@ public class MatchQuery {
             QueryParsers.setRewriteMethod(query, rewriteMethod);
             return query;
         }
-        if (mapper != null) {
-            Query termQuery = mapper.queryStringTermQuery(term);
+        if (fieldType != null) {
+            Query termQuery = fieldType.queryStringTermQuery(term);
             if (termQuery != null) {
                 return termQuery;
             }

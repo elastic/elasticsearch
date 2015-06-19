@@ -28,6 +28,7 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.joda.time.DateTimeZone;
 
@@ -120,10 +121,10 @@ public class RangeQueryParser implements QueryParser {
         }
 
         Query query = null;
-        FieldMapper mapper = parseContext.fieldMapper(fieldName);
+        MappedFieldType mapper = parseContext.fieldMapper(fieldName);
         if (mapper != null) {
-            if (mapper instanceof DateFieldMapper) {
-                query = ((DateFieldMapper) mapper).fieldType().rangeQuery(from, to, includeLower, includeUpper, timeZone, forcedDateParser, parseContext);
+            if (mapper instanceof DateFieldMapper.DateFieldType) {
+                query = ((DateFieldMapper.DateFieldType) mapper).rangeQuery(from, to, includeLower, includeUpper, timeZone, forcedDateParser, parseContext);
             } else  {
                 if (timeZone != null) {
                     throw new QueryParsingException(parseContext, "[range] time_zone can not be applied to non date field ["

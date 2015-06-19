@@ -106,7 +106,7 @@ public class IndexCacheableQueryTests extends ElasticsearchTestCase {
         IndexReader reader = writer.getReader();
         // IndexReader wrapping is disabled because of LUCENE-6500.
         // Add it back when we are on 5.3
-        assert Version.LATEST == Version.LUCENE_5_2_0;
+        assert Version.LATEST == Version.LUCENE_5_2_1;
         IndexSearcher searcher = newSearcher(reader, false);
         reader = searcher.getIndexReader(); // reader might be wrapped
         searcher.setQueryCache(cache);
@@ -125,7 +125,7 @@ public class IndexCacheableQueryTests extends ElasticsearchTestCase {
         IndexReader reader2 = writer.getReader();
         // IndexReader wrapping is disabled because of LUCENE-6500.
         // Add it back when we are on 5.3
-        assert Version.LATEST == Version.LUCENE_5_2_0;
+        assert Version.LATEST == Version.LUCENE_5_2_1;
         searcher = newSearcher(reader2, false);
         reader2 = searcher.getIndexReader(); // reader might be wrapped
         searcher.setQueryCache(cache);

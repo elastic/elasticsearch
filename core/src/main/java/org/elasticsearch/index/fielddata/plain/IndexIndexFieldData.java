@@ -46,9 +46,9 @@ public class IndexIndexFieldData extends AbstractIndexOrdinalsFieldData {
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
-        public IndexFieldData<?> build(Index index, Settings indexSettings, FieldMapper mapper, IndexFieldDataCache cache,
+        public IndexFieldData<?> build(Index index, Settings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                 CircuitBreakerService breakerService, MapperService mapperService) {
-            return new IndexIndexFieldData(index, mapper.fieldType().names());
+            return new IndexIndexFieldData(index, fieldType.names());
         }
 
     }

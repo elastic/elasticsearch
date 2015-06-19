@@ -23,9 +23,10 @@ import org.apache.lucene.search.*;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.object.ObjectMapper;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -77,10 +78,14 @@ public class ExistsQueryParser implements QueryParser {
     }
 
     public static Query newFilter(QueryParseContext parseContext, String fieldPattern, String queryName) {
-        final FieldNamesFieldMapper fieldNamesMapper = (FieldNamesFieldMapper)parseContext.mapperService().fullName(FieldNamesFieldMapper.NAME);
+        final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType)parseContext.mapperService().fullName(FieldNamesFieldMapper.NAME);
+        if (fieldNamesFieldType == null) {
+            // can only happen when no types exist, so no docs exist either
+            return Queries.newMatchNoDocsQuery();
+        }
 
-        MapperService.SmartNameObjectMapper smartNameObjectMapper = parseContext.smartObjectMapper(fieldPattern);
-        if (smartNameObjectMapper != null && smartNameObjectMapper.hasMapper()) {
+        ObjectMapper objectMapper = parseContext.getObjectMapper(fieldPattern);
+        if (objectMapper != null) {
             // automatic make the object mapper pattern
             fieldPattern = fieldPattern + ".*";
         }
@@ -93,20 +98,20 @@ public class ExistsQueryParser implements QueryParser {
 
         BooleanQuery boolFilter = new BooleanQuery();
         for (String field : fields) {
-            FieldMapper mapper = parseContext.fieldMapper(field);
+            MappedFieldType fieldType = parseContext.fieldMapper(field);
             Query filter = null;
-            if (fieldNamesMapper!= null && fieldNamesMapper.enabled()) {
+            if (fieldNamesFieldType.isEnabled()) {
                 final String f;
-                if (mapper != null) {
-                    f = mapper.fieldType().names().indexName();
+                if (fieldType != null) {
+                    f = fieldType.names().indexName();
                 } else {
                     f = field;
                 }
-                filter = fieldNamesMapper.termQuery(f, parseContext);
+                filter = fieldNamesFieldType.termQuery(f, parseContext);
             }
             // if _field_names are not indexed, we need to go the slow way
-            if (filter == null && mapper != null) {
-                filter = mapper.rangeQuery(null, null, true, true, parseContext);
+            if (filter == null && fieldType != null) {
+                filter = fieldType.rangeQuery(null, null, true, true, parseContext);
             }
             if (filter == null) {
                 filter = new TermRangeQuery(field, null, null, true, true);

@@ -85,7 +85,7 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
         assertThat(allEntries.fields().contains("simple1"), equalTo(true));
         AllFieldMapper mapper = docMapper.allFieldMapper();
         assertThat(field.fieldType().omitNorms(), equalTo(true));
-        assertThat(mapper.queryStringTermQuery(new Term("_all", "foobar")), Matchers.instanceOf(AllTermQuery.class));
+        assertThat(mapper.fieldType().queryStringTermQuery(new Term("_all", "foobar")), Matchers.instanceOf(AllTermQuery.class));
     }
 
     public void testAllMappersNoBoost() throws Exception {
@@ -116,7 +116,7 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
         assertThat(allEntries.fields().contains("simple1"), equalTo(true));
         AllFieldMapper mapper = docMapper.allFieldMapper();
         assertThat(field.fieldType().omitNorms(), equalTo(false));
-        assertThat(mapper.queryStringTermQuery(new Term("_all", "foobar")), Matchers.instanceOf(AllTermQuery.class));
+        assertThat(mapper.fieldType().queryStringTermQuery(new Term("_all", "foobar")), Matchers.instanceOf(AllTermQuery.class));
 
     }
 
@@ -136,7 +136,7 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
         assertThat(allEntries.fields().contains("simple1"), equalTo(true));
         AllFieldMapper mapper = docMapper.allFieldMapper();
         assertThat(field.fieldType().omitNorms(), equalTo(false));
-        assertThat(mapper.queryStringTermQuery(new Term("_all", "foobar")), Matchers.instanceOf(AllTermQuery.class));
+        assertThat(mapper.fieldType().queryStringTermQuery(new Term("_all", "foobar")), Matchers.instanceOf(AllTermQuery.class));
     }
 
     // #6187: if _all doesn't index positions then we never use AllTokenStream, even if some fields have boost
@@ -443,7 +443,7 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
             IndexService indexService = createIndex(index, client().admin().indices().prepareCreate(index).addMapping("type", "foo", "type=string" + (boost ? ",boost=2" : "")));
             client().prepareIndex(index, "type").setSource("foo", "bar").get();
             client().admin().indices().prepareRefresh(index).get();
-            Query query = indexService.mapperService().documentMapper("type").allFieldMapper().termQuery("bar", null);
+            Query query = indexService.mapperService().documentMapper("type").allFieldMapper().fieldType().termQuery("bar", null);
             try (Searcher searcher = indexService.shard(0).acquireSearcher("tests")) {
                 query = searcher.searcher().rewrite(query);
                 final Class<?> expected = boost ? AllTermQuery.class : TermQuery.class;

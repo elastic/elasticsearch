@@ -36,37 +36,20 @@ import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.elasticsearch.index.cache.filter.ShardFilterCache;
-import org.elasticsearch.index.cache.query.ShardQueryCache;
 import org.elasticsearch.index.deletionpolicy.DeletionPolicyModule;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.fielddata.ShardFieldData;
-import org.elasticsearch.index.gateway.IndexShardGateway;
 import org.elasticsearch.index.gateway.IndexShardGatewayService;
-import org.elasticsearch.index.get.ShardGetService;
-import org.elasticsearch.index.indexing.ShardIndexingService;
-import org.elasticsearch.index.indexing.slowlog.ShardSlowLogIndexingService;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.merge.policy.MergePolicyModule;
-import org.elasticsearch.index.merge.policy.MergePolicyProvider;
-import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
-import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
-import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.query.IndexQueryParserService;
-import org.elasticsearch.index.search.slowlog.ShardSlowLogSearchService;
-import org.elasticsearch.index.search.stats.ShardSearchService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.index.snapshots.IndexShardSnapshotAndRestoreService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreModule;
-import org.elasticsearch.index.suggest.stats.ShardSuggestService;
-import org.elasticsearch.index.termvectors.ShardTermVectorsService;
 import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
@@ -77,8 +60,10 @@ import org.elasticsearch.plugins.ShardsPluginsModule;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -131,6 +116,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                         SimilarityService similarityService, IndexAliasesService aliasesService, IndexCache indexCache,
                         IndexSettingsService settingsService,
                         IndexFieldDataService indexFieldData, BitsetFilterCache bitSetFilterCache, IndicesService indicesServices) {
+
         super(index, indexSettings);
         this.injector = injector;
         this.indexSettings = indexSettings;
@@ -272,6 +258,21 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         return indexSettings.get(IndexMetaData.SETTING_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
     }
 
+    // NOTE: O(numShards) cost, but numShards should be smallish?
+    private long getAvgShardSizeInBytes() throws IOException {
+        long sum = 0;
+        int count = 0;
+        for(IndexShard indexShard : this) {
+            sum += indexShard.store().stats().sizeInBytes();
+            count++;
+        }
+        if (count == 0) {
+            return -1L;
+        } else {
+            return sum / count;
+        }
+    }
+
     public synchronized IndexShard createShard(int sShardId, boolean primary) {
         /*
          * TODO: we execute this in parallel but it's a synced method. Yet, we might
@@ -289,7 +290,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
 
             ShardPath path = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
             if (path == null) {
-                path = ShardPath.selectNewPathForShard(nodeEnv, shardId, indexSettings);
+                path = ShardPath.selectNewPathForShard(nodeEnv, shardId, indexSettings, getAvgShardSizeInBytes(), this);
                 logger.debug("{} creating using a new path [{}]", shardId, path);
             } else {
                 logger.debug("{} creating using an existing path [{}]", shardId, path);
@@ -312,8 +313,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             modules.add(new StoreModule(injector.getInstance(IndexStore.class).shardDirectory(), lock,
                     new StoreCloseListener(shardId, canDeleteShardContent, shardFilterCache), path));
             modules.add(new DeletionPolicyModule(indexSettings));
-            modules.add(new MergePolicyModule(indexSettings));
-            modules.add(new MergeSchedulerModule(indexSettings));
             try {
                 shardInjector = modules.createChildInjector(injector);
             } catch (CreationException e) {
@@ -388,8 +387,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                     }
                 }
                 closeInjectorResource(sId, shardInjector,
-                        MergeSchedulerProvider.class,
-                        MergePolicyProvider.class,
                         IndexShardGatewayService.class,
                         PercolatorQueriesRegistry.class);
 

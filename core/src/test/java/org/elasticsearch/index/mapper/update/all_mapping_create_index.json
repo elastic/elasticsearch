@@ -12,7 +12,7 @@
         "search_analyzer": "whitespace",
         "similarity": "my_similarity",
         "fielddata": {
-           "format": "fst"
+           "format": "paged_bytes"
         }
       }
     }

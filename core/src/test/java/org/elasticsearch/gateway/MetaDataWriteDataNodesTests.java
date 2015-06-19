@@ -55,7 +55,6 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
         String redNode = startDataNode("red");
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.number_of_replicas", 0)));
         index("test", "doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
-        waitForConcreteMappingsOnAll("test", "doc", "text");
         ensureGreen("test");
         assertIndexInMetaState(redNode, "test");
         assertIndexInMetaState(masterNodeName, "test");
@@ -63,8 +62,6 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
         ((InternalTestCluster) cluster()).stopCurrentMasterNode();
         String newMasterNode = startMasterNode();
         ensureGreen("test");
-        // wait for mapping also on master becasue then we can be sure the state was written
-        waitForConcreteMappingsOnAll("test", "doc", "text");
         // check for meta data
         assertIndexInMetaState(redNode, "test");
         assertIndexInMetaState(newMasterNode, "test");
@@ -85,8 +82,6 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("red_index").setSettings(Settings.builder().put("index.number_of_replicas", 0).put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "red")));
         index("red_index", "doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
         ensureGreen();
-        waitForConcreteMappingsOnAll("blue_index", "doc", "text");
-        waitForConcreteMappingsOnAll("red_index", "doc", "text");
         assertIndexNotInMetaState(blueNode, "red_index");
         assertIndexNotInMetaState(redNode, "blue_index");
         assertIndexInMetaState(blueNode, "blue_index");
@@ -151,8 +146,6 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
         assertIndexInMetaState(blueNode, "red_index");
         assertIndexInMetaState(masterNode, "red_index");
         assertIndexInMetaState(masterNode, "blue_index");
-        waitForConcreteMappingsOnAll("blue_index", "doc", "text");
-        waitForConcreteMappingsOnAll("red_index", "doc", "text");
 
         //at this point the blue_index is on red node and the red_index on blue node
         // now, when we start red and master node again but without data folder, the red index should be gone but the blue index should initialize fine
@@ -188,7 +181,6 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
         assertIndexInMetaState(redNode, "red_index");
         assertIndexInMetaState(masterNode, "red_index");
 
-        waitForConcreteMappingsOnAll("red_index", "doc", "text");
         client().admin().indices().prepareClose("red_index").get();
         // close the index
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
@@ -251,8 +243,6 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
         logger.info("--> wait for meta state written for red_index");
         assertIndexInMetaState(redNode, "red_index");
         assertIndexInMetaState(masterNode, "red_index");
-
-        waitForConcreteMappingsOnAll("red_index", "doc", "text");
 
         logger.info("--> close red_index");
         client().admin().indices().prepareClose("red_index").get();

@@ -172,7 +172,8 @@ public class BucketHelpers {
                     value = ((InternalNumericMetricsAggregation.SingleValue) propertyValue).value();
                 } else {
                     throw new AggregationExecutionException(DerivativeParser.BUCKETS_PATH.getPreferredName()
-                            + " must reference either a number value or a single value numeric metric aggregation");
+                            + " must reference either a number value or a single value numeric metric aggregation, got: "
+                            + propertyValue.getClass().getCanonicalName());
                 }
                 // doc count never has missing values so gap policy doesn't apply here
                 boolean isDocCountProperty = aggPathAsList.size() == 1 && "_count".equals(aggPathAsList.get(0));

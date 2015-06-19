@@ -120,7 +120,7 @@ public abstract class RestRequest extends ContextAndHeaderHolder implements ToXC
         try {
             return Long.parseLong(sValue);
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Failed to parse int parameter [" + key + "] with value [" + sValue + "]", e);
+            throw new IllegalArgumentException("Failed to parse long parameter [" + key + "] with value [" + sValue + "]", e);
         }
     }
 
@@ -132,11 +132,6 @@ public abstract class RestRequest extends ContextAndHeaderHolder implements ToXC
     @Override
     public Boolean paramAsBoolean(String key, Boolean defaultValue) {
         return Booleans.parseBoolean(param(key), defaultValue);
-    }
-
-    @Override @Deprecated
-    public Boolean paramAsBooleanOptional(String key, Boolean defaultValue) {
-        return paramAsBoolean(key, defaultValue);
     }
 
     public TimeValue paramAsTime(String key, TimeValue defaultValue) {

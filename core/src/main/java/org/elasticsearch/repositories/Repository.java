@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.repositories;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -59,11 +58,11 @@ public interface Repository extends LifecycleComponent<Repository> {
      * <p/>
      * The returned meta data contains global metadata as well as metadata for all indices listed in the indices parameter.
      *
-     * @param snapshotId snapshot ID
+     * @param snapshot snapshot
      * @param indices    list of indices
      * @return information about snapshot
      */
-    MetaData readSnapshotMetaData(SnapshotId snapshotId, List<String> indices) throws IOException;
+    MetaData readSnapshotMetaData(SnapshotId snapshotId, Snapshot snapshot, List<String> indices) throws IOException;
 
     /**
      * Returns the list of snapshots currently stored in the repository

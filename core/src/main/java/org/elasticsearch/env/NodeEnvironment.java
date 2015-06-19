@@ -781,4 +781,17 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
     public Path resolveCustomLocation(@IndexSettings Settings indexSettings, final ShardId shardId) {
         return resolveCustomLocation(indexSettings, shardId.index().name()).resolve(Integer.toString(shardId.id()));
     }
+
+    /**
+     * Returns the {@code NodePath.path} for this shard.
+     */
+    public static Path shardStatePathToDataPath(Path shardPath) {
+        int count = shardPath.getNameCount();
+
+        // Sanity check:
+        assert Integer.parseInt(shardPath.getName(count-1).toString()) >= 0;
+        assert "indices".equals(shardPath.getName(count-3).toString());
+        
+        return shardPath.getParent().getParent().getParent();
+    }
 }

@@ -66,6 +66,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -752,7 +753,7 @@ public class PercolatorService extends AbstractComponent {
                     hls = new ArrayList<>(topDocs.scoreDocs.length);
                 }
 
-                final FieldMapper uidMapper = context.mapperService().smartNameFieldMapper(UidFieldMapper.NAME);
+                final MappedFieldType uidMapper = context.mapperService().smartNameFieldType(UidFieldMapper.NAME);
                 final IndexFieldData<?> uidFieldData = context.fieldData().getForField(uidMapper);
                 int i = 0;
                 for (ScoreDoc scoreDoc : topDocs.scoreDocs) {

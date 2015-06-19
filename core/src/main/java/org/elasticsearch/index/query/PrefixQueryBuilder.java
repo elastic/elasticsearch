@@ -75,7 +75,7 @@ public class PrefixQueryBuilder extends MultiTermQueryBuilder implements Boostab
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(PrefixQueryParser.NAME);
-        if (boost == -1 && rewrite == null && queryName != null) {
+        if (boost == -1 && rewrite == null && queryName == null) {
             builder.field(name, prefix);
         } else {
             builder.startObject(name);

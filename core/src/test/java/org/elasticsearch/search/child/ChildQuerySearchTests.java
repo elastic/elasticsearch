@@ -60,8 +60,8 @@ import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.factorFunction;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.weightFactorFunction;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
@@ -1583,9 +1583,9 @@ public class ChildQuerySearchTests extends ElasticsearchIntegrationTest {
                                 .hasChildQuery(
                                         "child",
                                         QueryBuilders.functionScoreQuery(constantScoreQuery(QueryBuilders.termQuery("foo", "two"))).boostMode("replace").scoreMode("sum")
-                                                .add(QueryBuilders.matchAllQuery(), factorFunction(1))
-                                                .add(QueryBuilders.termQuery("foo", "three"), factorFunction(1))
-                                                .add(QueryBuilders.termQuery("foo", "four"), factorFunction(1))).scoreType(scoreType)
+                                                .add(QueryBuilders.matchAllQuery(), weightFactorFunction(1))
+                                                .add(QueryBuilders.termQuery("foo", "three"), weightFactorFunction(1))
+                                                .add(QueryBuilders.termQuery("foo", "four"), weightFactorFunction(1))).scoreType(scoreType)
                                 .minChildren(minChildren).maxChildren(maxChildren).setShortCircuitCutoff(cutoff))
                 .addSort("_score", SortOrder.DESC).addSort("id", SortOrder.ASC).get();
     }

@@ -129,6 +129,12 @@ public interface ShardRouting extends Streamable, Serializable, ToXContent {
     RestoreSource restoreSource();
 
     /**
+     * Additional metadata on why the shard is/was unassigned. The metadata is kept around
+     * until the shard moves to STARTED.
+     */
+    UnassignedInfo unassignedInfo();
+
+    /**
      * Returns <code>true</code> iff this shard is a primary.
      */
     boolean primary();

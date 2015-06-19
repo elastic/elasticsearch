@@ -39,10 +39,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -86,7 +83,7 @@ public class UpdateMappingIntegrationTests extends ElasticsearchIntegrationTest 
         for (int rec = 0; rec < recCount; rec++) {
             String type = "type" + (rec % numberOfTypes);
             String fieldName = "field_" + type + "_" + rec;
-            waitForConcreteMappingsOnAll("test", type, fieldName);
+            assertConcreteMappingsOnAll("test", type, fieldName);
         }
     }
 

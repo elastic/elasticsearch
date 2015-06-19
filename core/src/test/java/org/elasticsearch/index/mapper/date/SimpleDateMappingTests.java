@@ -228,12 +228,12 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
         NumericRangeQuery<Long> rangeQuery;
         try {
             SearchContext.setCurrent(new TestSearchContext());
-            rangeQuery = (NumericRangeQuery<Long>) defaultMapper.mappers().smartNameFieldMapper("date_field").rangeQuery("10:00:00", "11:00:00", true, true, null);
+            rangeQuery = (NumericRangeQuery<Long>) defaultMapper.mappers().smartNameFieldMapper("date_field").fieldType().rangeQuery("10:00:00", "11:00:00", true, true, null);
         } finally {
             SearchContext.removeCurrent();
         }
-        assertThat(rangeQuery.getMax(), equalTo(new DateTime(TimeValue.timeValueHours(11).millis()).getMillis()));
-        assertThat(rangeQuery.getMin(), equalTo(new DateTime(TimeValue.timeValueHours(10).millis()).getMillis()));
+        assertThat(rangeQuery.getMax(), equalTo(new DateTime(TimeValue.timeValueHours(11).millis(), DateTimeZone.UTC).getMillis()));
+        assertThat(rangeQuery.getMin(), equalTo(new DateTime(TimeValue.timeValueHours(10).millis(), DateTimeZone.UTC).getMillis()));
     }
     
     public void testDayWithoutYearFormat() throws Exception {
@@ -254,12 +254,12 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
         NumericRangeQuery<Long> rangeQuery;
         try {
             SearchContext.setCurrent(new TestSearchContext());
-            rangeQuery = (NumericRangeQuery<Long>) defaultMapper.mappers().smartNameFieldMapper("date_field").rangeQuery("Jan 02 10:00:00", "Jan 02 11:00:00", true, true, null);
+            rangeQuery = (NumericRangeQuery<Long>) defaultMapper.mappers().smartNameFieldMapper("date_field").fieldType().rangeQuery("Jan 02 10:00:00", "Jan 02 11:00:00", true, true, null);
         } finally {
             SearchContext.removeCurrent();
         }
-        assertThat(rangeQuery.getMax(), equalTo(new DateTime(TimeValue.timeValueHours(35).millis()).getMillis()));
-        assertThat(rangeQuery.getMin(), equalTo(new DateTime(TimeValue.timeValueHours(34).millis()).getMillis()));
+        assertThat(rangeQuery.getMax(), equalTo(new DateTime(TimeValue.timeValueHours(35).millis(), DateTimeZone.UTC).getMillis()));
+        assertThat(rangeQuery.getMin(), equalTo(new DateTime(TimeValue.timeValueHours(34).millis(), DateTimeZone.UTC).getMillis()));
     }
     
     public void testIgnoreMalformedOption() throws Exception {

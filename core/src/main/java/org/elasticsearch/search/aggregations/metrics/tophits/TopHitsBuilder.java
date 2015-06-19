@@ -153,60 +153,6 @@ public class TopHitsBuilder extends AbstractAggregationBuilder {
     }
 
     /**
-     * Adds a script based field to load and return. The field does not have to
-     * be stored, but its recommended to use non analyzed or numeric fields.
-     *
-     * @param name
-     *            The name that will represent this value in the return hit
-     * @param script
-     *            The script to use
-     * @deprecated Use {@link #addScriptField(String, Script)} instead.
-     */
-    @Deprecated
-    public TopHitsBuilder addScriptField(String name, String script) {
-        sourceBuilder().scriptField(name, script);
-        return this;
-    }
-
-    /**
-     * Adds a script based field to load and return. The field does not have to
-     * be stored, but its recommended to use non analyzed or numeric fields.
-     *
-     * @param name
-     *            The name that will represent this value in the return hit
-     * @param script
-     *            The script to use
-     * @param params
-     *            Parameters that the script can use.
-     * @deprecated Use {@link #addScriptField(String, Script)} instead.
-     */
-    @Deprecated
-    public TopHitsBuilder addScriptField(String name, String script, Map<String, Object> params) {
-        sourceBuilder().scriptField(name, script, params);
-        return this;
-    }
-
-    /**
-     * Adds a script based field to load and return. The field does not have to
-     * be stored, but its recommended to use non analyzed or numeric fields.
-     *
-     * @param name
-     *            The name that will represent this value in the return hit
-     * @param lang
-     *            The language of the script
-     * @param script
-     *            The script to use
-     * @param params
-     *            Parameters that the script can use (can be <tt>null</tt>).
-     * @deprecated Use {@link #addScriptField(String, Script)} instead.
-     */
-    @Deprecated
-    public TopHitsBuilder addScriptField(String name, String lang, String script, Map<String, Object> params) {
-        sourceBuilder().scriptField(name, lang, script, params);
-        return this;
-    }
-
-    /**
      * Adds a sort against the given field name and the sort ordering.
      *
      * @param field The name of the field

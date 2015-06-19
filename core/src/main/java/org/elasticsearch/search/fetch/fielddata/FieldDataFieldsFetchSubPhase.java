@@ -19,11 +19,11 @@
 package org.elasticsearch.search.fetch.fielddata;
 
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -80,9 +80,9 @@ public class FieldDataFieldsFetchSubPhase implements FetchSubPhase {
                 hitField = new InternalSearchHitField(field.name(), new ArrayList<>(2));
                 hitContext.hit().fields().put(field.name(), hitField);
             }
-            FieldMapper mapper = context.mapperService().smartNameFieldMapper(field.name());
-            if (mapper != null) {
-                AtomicFieldData data = context.fieldData().getForField(mapper).load(hitContext.readerContext());
+            MappedFieldType fieldType = context.mapperService().smartNameFieldType(field.name());
+            if (fieldType != null) {
+                AtomicFieldData data = context.fieldData().getForField(fieldType).load(hitContext.readerContext());
                 ScriptDocValues values = data.getScriptValues();
                 values.setNextDocId(hitContext.docId());
                 hitField.values().addAll(values.getValues());

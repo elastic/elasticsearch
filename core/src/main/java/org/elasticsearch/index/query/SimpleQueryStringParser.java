@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -89,6 +90,7 @@ public class SimpleQueryStringParser implements QueryParser {
 
         String currentFieldName = null;
         String queryBody = null;
+        float boost = 1.0f; 
         String queryName = null;
         String field = null;
         String minimumShouldMatch = null;
@@ -130,9 +132,9 @@ public class SimpleQueryStringParser implements QueryParser {
                                 fieldsAndWeights.put(fieldName, fBoost);
                             }
                         } else {
-                            FieldMapper mapper = parseContext.fieldMapper(fField);
-                            if (mapper != null) {
-                                fieldsAndWeights.put(mapper.fieldType().names().indexName(), fBoost);
+                            MappedFieldType fieldType = parseContext.fieldMapper(fField);
+                            if (fieldType != null) {
+                                fieldsAndWeights.put(fieldType.names().indexName(), fBoost);
                             } else {
                                 fieldsAndWeights.put(fField, fBoost);
                             }
@@ -146,6 +148,8 @@ public class SimpleQueryStringParser implements QueryParser {
             } else if (token.isValue()) {
                 if ("query".equals(currentFieldName)) {
                     queryBody = parser.text();
+                } else if ("boost".equals(currentFieldName)) {
+                    boost = parser.floatValue();
                 } else if ("analyzer".equals(currentFieldName)) {
                     analyzer = parseContext.analysisService().analyzer(parser.text());
                     if (analyzer == null) {
@@ -197,7 +201,7 @@ public class SimpleQueryStringParser implements QueryParser {
         if (queryBody == null) {
             throw new QueryParsingException(parseContext, "[" + NAME + "] query text missing");
         }
-
+        
         // Support specifying only a field instead of a map
         if (field == null) {
             field = currentFieldName;
@@ -230,6 +234,11 @@ public class SimpleQueryStringParser implements QueryParser {
         if (minimumShouldMatch != null && query instanceof BooleanQuery) {
             Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
         }
+
+        if (query != null) {
+            query.setBoost(boost);
+        }
+
         return query;
     }
 }

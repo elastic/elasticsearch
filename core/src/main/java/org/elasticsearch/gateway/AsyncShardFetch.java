@@ -165,19 +165,29 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     protected synchronized void processAsyncFetch(ShardId shardId, T[] responses, FailedNodeException[] failures) {
         if (closed) {
             // we are closed, no need to process this async fetch at all
+            logger.trace("{} ignoring fetched [{}] results, already closed", shardId, type);
             return;
         }
+        logger.trace("{} processing fetched [{}] results", shardId, type);
+
         if (responses != null) {
             for (T response : responses) {
                 NodeEntry<T> nodeEntry = cache.get(response.getNode().getId());
                 // if the entry is there, and not marked as failed already, process it
-                if (nodeEntry != null && nodeEntry.isFailed() == false) {
+                if (nodeEntry == null) {
+                    continue;
+                }
+                if (nodeEntry.isFailed()) {
+                    logger.trace("{} node {} has failed for [{}] (failure [{}])", shardId, nodeEntry.getNodeId(), type, nodeEntry.getFailure());
+                } else {
+                    logger.trace("{} marking {} as done for [{}]", shardId, nodeEntry.getNodeId(), type);
                     nodeEntry.doneFetching(response);
                 }
             }
         }
         if (failures != null) {
             for (FailedNodeException failure : failures) {
+                logger.trace("{} processing failure {} for [{}]", shardId, failure, type);
                 NodeEntry<T> nodeEntry = cache.get(failure.nodeId());
                 // if the entry is there, and not marked as failed already, process it
                 if (nodeEntry != null && nodeEntry.isFailed() == false) {
@@ -253,6 +263,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     // visible for testing
     void asyncFetch(final ShardId shardId, final String[] nodesIds, final MetaData metaData) {
         IndexMetaData indexMetaData = metaData.index(shardId.getIndex());
+        logger.trace("{} fetching [{}] from {}", shardId, type, nodesIds);
         action.list(shardId, indexMetaData, nodesIds, new ActionListener<BaseNodesResponse<T>>() {
             @Override
             public void onResponse(BaseNodesResponse<T> response) {

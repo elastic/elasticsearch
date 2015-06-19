@@ -47,6 +47,7 @@ import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -185,13 +186,13 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
         request.selectedFields(fieldNames.toArray(Strings.EMPTY_ARRAY));
     }
 
-    private boolean isValidField(FieldMapper field) {
+    private boolean isValidField(MappedFieldType fieldType) {
         // must be a string
-        if (!(field instanceof StringFieldMapper)) {
+        if (!(fieldType instanceof StringFieldMapper.StringFieldType)) {
             return false;
         }
         // and must be indexed
-        if (field.fieldType().indexOptions() == IndexOptions.NONE) {
+        if (fieldType.indexOptions() == IndexOptions.NONE) {
             return false;
         }
         return true;
@@ -201,12 +202,12 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
         /* only keep valid fields */
         Set<String> validFields = new HashSet<>();
         for (String field : selectedFields) {
-            FieldMapper fieldMapper = indexShard.mapperService().smartNameFieldMapper(field);
-            if (!isValidField(fieldMapper)) {
+            MappedFieldType fieldType = indexShard.mapperService().smartNameFieldType(field);
+            if (!isValidField(fieldType)) {
                 continue;
             }
             // already retrieved, only if the analyzer hasn't been overridden at the field
-            if (fieldMapper.fieldType().storeTermVectors() &&
+            if (fieldType.storeTermVectors() &&
                     (request.perFieldAnalyzer() == null || !request.perFieldAnalyzer().containsKey(field))) {
                 continue;
             }
@@ -236,7 +237,7 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
         if (perFieldAnalyzer != null && perFieldAnalyzer.containsKey(field)) {
             analyzer = mapperService.analysisService().analyzer(perFieldAnalyzer.get(field).toString());
         } else {
-            analyzer = mapperService.smartNameFieldMapper(field).fieldType().indexAnalyzer();
+            analyzer = mapperService.smartNameFieldType(field).indexAnalyzer();
         }
         if (analyzer == null) {
             analyzer = mapperService.analysisService().defaultIndexAnalyzer();
@@ -278,17 +279,17 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
         Collection<String> seenFields = new HashSet<>();
         Collection<GetField> getFields = new HashSet<>();
         for (IndexableField field : doc.getFields()) {
-            FieldMapper fieldMapper = indexShard.mapperService().smartNameFieldMapper(field.name());
+            MappedFieldType fieldType = indexShard.mapperService().smartNameFieldType(field.name());
             if (seenFields.contains(field.name())) {
                 continue;
             }
             else {
                 seenFields.add(field.name());
             }
-            if (!isValidField(fieldMapper)) {
+            if (!isValidField(fieldType)) {
                 continue;
             }
-            if (request.selectedFields() == null && !doAllFields && !fieldMapper.fieldType().storeTermVectors()) {
+            if (request.selectedFields() == null && !doAllFields && !fieldType.storeTermVectors()) {
                 continue;
             }
             if (request.selectedFields() != null && !request.selectedFields().contains(field.name())) {

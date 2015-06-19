@@ -26,7 +26,6 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -57,7 +56,6 @@ public class NestedInnerQueryParseSupport {
     protected BitDocIdSetFilter parentFilter;
     protected BitDocIdSetFilter childFilter;
 
-    protected DocumentMapper childDocumentMapper;
     protected ObjectMapper nestedObjectMapper;
     private ObjectMapper parentObjectMapper;
 
@@ -157,12 +155,7 @@ public class NestedInnerQueryParseSupport {
 
     public void setPath(String path) {
         this.path = path;
-        MapperService.SmartNameObjectMapper smart = parseContext.smartObjectMapper(path);
-        if (smart == null) {
-            throw new QueryParsingException(parseContext, "[nested] failed to find nested object under path [" + path + "]");
-        }
-        childDocumentMapper = smart.docMapper();
-        nestedObjectMapper = smart.mapper();
+        nestedObjectMapper = parseContext.getObjectMapper(path);
         if (nestedObjectMapper == null) {
             throw new QueryParsingException(parseContext, "[nested] failed to find nested object under path [" + path + "]");
         }

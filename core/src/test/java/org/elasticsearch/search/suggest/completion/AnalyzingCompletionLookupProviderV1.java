@@ -46,6 +46,7 @@ import org.apache.lucene.util.fst.PairOutputs;
 import org.apache.lucene.util.fst.PairOutputs.Pair;
 import org.apache.lucene.util.fst.PositiveIntOutputs;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.search.suggest.completion.AnalyzingCompletionLookupProvider.AnalyzingSuggestHolder;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.CompletionLookupProvider;
@@ -233,25 +234,25 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
         final long ramBytesUsed = sizeInBytes;
         return new LookupFactory() {
             @Override
-            public Lookup getLookup(CompletionFieldMapper mapper, CompletionSuggestionContext suggestionContext) {
-                AnalyzingSuggestHolder analyzingSuggestHolder = lookupMap.get(mapper.fieldType().names().indexName());
+            public Lookup getLookup(CompletionFieldMapper.CompletionFieldType fieldType, CompletionSuggestionContext suggestionContext) {
+                AnalyzingSuggestHolder analyzingSuggestHolder = lookupMap.get(fieldType.names().indexName());
                 if (analyzingSuggestHolder == null) {
                     return null;
                 }
                 int flags = analyzingSuggestHolder.getPreserveSeparator() ? XAnalyzingSuggester.PRESERVE_SEP : 0;
 
-                final Automaton queryPrefix = mapper.requiresContext() ? ContextQuery.toAutomaton(analyzingSuggestHolder.getPreserveSeparator(), suggestionContext.getContextQueries()) : null;
+                final Automaton queryPrefix = fieldType.requiresContext() ? ContextQuery.toAutomaton(analyzingSuggestHolder.getPreserveSeparator(), suggestionContext.getContextQueries()) : null;
 
                 XAnalyzingSuggester suggester;
                 if (suggestionContext.isFuzzy()) {
-                    suggester = new XFuzzySuggester(mapper.fieldType().indexAnalyzer(), queryPrefix, mapper.fieldType().searchAnalyzer(), flags,
+                    suggester = new XFuzzySuggester(fieldType.indexAnalyzer(), queryPrefix, fieldType.searchAnalyzer(), flags,
                         analyzingSuggestHolder.maxSurfaceFormsPerAnalyzedForm, analyzingSuggestHolder.maxGraphExpansions,
                         suggestionContext.getFuzzyEditDistance(), suggestionContext.isFuzzyTranspositions(),
                         suggestionContext.getFuzzyPrefixLength(), suggestionContext.getFuzzyMinLength(), false,
                         analyzingSuggestHolder.fst, analyzingSuggestHolder.hasPayloads,
                         analyzingSuggestHolder.maxAnalyzedPathsForOneInput, SEP_LABEL, PAYLOAD_SEP, END_BYTE, HOLE_CHARACTER);
                 } else {
-                    suggester = new XAnalyzingSuggester(mapper.fieldType().indexAnalyzer(), queryPrefix, mapper.fieldType().searchAnalyzer(), flags,
+                    suggester = new XAnalyzingSuggester(fieldType.indexAnalyzer(), queryPrefix, fieldType.searchAnalyzer(), flags,
                         analyzingSuggestHolder.maxSurfaceFormsPerAnalyzedForm, analyzingSuggestHolder.maxGraphExpansions,
                         analyzingSuggestHolder.preservePositionIncrements,
                         analyzingSuggestHolder.fst, analyzingSuggestHolder.hasPayloads,
@@ -286,8 +287,8 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
             }
 
             @Override
-            AnalyzingSuggestHolder getAnalyzingSuggestHolder(CompletionFieldMapper mapper) {
-                return lookupMap.get(mapper.fieldType().names().indexName());
+            AnalyzingSuggestHolder getAnalyzingSuggestHolder(MappedFieldType fieldType) {
+                return lookupMap.get(fieldType.names().indexName());
             }
 
             @Override

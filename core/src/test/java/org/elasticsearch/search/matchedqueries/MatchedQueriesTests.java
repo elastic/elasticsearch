@@ -21,6 +21,7 @@ package org.elasticsearch.search.matchedqueries;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -198,6 +199,116 @@ public class MatchedQueriesTests extends ElasticsearchIntegrationTest {
                 assertThat(hit.matchedQueries().length, equalTo(2));
                 assertThat(hit.matchedQueries(), hasItemInArray("title3"));
                 assertThat(hit.matchedQueries(), hasItemInArray("or"));
+            } else {
+                fail("Unexpected document returned with id " + hit.id());
+            }
+        }
+    }
+
+    @Test
+    public void testRegExpQuerySupportsName() {
+        createIndex("test1");
+        ensureGreen();
+
+        client().prepareIndex("test1", "type1", "1").setSource("title", "title1").get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(QueryBuilders.regexpQuery("title", "title1").queryName("regex")).get();
+        assertHitCount(searchResponse, 1l);
+
+        for (SearchHit hit : searchResponse.getHits()) {
+            if (hit.id().equals("1")) {
+                assertThat(hit.matchedQueries().length, equalTo(1));
+                assertThat(hit.matchedQueries(), hasItemInArray("regex"));
+            } else {
+                fail("Unexpected document returned with id " + hit.id());
+            }
+        }
+    }
+
+    @Test
+    public void testPrefixQuerySupportsName() {
+        createIndex("test1");
+        ensureGreen();
+
+        client().prepareIndex("test1", "type1", "1").setSource("title", "title1").get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(QueryBuilders.prefixQuery("title", "title").queryName("prefix")).get();
+        assertHitCount(searchResponse, 1l);
+
+        for (SearchHit hit : searchResponse.getHits()) {
+            if (hit.id().equals("1")) {
+                assertThat(hit.matchedQueries().length, equalTo(1));
+                assertThat(hit.matchedQueries(), hasItemInArray("prefix"));
+            } else {
+                fail("Unexpected document returned with id " + hit.id());
+            }
+        }
+    }
+
+    @Test
+    public void testFuzzyQuerySupportsName() {
+        createIndex("test1");
+        ensureGreen();
+
+        client().prepareIndex("test1", "type1", "1").setSource("title", "title1").get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(QueryBuilders.fuzzyQuery("title", "titel1").queryName("fuzzy")).get();
+        assertHitCount(searchResponse, 1l);
+
+        for (SearchHit hit : searchResponse.getHits()) {
+            if (hit.id().equals("1")) {
+                assertThat(hit.matchedQueries().length, equalTo(1));
+                assertThat(hit.matchedQueries(), hasItemInArray("fuzzy"));
+            } else {
+                fail("Unexpected document returned with id " + hit.id());
+            }
+        }
+    }
+
+    @Test
+    public void testWildcardQuerySupportsName() {
+        createIndex("test1");
+        ensureGreen();
+
+        client().prepareIndex("test1", "type1", "1").setSource("title", "title1").get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(QueryBuilders.wildcardQuery("title", "titl*").queryName("wildcard")).get();
+        assertHitCount(searchResponse, 1l);
+
+        for (SearchHit hit : searchResponse.getHits()) {
+            if (hit.id().equals("1")) {
+                assertThat(hit.matchedQueries().length, equalTo(1));
+                assertThat(hit.matchedQueries(), hasItemInArray("wildcard"));
+            } else {
+                fail("Unexpected document returned with id " + hit.id());
+            }
+        }
+    }
+
+    @Test
+    public void testSpanFirstQuerySupportsName() {
+        createIndex("test1");
+        ensureGreen();
+
+        client().prepareIndex("test1", "type1", "1").setSource("title", "title1 title2").get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(QueryBuilders.spanFirstQuery(QueryBuilders.spanTermQuery("title", "title1"), 10).queryName("span")).get();
+        assertHitCount(searchResponse, 1l);
+
+        for (SearchHit hit : searchResponse.getHits()) {
+            if (hit.id().equals("1")) {
+                assertThat(hit.matchedQueries().length, equalTo(1));
+                assertThat(hit.matchedQueries(), hasItemInArray("span"));
             } else {
                 fail("Unexpected document returned with id " + hit.id());
             }

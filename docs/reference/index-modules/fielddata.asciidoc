@@ -86,13 +86,13 @@ breaker using
 The field data format controls how field data should be stored.
 
 Depending on the field type, there might be several field data types
-available. In particular, string and numeric types support the `doc_values`
+available. In particular, string, geo-point and numeric types support the `doc_values`
 format which allows for computing the field data data-structures at indexing
 time and storing them on disk. Although it will make the index larger and may
 be slightly slower, this implementation will be more near-realtime-friendly
 and will require much less memory from the JVM than other implementations.
 
-Here is an example of how to configure the `tag` field to use the `fst` field
+Here is an example of how to configure the `tag` field to use the `paged_bytes` field
 data format.
 
 [source,js]
@@ -101,31 +101,23 @@ data format.
     "tag": {
         "type":      "string",
         "fielddata": {
-            "format": "fst"
+            "format": "paged_bytes"
         }
     }
 }
 --------------------------------------------------
 
 It is possible to change the field data format (and the field data settings
-in general) on a live index by using the update mapping API. When doing so,
-field data which had already been loaded for existing segments will remain
-alive while new segments will use the new field data configuration. Thanks to
-the background merging process, all segments will eventually use the new
-field data format.
+in general) on a live index by using the update mapping API.
 
 [float]
 ==== String field data types
 
-`paged_bytes` (default)::
+`paged_bytes` (default on analyzed string fields)::
     Stores unique terms sequentially in a large buffer and maps documents to
     the indices of the terms they contain in this large buffer.
 
-`fst`::
-    Stores terms in a FST. Slower to build than `paged_bytes` but can help lower
-    memory usage if many terms share common prefixes and/or suffixes.
-
-`doc_values`::
+`doc_values` (default when index is set to `not_analyzed`)::
     Computes and stores field data data-structures on disk at indexing time.
     Lowers memory usage but only works on non-analyzed strings (`index`: `no` or
     `not_analyzed`).
@@ -133,19 +125,19 @@ field data format.
 [float]
 ==== Numeric field data types
 
-`array` (default)::
+`array`::
     Stores field values in memory using arrays.
 
-`doc_values`::
+`doc_values` (default unless doc values are disabled)::
     Computes and stores field data data-structures on disk at indexing time.
 
 [float]
 ==== Geo point field data types
 
-`array` (default)::
+`array`::
     Stores latitudes and longitudes in arrays.
 
-`doc_values`::
+`doc_values` (default unless doc values are disabled)::
     Computes and stores field data data-structures on disk at indexing time.
 
 [float]

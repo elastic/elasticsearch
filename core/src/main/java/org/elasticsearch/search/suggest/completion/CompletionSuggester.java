@@ -50,7 +50,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
     @Override
     protected Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> innerExecute(String name,
             CompletionSuggestionContext suggestionContext, IndexSearcher searcher, CharsRefBuilder spare) throws IOException {
-        if (suggestionContext.mapper() == null || !(suggestionContext.mapper() instanceof CompletionFieldMapper)) {
+        if (suggestionContext.fieldType() == null) {
             throw new ElasticsearchException("Field [" + suggestionContext.getField() + "] is not a completion suggest field");
         }
         final IndexReader indexReader = searcher.getIndexReader();
@@ -67,7 +67,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
             Terms terms = atomicReader.fields().terms(fieldName);
             if (terms instanceof Completion090PostingsFormat.CompletionTerms) {
                 final Completion090PostingsFormat.CompletionTerms lookupTerms = (Completion090PostingsFormat.CompletionTerms) terms;
-                final Lookup lookup = lookupTerms.getLookup(suggestionContext.mapper(), suggestionContext);
+                final Lookup lookup = lookupTerms.getLookup(suggestionContext.fieldType(), suggestionContext);
                 if (lookup == null) {
                     // we don't have a lookup for this segment.. this might be possible if a merge dropped all
                     // docs from the segment that had a value in this segment.

@@ -149,7 +149,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
                         metaData.put(upgradedIndexMetaData, false);
                         blocks.addBlocks(upgradedIndexMetaData);
                         if (upgradedIndexMetaData.getState() == IndexMetaData.State.OPEN) {
-                            routingTableBuilder.addAsRecovery(upgradedIndexMetaData);
+                            routingTableBuilder.addAsFromDangling(upgradedIndexMetaData);
                         }
                         sb.append("[").append(upgradedIndexMetaData.index()).append("/").append(upgradedIndexMetaData.state()).append("]");
                     }

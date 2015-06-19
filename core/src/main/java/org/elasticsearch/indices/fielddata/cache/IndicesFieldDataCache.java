@@ -35,7 +35,6 @@ import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.shard.ShardId;
@@ -222,15 +221,22 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         @Override
         public void onClose(Object coreKey) {
             cache.invalidate(new Key(this, coreKey));
+            // don't call cache.cleanUp here as it would have bad performance implications
         }
 
         @Override
         public void onClose(IndexReader reader) {
             cache.invalidate(new Key(this, reader.getCoreCacheKey()));
+            // don't call cache.cleanUp here as it would have bad performance implications
         }
 
         @Override
         public void clear() {
+            for (Key key : cache.asMap().keySet()) {
+                if (key.indexCache.index.equals(index)) {
+                    cache.invalidate(key);
+                }
+            }
             // Note that cache invalidation in Guava does not immediately remove
             // values from the cache. In the case of a cache with a rare write or
             // read rate, it's possible for values to persist longer than desired.
@@ -238,11 +244,11 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
             // Note this is intended by the Guava developers, see:
             // https://code.google.com/p/guava-libraries/wiki/CachesExplained#Eviction
             // (the "When Does Cleanup Happen" section)
-            for (Key key : cache.asMap().keySet()) {
-                if (key.indexCache.index.equals(index)) {
-                    cache.invalidate(key);
-                }
-            }
+
+            // We call it explicitly here since it should be a "rare" operation, and
+            // if a user runs it he probably wants to see memory returned as soon as
+            // possible
+            cache.cleanUp();
         }
 
         @Override
@@ -254,11 +260,16 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
                     }
                 }
             }
+            // we call cleanUp() because this is a manual operation, should happen
+            // rarely and probably means the user wants to see memory returned as
+            // soon as possible
+            cache.cleanUp();
         }
 
         @Override
         public void clear(Object coreCacheKey) {
             cache.invalidate(new Key(this, coreCacheKey));
+            // don't call cache.cleanUp here as it would have bad performance implications
         }
     }
 

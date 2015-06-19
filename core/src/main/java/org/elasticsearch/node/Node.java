@@ -81,8 +81,6 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestModule;
-import org.elasticsearch.river.RiversManager;
-import org.elasticsearch.river.RiversModule;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
@@ -182,7 +180,6 @@ public class Node implements Releasable {
             if (settings.getAsBoolean(HTTP_ENABLED, true)) {
                 modules.add(new HttpServerModule(settings));
             }
-            modules.add(new RiversModule(settings));
             modules.add(new IndicesModule(settings));
             modules.add(new SearchModule(settings));
             modules.add(new ActionModule(false));
@@ -247,7 +244,6 @@ public class Node implements Releasable {
         injector.getInstance(IndexingMemoryController.class).start();
         injector.getInstance(IndicesClusterStateService.class).start();
         injector.getInstance(IndicesTTLService.class).start();
-        injector.getInstance(RiversManager.class).start();
         injector.getInstance(SnapshotsService.class).start();
         injector.getInstance(TransportService.class).start();
         injector.getInstance(ClusterService.class).start();
@@ -288,8 +284,6 @@ public class Node implements Releasable {
         if (settings.getAsBoolean("http.enabled", true)) {
             injector.getInstance(HttpServer.class).stop();
         }
-
-        injector.getInstance(RiversManager.class).stop();
 
         injector.getInstance(SnapshotsService.class).stop();
         // stop any changes happening as a result of cluster state changes
@@ -339,10 +333,6 @@ public class Node implements Releasable {
         if (settings.getAsBoolean("http.enabled", true)) {
             injector.getInstance(HttpServer.class).close();
         }
-
-        stopWatch.stop().start("rivers");
-        injector.getInstance(RiversManager.class).close();
-
         stopWatch.stop().start("snapshot_service");
         injector.getInstance(SnapshotsService.class).close();
         stopWatch.stop().start("client");

@@ -104,8 +104,8 @@ public interface ValueFormatter extends Streamable {
         public static final ValueFormatter DEFAULT = new ValueFormatter.DateTime(DateFieldMapper.Defaults.DATE_TIME_FORMATTER);
         private DateTimeZone timeZone = DateTimeZone.UTC;
 
-        public static DateTime mapper(DateFieldMapper mapper) {
-            return new DateTime(mapper.fieldType().dateTimeFormatter());
+        public static DateTime mapper(DateFieldMapper.DateFieldType fieldType) {
+            return new DateTime(fieldType.dateTimeFormatter());
         }
 
         static final byte ID = 2;

@@ -28,6 +28,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
@@ -61,13 +62,13 @@ public abstract class FieldsVisitor extends StoredFieldVisitor {
         }
         // can't derive exact mapping type
         for (Map.Entry<String, List<Object>> entry : fields().entrySet()) {
-            FieldMapper fieldMappers = mapperService.indexName(entry.getKey());
-            if (fieldMappers == null) {
+            MappedFieldType fieldType = mapperService.indexName(entry.getKey());
+            if (fieldType == null) {
                 continue;
             }
             List<Object> fieldValues = entry.getValue();
             for (int i = 0; i < fieldValues.size(); i++) {
-                fieldValues.set(i, fieldMappers.valueForSearch(fieldValues.get(i)));
+                fieldValues.set(i, fieldType.valueForSearch(fieldValues.get(i)));
             }
         }
     }
@@ -80,7 +81,7 @@ public abstract class FieldsVisitor extends StoredFieldVisitor {
             }
             List<Object> fieldValues = entry.getValue();
             for (int i = 0; i < fieldValues.size(); i++) {
-                fieldValues.set(i, fieldMapper.valueForSearch(fieldValues.get(i)));
+                fieldValues.set(i, fieldMapper.fieldType().valueForSearch(fieldValues.get(i)));
             }
         }
     }

@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
 
 import java.util.Map;
 
@@ -84,64 +83,6 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      */
     public UpdateRequestBuilder setScript(Script script) {
         request.script(script);
-        return this;
-    }
-
-    /**
-     * The script to execute. Note, make sure not to send different script each
-     * times and instead use script params if possible with the same
-     * (automatically compiled) script.
-     * <p/>
-     * The script works with the variable <code>ctx</code>, which is bound to
-     * the entry, e.g. <code>ctx._source.mycounter += 1</code>.
-     *
-     * @see #setScriptLang(String)
-     * @see #setScriptParams(Map)
-     * 
-     * @deprecated use {@link #setScript(Script)} instead
-     */
-    @Deprecated
-    public UpdateRequestBuilder setScript(String script, ScriptService.ScriptType scriptType) {
-        request.script(script, scriptType);
-        return this;
-    }
-
-    /**
-     * The language of the script to execute. Valid options are: mvel, js,
-     * groovy, python, and native (Java)<br>
-     * Default: groovy
-     * <p/>
-     * Ref:
-     * http://www.elasticsearch.org/guide/en/elasticsearch/reference/current
-     * /modules-scripting.html
-     * 
-     * @deprecated use {@link #setScript(Script)} instead
-     */
-    @Deprecated
-    public UpdateRequestBuilder setScriptLang(String scriptLang) {
-        request.scriptLang(scriptLang);
-        return this;
-    }
-
-    /**
-     * Sets the script parameters to use with the script.
-     * 
-     * @deprecated use {@link #setScript(Script)} instead
-     */
-    @Deprecated
-    public UpdateRequestBuilder setScriptParams(Map<String, Object> scriptParams) {
-        request.scriptParams(scriptParams);
-        return this;
-    }
-
-    /**
-     * Add a script parameter.
-     * 
-     * @deprecated use {@link #setScript(Script)} instead
-     */
-    @Deprecated
-    public UpdateRequestBuilder addScriptParam(String name, Object value) {
-        request.addScriptParam(name, value);
         return this;
     }
 

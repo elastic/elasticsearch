@@ -318,7 +318,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 timeInQueue = runnable.timeSinceCreatedInMillis();
             } else {
                 assert false : "expected TimedPrioritizedRunnable got " + task.getClass();
-                source = "unknown";
+                source = "unknown [" + task.getClass() + "]";
                 timeInQueue = 0;
             }
 

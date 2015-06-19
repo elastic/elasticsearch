@@ -59,6 +59,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Loading;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.TemplateQueryParser;
@@ -921,7 +922,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         @Override
         public TerminationHandle warmNewReaders(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context, ThreadPool threadPool) {
             final MapperService mapperService = indexShard.mapperService();
-            final Map<String, FieldMapper> warmUp = new HashMap<>();
+            final Map<String, MappedFieldType> warmUp = new HashMap<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
                 for (FieldMapper fieldMapper : docMapper.mappers()) {
                     final FieldDataType fieldDataType = fieldMapper.fieldType().fieldDataType();
@@ -936,26 +937,26 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                     if (warmUp.containsKey(indexName)) {
                         continue;
                     }
-                    warmUp.put(indexName, fieldMapper);
+                    warmUp.put(indexName, fieldMapper.fieldType());
                 }
             }
             final IndexFieldDataService indexFieldDataService = indexShard.indexFieldDataService();
             final Executor executor = threadPool.executor(executor());
             final CountDownLatch latch = new CountDownLatch(context.searcher().reader().leaves().size() * warmUp.size());
             for (final LeafReaderContext ctx : context.searcher().reader().leaves()) {
-                for (final FieldMapper fieldMapper : warmUp.values()) {
+                for (final MappedFieldType fieldType : warmUp.values()) {
                     executor.execute(new Runnable() {
 
                         @Override
                         public void run() {
                             try {
                                 final long start = System.nanoTime();
-                                indexFieldDataService.getForField(fieldMapper).load(ctx);
+                                indexFieldDataService.getForField(fieldType).load(ctx);
                                 if (indexShard.warmerService().logger().isTraceEnabled()) {
-                                    indexShard.warmerService().logger().trace("warmed fielddata for [{}], took [{}]", fieldMapper.fieldType().names().fullName(), TimeValue.timeValueNanos(System.nanoTime() - start));
+                                    indexShard.warmerService().logger().trace("warmed fielddata for [{}], took [{}]", fieldType.names().fullName(), TimeValue.timeValueNanos(System.nanoTime() - start));
                                 }
                             } catch (Throwable t) {
-                                indexShard.warmerService().logger().warn("failed to warm-up fielddata for [{}]", t, fieldMapper.fieldType().names().fullName());
+                                indexShard.warmerService().logger().warn("failed to warm-up fielddata for [{}]", t, fieldType.names().fullName());
                             } finally {
                                 latch.countDown();
                             }
@@ -975,7 +976,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         @Override
         public TerminationHandle warmTopReader(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context, ThreadPool threadPool) {
             final MapperService mapperService = indexShard.mapperService();
-            final Map<String, FieldMapper> warmUpGlobalOrdinals = new HashMap<>();
+            final Map<String, MappedFieldType> warmUpGlobalOrdinals = new HashMap<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
                 for (FieldMapper fieldMapper : docMapper.mappers()) {
                     final FieldDataType fieldDataType = fieldMapper.fieldType().fieldDataType();
@@ -989,25 +990,25 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                     if (warmUpGlobalOrdinals.containsKey(indexName)) {
                         continue;
                     }
-                    warmUpGlobalOrdinals.put(indexName, fieldMapper);
+                    warmUpGlobalOrdinals.put(indexName, fieldMapper.fieldType());
                 }
             }
             final IndexFieldDataService indexFieldDataService = indexShard.indexFieldDataService();
             final Executor executor = threadPool.executor(executor());
             final CountDownLatch latch = new CountDownLatch(warmUpGlobalOrdinals.size());
-            for (final FieldMapper fieldMapper : warmUpGlobalOrdinals.values()) {
+            for (final MappedFieldType fieldType : warmUpGlobalOrdinals.values()) {
                 executor.execute(new Runnable() {
                     @Override
                     public void run() {
                         try {
                             final long start = System.nanoTime();
-                            IndexFieldData.Global ifd = indexFieldDataService.getForField(fieldMapper);
+                            IndexFieldData.Global ifd = indexFieldDataService.getForField(fieldType);
                             ifd.loadGlobal(context.reader());
                             if (indexShard.warmerService().logger().isTraceEnabled()) {
-                                indexShard.warmerService().logger().trace("warmed global ordinals for [{}], took [{}]", fieldMapper.fieldType().names().fullName(), TimeValue.timeValueNanos(System.nanoTime() - start));
+                                indexShard.warmerService().logger().trace("warmed global ordinals for [{}], took [{}]", fieldType.names().fullName(), TimeValue.timeValueNanos(System.nanoTime() - start));
                             }
                         } catch (Throwable t) {
-                            indexShard.warmerService().logger().warn("failed to warm-up global ordinals for [{}]", t, fieldMapper.fieldType().names().fullName());
+                            indexShard.warmerService().logger().warn("failed to warm-up global ordinals for [{}]", t, fieldType.names().fullName());
                         } finally {
                             latch.countDown();
                         }

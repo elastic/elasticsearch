@@ -390,12 +390,14 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
             try {
                 nodeLatch.await(fetchTimeout.getMillis(), TimeUnit.MILLISECONDS);
             } catch (InterruptedException e) {
+                Thread.currentThread().interrupt(); // restore interrupt status
                 logger.warn("Failed to update node information for ClusterInfoUpdateJob within 15s timeout");
             }
 
             try {
                 indicesLatch.await(fetchTimeout.getMillis(), TimeUnit.MILLISECONDS);
             } catch (InterruptedException e) {
+                Thread.currentThread().interrupt(); // restore interrupt status
                 logger.warn("Failed to update shard information for ClusterInfoUpdateJob within 15s timeout");
             }
 

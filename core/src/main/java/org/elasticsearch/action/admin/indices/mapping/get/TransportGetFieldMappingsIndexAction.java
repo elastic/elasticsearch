@@ -165,12 +165,6 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
             }
             return defaultValue;
         }
-
-        @Override
-        @Deprecated
-        public Boolean paramAsBooleanOptional(String key, Boolean defaultValue) {
-            return paramAsBoolean(key, defaultValue);
-        }
     };
 
     private ImmutableMap<String, FieldMappingMetaData> findFieldMappingsByType(DocumentMapper documentMapper, GetFieldMappingsIndexRequest request) {

@@ -606,54 +606,6 @@ public class SearchSourceBuilder extends ToXContentToBytes {
     }
 
     /**
-     * Adds a script field under the given name with the provided script.
-     *
-     * @param name
-     *            The name of the field
-     * @param script
-     *            The script
-     * @deprecated Use {@link #scriptField(String, Script)} instead.
-     */
-    @Deprecated
-    public SearchSourceBuilder scriptField(String name, String script) {
-        return scriptField(name, null, script, null);
-    }
-
-    /**
-     * Adds a script field.
-     *
-     * @param name
-     *            The name of the field
-     * @param script
-     *            The script to execute
-     * @param params
-     *            The script parameters
-     * @deprecated Use {@link #scriptField(String, Script)} instead.
-     */
-    @Deprecated
-    public SearchSourceBuilder scriptField(String name, String script, Map<String, Object> params) {
-        return scriptField(name, null, script, params);
-    }
-
-    /**
-     * Adds a script field.
-     *
-     * @param name
-     *            The name of the field
-     * @param lang
-     *            The language of the script
-     * @param script
-     *            The script to execute
-     * @param params
-     *            The script parameters (can be <tt>null</tt>)
-     * @deprecated Use {@link #scriptField(String, Script)} instead.
-     */
-    @Deprecated
-    public SearchSourceBuilder scriptField(String name, String lang, String script, Map<String, Object> params) {
-        return scriptField(name, new Script(script, ScriptType.INLINE, lang, params));
-    }
-
-    /**
      * Sets the boost a specific index will receive when the query is executeed
      * against it.
      *

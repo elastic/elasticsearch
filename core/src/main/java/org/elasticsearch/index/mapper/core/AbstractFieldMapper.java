@@ -28,18 +28,11 @@ import com.google.common.collect.Iterators;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -52,7 +45,6 @@ import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
@@ -312,12 +304,12 @@ public abstract class AbstractFieldMapper implements FieldMapper {
 
         this.fieldType = fieldType.clone();
         if (fieldType.indexAnalyzer() == null && fieldType.tokenized() == false && fieldType.indexOptions() != IndexOptions.NONE) {
-            this.fieldType.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            this.fieldType.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
+            this.fieldType().setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            this.fieldType().setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
-        this.fieldType.setHasDocValues(docValues == null ? defaultDocValues() : docValues);
-        this.fieldType.setFieldDataType(fieldDataType);
-        this.fieldType.freeze();
+        this.fieldType().setHasDocValues(docValues == null ? defaultDocValues() : docValues);
+        this.fieldType().setFieldDataType(fieldDataType);
+        this.fieldType().freeze();
 
         this.multiFields = multiFields;
         this.copyTo = copyTo;
@@ -327,14 +319,14 @@ public abstract class AbstractFieldMapper implements FieldMapper {
         if (indexCreatedBefore2x) {
             return false;
         } else {
-            return fieldType.tokenized() == false && fieldType.indexOptions() != IndexOptions.NONE;
+            return fieldType().tokenized() == false && fieldType().indexOptions() != IndexOptions.NONE;
         }
     }
 
     @Override
     public String name() {
         // TODO: cleanup names so Mapper knows about paths, so that it is always clear whether we are using short or full name
-        return fieldType.names().shortName();
+        return fieldType().names().shortName();
     }
 
     public abstract MappedFieldType defaultFieldType();
@@ -358,12 +350,12 @@ public abstract class AbstractFieldMapper implements FieldMapper {
             parseCreateField(context, fields);
             for (Field field : fields) {
                 if (!customBoost()) {
-                    field.setBoost(fieldType.boost());
+                    field.setBoost(fieldType().boost());
                 }
                 context.doc().add(field);
             }
         } catch (Exception e) {
-            throw new MapperParsingException("failed to parse [" + fieldType.names().fullName() + "]", e);
+            throw new MapperParsingException("failed to parse [" + fieldType().names().fullName() + "]", e);
         }
         multiFields.parse(this, context);
         return null;
@@ -389,161 +381,100 @@ public abstract class AbstractFieldMapper implements FieldMapper {
     }
 
     @Override
-    public final Object value(Object value) {
-        return fieldType().value(value);
-    }
-
-    @Override
-    public final Object valueForSearch(Object value) {
-        return fieldType().valueForSearch(value);
-    }
-
-    // TODO: this is not final so ParentFieldMapper can have custom behavior, per type...
-    @Override
-    public BytesRef indexedValueForSearch(Object value) {
-        return fieldType().indexedValueForSearch(value);
-    }
-
-    @Override
-    public final Query queryStringTermQuery(Term term) {
-        return fieldType().queryStringTermQuery(term);
-    }
-
-    @Override
-    public final boolean useTermQueryWithQueryString() {
-        return fieldType().useTermQueryWithQueryString();
-    }
-
-    @Override
-    public final Query termQuery(Object value, @Nullable QueryParseContext context) {
-        return fieldType().termQuery(value, context);
-    }
-
-    @Override
-    public final Query termsQuery(List values, @Nullable QueryParseContext context) {
-        return fieldType().termsQuery(values, context);
-    }
-
-    @Override
-    public final Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return fieldType().rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, context);
-    }
-
-    @Override
-    public final Query fuzzyQuery(String value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-        return fieldType().fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions);
-    }
-
-    @Override
-    public final Query prefixQuery(Object value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
-        return fieldType().prefixQuery(value, method, context);
-    }
-
-    @Override
-    public final Query regexpQuery(Object value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
-        return fieldType().regexpQuery(value, flags, maxDeterminizedStates, method, context);
-    }
-
-    @Override
-    public final Query nullValueFilter() {
-        return fieldType().nullValueQuery();
-    }
-
-    @Override
     public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
         if (!this.getClass().equals(mergeWith.getClass())) {
             String mergedType = mergeWith.getClass().getSimpleName();
             if (mergeWith instanceof AbstractFieldMapper) {
                 mergedType = ((AbstractFieldMapper) mergeWith).contentType();
             }
-            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] of different type, current_type [" + contentType() + "], merged_type [" + mergedType + "]");
+            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] of different type, current_type [" + contentType() + "], merged_type [" + mergedType + "]");
             // different types, return
             return;
         }
         AbstractFieldMapper fieldMergeWith = (AbstractFieldMapper) mergeWith;
-        boolean indexed =  fieldType.indexOptions() != IndexOptions.NONE;
+        boolean indexed =  fieldType().indexOptions() != IndexOptions.NONE;
         boolean mergeWithIndexed = fieldMergeWith.fieldType().indexOptions() != IndexOptions.NONE;
         if (indexed != mergeWithIndexed || this.fieldType().tokenized() != fieldMergeWith.fieldType().tokenized()) {
-            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different index values");
+            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different index values");
         }
         if (this.fieldType().stored() != fieldMergeWith.fieldType().stored()) {
-            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different store values");
+            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different store values");
         }
         if (!this.fieldType().hasDocValues() && fieldMergeWith.fieldType().hasDocValues()) {
             // don't add conflict if this mapper has doc values while the mapper to merge doesn't since doc values are implicitely set
             // when the doc_values field data format is configured
-            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different " + TypeParsers.DOC_VALUES + " values");
+            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different " + TypeParsers.DOC_VALUES + " values");
         }
-        if (this.fieldType().omitNorms() && !fieldMergeWith.fieldType.omitNorms()) {
-            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] cannot enable norms (`norms.enabled`)");
+        if (this.fieldType().omitNorms() && !fieldMergeWith.fieldType().omitNorms()) {
+            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] cannot enable norms (`norms.enabled`)");
         }
         if (this.fieldType().tokenized() != fieldMergeWith.fieldType().tokenized()) {
-            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different tokenize values");
+            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different tokenize values");
         }
         if (this.fieldType().storeTermVectors() != fieldMergeWith.fieldType().storeTermVectors()) {
-            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different store_term_vector values");
+            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different store_term_vector values");
         }
         if (this.fieldType().storeTermVectorOffsets() != fieldMergeWith.fieldType().storeTermVectorOffsets()) {
-            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different store_term_vector_offsets values");
+            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different store_term_vector_offsets values");
         }
         if (this.fieldType().storeTermVectorPositions() != fieldMergeWith.fieldType().storeTermVectorPositions()) {
-            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different store_term_vector_positions values");
+            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different store_term_vector_positions values");
         }
         if (this.fieldType().storeTermVectorPayloads() != fieldMergeWith.fieldType().storeTermVectorPayloads()) {
-            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different store_term_vector_payloads values");
+            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different store_term_vector_payloads values");
         }
         
         // null and "default"-named index analyzers both mean the default is used
-        if (this.fieldType.indexAnalyzer() == null || "default".equals(this.fieldType.indexAnalyzer().name())) {
-            if (fieldMergeWith.fieldType.indexAnalyzer() != null && "default".equals(fieldMergeWith.fieldType.indexAnalyzer().name()) == false) {
-                mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different analyzer");
+        if (this.fieldType().indexAnalyzer() == null || "default".equals(this.fieldType().indexAnalyzer().name())) {
+            if (fieldMergeWith.fieldType().indexAnalyzer() != null && "default".equals(fieldMergeWith.fieldType().indexAnalyzer().name()) == false) {
+                mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different analyzer");
             }
-        } else if (fieldMergeWith.fieldType.indexAnalyzer() == null || "default".equals(fieldMergeWith.fieldType.indexAnalyzer().name())) {
-            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different analyzer");
-        } else if (this.fieldType.indexAnalyzer().name().equals(fieldMergeWith.fieldType.indexAnalyzer().name()) == false) {
-            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different analyzer");
+        } else if (fieldMergeWith.fieldType().indexAnalyzer() == null || "default".equals(fieldMergeWith.fieldType().indexAnalyzer().name())) {
+            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different analyzer");
+        } else if (this.fieldType().indexAnalyzer().name().equals(fieldMergeWith.fieldType().indexAnalyzer().name()) == false) {
+            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different analyzer");
         }
         
         if (!this.fieldType().names().equals(fieldMergeWith.fieldType().names())) {
-            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different index_name");
+            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different index_name");
         }
 
-        if (this.fieldType.similarity() == null) {
-            if (fieldMergeWith.fieldType.similarity() != null) {
-                mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different similarity");
+        if (this.fieldType().similarity() == null) {
+            if (fieldMergeWith.fieldType().similarity() != null) {
+                mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different similarity");
             }
         } else if (fieldMergeWith.fieldType().similarity() == null) {
-            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different similarity");
+            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different similarity");
         } else if (!this.fieldType().similarity().equals(fieldMergeWith.fieldType().similarity())) {
-            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different similarity");
+            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different similarity");
         }
         multiFields.merge(mergeWith, mergeResult);
 
         if (!mergeResult.simulate()) {
             // apply changeable values
-            this.fieldType = this.fieldType.clone();
-            this.fieldType.setOmitNorms(fieldMergeWith.fieldType.omitNorms());
-            this.fieldType.setBoost(fieldMergeWith.fieldType.boost());
-            this.fieldType.setNormsLoading(fieldMergeWith.fieldType.normsLoading());
-            if (fieldMergeWith.fieldType.searchAnalyzer() != null) {
-                this.fieldType.setSearchAnalyzer(fieldMergeWith.fieldType.searchAnalyzer());
+            this.fieldType = this.fieldType().clone();
+            this.fieldType().setOmitNorms(fieldMergeWith.fieldType().omitNorms());
+            this.fieldType().setBoost(fieldMergeWith.fieldType().boost());
+            this.fieldType().setNormsLoading(fieldMergeWith.fieldType().normsLoading());
+            if (fieldMergeWith.fieldType().searchAnalyzer() != null) {
+                this.fieldType().setSearchAnalyzer(fieldMergeWith.fieldType().searchAnalyzer());
             }
             if (fieldMergeWith.customFieldDataSettings != null) {
                 if (!Objects.equal(fieldMergeWith.customFieldDataSettings, this.customFieldDataSettings)) {
                     this.customFieldDataSettings = fieldMergeWith.customFieldDataSettings;
-                    this.fieldType.setFieldDataType(new FieldDataType(defaultFieldDataType().getType(),
+                    this.fieldType().setFieldDataType(new FieldDataType(defaultFieldDataType().getType(),
                         Settings.builder().put(defaultFieldDataType().getSettings()).put(this.customFieldDataSettings)
                     ));
                 }
             }
-            this.fieldType.freeze();
+            this.fieldType().freeze();
             this.copyTo = fieldMergeWith.copyTo;
         }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(fieldType.names().shortName());
+        builder.startObject(fieldType().names().shortName());
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
         doXContentBody(builder, includeDefaults, params);
         return builder.endObject();
@@ -552,40 +483,40 @@ public abstract class AbstractFieldMapper implements FieldMapper {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
 
         builder.field("type", contentType());
-        if (indexCreatedBefore2x && (includeDefaults || !fieldType.names().shortName().equals(fieldType.names().originalIndexName()))) {
-            builder.field("index_name", fieldType.names().originalIndexName());
+        if (indexCreatedBefore2x && (includeDefaults || !fieldType().names().shortName().equals(fieldType().names().originalIndexName()))) {
+            builder.field("index_name", fieldType().names().originalIndexName());
         }
 
-        if (includeDefaults || fieldType.boost() != 1.0f) {
-            builder.field("boost", fieldType.boost());
+        if (includeDefaults || fieldType().boost() != 1.0f) {
+            builder.field("boost", fieldType().boost());
         }
 
         FieldType defaultFieldType = defaultFieldType();
-        boolean indexed =  fieldType.indexOptions() != IndexOptions.NONE;
+        boolean indexed =  fieldType().indexOptions() != IndexOptions.NONE;
         boolean defaultIndexed = defaultFieldType.indexOptions() != IndexOptions.NONE;
         if (includeDefaults || indexed != defaultIndexed ||
-                fieldType.tokenized() != defaultFieldType.tokenized()) {
-            builder.field("index", indexTokenizeOptionToString(indexed, fieldType.tokenized()));
+                fieldType().tokenized() != defaultFieldType.tokenized()) {
+            builder.field("index", indexTokenizeOptionToString(indexed, fieldType().tokenized()));
         }
-        if (includeDefaults || fieldType.stored() != defaultFieldType.stored()) {
-            builder.field("store", fieldType.stored());
+        if (includeDefaults || fieldType().stored() != defaultFieldType.stored()) {
+            builder.field("store", fieldType().stored());
         }
         doXContentDocValues(builder, includeDefaults);
-        if (includeDefaults || fieldType.storeTermVectors() != defaultFieldType.storeTermVectors()) {
-            builder.field("term_vector", termVectorOptionsToString(fieldType));
+        if (includeDefaults || fieldType().storeTermVectors() != defaultFieldType.storeTermVectors()) {
+            builder.field("term_vector", termVectorOptionsToString(fieldType()));
         }
-        if (includeDefaults || fieldType.omitNorms() != defaultFieldType.omitNorms() || fieldType.normsLoading() != null) {
+        if (includeDefaults || fieldType().omitNorms() != defaultFieldType.omitNorms() || fieldType().normsLoading() != null) {
             builder.startObject("norms");
-            if (includeDefaults || fieldType.omitNorms() != defaultFieldType.omitNorms()) {
-                builder.field("enabled", !fieldType.omitNorms());
+            if (includeDefaults || fieldType().omitNorms() != defaultFieldType.omitNorms()) {
+                builder.field("enabled", !fieldType().omitNorms());
             }
-            if (fieldType.normsLoading() != null) {
-                builder.field(MappedFieldType.Loading.KEY, fieldType.normsLoading());
+            if (fieldType().normsLoading() != null) {
+                builder.field(MappedFieldType.Loading.KEY, fieldType().normsLoading());
             }
             builder.endObject();
         }
-        if (indexed && (includeDefaults || fieldType.indexOptions() != defaultFieldType.indexOptions())) {
-            builder.field("index_options", indexOptionToString(fieldType.indexOptions()));
+        if (indexed && (includeDefaults || fieldType().indexOptions() != defaultFieldType.indexOptions())) {
+            builder.field("index_options", indexOptionToString(fieldType().indexOptions()));
         }
 
         doXContentAnalyzers(builder, includeDefaults);
@@ -601,7 +532,7 @@ public abstract class AbstractFieldMapper implements FieldMapper {
             orderedFielddataSettings.putAll(customFieldDataSettings.getAsMap());
             builder.field("fielddata", orderedFielddataSettings);
         } else if (includeDefaults) {
-            orderedFielddataSettings.putAll(fieldType.fieldDataType().getSettings().getAsMap());
+            orderedFielddataSettings.putAll(fieldType().fieldDataType().getSettings().getAsMap());
             builder.field("fielddata", orderedFielddataSettings);
         }
         multiFields.toXContent(builder, params);
@@ -612,14 +543,14 @@ public abstract class AbstractFieldMapper implements FieldMapper {
     }
     
     protected void doXContentAnalyzers(XContentBuilder builder, boolean includeDefaults) throws IOException {
-        if (fieldType.indexAnalyzer() == null) {
+        if (fieldType().indexAnalyzer() == null) {
             if (includeDefaults) {
                 builder.field("analyzer", "default");
             }
-        } else if (includeDefaults || fieldType.indexAnalyzer().name().startsWith("_") == false && fieldType.indexAnalyzer().name().equals("default") == false) {
-            builder.field("analyzer", fieldType.indexAnalyzer().name());
-            if (fieldType.searchAnalyzer().name().equals(fieldType.indexAnalyzer().name()) == false) {
-                builder.field("search_analyzer", fieldType.searchAnalyzer().name());
+        } else if (includeDefaults || fieldType().indexAnalyzer().name().startsWith("_") == false && fieldType().indexAnalyzer().name().equals("default") == false) {
+            builder.field("analyzer", fieldType().indexAnalyzer().name());
+            if (fieldType().searchAnalyzer().name().equals(fieldType().indexAnalyzer().name()) == false) {
+                builder.field("search_analyzer", fieldType().searchAnalyzer().name());
             }
         }
     }
@@ -682,16 +613,6 @@ public abstract class AbstractFieldMapper implements FieldMapper {
     @Override
     public void close() {
         multiFields.close();
-    }
-
-    @Override
-    public final boolean isNumeric() {
-        return fieldType().isNumeric();
-    }
-
-    @Override
-    public final boolean isSortable() {
-        return fieldType().isSortable();
     }
 
     public static class MultiFields {
@@ -902,10 +823,5 @@ public abstract class AbstractFieldMapper implements FieldMapper {
     @Override
     public boolean isGenerated() {
         return false;
-    }
-
-    @Override
-    public final FieldStats stats(Terms terms, int maxDoc) throws IOException {
-        return fieldType().stats(terms, maxDoc);
     }
 }

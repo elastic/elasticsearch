@@ -229,7 +229,7 @@ public class UidFieldMapper extends AbstractFieldMapper implements RootMapper {
         if (customFieldDataSettings != null) {
             builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
         } else if (includeDefaults) {
-            builder.field("fielddata", (Map) fieldType.fieldDataType().getSettings().getAsMap());
+            builder.field("fielddata", (Map) fieldType().fieldDataType().getSettings().getAsMap());
         }
 
         builder.endObject();

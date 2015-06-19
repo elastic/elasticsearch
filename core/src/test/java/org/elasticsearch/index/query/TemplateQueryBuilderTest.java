@@ -48,19 +48,4 @@ public class TemplateQueryBuilderTest extends ElasticsearchTestCase {
         assertEquals("{\"template\":{\"inline\":\"I am a $template string\",\"params\":{\"template\":\"filled\"}}}", content.string());
     }
 
-    /*
-     * TODO Remove in 2.0
-     */
-    @Test
-    public void testJSONGenerationOldScriptAPI() throws IOException {
-        Map<String, Object> vars = new HashMap<>();
-        vars.put("template", "filled");
-        TemplateQueryBuilder builder = new TemplateQueryBuilder("I am a $template string", vars);
-        XContentBuilder content = XContentFactory.jsonBuilder();
-        content.startObject();
-        builder.doXContent(content, null);
-        content.endObject();
-        content.close();
-        assertEquals("{\"template\":{\"inline\":\"I am a $template string\",\"params\":{\"template\":\"filled\"}}}", content.string());
-    }
 }

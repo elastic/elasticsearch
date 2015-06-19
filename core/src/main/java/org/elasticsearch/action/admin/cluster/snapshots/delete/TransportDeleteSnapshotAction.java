@@ -58,7 +58,8 @@ public class TransportDeleteSnapshotAction extends TransportMasterNodeAction<Del
 
     @Override
     protected ClusterBlockException checkBlock(DeleteSnapshotRequest request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        // Cluster is not affected but we look up repositories in metadata
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     @Override

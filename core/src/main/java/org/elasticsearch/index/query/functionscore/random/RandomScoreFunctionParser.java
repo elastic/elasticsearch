@@ -28,6 +28,7 @@ import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
@@ -82,8 +83,8 @@ public class RandomScoreFunctionParser implements ScoreFunctionParser {
             }
         }
 
-        final FieldMapper mapper = SearchContext.current().mapperService().smartNameFieldMapper("_uid");
-        if (mapper == null) {
+        final MappedFieldType fieldType = SearchContext.current().mapperService().smartNameFieldType("_uid");
+        if (fieldType == null) {
             // mapper could be null if we are on a shard with no docs yet, so this won't actually be used
             return new RandomScoreFunction();
         }
@@ -93,7 +94,7 @@ public class RandomScoreFunctionParser implements ScoreFunctionParser {
         }
         final ShardId shardId = SearchContext.current().indexShard().shardId();
         final int salt = (shardId.index().name().hashCode() << 10) | shardId.id();
-        final IndexFieldData<?> uidFieldData = SearchContext.current().fieldData().getForField(mapper);
+        final IndexFieldData<?> uidFieldData = SearchContext.current().fieldData().getForField(fieldType);
 
         return new RandomScoreFunction(seed, salt, uidFieldData);
     }

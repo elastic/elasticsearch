@@ -31,7 +31,6 @@ import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.plain.*;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
@@ -60,8 +59,6 @@ public class IndexFieldDataService extends AbstractIndexComponent {
     private static final String DOC_VALUES_FORMAT = "doc_values";
     private static final String ARRAY_FORMAT = "array";
     private static final String PAGED_BYTES_FORMAT = "paged_bytes";
-    private static final String FST_FORMAT = "fst";
-    private static final String COMPRESSED_FORMAT = "compressed";
 
     private final static ImmutableMap<String, IndexFieldData.Builder> buildersByType;
     private final static ImmutableMap<String, IndexFieldData.Builder> docValuesBuildersByType;
@@ -99,7 +96,6 @@ public class IndexFieldDataService extends AbstractIndexComponent {
 
         buildersByTypeAndFormat = MapBuilder.<Tuple<String, String>, IndexFieldData.Builder>newMapBuilder()
                 .put(Tuple.tuple("string", PAGED_BYTES_FORMAT), new PagedBytesIndexFieldData.Builder())
-                .put(Tuple.tuple("string", FST_FORMAT), new FSTBytesIndexFieldData.Builder())
                 .put(Tuple.tuple("string", DOC_VALUES_FORMAT), new DocValuesIndexFieldData.Builder())
                 .put(Tuple.tuple("string", DISABLED_FORMAT), new DisabledIndexFieldData.Builder())
 
@@ -130,7 +126,6 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                 .put(Tuple.tuple("geo_point", ARRAY_FORMAT), new GeoPointDoubleArrayIndexFieldData.Builder())
                 .put(Tuple.tuple("geo_point", DOC_VALUES_FORMAT), new GeoPointBinaryDVIndexFieldData.Builder())
                 .put(Tuple.tuple("geo_point", DISABLED_FORMAT), new DisabledIndexFieldData.Builder())
-                .put(Tuple.tuple("geo_point", COMPRESSED_FORMAT), new GeoPointCompressedIndexFieldData.Builder())
 
                 .put(Tuple.tuple("binary", DOC_VALUES_FORMAT), new BytesBinaryDVIndexFieldData.Builder())
                 .put(Tuple.tuple("binary", DISABLED_FORMAT), new DisabledIndexFieldData.Builder())
@@ -228,13 +223,13 @@ public class IndexFieldDataService extends AbstractIndexComponent {
     }
 
     @SuppressWarnings("unchecked")
-    public <IFD extends IndexFieldData<?>> IFD getForField(FieldMapper mapper) {
-        final Names fieldNames = mapper.fieldType().names();
-        final FieldDataType type = mapper.fieldType().fieldDataType();
+    public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
+        final Names fieldNames = fieldType.names();
+        final FieldDataType type = fieldType.fieldDataType();
         if (type == null) {
             throw new IllegalArgumentException("found no fielddata type for field [" + fieldNames.fullName() + "]");
         }
-        final boolean docValues = mapper.fieldType().hasDocValues();
+        final boolean docValues = fieldType.hasDocValues();
         final String key = fieldNames.indexName();
         IndexFieldData<?> fieldData = loadedFieldData.get(key);
         if (fieldData == null) {
@@ -279,7 +274,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                         fieldDataCaches.put(fieldNames.indexName(), cache);
                     }
 
-                    fieldData = builder.build(index, indexSettings, mapper, cache, circuitBreakerService, indexService.mapperService());
+                    fieldData = builder.build(index, indexSettings, fieldType, cache, circuitBreakerService, indexService.mapperService());
                     loadedFieldData.put(fieldNames.indexName(), fieldData);
                 }
             } finally {

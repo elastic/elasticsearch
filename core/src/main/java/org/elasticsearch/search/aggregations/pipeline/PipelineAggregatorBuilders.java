@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min.MinBucke
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.sum.SumBucketBuilder;
 import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativeBuilder;
 import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgBuilder;
+import org.elasticsearch.search.aggregations.pipeline.seriesarithmetic.SeriesArithmeticBuilder;
 
 public final class PipelineAggregatorBuilders {
 
@@ -53,5 +54,9 @@ public final class PipelineAggregatorBuilders {
 
     public static final MovAvgBuilder movingAvg(String name) {
         return new MovAvgBuilder(name);
+    }
+
+    public static final SeriesArithmeticBuilder seriesArithmetic(String name) {
+        return new SeriesArithmeticBuilder(name);
     }
 }

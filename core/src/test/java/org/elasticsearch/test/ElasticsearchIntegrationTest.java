@@ -29,6 +29,8 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.Lists;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.impl.client.HttpClients;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
@@ -97,14 +99,11 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Loading;
 import org.elasticsearch.index.mapper.internal.SizeFieldMapper;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
-import org.elasticsearch.index.merge.policy.*;
-import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
-import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
+import org.elasticsearch.index.shard.MergePolicyConfig;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogService;
@@ -393,7 +392,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                         .field("match_mapping_type", "string")
                         .startObject("mapping")
                         .startObject("fielddata")
-                        .field(FieldDataType.FORMAT_KEY, randomFrom("paged_bytes", "fst"))
                         .field(Loading.KEY, randomLoadingValues())
                         .endObject()
                         .endObject()
@@ -477,7 +475,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
 
         if (random.nextBoolean()) {
-            builder.put(ConcurrentMergeSchedulerProvider.AUTO_THROTTLE, false);
+            builder.put(MergeSchedulerConfig.AUTO_THROTTLE, false);
         }
 
         if (random.nextBoolean()) {
@@ -511,6 +509,12 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         if (random.nextBoolean()) {
             builder.put(NettyTransport.PING_SCHEDULE, RandomInts.randomIntBetween(random, 100, 2000) + "ms");
         }
+
+        if (randomBoolean()) {
+            // keep this low so we don't stall tests
+            builder.put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, RandomInts.randomIntBetween(random, 1, 15) + "ms");
+        }
+
         return builder;
     }
 
@@ -526,31 +530,15 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     private static Settings.Builder setRandomMerge(Random random, Settings.Builder builder) {
         if (random.nextBoolean()) {
-            builder.put(AbstractMergePolicyProvider.INDEX_COMPOUND_FORMAT,
+            builder.put(MergePolicyConfig.INDEX_COMPOUND_FORMAT,
                     random.nextBoolean() ? random.nextDouble() : random.nextBoolean());
         }
-        Class<? extends MergePolicyProvider<?>> mergePolicy = TieredMergePolicyProvider.class;
-        switch (random.nextInt(5)) {
-            case 4:
-                mergePolicy = LogByteSizeMergePolicyProvider.class;
-                break;
-            case 3:
-                mergePolicy = LogDocMergePolicyProvider.class;
-                break;
-            case 0:
-                mergePolicy = null;
-        }
-        if (mergePolicy != null) {
-            builder.put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, mergePolicy.getName());
-        }
-
         switch (random.nextInt(4)) {
             case 3:
-                builder.put(MergeSchedulerModule.MERGE_SCHEDULER_TYPE_KEY, ConcurrentMergeSchedulerProvider.class);
                 final int maxThreadCount = RandomInts.randomIntBetween(random, 1, 4);
                 final int maxMergeCount = RandomInts.randomIntBetween(random, maxThreadCount, maxThreadCount + 4);
-                builder.put(ConcurrentMergeSchedulerProvider.MAX_MERGE_COUNT, maxMergeCount);
-                builder.put(ConcurrentMergeSchedulerProvider.MAX_THREAD_COUNT, maxThreadCount);
+                builder.put(MergeSchedulerConfig.MAX_MERGE_COUNT, maxMergeCount);
+                builder.put(MergeSchedulerConfig.MAX_THREAD_COUNT, maxThreadCount);
                 break;
         }
 
@@ -866,56 +854,44 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * Waits till a (pattern) field name mappings concretely exists on all nodes. Note, this waits for the current
      * started shards and checks for concrete mappings.
      */
-    public void waitForConcreteMappingsOnAll(final String index, final String type, final String... fieldNames) throws Exception {
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                Set<String> nodes = internalCluster().nodesInclude(index);
-                assertThat(nodes, Matchers.not(Matchers.emptyIterable()));
-                for (String node : nodes) {
-                    IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
-                    IndexService indexService = indicesService.indexService(index);
-                    assertThat("index service doesn't exists on " + node, indexService, notNullValue());
-                    DocumentMapper documentMapper = indexService.mapperService().documentMapper(type);
-                    assertThat("document mapper doesn't exists on " + node, documentMapper, notNullValue());
-                    for (String fieldName : fieldNames) {
-                        Collection<String> matches = documentMapper.mappers().simpleMatchToFullName(fieldName);
-                        assertThat("field " + fieldName + " doesn't exists on " + node, matches, Matchers.not(emptyIterable()));
-                    }
-                }
+    public void assertConcreteMappingsOnAll(final String index, final String type, final String... fieldNames) throws Exception {
+        Set<String> nodes = internalCluster().nodesInclude(index);
+        assertThat(nodes, Matchers.not(Matchers.emptyIterable()));
+        for (String node : nodes) {
+            IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
+            IndexService indexService = indicesService.indexService(index);
+            assertThat("index service doesn't exists on " + node, indexService, notNullValue());
+            DocumentMapper documentMapper = indexService.mapperService().documentMapper(type);
+            assertThat("document mapper doesn't exists on " + node, documentMapper, notNullValue());
+            for (String fieldName : fieldNames) {
+                Collection<String> matches = documentMapper.mappers().simpleMatchToFullName(fieldName);
+                assertThat("field " + fieldName + " doesn't exists on " + node, matches, Matchers.not(emptyIterable()));
             }
-        });
-        waitForMappingOnMaster(index, type, fieldNames);
+        }
+        assertMappingOnMaster(index, type, fieldNames);
     }
 
     /**
      * Waits for the given mapping type to exists on the master node.
      */
-    public void waitForMappingOnMaster(final String index, final String type, final String... fieldNames) throws Exception {
-        assertBusy(new Callable() {
-            @Override
-            public Object call() throws Exception {
-                GetMappingsResponse response = client().admin().indices().prepareGetMappings(index).setTypes(type).get();
-                ImmutableOpenMap<String, MappingMetaData> mappings = response.getMappings().get(index);
-                assertThat(mappings, notNullValue());
-                MappingMetaData mappingMetaData = mappings.get(type);
-                assertThat(mappingMetaData, notNullValue());
+    public void assertMappingOnMaster(final String index, final String type, final String... fieldNames) throws Exception {
+        GetMappingsResponse response = client().admin().indices().prepareGetMappings(index).setTypes(type).get();
+        ImmutableOpenMap<String, MappingMetaData> mappings = response.getMappings().get(index);
+        assertThat(mappings, notNullValue());
+        MappingMetaData mappingMetaData = mappings.get(type);
+        assertThat(mappingMetaData, notNullValue());
 
-                Map<String, Object> mappingSource = mappingMetaData.getSourceAsMap();
-                assertFalse(mappingSource.isEmpty());
-                assertTrue(mappingSource.containsKey("properties"));
+        Map<String, Object> mappingSource = mappingMetaData.getSourceAsMap();
+        assertFalse(mappingSource.isEmpty());
+        assertTrue(mappingSource.containsKey("properties"));
 
-                for (String fieldName : fieldNames) {
-                    Map<String, Object> mappingProperties = (Map<String, Object>) mappingSource.get("properties");
-                    if (fieldName.indexOf('.') != -1) {
-                        fieldName = fieldName.replace(".", ".properties.");
-                    }
-                    assertThat("field " + fieldName + " doesn't exists in mapping " + mappingMetaData.source().string(), XContentMapValues.extractValue(fieldName, mappingProperties), notNullValue());
-                }
-
-                return null;
+        for (String fieldName : fieldNames) {
+            Map<String, Object> mappingProperties = (Map<String, Object>) mappingSource.get("properties");
+            if (fieldName.indexOf('.') != -1) {
+                fieldName = fieldName.replace(".", ".properties.");
             }
-        });
+            assertThat("field " + fieldName + " doesn't exists in mapping " + mappingMetaData.source().string(), XContentMapValues.extractValue(fieldName, mappingProperties), notNullValue());
+        }
     }
 
     /**
@@ -1797,14 +1773,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      */
     public static String randomNumericFieldDataFormat() {
         return randomFrom(Arrays.asList("array", "doc_values"));
-    }
-
-    /**
-     * Returns a random bytes field data format from the choices of
-     * "paged_bytes", "fst", or "doc_values".
-     */
-    public static String randomBytesFieldDataFormat() {
-        return randomFrom(Arrays.asList("paged_bytes", "fst"));
     }
 
     /**

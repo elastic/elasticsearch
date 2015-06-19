@@ -25,7 +25,7 @@ import org.elasticsearch.cluster.metadata.SnapshotId;
 /**
  * Thrown when snapshot creation fails completely
  */
-public class SnapshotCreationException extends SnapshotException implements ElasticsearchWrapperException {
+public class SnapshotCreationException extends SnapshotException {
 
     public SnapshotCreationException(SnapshotId snapshot, String message) {
         super(snapshot, message);

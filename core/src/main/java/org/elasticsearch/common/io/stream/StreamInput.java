@@ -29,6 +29,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
 import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -398,7 +399,8 @@ public abstract class StreamInput extends InputStream {
             case 12:
                 return new Date(readLong());
             case 13:
-                return new DateTime(readLong());
+                final String timeZoneId = readString();
+                return new DateTime(readLong(), DateTimeZone.forID(timeZoneId));
             case 14:
                 return readBytesReference();
             case 15:

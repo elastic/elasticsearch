@@ -45,10 +45,12 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
+import org.elasticsearch.index.fielddata.ShardFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -146,6 +148,10 @@ public abstract class Engine implements Closeable {
     }
 
     protected abstract SegmentInfos getLastCommittedSegmentInfos();
+
+    public MergeStats getMergeStats() {
+        return new MergeStats();
+    }
 
     /** A throttling class that can be activated, causing the
      * {@code acquireThrottle} method to block on a lock when throttling
@@ -1186,4 +1192,6 @@ public abstract class Engine implements Closeable {
             return Arrays.hashCode(id);
         }
     }
+
+    public void onSettingsChanged() {}
 }

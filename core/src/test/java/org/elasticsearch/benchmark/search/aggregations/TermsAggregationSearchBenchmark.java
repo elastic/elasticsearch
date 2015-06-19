@@ -112,13 +112,15 @@ public class TermsAggregationSearchBenchmark {
         nodes = new Node[1];
         for (int i = 0; i < nodes.length; i++) {
             nodes[i] = nodeBuilder().clusterName(clusterName)
+                    .settings(settingsBuilder().put(settings).put("path.home", "."))
                     .settings(settingsBuilder().put(settings).put("name", "node" + i))
                     .node();
         }
 
         Node clientNode = nodeBuilder()
                 .clusterName(clusterName)
-                .settings(settingsBuilder().put(settings).put("name", "client")).client(true).node();
+                .settings(settingsBuilder().put(settings).put("name", "client"))
+                .settings(settingsBuilder().put(settings).put("path.home", ".")).client(true).node();
 
         client = clientNode.client();
 

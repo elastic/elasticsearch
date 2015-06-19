@@ -306,7 +306,8 @@ public class RecoveryTarget extends AbstractComponent {
                 try {
                     recoveryStatus.indexShard().performBatchRecovery(request.operations());
                 } catch (TranslogRecoveryPerformer.BatchOperationException exception) {
-                    if (ExceptionsHelper.unwrapCause(exception) instanceof MapperException == false) {
+                    MapperException mapperException = (MapperException) ExceptionsHelper.unwrap(exception, MapperException.class);
+                    if (mapperException == null) {
                         throw exception;
                     }
                     // in very rare cases a translog replay from primary is processed before a mapping update on this node

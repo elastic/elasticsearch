@@ -57,7 +57,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
         PrefixTreeStrategy strategy = geoShapeFieldMapper.fieldType().defaultStrategy();
 
-        assertThat(strategy.getDistErrPct(), equalTo(GeoShapeFieldMapper.Defaults.DISTANCE_ERROR_PCT));
+        assertThat(strategy.getDistErrPct(), equalTo(GeoShapeFieldMapper.Defaults.LEGACY_DISTANCE_ERROR_PCT));
         assertThat(strategy.getGrid(), instanceOf(GeohashPrefixTree.class));
         assertThat(strategy.getGrid().getMaxLevels(), equalTo(GeoShapeFieldMapper.Defaults.GEOHASH_LEVELS));
         assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(GeoShapeFieldMapper.Defaults.ORIENTATION));
@@ -340,11 +340,12 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
         MergeResult mergeResult = stage1.merge(stage2.mapping(), false);
         // check correct conflicts
         assertThat(mergeResult.hasConflicts(), equalTo(true));
-        assertThat(mergeResult.buildConflicts().length, equalTo(3));
+        assertThat(mergeResult.buildConflicts().length, equalTo(4));
         ArrayList conflicts = new ArrayList<>(Arrays.asList(mergeResult.buildConflicts()));
         assertThat("mapper [shape] has different strategy", isIn(conflicts));
         assertThat("mapper [shape] has different tree", isIn(conflicts));
-        assertThat("mapper [shape] has different tree_levels or precision", isIn(conflicts));
+        assertThat("mapper [shape] has different tree_levels", isIn(conflicts));
+        assertThat("mapper [shape] has different precision", isIn(conflicts));
 
         // verify nothing changed
         FieldMapper fieldMapper = stage1.mappers().getMapper("shape");
@@ -362,12 +363,12 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
         // correct mapping
         stage2Mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("shape").field("type", "geo_shape").field("precision", "1m")
-                .field("distance_error_pct", 0.001).field("orientation", "cw").endObject().endObject().endObject().endObject().string();
+                .field("tree_levels", 8).field("distance_error_pct", 0.001).field("orientation", "cw").endObject().endObject().endObject().endObject().string();
         stage2 = parser.parse(stage2Mapping);
         mergeResult = stage1.merge(stage2.mapping(), false);
 
         // verify mapping changes, and ensure no failures
-        assertThat(mergeResult.hasConflicts(), equalTo(false));
+        assertThat(Arrays.toString(mergeResult.buildConflicts()), mergeResult.hasConflicts(), equalTo(false));
 
         fieldMapper = stage1.mappers().getMapper("shape");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));

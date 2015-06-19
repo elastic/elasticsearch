@@ -440,6 +440,24 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             return this;
         }
 
+        public Builder addAsFromDangling(IndexMetaData indexMetaData) {
+            if (indexMetaData.state() == IndexMetaData.State.OPEN) {
+                IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.index())
+                        .initializeAsFromDangling(indexMetaData);
+                add(indexRoutingBuilder);
+            }
+            return this;
+        }
+
+        public Builder addAsFromCloseToOpen(IndexMetaData indexMetaData) {
+            if (indexMetaData.state() == IndexMetaData.State.OPEN) {
+                IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.index())
+                        .initializeAsFromCloseToOpen(indexMetaData);
+                add(indexRoutingBuilder);
+            }
+            return this;
+        }
+
         public Builder addAsRestore(IndexMetaData indexMetaData, RestoreSource restoreSource) {
             IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.index())
                     .initializeAsRestore(indexMetaData, restoreSource);

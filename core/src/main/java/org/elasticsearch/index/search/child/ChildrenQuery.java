@@ -153,7 +153,7 @@ public final class ChildrenQuery extends IndexCacheableQuery {
             return new BooleanQuery().createWeight(searcher, needsScores);
         }
         IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
-        indexSearcher.setSimilarity(searcher.getSimilarity());
+        indexSearcher.setSimilarity(searcher.getSimilarity(true));
         indexSearcher.setQueryCache(null);
 
         boolean abort = true;

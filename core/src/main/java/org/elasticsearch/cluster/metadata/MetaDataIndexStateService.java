@@ -180,7 +180,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
 
                 RoutingTable.Builder rtBuilder = RoutingTable.builder(updatedState.routingTable());
                 for (String index : indicesToOpen) {
-                    rtBuilder.addAsRecovery(updatedState.metaData().index(index));
+                    rtBuilder.addAsFromCloseToOpen(updatedState.metaData().index(index));
                 }
 
                 RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(rtBuilder).build());

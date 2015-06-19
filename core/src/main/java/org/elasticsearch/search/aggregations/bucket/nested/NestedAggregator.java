@@ -156,11 +156,7 @@ public class NestedAggregator extends SingleBucketAggregator {
             if (collectsFromSingleBucket == false) {
                 return asMultiBucketAggregator(this, context, parent);
             }
-            MapperService.SmartNameObjectMapper mapper = context.searchContext().smartNameObjectMapper(path);
-            if (mapper == null) {
-                return new Unmapped(name, context, parent, pipelineAggregators, metaData);
-            }
-            ObjectMapper objectMapper = mapper.mapper();
+            ObjectMapper objectMapper = context.searchContext().getObjectMapper(path);
             if (objectMapper == null) {
                 return new Unmapped(name, context, parent, pipelineAggregators, metaData);
             }

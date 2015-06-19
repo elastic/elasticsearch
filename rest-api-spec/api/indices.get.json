@@ -34,6 +34,15 @@
           "options" : ["open","closed","none","all"],
           "default" : "open",
           "description":"Whether wildcard expressions should get expanded to open or closed indices (default: open)"
+        },
+        "flat_settings": {
+          "type": "boolean",
+          "description": "Return settings in flat format (default: false)"
+        },
+        "human": {
+          "type": "boolean",
+          "description": "Whether to return version and creation date values in human-readable format.",
+          "default": false
         }
       }
     },

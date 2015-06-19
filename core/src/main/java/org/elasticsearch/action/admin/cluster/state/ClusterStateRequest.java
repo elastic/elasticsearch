@@ -38,6 +38,7 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
     private boolean nodes = true;
     private boolean metaData = true;
     private boolean blocks = true;
+    private boolean customs = true;
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
 
@@ -54,6 +55,7 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         nodes = true;
         metaData = true;
         blocks = true;
+        customs = true;
         indices = Strings.EMPTY_ARRAY;
         return this;
     }
@@ -63,6 +65,7 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         nodes = false;
         metaData = false;
         blocks = false;
+        customs = false;
         indices = Strings.EMPTY_ARRAY;
         return this;
     }
@@ -124,6 +127,15 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         return this;
     }
 
+    public ClusterStateRequest customs(boolean customs) {
+        this.customs = customs;
+        return this;
+    }
+
+    public boolean customs() {
+        return customs;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -131,6 +143,7 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         nodes = in.readBoolean();
         metaData = in.readBoolean();
         blocks = in.readBoolean();
+        customs = in.readBoolean();
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
@@ -142,6 +155,7 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         out.writeBoolean(nodes);
         out.writeBoolean(metaData);
         out.writeBoolean(blocks);
+        out.writeBoolean(customs);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
     }

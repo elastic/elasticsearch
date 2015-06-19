@@ -38,7 +38,6 @@ import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
-import org.elasticsearch.search.highlight.HighlightBuilder;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -170,7 +169,7 @@ public class IndexFieldMapper extends AbstractFieldMapper implements RootMapper 
     }
 
     public String value(Document document) {
-        Field field = (Field) document.getField(fieldType.names().indexName());
+        Field field = (Field) document.getField(fieldType().names().indexName());
         return field == null ? null : (String)fieldType().value(field);
     }
 
@@ -194,7 +193,7 @@ public class IndexFieldMapper extends AbstractFieldMapper implements RootMapper 
         if (!enabledState.enabled) {
             return;
         }
-        fields.add(new Field(fieldType.names().indexName(), context.index(), fieldType));
+        fields.add(new Field(fieldType().names().indexName(), context.index(), fieldType()));
     }
 
     @Override
@@ -222,7 +221,7 @@ public class IndexFieldMapper extends AbstractFieldMapper implements RootMapper 
             if (customFieldDataSettings != null) {
                 builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
             } else if (includeDefaults) {
-                builder.field("fielddata", (Map) fieldType.fieldDataType().getSettings().getAsMap());
+                builder.field("fielddata", (Map) fieldType().fieldDataType().getSettings().getAsMap());
             }
         }
         builder.endObject();

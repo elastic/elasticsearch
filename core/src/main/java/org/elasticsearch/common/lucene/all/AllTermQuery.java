@@ -58,13 +58,13 @@ public final class AllTermQuery extends PayloadTermQuery {
     public SpanWeight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
         // TODO: needsScores
         // we should be able to just return a regular SpanTermWeight, at most here if needsScores == false?
-        return new AllTermWeight(this, searcher);
+        return new AllTermWeight(this, searcher, needsScores);
     }
 
     class AllTermWeight extends PayloadTermWeight {
 
-        AllTermWeight(AllTermQuery query, IndexSearcher searcher) throws IOException {
-            super(query, searcher);
+        AllTermWeight(AllTermQuery query, IndexSearcher searcher, boolean needsScores) throws IOException {
+            super(query, searcher, needsScores);
         }
 
         @Override

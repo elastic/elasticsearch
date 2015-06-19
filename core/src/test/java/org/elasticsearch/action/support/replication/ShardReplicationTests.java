@@ -211,6 +211,7 @@ public class ShardReplicationTests extends ElasticsearchTestCase {
 
         String primaryNode = null;
         String relocatingNode = null;
+        UnassignedInfo unassignedInfo = null;
         if (primaryState != ShardRoutingState.UNASSIGNED) {
             if (primaryLocal) {
                 primaryNode = newNode(0).id();
@@ -221,21 +222,26 @@ public class ShardReplicationTests extends ElasticsearchTestCase {
             if (primaryState == ShardRoutingState.RELOCATING) {
                 relocatingNode = selectAndRemove(unassignedNodes);
             }
+        } else {
+            unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
         }
-        indexShardRoutingBuilder.addShard(new ImmutableShardRouting(index, 0, primaryNode, relocatingNode, true, primaryState, 0));
+        indexShardRoutingBuilder.addShard(new ImmutableShardRouting(index, 0, primaryNode, relocatingNode, null, true, primaryState, 0, unassignedInfo));
 
         for (ShardRoutingState replicaState : replicaStates) {
             String replicaNode = null;
             relocatingNode = null;
+            unassignedInfo = null;
             if (replicaState != ShardRoutingState.UNASSIGNED) {
                 assert primaryNode != null : "a replica is assigned but the primary isn't";
                 replicaNode = selectAndRemove(unassignedNodes);
                 if (replicaState == ShardRoutingState.RELOCATING) {
                     relocatingNode = selectAndRemove(unassignedNodes);
                 }
+            } else {
+                unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
             }
             indexShardRoutingBuilder.addShard(
-                    new ImmutableShardRouting(index, shardId.id(), replicaNode, relocatingNode, false, replicaState, 0));
+                    new ImmutableShardRouting(index, shardId.id(), replicaNode, relocatingNode, null, false, replicaState, 0, unassignedInfo));
         }
 
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));

@@ -128,8 +128,10 @@ public abstract class NetworkPartition implements ServiceDisruptionScheme {
         Set<String> otherSideNodes;
         if (nodesSideOne.contains(node)) {
             otherSideNodes = nodesSideTwo;
+            nodesSideOne.remove(node);
         } else if (nodesSideTwo.contains(node)) {
             otherSideNodes = nodesSideOne;
+            nodesSideTwo.remove(node);
         } else {
             return;
         }

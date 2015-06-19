@@ -6,7 +6,7 @@ expressions. For example, scripts can be used to return "script fields"
 as part of a search request, or can be used to evaluate a custom score
 for a query and so on.
 
-The scripting module uses by default http://groovy.codehaus.org/[groovy]
+The scripting module uses by default http://groovy-lang.org/[groovy]
 (previously http://mvel.codehaus.org/[mvel] in 1.3.x and earlier) as the
 scripting language with some extensions. Groovy is used since it is extremely
 fast and very simple to use.
@@ -68,7 +68,7 @@ GET /_search
 
 Additional `lang` plugins are provided to allow to execute scripts in
 different languages. All places where a script can be used, a `lang` parameter
-can be provided to define the language of the script. The following are the 
+can be provided to define the language of the script. The following are the
 supported scripting languages:
 
 [cols="<,<,<",options="header",]
@@ -162,7 +162,7 @@ curl -XPOST localhost:9200/_scripts/groovy/indexedCalculateScore -d '{
 This will create a document with id: `indexedCalculateScore` and type: `groovy` in the
 `.scripts` index. The type of the document is the language used by the script.
 
-This script can be accessed at query time by using the `id` script parameter and passing 
+This script can be accessed at query time by using the `id` script parameter and passing
 the script id:
 
 [source,js]
@@ -636,4 +636,3 @@ integer with the value of `8`, the result is `0` even though you were
 expecting it to be `0.125`. You may need to enforce precision by
 explicitly using a double like `1.0/num` in order to get the expected
 result.
-

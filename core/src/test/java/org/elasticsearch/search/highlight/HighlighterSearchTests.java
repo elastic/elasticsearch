@@ -982,7 +982,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         assertHighlight(resp, 0, "bar", 0, equalTo("<em>resul</em>t"));
 
         assertFailures(req.setQuery(queryStringQuery("result").field("foo").field("foo.plain").field("bar").field("bar.plain")),
-                 RestStatus.INTERNAL_SERVER_ERROR, containsString("String index out of range"));
+                 RestStatus.INTERNAL_SERVER_ERROR, containsString("IndexOutOfBoundsException"));
     }
 
     @Test

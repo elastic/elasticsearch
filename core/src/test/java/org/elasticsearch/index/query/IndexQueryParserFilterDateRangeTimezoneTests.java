@@ -32,6 +32,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.elasticsearch.test.TestSearchContext;
 import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -107,7 +108,7 @@ public class IndexQueryParserFilterDateRangeTimezoneTests extends ElasticsearchS
         // Min value was 2012-01-01 (UTC) so we need to remove one hour
         DateTime min = DateTime.parse("2012-01-01T00:00:00.000+01:00");
         // Max value is when we started the test. So it should be some ms from now
-        DateTime max = new DateTime(startDate);
+        DateTime max = new DateTime(startDate, DateTimeZone.UTC);
 
         assertThat(((NumericRangeQuery) parsedQuery).getMin().longValue(), is(min.getMillis()));
 

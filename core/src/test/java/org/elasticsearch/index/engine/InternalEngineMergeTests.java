@@ -26,7 +26,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.merge.policy.LogDocMergePolicyProvider;
+import org.elasticsearch.index.shard.MergePolicyConfig;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
@@ -53,9 +53,6 @@ public class InternalEngineMergeTests extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numOfShards)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(LogDocMergePolicyProvider.MIN_MERGE_DOCS_KEY, 10)
-                .put(LogDocMergePolicyProvider.MERGE_FACTORY_KEY, 5)
-                .put(LogByteSizeMergePolicy.DEFAULT_MIN_MERGE_MB, 0.5)
                 .build()));
         long id = 0;
         final int rounds = scaledRandomIntBetween(50, 300);

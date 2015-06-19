@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettings;
 
@@ -99,8 +100,8 @@ public class SimilarityService extends AbstractIndexComponent {
 
         @Override
         public Similarity get(String name) {
-            FieldMapper mapper = mapperService.smartNameFieldMapper(name);
-            return (mapper != null && mapper.fieldType().similarity() != null) ? mapper.fieldType().similarity().get() : defaultSimilarity;
+            MappedFieldType fieldType = mapperService.smartNameFieldType(name);
+            return (fieldType != null && fieldType.similarity() != null) ? fieldType.similarity().get() : defaultSimilarity;
         }
     }
 }

@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.*;
@@ -56,6 +57,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     private final Map<ShardId, List<MutableShardRouting>> assignedShards = newHashMap();
 
+    private final ImmutableOpenMap<String, ClusterState.Custom> customs;
+
     private int inactivePrimaryCount = 0;
 
     private int inactiveShardCount = 0;
@@ -70,6 +73,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         this.metaData = clusterState.metaData();
         this.blocks = clusterState.blocks();
         this.routingTable = clusterState.routingTable();
+        this.customs = clusterState.customs();
 
         Map<String, List<MutableShardRouting>> nodesToShards = newHashMap();
         // fill in the nodeToShards with the "live" nodes
@@ -105,7 +109,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                             // add the counterpart shard with relocatingNodeId reflecting the source from which
                             // it's relocating from.
                             sr = new MutableShardRouting(shard.index(), shard.id(), shard.relocatingNodeId(),
-                                    shard.currentNodeId(), shard.primary(), ShardRoutingState.INITIALIZING, shard.version());
+                                    shard.currentNodeId(), shard.restoreSource(), shard.primary(), ShardRoutingState.INITIALIZING, shard.version());
                             entries.add(sr);
                             assignedShardsAdd(sr);
                         } else if (!shard.active()) { // shards that are initializing without being relocated
@@ -155,6 +159,14 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     public ClusterBlocks getBlocks() {
         return this.blocks;
+    }
+
+    public ImmutableOpenMap<String, ClusterState.Custom> customs() {
+        return this.customs;
+    }
+
+    public <T extends ClusterState.Custom> T custom(String type) {
+        return (T) customs.get(type);
     }
 
     public int requiredAverageNumberOfShardsPerNode() {
@@ -783,10 +795,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             return iterable.iterator();
         }
 
-        public void moveToUnassigned() {
-            iterator().remove();
-            unassigned().add(new MutableShardRouting(shard.index(), shard.id(),
-                    null, shard.primary(), ShardRoutingState.UNASSIGNED, shard.version() + 1));
+        public void moveToUnassigned(UnassignedInfo unassignedInfo) {
+            remove();
+            MutableShardRouting unassigned = new MutableShardRouting(shard); // protective copy of the mutable shard
+            unassigned.moveToUnassigned(unassignedInfo);
+            unassigned().add(unassigned);
         }
     }
 }

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.cluster.metadata.SnapshotMetaData;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -99,14 +99,14 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
         if (!enableRelocation && shardRouting.primary()) {
             // Only primary shards are snapshotted
 
-            SnapshotMetaData snapshotMetaData = allocation.metaData().custom(SnapshotMetaData.TYPE);
-            if (snapshotMetaData == null) {
+            SnapshotsInProgress snapshotsInProgress = allocation.routingNodes().custom(SnapshotsInProgress.TYPE);
+            if (snapshotsInProgress == null) {
                 // Snapshots are not running
                 return allocation.decision(Decision.YES, NAME, "no snapshots are currently running");
             }
 
-            for (SnapshotMetaData.Entry snapshot : snapshotMetaData.entries()) {
-                SnapshotMetaData.ShardSnapshotStatus shardSnapshotStatus = snapshot.shards().get(shardRouting.shardId());
+            for (SnapshotsInProgress.Entry snapshot : snapshotsInProgress.entries()) {
+                SnapshotsInProgress.ShardSnapshotStatus shardSnapshotStatus = snapshot.shards().get(shardRouting.shardId());
                 if (shardSnapshotStatus != null && !shardSnapshotStatus.state().completed() && shardSnapshotStatus.nodeId() != null && shardSnapshotStatus.nodeId().equals(shardRouting.currentNodeId())) {
                     logger.trace("Preventing snapshotted shard [{}] to be moved from node [{}]", shardRouting.shardId(), shardSnapshotStatus.nodeId());
                     return allocation.decision(Decision.NO, NAME, "snapshot for shard [%s] is currently running on node [%s]",

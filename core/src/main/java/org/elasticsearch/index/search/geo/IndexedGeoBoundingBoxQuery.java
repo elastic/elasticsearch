@@ -30,31 +30,31 @@ import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
  */
 public class IndexedGeoBoundingBoxQuery {
 
-    public static Query create(GeoPoint topLeft, GeoPoint bottomRight, GeoPointFieldMapper fieldMapper) {
-        if (!fieldMapper.fieldType().isLatLonEnabled()) {
-            throw new IllegalArgumentException("lat/lon is not enabled (indexed) for field [" + fieldMapper.name() + "], can't use indexed filter on it");
+    public static Query create(GeoPoint topLeft, GeoPoint bottomRight, GeoPointFieldMapper.GeoPointFieldType fieldType) {
+        if (!fieldType.isLatLonEnabled()) {
+            throw new IllegalArgumentException("lat/lon is not enabled (indexed) for field [" + fieldType.names().fullName() + "], can't use indexed filter on it");
         }
         //checks to see if bounding box crosses 180 degrees
         if (topLeft.lon() > bottomRight.lon()) {
-            return westGeoBoundingBoxFilter(topLeft, bottomRight, fieldMapper);
+            return westGeoBoundingBoxFilter(topLeft, bottomRight, fieldType);
         } else {
-            return eastGeoBoundingBoxFilter(topLeft, bottomRight, fieldMapper);
+            return eastGeoBoundingBoxFilter(topLeft, bottomRight, fieldType);
         }
     }
 
-    private static Query westGeoBoundingBoxFilter(GeoPoint topLeft, GeoPoint bottomRight, GeoPointFieldMapper fieldMapper) {
+    private static Query westGeoBoundingBoxFilter(GeoPoint topLeft, GeoPoint bottomRight, GeoPointFieldMapper.GeoPointFieldType fieldType) {
         BooleanQuery filter = new BooleanQuery();
         filter.setMinimumNumberShouldMatch(1);
-        filter.add(fieldMapper.fieldType().lonFieldType().rangeQuery(null, bottomRight.lon(), true, true, null), Occur.SHOULD);
-        filter.add(fieldMapper.fieldType().lonFieldType().rangeQuery(topLeft.lon(), null, true, true, null), Occur.SHOULD);
-        filter.add(fieldMapper.fieldType().latFieldType().rangeQuery(bottomRight.lat(), topLeft.lat(), true, true, null), Occur.MUST);
+        filter.add(fieldType.lonFieldType().rangeQuery(null, bottomRight.lon(), true, true, null), Occur.SHOULD);
+        filter.add(fieldType.lonFieldType().rangeQuery(topLeft.lon(), null, true, true, null), Occur.SHOULD);
+        filter.add(fieldType.latFieldType().rangeQuery(bottomRight.lat(), topLeft.lat(), true, true, null), Occur.MUST);
         return new ConstantScoreQuery(filter);
     }
 
-    private static Query eastGeoBoundingBoxFilter(GeoPoint topLeft, GeoPoint bottomRight, GeoPointFieldMapper fieldMapper) {
+    private static Query eastGeoBoundingBoxFilter(GeoPoint topLeft, GeoPoint bottomRight, GeoPointFieldMapper.GeoPointFieldType fieldType) {
         BooleanQuery filter = new BooleanQuery();
-        filter.add(fieldMapper.fieldType().lonFieldType().rangeQuery(topLeft.lon(), bottomRight.lon(), true, true, null), Occur.MUST);
-        filter.add(fieldMapper.fieldType().latFieldType().rangeQuery(bottomRight.lat(), topLeft.lat(), true, true, null), Occur.MUST);
+        filter.add(fieldType.lonFieldType().rangeQuery(topLeft.lon(), bottomRight.lon(), true, true, null), Occur.MUST);
+        filter.add(fieldType.latFieldType().rangeQuery(bottomRight.lat(), topLeft.lat(), true, true, null), Occur.MUST);
         return new ConstantScoreQuery(filter);
     }
 }

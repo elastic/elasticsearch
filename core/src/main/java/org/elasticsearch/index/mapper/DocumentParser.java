@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 
 import org.apache.lucene.document.Field;

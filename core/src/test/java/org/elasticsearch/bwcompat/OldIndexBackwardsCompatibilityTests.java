@@ -40,10 +40,9 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexException;
 import org.elasticsearch.index.engine.EngineConfig;
-import org.elasticsearch.index.merge.policy.MergePolicyModule;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.shard.MergePolicyConfig;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.action.admin.indices.upgrade.UpgradeTest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -53,7 +52,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.elasticsearch.test.index.merge.NoMergePolicyProvider;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -110,7 +108,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
     @Override
     public Settings nodeSettings(int ord) {
         return Settings.builder()
-                .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class) // disable merging so no segments will be upgraded
+                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false) // disable merging so no segments will be upgraded
                 .put(RecoverySettings.INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS, 30) // increase recovery speed for small files
                 .build();
     }
@@ -358,14 +356,14 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
         ElasticsearchAssertions.assertNoFailures(searchReq.get());
 
         logger.info("--> testing exists filter");
-        searchReq = client().prepareSearch(indexName).setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), QueryBuilders.existsQuery("string")));
+        searchReq = client().prepareSearch(indexName).setQuery(QueryBuilders.existsQuery("string"));
         searchRsp = searchReq.get();
         ElasticsearchAssertions.assertNoFailures(searchRsp);
         assertEquals(numDocs, searchRsp.getHits().getTotalHits());
 
         logger.info("--> testing missing filter");
         // the field for the missing filter here needs to be different than the exists filter above, to avoid being found in the cache
-        searchReq = client().prepareSearch(indexName).setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), QueryBuilders.missingQuery("long_sort")));
+        searchReq = client().prepareSearch(indexName).setQuery(QueryBuilders.missingQuery("long_sort"));
         searchRsp = searchReq.get();
         ElasticsearchAssertions.assertNoFailures(searchRsp);
         assertEquals(0, searchRsp.getHits().getTotalHits());

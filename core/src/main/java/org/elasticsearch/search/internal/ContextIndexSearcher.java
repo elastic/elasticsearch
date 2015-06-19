@@ -70,7 +70,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         super(searcher.reader());
         in = searcher.searcher();
         this.searchContext = searchContext;
-        setSimilarity(searcher.searcher().getSimilarity());
+        setSimilarity(searcher.searcher().getSimilarity(true));
     }
 
     @Override

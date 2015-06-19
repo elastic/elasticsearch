@@ -49,9 +49,9 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldMappers;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.shard.IndexShard;
@@ -713,18 +713,18 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public FieldMapper smartNameFieldMapper(String name) {
-        return mapperService().smartNameFieldMapper(name, request.types());
+    public MappedFieldType smartNameFieldType(String name) {
+        return mapperService().smartNameFieldType(name, request.types());
     }
 
     @Override
-    public FieldMapper smartNameFieldMapperFromAnyType(String name) {
-        return mapperService().smartNameFieldMapper(name);
+    public MappedFieldType smartNameFieldTypeFromAnyType(String name) {
+        return mapperService().smartNameFieldType(name);
     }
 
     @Override
-    public MapperService.SmartNameObjectMapper smartNameObjectMapper(String name) {
-        return mapperService().smartNameObjectMapper(name, request.types());
+    public ObjectMapper getObjectMapper(String name) {
+        return mapperService().getObjectMapper(name, request.types());
     }
 
     @Override

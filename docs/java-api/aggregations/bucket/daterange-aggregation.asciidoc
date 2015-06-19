@@ -39,10 +39,10 @@ Range agg = sr.getAggregations().get("agg");
 
 // For each entry
 for (Range.Bucket entry : agg.getBuckets()) {
-    String key = entry.getKey();                         // Date range as key
-    DateTime fromAsDate = (DateTime) entry.getFrom();    // Date bucket from as a Date
-    DateTime toAsDate = (DateTime) entry.getTo();        // Date bucket to as a Date
-    long docCount = entry.getDocCount();                 // Doc count
+    String key = entry.getKeyAsString();                // Date range as key
+    DateTime fromAsDate = (DateTime) entry.getFrom();   // Date bucket from as a Date
+    DateTime toAsDate = (DateTime) entry.getTo();       // Date bucket to as a Date
+    long docCount = entry.getDocCount();                // Doc count
 
     logger.info("key [{}], from [{}], to [{}], doc_count [{}]", key, fromAsDate, toAsDate, docCount);
 }

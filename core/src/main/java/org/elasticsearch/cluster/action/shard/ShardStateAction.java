@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -146,7 +147,7 @@ public class ShardStateAction extends AbstractComponent {
 
                 MetaData metaData = currentState.getMetaData();
 
-                List<ShardRouting> shardRoutingsToBeApplied = new ArrayList<>(shardRoutingEntries.size());
+                List<FailedRerouteAllocation.FailedShard> shardRoutingsToBeApplied = new ArrayList<>(shardRoutingEntries.size());
                 for (int i = 0; i < shardRoutingEntries.size(); i++) {
                     ShardRoutingEntry shardRoutingEntry = shardRoutingEntries.get(i);
                     shardRoutingEntry.processed = true;
@@ -163,7 +164,7 @@ public class ShardStateAction extends AbstractComponent {
                     }
 
                     logger.debug("{} will apply shard failed {}", shardRouting.shardId(), shardRoutingEntry);
-                    shardRoutingsToBeApplied.add(shardRouting);
+                    shardRoutingsToBeApplied.add(new FailedRerouteAllocation.FailedShard(shardRouting, shardRoutingEntry.reason));
                 }
 
                 RoutingAllocation.Result routingResult = allocationService.applyFailedShards(currentState, shardRoutingsToBeApplied);

@@ -87,7 +87,7 @@ documentation
 [source,java]
 --------------------------------------------------
 SearchRequestBuilder srb1 = node.client()
-    .prepareSearch().setQuery(QueryBuilders.queryString("elasticsearch")).setSize(1);
+    .prepareSearch().setQuery(QueryBuilders.queryStringQuery("elasticsearch")).setSize(1);
 SearchRequestBuilder srb2 = node.client()
     .prepareSearch().setQuery(QueryBuilders.matchQuery("name", "kimchy")).setSize(1);
 
@@ -120,7 +120,7 @@ SearchResponse sr = node.client().prepareSearch()
     .addAggregation(
             AggregationBuilders.dateHistogram("agg2")
                     .field("birth")
-                    .interval(DateHistogram.Interval.YEAR)
+                    .interval(DateHistogramInterval.YEAR)
     )
     .execute().actionGet();
 

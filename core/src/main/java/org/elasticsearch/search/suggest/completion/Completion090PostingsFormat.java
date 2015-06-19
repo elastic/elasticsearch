@@ -20,7 +20,6 @@ package org.elasticsearch.search.suggest.completion;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMap.Builder;
-
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.FieldsConsumer;
 import org.apache.lucene.codecs.FieldsProducer;
@@ -46,6 +45,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.search.suggest.completion.CompletionTokenStream.ToFiniteStrings;
 
@@ -260,7 +260,7 @@ public class Completion090PostingsFormat extends PostingsFormat {
             this.lookup = lookup;
         }
 
-        public Lookup getLookup(CompletionFieldMapper mapper, CompletionSuggestionContext suggestionContext) {
+        public Lookup getLookup(CompletionFieldMapper.CompletionFieldType mapper, CompletionSuggestionContext suggestionContext) {
             return lookup.getLookup(mapper, suggestionContext);
         }
 
@@ -340,8 +340,8 @@ public class Completion090PostingsFormat extends PostingsFormat {
     }
 
     public static abstract class LookupFactory implements Accountable {
-        public abstract Lookup getLookup(CompletionFieldMapper mapper, CompletionSuggestionContext suggestionContext);
+        public abstract Lookup getLookup(CompletionFieldMapper.CompletionFieldType fieldType, CompletionSuggestionContext suggestionContext);
         public abstract CompletionStats stats(String ... fields);
-        abstract AnalyzingCompletionLookupProvider.AnalyzingSuggestHolder getAnalyzingSuggestHolder(CompletionFieldMapper mapper);
+        abstract AnalyzingCompletionLookupProvider.AnalyzingSuggestHolder getAnalyzingSuggestHolder(MappedFieldType fieldType);
     }
 }

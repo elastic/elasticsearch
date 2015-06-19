@@ -44,9 +44,10 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.shard.IndexShard;
@@ -64,7 +65,11 @@ import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
-import org.elasticsearch.search.internal.*;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.internal.InternalSearchHit;
+import org.elasticsearch.search.internal.InternalSearchHitField;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -72,7 +77,11 @@ import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -651,17 +660,17 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public FieldMapper smartNameFieldMapper(String name) {
-        return mapperService().smartNameFieldMapper(name, types);
+    public MappedFieldType smartNameFieldType(String name) {
+        return mapperService().smartNameFieldType(name, types);
     }
 
     @Override
-    public FieldMapper smartNameFieldMapperFromAnyType(String name) {
-        return mapperService().smartNameFieldMapper(name);
+    public MappedFieldType smartNameFieldTypeFromAnyType(String name) {
+        return mapperService().smartNameFieldType(name);
     }
 
     @Override
-    public MapperService.SmartNameObjectMapper smartNameObjectMapper(String name) {
+    public ObjectMapper getObjectMapper(String name) {
         throw new UnsupportedOperationException();
     }
 

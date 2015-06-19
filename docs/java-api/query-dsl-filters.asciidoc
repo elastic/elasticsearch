@@ -416,7 +416,7 @@ See {ref}/query-dsl-query-filter.html[Query Filter]
 [source,java]
 --------------------------------------------------
 FilterBuilder filter = queryFilter(
-        queryString("this AND that OR thus")    <1>
+        queryStringQuery("this AND that OR thus")    <1>
     );
 --------------------------------------------------
 <1> query you want to wrap as a filter

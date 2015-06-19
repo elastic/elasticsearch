@@ -88,16 +88,16 @@ public class SnapshotBlocksTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testCreateSnapshotWithBlocks() {
-        logger.info("-->  creating a snapshot is blocked when the cluster is read only");
+        logger.info("-->  creating a snapshot is allowed when the cluster is read only");
         try {
             setClusterReadOnly(true);
-            assertBlocked(client().admin().cluster().prepareCreateSnapshot(REPOSITORY_NAME, "snapshot-1"), MetaData.CLUSTER_READ_ONLY_BLOCK);
+            assertThat(client().admin().cluster().prepareCreateSnapshot(REPOSITORY_NAME, "snapshot-1").setWaitForCompletion(true).get().status(), equalTo(RestStatus.OK));
         } finally {
             setClusterReadOnly(false);
         }
 
         logger.info("-->  creating a snapshot is allowed when the cluster is not read only");
-        CreateSnapshotResponse response = client().admin().cluster().prepareCreateSnapshot(REPOSITORY_NAME, "snapshot-1")
+        CreateSnapshotResponse response = client().admin().cluster().prepareCreateSnapshot(REPOSITORY_NAME, "snapshot-2")
                 .setWaitForCompletion(true)
                 .execute().actionGet();
         assertThat(response.status(), equalTo(RestStatus.OK));
@@ -126,17 +126,13 @@ public class SnapshotBlocksTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testDeleteSnapshotWithBlocks() {
-        logger.info("-->  deleting a snapshot is blocked when the cluster is read only");
+        logger.info("-->  deleting a snapshot is allowed when the cluster is read only");
         try {
             setClusterReadOnly(true);
-            assertBlocked(client().admin().cluster().prepareDeleteSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME), MetaData.CLUSTER_READ_ONLY_BLOCK);
+            assertTrue(client().admin().cluster().prepareDeleteSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME).get().isAcknowledged());
         } finally {
             setClusterReadOnly(false);
         }
-
-        logger.info("-->  deleting a snapshot is allowed when the cluster is not read only");
-        DeleteSnapshotResponse response = client().admin().cluster().prepareDeleteSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME).execute().actionGet();
-        assertThat(response.isAcknowledged(), equalTo(true));
     }
 
     @Test

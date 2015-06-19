@@ -18,6 +18,8 @@ if (rem < 0) {
 bucket_key = value - rem
 --------------------------------------------------
 
+From the rounding function above it can be seen that the intervals themsevles **must** be integers.
+
 The following snippet "buckets" the products based on their `price` by interval of `50`:
 
 [source,js]
@@ -339,4 +341,4 @@ had a value.
 }
 --------------------------------------------------
 
-<1> Documents without a value in the `quantity` field will fall into the same bucket as documents that have the value `0`. 
+<1> Documents without a value in the `quantity` field will fall into the same bucket as documents that have the value `0`.

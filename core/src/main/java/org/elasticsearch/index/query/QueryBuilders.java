@@ -609,17 +609,6 @@ public abstract class QueryBuilders {
         return new ScriptQueryBuilder(script);
     }
 
-    /**
-     * A builder for filter based on a script.
-     *
-     * @param script
-     *            The script to filter by.
-     * @deprecated Use {@link #scriptQuery(Script)} instead.
-     */
-    @Deprecated
-    public static ScriptQueryBuilder scriptQuery(String script) {
-        return new ScriptQueryBuilder(script);
-    }
 
     /**
      * A filter to filter based on a specific distance from a specific geo location / point.

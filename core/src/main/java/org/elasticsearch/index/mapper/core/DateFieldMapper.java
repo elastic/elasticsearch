@@ -23,7 +23,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -57,6 +56,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
@@ -232,6 +232,19 @@ public class DateFieldMapper extends NumberFieldMapper {
 
         public DateFieldType clone() {
             return new DateFieldType(this);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (!super.equals(o)) return false;
+            DateFieldType that = (DateFieldType) o;
+            return Objects.equals(dateTimeFormatter.format(), that.dateTimeFormatter.format()) &&
+                   Objects.equals(timeUnit, that.timeUnit);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), dateTimeFormatter.format(), timeUnit);
         }
 
         public FormatDateTimeFormatter dateTimeFormatter() {

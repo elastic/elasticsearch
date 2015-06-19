@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.SnapshotId;
-import org.elasticsearch.cluster.metadata.SnapshotMetaData;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -82,7 +82,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
     protected void masterOperation(final SnapshotsStatusRequest request,
                                    final ClusterState state,
                                    final ActionListener<SnapshotsStatusResponse> listener) throws Exception {
-        List<SnapshotMetaData.Entry> currentSnapshots = snapshotsService.currentSnapshots(request.repository(), request.snapshots());
+        List<SnapshotsInProgress.Entry> currentSnapshots = snapshotsService.currentSnapshots(request.repository(), request.snapshots());
 
         if (currentSnapshots.isEmpty()) {
             listener.onResponse(buildResponse(request, currentSnapshots, null));
@@ -90,8 +90,8 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         }
 
         Set<String> nodesIds = newHashSet();
-        for (SnapshotMetaData.Entry entry : currentSnapshots) {
-            for (SnapshotMetaData.ShardSnapshotStatus status : entry.shards().values()) {
+        for (SnapshotsInProgress.Entry entry : currentSnapshots) {
+            for (SnapshotsInProgress.ShardSnapshotStatus status : entry.shards().values()) {
                 if (status.nodeId() != null) {
                     nodesIds.add(status.nodeId());
                 }
@@ -111,7 +111,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                         @Override
                         public void onResponse(TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses) {
                             try {
-                                List<SnapshotMetaData.Entry> currentSnapshots =
+                                List<SnapshotsInProgress.Entry> currentSnapshots =
                                         snapshotsService.currentSnapshots(request.repository(), request.snapshots());
                                 listener.onResponse(buildResponse(request, currentSnapshots, nodeSnapshotStatuses));
                             } catch (Throwable e) {
@@ -131,7 +131,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
 
     }
 
-    private SnapshotsStatusResponse buildResponse(SnapshotsStatusRequest request, List<SnapshotMetaData.Entry> currentSnapshots,
+    private SnapshotsStatusResponse buildResponse(SnapshotsStatusRequest request, List<SnapshotsInProgress.Entry> currentSnapshots,
                                                   TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses) throws IOException {
         // First process snapshot that are currently processed
         ImmutableList.Builder<SnapshotStatus> builder = ImmutableList.builder();
@@ -144,11 +144,11 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                 nodeSnapshotStatusMap = newHashMap();
             }
 
-            for (SnapshotMetaData.Entry entry : currentSnapshots) {
+            for (SnapshotsInProgress.Entry entry : currentSnapshots) {
                 currentSnapshotIds.add(entry.snapshotId());
                 ImmutableList.Builder<SnapshotIndexShardStatus> shardStatusBuilder = ImmutableList.builder();
-                for (ImmutableMap.Entry<ShardId, SnapshotMetaData.ShardSnapshotStatus> shardEntry : entry.shards().entrySet()) {
-                    SnapshotMetaData.ShardSnapshotStatus status = shardEntry.getValue();
+                for (ImmutableMap.Entry<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shardEntry : entry.shards().entrySet()) {
+                    SnapshotsInProgress.ShardSnapshotStatus status = shardEntry.getValue();
                     if (status.nodeId() != null) {
                         // We should have information about this shard from the shard:
                         TransportNodesSnapshotsStatus.NodeSnapshotStatus nodeStatus = nodeSnapshotStatusMap.get(status.nodeId());
@@ -204,16 +204,16 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                         for (ImmutableMap.Entry<ShardId, IndexShardSnapshotStatus> shardStatus : shardStatues.entrySet()) {
                             shardStatusBuilder.add(new SnapshotIndexShardStatus(shardStatus.getKey(), shardStatus.getValue()));
                         }
-                        final SnapshotMetaData.State state;
+                        final SnapshotsInProgress.State state;
                         switch (snapshot.state()) {
                             case FAILED:
-                                state = SnapshotMetaData.State.FAILED;
+                                state = SnapshotsInProgress.State.FAILED;
                                 break;
                             case SUCCESS:
                             case PARTIAL:
                                 // Translating both PARTIAL and SUCCESS to SUCCESS for now
                                 // TODO: add the differentiation on the metadata level in the next major release
-                                state = SnapshotMetaData.State.SUCCESS;
+                                state = SnapshotsInProgress.State.SUCCESS;
                                 break;
                             default:
                                 throw new IllegalArgumentException("Unknown snapshot state " + snapshot.state());

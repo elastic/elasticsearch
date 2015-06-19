@@ -35,6 +35,7 @@ import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionBuild
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -532,7 +533,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testDateWithoutOrigin() throws Exception {
-        DateTime dt = new DateTime();
+        DateTime dt = new DateTime(DateTimeZone.UTC);
 
         assertAcked(prepareCreate("test").addMapping(
                 "type1",

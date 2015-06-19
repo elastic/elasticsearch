@@ -87,7 +87,6 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         }
         LeafReaderContext context = refreshReader();
         Map<FieldDataType, Type> typeMap = new HashMap<>();
-        typeMap.put(new FieldDataType("string", Settings.builder().put("format", "fst")), Type.Bytes);
         typeMap.put(new FieldDataType("string", Settings.builder().put("format", "paged_bytes")), Type.Bytes);
         typeMap.put(new FieldDataType("byte", Settings.builder().put("format", "array")), Type.Integer);
         typeMap.put(new FieldDataType("short", Settings.builder().put("format", "array")), Type.Integer);
@@ -325,7 +324,6 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         }
         LeafReaderContext context = refreshReader();
         Map<FieldDataType, Type> typeMap = new HashMap<>();
-        typeMap.put(new FieldDataType("string", Settings.builder().put("format", "fst")), Type.Bytes);
         typeMap.put(new FieldDataType("string", Settings.builder().put("format", "paged_bytes")), Type.Bytes);
         typeMap.put(new FieldDataType("string", Settings.builder().put("format", "doc_values")), Type.Bytes);
         // TODO add filters
@@ -384,7 +382,6 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         refreshReader();
 
         Map<FieldDataType, Type> typeMap = new HashMap<FieldDataType, DuelFieldDataTests.Type>();
-        typeMap.put(new FieldDataType("string", Settings.builder().put("format", "fst")), Type.Bytes);
         typeMap.put(new FieldDataType("string", Settings.builder().put("format", "paged_bytes")), Type.Bytes);
         typeMap.put(new FieldDataType("string", Settings.builder().put("format", "doc_values")), Type.Bytes);
 
@@ -437,7 +434,6 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         Map<FieldDataType, Type> typeMap = new HashMap<>();
         final Distance precision = new Distance(1, randomFrom(DistanceUnit.values()));
         typeMap.put(new FieldDataType("geo_point", Settings.builder().put("format", "array")), Type.GeoPoint);
-        typeMap.put(new FieldDataType("geo_point", Settings.builder().put("format", "compressed").put("precision", precision)), Type.GeoPoint);
         typeMap.put(new FieldDataType("geo_point", Settings.builder().put("format", "doc_values")), Type.GeoPoint);
 
         ArrayList<Entry<FieldDataType, Type>> list = new ArrayList<>(typeMap.entrySet());

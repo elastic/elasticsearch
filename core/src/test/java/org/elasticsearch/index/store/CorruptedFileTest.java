@@ -51,12 +51,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.gateway.GatewayAllocator;
-import org.elasticsearch.index.merge.policy.MergePolicyModule;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardException;
-import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
@@ -67,7 +63,6 @@ import org.elasticsearch.monitor.fs.FsStats;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.index.merge.NoMergePolicyProvider;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.*;
@@ -127,7 +122,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
-                        .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)
+                        .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                         .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
                         .put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, true) // no translog based flush - it might change the .liv / segments.N files
                         .put("indices.recovery.concurrent_streams", 10)
@@ -233,7 +228,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
 
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
-                        .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)
+                        .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                         .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
                         .put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, true) // no translog based flush - it might change the .liv / segments.N files
                         .put("indices.recovery.concurrent_streams", 10)
@@ -464,7 +459,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
 
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0") // no replicas for this test
-                        .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)
+                        .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                         .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
                         .put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, true) // no translog based flush - it might change the .liv / segments.N files
                         .put("indices.recovery.concurrent_streams", 10)
@@ -520,7 +515,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
                         .put(GatewayAllocator.INDEX_RECOVERY_INITIAL_SHARDS, "one")
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, cluster().numDataNodes() - 1)
-                        .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)
+                        .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                         .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
                         .put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, true) // no translog based flush - it might change the .liv / segments.N files
                         .put("indices.recovery.concurrent_streams", 10)

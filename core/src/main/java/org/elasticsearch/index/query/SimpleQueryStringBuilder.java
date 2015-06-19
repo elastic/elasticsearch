@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -30,7 +31,7 @@ import java.util.Map;
  * SimpleQuery is a query parser that acts similar to a query_string
  * query, but won't throw exceptions for any weird string syntax.
  */
-public class SimpleQueryStringBuilder extends QueryBuilder {
+public class SimpleQueryStringBuilder extends QueryBuilder implements BoostableQueryBuilder<SimpleQueryStringBuilder> {
     private Map<String, Float> fields = new HashMap<>();
     private String analyzer;
     private Operator operator;
@@ -38,6 +39,7 @@ public class SimpleQueryStringBuilder extends QueryBuilder {
     private String queryName;
     private String minimumShouldMatch;
     private int flags = -1;
+    private float boost = -1.0f;
     private Boolean lowercaseExpandedTerms;
     private Boolean lenient;
     private Boolean analyzeWildcard;
@@ -56,6 +58,18 @@ public class SimpleQueryStringBuilder extends QueryBuilder {
      */
     public SimpleQueryStringBuilder(String text) {
         this.queryText = text;
+    }
+
+    /** Set the boost of this query. */
+    @Override
+    public SimpleQueryStringBuilder boost(float boost) {
+        this.boost = boost;
+        return this;
+    }
+    
+    /** Returns the boost of this query. */
+    public float boost() {
+        return this.boost;
     }
 
     /**
@@ -195,7 +209,12 @@ public class SimpleQueryStringBuilder extends QueryBuilder {
         if (minimumShouldMatch != null) {
             builder.field("minimum_should_match", minimumShouldMatch);
         }
+        
+        if (boost != -1.0f) {
+            builder.field("boost", boost);
+        }
 
         builder.endObject();
     }
+
 }

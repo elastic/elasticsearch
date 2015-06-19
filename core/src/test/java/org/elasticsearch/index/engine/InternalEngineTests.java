@@ -64,12 +64,9 @@ import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
-import org.elasticsearch.index.merge.policy.LogByteSizeMergePolicyProvider;
-import org.elasticsearch.index.merge.policy.MergePolicyProvider;
-import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
-import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.settings.IndexDynamicSettingsModule;
 import org.elasticsearch.index.settings.IndexSettingsService;
+import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
@@ -99,7 +96,6 @@ import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.hamcrest.Matchers.*;
-
 public class InternalEngineTests extends ElasticsearchTestCase {
 
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
@@ -234,29 +230,22 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         return new SnapshotDeletionPolicy(createIndexDeletionPolicy());
     }
 
-    protected MergePolicyProvider<?> createMergePolicy() {
-        return new LogByteSizeMergePolicyProvider(store, new IndexSettingsService(new Index("test"), EMPTY_SETTINGS));
-    }
-
-    protected MergeSchedulerProvider createMergeScheduler(IndexSettingsService indexSettingsService) {
-        return new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool, indexSettingsService);
-    }
 
     protected InternalEngine createEngine(Store store, Path translogPath) {
         IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), Settings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
-        return createEngine(indexSettingsService, store, translogPath, createMergeScheduler(indexSettingsService));
+        return createEngine(indexSettingsService, store, translogPath, new MergeSchedulerConfig(indexSettingsService.indexSettings()), newMergePolicy());
     }
 
-    protected InternalEngine createEngine(IndexSettingsService indexSettingsService, Store store, Path translogPath, MergeSchedulerProvider mergeSchedulerProvider) {
-        return new InternalEngine(config(indexSettingsService, store, translogPath, mergeSchedulerProvider), false);
+    protected InternalEngine createEngine(IndexSettingsService indexSettingsService, Store store, Path translogPath, MergeSchedulerConfig mergeSchedulerConfig,  MergePolicy mergePolicy) {
+        return new InternalEngine(config(indexSettingsService, store, translogPath, mergeSchedulerConfig, mergePolicy), false);
     }
 
-    public EngineConfig config(IndexSettingsService indexSettingsService, Store store, Path translogPath, MergeSchedulerProvider mergeSchedulerProvider) {
+    public EngineConfig config(IndexSettingsService indexSettingsService, Store store, Path translogPath, MergeSchedulerConfig mergeSchedulerConfig, MergePolicy mergePolicy) {
         IndexWriterConfig iwc = newIndexWriterConfig();
         TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettingsService.getSettings(), Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, threadPool);
 
         EngineConfig config = new EngineConfig(shardId, threadPool, new ShardIndexingService(shardId, EMPTY_SETTINGS, new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, indexSettingsService)), indexSettingsService
-                , null, store, createSnapshotDeletionPolicy(), createMergePolicy(), mergeSchedulerProvider,
+                , null, store, createSnapshotDeletionPolicy(), mergePolicy, mergeSchedulerConfig,
                 iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(shardId.index()), new Engine.FailedEngineListener() {
             @Override
             public void onFailedEngine(ShardId shardId, String reason, @Nullable Throwable t) {
@@ -273,158 +262,164 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
     @Test
     public void testSegments() throws Exception {
-        List<Segment> segments = engine.segments(false);
-        assertThat(segments.isEmpty(), equalTo(true));
-        assertThat(engine.segmentsStats().getCount(), equalTo(0l));
-        assertThat(engine.segmentsStats().getMemoryInBytes(), equalTo(0l));
-        final boolean defaultCompound = defaultSettings.getAsBoolean(EngineConfig.INDEX_COMPOUND_ON_FLUSH, true);
+        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), Settings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        try (Store store = createStore();
+            Engine engine = createEngine(indexSettingsService, store, createTempDir(), new MergeSchedulerConfig(defaultSettings), NoMergePolicy.INSTANCE)) {
+            List<Segment> segments = engine.segments(false);
+            assertThat(segments.isEmpty(), equalTo(true));
+            assertThat(engine.segmentsStats().getCount(), equalTo(0l));
+            assertThat(engine.segmentsStats().getMemoryInBytes(), equalTo(0l));
+            final boolean defaultCompound = defaultSettings.getAsBoolean(EngineConfig.INDEX_COMPOUND_ON_FLUSH, true);
 
-        // create a doc and refresh
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
-        engine.create(new Engine.Create(null, newUid("1"), doc));
+            // create a doc and refresh
+            ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
+            engine.create(new Engine.Create(null, newUid("1"), doc));
 
-        ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, null);
-        engine.create(new Engine.Create(null, newUid("2"), doc2));
-        engine.refresh("test");
+            ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, null);
+            engine.create(new Engine.Create(null, newUid("2"), doc2));
+            engine.refresh("test");
 
-        segments = engine.segments(false);
-        assertThat(segments.size(), equalTo(1));
-        SegmentsStats stats = engine.segmentsStats();
-        assertThat(stats.getCount(), equalTo(1l));
-        assertThat(stats.getTermsMemoryInBytes(), greaterThan(0l));
-        assertThat(stats.getStoredFieldsMemoryInBytes(), greaterThan(0l));
-        assertThat(stats.getTermVectorsMemoryInBytes(), equalTo(0l));
-        assertThat(stats.getNormsMemoryInBytes(), greaterThan(0l));
-        assertThat(stats.getDocValuesMemoryInBytes(), greaterThan(0l));
-        assertThat(segments.get(0).isCommitted(), equalTo(false));
-        assertThat(segments.get(0).isSearch(), equalTo(true));
-        assertThat(segments.get(0).getNumDocs(), equalTo(2));
-        assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
-        assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
-        assertThat(segments.get(0).ramTree, nullValue());
+            segments = engine.segments(false);
+            assertThat(segments.size(), equalTo(1));
+            SegmentsStats stats = engine.segmentsStats();
+            assertThat(stats.getCount(), equalTo(1l));
+            assertThat(stats.getTermsMemoryInBytes(), greaterThan(0l));
+            assertThat(stats.getStoredFieldsMemoryInBytes(), greaterThan(0l));
+            assertThat(stats.getTermVectorsMemoryInBytes(), equalTo(0l));
+            assertThat(stats.getNormsMemoryInBytes(), greaterThan(0l));
+            assertThat(stats.getDocValuesMemoryInBytes(), greaterThan(0l));
+            assertThat(segments.get(0).isCommitted(), equalTo(false));
+            assertThat(segments.get(0).isSearch(), equalTo(true));
+            assertThat(segments.get(0).getNumDocs(), equalTo(2));
+            assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
+            assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
+            assertThat(segments.get(0).ramTree, nullValue());
 
-        engine.flush();
+            engine.flush();
 
-        segments = engine.segments(false);
-        assertThat(segments.size(), equalTo(1));
-        assertThat(engine.segmentsStats().getCount(), equalTo(1l));
-        assertThat(segments.get(0).isCommitted(), equalTo(true));
-        assertThat(segments.get(0).isSearch(), equalTo(true));
-        assertThat(segments.get(0).getNumDocs(), equalTo(2));
-        assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
-        assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
+            segments = engine.segments(false);
+            assertThat(segments.size(), equalTo(1));
+            assertThat(engine.segmentsStats().getCount(), equalTo(1l));
+            assertThat(segments.get(0).isCommitted(), equalTo(true));
+            assertThat(segments.get(0).isSearch(), equalTo(true));
+            assertThat(segments.get(0).getNumDocs(), equalTo(2));
+            assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
+            assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
 
-        engine.config().setCompoundOnFlush(false);
+            engine.config().setCompoundOnFlush(false);
 
-        ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
-        engine.create(new Engine.Create(null, newUid("3"), doc3));
-        engine.refresh("test");
+            ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
+            engine.create(new Engine.Create(null, newUid("3"), doc3));
+            engine.refresh("test");
 
-        segments = engine.segments(false);
-        assertThat(segments.size(), equalTo(2));
-        assertThat(engine.segmentsStats().getCount(), equalTo(2l));
-        assertThat(engine.segmentsStats().getTermsMemoryInBytes(), greaterThan(stats.getTermsMemoryInBytes()));
-        assertThat(engine.segmentsStats().getStoredFieldsMemoryInBytes(), greaterThan(stats.getStoredFieldsMemoryInBytes()));
-        assertThat(engine.segmentsStats().getTermVectorsMemoryInBytes(), equalTo(0l));
-        assertThat(engine.segmentsStats().getNormsMemoryInBytes(), greaterThan(stats.getNormsMemoryInBytes()));
-        assertThat(engine.segmentsStats().getDocValuesMemoryInBytes(), greaterThan(stats.getDocValuesMemoryInBytes()));
-        assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
-        assertThat(segments.get(0).isCommitted(), equalTo(true));
-        assertThat(segments.get(0).isSearch(), equalTo(true));
-        assertThat(segments.get(0).getNumDocs(), equalTo(2));
-        assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
-        assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
-
-
-        assertThat(segments.get(1).isCommitted(), equalTo(false));
-        assertThat(segments.get(1).isSearch(), equalTo(true));
-        assertThat(segments.get(1).getNumDocs(), equalTo(1));
-        assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
-        assertThat(segments.get(1).isCompound(), equalTo(false));
+            segments = engine.segments(false);
+            assertThat(segments.size(), equalTo(2));
+            assertThat(engine.segmentsStats().getCount(), equalTo(2l));
+            assertThat(engine.segmentsStats().getTermsMemoryInBytes(), greaterThan(stats.getTermsMemoryInBytes()));
+            assertThat(engine.segmentsStats().getStoredFieldsMemoryInBytes(), greaterThan(stats.getStoredFieldsMemoryInBytes()));
+            assertThat(engine.segmentsStats().getTermVectorsMemoryInBytes(), equalTo(0l));
+            assertThat(engine.segmentsStats().getNormsMemoryInBytes(), greaterThan(stats.getNormsMemoryInBytes()));
+            assertThat(engine.segmentsStats().getDocValuesMemoryInBytes(), greaterThan(stats.getDocValuesMemoryInBytes()));
+            assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
+            assertThat(segments.get(0).isCommitted(), equalTo(true));
+            assertThat(segments.get(0).isSearch(), equalTo(true));
+            assertThat(segments.get(0).getNumDocs(), equalTo(2));
+            assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
+            assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
 
 
-        engine.delete(new Engine.Delete("test", "1", newUid("1")));
-        engine.refresh("test");
+            assertThat(segments.get(1).isCommitted(), equalTo(false));
+            assertThat(segments.get(1).isSearch(), equalTo(true));
+            assertThat(segments.get(1).getNumDocs(), equalTo(1));
+            assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
+            assertThat(segments.get(1).isCompound(), equalTo(false));
 
-        segments = engine.segments(false);
-        assertThat(segments.size(), equalTo(2));
-        assertThat(engine.segmentsStats().getCount(), equalTo(2l));
-        assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
-        assertThat(segments.get(0).isCommitted(), equalTo(true));
-        assertThat(segments.get(0).isSearch(), equalTo(true));
-        assertThat(segments.get(0).getNumDocs(), equalTo(1));
-        assertThat(segments.get(0).getDeletedDocs(), equalTo(1));
-        assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
 
-        assertThat(segments.get(1).isCommitted(), equalTo(false));
-        assertThat(segments.get(1).isSearch(), equalTo(true));
-        assertThat(segments.get(1).getNumDocs(), equalTo(1));
-        assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
-        assertThat(segments.get(1).isCompound(), equalTo(false));
+            engine.delete(new Engine.Delete("test", "1", newUid("1")));
+            engine.refresh("test");
 
-        engine.config().setCompoundOnFlush(true);
-        ParsedDocument doc4 = testParsedDocument("4", "4", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
-        engine.create(new Engine.Create(null, newUid("4"), doc4));
-        engine.refresh("test");
+            segments = engine.segments(false);
+            assertThat(segments.size(), equalTo(2));
+            assertThat(engine.segmentsStats().getCount(), equalTo(2l));
+            assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
+            assertThat(segments.get(0).isCommitted(), equalTo(true));
+            assertThat(segments.get(0).isSearch(), equalTo(true));
+            assertThat(segments.get(0).getNumDocs(), equalTo(1));
+            assertThat(segments.get(0).getDeletedDocs(), equalTo(1));
+            assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
 
-        segments = engine.segments(false);
-        assertThat(segments.size(), equalTo(3));
-        assertThat(engine.segmentsStats().getCount(), equalTo(3l));
-        assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
-        assertThat(segments.get(0).isCommitted(), equalTo(true));
-        assertThat(segments.get(0).isSearch(), equalTo(true));
-        assertThat(segments.get(0).getNumDocs(), equalTo(1));
-        assertThat(segments.get(0).getDeletedDocs(), equalTo(1));
-        assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
+            assertThat(segments.get(1).isCommitted(), equalTo(false));
+            assertThat(segments.get(1).isSearch(), equalTo(true));
+            assertThat(segments.get(1).getNumDocs(), equalTo(1));
+            assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
+            assertThat(segments.get(1).isCompound(), equalTo(false));
 
-        assertThat(segments.get(1).isCommitted(), equalTo(false));
-        assertThat(segments.get(1).isSearch(), equalTo(true));
-        assertThat(segments.get(1).getNumDocs(), equalTo(1));
-        assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
-        assertThat(segments.get(1).isCompound(), equalTo(false));
+            engine.config().setCompoundOnFlush(true);
+            ParsedDocument doc4 = testParsedDocument("4", "4", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
+            engine.create(new Engine.Create(null, newUid("4"), doc4));
+            engine.refresh("test");
 
-        assertThat(segments.get(2).isCommitted(), equalTo(false));
-        assertThat(segments.get(2).isSearch(), equalTo(true));
-        assertThat(segments.get(2).getNumDocs(), equalTo(1));
-        assertThat(segments.get(2).getDeletedDocs(), equalTo(0));
-        assertThat(segments.get(2).isCompound(), equalTo(true));
+            segments = engine.segments(false);
+            assertThat(segments.size(), equalTo(3));
+            assertThat(engine.segmentsStats().getCount(), equalTo(3l));
+            assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
+            assertThat(segments.get(0).isCommitted(), equalTo(true));
+            assertThat(segments.get(0).isSearch(), equalTo(true));
+            assertThat(segments.get(0).getNumDocs(), equalTo(1));
+            assertThat(segments.get(0).getDeletedDocs(), equalTo(1));
+            assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
+
+            assertThat(segments.get(1).isCommitted(), equalTo(false));
+            assertThat(segments.get(1).isSearch(), equalTo(true));
+            assertThat(segments.get(1).getNumDocs(), equalTo(1));
+            assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
+            assertThat(segments.get(1).isCompound(), equalTo(false));
+
+            assertThat(segments.get(2).isCommitted(), equalTo(false));
+            assertThat(segments.get(2).isSearch(), equalTo(true));
+            assertThat(segments.get(2).getNumDocs(), equalTo(1));
+            assertThat(segments.get(2).getDeletedDocs(), equalTo(0));
+            assertThat(segments.get(2).isCompound(), equalTo(true));
+        }
     }
 
     public void testVerboseSegments() throws Exception {
-        List<Segment> segments = engine.segments(true);
-        assertThat(segments.isEmpty(), equalTo(true));
+        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), Settings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        try (Store store = createStore();
+             Engine engine = createEngine(indexSettingsService, store, createTempDir(), new MergeSchedulerConfig(defaultSettings), NoMergePolicy.INSTANCE)) {
+            List<Segment> segments = engine.segments(true);
+            assertThat(segments.isEmpty(), equalTo(true));
 
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
-        engine.create(new Engine.Create(null, newUid("1"), doc));
-        engine.refresh("test");
+            ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
+            engine.create(new Engine.Create(null, newUid("1"), doc));
+            engine.refresh("test");
 
-        segments = engine.segments(true);
-        assertThat(segments.size(), equalTo(1));
-        assertThat(segments.get(0).ramTree, notNullValue());
+            segments = engine.segments(true);
+            assertThat(segments.size(), equalTo(1));
+            assertThat(segments.get(0).ramTree, notNullValue());
 
-        ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, null);
-        engine.create(new Engine.Create(null, newUid("2"), doc2));
-        engine.refresh("test");
-        ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
-        engine.create(new Engine.Create(null, newUid("3"), doc3));
-        engine.refresh("test");
+            ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, null);
+            engine.create(new Engine.Create(null, newUid("2"), doc2));
+            engine.refresh("test");
+            ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
+            engine.create(new Engine.Create(null, newUid("3"), doc3));
+            engine.refresh("test");
 
-        segments = engine.segments(true);
-        assertThat(segments.size(), equalTo(3));
-        assertThat(segments.get(0).ramTree, notNullValue());
-        assertThat(segments.get(1).ramTree, notNullValue());
-        assertThat(segments.get(2).ramTree, notNullValue());
+            segments = engine.segments(true);
+            assertThat(segments.size(), equalTo(3));
+            assertThat(segments.get(0).ramTree, notNullValue());
+            assertThat(segments.get(1).ramTree, notNullValue());
+            assertThat(segments.get(2).ramTree, notNullValue());
+        }
 
     }
 
 
     @Test
     public void testSegmentsWithMergeFlag() throws Exception {
-        ConcurrentMergeSchedulerProvider mergeSchedulerProvider = new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool, new IndexSettingsService(shardId.index(), EMPTY_SETTINGS));
         IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), Settings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         try (Store store = createStore();
-             Engine engine = createEngine(indexSettingsService, store, createTempDir(), mergeSchedulerProvider)) {
-
+             Engine engine = createEngine(indexSettingsService, store, createTempDir(), new MergeSchedulerConfig(defaultSettings), new TieredMergePolicy())) {
             ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
             Engine.Index index = new Engine.Index(null, newUid("1"), doc);
             engine.index(index);
@@ -691,24 +686,29 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     }
 
     public void testSyncedFlush() throws IOException {
-        final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
-        engine.create(new Engine.Create(null, newUid("1"), doc));
-        Engine.CommitId commitID = engine.flush();
-        assertThat(commitID, equalTo(new Engine.CommitId(store.readLastCommittedSegmentsInfo().getId())));
-        byte[] wrongBytes = Base64.decode(commitID.toString());
-        wrongBytes[0] = (byte) ~wrongBytes[0];
-        Engine.CommitId wrongId = new Engine.CommitId(wrongBytes);
-        assertEquals("should fail to sync flush with wrong id (but no docs)", engine.syncFlush(syncId + "1", wrongId),
-                Engine.SyncedFlushResult.COMMIT_MISMATCH);
-        engine.create(new Engine.Create(null, newUid("2"), doc));
-        assertEquals("should fail to sync flush with right id but pending doc", engine.syncFlush(syncId + "2", commitID),
-                Engine.SyncedFlushResult.PENDING_OPERATIONS);
-        commitID = engine.flush();
-        assertEquals("should succeed to flush commit with right id and no pending doc", engine.syncFlush(syncId, commitID),
-                Engine.SyncedFlushResult.SUCCESS);
-        assertEquals(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
-        assertEquals(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), Settings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        try (Store store = createStore();
+             Engine engine = new InternalEngine(config(indexSettingsService, store, createTempDir(), new MergeSchedulerConfig(defaultSettings),
+                     new LogByteSizeMergePolicy()), false)) {
+            final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
+            ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
+            engine.create(new Engine.Create(null, newUid("1"), doc));
+            Engine.CommitId commitID = engine.flush();
+            assertThat(commitID, equalTo(new Engine.CommitId(store.readLastCommittedSegmentsInfo().getId())));
+            byte[] wrongBytes = Base64.decode(commitID.toString());
+            wrongBytes[0] = (byte) ~wrongBytes[0];
+            Engine.CommitId wrongId = new Engine.CommitId(wrongBytes);
+            assertEquals("should fail to sync flush with wrong id (but no docs)", engine.syncFlush(syncId + "1", wrongId),
+                    Engine.SyncedFlushResult.COMMIT_MISMATCH);
+            engine.create(new Engine.Create(null, newUid("2"), doc));
+            assertEquals("should fail to sync flush with right id but pending doc", engine.syncFlush(syncId + "2", commitID),
+                    Engine.SyncedFlushResult.PENDING_OPERATIONS);
+            commitID = engine.flush();
+            assertEquals("should succeed to flush commit with right id and no pending doc", engine.syncFlush(syncId, commitID),
+                    Engine.SyncedFlushResult.SUCCESS);
+            assertEquals(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+            assertEquals(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+        }
     }
 
     public void testSycnedFlushSurvivesEngineRestart() throws IOException {
@@ -903,40 +903,45 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         }
     }
 
-    public void testForceMerge() {
-        int numDocs = randomIntBetween(10, 100);
-        for (int i = 0; i < numDocs; i++) {
-            ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), B_1, null);
-            Engine.Index index = new Engine.Index(null, newUid(Integer.toString(i)), doc);
-            engine.index(index);
-            engine.refresh("test");
-        }
-        try (Engine.Searcher test = engine.acquireSearcher("test")) {
-            assertEquals(numDocs, test.reader().numDocs());
-        }
-        engine.forceMerge(true, 1, false, false, false);
-        assertEquals(engine.segments(true).size(), 1);
+    public void testForceMerge() throws IOException {
+        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), Settings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        try (Store store = createStore();
+             Engine engine = new InternalEngine(config(indexSettingsService, store, createTempDir(), new MergeSchedulerConfig(defaultSettings),
+                     new LogByteSizeMergePolicy()), false)) { // use log MP here we test some behavior in ESMP
+            int numDocs = randomIntBetween(10, 100);
+            for (int i = 0; i < numDocs; i++) {
+                ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), B_1, null);
+                Engine.Index index = new Engine.Index(null, newUid(Integer.toString(i)), doc);
+                engine.index(index);
+                engine.refresh("test");
+            }
+            try (Engine.Searcher test = engine.acquireSearcher("test")) {
+                assertEquals(numDocs, test.reader().numDocs());
+            }
+            engine.forceMerge(true, 1, false, false, false);
+            assertEquals(engine.segments(true).size(), 1);
 
-        ParsedDocument doc = testParsedDocument(Integer.toString(0), Integer.toString(0), "test", null, -1, -1, testDocument(), B_1, null);
-        Engine.Index index = new Engine.Index(null, newUid(Integer.toString(0)), doc);
-        engine.delete(new Engine.Delete(index.type(), index.id(), index.uid()));
-        engine.forceMerge(true, 10, true, false, false); //expunge deletes
+            ParsedDocument doc = testParsedDocument(Integer.toString(0), Integer.toString(0), "test", null, -1, -1, testDocument(), B_1, null);
+            Engine.Index index = new Engine.Index(null, newUid(Integer.toString(0)), doc);
+            engine.delete(new Engine.Delete(index.type(), index.id(), index.uid()));
+            engine.forceMerge(true, 10, true, false, false); //expunge deletes
 
-        assertEquals(engine.segments(true).size(), 1);
-        try (Engine.Searcher test = engine.acquireSearcher("test")) {
-            assertEquals(numDocs - 1, test.reader().numDocs());
-            assertEquals(numDocs - 1, test.reader().maxDoc());
-        }
+            assertEquals(engine.segments(true).size(), 1);
+            try (Engine.Searcher test = engine.acquireSearcher("test")) {
+                assertEquals(numDocs - 1, test.reader().numDocs());
+                assertEquals(engine.config().getMergePolicy().toString(), numDocs - 1, test.reader().maxDoc());
+            }
 
-        doc = testParsedDocument(Integer.toString(1), Integer.toString(1), "test", null, -1, -1, testDocument(), B_1, null);
-        index = new Engine.Index(null, newUid(Integer.toString(1)), doc);
-        engine.delete(new Engine.Delete(index.type(), index.id(), index.uid()));
-        engine.forceMerge(true, 10, false, false, false); //expunge deletes
+            doc = testParsedDocument(Integer.toString(1), Integer.toString(1), "test", null, -1, -1, testDocument(), B_1, null);
+            index = new Engine.Index(null, newUid(Integer.toString(1)), doc);
+            engine.delete(new Engine.Delete(index.type(), index.id(), index.uid()));
+            engine.forceMerge(true, 10, false, false, false); //expunge deletes
 
-        assertEquals(engine.segments(true).size(), 1);
-        try (Engine.Searcher test = engine.acquireSearcher("test")) {
-            assertEquals(numDocs - 2, test.reader().numDocs());
-            assertEquals(numDocs - 1, test.reader().maxDoc());
+            assertEquals(engine.segments(true).size(), 1);
+            try (Engine.Searcher test = engine.acquireSearcher("test")) {
+                assertEquals(numDocs - 2, test.reader().numDocs());
+                assertEquals(numDocs - 1, test.reader().maxDoc());
+            }
         }
     }
 
@@ -1352,7 +1357,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     public void testEnableGcDeletes() throws Exception {
         IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), Settings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         try (Store store = createStore();
-             Engine engine = new InternalEngine(config(indexSettingsService, store, createTempDir(), createMergeScheduler(indexSettingsService)), false)) {
+             Engine engine = new InternalEngine(config(indexSettingsService, store, createTempDir(), new MergeSchedulerConfig(defaultSettings), newMergePolicy()), false)) {
             engine.config().setEnableGcDeletes(false);
 
             // Add document
@@ -1574,7 +1579,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
                 .put(EngineConfig.INDEX_BUFFER_SIZE_SETTING, "1kb").build();
         IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), indexSettings);
         try (Store store = createStore();
-             Engine engine = new InternalEngine(config(indexSettingsService, store, createTempDir(), createMergeScheduler(indexSettingsService)),
+             Engine engine = new InternalEngine(config(indexSettingsService, store, createTempDir(), new MergeSchedulerConfig(defaultSettings), newMergePolicy()),
                      false)) {
             for (int i = 0; i < 100; i++) {
                 String id = Integer.toString(i);
@@ -1625,7 +1630,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         // now it should be OK.
         IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), Settings.builder().put(defaultSettings)
                 .put(EngineConfig.INDEX_FORCE_NEW_TRANSLOG, true).build());
-        engine = createEngine(indexSettingsService, store, primaryTranslogDir, createMergeScheduler(indexSettingsService));
+        engine = createEngine(indexSettingsService, store, primaryTranslogDir, new MergeSchedulerConfig(defaultSettings), newMergePolicy());
     }
 
     public void testTranslogReplayWithFailure() throws IOException {
@@ -1878,7 +1883,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         TranslogConfig translogConfig = new TranslogConfig(shardId, translog.location(), config.getIndexSettings(), Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, threadPool);
 
         EngineConfig brokenConfig = new EngineConfig(shardId, threadPool, config.getIndexingService(), config.getIndexSettingsService()
-                , null, store, createSnapshotDeletionPolicy(), createMergePolicy(), config.getMergeScheduler(),
+                , null, store, createSnapshotDeletionPolicy(), newMergePolicy(), config.getMergeSchedulerConfig(),
                 config.getAnalyzer(), config.getSimilarity(), new CodecService(shardId.index()), config.getFailedEngineListener()
         , config.getTranslogRecoveryPerformer(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig);
 

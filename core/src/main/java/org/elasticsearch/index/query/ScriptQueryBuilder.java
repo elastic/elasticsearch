@@ -31,63 +31,10 @@ public class ScriptQueryBuilder extends QueryBuilder {
 
     private Script script;
 
-    @Deprecated
-    private String scriptString;
-
-    @Deprecated
-    private Map<String, Object> params;
-
-    @Deprecated
-    private String lang;
-
     private String queryName;
 
     public ScriptQueryBuilder(Script script) {
         this.script = script;
-    }
-
-    /**
-     * @deprecated Use {@link #ScriptQueryBuilder(Script)} instead.
-     */
-    @Deprecated
-    public ScriptQueryBuilder(String script) {
-        this.scriptString = script;
-    }
-
-    /**
-     * @deprecated Use {@link #ScriptQueryBuilder(Script)} instead.
-     */
-    @Deprecated
-    public ScriptQueryBuilder addParam(String name, Object value) {
-        if (params == null) {
-            params = new HashMap<>();
-        }
-        params.put(name, value);
-        return this;
-    }
-
-    /**
-     * @deprecated Use {@link #ScriptQueryBuilder(Script)} instead.
-     */
-    @Deprecated
-    public ScriptQueryBuilder params(Map<String, Object> params) {
-        if (this.params == null) {
-            this.params = params;
-        } else {
-            this.params.putAll(params);
-        }
-        return this;
-    }
-
-    /**
-     * Sets the script language.
-     * 
-     * @deprecated Use {@link #ScriptQueryBuilder(Script)} instead.
-     */
-    @Deprecated
-    public ScriptQueryBuilder lang(String lang) {
-        this.lang = lang;
-        return this;
     }
 
     /**
@@ -102,20 +49,7 @@ public class ScriptQueryBuilder extends QueryBuilder {
     protected void doXContent(XContentBuilder builder, Params builderParams) throws IOException {
 
         builder.startObject(ScriptQueryParser.NAME);
-        if (script != null) {
-            builder.field(ScriptField.SCRIPT.getPreferredName(), script);
-        } else {
-            if (this.scriptString != null) {
-                builder.field("script", scriptString);
-            }
-            if (this.params != null) {
-                builder.field("params", this.params);
-            }
-            if (this.lang != null) {
-                builder.field("lang", lang);
-            }
-        }
-
+        builder.field(ScriptField.SCRIPT.getPreferredName(), script);
         if (queryName != null) {
             builder.field("_name", queryName);
         }

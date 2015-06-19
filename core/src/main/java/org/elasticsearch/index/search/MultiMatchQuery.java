@@ -30,6 +30,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 
@@ -140,8 +141,8 @@ public class MultiMatchQuery extends MatchQuery {
             }
         }
 
-        public Query blendTerm(Term term, FieldMapper mapper) {
-            return MultiMatchQuery.super.blendTermQuery(term, mapper);
+        public Query blendTerm(Term term, MappedFieldType fieldType) {
+            return MultiMatchQuery.super.blendTermQuery(term, fieldType);
         }
 
         public boolean forceAnalyzeQueryString() {
@@ -150,7 +151,7 @@ public class MultiMatchQuery extends MatchQuery {
     }
 
     public class CrossFieldsQueryBuilder extends QueryBuilder {
-        private FieldAndMapper[] blendedFields;
+        private FieldAndFieldType[] blendedFields;
 
         public CrossFieldsQueryBuilder(float tieBreaker) {
             super(false, tieBreaker);
@@ -158,20 +159,20 @@ public class MultiMatchQuery extends MatchQuery {
 
         @Override
         public List<Query> buildGroupedQueries(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNames, Object value, String minimumShouldMatch) throws IOException {
-            Map<Analyzer, List<FieldAndMapper>> groups = new HashMap<>();
+            Map<Analyzer, List<FieldAndFieldType>> groups = new HashMap<>();
             List<Tuple<String, Float>> missing = new ArrayList<>();
             for (Map.Entry<String, Float> entry : fieldNames.entrySet()) {
                 String name = entry.getKey();
-                FieldMapper mapper = parseContext.fieldMapper(name);
-                if (mapper != null) {
-                    Analyzer actualAnalyzer = getAnalyzer(mapper);
-                    name = mapper.fieldType().names().indexName();
+                MappedFieldType fieldType = parseContext.fieldMapper(name);
+                if (fieldType != null) {
+                    Analyzer actualAnalyzer = getAnalyzer(fieldType);
+                    name = fieldType.names().indexName();
                     if (!groups.containsKey(actualAnalyzer)) {
-                       groups.put(actualAnalyzer, new ArrayList<FieldAndMapper>());
+                       groups.put(actualAnalyzer, new ArrayList<FieldAndFieldType>());
                     }
                     Float boost = entry.getValue();
                     boost = boost == null ? Float.valueOf(1.0f) : boost;
-                    groups.get(actualAnalyzer).add(new FieldAndMapper(name, mapper, boost));
+                    groups.get(actualAnalyzer).add(new FieldAndFieldType(name, fieldType, boost));
                 } else {
                     missing.add(new Tuple(name, entry.getValue()));
                 }
@@ -184,18 +185,18 @@ public class MultiMatchQuery extends MatchQuery {
                     queries.add(q);
                 }
             }
-            for (List<FieldAndMapper> group : groups.values()) {
+            for (List<FieldAndFieldType> group : groups.values()) {
                 if (group.size() > 1) {
-                    blendedFields = new FieldAndMapper[group.size()];
+                    blendedFields = new FieldAndFieldType[group.size()];
                     int i = 0;
-                    for (FieldAndMapper fieldAndMapper : group) {
-                        blendedFields[i++] = fieldAndMapper;
+                    for (FieldAndFieldType fieldAndFieldType : group) {
+                        blendedFields[i++] = fieldAndFieldType;
                     }
                 } else {
                     blendedFields = null;
                 }
-                final FieldAndMapper fieldAndMapper= group.get(0);
-                Query q = parseGroup(type.matchQueryType(), fieldAndMapper.field, fieldAndMapper.boost, value, minimumShouldMatch);
+                final FieldAndFieldType fieldAndFieldType = group.get(0);
+                Query q = parseGroup(type.matchQueryType(), fieldAndFieldType.field, fieldAndFieldType.boost, value, minimumShouldMatch);
                 if (q != null) {
                     queries.add(q);
                 }
@@ -210,9 +211,9 @@ public class MultiMatchQuery extends MatchQuery {
         }
 
         @Override
-        public Query blendTerm(Term term, FieldMapper mapper) {
+        public Query blendTerm(Term term, MappedFieldType fieldType) {
             if (blendedFields == null) {
-                return super.blendTerm(term, mapper);
+                return super.blendTerm(term, fieldType);
             }
             final Term[] terms = new Term[blendedFields.length];
             float[] blendedBoost = new float[blendedFields.length];
@@ -232,28 +233,28 @@ public class MultiMatchQuery extends MatchQuery {
     }
 
     @Override
-    protected Query blendTermQuery(Term term, FieldMapper mapper) {
+    protected Query blendTermQuery(Term term, MappedFieldType fieldType) {
         if (queryBuilder == null) {
-            return super.blendTermQuery(term, mapper);
+            return super.blendTermQuery(term, fieldType);
         }
-        return queryBuilder.blendTerm(term, mapper);
+        return queryBuilder.blendTerm(term, fieldType);
     }
 
-    private static final class FieldAndMapper {
+    private static final class FieldAndFieldType {
         final String field;
-        final FieldMapper mapper;
+        final MappedFieldType fieldType;
         final float boost;
 
 
-        private FieldAndMapper(String field, FieldMapper mapper, float boost) {
+        private FieldAndFieldType(String field, MappedFieldType fieldType, float boost) {
             this.field = field;
-            this.mapper = mapper;
+            this.fieldType = fieldType;
             this.boost = boost;
         }
 
         public Term newTerm(String value) {
             try {
-                final BytesRef bytesRef = mapper.indexedValueForSearch(value);
+                final BytesRef bytesRef = fieldType.indexedValueForSearch(value);
                 return new Term(field, bytesRef);
             } catch (Exception ex) {
                 // we can't parse it just use the incoming value -- it will

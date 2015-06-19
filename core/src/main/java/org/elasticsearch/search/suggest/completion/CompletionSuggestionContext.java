@@ -32,7 +32,7 @@ import java.util.List;
  */
 public class CompletionSuggestionContext extends SuggestionSearchContext.SuggestionContext {
 
-    private CompletionFieldMapper mapper;
+    private CompletionFieldMapper.CompletionFieldType fieldType;
     private int fuzzyEditDistance = XFuzzySuggester.DEFAULT_MAX_EDITS;
     private boolean fuzzyTranspositions = XFuzzySuggester.DEFAULT_TRANSPOSITIONS;
     private int fuzzyMinLength = XFuzzySuggester.DEFAULT_MIN_FUZZY_LENGTH;
@@ -45,12 +45,12 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
         super(suggester);
     }
 
-    public CompletionFieldMapper mapper() {
-        return this.mapper;
+    public CompletionFieldMapper.CompletionFieldType fieldType() {
+        return this.fieldType;
     }
 
-    public void mapper(CompletionFieldMapper mapper) {
-        this.mapper = mapper;
+    public void fieldType(CompletionFieldMapper.CompletionFieldType fieldType) {
+        this.fieldType = fieldType;
     }
 
     public void setFuzzyEditDistance(int fuzzyEditDistance) {

@@ -145,11 +145,7 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
 
             final ObjectMapper objectMapper;
             if (path != null) {
-                MapperService.SmartNameObjectMapper mapper = context.searchContext().smartNameObjectMapper(path);
-                if (mapper == null) {
-                    return new Unmapped(name, context, parent, pipelineAggregators, metaData);
-                }
-                objectMapper = mapper.mapper();
+                objectMapper = context.searchContext().getObjectMapper(path);
                 if (objectMapper == null) {
                     return new Unmapped(name, context, parent, pipelineAggregators, metaData);
                 }

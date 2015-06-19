@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.script.CompiledScript;
@@ -166,15 +167,15 @@ public final class PhraseSuggestParser implements SuggestContextParser {
             throw new IllegalArgumentException("The required field option is missing");
         }
 
-        FieldMapper fieldMapper = mapperService.smartNameFieldMapper(suggestion.getField());
-        if (fieldMapper == null) {
+        MappedFieldType fieldType = mapperService.smartNameFieldType(suggestion.getField());
+        if (fieldType == null) {
             throw new IllegalArgumentException("No mapping found for field [" + suggestion.getField() + "]");
         } else if (suggestion.getAnalyzer() == null) {
             // no analyzer name passed in, so try the field's analyzer, or the default analyzer
-            if (fieldMapper.fieldType().searchAnalyzer() == null) {
+            if (fieldType.searchAnalyzer() == null) {
                 suggestion.setAnalyzer(mapperService.searchAnalyzer());
             } else {
-                suggestion.setAnalyzer(fieldMapper.fieldType().searchAnalyzer());
+                suggestion.setAnalyzer(fieldType.searchAnalyzer());
             }
         }
         
@@ -324,7 +325,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
         if (!SuggestUtils.parseDirectSpellcheckerSettings(parser, fieldName, generator)) {
             if ("field".equals(fieldName)) {
                 generator.setField(parser.text());
-                if (mapperService.smartNameFieldMapper(generator.field()) == null) {
+                if (mapperService.smartNameFieldType(generator.field()) == null) {
                     throw new IllegalArgumentException("No mapping found for field [" + generator.field() + "]");
                 }
             } else if ("size".equals(fieldName)) {

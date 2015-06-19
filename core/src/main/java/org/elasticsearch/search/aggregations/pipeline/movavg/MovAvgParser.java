@@ -33,6 +33,7 @@ import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -144,7 +145,14 @@ public class MovAvgParser implements PipelineAggregator.Parser {
             throw new SearchParseException(context, "Unknown model [" + model + "] specified.  Valid options are:"
                     + movAvgModelParserMapper.getAllNames().toString(), parser.getTokenLocation());
         }
-        MovAvgModel movAvgModel = modelParser.parse(settings, pipelineAggregatorName, context, window);
+
+        MovAvgModel movAvgModel;
+        try {
+            movAvgModel = modelParser.parse(settings, pipelineAggregatorName, window);
+        } catch (ParseException exception) {
+            throw new SearchParseException(context, "Could not parse settings for model [" + model + "].", null, exception);
+        }
+
 
         return new MovAvgPipelineAggregator.Factory(pipelineAggregatorName, bucketsPaths, formatter, gapPolicy, window, predict,
                 movAvgModel);

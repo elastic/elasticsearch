@@ -499,6 +499,6 @@ public class GeoPointFieldMapperTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
         stage2 = parser.parse(stage2Mapping);
         mergeResult = stage1.merge(stage2.mapping(), false);
-        assertThat(mergeResult.hasConflicts(), equalTo(false));
+        assertThat(Arrays.toString(mergeResult.buildConflicts()), mergeResult.hasConflicts(), equalTo(false));
     }
 }

@@ -1524,7 +1524,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
      * Marks this store as corrupted. This method writes a <tt>corrupted_${uuid}</tt> file containing the given exception
      * message. If a store contains a <tt>corrupted_${uuid}</tt> file {@link #isMarkedCorrupted()} will return <code>true</code>.
      */
-    public void markStoreCorrupted(CorruptIndexException exception) throws IOException {
+    public void markStoreCorrupted(IOException exception) throws IOException {
         ensureOpen();
         if (!isMarkedCorrupted()) {
             String uuid = CORRUPTED + Strings.randomBase64UUID();

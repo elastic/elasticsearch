@@ -1327,11 +1327,18 @@ public class IndexShard extends AbstractIndexShardComponent {
         // called by the current engine
         @Override
         public void onFailedEngine(ShardId shardId, String reason, @Nullable Throwable failure) {
-            for (Engine.FailedEngineListener listener : delegates) {
-                try {
-                    listener.onFailedEngine(shardId, reason, failure);
-                } catch (Exception e) {
-                    logger.warn("exception while notifying engine failure", e);
+            try {
+                // mark as corrupted, so opening the store will fail
+                store.markStoreCorrupted(new IOException("failed engine (reason: [" + reason + "])", failure));
+            } catch (IOException e) {
+                logger.warn("failed to mark shard store as corrupted", e);
+            } finally {
+                for (Engine.FailedEngineListener listener : delegates) {
+                    try {
+                        listener.onFailedEngine(shardId, reason, failure);
+                    } catch (Exception e) {
+                        logger.warn("exception while notifying engine failure", e);
+                    }
                 }
             }
         }

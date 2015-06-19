@@ -24,14 +24,19 @@ import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.gateway.local.state.shards.LocalGatewayShardsState;
+import org.elasticsearch.gateway.local.state.shards.ShardStateInfo;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
@@ -163,5 +168,35 @@ public class IndexShardTests extends ElasticsearchSingleNodeTest {
         assertEquals(versionCreated.luceneVersion, test.minimumCompatibleVersion());
         test.engine().flush();
         assertEquals(Version.CURRENT.luceneVersion, test.minimumCompatibleVersion());
+    }
+
+    public void testFailShard() throws Exception {
+        forceLocalGateway();
+        createIndex("test");
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        NodeEnvironment env = getInstanceFromNode(NodeEnvironment.class);
+        IndexService test = indicesService.indexService("test");
+        IndexShard shard = test.shard(0);
+        // fail shard
+        shard.failShard("test shard fail", new IOException("corrupted"));
+        // check state file still exists
+        ShardStateInfo shardStateInfo = LocalGatewayShardsState.FORMAT.loadLatestState(logger, env.shardLocations(shard.shardId));
+        assertNotNull(shardStateInfo);
+        // but index can't be opened for a failed shard
+        File[] shardLocations = env.shardDataLocations(shard.shardId, test.getIndexSettings());
+        File[] shardIndexLocations = new File[shardLocations.length];
+        for (int i = 0; i < shardLocations.length; i++) {
+            shardIndexLocations[i] = new File(shardLocations[i], "index");
+        }
+        boolean exists = false;
+        for (File shardIndexLocation : shardIndexLocations) {
+            if (shardIndexLocation.exists()) {
+                exists = true;
+                break;
+            }
+        }
+        assertTrue(exists);
+        assertThat("store index should be corrupted", Store.canOpenIndex(logger, shardIndexLocations), equalTo(false));
     }
 }

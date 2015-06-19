@@ -319,9 +319,6 @@ public abstract class NumberFieldMapper extends AbstractFieldMapper implements A
         }
         if (!mergeResult.simulate()) {
             NumberFieldMapper nfmMergeWith = (NumberFieldMapper) mergeWith;
-            this.fieldType = this.fieldType().clone();
-            this.fieldType().setNumericPrecisionStep(nfmMergeWith.fieldType().numericPrecisionStep());
-            this.fieldType().freeze();
             this.includeInAll = nfmMergeWith.includeInAll;
             if (nfmMergeWith.ignoreMalformed.explicit()) {
                 this.ignoreMalformed = nfmMergeWith.ignoreMalformed;

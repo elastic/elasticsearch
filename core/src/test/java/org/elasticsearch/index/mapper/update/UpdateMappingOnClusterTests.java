@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.update;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
@@ -182,9 +183,11 @@ public class UpdateMappingOnClusterTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testUpdateTimestamp() throws IOException {
+    @Seed(value = "12345678")
+    public void testUpdateTimestamp() throws Exception {
+        boolean enabled = randomBoolean();
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_timestamp").field("enabled", randomBoolean()).startObject("fielddata").field("loading", "lazy").field("format", "doc_values").endObject().field("store", "no").endObject()
+                .startObject("_timestamp").field("enabled", enabled).startObject("fielddata").field("loading", "lazy").field("format", "doc_values").endObject().field("store", "no").endObject()
                 .endObject().endObject();
         client().admin().indices().prepareCreate("test").addMapping("type", mapping).get();
         GetMappingsResponse appliedMappings = client().admin().indices().prepareGetMappings("test").get();
@@ -193,7 +196,7 @@ public class UpdateMappingOnClusterTests extends ElasticsearchIntegrationTest {
         assertThat((String)((LinkedHashMap) timestampMapping.get("fielddata")).get("loading"), equalTo("lazy"));
         assertThat((String)((LinkedHashMap) timestampMapping.get("fielddata")).get("format"), equalTo("doc_values"));
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_timestamp").field("enabled", randomBoolean()).startObject("fielddata").field("loading", "eager").field("format", "array").endObject().field("store", "no").endObject()
+                .startObject("_timestamp").field("enabled", enabled).startObject("fielddata").field("loading", "eager").field("format", "array").endObject().field("store", "no").endObject()
                 .endObject().endObject();
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping).get();
         appliedMappings = client().admin().indices().prepareGetMappings("test").get();

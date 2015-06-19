@@ -62,7 +62,7 @@ public class CommonTermsQueryBuilder extends BaseQueryBuilder implements Boostab
 
     private String highFreqMinimumShouldMatch = null;
 
-    private Boolean disableCoords = null;
+    private Boolean disableCoord = null;
 
     private Float cutoffFrequency = null;
 
@@ -148,6 +148,11 @@ public class CommonTermsQueryBuilder extends BaseQueryBuilder implements Boostab
         return this;
     }
 
+    public CommonTermsQueryBuilder disableCoord(boolean disableCoord) {
+        this.disableCoord = disableCoord;
+        return this;
+    }
+
     /**
      * Sets the query name for the filter that can be used when searching for matched_filters per hit.
      */
@@ -162,8 +167,8 @@ public class CommonTermsQueryBuilder extends BaseQueryBuilder implements Boostab
         builder.startObject(name);
 
         builder.field("query", text);
-        if (disableCoords != null) {
-            builder.field("disable_coords", disableCoords);
+        if (disableCoord != null) {
+            builder.field("disable_coord", disableCoord);
         }
         if (highFreqOperator != null) {
             builder.field("high_freq_operator", highFreqOperator.toString());

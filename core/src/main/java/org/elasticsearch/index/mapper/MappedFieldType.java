@@ -232,6 +232,7 @@ public class MappedFieldType extends FieldType {
     public void validateCompatible(MappedFieldType other, List<String> conflicts) {
         boolean indexed =  indexOptions() != IndexOptions.NONE;
         boolean mergeWithIndexed = other.indexOptions() != IndexOptions.NONE;
+        // TODO: should be validating if index options go "up" (but "down" is ok)
         if (indexed != mergeWithIndexed || tokenized() != other.tokenized()) {
             conflicts.add("mapper [" + names().fullName() + "] has different index values");
         }
@@ -277,13 +278,7 @@ public class MappedFieldType extends FieldType {
             conflicts.add("mapper [" + names().fullName() + "] has different index_name");
         }
 
-        if (similarity() == null) {
-            if (other.similarity() != null) {
-                conflicts.add("mapper [" + names().fullName() + "] has different similarity");
-            }
-        } else if (other.similarity() == null) {
-            conflicts.add("mapper [" + names().fullName() + "] has different similarity");
-        } else if (!similarity().equals(other.similarity())) {
+        if (Objects.equals(similarity(), other.similarity()) == false) {
             conflicts.add("mapper [" + names().fullName() + "] has different similarity");
         }
     }

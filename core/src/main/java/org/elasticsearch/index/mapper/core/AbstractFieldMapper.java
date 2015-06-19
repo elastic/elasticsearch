@@ -45,7 +45,6 @@ import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
-import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
@@ -404,6 +403,11 @@ public abstract class AbstractFieldMapper implements FieldMapper {
             // apply changeable values
             this.fieldType = fieldMergeWith.fieldType().clone();
             this.fieldType().freeze();
+            if (fieldMergeWith.customFieldDataSettings != null) {
+                if (!Objects.equal(fieldMergeWith.customFieldDataSettings, this.customFieldDataSettings)) {
+                    this.customFieldDataSettings = fieldMergeWith.customFieldDataSettings;
+                }
+            }
             this.copyTo = fieldMergeWith.copyTo;
         }
     }

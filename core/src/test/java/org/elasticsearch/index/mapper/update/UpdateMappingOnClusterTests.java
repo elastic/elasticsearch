@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper.update;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
@@ -31,7 +30,6 @@ import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 
@@ -183,7 +181,6 @@ public class UpdateMappingOnClusterTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @Seed(value = "12345678")
     public void testUpdateTimestamp() throws Exception {
         boolean enabled = randomBoolean();
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")

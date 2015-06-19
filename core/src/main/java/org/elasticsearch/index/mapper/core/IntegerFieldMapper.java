@@ -204,7 +204,7 @@ public class IntegerFieldMapper extends NumberFieldMapper {
 
     @Override
     public IntegerFieldType fieldType() {
-        return (IntegerFieldType)fieldType;
+        return (IntegerFieldType) super.fieldType();
     }
 
     @Override
@@ -235,11 +235,11 @@ public class IntegerFieldMapper extends NumberFieldMapper {
     @Override
     protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
         int value;
-        float boost = this.fieldType.boost();
+        float boost = fieldType().boost();
         if (context.externalValueSet()) {
             Object externalValue = context.externalValue();
             if (externalValue == null) {
-                if (fieldType.nullValue() == null) {
+                if (fieldType().nullValue() == null) {
                     return;
                 }
                 value = fieldType().nullValue();
@@ -257,18 +257,18 @@ public class IntegerFieldMapper extends NumberFieldMapper {
                 value = ((Number) externalValue).intValue();
             }
             if (context.includeInAll(includeInAll, this)) {
-                context.allEntries().addText(fieldType.names().fullName(), Integer.toString(value), boost);
+                context.allEntries().addText(fieldType().names().fullName(), Integer.toString(value), boost);
             }
         } else {
             XContentParser parser = context.parser();
             if (parser.currentToken() == XContentParser.Token.VALUE_NULL ||
                     (parser.currentToken() == XContentParser.Token.VALUE_STRING && parser.textLength() == 0)) {
-                if (fieldType.nullValue() == null) {
+                if (fieldType().nullValue() == null) {
                     return;
                 }
                 value = fieldType().nullValue();
-                if (fieldType.nullValueAsString() != null && (context.includeInAll(includeInAll, this))) {
-                    context.allEntries().addText(fieldType.names().fullName(), fieldType.nullValueAsString(), boost);
+                if (fieldType().nullValueAsString() != null && (context.includeInAll(includeInAll, this))) {
+                    context.allEntries().addText(fieldType().names().fullName(), fieldType().nullValueAsString(), boost);
                 }
             } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                 XContentParser.Token token;
@@ -297,7 +297,7 @@ public class IntegerFieldMapper extends NumberFieldMapper {
             } else {
                 value = parser.intValue(coerce.value());
                 if (context.includeInAll(includeInAll, this)) {
-                    context.allEntries().addText(fieldType.names().fullName(), parser.text(), boost);
+                    context.allEntries().addText(fieldType().names().fullName(), parser.text(), boost);
                 }
             }
         }
@@ -305,8 +305,8 @@ public class IntegerFieldMapper extends NumberFieldMapper {
     }
 
     protected void addIntegerFields(ParseContext context, List<Field> fields, int value, float boost) {
-        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            CustomIntegerNumericField field = new CustomIntegerNumericField(this, value, fieldType);
+        if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
+            CustomIntegerNumericField field = new CustomIntegerNumericField(this, value, fieldType());
             field.setBoost(boost);
             fields.add(field);
         }
@@ -321,27 +321,14 @@ public class IntegerFieldMapper extends NumberFieldMapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
-        super.merge(mergeWith, mergeResult);
-        if (!this.getClass().equals(mergeWith.getClass())) {
-            return;
-        }
-        if (!mergeResult.simulate()) {
-            this.fieldType = this.fieldType.clone();
-            this.fieldType.setNullValue(((FieldMapper)mergeWith).fieldType().nullValue());
-            this.fieldType.freeze();
-        }
-    }
-
-    @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (includeDefaults || fieldType.numericPrecisionStep() != Defaults.PRECISION_STEP_32_BIT) {
-            builder.field("precision_step", fieldType.numericPrecisionStep());
+        if (includeDefaults || fieldType().numericPrecisionStep() != Defaults.PRECISION_STEP_32_BIT) {
+            builder.field("precision_step", fieldType().numericPrecisionStep());
         }
-        if (includeDefaults || fieldType.nullValue() != null) {
-            builder.field("null_value", fieldType.nullValue());
+        if (includeDefaults || fieldType().nullValue() != null) {
+            builder.field("null_value", fieldType().nullValue());
         }
         if (includeInAll != null) {
             builder.field("include_in_all", includeInAll);

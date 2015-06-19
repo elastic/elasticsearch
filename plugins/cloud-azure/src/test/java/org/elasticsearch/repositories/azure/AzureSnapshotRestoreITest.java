@@ -34,6 +34,7 @@ import org.elasticsearch.cloud.azure.storage.AzureStorageServiceImpl;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.azure.AzureRepository.Repository;
@@ -41,12 +42,13 @@ import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.store.MockFSDirectoryService;
-import org.junit.*;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.net.URISyntaxException;
-import java.util.concurrent.Callable;
-import java.util.concurrent.TimeUnit;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -107,7 +109,7 @@ public class AzureSnapshotRestoreITest extends AbstractAzureTest {
                 .setType("azure").setSettings(Settings.settingsBuilder()
                         .put(Storage.CONTAINER, getContainerName())
                         .put(Storage.BASE_PATH, getRepositoryPath())
-                        .put(Storage.CHUNK_SIZE, randomIntBetween(1000, 10000))
+                        .put(Storage.CHUNK_SIZE, randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
@@ -180,14 +182,14 @@ public class AzureSnapshotRestoreITest extends AbstractAzureTest {
                 .setType("azure").setSettings(Settings.settingsBuilder()
                         .put(Repository.CONTAINER, getContainerName().concat("-1"))
                         .put(Repository.BASE_PATH, getRepositoryPath())
-                        .put(Repository.CHUNK_SIZE, randomIntBetween(1000, 10000))
+                        .put(Repository.CHUNK_SIZE, randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
                 ).get();
         assertThat(putRepositoryResponse1.isAcknowledged(), equalTo(true));
         PutRepositoryResponse putRepositoryResponse2 = client.admin().cluster().preparePutRepository("test-repo2")
                 .setType("azure").setSettings(Settings.settingsBuilder()
                         .put(Repository.CONTAINER, getContainerName().concat("-2"))
                         .put(Repository.BASE_PATH, getRepositoryPath())
-                        .put(Repository.CHUNK_SIZE, randomIntBetween(1000, 10000))
+                        .put(Repository.CHUNK_SIZE, randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
                 ).get();
         assertThat(putRepositoryResponse2.isAcknowledged(), equalTo(true));
 
@@ -359,7 +361,7 @@ public class AzureSnapshotRestoreITest extends AbstractAzureTest {
                             .setType("azure").setSettings(Settings.settingsBuilder()
                                             .put(Repository.CONTAINER, container)
                                             .put(Repository.BASE_PATH, getRepositoryPath())
-                                            .put(Repository.CHUNK_SIZE, randomIntBetween(1000, 10000))
+                                            .put(Repository.CHUNK_SIZE, randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
                             ).get();
                     client().admin().cluster().prepareDeleteRepository("test-repo").get();
                     try {
@@ -390,7 +392,7 @@ public class AzureSnapshotRestoreITest extends AbstractAzureTest {
                 .setType("azure").setSettings(Settings.settingsBuilder()
                         .put(Repository.CONTAINER, getContainerName())
                         .put(Repository.BASE_PATH, getRepositoryPath())
-                        .put(Repository.CHUNK_SIZE, randomIntBetween(1000, 10000))
+                        .put(Repository.CHUNK_SIZE, randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 

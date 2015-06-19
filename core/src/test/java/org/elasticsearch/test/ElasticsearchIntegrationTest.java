@@ -29,6 +29,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.Lists;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.impl.client.HttpClients;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.IOUtils;
@@ -508,6 +509,12 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         if (random.nextBoolean()) {
             builder.put(NettyTransport.PING_SCHEDULE, RandomInts.randomIntBetween(random, 100, 2000) + "ms");
         }
+
+        if (randomBoolean()) {
+            // keep this low so we don't stall tests
+            builder.put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, RandomInts.randomIntBetween(random, 1, 15) + "ms");
+        }
+
         return builder;
     }
 

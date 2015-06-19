@@ -41,8 +41,8 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
 
     public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("dateOptionalTime");
 
-    public static final String DELAYED_NODE_LEFT_TIMEOUT = "index.unassigned.node_left.delayed_timeout";
-    public static final TimeValue DEFAULT_DELAYED_NODE_LEFT_TIMEOUT = TimeValue.timeValueMillis(0);
+    public static final String INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING = "index.unassigned.node_left.delayed_timeout";
+    private static final TimeValue DEFAULT_DELAYED_NODE_LEFT_TIMEOUT = TimeValue.timeValueMillis(0);
 
     /**
      * Reason why the shard is in unassigned state.
@@ -155,7 +155,7 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
         if (reason != Reason.NODE_LEFT) {
             return 0;
         }
-        TimeValue delayTimeout = indexSettings.getAsTime(DELAYED_NODE_LEFT_TIMEOUT, settings.getAsTime(DELAYED_NODE_LEFT_TIMEOUT, DEFAULT_DELAYED_NODE_LEFT_TIMEOUT));
+        TimeValue delayTimeout = indexSettings.getAsTime(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, settings.getAsTime(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, DEFAULT_DELAYED_NODE_LEFT_TIMEOUT));
         return Math.max(0l, delayTimeout.millis());
     }
 

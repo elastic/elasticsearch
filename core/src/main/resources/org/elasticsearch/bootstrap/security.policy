@@ -101,4 +101,7 @@ grant {
 
   // needed by Mockito
   permission java.lang.RuntimePermission "reflectionFactoryAccess";
+
+  // needed to install SSLFactories, advanced SSL configuration, etc.
+  permission java.lang.RuntimePermission "setFactory";
 };

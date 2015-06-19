@@ -111,7 +111,7 @@ public class IndexDynamicSettingsModule extends AbstractModule {
         indexDynamicSettings.addDynamicSetting(TranslogConfig.INDEX_TRANSLOG_DURABILITY);
         indexDynamicSettings.addDynamicSetting(IndicesWarmer.INDEX_WARMER_ENABLED);
         indexDynamicSettings.addDynamicSetting(IndicesQueryCache.INDEX_CACHE_QUERY_ENABLED, Validator.BOOLEAN);
-        indexDynamicSettings.addDynamicSetting(UnassignedInfo.DELAYED_NODE_LEFT_TIMEOUT, Validator.TIME);
+        indexDynamicSettings.addDynamicSetting(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, Validator.TIME);
     }
 
     public void addDynamicSettings(String... settings) {

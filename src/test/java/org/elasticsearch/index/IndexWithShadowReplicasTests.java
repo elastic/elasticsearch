@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -658,6 +659,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
 
     @Test
     @TestLogging("gateway.local:TRACE")
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/11788")
     public void testIndexOnSharedFSRecoversToAnyNode() throws Exception {
         Settings nodeSettings = nodeSettings();
         Settings fooSettings = ImmutableSettings.builder().put(nodeSettings).put("node.affinity", "foo").build();

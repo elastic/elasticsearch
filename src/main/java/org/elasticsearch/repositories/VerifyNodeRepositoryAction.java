@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -86,6 +85,7 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
                 try {
                     doVerify(repository, verificationToken);
                 } catch (Throwable t) {
+                    logger.warn("[{}] failed to verify repository", t, repository);
                     errors.add(new VerificationFailure(node.id(), ExceptionsHelper.detailedMessage(t)));
                 }
                 if (counter.decrementAndGet() == 0) {
@@ -164,7 +164,12 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
 
         @Override
         public void messageReceived(VerifyNodeRepositoryRequest request, TransportChannel channel) throws Exception {
-            doVerify(request.repository, request.verificationToken);
+            try {
+                doVerify(request.repository, request.verificationToken);
+            } catch (Exception ex) {
+                logger.warn("[{}] failed to verify repository", ex, request.repository);
+                throw ex;
+            }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }

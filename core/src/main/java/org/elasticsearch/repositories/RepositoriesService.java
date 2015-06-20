@@ -217,7 +217,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
                             try {
                                 repository.endVerification(verificationToken);
                             } catch (Throwable t) {
-                                logger.warn("[{}] failed to finish repository verification", repositoryName, t);
+                                logger.warn("[{}] failed to finish repository verification", t, repositoryName);
                                 listener.onFailure(t);
                                 return;
                             }
@@ -233,7 +233,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
                     try {
                         repository.endVerification(verificationToken);
                     } catch (Throwable t1) {
-                        logger.warn("[{}] failed to finish repository verification", repositoryName, t);
+                        logger.warn("[{}] failed to finish repository verification", t1, repositoryName);
                     }
                     listener.onFailure(t);
                 }

@@ -80,6 +80,7 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
                 try {
                     doVerify(repository, verificationToken);
                 } catch (Throwable t) {
+                    logger.warn("[{}] failed to verify repository", t, repository);
                     errors.add(new VerificationFailure(node.id(), ExceptionsHelper.detailedMessage(t)));
                 }
                 if (counter.decrementAndGet() == 0) {
@@ -146,7 +147,12 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
     class VerifyNodeRepositoryRequestHandler implements TransportRequestHandler<VerifyNodeRepositoryRequest> {
         @Override
         public void messageReceived(VerifyNodeRepositoryRequest request, TransportChannel channel) throws Exception {
-            doVerify(request.repository, request.verificationToken);
+            try {
+                doVerify(request.repository, request.verificationToken);
+            } catch (Exception ex) {
+                logger.warn("[{}] failed to verify repository", ex, request.repository);
+                throw ex;
+            }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }

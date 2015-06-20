@@ -21,7 +21,6 @@ package org.elasticsearch.repositories;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableMap;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.*;
@@ -34,7 +33,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.Injectors;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
@@ -222,7 +220,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
                             try {
                                 repository.endVerification(verificationToken);
                             } catch (Throwable t) {
-                                logger.warn("[{}] failed to finish repository verification", repositoryName, t);
+                                logger.warn("[{}] failed to finish repository verification", t, repositoryName);
                                 listener.onFailure(t);
                                 return;
                             }
@@ -238,7 +236,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
                     try {
                         repository.endVerification(verificationToken);
                     } catch (Throwable t1) {
-                        logger.warn("[{}] failed to finish repository verification", repositoryName, t);
+                        logger.warn("[{}] failed to finish repository verification", t1, repositoryName);
                     }
                     listener.onFailure(t);
                 }

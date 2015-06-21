@@ -19,8 +19,9 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import com.carrotsearch.hppc.ObjectLongMap;
 import com.carrotsearch.hppc.ObjectLongHashMap;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -29,14 +30,12 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
-
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -83,56 +82,59 @@ public class RestFielddataAction extends AbstractCatAction {
                 .addCell("host", "alias:h;desc:host name")
                 .addCell("ip", "desc:ip address")
                 .addCell("node", "alias:n;desc:node name")
-                .addCell("total", "text-align:right;desc:total field data usage")
-                .endHeaders();
+                .addCell("total", "text-align:right;desc:total field data usage on the node");
+        
+        if (isFieldLevel(request)) {
+            table.addCell("field", "text-align:right;desc:field name");
+            table.addCell("size", "text-align:right;desc:field data usage");
+        }
+        
+        table.endHeaders();
         return table;
     }
 
     private Table buildTable(final RestRequest request, final NodesStatsResponse nodeStatses) {
-        Set<String> fieldNames = new HashSet<>();
-        Map<NodeStats, ObjectLongMap<String>> nodesFields = new HashMap<>();
+        Table table = getTableWithHeader(request);
 
-        // Collect all the field names so a new table can be built
-        for (NodeStats ns : nodeStatses.getNodes()) {
-            ObjectLongHashMap<String> fields = ns.getIndices().getFieldData().getFields();
-            nodesFields.put(ns, fields);
-            if (fields != null) {
-                for (String key : fields.keys().toArray(String.class)) {
-                    fieldNames.add(key);
-                }
-            }
-        }
-
-        // The table must be rebuilt because it has dynamic headers based on the fields
-        Table table = new Table();
-        table.startHeaders()
-                .addCell("id", "desc:node id")
-                .addCell("host", "alias:h;desc:host name")
-                .addCell("ip", "desc:ip address")
-                .addCell("node", "alias:n;desc:node name")
-                .addCell("total", "text-align:right;desc:total field data usage");
-        // The table columns must be built dynamically since the number of fields is unknown
-        for (String fieldName : fieldNames) {
-            table.addCell(fieldName, "text-align:right;desc:" + fieldName + " field");
-        }
-        table.endHeaders();
-
-        for (Map.Entry<NodeStats, ObjectLongMap<String>> statsEntry : nodesFields.entrySet()) {
-            table.startRow();
-            // add the node info and field data total before each individual field
-            NodeStats ns = statsEntry.getKey();
-            table.addCell(ns.getNode().id());
-            table.addCell(ns.getNode().getHostName());
-            table.addCell(ns.getNode().getHostAddress());
-            table.addCell(ns.getNode().getName());
-            table.addCell(ns.getIndices().getFieldData().getMemorySize());
-            ObjectLongMap<String> fields = statsEntry.getValue();
-            for (String fieldName : fieldNames) {
-                table.addCell(new ByteSizeValue(fields == null ? 0L : fields.getOrDefault(fieldName, 0L)));
-            }
-            table.endRow();
-        }
-
+        for (NodeStats ns : nodeStatses.getNodes()) {   
+            if (isFieldLevel(request)) 
+                addFieldLevelRows(table, ns);                
+            else
+                addNodeLevelRow(table, ns);                     
+        }        
         return table;
+    }
+
+    private void addNodeLevelRow(Table table, NodeStats ns) {
+        table.startRow();
+        addNodeInfoAndTotals(table, ns);                
+        table.endRow();
+    }
+
+    private void addFieldLevelRows(Table table, NodeStats ns) {
+        ObjectLongHashMap<String> fields = ns.getIndices().getFieldData().getFields();
+        if (fields != null) {                
+            for (ObjectCursor<String> key : fields.keys()) {
+                String fieldName = key.value;
+                
+                table.startRow();
+                addNodeInfoAndTotals(table, ns);                        
+                table.addCell(fieldName);
+                table.addCell(new ByteSizeValue(fields.getOrDefault(fieldName, 0L)));
+                table.endRow();                     
+            }
+        }
+    }
+
+    private void addNodeInfoAndTotals(Table table, NodeStats ns) {
+        table.addCell(ns.getNode().id());
+        table.addCell(ns.getNode().getHostName());
+        table.addCell(ns.getNode().getHostAddress());
+        table.addCell(ns.getNode().getName());
+        table.addCell(ns.getIndices().getFieldData().getMemorySize());
+    }
+        
+    private boolean isFieldLevel(final RestRequest request) {
+        return request.hasParam("fields") ;
     }
 }

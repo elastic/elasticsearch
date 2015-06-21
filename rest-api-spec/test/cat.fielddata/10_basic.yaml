@@ -1,16 +1,34 @@
 ---
-"Help":
+"Help - node level":
   - do:
       cat.fielddata:
         help: true
 
   - match:
       $body: |
-               /^  id .+ \n
-                   host .+ \n
-                   ip .+ \n
-                   node .+ \n
+               /^  id    .+ \n
+                   host  .+ \n
+                   ip    .+ \n
+                   node  .+ \n
                    total .+ \n
+               $/
+
+---
+"Help - field level":
+  - do:
+      cat.fielddata:
+        fields: '*'
+        help: true
+
+  - match:
+      $body: |
+               /^  id    .+ \n
+                   host  .+ \n
+                   ip    .+ \n
+                   node  .+ \n
+                   total .+ \n
+                   field .+ \n
+                   size  .+ \n
                $/
 
 ---
@@ -26,39 +44,56 @@
         type: type
         body: { foo: bar }
         refresh: true
+
+# no fielddata => no output on field level
+  - do:
+      cat.fielddata:
+        h: total
+        fields: '*'
+        v: false
+  - match:
+      $body: |
+               /^$/
+
+# no fielddata => still have node totals on node level
+  - do:
+      cat.fielddata:
+        h: total
+        v: false
+  - match:
+      $body: |
+               /^ (\s* \d+(\.\d+)?[gmk]?b \s* \n)+ $/
+
+
   - do:
       search:
         index: index
         body:
           query: { match_all: {} }
           sort: foo
+  
+
+#field level data on foo
   - do:
       cat.fielddata:
-        h: total
+        h: total,field,size
+        fields: '*'
         v: true
 
   - match:
       $body: |
-               /^   total               \s \n
-                    (\s*\d+(\.\d+)?[gmk]?b  \s \n)+ $/
+               /^        total               \s+ field  \s+ size                 \s+ \n
+                    (\s* \d+(\.\d+)?[gmk]?b  \s+ foo    \s+ (\d+(\.\d+)?[gmk]?b) \s* \n)* 
+                $/
 
+
+#no fielddata on field "notfoo" => no output on field level
   - do:
       cat.fielddata:
-        h: total,foo
-        v: true
+        h: total,field,size
+        fields: notfoo
+        v: false
 
   - match:
       $body: |
-               /^   total \s+              foo \s+ \n
-                    (\s*\d+(\.\d+)?[gmk]?b \s+ \d+(\.\d+)?[gmk]?b \s \n)+ \s*$/
-
-  - do:
-      cat.fielddata:
-        h: total,foo
-        fields: notfoo,foo
-        v: true
-
-  - match:
-      $body: |
-               /^   total \s+              foo \s+ \n
-                    (\s*\d+(\.\d+)?[gmk]?b \s+ \d+(\.\d+)?[gmk]?b \s \n)+ \s*$/
+               /^$/

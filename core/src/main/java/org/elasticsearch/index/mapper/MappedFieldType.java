@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import com.google.common.base.Strings;
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
@@ -38,7 +37,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -228,8 +226,10 @@ public class MappedFieldType extends FieldType {
 
     /**
      * Checks for any conflicts between this field type and other.
+     * If strict is true, all properties must be equal.
+     * Otherwise, only properties which must never change in an index are checked.
      */
-    public void checkCompatibility(MappedFieldType other, List<String> conflicts) {
+    public void checkCompatibility(MappedFieldType other, List<String> conflicts, boolean strict) {
         boolean indexed =  indexOptions() != IndexOptions.NONE;
         boolean mergeWithIndexed = other.indexOptions() != IndexOptions.NONE;
         // TODO: should be validating if index options go "up" (but "down" is ok)
@@ -277,9 +277,29 @@ public class MappedFieldType extends FieldType {
         if (!names().equals(other.names())) {
             conflicts.add("mapper [" + names().fullName() + "] has different index_name");
         }
-
         if (Objects.equals(similarity(), other.similarity()) == false) {
             conflicts.add("mapper [" + names().fullName() + "] has different similarity");
+        }
+
+        if (strict) {
+            if (omitNorms() != other.omitNorms()) {
+                conflicts.add("mapper [" + names().fullName() + "] is used by multiple types. Set update_all_types to true to update [omit_norms] across all types.");
+            }
+            if (boost() != other.boost()) {
+                conflicts.add("mapper [" + names().fullName() + "] is used by multiple types. Set update_all_types to true to update [boost] across all types.");
+            }
+            if (normsLoading() != other.normsLoading()) {
+                conflicts.add("mapper [" + names().fullName() + "] is used by multiple types. Set update_all_types to true to update [norms].loading across all types.");
+            }
+            if (Objects.equals(searchAnalyzer(), other.searchAnalyzer()) == false) {
+                conflicts.add("mapper [" + names().fullName() + "] is used by multiple types. Set update_all_types to true to update [search_analyzer] across all types.");
+            }
+            if (Objects.equals(fieldDataType(), other.fieldDataType()) == false) {
+                conflicts.add("mapper [" + names().fullName() + "] is used by multiple types. Set update_all_types to true to update [fielddata] across all types.");
+            }
+            if (Objects.equals(nullValue(), other.nullValue()) == false) {
+                conflicts.add("mapper [" + names().fullName() + "] is used by multiple types. Set update_all_types to true to update [null_value] across all types.");
+            }
         }
     }
 

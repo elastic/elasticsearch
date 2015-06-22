@@ -176,11 +176,11 @@ public class FieldNamesFieldMapperTests extends ElasticsearchSingleNodeTest {
         
         DocumentMapper mapperEnabled = parser.parse(enabledMapping);
         DocumentMapper mapperDisabled = parser.parse(disabledMapping);
-        mapperEnabled.merge(mapperDisabled.mapping(), false);
+        mapperEnabled.merge(mapperDisabled.mapping(), false, false);
         assertFalse(mapperEnabled.rootMapper(FieldNamesFieldMapper.class).fieldType().isEnabled());
 
         mapperEnabled = parser.parse(enabledMapping);
-        mapperDisabled.merge(mapperEnabled.mapping(), false);
+        mapperDisabled.merge(mapperEnabled.mapping(), false, false);
         assertTrue(mapperEnabled.rootMapper(FieldNamesFieldMapper.class).fieldType().isEnabled());
     }
 }

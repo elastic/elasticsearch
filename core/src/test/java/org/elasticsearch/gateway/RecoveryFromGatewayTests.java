@@ -70,21 +70,15 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
                 .endObject().endObject().string();
         assertAcked(prepareCreate("test").addMapping("type1", mapping));
 
-
         client().prepareIndex("test", "type1", "10990239").setSource(jsonBuilder().startObject()
-                .field("_id", "10990239")
                 .startArray("appAccountIds").value(14).value(179).endArray().endObject()).execute().actionGet();
         client().prepareIndex("test", "type1", "10990473").setSource(jsonBuilder().startObject()
-                .field("_id", "10990473")
                 .startArray("appAccountIds").value(14).endArray().endObject()).execute().actionGet();
         client().prepareIndex("test", "type1", "10990513").setSource(jsonBuilder().startObject()
-                .field("_id", "10990513")
                 .startArray("appAccountIds").value(14).value(179).endArray().endObject()).execute().actionGet();
         client().prepareIndex("test", "type1", "10990695").setSource(jsonBuilder().startObject()
-                .field("_id", "10990695")
                 .startArray("appAccountIds").value(14).endArray().endObject()).execute().actionGet();
         client().prepareIndex("test", "type1", "11026351").setSource(jsonBuilder().startObject()
-                .field("_id", "11026351")
                 .startArray("appAccountIds").value(14).endArray().endObject()).execute().actionGet();
 
         refresh();

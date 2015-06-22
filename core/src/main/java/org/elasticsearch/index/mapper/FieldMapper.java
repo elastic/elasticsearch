@@ -32,6 +32,15 @@ public interface FieldMapper extends Mapper {
 
     MappedFieldType fieldType();
 
+    /** Returns a reference to the MappedFieldType for this mapper. */
+    MappedFieldTypeReference fieldTypeReference();
+
+    /**
+     * Updates the reference to this field's MappedFieldType.
+     * Implementations should assert equality of the underlying field type
+     */
+    void setFieldTypeReference(MappedFieldTypeReference ref);
+
     /**
      * List of fields where this field should be copied to
      */

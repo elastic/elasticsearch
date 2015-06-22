@@ -182,8 +182,8 @@ public class TypeParsers {
     }
 
     public static void parseField(AbstractFieldMapper.Builder builder, String name, Map<String, Object> fieldNode, Mapper.TypeParser.ParserContext parserContext) {
-        NamedAnalyzer indexAnalyzer = null;
-        NamedAnalyzer searchAnalyzer = null;
+        NamedAnalyzer indexAnalyzer = builder.fieldType.indexAnalyzer();
+        NamedAnalyzer searchAnalyzer = builder.fieldType.searchAnalyzer();
         for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
             Map.Entry<String, Object> entry = iterator.next();
             final String propName = Strings.toUnderscoreCase(entry.getKey());

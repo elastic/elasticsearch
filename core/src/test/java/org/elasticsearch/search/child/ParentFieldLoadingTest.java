@@ -43,8 +43,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-/**
- */
 public class ParentFieldLoadingTest extends ElasticsearchIntegrationTest {
 
     private final Settings indexSettings = Settings.builder()
@@ -55,7 +53,6 @@ public class ParentFieldLoadingTest extends ElasticsearchIntegrationTest {
             .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
             .build();
 
-    @Test
     public void testEagerParentFieldLoading() throws Exception {
         logger.info("testing lazy loading...");
         assertAcked(prepareCreate("test")
@@ -120,7 +117,6 @@ public class ParentFieldLoadingTest extends ElasticsearchIntegrationTest {
         assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), greaterThan(0l));
     }
 
-    @Test
     public void testChangingEagerParentFieldLoadingAtRuntime() throws Exception {
         assertAcked(prepareCreate("test")
                 .setSettings(indexSettings)
@@ -137,6 +133,7 @@ public class ParentFieldLoadingTest extends ElasticsearchIntegrationTest {
 
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("child")
                 .setSource(childMapping(MappedFieldType.Loading.EAGER_GLOBAL_ORDINALS))
+                .setUpdateAllTypes(true)
                 .get();
         assertAcked(putMappingResponse);
         assertBusy(new Runnable() {

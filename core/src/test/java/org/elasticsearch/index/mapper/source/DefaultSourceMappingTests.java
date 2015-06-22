@@ -193,7 +193,7 @@ public class DefaultSourceMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
 
         MapperService mapperService = createIndex("test").mapperService();
-        mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent(defaultMapping), true);
+        mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent(defaultMapping), true, false);
 
         DocumentMapper mapper = mapperService.documentMapperWithAutoCreate("my_type").v1();
         assertThat(mapper.type(), equalTo("my_type"));
@@ -206,12 +206,12 @@ public class DefaultSourceMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
 
         MapperService mapperService = createIndex("test").mapperService();
-        mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent(defaultMapping), true);
+        mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent(defaultMapping), true, false);
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("my_type")
                 .startObject("_source").field("enabled", true).endObject()
                 .endObject().endObject().string();
-        mapperService.merge("my_type", new CompressedXContent(mapping), true);
+        mapperService.merge("my_type", new CompressedXContent(mapping), true, false);
 
         DocumentMapper mapper = mapperService.documentMapper("my_type");
         assertThat(mapper.type(), equalTo("my_type"));
@@ -221,7 +221,7 @@ public class DefaultSourceMappingTests extends ElasticsearchSingleNodeTest {
     void assertConflicts(String mapping1, String mapping2, DocumentMapperParser parser, String... conflicts) throws IOException {
         DocumentMapper docMapper = parser.parse(mapping1);
         docMapper = parser.parse(docMapper.mappingSource().string());
-        MergeResult mergeResult = docMapper.merge(parser.parse(mapping2).mapping(), true);
+        MergeResult mergeResult = docMapper.merge(parser.parse(mapping2).mapping(), true, false);
 
         List<String> expectedConflicts = new ArrayList<>(Arrays.asList(conflicts));
         for (String conflict : mergeResult.buildConflicts()) {

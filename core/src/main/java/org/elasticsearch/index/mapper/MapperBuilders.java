@@ -37,48 +37,48 @@ public final class MapperBuilders {
 
     }
 
-    public static DocumentMapper.Builder doc(String index, Settings settings, RootObjectMapper.Builder objectBuilder) {
-        return new DocumentMapper.Builder(index, settings, objectBuilder);
+    public static DocumentMapper.Builder doc(String index, Settings settings, RootObjectMapper.Builder objectBuilder, MapperService mapperService) {
+        return new DocumentMapper.Builder(index, settings, objectBuilder, mapperService);
     }
 
     public static SourceFieldMapper.Builder source() {
         return new SourceFieldMapper.Builder();
     }
 
-    public static IdFieldMapper.Builder id() {
-        return new IdFieldMapper.Builder();
+    public static IdFieldMapper.Builder id(MappedFieldType existing) {
+        return new IdFieldMapper.Builder(existing);
     }
 
-    public static RoutingFieldMapper.Builder routing() {
-        return new RoutingFieldMapper.Builder();
+    public static RoutingFieldMapper.Builder routing(MappedFieldType existing) {
+        return new RoutingFieldMapper.Builder(existing);
     }
 
-    public static UidFieldMapper.Builder uid() {
-        return new UidFieldMapper.Builder();
+    public static UidFieldMapper.Builder uid(MappedFieldType existing) {
+        return new UidFieldMapper.Builder(existing);
     }
 
-    public static SizeFieldMapper.Builder size() {
-        return new SizeFieldMapper.Builder();
+    public static SizeFieldMapper.Builder size(MappedFieldType existing) {
+        return new SizeFieldMapper.Builder(existing);
     }
 
     public static VersionFieldMapper.Builder version() {
         return new VersionFieldMapper.Builder();
     }
 
-    public static TypeFieldMapper.Builder type() {
-        return new TypeFieldMapper.Builder();
+    public static TypeFieldMapper.Builder type(MappedFieldType existing) {
+        return new TypeFieldMapper.Builder(existing);
     }
 
     public static FieldNamesFieldMapper.Builder fieldNames() {
         return new FieldNamesFieldMapper.Builder();
     }
 
-    public static IndexFieldMapper.Builder index() {
-        return new IndexFieldMapper.Builder();
+    public static IndexFieldMapper.Builder index(MappedFieldType existing) {
+        return new IndexFieldMapper.Builder(existing);
     }
 
-    public static TimestampFieldMapper.Builder timestamp() {
-        return new TimestampFieldMapper.Builder();
+    public static TimestampFieldMapper.Builder timestamp(MappedFieldType existing) {
+        return new TimestampFieldMapper.Builder(existing);
     }
 
     public static TTLFieldMapper.Builder ttl() {
@@ -89,8 +89,8 @@ public final class MapperBuilders {
         return new ParentFieldMapper.Builder();
     }
 
-    public static AllFieldMapper.Builder all() {
-        return new AllFieldMapper.Builder();
+    public static AllFieldMapper.Builder all(MappedFieldType existing) {
+        return new AllFieldMapper.Builder(existing);
     }
 
     public static RootObjectMapper.Builder rootObject(String name) {

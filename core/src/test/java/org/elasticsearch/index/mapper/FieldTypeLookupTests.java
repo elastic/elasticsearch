@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
-import org.apache.lucene.document.FieldType;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -34,77 +33,112 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
-public class FieldMappersLookupTests extends ElasticsearchTestCase {
+public class FieldTypeLookupTests extends ElasticsearchTestCase {
 
     public void testEmpty() {
-        FieldMappersLookup lookup = new FieldMappersLookup();
-        assertNull(lookup.fullName("foo"));
-        assertNull(lookup.indexName("foo"));
+        FieldTypeLookup lookup = new FieldTypeLookup();
+        assertNull(lookup.get("foo"));
+        assertNull(lookup.getByIndexName("foo"));
         Collection<String> names = lookup.simpleMatchToFullName("foo");
         assertNotNull(names);
         assertTrue(names.isEmpty());
-        names = lookup.simpleMatchToFullName("foo");
+        names = lookup.simpleMatchToIndexNames("foo");
         assertNotNull(names);
         assertTrue(names.isEmpty());
-        assertNull(lookup.smartName("foo"));
-        assertNull(lookup.smartNameFieldMapper("foo"));
-        assertNull(lookup.get("foo"));
-        Iterator<FieldMapper> itr = lookup.iterator();
+        Iterator<MappedFieldType> itr = lookup.iterator();
         assertNotNull(itr);
         assertFalse(itr.hasNext());
     }
 
-    public void testNewField() {
-        FieldMappersLookup lookup = new FieldMappersLookup();
+    public void testAddNewField() {
+        FieldTypeLookup lookup = new FieldTypeLookup();
         FakeFieldMapper f = new FakeFieldMapper("foo", "bar");
-        FieldMappersLookup lookup2 = lookup.copyAndAddAll(newList(f));
-        assertNull(lookup.fullName("foo"));
-        assertNull(lookup.indexName("bar"));
-
-        FieldMappers mappers = lookup2.fullName("foo");
-        assertNotNull(mappers);
-        assertEquals(1, mappers.mappers().size());
-        assertEquals(f, mappers.mapper());
-        mappers = lookup2.indexName("bar");
-        assertNotNull(mappers);
-        assertEquals(1, mappers.mappers().size());
-        assertEquals(f, mappers.mapper());
+        FieldTypeLookup lookup2 = lookup.copyAndAddAll(newList(f));
+        assertNull(lookup.get("foo"));
+        assertNull(lookup.get("bar"));
+        assertNull(lookup.getByIndexName("foo"));
+        assertNull(lookup.getByIndexName("bar"));
+        assertEquals(f.fieldType(), lookup2.get("foo"));
+        assertNull(lookup.get("bar"));
+        assertEquals(f.fieldType(), lookup2.getByIndexName("bar"));
+        assertNull(lookup.getByIndexName("foo"));
         assertEquals(1, Iterators.size(lookup2.iterator()));
     }
 
-    public void testExtendField() {
-        FieldMappersLookup lookup = new FieldMappersLookup();
-        FakeFieldMapper f = new FakeFieldMapper("foo", "bar");
-        FakeFieldMapper other = new FakeFieldMapper("blah", "blah");
-        lookup = lookup.copyAndAddAll(newList(f, other));
+    public void testAddExistingField() {
+        FakeFieldMapper f = new FakeFieldMapper("foo", "foo");
+        MappedFieldType originalFieldType = f.fieldType();
+        FakeFieldMapper f2 = new FakeFieldMapper("foo", "foo");
+        FieldTypeLookup lookup = new FieldTypeLookup();
+        lookup = lookup.copyAndAddAll(newList(f));
+        FieldTypeLookup lookup2 = lookup.copyAndAddAll(newList(f2));
+
+        assertNotSame(originalFieldType, f.fieldType());
+        assertSame(f.fieldType(), f2.fieldType());
+        assertSame(f.fieldType(), lookup2.get("foo"));
+        assertSame(f.fieldType(), lookup2.getByIndexName("foo"));
+        assertEquals(1, Iterators.size(lookup2.iterator()));
+    }
+
+    public void testAddExistingIndexName() {
+        FakeFieldMapper f = new FakeFieldMapper("foo", "foo");
+        FakeFieldMapper f2 = new FakeFieldMapper("bar", "foo");
+        MappedFieldType originalFieldType = f.fieldType();
+        FieldTypeLookup lookup = new FieldTypeLookup();
+        lookup = lookup.copyAndAddAll(newList(f));
+        FieldTypeLookup lookup2 = lookup.copyAndAddAll(newList(f2));
+
+        assertNotSame(originalFieldType, f.fieldType());
+        assertSame(f.fieldType(), f2.fieldType());
+        assertSame(f.fieldType(), lookup2.get("foo"));
+        assertSame(f.fieldType(), lookup2.get("bar"));
+        assertSame(f.fieldType(), lookup2.getByIndexName("foo"));
+        assertEquals(2, Iterators.size(lookup2.iterator()));
+    }
+
+    public void testAddExistingFullName() {
+        FakeFieldMapper f = new FakeFieldMapper("foo", "foo");
         FakeFieldMapper f2 = new FakeFieldMapper("foo", "bar");
-        FieldMappersLookup lookup2 = lookup.copyAndAddAll(newList(f2));
+        MappedFieldType originalFieldType = f.fieldType();
+        FieldTypeLookup lookup = new FieldTypeLookup();
+        lookup = lookup.copyAndAddAll(newList(f));
+        FieldTypeLookup lookup2 = lookup.copyAndAddAll(newList(f2));
 
-        FieldMappers mappers = lookup2.fullName("foo");
-        assertNotNull(mappers);
-        assertEquals(2, mappers.mappers().size());
-
-        mappers = lookup2.indexName("bar");
-        assertNotNull(mappers);
-        assertEquals(2, mappers.mappers().size());
-        assertEquals(3, Iterators.size(lookup2.iterator()));
+        assertNotSame(originalFieldType, f.fieldType());
+        assertSame(f.fieldType(), f2.fieldType());
+        assertSame(f.fieldType(), lookup2.get("foo"));
+        assertSame(f.fieldType(), lookup2.getByIndexName("foo"));
+        assertSame(f.fieldType(), lookup2.getByIndexName("bar"));
+        assertEquals(1, Iterators.size(lookup2.iterator()));
     }
 
-    public void testIndexName() {
-        FakeFieldMapper f1 = new FakeFieldMapper("foo", "foo");
-        FieldMappersLookup lookup = new FieldMappersLookup();
-        lookup = lookup.copyAndAddAll(newList(f1));
+    public void testAddExistingBridgeName() {
+        FakeFieldMapper f = new FakeFieldMapper("foo", "foo");
+        FakeFieldMapper f2 = new FakeFieldMapper("bar", "bar");
+        FieldTypeLookup lookup = new FieldTypeLookup();
+        lookup = lookup.copyAndAddAll(newList(f, f2));
 
-        FieldMappers mappers = lookup.indexName("foo");
-        assertNotNull(mappers);
-        assertEquals(1, mappers.mappers().size());
-        assertEquals(f1, mappers.mapper());
+        try {
+            FakeFieldMapper f3 = new FakeFieldMapper("foo", "bar");
+            lookup.copyAndAddAll(newList(f3));
+        } catch (IllegalStateException e) {
+            assertTrue(e.getMessage().contains("insane mappings"));
+        }
+
+        try {
+            FakeFieldMapper f3 = new FakeFieldMapper("bar", "foo");
+            lookup.copyAndAddAll(newList(f3));
+        } catch (IllegalStateException e) {
+            assertTrue(e.getMessage().contains("insane mappings"));
+        }
     }
+
+    // TODO: add tests for validation
 
     public void testSimpleMatchIndexNames() {
         FakeFieldMapper f1 = new FakeFieldMapper("foo", "baz");
         FakeFieldMapper f2 = new FakeFieldMapper("bar", "boo");
-        FieldMappersLookup lookup = new FieldMappersLookup();
+        FieldTypeLookup lookup = new FieldTypeLookup();
         lookup = lookup.copyAndAddAll(newList(f1, f2));
         Collection<String> names = lookup.simpleMatchToIndexNames("b*");
         assertTrue(names.contains("baz"));
@@ -114,56 +148,25 @@ public class FieldMappersLookupTests extends ElasticsearchTestCase {
     public void testSimpleMatchFullNames() {
         FakeFieldMapper f1 = new FakeFieldMapper("foo", "baz");
         FakeFieldMapper f2 = new FakeFieldMapper("bar", "boo");
-        FieldMappersLookup lookup = new FieldMappersLookup();
+        FieldTypeLookup lookup = new FieldTypeLookup();
         lookup = lookup.copyAndAddAll(newList(f1, f2));
         Collection<String> names = lookup.simpleMatchToFullName("b*");
         assertTrue(names.contains("foo"));
         assertTrue(names.contains("bar"));
     }
 
-    public void testSmartName() {
-        FakeFieldMapper f1 = new FakeFieldMapper("foo", "realfoo");
-        FakeFieldMapper f2 = new FakeFieldMapper("foo", "realbar");
-        FakeFieldMapper f3 = new FakeFieldMapper("baz", "realfoo");
-        FieldMappersLookup lookup = new FieldMappersLookup();
-        lookup = lookup.copyAndAddAll(newList(f1, f2, f3));
-
-        assertNotNull(lookup.smartName("foo"));
-        assertEquals(2, lookup.smartName("foo").mappers().size());
-        assertNotNull(lookup.smartName("realfoo"));
-        assertEquals(f1, lookup.smartNameFieldMapper("foo"));
-        assertEquals(f2, lookup.smartNameFieldMapper("realbar"));
-    }
-
     public void testIteratorImmutable() {
         FakeFieldMapper f1 = new FakeFieldMapper("foo", "bar");
-        FieldMappersLookup lookup = new FieldMappersLookup();
+        FieldTypeLookup lookup = new FieldTypeLookup();
         lookup = lookup.copyAndAddAll(newList(f1));
 
         try {
-            Iterator<FieldMapper> itr = lookup.iterator();
+            Iterator<MappedFieldType> itr = lookup.iterator();
             assertTrue(itr.hasNext());
-            assertEquals(f1, itr.next());
+            assertEquals(f1.fieldType(), itr.next());
             itr.remove();
             fail("remove should have failed");
         } catch (UnsupportedOperationException e) {
-            // expected
-        }
-    }
-
-    public void testGetMapper() {
-        FakeFieldMapper f1 = new FakeFieldMapper("foo", "bar");
-        FieldMappersLookup lookup = new FieldMappersLookup();
-        lookup = lookup.copyAndAddAll(newList(f1));
-
-        assertEquals(f1, lookup.get("foo"));
-        assertNull(lookup.get("bar")); // get is only by full name
-        FakeFieldMapper f2 = new FakeFieldMapper("foo", "foo");
-        lookup = lookup.copyAndAddAll(newList(f2));
-        try {
-            lookup.get("foo");
-            fail("get should have enforced foo is unique");
-        } catch (IllegalStateException e) {
             // expected
         }
     }

@@ -61,6 +61,8 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
             SIZE_FIELD_TYPE.setStored(true);
             SIZE_FIELD_TYPE.setNumericPrecisionStep(Defaults.PRECISION_STEP_32_BIT);
             SIZE_FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
+            SIZE_FIELD_TYPE.setIndexAnalyzer(NumericIntegerAnalyzer.buildNamedAnalyzer(Defaults.PRECISION_STEP_32_BIT));
+            SIZE_FIELD_TYPE.setSearchAnalyzer(NumericIntegerAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE));
             SIZE_FIELD_TYPE.freeze();
         }
     }
@@ -69,8 +71,8 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
 
         protected EnabledAttributeMapper enabledState = EnabledAttributeMapper.UNSET_DISABLED;
 
-        public Builder() {
-            super(Defaults.NAME, Defaults.SIZE_FIELD_TYPE, Defaults.PRECISION_STEP_32_BIT);
+        public Builder(MappedFieldType existing) {
+            super(Defaults.NAME, existing == null ? Defaults.SIZE_FIELD_TYPE : existing, Defaults.PRECISION_STEP_32_BIT);
             builder = this;
         }
 
@@ -82,7 +84,7 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
         @Override
         public SizeFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            return new SizeFieldMapper(enabledState, fieldType, fieldDataSettings, context.indexSettings());
+            return new SizeFieldMapper(enabledState, fieldType, context.indexSettings());
         }
 
         @Override
@@ -99,7 +101,7 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            SizeFieldMapper.Builder builder = size();
+            SizeFieldMapper.Builder builder = size(parserContext.mapperService().fullName(NAME));
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
@@ -118,14 +120,12 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
 
     private EnabledAttributeMapper enabledState;
 
-    public SizeFieldMapper(Settings indexSettings) {
-        this(Defaults.ENABLED_STATE, Defaults.SIZE_FIELD_TYPE.clone(), null, indexSettings);
+    public SizeFieldMapper(Settings indexSettings, MappedFieldType existing) {
+        this(Defaults.ENABLED_STATE, existing == null ? Defaults.SIZE_FIELD_TYPE.clone() : existing.clone(), indexSettings);
     }
 
-    public SizeFieldMapper(EnabledAttributeMapper enabled, MappedFieldType fieldType, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(fieldType, false,
-                Defaults.IGNORE_MALFORMED,  Defaults.COERCE, fieldDataSettings,
-                indexSettings, MultiFields.empty(), null);
+    public SizeFieldMapper(EnabledAttributeMapper enabled, MappedFieldType fieldType, Settings indexSettings) {
+        super(fieldType, false, Defaults.IGNORE_MALFORMED,  Defaults.COERCE, null, indexSettings, MultiFields.empty(), null);
         this.enabledState = enabled;
     }
 

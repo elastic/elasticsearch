@@ -72,6 +72,8 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     private final Map<String, IndexMetaData.Custom> customs = newHashMap();
 
+    private boolean updateAllTypes = false;
+
     CreateIndexRequest() {
     }
 
@@ -433,6 +435,17 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         return this.customs;
     }
 
+    /** True if all fields that span multiple types should be updated, false otherwise */
+    public boolean updateAllTypes() {
+        return updateAllTypes;
+    }
+
+    /** See {@link #updateAllTypes()} */
+    public CreateIndexRequest updateAllTypes(boolean updateAllTypes) {
+        this.updateAllTypes = updateAllTypes;
+        return this;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -454,6 +467,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         for (int i = 0; i < aliasesSize; i++) {
             aliases.add(Alias.read(in));
         }
+        updateAllTypes = in.readBoolean();
     }
 
     @Override
@@ -477,5 +491,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         for (Alias alias : aliases) {
             alias.writeTo(out);
         }
+        out.writeBoolean(updateAllTypes);
     }
 }

@@ -29,7 +29,7 @@ import java.io.IOException;
 /**
  * {@link QueryBuilder} that builds a GeoShape Filter
  */
-public class GeoShapeQueryBuilder extends QueryBuilder {
+public class GeoShapeQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<GeoShapeQueryBuilder> {
 
     private final String name;
 
@@ -46,6 +46,8 @@ public class GeoShapeQueryBuilder extends QueryBuilder {
     private String indexedShapePath;
 
     private ShapeRelation relation = null;
+
+    private float boost = -1;
     
     /**
      * Creates a new GeoShapeQueryBuilder whose Filter will be against the
@@ -147,6 +149,12 @@ public class GeoShapeQueryBuilder extends QueryBuilder {
     }
 
     @Override
+    public GeoShapeQueryBuilder boost(float boost) {
+        this.boost = boost;
+        return this;
+    }
+
+    @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(GeoShapeQueryParser.NAME);
 
@@ -176,6 +184,10 @@ public class GeoShapeQueryBuilder extends QueryBuilder {
         }
 
         builder.endObject();
+
+        if (boost != -1) {
+            builder.field("boost", boost);
+        }
 
         if (name != null) {
             builder.field("_name", queryName);

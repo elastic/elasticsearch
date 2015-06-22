@@ -243,7 +243,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         }
         // call the post added notification on the same event thread
         try {
-            updateTasksExecutor.execute(new PrioritizedRunnable(Priority.HIGH) {
+            updateTasksExecutor.execute(new SourcePrioritizedRunnable(Priority.HIGH, "_add_listener_") {
                 @Override
                 public void run() {
                     if (timeout != null) {
@@ -312,12 +312,12 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             final Object task = pending.task;
             if (task == null) {
                 continue;
-            } else if (task instanceof UpdateTask) {
-                UpdateTask runnable = (UpdateTask) task;
+            } else if (task instanceof SourcePrioritizedRunnable) {
+                SourcePrioritizedRunnable runnable = (SourcePrioritizedRunnable) task;
                 source = runnable.source();
                 timeInQueue = runnable.getAgeInMillis();
             } else {
-                assert false : "expected TimedPrioritizedRunnable got " + task.getClass();
+                assert false : "expected SourcePrioritizedRunnable got " + task.getClass();
                 source = "unknown [" + task.getClass() + "]";
                 timeInQueue = 0;
             }
@@ -337,20 +337,26 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         return updateTasksExecutor.getMaxTaskWaitTime();
     }
 
-    class UpdateTask extends PrioritizedRunnable {
-
-        public final ClusterStateUpdateTask updateTask;
+    static abstract class SourcePrioritizedRunnable extends PrioritizedRunnable {
         protected final String source;
 
-
-        UpdateTask(String source, Priority priority, ClusterStateUpdateTask updateTask) {
+        public SourcePrioritizedRunnable(Priority priority, String source) {
             super(priority);
-            this.updateTask = updateTask;
             this.source = source;
         }
 
         public String source() {
             return source;
+        }
+    }
+
+    class UpdateTask extends SourcePrioritizedRunnable {
+
+        public final ClusterStateUpdateTask updateTask;
+
+        UpdateTask(String source, Priority priority, ClusterStateUpdateTask updateTask) {
+            super(priority, source);
+            this.updateTask = updateTask;
         }
 
         @Override

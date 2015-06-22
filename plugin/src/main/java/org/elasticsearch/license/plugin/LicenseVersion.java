@@ -62,7 +62,7 @@ public class LicenseVersion implements Serializable {
             return LicenseVersion.CURRENT;
         }
 
-        String[] parts = version.split("\\.");
+        String[] parts = version.split("\\.|\\-");
         if (parts.length < 3 || parts.length > 4) {
             throw new IllegalArgumentException("the version needs to contain major, minor and revision, and optionally the build");
         }
@@ -76,10 +76,10 @@ public class LicenseVersion implements Serializable {
             int build = 99;
             if (parts.length == 4) {
                 String buildStr = parts[3];
-                if (buildStr.startsWith("Beta")) {
+                if (buildStr.startsWith("beta")) {
                     build = Integer.parseInt(buildStr.substring(4));
                 }
-                if (buildStr.startsWith("RC")) {
+                if (buildStr.startsWith("rc")) {
                     build = Integer.parseInt(buildStr.substring(2)) + 50;
                 }
             }
@@ -155,9 +155,9 @@ public class LicenseVersion implements Serializable {
         StringBuilder sb = new StringBuilder();
         sb.append(major).append('.').append(minor).append('.').append(revision);
         if (build < 50) {
-            sb.append(".Beta").append(build);
+            sb.append("-beta").append(build);
         } else if (build < 99) {
-            sb.append(".RC").append(build - 50);
+            sb.append("-rc").append(build - 50);
         }
         return sb.toString();
     }

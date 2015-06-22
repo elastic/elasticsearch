@@ -1316,8 +1316,7 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/pull/11482")
-    public void testTimestampField() {
+    public void testTimestampField() { // see #11692
         SearchResponse response = client().prepareSearch("idx").addAggregation(dateHistogram("histo").field("_timestamp").interval(randomFrom(DateHistogramInterval.DAY, DateHistogramInterval.MONTH))).get();
         assertSearchResponse(response);
         Histogram histo = response.getAggregations().get("histo");

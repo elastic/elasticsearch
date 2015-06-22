@@ -19,11 +19,12 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class SpanFirstQueryBuilder extends QueryBuilder implements SpanQueryBuilder, BoostableQueryBuilder<SpanFirstQueryBuilder> {
+public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBuilder> implements SpanQueryBuilder<SpanFirstQueryBuilder>, BoostableQueryBuilder<SpanFirstQueryBuilder> {
 
     public static final String NAME = "span_first";
 
@@ -72,7 +73,13 @@ public class SpanFirstQueryBuilder extends QueryBuilder implements SpanQueryBuil
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
+    }
+
+    @Override
+    public SpanQuery toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+        //norelease just a temporary implementation, will go away once this query is refactored and properly overrides toQuery
+        return (SpanQuery)super.toQuery(parseContext);
     }
 }

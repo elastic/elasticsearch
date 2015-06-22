@@ -23,7 +23,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class TypeQueryBuilder extends QueryBuilder {
+public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
 
     public static final String NAME = "type";
     private final String type;
@@ -41,7 +41,7 @@ public class TypeQueryBuilder extends QueryBuilder {
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 }

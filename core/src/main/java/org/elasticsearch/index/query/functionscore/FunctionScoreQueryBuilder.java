@@ -22,6 +22,7 @@ package org.elasticsearch.index.query.functionscore;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.BoostableQueryBuilder;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
@@ -31,7 +32,7 @@ import java.util.ArrayList;
  * A query that uses a filters with a script associated with them to compute the
  * score.
  */
-public class FunctionScoreQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<FunctionScoreQueryBuilder> {
+public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScoreQueryBuilder> implements BoostableQueryBuilder<FunctionScoreQueryBuilder> {
 
     private final QueryBuilder queryBuilder;
 
@@ -204,7 +205,7 @@ public class FunctionScoreQueryBuilder extends QueryBuilder implements Boostable
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return FunctionScoreQueryParser.NAME;
     }
 }

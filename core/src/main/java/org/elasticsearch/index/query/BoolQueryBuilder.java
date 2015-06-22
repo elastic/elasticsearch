@@ -39,7 +39,7 @@ import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfN
 /**
  * A Query that matches documents matching boolean combinations of other queries.
  */
-public class BoolQueryBuilder extends QueryBuilder<BoolQueryBuilder> implements BoostableQueryBuilder<BoolQueryBuilder> {
+public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> implements BoostableQueryBuilder<BoolQueryBuilder> {
 
     public static final String NAME = "bool";
 
@@ -287,7 +287,7 @@ public class BoolQueryBuilder extends QueryBuilder<BoolQueryBuilder> implements 
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 

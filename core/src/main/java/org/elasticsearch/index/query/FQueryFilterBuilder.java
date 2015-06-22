@@ -51,7 +51,7 @@ public class FQueryFilterBuilder extends QueryFilterBuilder {
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 }

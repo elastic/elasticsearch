@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class GeoBoundingBoxQueryBuilder extends QueryBuilder {
+public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBoundingBoxQueryBuilder> {
 
     public static final String NAME = "geo_bbox";
 
@@ -178,7 +178,7 @@ public class GeoBoundingBoxQueryBuilder extends QueryBuilder {
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 }

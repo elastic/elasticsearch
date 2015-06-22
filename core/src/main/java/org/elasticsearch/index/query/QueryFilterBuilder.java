@@ -29,7 +29,7 @@ import java.io.IOException;
  *             query as a filter directly.
  */
 @Deprecated
-public class QueryFilterBuilder extends QueryBuilder {
+public class QueryFilterBuilder extends AbstractQueryBuilder<QueryFilterBuilder> {
 
     public static final String NAME = "query";
 
@@ -78,7 +78,7 @@ public class QueryFilterBuilder extends QueryBuilder {
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 }

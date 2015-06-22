@@ -19,12 +19,13 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 
-public class SpanOrQueryBuilder extends QueryBuilder implements SpanQueryBuilder, BoostableQueryBuilder<SpanOrQueryBuilder> {
+public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder> implements SpanQueryBuilder<SpanOrQueryBuilder>, BoostableQueryBuilder<SpanOrQueryBuilder> {
 
     public static final String NAME = "span_or";
 
@@ -76,7 +77,13 @@ public class SpanOrQueryBuilder extends QueryBuilder implements SpanQueryBuilder
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
+    }
+
+    @Override
+    public SpanQuery toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+        //norelease just a temporary implementation, will go away once this query is refactored and properly overrides toQuery
+        return (SpanQuery)super.toQuery(parseContext);
     }
 }

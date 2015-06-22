@@ -23,7 +23,7 @@ import org.elasticsearch.index.query.support.QueryInnerHitBuilder;
 
 import java.io.IOException;
 
-public class HasChildQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<HasChildQueryBuilder> {
+public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuilder> implements BoostableQueryBuilder<HasChildQueryBuilder> {
 
     public static final String NAME = "has_child";
 
@@ -144,7 +144,7 @@ public class HasChildQueryBuilder extends QueryBuilder implements BoostableQuery
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 }

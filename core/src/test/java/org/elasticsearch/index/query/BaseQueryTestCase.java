@@ -203,9 +203,9 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends Ela
         String contentString = testQuery.toString();
         XContentParser parser = XContentFactory.xContent(contentString).createParser(contentString);
         context.reset(parser);
-        assertQueryHeader(parser, testQuery.queryId());
+        assertQueryHeader(parser, testQuery.getName());
 
-        QueryBuilder newQuery = queryParserService.queryParser(testQuery.queryId()).fromXContent(context);
+        QueryBuilder newQuery = queryParserService.queryParser(testQuery.getName()).fromXContent(context);
         assertNotSame(newQuery, testQuery);
         assertEquals(newQuery, testQuery);
         assertEquals(newQuery.hashCode(), testQuery.hashCode());
@@ -251,7 +251,7 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends Ela
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             testQuery.writeTo(output);
             try (StreamInput in = new FilterStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                QueryBuilder prototype = queryParserService.queryParser(testQuery.queryId()).getBuilderPrototype();
+                QueryBuilder<? extends QueryBuilder> prototype = queryParserService.queryParser(testQuery.getName()).getBuilderPrototype();
                 QueryBuilder deserializedQuery = prototype.readFrom(in);
                 assertEquals(deserializedQuery, testQuery);
                 assertEquals(deserializedQuery.hashCode(), testQuery.hashCode());

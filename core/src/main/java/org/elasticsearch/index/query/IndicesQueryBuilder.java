@@ -27,7 +27,7 @@ import java.io.IOException;
  * A query that will execute the wrapped query only for the specified indices, and "match_all" when
  * it does not match those indices (by default).
  */
-public class IndicesQueryBuilder extends QueryBuilder {
+public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilder> {
 
     public static final String NAME = "indices";
 
@@ -90,7 +90,7 @@ public class IndicesQueryBuilder extends QueryBuilder {
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 }

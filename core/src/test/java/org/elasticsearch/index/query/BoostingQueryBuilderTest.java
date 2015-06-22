@@ -93,10 +93,10 @@ public class BoostingQueryBuilderTest extends BaseQueryTestCase<BoostingQueryBui
 
     @Test
     public void testInnerQueryBuilderReturnsNull() throws IOException {
-        QueryBuilder noOpBuilder = new QueryBuilder<QueryBuilder>() {
+        QueryBuilder noOpBuilder = new AbstractQueryBuilder<QueryBuilder>() {
 
             @Override
-            public String queryId() {
+            public String getName() {
                 return "dummy";
             }
 
@@ -109,7 +109,7 @@ public class BoostingQueryBuilderTest extends BaseQueryTestCase<BoostingQueryBui
                 return null;
             }
         };
-        BoostingQueryBuilder boostingQueryBuilder = null;
+        BoostingQueryBuilder boostingQueryBuilder;
         if (randomBoolean()) {
             boostingQueryBuilder = new BoostingQueryBuilder().positive(new MatchAllQueryBuilder()).negative(noOpBuilder);
         } else {

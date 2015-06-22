@@ -31,7 +31,7 @@ import java.io.IOException;
 /**
  * A query that matches on all documents.
  */
-public class MatchAllQueryBuilder extends QueryBuilder<MatchAllQueryBuilder> implements BoostableQueryBuilder<MatchAllQueryBuilder> {
+public class MatchAllQueryBuilder extends AbstractQueryBuilder<MatchAllQueryBuilder> implements BoostableQueryBuilder<MatchAllQueryBuilder> {
 
     public static final String NAME = "match_all";
 
@@ -105,7 +105,7 @@ public class MatchAllQueryBuilder extends QueryBuilder<MatchAllQueryBuilder> imp
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 }

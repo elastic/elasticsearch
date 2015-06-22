@@ -109,7 +109,7 @@ public class WildcardQueryBuilder extends MultiTermQueryBuilder implements Boost
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 }

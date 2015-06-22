@@ -40,7 +40,7 @@ import java.util.Objects;
  * multiplied by the supplied "boost" parameter, so this should be less than 1 to achieve a
  * demoting effect
  */
-public class BoostingQueryBuilder extends QueryBuilder<BoostingQueryBuilder> implements BoostableQueryBuilder<BoostingQueryBuilder> {
+public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuilder> implements BoostableQueryBuilder<BoostingQueryBuilder> {
 
     public static final String NAME = "boosting";
 
@@ -147,7 +147,7 @@ public class BoostingQueryBuilder extends QueryBuilder<BoostingQueryBuilder> imp
     };
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 

@@ -18,11 +18,12 @@
  */
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class SpanMultiTermQueryBuilder extends QueryBuilder implements SpanQueryBuilder {
+public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTermQueryBuilder> implements SpanQueryBuilder<SpanMultiTermQueryBuilder> {
 
     public static final String NAME = "span_multi";
     private MultiTermQueryBuilder multiTermQueryBuilder;
@@ -42,7 +43,13 @@ public class SpanMultiTermQueryBuilder extends QueryBuilder implements SpanQuery
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
+    }
+
+    @Override
+    public SpanQuery toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+        //norelease just a temporary implementation, will go away once this query is refactored and properly overrides toQuery
+        return (SpanQuery)super.toQuery(parseContext);
     }
 }

@@ -32,7 +32,7 @@ import java.io.IOException;
  * @deprecated Use {@link SearchRequestBuilder#setTerminateAfter(int)} instead.
  */
 @Deprecated
-public class LimitQueryBuilder extends QueryBuilder<LimitQueryBuilder> {
+public class LimitQueryBuilder extends AbstractQueryBuilder<LimitQueryBuilder> {
 
     public static final String NAME = "limit";
     private final int limit;
@@ -84,7 +84,7 @@ public class LimitQueryBuilder extends QueryBuilder<LimitQueryBuilder> {
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 }

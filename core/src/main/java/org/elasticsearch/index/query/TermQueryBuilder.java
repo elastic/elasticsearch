@@ -91,7 +91,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> imp
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 }

@@ -27,9 +27,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 
 /**
- * {@link QueryBuilder} that builds a GeoShape Filter
+ * {@link AbstractQueryBuilder} that builds a GeoShape Filter
  */
-public class GeoShapeQueryBuilder extends QueryBuilder {
+public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuilder> {
 
     public static final String NAME = "geo_shape";
 
@@ -189,7 +189,7 @@ public class GeoShapeQueryBuilder extends QueryBuilder {
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 }

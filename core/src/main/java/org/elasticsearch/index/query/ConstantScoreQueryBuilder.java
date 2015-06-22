@@ -32,7 +32,7 @@ import java.util.Objects;
  * A query that wraps a filter and simply returns a constant score equal to the
  * query boost for every document in the filter.
  */
-public class ConstantScoreQueryBuilder extends QueryBuilder<ConstantScoreQueryBuilder> implements BoostableQueryBuilder<ConstantScoreQueryBuilder> {
+public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScoreQueryBuilder> implements BoostableQueryBuilder<ConstantScoreQueryBuilder> {
 
     public static final String NAME = "constant_score";
 
@@ -104,7 +104,7 @@ public class ConstantScoreQueryBuilder extends QueryBuilder<ConstantScoreQueryBu
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 

@@ -31,7 +31,7 @@ public class DisMaxQueryBuilderTest extends BaseQueryTestCase<DisMaxQueryBuilder
 
     @Override
     protected Query createExpectedQuery(DisMaxQueryBuilder testBuilder, QueryParseContext context) throws QueryParsingException, IOException {
-        Query query = new DisjunctionMaxQuery(QueryBuilder.toQueries(testBuilder.queries(), context), testBuilder.tieBreaker());
+        Query query = new DisjunctionMaxQuery(AbstractQueryBuilder.toQueries(testBuilder.queries(), context), testBuilder.tieBreaker());
         query.setBoost(testBuilder.boost());
         if (testBuilder.queryName() != null) {
             context.addNamedQuery(testBuilder.queryName(), query);
@@ -81,7 +81,7 @@ public class DisMaxQueryBuilderTest extends BaseQueryTestCase<DisMaxQueryBuilder
     @Test
     public void testInnerQueryReturnsNull() throws IOException {
         QueryParseContext context = createContext();
-        String queryId = ConstantScoreQueryBuilder.PROTOTYPE.queryId();
+        String queryId = ConstantScoreQueryBuilder.PROTOTYPE.getName();
         String queryString = "{ \""+queryId+"\" : { \"filter\" : { } }";
         XContentParser parser = XContentFactory.xContent(queryString).createParser(queryString);
         context.reset(parser);

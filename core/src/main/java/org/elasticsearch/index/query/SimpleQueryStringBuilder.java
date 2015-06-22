@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -31,7 +30,7 @@ import java.util.Map;
  * SimpleQuery is a query parser that acts similar to a query_string
  * query, but won't throw exceptions for any weird string syntax.
  */
-public class SimpleQueryStringBuilder extends QueryBuilder implements BoostableQueryBuilder<SimpleQueryStringBuilder> {
+public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQueryStringBuilder> implements BoostableQueryBuilder<SimpleQueryStringBuilder> {
     public static final String NAME = "simple_query_string";
     private Map<String, Float> fields = new HashMap<>();
     private String analyzer;
@@ -220,7 +219,7 @@ public class SimpleQueryStringBuilder extends QueryBuilder implements BoostableQ
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 }

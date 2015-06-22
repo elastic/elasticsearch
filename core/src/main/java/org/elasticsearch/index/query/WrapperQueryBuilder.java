@@ -40,7 +40,7 @@ import java.io.IOException;
  * }
  * </pre>
  */
-public class WrapperQueryBuilder extends QueryBuilder {
+public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilder> {
 
     public static final String NAME = "wrapper";
     private final byte[] source;
@@ -83,7 +83,7 @@ public class WrapperQueryBuilder extends QueryBuilder {
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 }

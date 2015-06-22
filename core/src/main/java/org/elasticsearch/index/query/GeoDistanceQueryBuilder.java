@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Locale;
 
-public class GeoDistanceQueryBuilder extends QueryBuilder {
+public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQueryBuilder> {
 
     public static final String NAME = "geo_distance";
 
@@ -123,7 +123,7 @@ public class GeoDistanceQueryBuilder extends QueryBuilder {
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 }

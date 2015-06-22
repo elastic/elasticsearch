@@ -24,10 +24,8 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
-public class ScriptQueryBuilder extends QueryBuilder {
+public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder> {
 
     public static final String NAME = "script";
 
@@ -60,7 +58,7 @@ public class ScriptQueryBuilder extends QueryBuilder {
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 }

@@ -27,7 +27,7 @@ import java.util.Objects;
 /**
  * A filter that matches documents matching boolean combinations of other filters.
  */
-public class NotQueryBuilder extends QueryBuilder {
+public class NotQueryBuilder extends AbstractQueryBuilder<NotQueryBuilder> {
 
     public static final String NAME = "not";
 
@@ -65,7 +65,7 @@ public class NotQueryBuilder extends QueryBuilder {
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 }

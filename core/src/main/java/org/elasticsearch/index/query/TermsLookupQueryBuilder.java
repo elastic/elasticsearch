@@ -32,7 +32,7 @@ public class TermsLookupQueryBuilder extends TermsQueryBuilder {
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return TermsQueryBuilder.NAME;
     }
 }

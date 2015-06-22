@@ -274,7 +274,7 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder<RangeQueryBuilder> 
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 

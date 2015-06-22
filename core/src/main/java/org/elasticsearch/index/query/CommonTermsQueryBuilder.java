@@ -42,7 +42,7 @@ import java.io.IOException;
  * execution times significantly if applicable.
  * <p>
  */
-public class CommonTermsQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<CommonTermsQueryBuilder> {
+public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQueryBuilder> implements BoostableQueryBuilder<CommonTermsQueryBuilder> {
 
     public static final String NAME = "common";
 
@@ -219,7 +219,7 @@ public class CommonTermsQueryBuilder extends QueryBuilder implements BoostableQu
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 }

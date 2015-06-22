@@ -38,7 +38,7 @@ import java.util.Objects;
  * @deprecated Use {@link BoolQueryBuilder} instead
  */
 @Deprecated
-public class AndQueryBuilder extends QueryBuilder<AndQueryBuilder> {
+public class AndQueryBuilder extends AbstractQueryBuilder<AndQueryBuilder> {
 
     public static final String NAME = "and";
 
@@ -117,7 +117,7 @@ public class AndQueryBuilder extends QueryBuilder<AndQueryBuilder> {
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 

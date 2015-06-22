@@ -20,7 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -30,7 +30,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
  * A Span Query that matches documents containing a term.
  * @see SpanTermQuery
  */
-public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuilder> implements SpanQueryBuilder {
+public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuilder> implements SpanQueryBuilder<SpanTermQueryBuilder> {
 
     public static final String NAME = "span_term";
     static final SpanTermQueryBuilder PROTOTYPE = new SpanTermQueryBuilder(null, null);
@@ -66,7 +66,7 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
     }
 
     @Override
-    public Query toQuery(QueryParseContext context) {
+    public SpanQuery toQuery(QueryParseContext context) {
         BytesRef valueBytes = null;
         String fieldName = this.fieldName;
         MappedFieldType mapper = context.fieldMapper(fieldName);
@@ -92,7 +92,7 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 }

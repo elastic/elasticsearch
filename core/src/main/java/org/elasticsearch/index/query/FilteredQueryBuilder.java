@@ -29,7 +29,7 @@ import java.io.IOException;
  * @deprecated Use {@link BoolQueryBuilder} instead.
  */
 @Deprecated
-public class FilteredQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<FilteredQueryBuilder> {
+public class FilteredQueryBuilder extends AbstractQueryBuilder<FilteredQueryBuilder> implements BoostableQueryBuilder<FilteredQueryBuilder> {
 
     public static final String NAME = "filtered";
 
@@ -93,7 +93,7 @@ public class FilteredQueryBuilder extends QueryBuilder implements BoostableQuery
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 }

@@ -26,7 +26,7 @@ import java.io.IOException;
 /**
  * A filter for a field based on several terms matching on any of them.
  */
-public class TermsQueryBuilder extends QueryBuilder<TermsQueryBuilder> {
+public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
     public static final String NAME = "terms";
 
@@ -215,7 +215,7 @@ public class TermsQueryBuilder extends QueryBuilder<TermsQueryBuilder> {
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 }

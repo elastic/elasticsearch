@@ -38,7 +38,7 @@ import static com.google.common.collect.Lists.newArrayList;
  * them either using DisMax or a plain boolean query (see {@link #useDisMax(boolean)}).
  * <p/>
  */
-public class QueryStringQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<QueryStringQueryBuilder> {
+public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQueryBuilder> implements BoostableQueryBuilder<QueryStringQueryBuilder> {
 
     public static final String NAME = "query_string";
 
@@ -439,7 +439,7 @@ public class QueryStringQueryBuilder extends QueryBuilder implements BoostableQu
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 }

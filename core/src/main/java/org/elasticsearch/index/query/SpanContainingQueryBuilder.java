@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -26,7 +27,7 @@ import java.io.IOException;
 /**
  * Builder for {@link org.apache.lucene.search.spans.SpanContainingQuery}.
  */
-public class SpanContainingQueryBuilder extends QueryBuilder implements SpanQueryBuilder, BoostableQueryBuilder<SpanContainingQueryBuilder> {
+public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContainingQueryBuilder> implements SpanQueryBuilder<SpanContainingQueryBuilder>, BoostableQueryBuilder<SpanContainingQueryBuilder> {
 
     public static final String NAME = "span_containing";
     private SpanQueryBuilder big;
@@ -93,7 +94,13 @@ public class SpanContainingQueryBuilder extends QueryBuilder implements SpanQuer
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
+    }
+
+    @Override
+    public SpanQuery toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+        //norelease just a temporary implementation, will go away once this query is refactored and properly overrides toQuery
+        return (SpanQuery)super.toQuery(parseContext);
     }
 }

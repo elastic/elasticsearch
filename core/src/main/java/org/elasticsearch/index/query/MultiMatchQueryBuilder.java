@@ -37,7 +37,7 @@ import java.util.Locale;
 /**
  * Same as {@link MatchQueryBuilder} but supports multiple fields.
  */
-public class MultiMatchQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<MultiMatchQueryBuilder> {
+public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQueryBuilder> implements BoostableQueryBuilder<MultiMatchQueryBuilder> {
 
     public static final String NAME = "multi_match";
 
@@ -410,7 +410,7 @@ public class MultiMatchQueryBuilder extends QueryBuilder implements BoostableQue
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 }

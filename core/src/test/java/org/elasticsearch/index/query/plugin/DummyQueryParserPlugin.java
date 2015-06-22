@@ -27,10 +27,7 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.BaseQueryParserTemp;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.index.query.*;
 import org.elasticsearch.indices.query.IndicesQueriesModule;
 import org.elasticsearch.plugins.AbstractPlugin;
 
@@ -60,7 +57,7 @@ public class DummyQueryParserPlugin extends AbstractPlugin {
         return Settings.EMPTY;
     }
 
-    public static class DummyQueryBuilder extends QueryBuilder {
+    public static class DummyQueryBuilder extends AbstractQueryBuilder<DummyQueryBuilder> {
         private static final String NAME = "dummy";
 
         @Override
@@ -69,7 +66,7 @@ public class DummyQueryParserPlugin extends AbstractPlugin {
         }
 
         @Override
-        public String queryId() {
+        public String getName() {
             return NAME;
         }
     }

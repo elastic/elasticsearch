@@ -38,7 +38,7 @@ import java.util.*;
 /**
  * A query that will return only documents matching specific ids (and a type).
  */
-public class IdsQueryBuilder extends QueryBuilder<IdsQueryBuilder> implements BoostableQueryBuilder<IdsQueryBuilder> {
+public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> implements BoostableQueryBuilder<IdsQueryBuilder> {
 
     public static final String NAME = "ids";
 
@@ -160,7 +160,7 @@ public class IdsQueryBuilder extends QueryBuilder<IdsQueryBuilder> implements Bo
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 

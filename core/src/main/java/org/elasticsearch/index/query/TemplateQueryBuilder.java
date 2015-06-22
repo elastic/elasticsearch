@@ -28,7 +28,7 @@ import java.util.Map;
 /**
  * Facilitates creating template query requests.
  * */
-public class TemplateQueryBuilder extends QueryBuilder {
+public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuilder> {
 
     /** Name to reference this type of query. */
     public static final String NAME = "template";
@@ -91,7 +91,7 @@ public class TemplateQueryBuilder extends QueryBuilder {
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 }

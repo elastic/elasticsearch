@@ -36,7 +36,7 @@ import java.util.Objects;
  * with the maximum score for that document as produced by any sub-query, plus a tie breaking increment for any
  * additional matching sub-queries.
  */
-public class DisMaxQueryBuilder extends QueryBuilder<DisMaxQueryBuilder> implements BoostableQueryBuilder<DisMaxQueryBuilder> {
+public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder> implements BoostableQueryBuilder<DisMaxQueryBuilder> {
 
     public static final String NAME = "dis_max";
 
@@ -196,7 +196,7 @@ public class DisMaxQueryBuilder extends QueryBuilder<DisMaxQueryBuilder> impleme
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 }

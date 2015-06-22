@@ -29,7 +29,7 @@ import java.io.IOException;
  * Doesn't support conversion to {@link org.elasticsearch.common.xcontent.XContent} via {@link #doXContent(XContentBuilder, Params)}.
  */
 //norelease to be removed once all queries support separate fromXContent and toQuery methods
-public class QueryWrappingQueryBuilder extends QueryBuilder {
+public class QueryWrappingQueryBuilder extends AbstractQueryBuilder<QueryWrappingQueryBuilder> {
 
     private Query query;
 
@@ -48,7 +48,7 @@ public class QueryWrappingQueryBuilder extends QueryBuilder {
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         // this should not be called since we overwrite BaseQueryBuilder#toQuery() in this class
         throw new UnsupportedOperationException();
     }

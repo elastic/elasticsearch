@@ -54,7 +54,7 @@ public class ConstantScoreQueryBuilderTest extends BaseQueryTestCase<ConstantSco
     @Test(expected=QueryParsingException.class)
     public void testNoFilterElement() throws IOException {
         QueryParseContext context = createContext();
-        String queryId = ConstantScoreQueryBuilder.PROTOTYPE.queryId();
+        String queryId = ConstantScoreQueryBuilder.PROTOTYPE.getName();
         String queryString = "{ \""+queryId+"\" : {}";
         XContentParser parser = XContentFactory.xContent(queryString).createParser(queryString);
         context.reset(parser);
@@ -69,7 +69,7 @@ public class ConstantScoreQueryBuilderTest extends BaseQueryTestCase<ConstantSco
     @Test
     public void testEmptyFilterElement() throws IOException {
         QueryParseContext context = createContext();
-        String queryId = ConstantScoreQueryBuilder.PROTOTYPE.queryId();
+        String queryId = ConstantScoreQueryBuilder.PROTOTYPE.getName();
         String queryString = "{ \""+queryId+"\" : { \"filter\" : { } }";
         XContentParser parser = XContentFactory.xContent(queryString).createParser(queryString);
         context.reset(parser);

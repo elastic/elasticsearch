@@ -26,7 +26,7 @@ import java.io.IOException;
 /**
  * Builder for the 'has_parent' query.
  */
-public class HasParentQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<HasParentQueryBuilder> {
+public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBuilder> implements BoostableQueryBuilder<HasParentQueryBuilder> {
 
     public static final String NAME = "has_parent";
     private final QueryBuilder queryBuilder;
@@ -100,7 +100,7 @@ public class HasParentQueryBuilder extends QueryBuilder implements BoostableQuer
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 }

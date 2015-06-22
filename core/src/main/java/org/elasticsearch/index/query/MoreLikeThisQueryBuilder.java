@@ -41,7 +41,7 @@ import java.util.Locale;
  * A more like this query that finds documents that are "like" the provided {@link #likeText(String)}
  * which is checked against the fields the query is constructed with.
  */
-public class MoreLikeThisQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<MoreLikeThisQueryBuilder> {
+public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQueryBuilder> implements BoostableQueryBuilder<MoreLikeThisQueryBuilder> {
 
     /**
      * A single get item. Pure delegate to multi get.
@@ -439,7 +439,7 @@ public class MoreLikeThisQueryBuilder extends QueryBuilder implements BoostableQ
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 }

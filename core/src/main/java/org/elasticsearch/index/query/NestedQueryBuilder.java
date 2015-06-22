@@ -25,7 +25,7 @@ import org.elasticsearch.index.query.support.QueryInnerHitBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-public class NestedQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<NestedQueryBuilder> {
+public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder> implements BoostableQueryBuilder<NestedQueryBuilder> {
 
     public static final String NAME = "nested";
 
@@ -114,7 +114,7 @@ public class NestedQueryBuilder extends QueryBuilder implements BoostableQueryBu
     }
 
     @Override
-    public final String queryId() {
+    public final String getName() {
         return NAME;
     }
 }

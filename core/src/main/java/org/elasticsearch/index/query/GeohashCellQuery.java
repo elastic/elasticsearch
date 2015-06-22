@@ -31,9 +31,7 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 
 import java.io.IOException;
@@ -90,7 +88,7 @@ public class GeohashCellQuery {
      * <code>geohash</code> to be set. the default for a neighbor filteing is
      * <code>false</code>.
      */
-    public static class Builder extends QueryBuilder {
+    public static class Builder extends AbstractQueryBuilder<Builder> {
         // we need to store the geohash rather than the corresponding point,
         // because a transformation from a geohash to a point an back to the
         // geohash will extend the accuracy of the hash to max precision
@@ -171,7 +169,7 @@ public class GeohashCellQuery {
         }
 
         @Override
-        public String queryId() {
+        public String getName() {
             return NAME;
         }
     }

@@ -122,7 +122,7 @@ public class RegexpQueryBuilder extends MultiTermQueryBuilder implements Boostab
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 }

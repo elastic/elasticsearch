@@ -29,7 +29,7 @@ import java.util.Locale;
  * Match query is a query that analyzes the text and constructs a query as the result of the analysis. It
  * can construct different queries based on the type provided.
  */
-public class MatchQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<MatchQueryBuilder> {
+public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> implements BoostableQueryBuilder<MatchQueryBuilder> {
 
     public static final String NAME = "match";
 
@@ -282,7 +282,7 @@ public class MatchQueryBuilder extends QueryBuilder implements BoostableQueryBui
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 }

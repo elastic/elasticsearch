@@ -99,7 +99,7 @@ public class PrefixQueryBuilder extends MultiTermQueryBuilder implements Boostab
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 }

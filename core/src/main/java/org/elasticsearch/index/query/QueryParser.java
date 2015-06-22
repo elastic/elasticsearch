@@ -63,5 +63,5 @@ public interface QueryParser {
     /**
      * @return an empty {@link QueryBuilder} instance for this parser that can be used for deserialization
      */
-    QueryBuilder getBuilderPrototype();
+    QueryBuilder<? extends QueryBuilder> getBuilderPrototype();
 }

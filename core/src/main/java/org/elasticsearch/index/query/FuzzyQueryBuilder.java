@@ -137,7 +137,7 @@ public class FuzzyQueryBuilder extends MultiTermQueryBuilder implements Boostabl
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 }

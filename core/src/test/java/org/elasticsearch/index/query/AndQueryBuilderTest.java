@@ -84,7 +84,7 @@ public class AndQueryBuilderTest extends BaseQueryTestCase<AndQueryBuilder> {
         String queryString = "{ \"and\" : {}";
         XContentParser parser = XContentFactory.xContent(queryString).createParser(queryString);
         context.reset(parser);
-        assertQueryHeader(parser, AndQueryBuilder.PROTOTYPE.queryId());
-        context.indexQueryParserService().queryParser(AndQueryBuilder.PROTOTYPE.queryId()).fromXContent(context);
+        assertQueryHeader(parser, AndQueryBuilder.PROTOTYPE.getName());
+        context.indexQueryParserService().queryParser(AndQueryBuilder.PROTOTYPE.getName()).fromXContent(context);
     }
 }

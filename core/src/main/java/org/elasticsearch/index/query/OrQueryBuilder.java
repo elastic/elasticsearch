@@ -32,7 +32,7 @@ import java.util.Collections;
  * @deprecated Use {@link BoolQueryBuilder} instead
  */
 @Deprecated
-public class OrQueryBuilder extends QueryBuilder {
+public class OrQueryBuilder extends AbstractQueryBuilder<OrQueryBuilder> {
 
     public static final String NAME = "or";
 
@@ -74,7 +74,7 @@ public class OrQueryBuilder extends QueryBuilder {
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 }

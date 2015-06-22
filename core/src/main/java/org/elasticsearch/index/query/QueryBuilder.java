@@ -20,47 +20,22 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
 
-/**
- * Base class for all classes producing lucene queries.
- * Supports conversion to BytesReference and creation of lucene Query objects.
- */
-public abstract class QueryBuilder<QB extends QueryBuilder> extends ToXContentToBytes implements NamedWriteable<QB> {
-
-    protected QueryBuilder() {
-        super(XContentType.JSON);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        doXContent(builder, params);
-        builder.endObject();
-        return builder;
-    }
+public interface QueryBuilder<QB extends QueryBuilder> extends NamedWriteable<QB>, ToXContent {
 
     /**
-     * @return a unique name this query is identified with
+     * Validate the query.
+     * @return a {@link QueryValidationException} containing error messages, {@code null} if query is valid.
+     * e.g. if fields that are needed to create the lucene query are missing.
      */
-    public abstract String queryId();
-
-    @Override
-    public final String getName() {
-        return queryId();
-    }
+    QueryValidationException validate();
 
     /**
      * Converts this QueryBuilder to a lucene {@link Query}.
@@ -72,79 +47,13 @@ public abstract class QueryBuilder<QB extends QueryBuilder> extends ToXContentTo
      * @throws QueryParsingException
      * @throws IOException
      */
-    //norelease to be made abstract once all query builders override toQuery providing their own specific implementation.
-    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
-        return parseContext.indexQueryParserService().queryParser(queryId()).parse(parseContext);
-    }
+    Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException;
 
     /**
-     * Validate the query.
-     * @return a {@link QueryValidationException} containing error messages, {@code null} if query is valid.
-     * e.g. if fields that are needed to create the lucene query are missing.
+     * Returns a {@link org.elasticsearch.common.bytes.BytesReference}
+     * containing the {@link ToXContent} output in binary format.
+     * Builds the request based on the default {@link XContentType}, either {@link Requests#CONTENT_TYPE} or provided as a constructor argument
      */
-    public QueryValidationException validate() {
-        // default impl does not validate, subclasses should override.
-        //norelease to be possibly made abstract once all queries support validation
-        return null;
-    }
-
-    protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;
-
-    /**
-     * This helper method checks if the object passed in is a string, if so it
-     * converts it to a {@link BytesRef}.
-     * @param obj the input object
-     * @return the same input object or a {@link BytesRef} representation if input was of type string
-     */
-    protected static Object convertToBytesRefIfString(Object obj) {
-        if (obj instanceof String) {
-            return BytesRefs.toBytesRef(obj);
-        }
-        return obj;
-    }
-
-    /**
-     * This helper method checks if the object passed in is a {@link BytesRef}, if so it
-     * converts it to a utf8 string.
-     * @param obj the input object
-     * @return the same input object or a utf8 string if input was of type {@link BytesRef}
-     */
-    protected static Object convertToStringIfBytesRef(Object obj) {
-        if (obj instanceof BytesRef) {
-            return ((BytesRef) obj).utf8ToString();
-        }
-        return obj;
-    }
-
-    /**
-     * Helper method to convert collection of {@link QueryBuilder} instances to lucene
-     * {@link Query} instances. {@link QueryBuilder} that return <tt>null</tt> calling
-     * their {@link QueryBuilder#toQuery(QueryParseContext)} method are not added to the
-     * resulting collection.
-     *
-     * @throws IOException
-     * @throws QueryParsingException
-     */
-    protected static Collection<Query> toQueries(Collection<QueryBuilder> queryBuilders, QueryParseContext parseContext) throws QueryParsingException,
-            IOException {
-        List<Query> queries = new ArrayList<>(queryBuilders.size());
-        for (QueryBuilder queryBuilder : queryBuilders) {
-            Query query = queryBuilder.toQuery(parseContext);
-            if (query != null) {
-                queries.add(query);
-            }
-        }
-        return queries;
-    }
-
-    //norelease remove this once all builders implement readFrom themselves
-    @Override
-    public QB readFrom(StreamInput in) throws IOException {
-        return null;
-    }
-
-    //norelease remove this once all builders implement writeTo themselves
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-    }
+    //norelease once we move to serializing queries over the wire in Streamable format, this method shouldn't be needed anymore
+    BytesReference buildAsBytes();
 }

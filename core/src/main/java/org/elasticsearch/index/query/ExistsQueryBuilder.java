@@ -35,7 +35,7 @@ import java.util.Objects;
 /**
  * Constructs a query that only match on documents that the field has a value in them.
  */
-public class ExistsQueryBuilder extends QueryBuilder<ExistsQueryBuilder> {
+public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder> {
 
     public static final String NAME = "exists";
 
@@ -167,7 +167,7 @@ public class ExistsQueryBuilder extends QueryBuilder<ExistsQueryBuilder> {
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 }

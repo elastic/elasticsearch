@@ -28,7 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 
-public class GeoPolygonQueryBuilder extends QueryBuilder {
+public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQueryBuilder> {
 
     public static final String NAME = "geo_polygon";
 
@@ -94,7 +94,7 @@ public class GeoPolygonQueryBuilder extends QueryBuilder {
     }
 
     @Override
-    public String queryId() {
+    public String getName() {
         return NAME;
     }
 }

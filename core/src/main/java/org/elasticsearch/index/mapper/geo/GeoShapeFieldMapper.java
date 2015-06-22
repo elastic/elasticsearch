@@ -199,7 +199,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper {
         }
 
         @Override
-        public MappedFieldType clone() {
+        public GeoShapeFieldType clone() {
             return new GeoShapeFieldType(this);
         }
 
@@ -246,8 +246,8 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper {
         }
         
         @Override
-        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts) {
-            super.checkCompatibility(fieldType, conflicts);
+        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts, boolean strict) {
+            super.checkCompatibility(fieldType, conflicts, strict);
             GeoShapeFieldType other = (GeoShapeFieldType)fieldType;
             // prevent user from changing strategies
             if (strategyName().equals(other.strategyName()) == false) {

@@ -82,8 +82,8 @@ public class UidFieldMapper extends AbstractFieldMapper implements RootMapper {
 
     public static class Builder extends AbstractFieldMapper.Builder<Builder, UidFieldMapper> {
 
-        public Builder() {
-            super(Defaults.NAME, Defaults.FIELD_TYPE);
+        public Builder(MappedFieldType existing) {
+            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing);
             indexName = Defaults.NAME;
         }
 
@@ -97,10 +97,10 @@ public class UidFieldMapper extends AbstractFieldMapper implements RootMapper {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            Builder builder = uid();
             if (parserContext.indexVersionCreated().onOrAfter(Version.V_2_0_0)) {
                 throw new MapperParsingException(NAME + " is not configurable");
             }
+            Builder builder = uid(parserContext.mapperService().fullName(NAME));
             parseField(builder, builder.name, node, parserContext);
             return builder;
         }
@@ -130,8 +130,10 @@ public class UidFieldMapper extends AbstractFieldMapper implements RootMapper {
         }
     }
 
-    public UidFieldMapper(Settings indexSettings) {
-        this(Defaults.FIELD_TYPE.clone(), null, null, indexSettings);
+    public UidFieldMapper(Settings indexSettings, MappedFieldType existing) {
+        this(existing == null ? Defaults.FIELD_TYPE.clone() : existing, null,
+             existing == null ? null : (existing.fieldDataType() == null ? null : existing.fieldDataType().getSettings()),
+             indexSettings);
     }
 
     protected UidFieldMapper(MappedFieldType fieldType, Boolean docValues, @Nullable Settings fieldDataSettings, Settings indexSettings) {
@@ -218,15 +220,16 @@ public class UidFieldMapper extends AbstractFieldMapper implements RootMapper {
             return builder;
         }
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+        boolean hasCustomFieldDataSettings = customFieldDataSettings != null && customFieldDataSettings.equals(Settings.EMPTY) == false;
 
         // if defaults, don't output
-        if (!includeDefaults && customFieldDataSettings == null) {
+        if (!includeDefaults && hasCustomFieldDataSettings == false) {
             return builder;
         }
 
         builder.startObject(CONTENT_TYPE);
 
-        if (customFieldDataSettings != null) {
+        if (hasCustomFieldDataSettings) {
             builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
         } else if (includeDefaults) {
             builder.field("fielddata", (Map) fieldType().fieldDataType().getSettings().getAsMap());

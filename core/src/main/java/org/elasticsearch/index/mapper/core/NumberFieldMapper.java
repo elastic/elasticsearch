@@ -317,8 +317,14 @@ public abstract class NumberFieldMapper extends AbstractFieldMapper implements A
         if (!this.getClass().equals(mergeWith.getClass())) {
             return;
         }
-        if (!mergeResult.simulate()) {
-            NumberFieldMapper nfmMergeWith = (NumberFieldMapper) mergeWith;
+        NumberFieldMapper nfmMergeWith = (NumberFieldMapper) mergeWith;
+        if (this.fieldTypeRef.getRefCount() > 1 && mergeResult.updateAllTypes() == false) {
+            if (fieldType().numericPrecisionStep() != nfmMergeWith.fieldType().numericPrecisionStep()) {
+                mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] is used by multiple types. Set update_all_types to true to update precision_step across all types.");
+            }
+        }
+
+        if (mergeResult.simulate() == false && mergeResult.hasConflicts() == false) {
             this.includeInAll = nfmMergeWith.includeInAll;
             if (nfmMergeWith.ignoreMalformed.explicit()) {
                 this.ignoreMalformed = nfmMergeWith.ignoreMalformed;

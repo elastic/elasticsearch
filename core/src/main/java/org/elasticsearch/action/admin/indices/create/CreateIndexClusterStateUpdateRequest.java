@@ -41,6 +41,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
     private final TransportMessage originalMessage;
     private final String cause;
     private final String index;
+    private final boolean updateAllTypes;
 
     private IndexMetaData.State state = IndexMetaData.State.OPEN;
 
@@ -55,10 +56,11 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
     private final Set<ClusterBlock> blocks = Sets.newHashSet();
 
 
-    CreateIndexClusterStateUpdateRequest(TransportMessage originalMessage, String cause, String index) {
+    CreateIndexClusterStateUpdateRequest(TransportMessage originalMessage, String cause, String index, boolean updateAllTypes) {
         this.originalMessage = originalMessage;
         this.cause = cause;
         this.index = index;
+        this.updateAllTypes = updateAllTypes;
     }
 
     public CreateIndexClusterStateUpdateRequest settings(Settings settings) {
@@ -125,5 +127,9 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     public Set<ClusterBlock> blocks() {
         return blocks;
+    }
+
+    public boolean updateAllTypes() {
+        return updateAllTypes;
     }
 }

@@ -58,10 +58,10 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTests {
     @Before
     public void before() throws Exception {
         mapperService.merge(
-                childType, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(childType, "_parent", "type=" + parentType).string()), true
+                childType, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(childType, "_parent", "type=" + parentType).string()), true, false
         );
         mapperService.merge(
-                grandChildType, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(grandChildType, "_parent", "type=" + childType).string()), true
+                grandChildType, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(grandChildType, "_parent", "type=" + childType).string()), true, false
         );
 
         Document d = new Document();

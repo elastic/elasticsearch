@@ -330,8 +330,8 @@ public class GeoPointFieldMapper extends AbstractFieldMapper implements ArrayVal
         }
         
         @Override
-        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts) {
-            super.checkCompatibility(fieldType, conflicts);
+        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts, boolean strict) {
+            super.checkCompatibility(fieldType, conflicts, strict);
             GeoPointFieldType other = (GeoPointFieldType)fieldType;
             if (isLatLonEnabled() != other.isLatLonEnabled()) {
                 conflicts.add("mapper [" + names().fullName() + "] has different lat_lon");

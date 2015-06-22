@@ -65,13 +65,13 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().endObject().string();
         DocumentMapper stage2 = parser.parse(stage2Mapping);
 
-        MergeResult mergeResult = stage1.merge(stage2.mapping(), true);
+        MergeResult mergeResult = stage1.merge(stage2.mapping(), true, false);
         assertThat(mergeResult.hasConflicts(), equalTo(false));
         // since we are simulating, we should not have the age mapping
         assertThat(stage1.mappers().smartNameFieldMapper("age"), nullValue());
         assertThat(stage1.mappers().smartNameFieldMapper("obj1.prop1"), nullValue());
         // now merge, don't simulate
-        mergeResult = stage1.merge(stage2.mapping(), false);
+        mergeResult = stage1.merge(stage2.mapping(), false, false);
         // there is still merge failures
         assertThat(mergeResult.hasConflicts(), equalTo(false));
         // but we have the age in
@@ -90,7 +90,7 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
         DocumentMapper withDynamicMapper = parser.parse(withDynamicMapping);
         assertThat(withDynamicMapper.root().dynamic(), equalTo(ObjectMapper.Dynamic.FALSE));
 
-        MergeResult mergeResult = mapper.merge(withDynamicMapper.mapping(), false);
+        MergeResult mergeResult = mapper.merge(withDynamicMapper.mapping(), false, false);
         assertThat(mergeResult.hasConflicts(), equalTo(false));
         assertThat(mapper.root().dynamic(), equalTo(ObjectMapper.Dynamic.FALSE));
     }
@@ -107,12 +107,12 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().endObject().string();
         DocumentMapper nestedMapper = parser.parse(nestedMapping);
 
-        MergeResult mergeResult = objectMapper.merge(nestedMapper.mapping(), true);
+        MergeResult mergeResult = objectMapper.merge(nestedMapper.mapping(), true, false);
         assertThat(mergeResult.hasConflicts(), equalTo(true));
         assertThat(mergeResult.buildConflicts().length, equalTo(1));
         assertThat(mergeResult.buildConflicts()[0], equalTo("object mapping [obj] can't be changed from non-nested to nested"));
 
-        mergeResult = nestedMapper.merge(objectMapper.mapping(), true);
+        mergeResult = nestedMapper.merge(objectMapper.mapping(), true, false);
         assertThat(mergeResult.buildConflicts().length, equalTo(1));
         assertThat(mergeResult.buildConflicts()[0], equalTo("object mapping [obj] can't be changed from nested to non-nested"));
     }
@@ -131,7 +131,7 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
         DocumentMapper changed = parser.parse(mapping2);
 
         assertThat(((NamedAnalyzer) existing.mappers().getMapper("field").fieldType().searchAnalyzer()).name(), equalTo("whitespace"));
-        MergeResult mergeResult = existing.merge(changed.mapping(), false);
+        MergeResult mergeResult = existing.merge(changed.mapping(), false, false);
 
         assertThat(mergeResult.hasConflicts(), equalTo(false));
         assertThat(((NamedAnalyzer) existing.mappers().getMapper("field").fieldType().searchAnalyzer()).name(), equalTo("keyword"));
@@ -151,7 +151,7 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
         DocumentMapper changed = parser.parse(mapping2);
 
         assertThat(((NamedAnalyzer) existing.mappers().getMapper("field").fieldType().searchAnalyzer()).name(), equalTo("whitespace"));
-        MergeResult mergeResult = existing.merge(changed.mapping(), false);
+        MergeResult mergeResult = existing.merge(changed.mapping(), false, false);
 
         assertThat(mergeResult.hasConflicts(), equalTo(false));
         assertThat(((NamedAnalyzer) existing.mappers().getMapper("field").fieldType().searchAnalyzer()).name(), equalTo("standard"));
@@ -160,7 +160,7 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
 
     public void testConcurrentMergeTest() throws Throwable {
         final MapperService mapperService = createIndex("test").mapperService();
-        mapperService.merge("test", new CompressedXContent("{\"test\":{}}"), true);
+        mapperService.merge("test", new CompressedXContent("{\"test\":{}}"), true, false);
         final DocumentMapper documentMapper = mapperService.documentMapper("test");
 
         DocumentFieldMappers dfm = documentMapper.mappers();
@@ -186,7 +186,7 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
                         Mapping update = doc.dynamicMappingsUpdate();
                         assert update != null;
                         lastIntroducedFieldName.set(fieldName);
-                        mapperService.merge("test", new CompressedXContent(update.toString()), false);
+                        mapperService.merge("test", new CompressedXContent(update.toString()), false, false);
                     }
                 } catch (Throwable t) {
                     error.set(t);

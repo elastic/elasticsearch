@@ -79,8 +79,8 @@ public class IndexFieldMapper extends AbstractFieldMapper implements RootMapper 
 
         private EnabledAttributeMapper enabledState = EnabledAttributeMapper.UNSET_DISABLED;
 
-        public Builder() {
-            super(Defaults.NAME, Defaults.FIELD_TYPE);
+        public Builder(MappedFieldType existing) {
+            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing);
             indexName = Defaults.NAME;
         }
 
@@ -99,7 +99,7 @@ public class IndexFieldMapper extends AbstractFieldMapper implements RootMapper 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            IndexFieldMapper.Builder builder = MapperBuilders.index();
+            IndexFieldMapper.Builder builder = MapperBuilders.index(parserContext.mapperService().fullName(NAME));
             if (parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
                 parseField(builder, builder.name, node, parserContext);
             }
@@ -144,8 +144,10 @@ public class IndexFieldMapper extends AbstractFieldMapper implements RootMapper 
 
     private EnabledAttributeMapper enabledState;
 
-    public IndexFieldMapper(Settings indexSettings) {
-        this(Defaults.FIELD_TYPE.clone(), Defaults.ENABLED_STATE, null, indexSettings);
+    public IndexFieldMapper(Settings indexSettings, MappedFieldType existing) {
+        this(existing == null ? Defaults.FIELD_TYPE.clone() : existing,
+             Defaults.ENABLED_STATE,
+             existing == null ? null : (existing.fieldDataType() == null ? null : existing.fieldDataType().getSettings()), indexSettings);
     }
 
     public IndexFieldMapper(MappedFieldType fieldType, EnabledAttributeMapper enabledState,
@@ -204,9 +206,10 @@ public class IndexFieldMapper extends AbstractFieldMapper implements RootMapper 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+        boolean hasCustomFieldDataSettings = customFieldDataSettings != null && customFieldDataSettings.equals(Settings.EMPTY) == false;
 
         // if all defaults, no need to write it at all
-        if (!includeDefaults && fieldType().stored() == Defaults.FIELD_TYPE.stored() && enabledState == Defaults.ENABLED_STATE && customFieldDataSettings == null) {
+        if (!includeDefaults && fieldType().stored() == Defaults.FIELD_TYPE.stored() && enabledState == Defaults.ENABLED_STATE && hasCustomFieldDataSettings == false) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
@@ -218,7 +221,7 @@ public class IndexFieldMapper extends AbstractFieldMapper implements RootMapper 
         }
 
         if (indexCreatedBefore2x) {
-            if (customFieldDataSettings != null) {
+            if (hasCustomFieldDataSettings) {
                 builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
             } else if (includeDefaults) {
                 builder.field("fielddata", (Map) fieldType().fieldDataType().getSettings().getAsMap());

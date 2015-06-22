@@ -81,8 +81,8 @@ public class RoutingFieldMapper extends AbstractFieldMapper implements RootMappe
 
         private String path = Defaults.PATH;
 
-        public Builder() {
-            super(Defaults.NAME, Defaults.FIELD_TYPE);
+        public Builder(MappedFieldType existing) {
+            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing);
         }
 
         public Builder required(boolean required) {
@@ -97,14 +97,14 @@ public class RoutingFieldMapper extends AbstractFieldMapper implements RootMappe
 
         @Override
         public RoutingFieldMapper build(BuilderContext context) {
-            return new RoutingFieldMapper(fieldType, required, path, fieldDataSettings, context.indexSettings());
+            return new RoutingFieldMapper(fieldType, required, path, context.indexSettings());
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            RoutingFieldMapper.Builder builder = routing();
+            RoutingFieldMapper.Builder builder = routing(parserContext.mapperService().fullName(NAME));
             if (parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
                 parseField(builder, builder.name, node, parserContext);
             }
@@ -151,12 +151,12 @@ public class RoutingFieldMapper extends AbstractFieldMapper implements RootMappe
     private boolean required;
     private final String path;
 
-    public RoutingFieldMapper(Settings indexSettings) {
-        this(Defaults.FIELD_TYPE, Defaults.REQUIRED, Defaults.PATH, null, indexSettings);
+    public RoutingFieldMapper(Settings indexSettings, MappedFieldType existing) {
+        this(existing == null ? Defaults.FIELD_TYPE.clone() : existing.clone(), Defaults.REQUIRED, Defaults.PATH, indexSettings);
     }
 
-    protected RoutingFieldMapper(MappedFieldType fieldType, boolean required, String path, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(fieldType, false, fieldDataSettings, indexSettings);
+    protected RoutingFieldMapper(MappedFieldType fieldType, boolean required, String path, Settings indexSettings) {
+        super(fieldType, false, null, indexSettings);
         this.required = required;
         this.path = path;
     }

@@ -29,6 +29,7 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.text.ParseException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 
@@ -38,6 +39,16 @@ import java.util.Map;
 public class SimpleModel extends MovAvgModel {
 
     protected static final ParseField NAME_FIELD = new ParseField("simple");
+
+    @Override
+    protected <T extends Number> double[] doPredict(Collection<T> values, int numPredictions) {
+        double[] predictions = new double[numPredictions];
+
+        // EWMA just emits the same final prediction repeatedly.
+        Arrays.fill(predictions, next(values));
+
+        return predictions;
+    }
 
     @Override
     public <T extends Number> double next(Collection<T> values) {

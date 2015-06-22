@@ -120,7 +120,6 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
             InternalHistogram.Bucket newBucket = bucket;
 
             if (!(thisBucketValue == null || thisBucketValue.equals(Double.NaN))) {
-                values.offer(thisBucketValue);
 
                 // Some models (e.g. HoltWinters) have certain preconditions that must be met
                 if (model.hasValue(values.size())) {
@@ -142,6 +141,8 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
                     }
                     lastValidPosition = counter;
                 }
+
+                values.offer(thisBucketValue);
             }
             counter += 1;
             newBuckets.add(newBucket);

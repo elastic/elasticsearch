@@ -463,10 +463,8 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
         if (indices != null) {
             msg.builder.array(Field.INDICES, indices);
         }
-        if (logger.isDebugEnabled()) {
-            msg.builder.field(Field.REQUEST_BODY, restRequestContent(request));
-        }
-
+        msg.builder.field(Field.REQUEST_BODY, restRequestContent(request));
+        msg.builder.field(Field.ORIGIN_TYPE, "rest");
         msg.builder.field(Field.ORIGIN_ADDRESS, request.getRemoteAddress());
         msg.builder.field(Field.URI, request.uri());
 

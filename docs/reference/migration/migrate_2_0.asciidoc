@@ -731,3 +731,42 @@ to prevent clashes with the watcher plugin
 === Percolator stats
 
 Changed the `percolate.getTime` stat (total time spent on percolating) to `percolate.time` state.
+
+=== Plugin Manager for official plugins
+
+Some of the elasticsearch official plugins have been moved to elasticsearch repository and will be released at the
+same time as elasticsearch itself, using the same version number.
+
+In that case, the plugin manager can now use a simpler form to identify an official plugin. Instead of:
+
+[source,sh]
+---------------
+bin/plugin install elasticsearch/plugin_name/version
+---------------
+
+You can use:
+
+[source,sh]
+---------------
+bin/plugin install plugin_name
+---------------
+
+The plugin manager will recognize this form and will be able to download the right version for your elasticsearch
+version.
+
+For older versions of elasticsearch, you still have to use the older form.
+
+For the record, official plugins which can use this new simplified form are:
+
+* elasticsearch-analysis-icu
+* elasticsearch-analysis-kuromoji
+* elasticsearch-analysis-phonetic
+* elasticsearch-analysis-smartcn
+* elasticsearch-analysis-stempel
+* elasticsearch-cloud-aws
+* elasticsearch-cloud-azure
+* elasticsearch-cloud-gce
+* elasticsearch-delete-by-query
+* elasticsearch-lang-javascript
+* elasticsearch-lang-python
+

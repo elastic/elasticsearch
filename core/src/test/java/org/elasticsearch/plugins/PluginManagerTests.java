@@ -54,9 +54,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertDire
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
-import static org.hamcrest.Matchers.arrayWithSize;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0.0)
 @LuceneTestCase.SuppressFileSystems("*") // TODO: clean up this test to allow extra files
@@ -513,6 +511,27 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         }
     }
 
+    @Test
+    public void testOfficialPluginName_ThrowsException() throws IOException {
+        PluginManager.checkForOfficialPlugins("elasticsearch-analysis-icu");
+        PluginManager.checkForOfficialPlugins("elasticsearch-analysis-kuromoji");
+        PluginManager.checkForOfficialPlugins("elasticsearch-analysis-phonetic");
+        PluginManager.checkForOfficialPlugins("elasticsearch-analysis-smartcn");
+        PluginManager.checkForOfficialPlugins("elasticsearch-analysis-stempel");
+        PluginManager.checkForOfficialPlugins("elasticsearch-cloud-aws");
+        PluginManager.checkForOfficialPlugins("elasticsearch-cloud-azure");
+        PluginManager.checkForOfficialPlugins("elasticsearch-cloud-gce");
+        PluginManager.checkForOfficialPlugins("elasticsearch-delete-by-query");
+        PluginManager.checkForOfficialPlugins("elasticsearch-lang-javascript");
+        PluginManager.checkForOfficialPlugins("elasticsearch-lang-python");
+
+        try {
+            PluginManager.checkForOfficialPlugins("elasticsearch-mapper-attachment");
+            fail("elasticsearch-mapper-attachment should not be allowed");
+        } catch (IllegalArgumentException e) {
+            // We expect that error
+        }
+    }
 
     /**
      * Retrieve a URL string that represents the resource with the given {@code resourceName}.

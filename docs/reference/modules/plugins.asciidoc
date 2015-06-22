@@ -14,19 +14,26 @@ and more.
 ==== Installing plugins
 
 Installing plugins can either be done manually by placing them under the
-`plugins` directory, or using the `plugin` script. Several plugins can
-be found under the https://github.com/elasticsearch[elasticsearch]
-organization in GitHub, starting with `elasticsearch-`.
+`plugins` directory, or using the `plugin` script.
 
 Installing plugins typically take the following form:
+
+[source,shell]
+-----------------------------------
+bin/plugin --install plugin_name
+-----------------------------------
+
+The plugin will be automatically downloaded in this case from `download.elastic.co` download service using the
+same version as your elasticsearch version.
+
+For older version of elasticsearch (prior to 2.0.0) or community plugins, you would use the following form:
 
 [source,shell]
 -----------------------------------
 bin/plugin --install <org>/<user/component>/<version>
 -----------------------------------
 
-The plugins will be
-automatically downloaded in this case from `download.elastic.co`,
+The plugins will be automatically downloaded in this case from `download.elastic.co` (for older plugins),
 and in case they don't exist there, from maven (central and sonatype).
 
 Note that when the plugin is located in maven central or sonatype

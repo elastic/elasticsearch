@@ -7,12 +7,11 @@ package org.elasticsearch.watcher.test.integration;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.watcher.support.clock.SystemClock;
-import org.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -21,8 +20,8 @@ import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.condition.ConditionBuilders;
-import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.support.WatcherUtils;
+import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
@@ -50,6 +49,7 @@ import static org.elasticsearch.watcher.condition.ConditionBuilders.scriptCondit
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.newInputSearchRequest;
+import static org.elasticsearch.watcher.test.WatcherTestUtils.xContentSource;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.*;
 import static org.hamcrest.Matchers.*;
@@ -357,13 +357,14 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
 
         // Check that the input result payload has been filtered
         refresh();
-        SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setQuery(matchQuery("watch_id", "_name1"))
-                .setSize(1)
-                .get();
+        SearchResponse searchResponse = searchWatchRecords(new Callback<SearchRequestBuilder>() {
+            @Override
+            public void handle(SearchRequestBuilder builder) {
+                builder.setQuery(matchQuery("watch_id", "_name1"));
+            }
+        });
         assertHitCount(searchResponse, 1);
-        XContentSource source = new XContentSource(searchResponse.getHits().getAt(0).getSourceRef());
+        XContentSource source = xContentSource(searchResponse.getHits().getAt(0).getSourceRef());
         assertThat(source.getValue("result.input.payload.hits.total"), equalTo((Object) 1));
     }
 

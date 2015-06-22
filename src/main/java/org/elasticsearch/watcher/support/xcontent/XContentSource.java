@@ -8,7 +8,6 @@ package org.elasticsearch.watcher.support.xcontent;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.*;
@@ -37,8 +36,11 @@ public class XContentSource implements ToXContent {
         this.contentType = xContentType;
     }
 
-    public XContentSource(BytesReference bytes) {
-        this(bytes, XContentFactory.xContentType(bytes));
+    /**
+     * Constructs a new xcontent source from the bytes of the given xcontent builder
+     */
+    public XContentSource(XContentBuilder builder) {
+        this(builder.bytes(), builder.contentType());
     }
 
     /**

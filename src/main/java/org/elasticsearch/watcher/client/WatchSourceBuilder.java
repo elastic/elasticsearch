@@ -15,12 +15,12 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
 import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.actions.Action;
+import org.elasticsearch.watcher.actions.throttler.Throttler;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.input.none.NoneInput;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
-import org.elasticsearch.watcher.actions.throttler.Throttler;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.trigger.Trigger;
 import org.elasticsearch.watcher.watch.Watch;
@@ -112,7 +112,7 @@ public class WatchSourceBuilder implements ToXContent {
     }
 
     public XContentSource build() throws IOException {
-        return new XContentSource(toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS).bytes());
+        return new XContentSource(toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS));
     }
 
     @Override

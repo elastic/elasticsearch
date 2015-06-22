@@ -16,7 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.WatcherService;
@@ -27,6 +27,8 @@ import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.watch.WatchStore;
 
 import java.io.IOException;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * Performs the get operation.
@@ -57,19 +59,17 @@ public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequ
         try {
             Watch watch = watcherService.getWatch(request.getId());
             if (watch == null) {
-                listener.onResponse(new GetWatchResponse(request.getId(), -1, false, null));
+                listener.onResponse(new GetWatchResponse(request.getId()));
                 return;
             }
 
-            BytesReference watchSource = null;
-            try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            try (XContentBuilder builder = jsonBuilder()) {
                 watch.toXContent(builder, WatcherParams.builder().hideSecrets(true).build());
-                watchSource = builder.bytes();
+                BytesReference watchSource = builder.bytes();
+                listener.onResponse(new GetWatchResponse(watch.id(), watch.status().version(), watchSource, XContentType.JSON));
             } catch (IOException e) {
                 listener.onFailure(e);
-                return;
             }
-            listener.onResponse(new GetWatchResponse(watch.id(), watch.status().version(), true, watchSource));
 
         } catch (Throwable t) {
             logger.error("failed to get watch [{}]", t, request.getId());

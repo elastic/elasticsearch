@@ -11,11 +11,12 @@ import com.squareup.okhttp.mockwebserver.QueueDispatcher;
 import com.squareup.okhttp.mockwebserver.RecordedRequest;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.watcher.actions.ActionBuilders;
-import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
@@ -35,6 +36,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.alwaysCondition;
 import static org.elasticsearch.watcher.input.InputBuilders.simpleInput;
+import static org.elasticsearch.watcher.test.WatcherTestUtils.xContentSource;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.*;
@@ -107,11 +109,14 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
         assertThat(recordedRequest.getPath(), equalTo("/test/_id"));
         assertThat(recordedRequest.getBody().readUtf8Line(), equalTo("{key=value}"));
 
-        SearchResponse response = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
-                .setQuery(QueryBuilders.termQuery(WatchRecord.Field.STATE.getPreferredName(), "executed"))
-                .get();
+        SearchResponse response = searchWatchRecords(new Callback<SearchRequestBuilder>() {
+            @Override
+            public void handle(SearchRequestBuilder builder) {
+                builder.setQuery(QueryBuilders.termQuery(WatchRecord.Field.STATE.getPreferredName(), "executed"));
+            }
+        });
         assertNoFailures(response);
-        XContentSource source = new XContentSource(response.getHits().getAt(0).sourceRef());
+        XContentSource source = xContentSource(response.getHits().getAt(0).sourceRef());
         String body = source.getValue("result.actions.0.webhook.response.body");
         assertThat(body, notNullValue());
         assertThat(body, is("body"));

@@ -32,7 +32,7 @@ public class XContentSourceTests extends ElasticsearchTestCase {
                         .nullField("key_null")
                         .endObject()
                         .bytes();
-        XContentSource source = new XContentSource(bytes);
+        XContentSource source = new XContentSource(bytes, builder.contentType());
         XContentBuilder builder2 = XContentFactory.contentBuilder(builder.contentType());
         BytesReference bytes2 = source.toXContent(builder2, ToXContent.EMPTY_PARAMS).bytes();
         assertThat(bytes.array(), is(bytes2.array()));

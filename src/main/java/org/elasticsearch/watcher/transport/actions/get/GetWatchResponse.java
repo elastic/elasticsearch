@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
 
 import java.io.IOException;
@@ -23,12 +24,24 @@ public class GetWatchResponse extends ActionResponse {
     GetWatchResponse() {
     }
 
-    public GetWatchResponse(String id, long version, boolean found, BytesReference source) {
-        assert !found && source == null || found && source.length() > 0;
+    /**
+     * ctor for missing watch
+     */
+    public GetWatchResponse(String id) {
+        this.id = id;
+        this.version = -1;
+        this.found = false;
+        this.source = null;
+    }
+
+    /**
+     * ctor for found watch
+     */
+    public GetWatchResponse(String id, long version, BytesReference source, XContentType contentType) {
         this.id = id;
         this.version = version;
-        this.found = found;
-        this.source = found ? new XContentSource(source) : null;
+        this.found = true;
+        this.source = new XContentSource(source, contentType);
     }
 
     public String getId() {

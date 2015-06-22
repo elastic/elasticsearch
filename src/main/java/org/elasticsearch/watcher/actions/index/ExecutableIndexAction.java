@@ -72,13 +72,13 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         indexRequest.source(jsonBuilder().prettyPrint().map(data));
 
         if (ctx.simulateAction(actionId)) {
-            return new IndexAction.Result.Simulated(action.index, action.docType, new XContentSource(indexRequest.source()));
+            return new IndexAction.Result.Simulated(action.index, action.docType, new XContentSource(indexRequest.source(), XContentType.JSON));
         }
 
         IndexResponse response = client.index(indexRequest);
         XContentBuilder jsonBuilder = jsonBuilder();
         indexResponseToXContent(jsonBuilder, response);
-        return new IndexAction.Result.Success(new XContentSource(jsonBuilder.bytes()));
+        return new IndexAction.Result.Success(new XContentSource(jsonBuilder));
     }
 
     Action.Result indexBulk(Iterable list, String actionId, WatchExecutionContext ctx) throws Exception {

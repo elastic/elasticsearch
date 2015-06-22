@@ -32,6 +32,7 @@ import static org.elasticsearch.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.scriptCondition;
 import static org.elasticsearch.watcher.input.InputBuilders.httpInput;
+import static org.elasticsearch.watcher.test.WatcherTestUtils.xContentSource;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.equalTo;
@@ -146,7 +147,7 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTests {
                 .setSize(1)
                 .get();
         assertHitCount(searchResponse, 1);
-        XContentSource source = new XContentSource(searchResponse.getHits().getAt(0).getSourceRef());
+        XContentSource source = xContentSource(searchResponse.getHits().getAt(0).getSourceRef());
         assertThat(source.getValue("result.input.payload.hits.total"), equalTo((Object) 1));
     }
 

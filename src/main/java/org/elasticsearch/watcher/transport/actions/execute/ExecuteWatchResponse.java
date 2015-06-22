@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
 
 import java.io.IOException;
@@ -24,9 +25,9 @@ public class ExecuteWatchResponse extends ActionResponse {
     public ExecuteWatchResponse() {
     }
 
-    public ExecuteWatchResponse(String recordId, BytesReference recordSource) {
+    public ExecuteWatchResponse(String recordId, BytesReference recordSource, XContentType contentType) {
         this.recordId = recordId;
-        this.recordSource = new XContentSource(recordSource);
+        this.recordSource = new XContentSource(recordSource, contentType);
     }
 
     /**

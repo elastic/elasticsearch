@@ -11,15 +11,13 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.joda.time.DateTime;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptService;
@@ -92,6 +90,11 @@ public final class WatcherTestUtils {
     public static final Payload EMPTY_PAYLOAD = new Payload.Simple(ImmutableMap.<String, Object>of());
 
     private WatcherTestUtils() {
+    }
+
+    public static XContentSource xContentSource(BytesReference bytes) {
+        XContent xContent = XContentFactory.xContent(bytes);
+        return new XContentSource(bytes, xContent.type());
     }
 
     public static void assertValue(Map<String, Object> map, String path, Matcher<?> matcher) {

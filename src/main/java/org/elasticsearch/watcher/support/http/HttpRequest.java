@@ -123,10 +123,10 @@ public class HttpRequest implements ToXContent {
             builder.field(Field.BODY.getPreferredName(), body);
         }
         if (connectionTimeout != null) {
-            builder.field(Field.CONNECTION_TIMEOUT.getPreferredName(), connectionTimeout.toString());
+            builder.field(Field.CONNECTION_TIMEOUT.getPreferredName(), connectionTimeout);
         }
         if (readTimeout != null) {
-            builder.field(Field.READ_TIMEOUT.getPreferredName(), readTimeout.toString());
+            builder.field(Field.READ_TIMEOUT.getPreferredName(), readTimeout);
         }
         return builder.endObject();
     }
@@ -206,13 +206,13 @@ public class HttpRequest implements ToXContent {
                     builder.auth(httpAuthRegistry.parse(parser));
                 } else if (Field.CONNECTION_TIMEOUT.match(currentFieldName)) {
                     try {
-                        builder.connectionTimeout(WatcherDateTimeUtils.parseTimeValue(parser, null, Field.CONNECTION_TIMEOUT.toString()));
+                        builder.connectionTimeout(WatcherDateTimeUtils.parseTimeValue(parser, Field.CONNECTION_TIMEOUT.toString()));
                     } catch (WatcherDateTimeUtils.ParseException pe) {
                         throw new ParseException("could not parse http request. invalid time value for [{}] field", pe, currentFieldName);
                     }
                 } else if (Field.READ_TIMEOUT.match(currentFieldName)) {
                     try {
-                        builder.readTimeout(WatcherDateTimeUtils.parseTimeValue(parser, null, Field.READ_TIMEOUT.toString()));
+                        builder.readTimeout(WatcherDateTimeUtils.parseTimeValue(parser, Field.READ_TIMEOUT.toString()));
                     } catch (WatcherDateTimeUtils.ParseException pe) {
                         throw new ParseException("could not parse http request. invalid time value for [{}] field", pe, currentFieldName);
                     }

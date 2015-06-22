@@ -33,7 +33,8 @@
           "dynamic" : true
         },
         "throttle_period": {
-          "type": "long"
+          "type": "string",
+          "index" : "no"
         },
         "transform": {
           "type" : "object",

@@ -109,14 +109,6 @@ public class WatcherDateTimeUtils {
         return builder.field(fieldName, formatDate(date));
     }
 
-    public static void writeDate(StreamOutput out, DateTime date) throws IOException {
-        out.writeLong(date.getMillis());
-    }
-
-    public static DateTime readDate(StreamInput in, DateTimeZone timeZone) throws IOException {
-        return new DateTime(in.readLong(), timeZone);
-    }
-
     public static void writeOptionalDate(StreamOutput out, DateTime date) throws IOException {
         if (date == null) {
             out.writeBoolean(false);
@@ -130,25 +122,14 @@ public class WatcherDateTimeUtils {
         return in.readBoolean() ? new DateTime(in.readLong(), timeZone) : null;
     }
 
-    public static TimeValue parseTimeValue(XContentParser parser, TimeValue defaultValue, String settingName) throws IOException {
-        return parseTimeValue(parser, TimeUnit.MILLISECONDS, defaultValue, settingName);
-    }
-
-    public static TimeValue parseTimeValue(XContentParser parser, TimeUnit defaultTimeUnit, TimeValue defaultValue, String settingName) throws IOException {
-        XContentParser.Token token = parser.currentToken();
+    public static TimeValue parseTimeValue(XContentParser parser, String settingName) throws IOException {
+        final XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_NULL) {
-            return defaultValue;
-        }
-        if (token == XContentParser.Token.VALUE_NUMBER) {
-            long millis = parser.longValue();
-            if (millis < 0) {
-                throw new ParseException("could not parse milli-seconds time value [{}]. Time value cannot be negative.", millis);
-            }
-            return new TimeValue(millis, defaultTimeUnit);
+            return null;
         }
         if (token == XContentParser.Token.VALUE_STRING) {
             try {
-                TimeValue value = TimeValue.parseTimeValue(parser.text(), defaultValue, settingName);
+                TimeValue value = TimeValue.parseTimeValue(parser.text(), null, settingName);
                 if (value.millis() < 0) {
                     throw new ParseException("could not parse time value [{}]. Time value cannot be negative.", parser.text());
                 }
@@ -158,7 +139,7 @@ public class WatcherDateTimeUtils {
             }
 
         }
-        throw new ParseException("could not parse time value. expected either a string or a numeric value but found [{}] instead", token);
+        throw new ParseException("could not parse time value. expected either a string or a null value but found [{}] instead", token);
     }
 
     public static class ParseException extends WatcherException {

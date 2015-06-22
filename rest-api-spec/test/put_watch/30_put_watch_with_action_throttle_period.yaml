@@ -44,4 +44,4 @@
         id: "my_watch1"
   - match: { found : true}
   - match: { _id: "my_watch1" }
-  - match: { watch.actions.test_index.throttle_period: 10000 }
+  - match: { watch.actions.test_index.throttle_period: "10s" }

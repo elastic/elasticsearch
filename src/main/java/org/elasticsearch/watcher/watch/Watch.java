@@ -167,7 +167,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
             if (builder.humanReadable()) {
                 builder.field(Field.THROTTLE_PERIOD.getPreferredName(), throttlePeriod.format(PeriodType.seconds()));
             } else {
-                builder.field(Field.THROTTLE_PERIOD.getPreferredName(), throttlePeriod.getMillis());
+                builder.field(Field.THROTTLE_PERIOD.getPreferredName(), throttlePeriod);
             }
         }
         builder.field(Field.ACTIONS.getPreferredName(), actions, params);
@@ -292,7 +292,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                     transform = transformRegistry.parse(id, parser);
                 } else if (Field.THROTTLE_PERIOD.match(currentFieldName)) {
                     try {
-                        throttlePeriod = WatcherDateTimeUtils.parseTimeValue(parser, null, Field.THROTTLE_PERIOD.toString());
+                        throttlePeriod = WatcherDateTimeUtils.parseTimeValue(parser, Field.THROTTLE_PERIOD.toString());
                     } catch (WatcherDateTimeUtils.ParseException pe) {
                         throw new ParseException("could not parse watch [{}]. failed to parse time value for field [{}]", pe, id, currentFieldName);
                     }

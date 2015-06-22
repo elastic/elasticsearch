@@ -122,7 +122,7 @@ public class ActionWrapper implements ToXContent {
         builder.startObject();
         TimeValue throttlePeriod = throttler.throttlePeriod();
         if (throttlePeriod != null) {
-            builder.field(Throttler.Field.THROTTLE_PERIOD.getPreferredName(), throttlePeriod.getMillis());
+            builder.field(Throttler.Field.THROTTLE_PERIOD.getPreferredName(), throttlePeriod);
         }
         if (transform != null) {
             builder.startObject(Transform.Field.TRANSFORM.getPreferredName())
@@ -153,7 +153,7 @@ public class ActionWrapper implements ToXContent {
                     transform = transformRegistry.parse(watchId, parser);
                 } else if (Throttler.Field.THROTTLE_PERIOD.match(currentFieldName)) {
                     try {
-                        throttlePeriod = WatcherDateTimeUtils.parseTimeValue(parser, null, Throttler.Field.THROTTLE_PERIOD.toString());
+                        throttlePeriod = WatcherDateTimeUtils.parseTimeValue(parser, Throttler.Field.THROTTLE_PERIOD.toString());
                     } catch (WatcherDateTimeUtils.ParseException pe) {
                         throw new ActionException("could not parse action [{}/{}]. failed to parse field [{}] as time value", pe, watchId, actionId, currentFieldName);
                     }

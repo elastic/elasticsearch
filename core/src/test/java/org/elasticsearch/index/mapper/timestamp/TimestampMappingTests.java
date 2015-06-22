@@ -36,6 +36,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -69,6 +70,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  */
 public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
+    Settings BWC_SETTINGS = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
 
     @Test
     public void testSimpleDisabled() throws Exception {
@@ -87,7 +89,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
     @Test
     public void testEnabled() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_timestamp").field("enabled", "yes").field("store", "yes").endObject()
+                .startObject("_timestamp").field("enabled", "yes").endObject()
                 .endObject().endObject().string();
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         BytesReference source = XContentFactory.jsonBuilder()
@@ -110,19 +112,18 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                     XContentFactory.jsonBuilder().startObject().startObject("type").startObject("_timestamp").endObject().endObject().string())) {
                 DocumentMapper docMapper = createIndex("test", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build()).mapperService().documentMapperParser().parse(mapping);
                 assertThat(docMapper.timestampFieldMapper().enabled(), equalTo(TimestampFieldMapper.Defaults.ENABLED.enabled));
-                assertThat(docMapper.timestampFieldMapper().fieldType().stored(), equalTo(version.onOrAfter(Version.V_2_0_0) ? true : false));
+                assertThat(docMapper.timestampFieldMapper().fieldType().stored(), equalTo(version.onOrAfter(Version.V_2_0_0)));
                 assertThat(docMapper.timestampFieldMapper().fieldType().indexOptions(), equalTo(TimestampFieldMapper.Defaults.FIELD_TYPE.indexOptions()));
                 assertThat(docMapper.timestampFieldMapper().path(), equalTo(TimestampFieldMapper.Defaults.PATH));
                 assertThat(docMapper.timestampFieldMapper().fieldType().dateTimeFormatter().format(), equalTo(TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT));
-                assertThat(docMapper.timestampFieldMapper().fieldType().hasDocValues(), equalTo(false));
+                assertThat(docMapper.timestampFieldMapper().fieldType().hasDocValues(), equalTo(version.onOrAfter(Version.V_2_0_0)));
                 assertAcked(client().admin().indices().prepareDelete("test").execute().get());
             }
         }
     }
 
-
     @Test
-    public void testSetValues() throws Exception {
+    public void testBackcompatSetValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp")
                 .field("enabled", "yes").field("store", "no").field("index", "no")
@@ -130,7 +131,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 .field("doc_values", true)
                 .endObject()
                 .endObject().endObject().string();
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test", BWC_SETTINGS).mapperService().documentMapperParser().parse(mapping);
         assertThat(docMapper.timestampFieldMapper().enabled(), equalTo(true));
         assertThat(docMapper.timestampFieldMapper().fieldType().stored(), equalTo(false));
         assertEquals(IndexOptions.NONE, docMapper.timestampFieldMapper().fieldType().indexOptions());
@@ -142,7 +143,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
     @Test
     public void testThatDisablingDuringMergeIsWorking() throws Exception {
         String enabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_timestamp").field("enabled", true).field("store", "yes").endObject()
+                .startObject("_timestamp").field("enabled", true).endObject()
                 .endObject().endObject().string();
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         DocumentMapper enabledMapper = parser.parse(enabledMapping);
@@ -162,7 +163,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         String enabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp").field("enabled", true).field("store", "yes").field("index", "no").endObject()
                 .endObject().endObject().string();
-        DocumentMapper enabledMapper = createIndex("test").mapperService().documentMapperParser().parse(enabledMapping);
+        DocumentMapper enabledMapper = createIndex("test", BWC_SETTINGS).mapperService().documentMapperParser().parse(enabledMapping);
 
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         enabledMapper.timestampFieldMapper().toXContent(builder, ToXContent.EMPTY_PARAMS).endObject();
@@ -176,7 +177,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
-    public void testPathMissingDefaultValue() throws Exception {
+    public void testBackcompatPathMissingDefaultValue() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp")
                     .field("enabled", "yes")
@@ -190,7 +191,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject();
 
         MetaData metaData = MetaData.builder().build();
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping.string());
+        DocumentMapper docMapper = createIndex("test", BWC_SETTINGS).mapperService().documentMapperParser().parse(mapping.string());
 
         MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
 
@@ -230,7 +231,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
-    public void testPathMissingDefaultToEpochValue() throws Exception {
+    public void testBackcompatPathMissingDefaultToEpochValue() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp")
                     .field("enabled", "yes")
@@ -245,7 +246,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject();
 
         MetaData metaData = MetaData.builder().build();
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping.string());
+        DocumentMapper docMapper = createIndex("test", BWC_SETTINGS).mapperService().documentMapperParser().parse(mapping.string());
 
         MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
 
@@ -281,7 +282,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
-    public void testPathMissingNowDefaultValue() throws Exception {
+    public void testBackcompatPathMissingNowDefaultValue() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp")
                     .field("enabled", "yes")
@@ -296,7 +297,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject();
 
         MetaData metaData = MetaData.builder().build();
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping.string());
+        DocumentMapper docMapper = createIndex("test", BWC_SETTINGS).mapperService().documentMapperParser().parse(mapping.string());
 
         MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
 
@@ -355,7 +356,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
-    public void testPathMissingShouldFail() throws Exception {
+    public void testBackcompatPathMissingShouldFail() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp")
                     .field("enabled", "yes")
@@ -369,7 +370,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject();
 
         MetaData metaData = MetaData.builder().build();
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping.string());
+        DocumentMapper docMapper = createIndex("test", BWC_SETTINGS).mapperService().documentMapperParser().parse(mapping.string());
 
         MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
 
@@ -522,14 +523,10 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
     @Test
     public void testParsingNotDefaultTwiceDoesNotChangeMapping() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_timestamp").field("enabled", true)
-                .field("index", randomBoolean() ? "no" : "analyzed") // default is "not_analyzed" which will be omitted when building the source again
-                .field("doc_values", true)
-                .field("path", "foo")
-                .field("default", "1970-01-01")
-                .startObject("fielddata").field("format", "doc_values").endObject()
-                .endObject()
-                .endObject().endObject().string();
+                .startObject("_timestamp")
+                    .field("enabled", true)
+                    .field("default", "1970-01-01")
+                .endObject().endObject().endObject().string();
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
 
         DocumentMapper docMapper = parser.parse(mapping);
@@ -538,7 +535,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test
-    public void testParsingTwiceDoesNotChangeTokenizeValue() throws Exception {
+    public void testBackcompatParsingTwiceDoesNotChangeTokenizeValue() throws Exception {
         String[] index_options = {"no", "analyzed", "not_analyzed"};
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp").field("enabled", true)
@@ -551,7 +548,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 .startObject("properties")
                 .endObject()
                 .endObject().endObject().string();
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        DocumentMapperParser parser = createIndex("test", BWC_SETTINGS).mapperService().documentMapperParser();
 
         DocumentMapper docMapper = parser.parse(mapping);
         boolean tokenized = docMapper.timestampFieldMapper().fieldType().tokenized();
@@ -603,7 +600,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test
-    public void testMergingConflictsForIndexValues() throws Exception {
+    public void testBackcompatMergingConflictsForIndexValues() throws Exception {
         List<String> indexValues = new ArrayList<>();
         indexValues.add("analyzed");
         indexValues.add("no");
@@ -614,7 +611,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 .field("index", indexValues.remove(randomInt(2)))
                 .endObject()
                 .endObject().endObject().string();
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        DocumentMapperParser parser = createIndex("test", BWC_SETTINGS).mapperService().documentMapperParser();
 
         DocumentMapper docMapper = parser.parse(mapping);
         mapping = XContentFactory.jsonBuilder().startObject()
@@ -656,9 +653,9 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test
-    public void testMergePaths() throws Exception {
+    public void testBackcompatMergePaths() throws Exception {
         String[] possiblePathValues = {"some_path", "anotherPath", null};
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        DocumentMapperParser parser = createIndex("test", BWC_SETTINGS).mapperService().documentMapperParser();
         XContentBuilder mapping1 = XContentFactory.jsonBuilder().startObject()
                 .startObject("type")
                 .startObject("_timestamp");
@@ -691,7 +688,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         }
     }
     
-    public void testDocValuesSerialization() throws Exception {
+    public void testBackcompatDocValuesSerialization() throws Exception {
         // default
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_timestamp")
@@ -737,7 +734,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
     }
     
     void assertDocValuesSerialization(String mapping) throws Exception {
-        DocumentMapperParser parser = createIndex("test_doc_values").mapperService().documentMapperParser();
+        DocumentMapperParser parser = createIndex("test_doc_values", BWC_SETTINGS).mapperService().documentMapperParser();
         DocumentMapper docMapper = parser.parse(mapping);
         boolean docValues = docMapper.timestampFieldMapper().fieldType().hasDocValues();
         docMapper = parser.parse(docMapper.mappingSource().string());
@@ -745,11 +742,11 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         assertAcked(client().admin().indices().prepareDelete("test_doc_values"));
     }
 
-    public void testPath() throws Exception {
+    public void testBackcompatPath() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_timestamp").field("enabled", true).field("path", "custom_timestamp").endObject()
             .endObject().endObject().string();
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test", BWC_SETTINGS).mapperService().documentMapperParser().parse(mapping);
 
         XContentBuilder doc = XContentFactory.jsonBuilder().startObject().field("custom_timestamp", 1).endObject();
         MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
@@ -778,12 +775,12 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
 
     public void testThatEpochCanBeIgnoredWithCustomFormat() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("_timestamp").field("enabled", true).field("format", "yyyyMMddHH").field("path", "custom_timestamp").endObject()
+            .startObject("_timestamp").field("enabled", true).field("format", "yyyyMMddHH").endObject()
             .endObject().endObject().string();
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
-        XContentBuilder doc = XContentFactory.jsonBuilder().startObject().field("custom_timestamp", 2015060210).endObject();
-        IndexRequest request = new IndexRequest("test", "type", "1").source(doc);
+        XContentBuilder doc = XContentFactory.jsonBuilder().startObject().endObject();
+        IndexRequest request = new IndexRequest("test", "type", "1").source(doc).timestamp("2015060210");
         MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
         request.process(MetaData.builder().build(), mappingMetaData, true, "test");
 

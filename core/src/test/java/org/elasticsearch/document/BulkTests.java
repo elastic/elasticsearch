@@ -570,7 +570,8 @@ public class BulkTests extends ElasticsearchIntegrationTest {
                         .endObject()
                     .endObject()
                 .endObject();
-        assertAcked(prepareCreate("test").addMapping("type", builder));
+        assertAcked(prepareCreate("test").addMapping("type", builder)
+            .setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2_ID));
 
         String brokenBuildRequestData = "{\"index\": {\"_id\": \"1\"}}\n" +
                 "{\"name\": \"Malformed}\n" +

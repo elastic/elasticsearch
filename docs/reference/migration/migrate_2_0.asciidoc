@@ -295,6 +295,7 @@ to provide special features.  They now have limited configuration options.
 * `_boost` has been removed.
 * `_field_names` configuration is limited to disabling the field.
 * `_size` configuration is limited to enabling the field.
+* `_timestamp` configuration is limited to enabling the field, setting format and default value
 
 ==== Meta fields in documents
 Meta fields can no longer be specified within a document. They should be specified

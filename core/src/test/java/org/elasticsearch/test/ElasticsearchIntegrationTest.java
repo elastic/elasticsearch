@@ -373,12 +373,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             if (frequently() && randomDynamicTemplates()) {
                 mappings = XContentFactory.jsonBuilder().startObject().startObject("_default_");
                 if (randomBoolean()) {
-                    boolean timestampEnabled = randomBoolean();
                     mappings.startObject(TimestampFieldMapper.NAME)
-                            .field("enabled", timestampEnabled);
-                    if (timestampEnabled) {
-                        mappings.field("doc_values", randomBoolean());
-                    }
+                            .field("enabled", randomBoolean());
                     mappings.endObject();
                 }
                 if (randomBoolean()) {

@@ -31,6 +31,10 @@ import org.elasticsearch.index.query.QueryBuilder;
 
 import java.util.Map;
 
+/**
+ * Creates a new {@link DeleteByQueryRequestBuilder}
+ * @see DeleteByQueryRequest
+ */
 public class DeleteByQueryRequestBuilder extends ActionRequestBuilder<DeleteByQueryRequest, DeleteByQueryResponse, DeleteByQueryRequestBuilder> {
 
     private QuerySourceBuilder sourceBuilder;

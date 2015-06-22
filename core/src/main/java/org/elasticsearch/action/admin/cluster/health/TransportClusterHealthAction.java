@@ -25,9 +25,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -170,12 +167,14 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
     }
 
     private boolean validateRequest(final ClusterHealthRequest request, ClusterState clusterState, final int waitFor) {
-        ClusterHealthResponse response = clusterHealth(request, clusterState, clusterService.numberOfPendingTasks(), gatewayAllocator.getNumberOfInFlightFetch());
+        ClusterHealthResponse response = clusterHealth(request, clusterState, clusterService.numberOfPendingTasks(),
+                gatewayAllocator.getNumberOfInFlightFetch(), clusterService.getMaxTaskWaitTime());
         return prepareResponse(request, response, clusterState, waitFor);
     }
 
     private ClusterHealthResponse getResponse(final ClusterHealthRequest request, ClusterState clusterState, final int waitFor, boolean timedOut) {
-        ClusterHealthResponse response = clusterHealth(request, clusterState, clusterService.numberOfPendingTasks(), gatewayAllocator.getNumberOfInFlightFetch());
+        ClusterHealthResponse response = clusterHealth(request, clusterState, clusterService.numberOfPendingTasks(),
+                gatewayAllocator.getNumberOfInFlightFetch(), clusterService.getMaxTaskWaitTime());
         boolean valid = prepareResponse(request, response, clusterState, waitFor);
         assert valid || timedOut;
         // we check for a timeout here since this method might be called from the wait_for_events
@@ -259,20 +258,25 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
     }
 
 
-    private ClusterHealthResponse clusterHealth(ClusterHealthRequest request, ClusterState clusterState, int numberOfPendingTasks, int numberOfInFlightFetch) {
+    private ClusterHealthResponse clusterHealth(ClusterHealthRequest request, ClusterState clusterState, int numberOfPendingTasks, int numberOfInFlightFetch,
+                                                TimeValue pendingTaskTimeInQueue) {
         if (logger.isTraceEnabled()) {
             logger.trace("Calculating health based on state version [{}]", clusterState.version());
         }
+
         String[] concreteIndices;
         try {
             concreteIndices = clusterState.metaData().concreteIndices(request.indicesOptions(), request.indices());
         } catch (IndexMissingException e) {
             // one of the specified indices is not there - treat it as RED.
-            ClusterHealthResponse response = new ClusterHealthResponse(clusterName.value(), Strings.EMPTY_ARRAY, clusterState, numberOfPendingTasks, numberOfInFlightFetch, UnassignedInfo.getNumberOfDelayedUnassigned(settings, clusterState));
+            ClusterHealthResponse response = new ClusterHealthResponse(clusterName.value(), Strings.EMPTY_ARRAY, clusterState,
+                    numberOfPendingTasks, numberOfInFlightFetch, UnassignedInfo.getNumberOfDelayedUnassigned(settings, clusterState),
+                    pendingTaskTimeInQueue);
             response.status = ClusterHealthStatus.RED;
             return response;
         }
 
-        return new ClusterHealthResponse(clusterName.value(), concreteIndices, clusterState, numberOfPendingTasks, numberOfInFlightFetch, UnassignedInfo.getNumberOfDelayedUnassigned(settings, clusterState));
+        return new ClusterHealthResponse(clusterName.value(), concreteIndices, clusterState, numberOfPendingTasks,
+                numberOfInFlightFetch, UnassignedInfo.getNumberOfDelayedUnassigned(settings, clusterState), pendingTaskTimeInQueue);
     }
 }

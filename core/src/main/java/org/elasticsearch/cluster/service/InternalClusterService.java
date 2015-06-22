@@ -243,7 +243,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         }
         // call the post added notification on the same event thread
         try {
-            updateTasksExecutor.execute(new TimedPrioritizedRunnable(Priority.HIGH, "_add_listener_") {
+            updateTasksExecutor.execute(new PrioritizedRunnable(Priority.HIGH) {
                 @Override
                 public void run() {
                     if (timeout != null) {
@@ -312,10 +312,10 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             final Object task = pending.task;
             if (task == null) {
                 continue;
-            } else if (task instanceof TimedPrioritizedRunnable) {
-                TimedPrioritizedRunnable runnable = (TimedPrioritizedRunnable) task;
+            } else if (task instanceof UpdateTask) {
+                UpdateTask runnable = (UpdateTask) task;
                 source = runnable.source();
-                timeInQueue = runnable.timeSinceCreatedInMillis();
+                timeInQueue = runnable.getAgeInMillis();
             } else {
                 assert false : "expected TimedPrioritizedRunnable got " + task.getClass();
                 source = "unknown [" + task.getClass() + "]";
@@ -332,36 +332,25 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         return updateTasksExecutor.getNumberOfPendingTasks();
     }
 
+    @Override
+    public TimeValue getMaxTaskWaitTime() {
+        return updateTasksExecutor.getMaxTaskWaitTime();
+    }
 
-    static abstract class TimedPrioritizedRunnable extends PrioritizedRunnable {
-        private final long creationTimeNS;
+    class UpdateTask extends PrioritizedRunnable {
+
+        public final ClusterStateUpdateTask updateTask;
         protected final String source;
 
-        protected TimedPrioritizedRunnable(Priority priority, String source) {
-            super(priority);
-            this.source = source;
-            this.creationTimeNS = System.nanoTime();
-        }
 
-        public long timeSinceCreatedInMillis() {
-            // max with 0 to make sure we always return a non negative number
-            // even if time shifts.
-            return Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - creationTimeNS));
+        UpdateTask(String source, Priority priority, ClusterStateUpdateTask updateTask) {
+            super(priority);
+            this.updateTask = updateTask;
+            this.source = source;
         }
 
         public String source() {
             return source;
-        }
-    }
-
-    class UpdateTask extends TimedPrioritizedRunnable {
-
-        public final ClusterStateUpdateTask updateTask;
-
-
-        UpdateTask(String source, Priority priority, ClusterStateUpdateTask updateTask) {
-            super(priority, source);
-            this.updateTask = updateTask;
         }
 
         @Override

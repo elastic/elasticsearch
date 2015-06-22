@@ -392,82 +392,22 @@ public abstract class AbstractFieldMapper implements FieldMapper {
             return;
         }
         AbstractFieldMapper fieldMergeWith = (AbstractFieldMapper) mergeWith;
-        boolean indexed =  fieldType().indexOptions() != IndexOptions.NONE;
-        boolean mergeWithIndexed = fieldMergeWith.fieldType().indexOptions() != IndexOptions.NONE;
-        if (indexed != mergeWithIndexed || this.fieldType().tokenized() != fieldMergeWith.fieldType().tokenized()) {
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different index values");
-        }
-        if (this.fieldType().stored() != fieldMergeWith.fieldType().stored()) {
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different store values");
-        }
-        if (!this.fieldType().hasDocValues() && fieldMergeWith.fieldType().hasDocValues()) {
-            // don't add conflict if this mapper has doc values while the mapper to merge doesn't since doc values are implicitely set
-            // when the doc_values field data format is configured
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different " + TypeParsers.DOC_VALUES + " values");
-        }
-        if (this.fieldType().omitNorms() && !fieldMergeWith.fieldType().omitNorms()) {
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] cannot enable norms (`norms.enabled`)");
-        }
-        if (this.fieldType().tokenized() != fieldMergeWith.fieldType().tokenized()) {
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different tokenize values");
-        }
-        if (this.fieldType().storeTermVectors() != fieldMergeWith.fieldType().storeTermVectors()) {
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different store_term_vector values");
-        }
-        if (this.fieldType().storeTermVectorOffsets() != fieldMergeWith.fieldType().storeTermVectorOffsets()) {
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different store_term_vector_offsets values");
-        }
-        if (this.fieldType().storeTermVectorPositions() != fieldMergeWith.fieldType().storeTermVectorPositions()) {
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different store_term_vector_positions values");
-        }
-        if (this.fieldType().storeTermVectorPayloads() != fieldMergeWith.fieldType().storeTermVectorPayloads()) {
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different store_term_vector_payloads values");
-        }
-        
-        // null and "default"-named index analyzers both mean the default is used
-        if (this.fieldType().indexAnalyzer() == null || "default".equals(this.fieldType().indexAnalyzer().name())) {
-            if (fieldMergeWith.fieldType().indexAnalyzer() != null && "default".equals(fieldMergeWith.fieldType().indexAnalyzer().name()) == false) {
-                mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different analyzer");
-            }
-        } else if (fieldMergeWith.fieldType().indexAnalyzer() == null || "default".equals(fieldMergeWith.fieldType().indexAnalyzer().name())) {
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different analyzer");
-        } else if (this.fieldType().indexAnalyzer().name().equals(fieldMergeWith.fieldType().indexAnalyzer().name()) == false) {
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different analyzer");
-        }
-        
-        if (!this.fieldType().names().equals(fieldMergeWith.fieldType().names())) {
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different index_name");
-        }
-
-        if (this.fieldType().similarity() == null) {
-            if (fieldMergeWith.fieldType().similarity() != null) {
-                mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different similarity");
-            }
-        } else if (fieldMergeWith.fieldType().similarity() == null) {
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different similarity");
-        } else if (!this.fieldType().similarity().equals(fieldMergeWith.fieldType().similarity())) {
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different similarity");
+        List<String> subConflicts = new ArrayList<>(); // TODO: just expose list from MergeResult?
+        fieldType().checkCompatibility(fieldMergeWith.fieldType(), subConflicts);
+        for (String conflict : subConflicts) {
+            mergeResult.addConflict(conflict);
         }
         multiFields.merge(mergeWith, mergeResult);
 
-        if (!mergeResult.simulate()) {
+        if (mergeResult.simulate() == false && mergeResult.hasConflicts() == false) {
             // apply changeable values
-            this.fieldType = this.fieldType().clone();
-            this.fieldType().setOmitNorms(fieldMergeWith.fieldType().omitNorms());
-            this.fieldType().setBoost(fieldMergeWith.fieldType().boost());
-            this.fieldType().setNormsLoading(fieldMergeWith.fieldType().normsLoading());
-            if (fieldMergeWith.fieldType().searchAnalyzer() != null) {
-                this.fieldType().setSearchAnalyzer(fieldMergeWith.fieldType().searchAnalyzer());
-            }
+            this.fieldType = fieldMergeWith.fieldType().clone();
+            this.fieldType().freeze();
             if (fieldMergeWith.customFieldDataSettings != null) {
                 if (!Objects.equal(fieldMergeWith.customFieldDataSettings, this.customFieldDataSettings)) {
                     this.customFieldDataSettings = fieldMergeWith.customFieldDataSettings;
-                    this.fieldType().setFieldDataType(new FieldDataType(defaultFieldDataType().getType(),
-                        Settings.builder().put(defaultFieldDataType().getSettings()).put(this.customFieldDataSettings)
-                    ));
                 }
             }
-            this.fieldType().freeze();
             this.copyTo = fieldMergeWith.copyTo;
         }
     }

@@ -41,8 +41,6 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
@@ -246,6 +244,30 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper {
             termStrategy.setDistErrPct(distanceErrorPct());
             defaultStrategy = resolveStrategy(strategyName);
         }
+        
+        @Override
+        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts) {
+            super.checkCompatibility(fieldType, conflicts);
+            GeoShapeFieldType other = (GeoShapeFieldType)fieldType;
+            // prevent user from changing strategies
+            if (strategyName().equals(other.strategyName()) == false) {
+                conflicts.add("mapper [" + names().fullName() + "] has different strategy");
+            }
+
+            // prevent user from changing trees (changes encoding)
+            if (tree().equals(other.tree()) == false) {
+                conflicts.add("mapper [" + names().fullName() + "] has different tree");
+            }
+
+            // TODO we should allow this, but at the moment levels is used to build bookkeeping variables
+            // in lucene's SpatialPrefixTree implementations, need a patch to correct that first
+            if (treeLevels() != other.treeLevels()) {
+                conflicts.add("mapper [" + names().fullName() + "] has different tree_levels");
+            }
+            if (precisionInMeters() != other.precisionInMeters()) {
+                conflicts.add("mapper [" + names().fullName() + "] has different precision");
+            }
+        }
 
         private static int getLevels(int treeLevels, double precisionInMeters, int defaultLevels, boolean geoHash) {
             if (treeLevels > 0 || precisionInMeters >= 0) {
@@ -377,48 +399,6 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper {
             throw new MapperParsingException("failed to parse [" + fieldType().names().fullName() + "]", e);
         }
         return null;
-    }
-
-    @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
-        super.merge(mergeWith, mergeResult);
-        if (!this.getClass().equals(mergeWith.getClass())) {
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different field type");
-            return;
-        }
-        final GeoShapeFieldMapper fieldMergeWith = (GeoShapeFieldMapper) mergeWith;
-
-        // prevent user from changing strategies
-        if (fieldType().strategyName().equals(fieldMergeWith.fieldType().strategyName()) == false) {
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different strategy");
-        }
-
-        // prevent user from changing trees (changes encoding)
-        if (fieldType().tree().equals(fieldMergeWith.fieldType().tree()) == false) {
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different tree");
-        }
-
-        // TODO we should allow this, but at the moment levels is used to build bookkeeping variables
-        // in lucene's SpatialPrefixTree implementations, need a patch to correct that first
-        if (fieldType().treeLevels() != fieldMergeWith.fieldType().treeLevels()) {
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different tree_levels");
-        }
-        if (fieldType().precisionInMeters() != fieldMergeWith.fieldType().precisionInMeters()) {
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different precision");
-        }
-
-        // bail if there were merge conflicts
-        if (mergeResult.hasConflicts() || mergeResult.simulate()) {
-            return;
-        }
-
-        // change distance error percent
-        this.fieldType = fieldType().clone();
-        this.fieldType().setDistanceErrorPct(fieldMergeWith.fieldType().distanceErrorPct());
-        // change orientation - this is allowed because existing dateline spanning shapes
-        // have already been unwound and segmented
-        this.fieldType().setOrientation(fieldMergeWith.fieldType().orientation());
-        fieldType().freeze();
     }
 
     @Override

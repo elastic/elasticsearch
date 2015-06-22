@@ -242,6 +242,24 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
             return new CompletionFieldType(this);
         }
 
+        @Override
+        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts) {
+            super.checkCompatibility(fieldType, conflicts);
+            CompletionFieldType other = (CompletionFieldType)fieldType;
+            if (analyzingSuggestLookupProvider.hasPayloads() != other.analyzingSuggestLookupProvider.hasPayloads()) {
+                conflicts.add("mapper [" + names().fullName() + "] has different payload values");
+            }
+            if (analyzingSuggestLookupProvider.getPreservePositionsIncrements() != other.analyzingSuggestLookupProvider.getPreservePositionsIncrements()) {
+                conflicts.add("mapper [" + names().fullName() + "] has different 'preserve_position_increments' values");
+            }
+            if (analyzingSuggestLookupProvider.getPreserveSep() != other.analyzingSuggestLookupProvider.getPreserveSep()) {
+                conflicts.add("mapper [" + names().fullName() + "] has different 'preserve_separators' values");
+            }
+            if(!ContextMapping.mappingsAreEqual(getContextMapping(), other.getContextMapping())) {
+                conflicts.add("mapper [" + names().fullName() + "] has different 'context_mapping' values");
+            }
+        }
+
         public void setProvider(AnalyzingCompletionLookupProvider provider) {
             checkIfFrozen();
             this.analyzingSuggestLookupProvider = provider;
@@ -535,18 +553,6 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
     public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
         super.merge(mergeWith, mergeResult);
         CompletionFieldMapper fieldMergeWith = (CompletionFieldMapper) mergeWith;
-        if (fieldType().analyzingSuggestLookupProvider.hasPayloads() != fieldMergeWith.fieldType().analyzingSuggestLookupProvider.hasPayloads()) {
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different payload values");
-        }
-        if (fieldType().analyzingSuggestLookupProvider.getPreservePositionsIncrements() != fieldMergeWith.fieldType().analyzingSuggestLookupProvider.getPreservePositionsIncrements()) {
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different 'preserve_position_increments' values");
-        }
-        if (fieldType().analyzingSuggestLookupProvider.getPreserveSep() != fieldMergeWith.fieldType().analyzingSuggestLookupProvider.getPreserveSep()) {
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different 'preserve_separators' values");
-        }
-        if(!ContextMapping.mappingsAreEqual(fieldType().getContextMapping(), fieldMergeWith.fieldType().getContextMapping())) {
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different 'context_mapping' values");
-        }
         if (!mergeResult.simulate()) {
             this.maxInputLength = fieldMergeWith.maxInputLength;
         }

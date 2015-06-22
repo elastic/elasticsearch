@@ -194,7 +194,7 @@ public class ByteFieldMapper extends NumberFieldMapper {
 
     @Override
     public ByteFieldType fieldType() {
-        return (ByteFieldType)fieldType;
+        return (ByteFieldType) super.fieldType();
     }
 
     @Override
@@ -225,7 +225,7 @@ public class ByteFieldMapper extends NumberFieldMapper {
     @Override
     protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
         byte value;
-        float boost = this.fieldType.boost();
+        float boost = fieldType().boost();
         if (context.externalValueSet()) {
             Object externalValue = context.externalValue();
             if (externalValue == null) {
@@ -247,7 +247,7 @@ public class ByteFieldMapper extends NumberFieldMapper {
                 value = ((Number) externalValue).byteValue();
             }
             if (context.includeInAll(includeInAll, this)) {
-                context.allEntries().addText(fieldType.names().fullName(), Byte.toString(value), boost);
+                context.allEntries().addText(fieldType().names().fullName(), Byte.toString(value), boost);
             }
         } else {
             XContentParser parser = context.parser();
@@ -258,7 +258,7 @@ public class ByteFieldMapper extends NumberFieldMapper {
                 }
                 value = fieldType().nullValue();
                 if (fieldType().nullValueAsString() != null && (context.includeInAll(includeInAll, this))) {
-                    context.allEntries().addText(fieldType.names().fullName(), fieldType().nullValueAsString(), boost);
+                    context.allEntries().addText(fieldType().names().fullName(), fieldType().nullValueAsString(), boost);
                 }
             } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                 XContentParser.Token token;
@@ -287,12 +287,12 @@ public class ByteFieldMapper extends NumberFieldMapper {
             } else {
                 value = (byte) parser.shortValue(coerce.value());
                 if (context.includeInAll(includeInAll, this)) {
-                    context.allEntries().addText(fieldType.names().fullName(), parser.text(), boost);
+                    context.allEntries().addText(fieldType().names().fullName(), parser.text(), boost);
                 }
             }
         }
-        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            CustomByteNumericField field = new CustomByteNumericField(this, value, fieldType);
+        if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
+            CustomByteNumericField field = new CustomByteNumericField(this, value, fieldType());
             field.setBoost(boost);
             fields.add(field);
         }
@@ -307,24 +307,11 @@ public class ByteFieldMapper extends NumberFieldMapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
-        super.merge(mergeWith, mergeResult);
-        if (!this.getClass().equals(mergeWith.getClass())) {
-            return;
-        }
-        if (!mergeResult.simulate()) {
-            this.fieldType = this.fieldType.clone();
-            this.fieldType.setNullValue(((ByteFieldMapper) mergeWith).fieldType().nullValue());
-            this.fieldType.freeze();
-        }
-    }
-
-    @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (includeDefaults || fieldType.numericPrecisionStep() != Defaults.PRECISION_STEP_8_BIT) {
-            builder.field("precision_step", fieldType.numericPrecisionStep());
+        if (includeDefaults || fieldType().numericPrecisionStep() != Defaults.PRECISION_STEP_8_BIT) {
+            builder.field("precision_step", fieldType().numericPrecisionStep());
         }
         if (includeDefaults || fieldType().nullValue() != null) {
             builder.field("null_value", fieldType().nullValue());

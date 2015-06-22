@@ -395,7 +395,7 @@ public class DateFieldMapper extends NumberFieldMapper {
 
     @Override
     public DateFieldType fieldType() {
-        return (DateFieldType)fieldType;
+        return (DateFieldType) super.fieldType();
     }
 
     @Override
@@ -428,18 +428,18 @@ public class DateFieldMapper extends NumberFieldMapper {
     @Override
     protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
         String dateAsString = null;
-        float boost = this.fieldType.boost();
+        float boost = fieldType().boost();
         if (context.externalValueSet()) {
             Object externalValue = context.externalValue();
             dateAsString = (String) externalValue;
             if (dateAsString == null) {
-                dateAsString = fieldType.nullValueAsString();
+                dateAsString = fieldType().nullValueAsString();
             }
         } else {
             XContentParser parser = context.parser();
             XContentParser.Token token = parser.currentToken();
             if (token == XContentParser.Token.VALUE_NULL) {
-                dateAsString = fieldType.nullValueAsString();
+                dateAsString = fieldType().nullValueAsString();
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                 dateAsString = parser.text();
             } else if (token == XContentParser.Token.START_OBJECT) {
@@ -450,7 +450,7 @@ public class DateFieldMapper extends NumberFieldMapper {
                     } else {
                         if ("value".equals(currentFieldName) || "_value".equals(currentFieldName)) {
                             if (token == XContentParser.Token.VALUE_NULL) {
-                                dateAsString = fieldType.nullValueAsString();
+                                dateAsString = fieldType().nullValueAsString();
                             } else {
                                 dateAsString = parser.text();
                             }
@@ -469,14 +469,14 @@ public class DateFieldMapper extends NumberFieldMapper {
         Long value = null;
         if (dateAsString != null) {
             if (context.includeInAll(includeInAll, this)) {
-                context.allEntries().addText(fieldType.names().fullName(), dateAsString, boost);
+                context.allEntries().addText(fieldType().names().fullName(), dateAsString, boost);
             }
             value = fieldType().parseStringValue(dateAsString);
         }
 
         if (value != null) {
-            if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-                CustomLongNumericField field = new CustomLongNumericField(this, value, (NumberFieldType)fieldType);
+            if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
+                CustomLongNumericField field = new CustomLongNumericField(this, value, fieldType());
                 field.setBoost(boost);
                 fields.add(field);
             }
@@ -492,29 +492,15 @@ public class DateFieldMapper extends NumberFieldMapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
-        super.merge(mergeWith, mergeResult);
-        if (!this.getClass().equals(mergeWith.getClass())) {
-            return;
-        }
-        if (!mergeResult.simulate()) {
-            this.fieldType = this.fieldType.clone();
-            fieldType().setDateTimeFormatter(((DateFieldMapper) mergeWith).fieldType().dateTimeFormatter());
-            this.fieldType.setNullValue(((DateFieldMapper) mergeWith).fieldType().nullValue());
-            this.fieldType.freeze();
-        }
-    }
-
-    @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (includeDefaults || fieldType.numericPrecisionStep() != Defaults.PRECISION_STEP_64_BIT) {
-            builder.field("precision_step", fieldType.numericPrecisionStep());
+        if (includeDefaults || fieldType().numericPrecisionStep() != Defaults.PRECISION_STEP_64_BIT) {
+            builder.field("precision_step", fieldType().numericPrecisionStep());
         }
         builder.field("format", fieldType().dateTimeFormatter().format());
-        if (includeDefaults || fieldType.nullValueAsString() != null) {
-            builder.field("null_value", fieldType.nullValueAsString());
+        if (includeDefaults || fieldType().nullValueAsString() != null) {
+            builder.field("null_value", fieldType().nullValueAsString());
         }
         if (includeInAll != null) {
             builder.field("include_in_all", includeInAll);

@@ -316,18 +316,6 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper implements RootMa
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
-        FieldNamesFieldMapper fieldNamesMapperMergeWith = (FieldNamesFieldMapper)mergeWith;
-        if (!mergeResult.simulate()) {
-            if (fieldNamesMapperMergeWith.fieldType().isEnabled() != fieldType().isEnabled()) {
-                this.fieldType = fieldType().clone();
-                fieldType().setEnabled(fieldNamesMapperMergeWith.fieldType().isEnabled());
-                fieldType().freeze();
-            }
-        }
-    }
-
-    @Override
     public boolean isGenerated() {
         return true;
     }

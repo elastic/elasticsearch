@@ -240,20 +240,6 @@ public class BooleanFieldMapper extends AbstractFieldMapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
-        super.merge(mergeWith, mergeResult);
-        if (!this.getClass().equals(mergeWith.getClass())) {
-            return;
-        }
-
-        if (!mergeResult.simulate()) {
-            this.fieldType = fieldType().clone();
-            fieldType().setNullValue(((BooleanFieldMapper) mergeWith).fieldType().nullValue());
-            fieldType().freeze();
-        }
-    }
-
-    @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }

@@ -27,6 +27,7 @@ import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
@@ -125,26 +126,24 @@ public abstract class MovAvgModel {
          *
          * @param settings      Map of settings, extracted from the request
          * @param pipelineName   Name of the parent pipeline agg
-         * @param context       The parser context that we are in
          * @param windowSize    Size of the window for this moving avg
          * @return              A fully built moving average model
          */
-        public abstract MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName, SearchContext context, int windowSize);
+        public abstract MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName, int windowSize) throws ParseException;
 
 
         /**
          * Extracts a 0-1 inclusive double from the settings map, otherwise throws an exception
          *
-         * @param context       Search query context
          * @param settings      Map of settings provided to this model
          * @param name          Name of parameter we are attempting to extract
          * @param defaultValue  Default value to be used if value does not exist in map
          *
-         * @throws SearchParseException
+         * @throws ParseException
          *
          * @return Double value extracted from settings map
          */
-        protected double parseDoubleParam(SearchContext context, @Nullable Map<String, Object> settings, String name, double defaultValue) {
+        protected double parseDoubleParam(@Nullable Map<String, Object> settings, String name, double defaultValue) throws ParseException {
             if (settings == null) {
                 return defaultValue;
             }
@@ -152,33 +151,32 @@ public abstract class MovAvgModel {
             Object value = settings.get(name);
             if (value == null) {
                 return defaultValue;
-            } else if (value instanceof Double) {
-                double v = (Double)value;
+            } else if (value instanceof Number) {
+                double v = ((Number) value).doubleValue();
                 if (v >= 0 && v <= 1) {
                     return v;
                 }
 
-                throw new SearchParseException(context, "Parameter [" + name + "] must be between 0-1 inclusive.  Provided"
-                        + "value was [" + v + "]", null);
+                throw new ParseException("Parameter [" + name + "] must be between 0-1 inclusive.  Provided"
+                        + "value was [" + v + "]", 0);
             }
 
-            throw new SearchParseException(context, "Parameter [" + name + "] must be a double, type `"
-                    + value.getClass().getSimpleName() + "` provided instead", null);
+            throw new ParseException("Parameter [" + name + "] must be a double, type `"
+                    + value.getClass().getSimpleName() + "` provided instead", 0);
         }
 
         /**
          * Extracts an integer from the settings map, otherwise throws an exception
          *
-         * @param context       Search query context
          * @param settings      Map of settings provided to this model
          * @param name          Name of parameter we are attempting to extract
          * @param defaultValue  Default value to be used if value does not exist in map
          *
-         * @throws SearchParseException
+         * @throws ParseException
          *
          * @return Integer value extracted from settings map
          */
-        protected int parseIntegerParam(SearchContext context, @Nullable Map<String, Object> settings, String name, int defaultValue) {
+        protected int parseIntegerParam(@Nullable Map<String, Object> settings, String name, int defaultValue) throws ParseException {
             if (settings == null) {
                 return defaultValue;
             }
@@ -186,18 +184,17 @@ public abstract class MovAvgModel {
             Object value = settings.get(name);
             if (value == null) {
                 return defaultValue;
-            } else if (value instanceof Integer) {
-                return (Integer)value;
+            } else if (value instanceof Number) {
+                return ((Number) value).intValue();
             }
 
-            throw new SearchParseException(context, "Parameter [" + name + "] must be an integer, type `"
-                    + value.getClass().getSimpleName() + "` provided instead", null);
+            throw new ParseException("Parameter [" + name + "] must be an integer, type `"
+                    + value.getClass().getSimpleName() + "` provided instead", 0);
         }
 
         /**
          * Extracts a boolean from the settings map, otherwise throws an exception
          *
-         * @param context       Search query context
          * @param settings      Map of settings provided to this model
          * @param name          Name of parameter we are attempting to extract
          * @param defaultValue  Default value to be used if value does not exist in map
@@ -206,7 +203,7 @@ public abstract class MovAvgModel {
          *
          * @return Boolean value extracted from settings map
          */
-        protected boolean parseBoolParam(SearchContext context, @Nullable Map<String, Object> settings, String name, boolean defaultValue) {
+        protected boolean parseBoolParam(@Nullable Map<String, Object> settings, String name, boolean defaultValue) throws ParseException {
             if (settings == null) {
                 return defaultValue;
             }
@@ -218,8 +215,8 @@ public abstract class MovAvgModel {
                 return (Boolean)value;
             }
 
-            throw new SearchParseException(context, "Parameter [" + name + "] must be a boolean, type `"
-                    + value.getClass().getSimpleName() + "` provided instead", null);
+            throw new ParseException("Parameter [" + name + "] must be a boolean, type `"
+                    + value.getClass().getSimpleName() + "` provided instead", 0);
         }
     }
 

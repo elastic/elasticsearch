@@ -346,16 +346,14 @@ public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper
 
         if (!mergeResult.simulate()) {
             ParentFieldMapper fieldMergeWith = (ParentFieldMapper) mergeWith;
-            this.fieldType = this.fieldType().clone();
+            this.fieldType = fieldMergeWith.fieldType().clone();
+            this.fieldType().freeze();
+
             if (fieldMergeWith.customFieldDataSettings != null) {
                 if (!Objects.equal(fieldMergeWith.customFieldDataSettings, this.customFieldDataSettings)) {
                     this.customFieldDataSettings = fieldMergeWith.customFieldDataSettings;
-                    this.fieldType().setFieldDataType(new FieldDataType(defaultFieldDataType().getType(),
-                        builder().put(defaultFieldDataType().getSettings()).put(this.customFieldDataSettings)
-                    ));
                 }
             }
-            this.fieldType().freeze();
         }
     }
 

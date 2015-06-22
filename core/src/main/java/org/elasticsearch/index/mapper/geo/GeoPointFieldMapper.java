@@ -44,8 +44,6 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
@@ -329,6 +327,40 @@ public class GeoPointFieldMapper extends AbstractFieldMapper implements ArrayVal
         @Override
         public int hashCode() {
             return java.util.Objects.hash(super.hashCode(), geohashFieldType, geohashPrecision, geohashPrefixEnabled, latFieldType, lonFieldType, validateLon, validateLat, normalizeLon, normalizeLat);
+        }
+        
+        @Override
+        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts) {
+            super.checkCompatibility(fieldType, conflicts);
+            GeoPointFieldType other = (GeoPointFieldType)fieldType;
+            if (isLatLonEnabled() != other.isLatLonEnabled()) {
+                conflicts.add("mapper [" + names().fullName() + "] has different lat_lon");
+            }
+            if (isGeohashEnabled() != other.isGeohashEnabled()) {
+                conflicts.add("mapper [" + names().fullName() + "] has different geohash");
+            }
+            if (geohashPrecision() != other.geohashPrecision()) {
+                conflicts.add("mapper [" + names().fullName() + "] has different geohash_precision");
+            }
+            if (isGeohashPrefixEnabled() != other.isGeohashPrefixEnabled()) {
+                conflicts.add("mapper [" + names().fullName() + "] has different geohash_prefix");
+            }
+            if (normalizeLat() != other.normalizeLat()) {
+                conflicts.add("mapper [" + names().fullName() + "] has different normalize_lat");
+            }
+            if (normalizeLon() != other.normalizeLon()) {
+                conflicts.add("mapper [" + names().fullName() + "] has different normalize_lon");
+            }
+            if (isLatLonEnabled() &&
+                latFieldType().numericPrecisionStep() != other.latFieldType().numericPrecisionStep()) {
+                conflicts.add("mapper [" + names().fullName() + "] has different precision_step");
+            }
+            if (validateLat() != other.validateLat()) {
+                conflicts.add("mapper [" + names().fullName() + "] has different validate_lat");
+            }
+            if (validateLon() != other.validateLon()) {
+                conflicts.add("mapper [" + names().fullName() + "] has different validate_lon");
+            }
         }
 
         public boolean isGeohashEnabled() {
@@ -715,44 +747,6 @@ public class GeoPointFieldMapper extends AbstractFieldMapper implements ArrayVal
         }
         if (geohashMapper != null) {
             geohashMapper.close();
-        }
-    }
-
-    @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
-        super.merge(mergeWith, mergeResult);
-        if (!this.getClass().equals(mergeWith.getClass())) {
-            return;
-        }
-        GeoPointFieldMapper fieldMergeWith = (GeoPointFieldMapper) mergeWith;
-
-        if (this.fieldType().isLatLonEnabled() != fieldMergeWith.fieldType().isLatLonEnabled()) {
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different lat_lon");
-        }
-        if (this.fieldType().isGeohashEnabled() != fieldMergeWith.fieldType().isGeohashEnabled()) {
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different geohash");
-        }
-        if (this.fieldType().geohashPrecision() != fieldMergeWith.fieldType().geohashPrecision()) {
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different geohash_precision");
-        }
-        if (this.fieldType().isGeohashPrefixEnabled() != fieldMergeWith.fieldType().isGeohashPrefixEnabled()) {
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different geohash_prefix");
-        }
-        if (this.fieldType().normalizeLat() != fieldMergeWith.fieldType().normalizeLat()) {
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different normalize_lat");
-        }
-        if (this.fieldType().normalizeLon() != fieldMergeWith.fieldType().normalizeLon()) {
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different normalize_lon");
-        }
-        if (fieldType().isLatLonEnabled() &&
-            this.fieldType().latFieldType().numericPrecisionStep() != fieldMergeWith.fieldType().latFieldType().numericPrecisionStep()) {
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different precision_step");
-        }
-        if (this.fieldType().validateLat() != fieldMergeWith.fieldType().validateLat()) {
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different validate_lat");
-        }
-        if (this.fieldType().validateLon() != fieldMergeWith.fieldType().validateLon()) {
-            mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different validate_lon");
         }
     }
 

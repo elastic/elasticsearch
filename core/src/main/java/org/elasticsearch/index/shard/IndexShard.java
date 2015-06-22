@@ -1272,10 +1272,10 @@ public class IndexShard extends AbstractIndexShardComponent {
         @Override
         public void onFailedEngine(ShardId shardId, String reason, @Nullable Throwable failure) {
             try {
-                // delete the shard state so this folder will not be reused
-                MetaDataStateFormat.deleteMetaState(nodeEnv.availableShardPaths(shardId));
+                // mark as corrupted, so opening the store will fail
+                store.markStoreCorrupted(new IOException("failed engine (reason: [" + reason + "])", failure));
             } catch (IOException e) {
-                logger.warn("failed to delete shard state", e);
+                logger.warn("failed to mark shard store as corrupted", e);
             } finally {
                 for (Engine.FailedEngineListener listener : delegates) {
                     try {

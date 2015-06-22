@@ -305,14 +305,14 @@ public class TimestampFieldMapper extends DateFieldMapper implements RootMapper 
     protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
         if (enabledState.enabled) {
             long timestamp = context.sourceToParse().timestamp();
-            if (fieldType.indexOptions() == IndexOptions.NONE && !fieldType.stored() && !fieldType().hasDocValues()) {
-                context.ignoredValue(fieldType.names().indexName(), String.valueOf(timestamp));
+            if (fieldType().indexOptions() == IndexOptions.NONE && !fieldType().stored() && !fieldType().hasDocValues()) {
+                context.ignoredValue(fieldType().names().indexName(), String.valueOf(timestamp));
             }
-            if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-                fields.add(new LongFieldMapper.CustomLongNumericField(this, timestamp, (NumberFieldType)fieldType));
+            if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
+                fields.add(new LongFieldMapper.CustomLongNumericField(this, timestamp, fieldType()));
             }
             if (fieldType().hasDocValues()) {
-                fields.add(new NumericDocValuesField(fieldType.names().indexName(), timestamp));
+                fields.add(new NumericDocValuesField(fieldType().names().indexName(), timestamp));
             }
         }
     }
@@ -325,12 +325,12 @@ public class TimestampFieldMapper extends DateFieldMapper implements RootMapper 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-        boolean indexed = fieldType.indexOptions() != IndexOptions.NONE;
+        boolean indexed = fieldType().indexOptions() != IndexOptions.NONE;
         boolean indexedDefault = Defaults.FIELD_TYPE.indexOptions() != IndexOptions.NONE;
 
         // if all are defaults, no sense to write it at all
         if (!includeDefaults && indexed == indexedDefault && customFieldDataSettings == null &&
-            fieldType.stored() == Defaults.FIELD_TYPE.stored() && enabledState == Defaults.ENABLED && path == Defaults.PATH
+            fieldType().stored() == Defaults.FIELD_TYPE.stored() && enabledState == Defaults.ENABLED && path == Defaults.PATH
                 && fieldType().dateTimeFormatter().format().equals(Defaults.DATE_TIME_FORMATTER.format())
                 && Defaults.DEFAULT_TIMESTAMP.equals(defaultTimestamp)
                 && defaultDocValues() == fieldType().hasDocValues()) {
@@ -340,11 +340,11 @@ public class TimestampFieldMapper extends DateFieldMapper implements RootMapper 
         if (includeDefaults || enabledState != Defaults.ENABLED) {
             builder.field("enabled", enabledState.enabled);
         }
-        if (includeDefaults || (indexed != indexedDefault) || (fieldType.tokenized() != Defaults.FIELD_TYPE.tokenized())) {
-            builder.field("index", indexTokenizeOptionToString(indexed, fieldType.tokenized()));
+        if (includeDefaults || (indexed != indexedDefault) || (fieldType().tokenized() != Defaults.FIELD_TYPE.tokenized())) {
+            builder.field("index", indexTokenizeOptionToString(indexed, fieldType().tokenized()));
         }
-        if (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
-            builder.field("store", fieldType.stored());
+        if (includeDefaults || fieldType().stored() != Defaults.FIELD_TYPE.stored()) {
+            builder.field("store", fieldType().stored());
         }
         doXContentDocValues(builder, includeDefaults);
         if (includeDefaults || path != Defaults.PATH) {
@@ -362,7 +362,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements RootMapper 
         if (customFieldDataSettings != null) {
             builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
         } else if (includeDefaults) {
-            builder.field("fielddata", (Map) fieldType.fieldDataType().getSettings().getAsMap());
+            builder.field("fielddata", (Map) fieldType().fieldDataType().getSettings().getAsMap());
         }
 
         builder.endObject();

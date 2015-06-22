@@ -69,7 +69,7 @@ public class RecoveryStats implements ToXContent, Streamable {
     }
 
     /**
-     * Number of ongoing recoveries for which a shard serves as a source
+     * Number of ongoing recoveries for which a shard serves as a target
      */
     public int currentAsTarget() {
         return currentAsTarget.get();

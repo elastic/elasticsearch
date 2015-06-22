@@ -135,7 +135,7 @@ curl http://localhost:9200/_nodes/process?pretty
 
 If you see that `mlockall` is `false`, then it means that the the `mlockall`
 request has failed.  The most probable reason, on Linux/Unix systems, is that
-the user running Elasticsearch doesn't have permission to lock memory.  This can 
+the user running Elasticsearch doesn't have permission to lock memory.  This can
 be granted by running `ulimit -l unlimited` as `root` before starting Elasticsearch.
 
 Another possible reason why `mlockall` can fail is that the temporary directory
@@ -198,6 +198,11 @@ to discover and auto-join other nodes:
 cluster:
   name: <NAME OF YOUR CLUSTER>
 --------------------------------------------------
+
+Make sure that you don't reuse the same cluster names in different
+environments, otherwise you might end up with nodes joining the wrong cluster.
+For instance you could use `logging-dev`, `logging-stage`, and `logging-prod`
+for the development, staging, and production clusters.
 
 [float]
 [[node-name]]
@@ -363,8 +368,8 @@ appender section contains the destinations for the logs. Extensive information
 on how to customize logging and all the supported appenders can be found on
 the http://logging.apache.org/log4j/1.2/manual.html[log4j documentation].
 
-Additional Appenders and other logging classes provided by 
-http://logging.apache.org/log4j/extras/[log4j-extras] are also available, 
+Additional Appenders and other logging classes provided by
+http://logging.apache.org/log4j/extras/[log4j-extras] are also available,
 out of the box.
 
 [float]

@@ -51,6 +51,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -1128,13 +1129,13 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
     }
 
-    class ScheduledPing implements Runnable {
+    class ScheduledPing extends AbstractRunnable {
 
         final CounterMetric successfulPings = new CounterMetric();
         final CounterMetric failedPings = new CounterMetric();
 
         @Override
-        public void run() {
+        protected void doRun() throws Exception {
             if (lifecycle.stoppedOrClosed()) {
                 return;
             }
@@ -1161,6 +1162,15 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                 }
             }
             threadPool.schedule(pingSchedule, ThreadPool.Names.GENERIC, this);
+        }
+
+        @Override
+        public void onFailure(Throwable t) {
+            if (lifecycle.stoppedOrClosed()) {
+                logger.trace("[{}] failed to send ping transport message", t);
+            } else {
+                logger.warn("[{}] failed to send ping transport message", t);
+            }
         }
     }
 }

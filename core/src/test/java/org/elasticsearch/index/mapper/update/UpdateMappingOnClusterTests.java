@@ -30,7 +30,6 @@ import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 
@@ -182,9 +181,10 @@ public class UpdateMappingOnClusterTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testUpdateTimestamp() throws IOException {
+    public void testUpdateTimestamp() throws Exception {
+        boolean enabled = randomBoolean();
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_timestamp").field("enabled", randomBoolean()).startObject("fielddata").field("loading", "lazy").field("format", "doc_values").endObject().field("store", "no").endObject()
+                .startObject("_timestamp").field("enabled", enabled).startObject("fielddata").field("loading", "lazy").field("format", "doc_values").endObject().field("store", "no").endObject()
                 .endObject().endObject();
         client().admin().indices().prepareCreate("test").addMapping("type", mapping).get();
         GetMappingsResponse appliedMappings = client().admin().indices().prepareGetMappings("test").get();
@@ -193,7 +193,7 @@ public class UpdateMappingOnClusterTests extends ElasticsearchIntegrationTest {
         assertThat((String)((LinkedHashMap) timestampMapping.get("fielddata")).get("loading"), equalTo("lazy"));
         assertThat((String)((LinkedHashMap) timestampMapping.get("fielddata")).get("format"), equalTo("doc_values"));
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_timestamp").field("enabled", randomBoolean()).startObject("fielddata").field("loading", "eager").field("format", "array").endObject().field("store", "no").endObject()
+                .startObject("_timestamp").field("enabled", enabled).startObject("fielddata").field("loading", "eager").field("format", "array").endObject().field("store", "no").endObject()
                 .endObject().endObject();
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping).get();
         appliedMappings = client().admin().indices().prepareGetMappings("test").get();

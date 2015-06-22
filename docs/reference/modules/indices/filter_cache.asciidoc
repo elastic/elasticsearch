@@ -1,0 +1,16 @@
+[[filter-cache]]
+=== Node Filter Cache
+
+The filter cache is responsible for caching the results of filters (used in
+the query). There is one filter cache per node that is shared by all shards.
+The cache implements an LRU eviction policy: when a cache becomes full, the
+least recently used data is evicted to make way for new data.
+
+The following setting is _static_ and must be configured on every data node in
+the cluster:
+
+`indices.cache.filter.size`::
+
+    Controls the memory size for the filter cache , defaults to `10%`. Accepts
+    either a percentage value, like `30%`, or an exact value, like `512mb`.
+

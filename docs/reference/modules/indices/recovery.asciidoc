@@ -1,0 +1,28 @@
+[[recovery]]
+=== Indices Recovery
+
+The following _expert_ settings can be set to manage the recovery policy.
+
+`indices.recovery.concurrent_streams`::
+    Defaults to `3`.
+
+`indices.recovery.concurrent_small_file_streams`::
+    Defaults to `2`.
+
+`indices.recovery.file_chunk_size`::
+    Defaults to `512kb`.
+
+`indices.recovery.translog_ops`::
+    Defaults to `1000`.
+
+`indices.recovery.translog_size`::
+    Defaults to `512kb`.
+
+`indices.recovery.compress`::
+    Defaults to `true`.
+
+`indices.recovery.max_bytes_per_sec`::
+    Defaults to `40mb`.
+
+These settings can be dynamically updated on a live cluster with the
+<<cluster-update-settings,cluster-update-settings>> API:

@@ -303,8 +303,8 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
 
         int availableProcessors;
         long availableMemory;
-        ObjectIntHashMap<String> names;
-        ObjectIntHashMap<OsInfo.Cpu> cpus;
+        final ObjectIntHashMap<String> names;
+        final ObjectIntHashMap<OsInfo.Cpu> cpus;
 
         public OsStats() {
             cpus = new ObjectIntHashMap<>();
@@ -344,13 +344,13 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
             availableProcessors = in.readVInt();
             availableMemory = in.readLong();
             int size = in.readVInt();
-            names = new ObjectIntHashMap<>(size);
-            for (; size > 0; size--) {
+            names.clear();
+            for (int i = 0; i < size; i++) {
                 names.addTo(in.readString(), in.readVInt());
             }
             size = in.readVInt();
-            cpus = new ObjectIntHashMap<>(size);
-            for (; size > 0; size--) {
+            cpus.clear();
+            for (int i = 0; i < size; i++) {
                 cpus.addTo(OsInfo.Cpu.readCpu(in), in.readVInt());
             }
         }

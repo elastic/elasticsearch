@@ -86,6 +86,12 @@ Will return, for example:
             "total": "8gb",
             "total_in_bytes": 8589934592
          },
+         "names": [
+            {
+               "name": "Mac OS X",
+               "count": 1
+            }
+         ],
          "cpu": [
             {
                "vendor": "Intel",

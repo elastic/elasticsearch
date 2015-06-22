@@ -74,14 +74,14 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
                 try {
                     block.await();
                 } catch (InterruptedException e) {
-                    fail();
+                    throw new RuntimeException(e);
                 }
                 return currentState;
             }
 
             @Override
             public void onFailure(String source, Throwable t) {
-                fail();
+                throw new RuntimeException(t);
             }
         });
 
@@ -109,9 +109,23 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
             }
         });
 
-        assertThat(timedOut.await(500, TimeUnit.MILLISECONDS), equalTo(true));
+        timedOut.await();
         block.countDown();
-        Thread.sleep(100); // sleep a bit to double check that execute on the timed out update task is not called...
+        final CountDownLatch allProcessed = new CountDownLatch(1);
+        clusterService1.submitStateUpdateTask("test3", new ClusterStateUpdateTask() {
+            @Override
+            public void onFailure(String source, Throwable t) {
+                throw new RuntimeException(t);
+            }
+
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                allProcessed.countDown();
+                return currentState;
+            }
+
+        });
+        allProcessed.await(); // executed another task to double check that execute on the timed out update task is not called...
         assertThat(executeCalled.get(), equalTo(false));
     }
 

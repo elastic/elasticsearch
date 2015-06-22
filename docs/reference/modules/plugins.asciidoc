@@ -22,7 +22,7 @@ Installing plugins typically take the following form:
 
 [source,shell]
 -----------------------------------
-plugin --install <org>/<user/component>/<version>
+bin/plugin --install <org>/<user/component>/<version>
 -----------------------------------
 
 The plugins will be

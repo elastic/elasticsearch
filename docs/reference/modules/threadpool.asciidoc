@@ -9,7 +9,6 @@ of discarded.
 
 There are several thread pools, but the important ones include:
 
-[horizontal]
 `index`::
     For index/delete operations. Defaults to `fixed`
     with a size of `# of available processors`,

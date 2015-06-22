@@ -200,7 +200,7 @@ PUT my_index/_mapping/my_type
 
 Please however note that norms won't be removed instantly, but will be removed
 as old segments are merged into new segments as you continue indexing new documents.
-Any score computation on a field that has had 
+Any score computation on a field that has had
 norms removed might return inconsistent results since some documents won't have
 norms anymore while other documents might still have norms.
 
@@ -484,7 +484,7 @@ binary type:
 It is possible to control which field values are loaded into memory,
 which is particularly useful for aggregations on string fields, using
 fielddata filters, which are explained in detail in the
-<<index-modules-fielddata,Fielddata>> section.
+<<modules-fielddata,Fielddata>> section.
 
 Fielddata filters can exclude terms which do not match a regex, or which
 don't fall between a `min` and `max` frequency range:

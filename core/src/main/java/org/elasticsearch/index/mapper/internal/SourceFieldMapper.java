@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper.internal;
 
 import com.google.common.base.Objects;
-
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
@@ -63,7 +62,6 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringValue;
-import static org.elasticsearch.index.mapper.MapperBuilders.source;
 
 /**
  *
@@ -150,7 +148,7 @@ public class SourceFieldMapper extends AbstractFieldMapper implements RootMapper
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            SourceFieldMapper.Builder builder = source();
+            Builder builder = new Builder();
 
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();

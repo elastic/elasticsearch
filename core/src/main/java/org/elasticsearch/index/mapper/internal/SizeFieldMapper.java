@@ -43,7 +43,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
-import static org.elasticsearch.index.mapper.MapperBuilders.size;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseStore;
 
 public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
@@ -101,7 +100,7 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            SizeFieldMapper.Builder builder = size(parserContext.mapperService().fullName(NAME));
+            Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());

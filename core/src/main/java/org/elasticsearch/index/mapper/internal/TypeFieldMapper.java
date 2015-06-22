@@ -50,7 +50,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.MapperBuilders.type;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
 /**
@@ -99,7 +98,7 @@ public class TypeFieldMapper extends AbstractFieldMapper implements RootMapper {
             if (parserContext.indexVersionCreated().onOrAfter(Version.V_2_0_0)) {
                 throw new MapperParsingException(NAME + " is not configurable");
             }
-            TypeFieldMapper.Builder builder = type(parserContext.mapperService().fullName(NAME));
+            Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
             parseField(builder, builder.name, node, parserContext);
             return builder;
         }

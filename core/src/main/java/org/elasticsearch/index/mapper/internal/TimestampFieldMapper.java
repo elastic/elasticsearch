@@ -50,7 +50,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
-import static org.elasticsearch.index.mapper.MapperBuilders.timestamp;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseDateTimeFormatter;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
@@ -163,7 +162,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements RootMapper 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            TimestampFieldMapper.Builder builder = timestamp(parserContext.mapperService().fullName(NAME));
+            Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
             if (parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
                 parseField(builder, builder.name, node, parserContext);
             }

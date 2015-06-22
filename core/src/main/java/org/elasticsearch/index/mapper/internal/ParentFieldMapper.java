@@ -64,9 +64,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeMa
 public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper {
 
     public static final String NAME = "_parent";
-
     public static final String CONTENT_TYPE = "_parent";
-
 
     public static class Defaults extends AbstractFieldMapper.Defaults {
         public static final String NAME = ParentFieldMapper.NAME;
@@ -122,7 +120,7 @@ public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            ParentFieldMapper.Builder builder = MapperBuilders.parent();
+            Builder builder = new Builder();
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());

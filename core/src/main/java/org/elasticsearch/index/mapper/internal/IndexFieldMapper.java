@@ -99,7 +99,7 @@ public class IndexFieldMapper extends AbstractFieldMapper implements RootMapper 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            IndexFieldMapper.Builder builder = MapperBuilders.index(parserContext.mapperService().fullName(NAME));
+            Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
             if (parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
                 parseField(builder, builder.name, node, parserContext);
             }

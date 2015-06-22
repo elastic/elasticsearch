@@ -742,11 +742,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public Engine.Searcher acquireSearcher(String source) {
-        return acquireSearcher(source, false);
-    }
-
-    public Engine.Searcher acquireSearcher(String source, boolean searcherForWriteOperation) {
-        readAllowed(searcherForWriteOperation);
+        readAllowed();
         return engine().acquireSearcher(source);
     }
 
@@ -776,6 +772,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public IndexShard postRecovery(String reason) throws IndexShardStartedException, IndexShardRelocatedException, IndexShardClosedException {
+        indicesLifecycle.beforeIndexShardPostRecovery(this);
         synchronized (mutex) {
             if (state == IndexShardState.CLOSED) {
                 throw new IndexShardClosedException(shardId);
@@ -907,20 +904,9 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public void readAllowed() throws IllegalIndexShardStateException {
-        readAllowed(false);
-    }
-
-
-    private void readAllowed(boolean writeOperation) throws IllegalIndexShardStateException {
         IndexShardState state = this.state; // one time volatile read
-        if (writeOperation) {
-            if (state != IndexShardState.STARTED && state != IndexShardState.RELOCATED && state != IndexShardState.RECOVERING && state != IndexShardState.POST_RECOVERY) {
-                throw new IllegalIndexShardStateException(shardId, state, "operations only allowed when started/relocated");
-            }
-        } else {
-            if (state != IndexShardState.STARTED && state != IndexShardState.RELOCATED) {
-                throw new IllegalIndexShardStateException(shardId, state, "operations only allowed when started/relocated");
-            }
+        if (state != IndexShardState.STARTED && state != IndexShardState.RELOCATED) {
+            throw new IllegalIndexShardStateException(shardId, state, "operations only allowed when started/relocated");
         }
     }
 

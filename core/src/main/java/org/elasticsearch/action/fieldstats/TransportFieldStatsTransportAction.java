@@ -133,7 +133,6 @@ public class TransportFieldStatsTransportAction extends TransportBroadcastAction
         IndexService indexServices = indicesService.indexServiceSafe(shardId.getIndex());
         MapperService mapperService = indexServices.mapperService();
         IndexShard shard = indexServices.shardSafe(shardId.id());
-        shard.readAllowed();
         try (Engine.Searcher searcher = shard.acquireSearcher("fieldstats")) {
             for (String field : request.getFields()) {
                 MappedFieldType fieldType = mapperService.fullName(field);

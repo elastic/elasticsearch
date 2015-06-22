@@ -42,8 +42,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.MapperBuilders.version;
-
 /** Mapper for the _version field. */
 public class VersionFieldMapper extends AbstractFieldMapper implements RootMapper {
 
@@ -77,11 +75,10 @@ public class VersionFieldMapper extends AbstractFieldMapper implements RootMappe
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            Builder builder = version();
+            Builder builder = new Builder();
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
-                Object fieldNode = entry.getValue();
                 if (fieldName.equals(DOC_VALUES_FORMAT) && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
                     // ignore in 1.x, reject in 2.x
                     iterator.remove();

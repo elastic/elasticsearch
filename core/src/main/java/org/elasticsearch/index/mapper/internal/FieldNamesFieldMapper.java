@@ -47,7 +47,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
-import static org.elasticsearch.index.mapper.MapperBuilders.fieldNames;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
 /**
@@ -83,8 +82,8 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper implements RootMa
     public static class Builder extends AbstractFieldMapper.Builder<Builder, FieldNamesFieldMapper> {
         private boolean enabled = Defaults.ENABLED;
 
-        public Builder() {
-            super(Defaults.NAME, Defaults.FIELD_TYPE);
+        public Builder(MappedFieldType existing) {
+            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing);
             indexName = Defaults.NAME;
         }
 
@@ -116,7 +115,7 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper implements RootMa
                 throw new IllegalArgumentException("type="+CONTENT_TYPE+" is not supported on indices created before version 1.3.0. Is your cluster running multiple datanode versions?");
             }
             
-            FieldNamesFieldMapper.Builder builder = fieldNames();
+            Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
             if (parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
                 parseField(builder, builder.name, node, parserContext);
             }

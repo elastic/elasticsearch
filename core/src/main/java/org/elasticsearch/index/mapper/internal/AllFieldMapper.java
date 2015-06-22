@@ -52,7 +52,6 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeMapValue;
-import static org.elasticsearch.index.mapper.MapperBuilders.all;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
 /**
@@ -119,7 +118,7 @@ public class AllFieldMapper extends AbstractFieldMapper implements RootMapper {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            AllFieldMapper.Builder builder = all(parserContext.mapperService().fullName(NAME));
+            Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
             
             // parseField below will happily parse the doc_values setting, but it is then never passed to
             // the AllFieldMapper ctor in the builder since it is not valid. Here we validate

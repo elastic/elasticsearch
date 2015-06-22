@@ -58,7 +58,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.MapperBuilders.id;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
 /**
@@ -120,7 +119,7 @@ public class IdFieldMapper extends AbstractFieldMapper implements RootMapper {
             if (parserContext.indexVersionCreated().onOrAfter(Version.V_2_0_0)) {
                 throw new MapperParsingException(NAME + " is not configurable");
             }
-            IdFieldMapper.Builder builder = id(parserContext.mapperService().fullName(NAME));
+            Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
             parseField(builder, builder.name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();

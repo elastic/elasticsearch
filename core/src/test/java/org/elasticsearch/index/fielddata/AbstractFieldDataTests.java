@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.After;
@@ -85,7 +86,7 @@ public abstract class AbstractFieldDataTests extends ElasticsearchSingleNodeTest
         } else if (type.getType().equals("geo_point")) {
             fieldType = MapperBuilders.geoPointField(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
         } else if (type.getType().equals("_parent")) {
-            fieldType = MapperBuilders.parent().type(fieldName).build(context).fieldType();
+            fieldType = new ParentFieldMapper.Builder().type(fieldName).build(context).fieldType();
         } else if (type.getType().equals("binary")) {
             fieldType = MapperBuilders.binaryField(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
         } else {

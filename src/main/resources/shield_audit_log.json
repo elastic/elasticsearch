@@ -10,10 +10,6 @@
       "_all" : {
         "enabled" : false
       },
-      "_timestamp" : {
-        "enabled" : true,
-        "path" : "@timestamp"
-      },
       "properties": {
         "@timestamp": {
           "type": "date",

@@ -49,7 +49,6 @@ public class ScriptConditionSearchTests extends AbstractWatcherIntegrationTests 
     }
 
     @Test
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/11692")
     public void testExecute_withAggs() throws Exception {
 
         client().admin().indices().prepareCreate("my-index")

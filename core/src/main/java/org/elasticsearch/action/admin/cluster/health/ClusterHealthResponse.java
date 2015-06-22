@@ -27,8 +27,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTableValidation;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -60,6 +62,8 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
     int numberOfPendingTasks = 0;
     int numberOfInFlightFetch = 0;
     int delayedUnassignedShards = 0;
+    TimeValue taskMaxWaitingTime = TimeValue.timeValueMillis(0);
+    double activeShardsPercent = 100;
     boolean timedOut = false;
     ClusterHealthStatus status = ClusterHealthStatus.RED;
     private List<String> validationFailures;
@@ -70,15 +74,19 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
 
     /** needed for plugins BWC */
     public ClusterHealthResponse(String clusterName, String[] concreteIndices, ClusterState clusterState) {
-        this(clusterName, concreteIndices, clusterState, -1, -1, -1);
+        this(clusterName, concreteIndices, clusterState, -1, -1, -1, TimeValue.timeValueHours(0));
     }
 
     public ClusterHealthResponse(String clusterName, String[] concreteIndices, ClusterState clusterState, int numberOfPendingTasks,
-                                 int numberOfInFlightFetch, int delayedUnassignedShards) {
+                                 int numberOfInFlightFetch, int delayedUnassignedShards, TimeValue taskMaxWaitingTime) {
         this.clusterName = clusterName;
         this.numberOfPendingTasks = numberOfPendingTasks;
         this.numberOfInFlightFetch = numberOfInFlightFetch;
         this.delayedUnassignedShards = delayedUnassignedShards;
+        this.clusterName = clusterName;
+        this.numberOfPendingTasks = numberOfPendingTasks;
+        this.numberOfInFlightFetch = numberOfInFlightFetch;
+        this.taskMaxWaitingTime = taskMaxWaitingTime;
         RoutingTableValidation validation = clusterState.routingTable().validate(clusterState.metaData());
         validationFailures = validation.failures();
         numberOfNodes = clusterState.nodes().size();
@@ -115,6 +123,20 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
             status = ClusterHealthStatus.RED;
         } else if (clusterState.blocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE)) {
             status = ClusterHealthStatus.RED;
+        }
+
+        // shortcut on green
+        if (status.equals(ClusterHealthStatus.GREEN)) {
+            this.activeShardsPercent = 100;
+        } else {
+            List<ShardRouting> shardRoutings = clusterState.getRoutingTable().allShards();
+            int activeShardCount = 0;
+            int totalShardCount = 0;
+            for (ShardRouting shardRouting : shardRoutings) {
+                if (shardRouting.active()) activeShardCount++;
+                totalShardCount++;
+            }
+            this.activeShardsPercent = (((double) activeShardCount) / totalShardCount) * 100;
         }
     }
 
@@ -200,6 +222,21 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         return indices;
     }
 
+    /**
+     *
+     * @return The maximum wait time of all tasks in the queue
+     */
+    public TimeValue getTaskMaxWaitingTime() {
+        return taskMaxWaitingTime;
+    }
+
+    /**
+     * The percentage of active shards, should be 100% in a green system
+     */
+    public double getActiveShardsPercent() {
+        return activeShardsPercent;
+    }
+
     @Override
     public Iterator<ClusterIndexHealth> iterator() {
         return indices.values().iterator();
@@ -244,6 +281,9 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         if (in.getVersion().onOrAfter(Version.V_1_7_0)) {
             delayedUnassignedShards= in.readInt();
         }
+
+        activeShardsPercent = in.readDouble();
+        taskMaxWaitingTime = TimeValue.readTimeValue(in);
     }
 
     @Override
@@ -274,6 +314,8 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         if (out.getVersion().onOrAfter(Version.V_1_7_0)) {
             out.writeInt(delayedUnassignedShards);
         }
+        out.writeDouble(activeShardsPercent);
+        taskMaxWaitingTime.writeTo(out);
     }
 
 
@@ -299,6 +341,10 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         static final XContentBuilderString NUMBER_OF_PENDING_TASKS = new XContentBuilderString("number_of_pending_tasks");
         static final XContentBuilderString NUMBER_OF_IN_FLIGHT_FETCH = new XContentBuilderString("number_of_in_flight_fetch");
         static final XContentBuilderString DELAYED_UNASSIGNED_SHARDS = new XContentBuilderString("delayed_unassigned_shards");
+        static final XContentBuilderString TASK_MAX_WAIT_TIME_IN_QUEUE = new XContentBuilderString("task_max_waiting_in_queue");
+        static final XContentBuilderString TASK_MAX_WAIT_TIME_IN_QUEUE_IN_MILLIS = new XContentBuilderString("task_max_waiting_in_queue_millis");
+        static final XContentBuilderString ACTIVE_SHARDS_PERCENT_AS_NUMBER = new XContentBuilderString("active_shards_percent_as_number");
+        static final XContentBuilderString ACTIVE_SHARDS_PERCENT = new XContentBuilderString("active_shards_percent");
         static final XContentBuilderString ACTIVE_PRIMARY_SHARDS = new XContentBuilderString("active_primary_shards");
         static final XContentBuilderString ACTIVE_SHARDS = new XContentBuilderString("active_shards");
         static final XContentBuilderString RELOCATING_SHARDS = new XContentBuilderString("relocating_shards");
@@ -323,6 +369,8 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         builder.field(Fields.DELAYED_UNASSIGNED_SHARDS, getDelayedUnassignedShards());
         builder.field(Fields.NUMBER_OF_PENDING_TASKS, getNumberOfPendingTasks());
         builder.field(Fields.NUMBER_OF_IN_FLIGHT_FETCH, getNumberOfInFlightFetch());
+        builder.timeValueField(Fields.TASK_MAX_WAIT_TIME_IN_QUEUE_IN_MILLIS, Fields.TASK_MAX_WAIT_TIME_IN_QUEUE, getTaskMaxWaitingTime());
+        builder.percentageField(Fields.ACTIVE_SHARDS_PERCENT_AS_NUMBER, Fields.ACTIVE_SHARDS_PERCENT, getActiveShardsPercent());
 
         String level = params.param("level", "cluster");
         boolean outputIndices = "indices".equals(level) || "shards".equals(level);

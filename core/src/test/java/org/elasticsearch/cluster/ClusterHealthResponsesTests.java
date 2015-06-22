@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matchers;
@@ -38,8 +39,9 @@ import org.junit.Test;
 
 import java.io.IOException;
 
+import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.*;
 
 public class ClusterHealthResponsesTests extends ElasticsearchTestCase {
 
@@ -193,13 +195,16 @@ public class ClusterHealthResponsesTests extends ElasticsearchTestCase {
         int pendingTasks = randomIntBetween(0, 200);
         int inFlight = randomIntBetween(0, 200);
         int delayedUnassigned = randomIntBetween(0, 200);
-        ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", clusterState.metaData().concreteIndices(IndicesOptions.strictExpand(), (String[]) null), clusterState, pendingTasks, inFlight, delayedUnassigned);
+        TimeValue pendingTaskInQueueTime = TimeValue.timeValueMillis(randomIntBetween(1000, 100000));
+        ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", clusterState.metaData().concreteIndices(IndicesOptions.strictExpand(), (String[]) null), clusterState, pendingTasks, inFlight, delayedUnassigned, pendingTaskInQueueTime);
         logger.info("cluster status: {}, expected {}", clusterHealth.getStatus(), counter.status());
         clusterHealth = maybeSerialize(clusterHealth);
         assertClusterHealth(clusterHealth, counter);
         assertThat(clusterHealth.getNumberOfPendingTasks(), Matchers.equalTo(pendingTasks));
         assertThat(clusterHealth.getNumberOfInFlightFetch(), Matchers.equalTo(inFlight));
         assertThat(clusterHealth.getDelayedUnassignedShards(), Matchers.equalTo(delayedUnassigned));
+        assertThat(clusterHealth.getTaskMaxWaitingTime().millis(), is(pendingTaskInQueueTime.millis()));
+        assertThat(clusterHealth.getActiveShardsPercent(), is(allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(100.0))));
     }
 
     ClusterHealthResponse maybeSerialize(ClusterHealthResponse clusterHealth) throws IOException {
@@ -227,7 +232,7 @@ public class ClusterHealthResponsesTests extends ElasticsearchTestCase {
         metaData.put(indexMetaData, true);
         routingTable.add(indexRoutingTable);
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
-        ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", clusterState.metaData().concreteIndices(IndicesOptions.strictExpand(), (String[]) null), clusterState, 0, 0, 0);
+        ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", clusterState.metaData().concreteIndices(IndicesOptions.strictExpand(), (String[]) null), clusterState, 0, 0, 0, TimeValue.timeValueMillis(0));
         clusterHealth = maybeSerialize(clusterHealth);
         // currently we have no cluster level validation failures as index validation issues are reported per index.
         assertThat(clusterHealth.getValidationFailures(), Matchers.hasSize(0));

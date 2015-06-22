@@ -40,7 +40,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.fieldvisitor.UidAndRoutingFieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
@@ -252,7 +252,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
         @Override
         public void collect(int doc) {
             try {
-                UidAndRoutingFieldsVisitor fieldsVisitor = new UidAndRoutingFieldsVisitor();
+                FieldsVisitor fieldsVisitor = new FieldsVisitor(false);
                 context.reader().document(doc, fieldsVisitor);
                 Uid uid = fieldsVisitor.uid();
                 final long version = Versions.loadVersion(context.reader(), new Term(UidFieldMapper.NAME, uid.toBytesRef()));

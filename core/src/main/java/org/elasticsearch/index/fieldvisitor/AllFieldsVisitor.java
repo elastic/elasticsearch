@@ -27,6 +27,7 @@ import java.io.IOException;
 public class AllFieldsVisitor extends FieldsVisitor {
 
     public AllFieldsVisitor() {
+        super(true);
     }
 
     @Override

@@ -995,7 +995,6 @@ public abstract class Engine implements Closeable {
     public static class Get {
         private final boolean realtime;
         private final Term uid;
-        private boolean loadSource = true;
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
 
@@ -1010,15 +1009,6 @@ public abstract class Engine implements Closeable {
 
         public Term uid() {
             return uid;
-        }
-
-        public boolean loadSource() {
-            return this.loadSource;
-        }
-
-        public Get loadSource(boolean loadSource) {
-            this.loadSource = loadSource;
-            return this;
         }
 
         public long version() {

@@ -305,9 +305,6 @@ public class InternalEngine extends Engine {
                         Uid uid = Uid.createUid(get.uid().text());
                         throw new VersionConflictEngineException(shardId, uid.type(), uid.id(), versionValue.version(), get.version());
                     }
-                    if (!get.loadSource()) {
-                        return new GetResult(true, versionValue.version(), null);
-                    }
                     Translog.Operation op = translog.read(versionValue.translogLocation());
                     if (op != null) {
                         return new GetResult(true, versionValue.version(), op.getSource());

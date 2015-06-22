@@ -1051,28 +1051,32 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "doc").setId("1").setSource(doc).setRouting("1").get();
     }
 
-
-    @Test
-    public void testUngeneratedFieldsNotPartOfSourceUnstored() throws IOException {
-        indexSingleDocumentWithUngeneratedFieldsThatAreNeverPartOf_source(false, randomBoolean());
-        String[] fieldsList = {"_timestamp"};
-        String[] alwaysStoredFieldsList = {"_routing", "_size"};
-        // before refresh - document is only in translog
-        assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList, "1");
-        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", alwaysStoredFieldsList, "1");
-        refresh();
-        //after refresh - document is in translog and also indexed
-        assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList, "1");
-        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", alwaysStoredFieldsList, "1");
-        flush();
-        //after flush - document is in not anymore translog - only indexed
-        assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList, "1");
-        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", alwaysStoredFieldsList, "1");
-    }
-
     @Test
     public void testUngeneratedFieldsNotPartOfSourceStored() throws IOException {
-        indexSingleDocumentWithUngeneratedFieldsThatAreNeverPartOf_source(true, randomBoolean());
+        String createIndexSource = "{\n" +
+            "  \"settings\": {\n" +
+            "    \"index.translog.disable_flush\": true,\n" +
+            "    \"refresh_interval\": \"-1\"\n" +
+            "  },\n" +
+            "  \"mappings\": {\n" +
+            "    \"parentdoc\": {},\n" +
+            "    \"doc\": {\n" +
+            "      \"_timestamp\": {\n" +
+            "        \"enabled\": true\n" +
+            "      },\n" +
+            "      \"_size\": {\n" +
+            "        \"enabled\": true\n" +
+            "      }\n" +
+            "    }\n" +
+            "  }\n" +
+            "}";
+
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource));
+        ensureGreen();
+        String doc = "{\n" +
+            "  \"text\": \"some text.\"\n" +
+            "}\n";
+        client().prepareIndex("test", "doc").setId("1").setSource(doc).setRouting("1").get();
         String[] fieldsList = {"_timestamp", "_size", "_routing"};
         // before refresh - document is only in translog
         assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "1");
@@ -1083,36 +1087,6 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         //after flush - document is in not anymore translog - only indexed
         assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "1");
     }
-
-    void indexSingleDocumentWithUngeneratedFieldsThatAreNeverPartOf_source(boolean stored, boolean sourceEnabled) {
-        String storedString = stored ? "yes" : "no";
-        String createIndexSource = "{\n" +
-                "  \"settings\": {\n" +
-                "    \"index.translog.disable_flush\": true,\n" +
-                "    \"refresh_interval\": \"-1\"\n" +
-                "  },\n" +
-                "  \"mappings\": {\n" +
-                "    \"parentdoc\": {},\n" +
-                "    \"doc\": {\n" +
-                "      \"_timestamp\": {\n" +
-                "        \"store\": \"" + storedString + "\",\n" +
-                "        \"enabled\": true\n" +
-                "      },\n" +
-                "      \"_size\": {\n" +
-                "        \"enabled\": true\n" +
-                "      }\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
-
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource));
-        ensureGreen();
-        String doc = "{\n" +
-                "  \"text\": \"some text.\"\n" +
-                "}\n";
-        client().prepareIndex("test", "doc").setId("1").setSource(doc).setRouting("1").get();
-    }
-
 
     @Test
     public void testGeneratedStringFieldsUnstored() throws IOException {

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -31,7 +29,7 @@ import java.io.IOException;
  * associate a name with the query filter.
  */
 @Deprecated
-public class FQueryFilterParser extends BaseQueryParserTemp {
+public class FQueryFilterParser extends BaseQueryParser {
 
     @Inject
     public FQueryFilterParser() {
@@ -43,10 +41,10 @@ public class FQueryFilterParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        Query query = null;
+        QueryBuilder wrappedQuery = null;
         boolean queryFound = false;
 
         String queryName = null;
@@ -60,7 +58,7 @@ public class FQueryFilterParser extends BaseQueryParserTemp {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("query".equals(currentFieldName)) {
                     queryFound = true;
-                    query = parseContext.parseInnerQuery();
+                    wrappedQuery = parseContext.parseInnerQueryBuilder();
                 } else {
                     throw new QueryParsingException(parseContext, "[fquery] query does not support [" + currentFieldName + "]");
                 }
@@ -75,14 +73,12 @@ public class FQueryFilterParser extends BaseQueryParserTemp {
         if (!queryFound) {
             throw new QueryParsingException(parseContext, "[fquery] requires 'query' element");
         }
-        if (query == null) {
+        if (wrappedQuery == null) {
             return null;
         }
-        query = new ConstantScoreQuery(query);
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
-        }
-        return query;
+        FQueryFilterBuilder queryBuilder = new FQueryFilterBuilder(wrappedQuery);
+        queryBuilder.queryName(queryName);
+        return queryBuilder;
     }
 
     @Override

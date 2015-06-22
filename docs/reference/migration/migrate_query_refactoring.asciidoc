@@ -1,0 +1,13 @@
+[[breaking-changes query-refactoring]]
+== Breaking changes on the query-refactoring branch
+
+This section discusses changes that are breaking to the current rest or java-api
+on the query-refactoring feature branch.
+
+=== Java-API
+
+==== QueryFilterBuilder
+
+Removed the setter `queryName(String queryName)` since this field is not supported
+in this type of query. Use `FQueryFilterBuilder.queryName(String queryName)` instead 
+when in need to wrap a named query as a filter.

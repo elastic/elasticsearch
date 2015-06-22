@@ -19,9 +19,14 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.Query;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * A filter that simply wraps a query. Same as the {@link QueryFilterBuilder} except that it allows also to
@@ -30,11 +35,15 @@ import java.io.IOException;
  *             query as a filter directly.
  */
 @Deprecated
-public class FQueryFilterBuilder extends QueryFilterBuilder {
+public class FQueryFilterBuilder extends AbstractQueryBuilder<FQueryFilterBuilder> {
 
     public static final String NAME = "fquery";
 
     static final FQueryFilterBuilder PROTOTYPE = new FQueryFilterBuilder(null);
+
+    private String queryName;
+
+    private final QueryBuilder queryBuilder;
 
     /**
      * A filter that simply wraps a query.
@@ -42,12 +51,89 @@ public class FQueryFilterBuilder extends QueryFilterBuilder {
      * @param queryBuilder The query to wrap as a filter
      */
     public FQueryFilterBuilder(QueryBuilder queryBuilder) {
-        super(queryBuilder);
+        this.queryBuilder = queryBuilder;
+    }
+
+    /**
+     * @return the query builder that is wrapped by this {@link FQueryFilterBuilder}
+     */
+    public QueryBuilder innerQuery() {
+        return this.queryBuilder;
+    }
+
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public FQueryFilterBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        return this;
+    }
+
+    /**
+     * @return the query name for the filter that can be used when searching for matched_filters per hit
+     */
+    public String queryName() {
+        return this.queryName;
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        buildFQuery(builder, params);
+        builder.startObject(FQueryFilterBuilder.NAME);
+        builder.field("query");
+        queryBuilder.toXContent(builder, params);
+        if (queryName != null) {
+            builder.field("_name", queryName);
+        }
+        builder.endObject();
+    }
+
+    @Override
+    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+        // inner query builder can potentially be `null`, in that case we ignore it
+        if (this.queryBuilder == null) {
+            return null;
+        }
+        Query innerQuery = this.queryBuilder.toQuery(parseContext);
+        if (innerQuery == null) {
+            return null;
+        }
+        Query query = new ConstantScoreQuery(innerQuery);
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
+        }
+        return query;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(queryBuilder, queryName);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        FQueryFilterBuilder other = (FQueryFilterBuilder) obj;
+        return Objects.equals(queryBuilder, other.queryBuilder) &&
+                Objects.equals(queryName, other.queryName);
+    }
+
+    @Override
+    public FQueryFilterBuilder readFrom(StreamInput in) throws IOException {
+        QueryBuilder innerQueryBuilder = in.readNamedWriteable();
+        FQueryFilterBuilder fquery = new FQueryFilterBuilder(innerQueryBuilder);
+        fquery.queryName = in.readOptionalString();
+        return fquery;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteable(this.queryBuilder);
+        out.writeOptionalString(queryName);
     }
 
     @Override

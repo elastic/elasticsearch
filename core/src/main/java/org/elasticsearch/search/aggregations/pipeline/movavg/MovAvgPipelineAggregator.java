@@ -48,6 +48,7 @@ import org.joda.time.DateTime;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
 
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
@@ -81,18 +82,20 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
     private int window;
     private MovAvgModel model;
     private int predict;
+    private boolean minimize;
 
     public MovAvgPipelineAggregator() {
     }
 
     public MovAvgPipelineAggregator(String name, String[] bucketsPaths, ValueFormatter formatter, GapPolicy gapPolicy,
-                         int window, int predict, MovAvgModel model, Map<String, Object> metadata) {
+                         int window, int predict, MovAvgModel model, boolean minimize, Map<String, Object> metadata) {
         super(name, bucketsPaths, metadata);
         this.formatter = formatter;
         this.gapPolicy = gapPolicy;
         this.window = window;
         this.model = model;
         this.predict = predict;
+        this.minimize = minimize;
     }
 
     @Override
@@ -112,6 +115,12 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         long lastValidKey = 0;
         int lastValidPosition = 0;
         int counter = 0;
+
+        // Do we need to fit the model parameters to the data?
+        if (minimize) {
+            assert (model.canBeMinimized());
+            model = minimize(buckets, histo, model);
+        }
 
         for (InternalHistogram.Bucket bucket : buckets) {
             Double thisBucketValue = resolveBucketValue(histo, bucket, bucketsPaths()[0], gapPolicy);
@@ -194,6 +203,60 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         return factory.create(newBuckets, histo);
     }
 
+    private MovAvgModel minimize(List<? extends InternalHistogram.Bucket> buckets, InternalHistogram histo, MovAvgModel model) {
+
+        int counter = 0;
+        EvictingQueue<Double> values = EvictingQueue.create(window);
+
+        double[] test = new double[window];
+        ListIterator<? extends InternalHistogram.Bucket> iter = buckets.listIterator(buckets.size());
+
+        // We have to walk the iterator backwards because we don't know if/how many buckets are empty.
+        while (iter.hasPrevious() && counter < window) {
+
+            Double thisBucketValue = resolveBucketValue(histo, iter.previous(), bucketsPaths()[0], gapPolicy);
+
+            if (!(thisBucketValue == null || thisBucketValue.equals(Double.NaN))) {
+                test[window - counter - 1] = thisBucketValue;
+                counter += 1;
+            }
+        }
+
+        // If we didn't fill the test set, we don't have enough data to minimize.
+        // Just return the model with the starting coef
+        if (counter < window) {
+            return model;
+        }
+
+        //And do it again, for the train set.  Unfortunately we have to fill an array and then
+        //fill an evicting queue backwards :(
+
+        counter = 0;
+        double[] train = new double[window];
+
+        while (iter.hasPrevious() && counter < window) {
+
+            Double thisBucketValue = resolveBucketValue(histo, iter.previous(), bucketsPaths()[0], gapPolicy);
+
+            if (!(thisBucketValue == null || thisBucketValue.equals(Double.NaN))) {
+                train[window - counter - 1] = thisBucketValue;
+                counter += 1;
+            }
+        }
+
+        // If we didn't fill the train set, we don't have enough data to minimize.
+        // Just return the model with the starting coef
+        if (counter < window) {
+            return model;
+        }
+
+        for (double v : train) {
+            values.add(v);
+        }
+
+        return SimulatedAnealingMinimizer.minimize(model, values, test);
+    }
+
     @Override
     public void doReadFrom(StreamInput in) throws IOException {
         formatter = ValueFormatterStreams.readOptional(in);
@@ -201,6 +264,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         window = in.readVInt();
         predict = in.readVInt();
         model = MovAvgModelStreams.read(in);
+        minimize = in.readBoolean();
 
     }
 
@@ -211,6 +275,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         out.writeVInt(window);
         out.writeVInt(predict);
         model.writeTo(out);
+        out.writeBoolean(minimize);
 
     }
 
@@ -221,20 +286,22 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         private int window;
         private MovAvgModel model;
         private int predict;
+        private boolean minimize;
 
         public Factory(String name, String[] bucketsPaths, ValueFormatter formatter, GapPolicy gapPolicy,
-                       int window, int predict, MovAvgModel model) {
+                       int window, int predict, MovAvgModel model, boolean minimize) {
             super(name, TYPE.name(), bucketsPaths);
             this.formatter = formatter;
             this.gapPolicy = gapPolicy;
             this.window = window;
             this.model = model;
             this.predict = predict;
+            this.minimize = minimize;
         }
 
         @Override
         protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
-            return new MovAvgPipelineAggregator(name, bucketsPaths, formatter, gapPolicy, window, predict, model, metaData);
+            return new MovAvgPipelineAggregator(name, bucketsPaths, formatter, gapPolicy, window, predict, model, minimize, metaData);
         }
 
         @Override

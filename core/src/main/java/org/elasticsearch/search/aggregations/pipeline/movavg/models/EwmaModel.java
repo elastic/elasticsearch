@@ -41,14 +41,31 @@ public class EwmaModel extends MovAvgModel {
     protected static final ParseField NAME_FIELD = new ParseField("ewma");
 
     /**
-     * Controls smoothing of data. Alpha = 1 retains no memory of past values
+     * Controls smoothing of data.  Also known as "level" value.
+     * Alpha = 1 retains no memory of past values
      * (e.g. random walk), while alpha = 0 retains infinite memory of past values (e.g.
-     * mean of the series).  Useful values are somewhere in between
+     * mean of the series).
      */
-    private double alpha;
+    private final double alpha;
 
     public EwmaModel(double alpha) {
         this.alpha = alpha;
+    }
+
+    @Override
+    public boolean canBeMinimized() {
+        return true;
+    }
+
+    @Override
+    public MovAvgModel neighboringModel() {
+        double alpha = Math.random();
+        return new EwmaModel(alpha);
+    }
+
+    @Override
+    public MovAvgModel clone() {
+        return new EwmaModel(this.alpha);
     }
 
     @Override
@@ -105,8 +122,7 @@ public class EwmaModel extends MovAvgModel {
         @Override
         public MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName, int windowSize, ParseFieldMatcher parseFieldMatcher) throws ParseException {
 
-            double alpha = parseDoubleParam(settings, "alpha", 0.5);
-
+            double alpha = parseDoubleParam(settings, "alpha", 0.3);
             return new EwmaModel(alpha);
         }
 
@@ -114,7 +130,7 @@ public class EwmaModel extends MovAvgModel {
 
     public static class EWMAModelBuilder implements MovAvgModelBuilder {
 
-        private double alpha = 0.5;
+        private Double alpha;
 
         /**
          * Alpha controls the smoothing of the data.  Alpha = 1 retains no memory of past values
@@ -134,7 +150,10 @@ public class EwmaModel extends MovAvgModel {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(MovAvgParser.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
             builder.startObject(MovAvgParser.SETTINGS.getPreferredName());
+            if (alpha != null) {
                 builder.field("alpha", alpha);
+            }
+
             builder.endObject();
             return builder;
         }

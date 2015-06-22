@@ -600,4 +600,13 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
         return list.subList(0, size);
     }
 
+    /**
+     * Returns true iff assertions for elasticsearch packages are enabled
+     */
+    public static boolean assertionsEnabled() {
+        boolean enabled = false;
+        assert (enabled = true);
+        return enabled;
+    }
+
 }

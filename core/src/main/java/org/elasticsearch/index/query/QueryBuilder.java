@@ -28,6 +28,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -35,16 +36,18 @@ import java.io.IOException;
 
 public interface QueryBuilder<QB extends QueryBuilder> extends NamedWriteable<QB>, ToXContent {
 
-    public static enum Operator {
+    public static enum Operator implements Writeable {
         OR(0), AND(1);
         
         private final int ordinal;
-        
+
+        static final Operator PROTOTYPE = OR;
+
         private Operator(int ordinal) {
             this.ordinal = ordinal;
         }
         
-        public BooleanClause.Occur toMustOrShouldClause() {
+        public BooleanClause.Occur toBooleanClauseOccur() {
             switch (this) {
                 case OR:
                     return BooleanClause.Occur.SHOULD;
@@ -55,7 +58,7 @@ public interface QueryBuilder<QB extends QueryBuilder> extends NamedWriteable<QB
             }
         }
 
-        public static Operator readFrom(StreamInput in) throws IOException {
+        public Operator readFrom(StreamInput in) throws IOException {
             int ord = in.readVInt();
             for (Operator operator : Operator.values()) {
                 if (operator.ordinal == ord) {

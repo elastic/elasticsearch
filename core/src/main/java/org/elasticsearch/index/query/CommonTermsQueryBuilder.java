@@ -283,8 +283,8 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
             }
         }
         
-        Occur highFreqOccur = highFreqOperator.toMustOrShouldClause();
-        Occur lowFreqOccur = lowFreqOperator.toMustOrShouldClause();
+        Occur highFreqOccur = highFreqOperator.toBooleanClauseOccur();
+        Occur lowFreqOccur = lowFreqOperator.toBooleanClauseOccur();
 
         ExtendedCommonTermsQuery commonsQuery = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, cutoffFrequency, disableCoord, mapper);
         commonsQuery.setBoost(boost);
@@ -334,8 +334,8 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
     @Override
     public CommonTermsQueryBuilder readFrom(StreamInput in) throws IOException {
         CommonTermsQueryBuilder commonTermsQueryBuilder = new CommonTermsQueryBuilder(in.readString(), in.readGenericValue());
-        commonTermsQueryBuilder.highFreqOperator = Operator.readFrom(in);
-        commonTermsQueryBuilder.lowFreqOperator = Operator.readFrom(in);
+        commonTermsQueryBuilder.highFreqOperator = Operator.PROTOTYPE.readFrom(in);
+        commonTermsQueryBuilder.lowFreqOperator = Operator.PROTOTYPE.readFrom(in);
         commonTermsQueryBuilder.analyzer = in.readOptionalString();
         commonTermsQueryBuilder.boost = in.readFloat();
         commonTermsQueryBuilder.lowFreqMinimumShouldMatch = in.readOptionalString();

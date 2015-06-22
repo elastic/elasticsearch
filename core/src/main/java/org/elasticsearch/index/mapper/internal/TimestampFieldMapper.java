@@ -161,7 +161,9 @@ public class TimestampFieldMapper extends DateFieldMapper implements RootMapper 
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             TimestampFieldMapper.Builder builder = timestamp();
-            parseField(builder, builder.name, node, parserContext);
+            if (parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+                parseField(builder, builder.name, node, parserContext);
+            }
             boolean defaultSet = false;
             Boolean ignoreMissing = null;
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
@@ -172,7 +174,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements RootMapper 
                     EnabledAttributeMapper enabledState = nodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED;
                     builder.enabled(enabledState);
                     iterator.remove();
-                } else if (fieldName.equals("path")) {
+                } else if (fieldName.equals("path") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
                     builder.path(fieldNode.toString());
                     iterator.remove();
                 } else if (fieldName.equals("format")) {
@@ -265,11 +267,6 @@ public class TimestampFieldMapper extends DateFieldMapper implements RootMapper 
         return defaultFieldType;
     }
 
-    @Override
-    public boolean defaultDocValues() {
-        return false;
-    }
-
     public boolean enabled() {
         return this.enabledState.enabled;
     }
@@ -340,14 +337,16 @@ public class TimestampFieldMapper extends DateFieldMapper implements RootMapper 
         if (includeDefaults || enabledState != Defaults.ENABLED) {
             builder.field("enabled", enabledState.enabled);
         }
-        if (includeDefaults || (indexed != indexedDefault) || (fieldType().tokenized() != Defaults.FIELD_TYPE.tokenized())) {
+        if (indexCreatedBefore2x && (includeDefaults || (indexed != indexedDefault) || (fieldType().tokenized() != Defaults.FIELD_TYPE.tokenized()))) {
             builder.field("index", indexTokenizeOptionToString(indexed, fieldType().tokenized()));
         }
-        if (includeDefaults || fieldType().stored() != Defaults.FIELD_TYPE.stored()) {
+        if (indexCreatedBefore2x && (includeDefaults || fieldType().stored() != Defaults.PRE_20_FIELD_TYPE.stored())) {
             builder.field("store", fieldType().stored());
         }
-        doXContentDocValues(builder, includeDefaults);
-        if (includeDefaults || path != Defaults.PATH) {
+        if (indexCreatedBefore2x) {
+            doXContentDocValues(builder, includeDefaults);
+        }
+        if (indexCreatedBefore2x && (includeDefaults || path != Defaults.PATH)) {
             builder.field("path", path);
         }
         if (includeDefaults || !fieldType().dateTimeFormatter().format().equals(Defaults.DATE_TIME_FORMATTER.format())) {
@@ -359,10 +358,12 @@ public class TimestampFieldMapper extends DateFieldMapper implements RootMapper 
         if (includeDefaults || ignoreMissing != null) {
             builder.field("ignore_missing", ignoreMissing);
         }
-        if (customFieldDataSettings != null) {
-            builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
-        } else if (includeDefaults) {
-            builder.field("fielddata", (Map) fieldType().fieldDataType().getSettings().getAsMap());
+        if (indexCreatedBefore2x) {
+            if (customFieldDataSettings != null) {
+                builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
+            } else if (includeDefaults) {
+                builder.field("fielddata", (Map) fieldType().fieldDataType().getSettings().getAsMap());
+            }
         }
 
         builder.endObject();

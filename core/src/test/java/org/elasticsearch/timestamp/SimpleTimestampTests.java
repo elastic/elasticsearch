@@ -46,7 +46,7 @@ public class SimpleTimestampTests  extends ElasticsearchIntegrationTest {
     public void testSimpleTimestamp() throws Exception {
 
         client().admin().indices().prepareCreate("test")
-                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("_timestamp").field("enabled", true).field("store", "yes").endObject().endObject().endObject())
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("_timestamp").field("enabled", true).endObject().endObject().endObject())
                 .execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
@@ -119,14 +119,14 @@ public class SimpleTimestampTests  extends ElasticsearchIntegrationTest {
         String index = "foo";
         String type = "mytype";
 
-        XContentBuilder builder = jsonBuilder().startObject().startObject("_timestamp").field("enabled", true).field("store", true).endObject().endObject();
+        XContentBuilder builder = jsonBuilder().startObject().startObject("_timestamp").field("enabled", true).endObject().endObject();
         assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
 
         // check mapping again
         assertTimestampMappingEnabled(index, type, true);
 
         // update some field in the mapping
-        XContentBuilder updateMappingBuilder = jsonBuilder().startObject().startObject("_timestamp").field("enabled", false).field("store", true).endObject().endObject();
+        XContentBuilder updateMappingBuilder = jsonBuilder().startObject().startObject("_timestamp").field("enabled", false).endObject().endObject();
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(index).setType(type).setSource(updateMappingBuilder).get();
         assertAcked(putMappingResponse);
 

@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.mapper.update;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -132,7 +134,7 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testTimestampParsing() throws IOException {
-        IndexService indexService = createIndex("test", Settings.settingsBuilder().build());
+        IndexService indexService = createIndex("test", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build());
         XContentBuilder indexMapping = XContentFactory.jsonBuilder();
         boolean enabled = randomBoolean();
         indexMapping.startObject()

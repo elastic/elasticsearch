@@ -193,6 +193,11 @@ public class TestClusterService implements ClusterService {
     }
 
     @Override
+    public TimeValue getMaxTaskWaitTime() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public Lifecycle.State lifecycleState() {
         throw new UnsupportedOperationException();
     }

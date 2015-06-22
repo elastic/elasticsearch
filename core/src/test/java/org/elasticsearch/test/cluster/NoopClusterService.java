@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.test.cluster;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -133,6 +132,11 @@ public class NoopClusterService implements ClusterService {
     @Override
     public int numberOfPendingTasks() {
         return 0;
+    }
+
+    @Override
+    public TimeValue getMaxTaskWaitTime() {
+        return TimeValue.timeValueMillis(0);
     }
 
     @Override

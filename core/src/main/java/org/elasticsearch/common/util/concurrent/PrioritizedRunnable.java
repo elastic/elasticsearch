@@ -19,6 +19,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.unit.TimeValue;
 
 /**
  *
@@ -26,6 +27,7 @@ import org.elasticsearch.common.Priority;
 public abstract class PrioritizedRunnable implements Runnable, Comparable<PrioritizedRunnable> {
 
     private final Priority priority;
+    private final long creationDate;
 
     public static PrioritizedRunnable wrap(Runnable runnable, Priority priority) {
         return new Wrapped(runnable, priority);
@@ -33,6 +35,15 @@ public abstract class PrioritizedRunnable implements Runnable, Comparable<Priori
 
     protected PrioritizedRunnable(Priority priority) {
         this.priority = priority;
+        creationDate = System.nanoTime();
+    }
+
+    public long getCreationDateInNanos() {
+        return creationDate;
+    }
+
+    public long getAgeInMillis() {
+        return Math.max(0, (System.nanoTime() - creationDate) / 1000);
     }
 
     @Override

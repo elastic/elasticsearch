@@ -18,6 +18,8 @@
                    init          .+ \n
                    unassign      .+ \n
                    pending_tasks .+ \n
+                   max_task_wait_time .+ \n
+                   active_shards_percent .+ \n
 
                $/
 
@@ -44,6 +46,8 @@
                 \d+            \s+ # init
                 \d+            \s+ # unassign
                 \d+            \s+ # pending_tasks
+                (-|\d+[.]\d+ms|s) \s+ # max task waiting time
+                \d+\.\d+%      \s+ # active shards percent
                 \n
               )+
             $/

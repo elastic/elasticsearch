@@ -20,7 +20,10 @@
 package org.elasticsearch.common.util.concurrent;
 
 
-import java.util.concurrent.*;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * An extension to thread pool executor, allowing (in the future) to add specific additional stats to it.
@@ -67,8 +70,8 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         }
     }
 
-    public static interface ShutdownListener {
-        public void onTerminated();
+    public interface ShutdownListener {
+        void onTerminated();
     }
 
     @Override

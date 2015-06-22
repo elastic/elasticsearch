@@ -25,11 +25,13 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.joda.time.LocalDateTime;
 import org.joda.time.MutableDateTime;
 import org.joda.time.format.*;
 import org.junit.Test;
 
 import java.util.Date;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.*;
 
@@ -250,7 +252,7 @@ public class SimpleJodaTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testThatEpochsInSecondsCanBeParsed() {
+    public void testThatEpochsCanBeParsed() {
         boolean parseMilliSeconds = randomBoolean();
 
         // epoch: 1433144433655 => date: Mon Jun  1 09:40:33.655 CEST 2015
@@ -271,6 +273,37 @@ public class SimpleJodaTests extends ElasticsearchTestCase {
         }
     }
 
+    @Test
+    public void testThatNegativeEpochsCanBeParsed() {
+        // problem: negative epochs can be arbitrary in size...
+        boolean parseMilliSeconds = randomBoolean();
+        FormatDateTimeFormatter formatter = Joda.forPattern(parseMilliSeconds ? "epoch_millis" : "epoch_second");
+        DateTime dateTime = formatter.parser().parseDateTime("-10000");
+
+        assertThat(dateTime.getYear(), is(1969));
+        assertThat(dateTime.getMonthOfYear(), is(12));
+        assertThat(dateTime.getDayOfMonth(), is(31));
+        if (parseMilliSeconds) {
+            assertThat(dateTime.getHourOfDay(), is(23)); // utc timezone, +2 offset due to CEST
+            assertThat(dateTime.getMinuteOfHour(), is(59));
+            assertThat(dateTime.getSecondOfMinute(), is(50));
+        } else {
+            assertThat(dateTime.getHourOfDay(), is(21)); // utc timezone, +2 offset due to CEST
+            assertThat(dateTime.getMinuteOfHour(), is(13));
+            assertThat(dateTime.getSecondOfMinute(), is(20));
+        }
+
+        // every negative epoch must be parsed, no matter if exact the size or bigger
+        if (parseMilliSeconds) {
+            formatter.parser().parseDateTime("-100000000");
+            formatter.parser().parseDateTime("-999999999999");
+            formatter.parser().parseDateTime("-1234567890123");
+        } else {
+            formatter.parser().parseDateTime("-100000000");
+            formatter.parser().parseDateTime("-1234567890");
+        }
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void testForInvalidDatesInEpochSecond() {
         FormatDateTimeFormatter formatter = Joda.forPattern("epoch_second");
@@ -281,6 +314,51 @@ public class SimpleJodaTests extends ElasticsearchTestCase {
     public void testForInvalidDatesInEpochMillis() {
         FormatDateTimeFormatter formatter = Joda.forPattern("epoch_millis");
         formatter.parser().parseDateTime(randomFrom("invalid date", "12345678901234"));
+    }
+
+    public void testThatEpochParserIsPrinter() {
+        FormatDateTimeFormatter formatter = Joda.forPattern("epoch_millis");
+        assertThat(formatter.parser().isPrinter(), is(true));
+        assertThat(formatter.printer().isPrinter(), is(true));
+
+        FormatDateTimeFormatter epochSecondFormatter = Joda.forPattern("epoch_second");
+        assertThat(epochSecondFormatter.parser().isPrinter(), is(true));
+        assertThat(epochSecondFormatter.printer().isPrinter(), is(true));
+    }
+
+    public void testThatEpochTimePrinterWorks() {
+        StringBuffer buffer = new StringBuffer();
+        LocalDateTime now = LocalDateTime.now();
+
+        Joda.EpochTimePrinter epochTimePrinter = new Joda.EpochTimePrinter(false);
+        epochTimePrinter.printTo(buffer, now, Locale.ROOT);
+        assertThat(buffer.length(), is(10));
+        // only check the last digit, as seconds go from 0-99 in the unix timestamp and dont stop at 60
+        assertThat(buffer.toString(), endsWith(String.valueOf(now.getSecondOfMinute() % 10)));
+
+        buffer = new StringBuffer();
+        Joda.EpochTimePrinter epochMilliSecondTimePrinter = new Joda.EpochTimePrinter(true);
+        epochMilliSecondTimePrinter.printTo(buffer, now, Locale.ROOT);
+        assertThat(buffer.length(), is(13));
+        assertThat(buffer.toString(), endsWith(String.valueOf(now.getMillisOfSecond())));
+    }
+
+    public void testThatEpochParserIsIdempotent() {
+        FormatDateTimeFormatter formatter = Joda.forPattern("epoch_millis");
+        DateTime dateTime = formatter.parser().parseDateTime("1234567890123");
+        assertThat(dateTime.getMillis(), is(1234567890123l));
+        dateTime = formatter.printer().parseDateTime("1234567890456");
+        assertThat(dateTime.getMillis(), is(1234567890456l));
+        dateTime = formatter.parser().parseDateTime("1234567890789");
+        assertThat(dateTime.getMillis(), is(1234567890789l));
+
+        FormatDateTimeFormatter secondsFormatter = Joda.forPattern("epoch_second");
+        DateTime secondsDateTime = secondsFormatter.parser().parseDateTime("1234567890");
+        assertThat(secondsDateTime.getMillis(), is(1234567890000l));
+        secondsDateTime = secondsFormatter.printer().parseDateTime("1234567890");
+        assertThat(secondsDateTime.getMillis(), is(1234567890000l));
+        secondsDateTime = secondsFormatter.parser().parseDateTime("1234567890");
+        assertThat(secondsDateTime.getMillis(), is(1234567890000l));
     }
 
     private long utcTimeInMillis(String time) {

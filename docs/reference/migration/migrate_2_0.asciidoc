@@ -301,6 +301,16 @@ Meta fields can no longer be specified within a document. They should be specifi
 via the API.  For example, instead of adding a field `_parent` within a document,
 use the `parent` url parameter when indexing that document.
 
+==== Date format does not support unix timestamps by default
+
+In earlier versions of elasticsearch, every timestamp was always tried to be parsed as
+as unix timestamp first. This means, even when specifying a date format like
+`dateOptionalTime`, one could supply unix timestamps instead of a ISO8601 formatted
+date.
+
+This is not supported anymore. If you want to store unix timestamps, you need to specify
+the appropriate formats in the mapping, namely `epoch_second` or `epoch_millis`.
+
 ==== Source field limitations
 The `_source` field could previously be disabled dynamically. Since this field
 is a critical piece of many features like the Update API, it is no longer

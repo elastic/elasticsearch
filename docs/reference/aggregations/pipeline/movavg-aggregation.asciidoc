@@ -44,6 +44,8 @@ A `moving_avg` aggregation looks like this in isolation:
 |`model` |The moving average weighting model that we wish to use |Optional |`simple`
 |`gap_policy` |Determines what should happen when a gap in the data is encountered. |Optional |`insert_zero`
 |`window` |The size of window to "slide" across the histogram. |Optional |`5`
+|`minimize` |If the model should be algorithmically minimized.  See <<movavg-minimizer, Minimization>> for more
+ details |Optional |`false` for most models
 |`settings` |Model-specific settings, contents which differ depending on the model specified. |Optional |
 |===
 
@@ -100,6 +102,7 @@ the values from a `simple` moving average tend to "lag" behind the real data.
     "the_movavg":{
         "moving_avg":{
             "buckets_path": "the_sum",
+            "window" : 30,
             "model" : "simple"
         }
     }
@@ -135,6 +138,7 @@ the "lag" behind the data's mean, since older points have less influence.
     "the_movavg":{
         "moving_avg":{
             "buckets_path": "the_sum",
+            "window" : 30,
             "model" : "linear"
         }
 }
@@ -165,7 +169,9 @@ setting.  Small values make the weight decay slowly, which provides greater smoo
 portion of the window.  Larger valuers make the weight decay quickly, which reduces the impact of older values on the
 moving average.  This tends to make the moving average track the data more closely but with less smoothing.
 
-The default value of `alpha` is `0.5`, and the setting accepts any float from 0-1 inclusive.
+The default value of `alpha` is `0.3`, and the setting accepts any float from 0-1 inclusive.
+
+The EWMA model can be <<movavg-minimizer, Minimized>>
 
 [source,js]
 --------------------------------------------------
@@ -173,6 +179,7 @@ The default value of `alpha` is `0.5`, and the setting accepts any float from 0-
     "the_movavg":{
         "moving_avg":{
             "buckets_path": "the_sum",
+            "window" : 30,
             "model" : "ewma",
             "settings" : {
                 "alpha" : 0.5
@@ -204,7 +211,9 @@ smoothed data).  The trend value is also exponentially weighted.
 
 Values are produced by multiplying the level and trend components.
 
-The default value of `alpha` and `beta` is `0.5`, and the settings accept any float from 0-1 inclusive.
+The default value of `alpha` is `0.3` and `beta` is `0.1`. The settings accept any float from 0-1 inclusive.
+
+The Holt-Linear model can be <<movavg-minimizer, Minimized>>
 
 [source,js]
 --------------------------------------------------
@@ -212,6 +221,7 @@ The default value of `alpha` and `beta` is `0.5`, and the settings accept any fl
     "the_movavg":{
         "moving_avg":{
             "buckets_path": "the_sum",
+            "window" : 30,
             "model" : "holt",
             "settings" : {
                 "alpha" : 0.5,
@@ -270,8 +280,10 @@ Additive seasonality is the default; it can also be specified by setting `"type"
 when the seasonal affect is additive to your data. E.g. you could simply subtract the seasonal effect to "de-seasonalize"
 your data into a flat trend.
 
-The default value of `alpha`, `beta` and `gamma` is `0.5`, and the settings accept any float from 0-1 inclusive.
+The default values of `alpha` and `gamma` are `0.3` while `beta` is `0.1`.  The settings accept any float from 0-1 inclusive.
 The default value of `period` is `1`.
+
+The additive Holt-Winters model can be <<movavg-minimizer, Minimized>>
 
 [source,js]
 --------------------------------------------------
@@ -279,6 +291,7 @@ The default value of `period` is `1`.
     "the_movavg":{
         "moving_avg":{
             "buckets_path": "the_sum",
+            "window" : 30,
             "model" : "holt_winters",
             "settings" : {
                 "type" : "add",
@@ -301,8 +314,10 @@ image::images/pipeline_movavg/triple.png[]
 Multiplicative is specified by setting `"type": "mult"`.  This variety is preferred when the seasonal affect is
 multiplied against your data. E.g. if the seasonal affect is x5 the data, rather than simply adding to it.
 
-The default value of `alpha`, `beta` and `gamma` is `0.5`, and the settings accept any float from 0-1 inclusive.
+The default values of `alpha` and `gamma` are `0.3` while `beta` is `0.1`.  The settings accept any float from 0-1 inclusive.
 The default value of `period` is `1`.
+
+The multiplicative Holt-Winters model can be <<movavg-minimizer, Minimized>>
 
 [WARNING]
 ======
@@ -319,6 +334,7 @@ you can disable this behavior with `pad: false`
     "the_movavg":{
         "moving_avg":{
             "buckets_path": "the_sum",
+            "window" : 30,
             "model" : "holt_winters",
             "settings" : {
                 "type" : "mult",
@@ -347,6 +363,7 @@ as your buckets:
     "the_movavg":{
         "moving_avg":{
             "buckets_path": "the_sum",
+            "window" : 30,
             "model" : "simple",
             "predict" 10
         }
@@ -381,3 +398,53 @@ fluctuations into the model:
 [[holt_winters_prediction_global]]
 .Holt-Winters moving average with window of size 120, predict = 25, alpha = 0.8, beta = 0.2, gamma = 0.7, period = 30
 image::images/pipeline_movavg/triple_prediction.png[]
+
+[[movavg-minimizer]]
+==== Minimization
+
+Some of the models (EWMA, Holt-Linear, Holt-Winters) require one or more parameters to be configured.  Parameter choice
+can be tricky and sometimes non-intuitive.  Furthermore, small deviations in these parameters can sometimes have a drastic
+effect on the output moving average.
+
+For that reason, the three "tunable" models can be algorithmically *minimized*.  Minimization is a process where parameters
+are tweaked until the predictions generated by the model closely match the output data.  Minimization is not fullproof
+and can be susceptible to overfitting, but it often gives better results than hand-tuning.
+
+Minimization is disabled by default for `ewma` and `holt_linear`, while it is enabled by default for `holt_winters`.
+Minimization is most useful with Holt-Winters, since it helps improve the accuracy of the predictions.  EWMA and
+Holt-Linear are not great predictors, and mostly used for smoothing data, so minimization is less useful on those
+models.
+
+Minimization is enabled/disabled via the `minimize` parameter:
+
+[source,js]
+--------------------------------------------------
+{
+    "the_movavg":{
+        "moving_avg":{
+            "buckets_path": "the_sum",
+            "model" : "holt_winters",
+            "window" : 30,
+            "minimize" : true,  <1>
+            "settings" : {
+                "period" : 7
+            }
+        }
+}
+--------------------------------------------------
+<1> Minimization is enabled with the `minimize` parameter
+
+When enabled, minimization will find the optimal values for `alpha`, `beta` and `gamma`.  The user should still provide
+appropriate values for `window`, `period` and `type`.
+
+[WARNING]
+======
+Minimization works by running a stochastic process called *simulated annealing*.  This process will usually generate
+a good solution, but is not guaranteed to find the global optimum.  It also requires some amount of additional
+computational power, since the model needs to be re-run multiple times as the values are tweaked.  The run-time of
+minimization is linear to the size of the window being processed: excessively large windows may cause latency.
+
+Finally, minimization fits the model to the last `n` values, where `n = window`.  This generally produces
+better forecasts into the future, since the parameters are tuned around the end of the series.  It can, however, generate
+poorer fitting moving averages at the beginning of the series.
+======

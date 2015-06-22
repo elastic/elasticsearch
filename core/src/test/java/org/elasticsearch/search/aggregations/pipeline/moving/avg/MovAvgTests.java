@@ -25,8 +25,7 @@ import com.google.common.collect.EvictingQueue;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.index.query.RangeQueryBuilder;
-import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
+import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.Bucket;
@@ -45,7 +44,6 @@ import java.util.*;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.min;
@@ -55,8 +53,6 @@ import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorB
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
@@ -83,7 +79,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
 
 
     enum MovAvgType {
-        SIMPLE ("simple"), LINEAR("linear"), EWMA("ewma"), HOLT("holt"), HOLT_WINTERS("holt_winters");
+        SIMPLE ("simple"), LINEAR("linear"), EWMA("ewma"), HOLT("holt"), HOLT_WINTERS("holt_winters"), HOLT_BIG_MINIMIZE("holt");
 
         private final String name;
 
@@ -136,7 +132,12 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
 
         for (MovAvgType type : MovAvgType.values()) {
             for (MetricTarget target : MetricTarget.values()) {
-                setupExpected(type, target);
+                if (type.equals(MovAvgType.HOLT_BIG_MINIMIZE)) {
+                    setupExpected(type, target, numBuckets);
+                } else {
+                    setupExpected(type, target, windowSize);
+                }
+
             }
         }
 
@@ -169,7 +170,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
      * @param type      The moving average model to use
      * @param target    The document field "target", e.g. _count or a field value
      */
-    private void setupExpected(MovAvgType type, MetricTarget target) {
+    private void setupExpected(MovAvgType type, MetricTarget target, int windowSize) {
         ArrayList<Double> values = new ArrayList<>(numBuckets);
         EvictingQueue<Double> window = EvictingQueue.create(windowSize);
 
@@ -209,6 +210,9 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                     case HOLT:
                         values.add(holt(window));
                         break;
+                    case HOLT_BIG_MINIMIZE:
+                        values.add(holt(window));
+                        break;
                     case HOLT_WINTERS:
                         // HW needs at least 2 periods of data to start
                         if (window.size() >= period * 2) {
@@ -226,7 +230,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
             window.offer(metricValue);
 
         }
-        testValues.put(type.toString() + "_" + target.toString(), values);
+        testValues.put(type.name() + "_" + target.name(), values);
     }
 
     /**
@@ -349,12 +353,11 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         // Calculate the slopes between first and second season for each period
         for (int i = 0; i < period; i++) {
             s += vs[i];
-            b += (vs[i] - vs[i + period]) / 2;
+            b += (vs[i + period] - vs[i]) / period;
         }
         s /= (double) period;
         b /= (double) period;
         last_s = s;
-        last_b = b;
 
         // Calculate first seasonal
         if (Double.compare(s, 0.0) == 0 || Double.compare(s, -0.0) == 0) {
@@ -377,18 +380,20 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
             if (seasonalityType.equals(HoltWintersModel.SeasonalityType.MULTIPLICATIVE)) {
                 seasonal[i] = gamma * (vs[i] / (last_s + last_b )) + (1 - gamma) * seasonal[i - period];
             } else {
-                seasonal[i] = gamma * (vs[i] - (last_s + last_b )) + (1 - gamma) * seasonal[i - period];
+                seasonal[i] = gamma * (vs[i] - (last_s - last_b )) + (1 - gamma) * seasonal[i - period];
             }
 
             last_s = s;
             last_b = b;
         }
 
-        int seasonCounter = (window.size() - 1) - period;
+        int idx = window.size() - period + (0 % period);
+
+        // TODO perhaps pad out seasonal to a power of 2 and use a mask instead of modulo?
         if (seasonalityType.equals(HoltWintersModel.SeasonalityType.MULTIPLICATIVE)) {
-            return s + (0 * b) * seasonal[seasonCounter % window.size()];
+            return (s + (1 * b)) * seasonal[idx];
         } else {
-            return s + (0 * b) + seasonal[seasonCounter % window.size()];
+            return s + (1 * b) + seasonal[idx];
         }
     }
 
@@ -425,8 +430,8 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         List<? extends Bucket> buckets = histo.getBuckets();
         assertThat("Size of buckets array is not correct.", buckets.size(), equalTo(mockHisto.size()));
 
-        List<Double> expectedCounts = testValues.get(MovAvgType.SIMPLE.toString() + "_" + MetricTarget.COUNT.toString());
-        List<Double> expectedValues = testValues.get(MovAvgType.SIMPLE.toString() + "_" + MetricTarget.VALUE.toString());
+        List<Double> expectedCounts = testValues.get(MovAvgType.SIMPLE.name() + "_" + MetricTarget.COUNT.name());
+        List<Double> expectedValues = testValues.get(MovAvgType.SIMPLE.name() + "_" + MetricTarget.VALUE.name());
 
         Iterator<? extends Histogram.Bucket> actualIter = buckets.iterator();
         Iterator<PipelineAggregationHelperTests.MockBucket> expectedBucketIter = mockHisto.iterator();
@@ -477,8 +482,8 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         List<? extends Bucket> buckets = histo.getBuckets();
         assertThat("Size of buckets array is not correct.", buckets.size(), equalTo(mockHisto.size()));
 
-        List<Double> expectedCounts = testValues.get(MovAvgType.LINEAR.toString() + "_" + MetricTarget.COUNT.toString());
-        List<Double> expectedValues = testValues.get(MovAvgType.LINEAR.toString() + "_" + MetricTarget.VALUE.toString());
+        List<Double> expectedCounts = testValues.get(MovAvgType.LINEAR.name() + "_" + MetricTarget.COUNT.name());
+        List<Double> expectedValues = testValues.get(MovAvgType.LINEAR.name() + "_" + MetricTarget.VALUE.name());
 
         Iterator<? extends Histogram.Bucket> actualIter = buckets.iterator();
         Iterator<PipelineAggregationHelperTests.MockBucket> expectedBucketIter = mockHisto.iterator();
@@ -529,8 +534,8 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         List<? extends Bucket> buckets = histo.getBuckets();
         assertThat("Size of buckets array is not correct.", buckets.size(), equalTo(mockHisto.size()));
 
-        List<Double> expectedCounts = testValues.get(MovAvgType.EWMA.toString() + "_" + MetricTarget.COUNT.toString());
-        List<Double> expectedValues = testValues.get(MovAvgType.EWMA.toString() + "_" + MetricTarget.VALUE.toString());
+        List<Double> expectedCounts = testValues.get(MovAvgType.EWMA.name() + "_" + MetricTarget.COUNT.name());
+        List<Double> expectedValues = testValues.get(MovAvgType.EWMA.name() + "_" + MetricTarget.VALUE.name());
 
         Iterator<? extends Histogram.Bucket> actualIter = buckets.iterator();
         Iterator<PipelineAggregationHelperTests.MockBucket> expectedBucketIter = mockHisto.iterator();
@@ -581,8 +586,8 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         List<? extends Bucket> buckets = histo.getBuckets();
         assertThat("Size of buckets array is not correct.", buckets.size(), equalTo(mockHisto.size()));
 
-        List<Double> expectedCounts = testValues.get(MovAvgType.HOLT.toString() + "_" + MetricTarget.COUNT.toString());
-        List<Double> expectedValues = testValues.get(MovAvgType.HOLT.toString() + "_" + MetricTarget.VALUE.toString());
+        List<Double> expectedCounts = testValues.get(MovAvgType.HOLT.name() + "_" + MetricTarget.COUNT.name());
+        List<Double> expectedValues = testValues.get(MovAvgType.HOLT.name() + "_" + MetricTarget.VALUE.name());
 
         Iterator<? extends Histogram.Bucket> actualIter = buckets.iterator();
         Iterator<PipelineAggregationHelperTests.MockBucket> expectedBucketIter = mockHisto.iterator();
@@ -618,12 +623,14 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                                         .modelBuilder(new HoltWintersModel.HoltWintersModelBuilder()
                                                 .alpha(alpha).beta(beta).gamma(gamma).period(period).seasonalityType(seasonalityType))
                                         .gapPolicy(gapPolicy)
+                                        .minimize(false)
                                         .setBucketsPaths("_count"))
                                 .subAggregation(movingAvg("movavg_values")
                                         .window(windowSize)
                                         .modelBuilder(new HoltWintersModel.HoltWintersModelBuilder()
                                                 .alpha(alpha).beta(beta).gamma(gamma).period(period).seasonalityType(seasonalityType))
                                         .gapPolicy(gapPolicy)
+                                        .minimize(false)
                                         .setBucketsPaths("the_metric"))
                 ).execute().actionGet();
 
@@ -635,8 +642,8 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         List<? extends Bucket> buckets = histo.getBuckets();
         assertThat("Size of buckets array is not correct.", buckets.size(), equalTo(mockHisto.size()));
 
-        List<Double> expectedCounts = testValues.get(MovAvgType.HOLT_WINTERS.toString() + "_" + MetricTarget.COUNT.toString());
-        List<Double> expectedValues = testValues.get(MovAvgType.HOLT_WINTERS.toString() + "_" + MetricTarget.VALUE.toString());
+        List<Double> expectedCounts = testValues.get(MovAvgType.HOLT_WINTERS.name() + "_" + MetricTarget.COUNT.name());
+        List<Double> expectedValues = testValues.get(MovAvgType.HOLT_WINTERS.name() + "_" + MetricTarget.VALUE.name());
 
         Iterator<? extends Histogram.Bucket> actualIter = buckets.iterator();
         Iterator<PipelineAggregationHelperTests.MockBucket> expectedBucketIter = mockHisto.iterator();
@@ -1035,6 +1042,230 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         } catch (SearchPhaseExecutionException e) {
             // All good
         }
+
+    }
+
+    @Test
+    public void HoltWintersMinimization() {
+
+        SearchResponse response = client()
+                .prepareSearch("idx").setTypes("type")
+                .addAggregation(
+                        histogram("histo").field(INTERVAL_FIELD).interval(interval)
+                                .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
+                                .subAggregation(metric)
+                                .subAggregation(movingAvg("movavg_counts")
+                                        .window(windowSize)
+                                        .modelBuilder(new HoltWintersModel.HoltWintersModelBuilder()
+                                                .period(period).seasonalityType(seasonalityType))
+                                        .gapPolicy(gapPolicy)
+                                        .minimize(true)
+                                        .setBucketsPaths("_count"))
+                                .subAggregation(movingAvg("movavg_values")
+                                        .window(windowSize)
+                                        .modelBuilder(new HoltWintersModel.HoltWintersModelBuilder()
+                                                .period(period).seasonalityType(seasonalityType))
+                                        .gapPolicy(gapPolicy)
+                                        .minimize(true)
+                                        .setBucketsPaths("the_metric"))
+                ).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        InternalHistogram<Bucket> histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+        List<? extends Bucket> buckets = histo.getBuckets();
+        assertThat("Size of buckets array is not correct.", buckets.size(), equalTo(mockHisto.size()));
+
+
+        List<Double> expectedCounts = testValues.get(MovAvgType.HOLT_WINTERS.name() + "_" + MetricTarget.COUNT.name());
+        List<Double> expectedValues = testValues.get(MovAvgType.HOLT_WINTERS.name() + "_" + MetricTarget.VALUE.name());
+
+        Iterator<? extends Histogram.Bucket> actualIter = buckets.iterator();
+        Iterator<PipelineAggregationHelperTests.MockBucket> expectedBucketIter = mockHisto.iterator();
+        Iterator<Double> expectedCountsIter = expectedCounts.iterator();
+        Iterator<Double> expectedValueIter = expectedValues.iterator();
+
+        // The minimizer is stochastic, so just make sure all the values coming back aren't null
+        while (actualIter.hasNext()) {
+
+            Histogram.Bucket actual = actualIter.next();
+            PipelineAggregationHelperTests.MockBucket expected = expectedBucketIter.next();
+            Double expectedCount = expectedCountsIter.next();
+            Double expectedValue = expectedValueIter.next();
+
+            assertThat("keys do not match", ((Number) actual.getKey()).longValue(), equalTo(expected.key));
+            assertThat("doc counts do not match", actual.getDocCount(), equalTo((long)expected.count));
+
+            SimpleValue countMovAvg = actual.getAggregations().get("movavg_counts");
+            SimpleValue valuesMovAvg = actual.getAggregations().get("movavg_values");
+
+            if (expectedCount == null) {
+                //this bucket wasn't supposed to have a value (empty, skipped, etc), so
+                //movavg should be null too
+                assertThat(countMovAvg, nullValue());
+            } else {
+
+                // Note that we don't compare against the mock values, since those are assuming
+                // a non-minimized set of coefficients.  Just check for not-nullness
+                assertThat(countMovAvg, notNullValue());
+            }
+
+            if (expectedValue == null) {
+                //this bucket wasn't supposed to have a value (empty, skipped, etc), so
+                //movavg should be null too
+                assertThat(valuesMovAvg, nullValue());
+            } else {
+
+                // Note that we don't compare against the mock values, since those are assuming
+                // a non-minimized set of coefficients.  Just check for not-nullness
+                assertThat(valuesMovAvg, notNullValue());
+            }
+        }
+
+    }
+
+
+    /**
+     * If the minimizer is turned on, but there isn't enough data to minimize with, it will simply use
+     * the default settings.  Which means our mock histo will match the generated result (which it won't
+     * if the minimizer is actually working, since the coefficients will be different and thus generate different
+     * data)
+     *
+     * We can simulate this by setting the window size == size of histo
+     */
+    @Test
+    public void minimizeNotEnoughData() {
+
+        SearchResponse response = client()
+                .prepareSearch("idx").setTypes("type")
+                .addAggregation(
+                        histogram("histo").field(INTERVAL_FIELD).interval(interval)
+                                .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
+                                .subAggregation(metric)
+                                .subAggregation(movingAvg("movavg_counts")
+                                        .window(numBuckets)
+                                        .modelBuilder(new HoltLinearModel.HoltLinearModelBuilder().alpha(alpha).beta(beta))
+                                        .gapPolicy(gapPolicy)
+                                        .minimize(true)
+                                        .setBucketsPaths("_count"))
+                                .subAggregation(movingAvg("movavg_values")
+                                        .window(numBuckets)
+                                        .modelBuilder(new HoltLinearModel.HoltLinearModelBuilder().alpha(alpha).beta(beta))
+                                        .gapPolicy(gapPolicy)
+                                        .minimize(true)
+                                        .setBucketsPaths("the_metric"))
+                ).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        InternalHistogram<Bucket> histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+        List<? extends Bucket> buckets = histo.getBuckets();
+        assertThat("Size of buckets array is not correct.", buckets.size(), equalTo(mockHisto.size()));
+
+        List<Double> expectedCounts = testValues.get(MovAvgType.HOLT_BIG_MINIMIZE.name() + "_" + MetricTarget.COUNT.name());
+        List<Double> expectedValues = testValues.get(MovAvgType.HOLT_BIG_MINIMIZE.name() + "_" + MetricTarget.VALUE.name());
+
+        Iterator<? extends Histogram.Bucket> actualIter = buckets.iterator();
+        Iterator<PipelineAggregationHelperTests.MockBucket> expectedBucketIter = mockHisto.iterator();
+        Iterator<Double> expectedCountsIter = expectedCounts.iterator();
+        Iterator<Double> expectedValuesIter = expectedValues.iterator();
+
+        while (actualIter.hasNext()) {
+            assertValidIterators(expectedBucketIter, expectedCountsIter, expectedValuesIter);
+
+            Histogram.Bucket actual = actualIter.next();
+            PipelineAggregationHelperTests.MockBucket expected = expectedBucketIter.next();
+            Double expectedCount = expectedCountsIter.next();
+            Double expectedValue = expectedValuesIter.next();
+
+            assertThat("keys do not match", ((Number) actual.getKey()).longValue(), equalTo(expected.key));
+            assertThat("doc counts do not match", actual.getDocCount(), equalTo((long)expected.count));
+
+            assertBucketContents(actual, expectedCount, expectedValue);
+        }
+    }
+
+    /**
+     * Only some models can be minimized, should throw exception for: simple, linear
+     */
+    @Test
+    public void checkIfNonTunableCanBeMinimized() {
+
+        try {
+            client()
+                .prepareSearch("idx").setTypes("type")
+                .addAggregation(
+                        histogram("histo").field(INTERVAL_FIELD).interval(interval)
+                                .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
+                                .subAggregation(metric)
+                                .subAggregation(movingAvg("movavg_counts")
+                                        .window(numBuckets)
+                                        .modelBuilder(new SimpleModel.SimpleModelBuilder())
+                                        .gapPolicy(gapPolicy)
+                                        .minimize(true)
+                                        .setBucketsPaths("_count"))
+                ).execute().actionGet();
+            fail("Simple Model cannot be minimized, but an exception was not thrown");
+        } catch (SearchPhaseExecutionException e) {
+            // All good
+        }
+
+        try {
+            client()
+                    .prepareSearch("idx").setTypes("type")
+                    .addAggregation(
+                            histogram("histo").field(INTERVAL_FIELD).interval(interval)
+                                    .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
+                                    .subAggregation(metric)
+                                    .subAggregation(movingAvg("movavg_counts")
+                                            .window(numBuckets)
+                                            .modelBuilder(new LinearModel.LinearModelBuilder())
+                                            .gapPolicy(gapPolicy)
+                                            .minimize(true)
+                                            .setBucketsPaths("_count"))
+                    ).execute().actionGet();
+            fail("Linear Model cannot be minimized, but an exception was not thrown");
+        } catch (SearchPhaseExecutionException e) {
+            // all good
+        }
+    }
+
+    /**
+     * These models are all minimizable, so they should not throw exceptions
+     */
+    @Test
+    public void checkIfTunableCanBeMinimized() {
+
+        MovAvgModelBuilder[] builders = new MovAvgModelBuilder[]{
+                new EwmaModel.EWMAModelBuilder(),
+                new HoltLinearModel.HoltLinearModelBuilder(),
+                new HoltWintersModel.HoltWintersModelBuilder()
+        };
+
+        for (MovAvgModelBuilder builder : builders) {
+            try {
+                client()
+                        .prepareSearch("idx").setTypes("type")
+                        .addAggregation(
+                                histogram("histo").field(INTERVAL_FIELD).interval(interval)
+                                        .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
+                                        .subAggregation(metric)
+                                        .subAggregation(movingAvg("movavg_counts")
+                                                .window(numBuckets)
+                                                .modelBuilder(builder)
+                                                .gapPolicy(gapPolicy)
+                                                .minimize(true)
+                                                .setBucketsPaths("_count"))
+                        ).execute().actionGet();
+            } catch (SearchPhaseExecutionException e) {
+                fail("Model [" + builder.toString() + "] can be minimized, but an exception was thrown");
+            }
+        }
+
 
     }
 

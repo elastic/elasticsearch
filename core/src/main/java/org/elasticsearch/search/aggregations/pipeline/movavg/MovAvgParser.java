@@ -44,6 +44,7 @@ public class MovAvgParser implements PipelineAggregator.Parser {
     public static final ParseField WINDOW = new ParseField("window");
     public static final ParseField SETTINGS = new ParseField("settings");
     public static final ParseField PREDICT = new ParseField("predict");
+    public static final ParseField MINIMIZE = new ParseField("minimize");
 
     private final MovAvgModelParserMapper movAvgModelParserMapper;
 
@@ -69,6 +70,7 @@ public class MovAvgParser implements PipelineAggregator.Parser {
         Map<String, Object> settings = null;
         String model = "simple";
         int predict = 0;
+        Boolean minimize = null;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -124,6 +126,13 @@ public class MovAvgParser implements PipelineAggregator.Parser {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: ["
                             + currentFieldName + "].", parser.getTokenLocation());
                 }
+            } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+                if (context.parseFieldMatcher().match(currentFieldName, MINIMIZE)) {
+                    minimize = parser.booleanValue();
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: ["
+                            + currentFieldName + "].", parser.getTokenLocation());
+                }
             } else {
                 throw new SearchParseException(context, "Unexpected token " + token + " in [" + pipelineAggregatorName + "].",
                         parser.getTokenLocation());
@@ -155,9 +164,17 @@ public class MovAvgParser implements PipelineAggregator.Parser {
             throw new SearchParseException(context, "Could not parse settings for model [" + model + "].", null, exception);
         }
 
+        // If the user doesn't set a preference for cost minimization, ask what the model prefers
+        if (minimize == null) {
+            minimize = movAvgModel.minimizeByDefault();
+        } else if (minimize && !movAvgModel.canBeMinimized()) {
+            // If the user asks to minimize, but this model doesn't support it, throw exception
+            throw new SearchParseException(context, "The [" + model + "] model cannot be minimized.", null);
+        }
+
 
         return new MovAvgPipelineAggregator.Factory(pipelineAggregatorName, bucketsPaths, formatter, gapPolicy, window, predict,
-                movAvgModel);
+                movAvgModel, minimize);
     }
 
 

@@ -19,8 +19,6 @@
 package org.elasticsearch.index.fieldvisitor;
 
 import org.apache.lucene.index.FieldInfo;
-import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
 import java.util.Set;
@@ -32,21 +30,16 @@ import java.util.Set;
  */
 public class CustomFieldsVisitor extends FieldsVisitor {
 
-    private final boolean loadSource;
     private final Set<String> fields;
 
     public CustomFieldsVisitor(Set<String> fields, boolean loadSource) {
-        this.loadSource = loadSource;
+        super(loadSource);
         this.fields = fields;
     }
 
     @Override
     public Status needsField(FieldInfo fieldInfo) throws IOException {
-
-        if (loadSource && SourceFieldMapper.NAME.equals(fieldInfo.name)) {
-            return Status.YES;
-        }
-        if (UidFieldMapper.NAME.equals(fieldInfo.name)) {
+        if (super.needsField(fieldInfo) == Status.YES) {
             return Status.YES;
         }
 

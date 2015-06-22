@@ -35,6 +35,7 @@ import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearch
 
 /**
  * Delete by query response
+ * @see DeleteByQueryRequest
  */
 public class DeleteByQueryResponse extends ActionResponse implements ToXContent {
 

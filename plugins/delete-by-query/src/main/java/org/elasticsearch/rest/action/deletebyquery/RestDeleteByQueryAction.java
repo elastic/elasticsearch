@@ -37,6 +37,9 @@ import org.elasticsearch.rest.action.support.RestToXContentListener;
 import static org.elasticsearch.action.deletebyquery.DeleteByQueryAction.INSTANCE;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
+/**
+ * @see DeleteByQueryRequest
+ */
 public class RestDeleteByQueryAction extends BaseRestHandler {
 
     @Inject

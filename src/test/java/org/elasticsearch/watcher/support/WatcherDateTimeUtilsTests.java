@@ -8,6 +8,7 @@ package org.elasticsearch.watcher.support;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -18,7 +19,6 @@ import static java.util.concurrent.TimeUnit.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.xContentParser;
 import static org.hamcrest.CoreMatchers.nullValue;
-import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -30,8 +30,14 @@ public class WatcherDateTimeUtilsTests extends ElasticsearchTestCase {
     @Test(expected = WatcherDateTimeUtils.ParseException.class)
     public void testParseTimeValue_Numeric() throws Exception {
         TimeValue value = new TimeValue(randomInt(100), randomFrom(TimeUnit.values()));
-
-        XContentParser parser = xContentParser(jsonBuilder().startObject().field("value", value.getMillis()).endObject());
+        long millis = value.getMillis();
+        XContentBuilder xContentBuilder = jsonBuilder().startObject();
+        if (randomBoolean() || millis == 0) { // 0 is special - no unit required
+            xContentBuilder.field("value", millis);
+        } else {
+            xContentBuilder.field("value", Long.toString(millis));
+        }
+        XContentParser parser = xContentParser(xContentBuilder.endObject());
         parser.nextToken(); // start object
         parser.nextToken(); // field name
         parser.nextToken(); // value

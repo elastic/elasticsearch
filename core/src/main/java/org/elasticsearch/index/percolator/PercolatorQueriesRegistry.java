@@ -74,7 +74,6 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
     private final IndexQueryParserService queryParserService;
     private final MapperService mapperService;
     private final IndicesLifecycle indicesLifecycle;
-    private final IndexCache indexCache;
     private final IndexFieldDataService indexFieldDataService;
 
     private final ShardIndexingService indexingService;
@@ -98,13 +97,12 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
     @Inject
     public PercolatorQueriesRegistry(ShardId shardId, @IndexSettings Settings indexSettings, IndexQueryParserService queryParserService,
                                      ShardIndexingService indexingService, IndicesLifecycle indicesLifecycle, MapperService mapperService,
-                                     IndexCache indexCache, IndexFieldDataService indexFieldDataService, ShardPercolateService shardPercolateService) {
+                                     IndexFieldDataService indexFieldDataService, ShardPercolateService shardPercolateService) {
         super(shardId, indexSettings);
         this.queryParserService = queryParserService;
         this.mapperService = mapperService;
         this.indicesLifecycle = indicesLifecycle;
         this.indexingService = indexingService;
-        this.indexCache = indexCache;
         this.indexFieldDataService = indexFieldDataService;
         this.shardPercolateService = shardPercolateService;
         this.mapUnmappedFieldsAsString = indexSettings.getAsBoolean(MAP_UNMAPPED_FIELDS_AS_STRING, false);

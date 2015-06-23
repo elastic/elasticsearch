@@ -76,7 +76,7 @@ To solve this problem, Elasticsearch provides the ability to subdivide your inde
 Sharding is important for two primary reasons:
 
 * It allows you to horizontally split/scale your content volume
-* It allows you distribute and parallelize operations across shards (potentially on multiple nodes) thus increasing performance/throughput
+* It allows you to distribute and parallelize operations across shards (potentially on multiple nodes) thus increasing performance/throughput
 
 
 The mechanics of how a shard is distributed and also how its documents are aggregated back into search requests are completely managed by Elasticsearch and is transparent to you as the user.

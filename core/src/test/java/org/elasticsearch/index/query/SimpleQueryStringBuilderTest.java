@@ -21,12 +21,9 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
-import org.elasticsearch.common.Strings;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.query.SimpleQueryParser.Settings;
 import org.junit.Test;
@@ -38,7 +35,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryStringBuilder> {
 
@@ -134,7 +133,7 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
     public void testDefaultNullLocale() {
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.");
         qb.locale(null);
-        assertEquals("Setting locale to null should result in returning to default value.", 
+        assertEquals("Setting locale to null should result in returning to default value.",
                 SimpleQueryStringBuilder.DEFAULT_LOCALE, qb.locale());
     }
 
@@ -142,7 +141,7 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
     public void testDefaultNullComplainFlags() {
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.");
         qb.flags((SimpleQueryStringFlag[]) null);
-        assertEquals("Setting flags to null should result in returning to default value.", 
+        assertEquals("Setting flags to null should result in returning to default value.",
                 SimpleQueryStringBuilder.DEFAULT_FLAGS, qb.flags());
     }
 
@@ -158,7 +157,7 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
     public void testDefaultNullComplainOp() {
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.");
         qb.defaultOperator(null);
-        assertEquals("Setting operator to null should result in returning to default value.", 
+        assertEquals("Setting operator to null should result in returning to default value.",
                 SimpleQueryStringBuilder.DEFAULT_OPERATOR, qb.defaultOperator());
     }
 
@@ -285,9 +284,6 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
         }
 
         Query query = sqp.parse(queryBuilder.text());
-        if (queryBuilder.queryName() != null) {
-            context.addNamedQuery(queryBuilder.queryName(), query);
-        }
 
         if (queryBuilder.minimumShouldMatch() != null && query instanceof BooleanQuery) {
             Queries.applyMinimumShouldMatch((BooleanQuery) query, queryBuilder.minimumShouldMatch());

@@ -43,7 +43,7 @@ public class OrQueryParser extends BaseQueryParser {
     public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        ArrayList<QueryBuilder> queries = newArrayList();
+        final ArrayList<QueryBuilder> queries = newArrayList();
         boolean queriesFound = false;
 
         String queryName = null;

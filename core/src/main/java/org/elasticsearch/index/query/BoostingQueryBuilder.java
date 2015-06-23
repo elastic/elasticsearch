@@ -120,17 +120,9 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        if (positiveQuery == null) {
-            throw new IllegalArgumentException("boosting query requires positive query to be set");
-        }
-        if (negativeQuery == null) {
-            throw new IllegalArgumentException("boosting query requires negative query to be set");
-        }
         builder.startObject(NAME);
-        builder.field("positive");
-        positiveQuery.toXContent(builder, params);
-        builder.field("negative");
-        negativeQuery.toXContent(builder, params);
+        doXContentInnerBuilder(builder, "positive", positiveQuery, params);
+        doXContentInnerBuilder(builder, "negative", negativeQuery, params);
         builder.field("negative_boost", negativeBoost);
         builder.field("boost", boost);
         builder.endObject();
@@ -153,7 +145,6 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
 
     @Override
     public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
-
         // make upstream queries ignore this query by returning `null`
         // if either inner query builder is null or returns null-Query
         if (positiveQuery == null || negativeQuery == null) {
@@ -172,15 +163,15 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.boost, this.negativeBoost, this.positiveQuery, this.negativeQuery);
+        return Objects.hash(boost, negativeBoost, positiveQuery, negativeQuery);
     }
 
     @Override
     public boolean doEquals(BoostingQueryBuilder other) {
-        return Objects.equals(this.boost, other.boost) &&
-                Objects.equals(this.negativeBoost, other.negativeBoost) &&
-                Objects.equals(this.positiveQuery, other.positiveQuery) &&
-                Objects.equals(this.negativeQuery, other.negativeQuery);
+        return Objects.equals(boost, other.boost) &&
+                Objects.equals(negativeBoost, other.negativeBoost) &&
+                Objects.equals(positiveQuery, other.positiveQuery) &&
+                Objects.equals(negativeQuery, other.negativeQuery);
     }
 
     @Override
@@ -197,9 +188,9 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(this.positiveQuery);
-        out.writeNamedWriteable(this.negativeQuery);
-        out.writeFloat(this.boost);
-        out.writeFloat(this.negativeBoost);
+        out.writeNamedWriteable(positiveQuery);
+        out.writeNamedWriteable(negativeQuery);
+        out.writeFloat(boost);
+        out.writeFloat(negativeBoost);
     }
 }

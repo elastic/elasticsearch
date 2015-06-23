@@ -56,7 +56,7 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
      * Add a sub-query to this disjunction.
      */
     public DisMaxQueryBuilder add(QueryBuilder queryBuilder) {
-        queries.add(queryBuilder);
+        queries.add(Objects.requireNonNull(queryBuilder));
         return this;
     }
 
@@ -169,7 +169,7 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteableList(this.queries);
+        out.writeNamedWriteableList(queries);
         out.writeFloat(tieBreaker);
         out.writeOptionalString(queryName);
         out.writeFloat(boost);

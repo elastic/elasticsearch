@@ -42,23 +42,27 @@ public class AndQueryBuilder extends AbstractQueryBuilder<AndQueryBuilder> {
 
     public static final String NAME = "and";
 
-    private ArrayList<QueryBuilder> filters = Lists.newArrayList();
+    private final ArrayList<QueryBuilder> filters = Lists.newArrayList();
 
     private String queryName;
 
     static final AndQueryBuilder PROTOTYPE = new AndQueryBuilder();
 
+    /**
+     * @param filters nested filters, no <tt>null</tt> values are allowed
+     */
     public AndQueryBuilder(QueryBuilder... filters) {
         for (QueryBuilder filter : filters) {
-            this.filters.add(filter);
+            this.filters.add(Objects.requireNonNull(filter));
         }
     }
 
     /**
      * Adds a filter to the list of filters to "and".
+     * @param filterBuilder nested filter, no <tt>null</tt> value allowed
      */
     public AndQueryBuilder add(QueryBuilder filterBuilder) {
-        filters.add(filterBuilder);
+        filters.add(Objects.requireNonNull(filterBuilder));
         return this;
     }
 
@@ -121,7 +125,7 @@ public class AndQueryBuilder extends AbstractQueryBuilder<AndQueryBuilder> {
 
     @Override
     public QueryValidationException validate() {
-        // nothing to validate.
+        // nothing to validate
         return null;
     }
 
@@ -155,7 +159,7 @@ public class AndQueryBuilder extends AbstractQueryBuilder<AndQueryBuilder> {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteableList(this.filters);
+        out.writeNamedWriteableList(filters);
         out.writeOptionalString(queryName);
     }
 }

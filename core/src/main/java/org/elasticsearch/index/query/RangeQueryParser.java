@@ -48,8 +48,8 @@ public class RangeQueryParser extends BaseQueryParser {
         String fieldName = null;
         Object from = null;
         Object to = null;
-        boolean includeLower = true;
-        boolean includeUpper = true;
+        boolean includeLower = RangeQueryBuilder.DEFAULT_INCLUDE_LOWER;
+        boolean includeUpper = RangeQueryBuilder.DEFAULT_INCLUDE_UPPER;
         String timeZone = null;
         float boost = 1.0f;
         String queryName = null;
@@ -111,15 +111,14 @@ public class RangeQueryParser extends BaseQueryParser {
         }
 
         RangeQueryBuilder rangeQuery = new RangeQueryBuilder(fieldName);
-        rangeQuery.from(from)
-            .to(to)
-            .includeLower(includeLower)
-            .includeUpper(includeUpper)
-            .timeZone(timeZone)
-            .boost(boost)
-            .queryName(queryName)
-            .format(format);
-        rangeQuery.validate();
+        rangeQuery.from(from);
+        rangeQuery.to(to);
+        rangeQuery.includeLower(includeLower);
+        rangeQuery.includeUpper(includeUpper);
+        rangeQuery.timeZone(timeZone);
+        rangeQuery.boost(boost);
+        rangeQuery.queryName(queryName);
+        rangeQuery.format(format);
         return rangeQuery;
     }
 

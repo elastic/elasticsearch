@@ -89,7 +89,6 @@ public class SpanTermQueryParser extends BaseQueryParser {
 
         SpanTermQueryBuilder result = new SpanTermQueryBuilder(fieldName, value);
         result.boost(boost).queryName(queryName);
-        result.validate();
         return result;
     }
 

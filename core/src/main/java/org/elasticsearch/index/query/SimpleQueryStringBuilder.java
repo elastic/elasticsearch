@@ -39,7 +39,7 @@ import java.util.TreeMap;
 /**
  * SimpleQuery is a query parser that acts similar to a query_string query, but
  * won't throw exceptions for any weird string syntax.
- * 
+ *
  * For more detailed explanation of the query string syntax see also the <a
  * href=
  * "https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-simple-query-string-query.html"
@@ -55,7 +55,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     /** Default for wildcard analysis.*/
     public static final boolean DEFAULT_ANALYZE_WILDCARD = false;
     /** Default for boost to apply to resulting Lucene query. Defaults to 1.0*/
-    public static final float DEFAULT_BOOST = 1.0f; 
+    public static final float DEFAULT_BOOST = 1.0f;
     /** Default for default operator to use for linking boolean clauses.*/
     public static final Operator DEFAULT_OPERATOR = Operator.OR;
     /** Default for search flags to use. */
@@ -71,7 +71,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
      * currently _ALL. Uses a TreeMap to hold the fields so boolean clauses are
      * always sorted in same order for generated Lucene query for easier
      * testing.
-     * 
+     *
      * Can be changed back to HashMap once https://issues.apache.org/jira/browse/LUCENE-6305 is fixed.
      */
     private final Map<String, Float> fieldsAndWeights = new TreeMap<>();
@@ -269,9 +269,9 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         return minimumShouldMatch;
     }
 
-    /** 
-     * {@inheritDoc} 
-     * 
+    /**
+     * {@inheritDoc}
+     *
      * Checks that mandatory queryText is neither null nor empty.
      * */
     @Override
@@ -319,7 +319,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
             Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
         }
 
-        // safety check - https://github.com/elastic/elasticsearch/pull/11696#discussion-diff-32532468 
+        // safety check - https://github.com/elastic/elasticsearch/pull/11696#discussion-diff-32532468
         if (query != null) {
             query.setBoost(boost);
         }
@@ -365,10 +365,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
             builder.field("minimum_should_match", minimumShouldMatch);
         }
 
-        if (boost != -1.0f) {
-            builder.field("boost", boost);
-        }
-
+        builder.field("boost", boost);
         builder.endObject();
     }
 
@@ -430,7 +427,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
 
     @Override
     public int hashCode() {
-        return Objects.hash(fieldsAndWeights, analyzer, defaultOperator, queryText, queryName, minimumShouldMatch, settings);
+        return Objects.hash(fieldsAndWeights, analyzer, defaultOperator, queryText, queryName, minimumShouldMatch, settings, flags);
     }
 
     @Override
@@ -438,7 +435,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         return Objects.equals(fieldsAndWeights, other.fieldsAndWeights) && Objects.equals(analyzer, other.analyzer)
                 && Objects.equals(defaultOperator, other.defaultOperator) && Objects.equals(queryText, other.queryText)
                 && Objects.equals(queryName, other.queryName) && Objects.equals(minimumShouldMatch, other.minimumShouldMatch)
-                && Objects.equals(settings, other.settings);
+                && Objects.equals(settings, other.settings) && (flags == other.flags);
     }
 }
 

@@ -88,13 +88,10 @@ public class TermQueryParser extends BaseQueryParser {
         }
 
         TermQueryBuilder termQuery = new TermQueryBuilder(fieldName, value);
-        if (boost != 1.0f) {
-            termQuery.boost(boost);
-        }
+        termQuery.boost(boost);
         if (queryName != null) {
             termQuery.queryName(queryName);
         }
-        termQuery.validate();
         return termQuery;
     }
 

@@ -49,7 +49,7 @@ public class DisMaxQueryParser extends BaseQueryParser {
         float boost = 1.0f;
         float tieBreaker = DisMaxQueryBuilder.DEFAULT_TIE_BREAKER;
 
-        List<QueryBuilder> queries = newArrayList();
+        final List<QueryBuilder> queries = newArrayList();
         boolean queriesFound = false;
         String queryName = null;
 

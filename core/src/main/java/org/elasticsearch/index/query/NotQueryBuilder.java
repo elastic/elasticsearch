@@ -70,8 +70,7 @@ public class NotQueryBuilder extends AbstractQueryBuilder<NotQueryBuilder> {
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field("query");
-        filter.toXContent(builder, params);
+        doXContentInnerBuilder(builder, "query", filter, params);
         if (queryName != null) {
             builder.field("_name", queryName);
         }

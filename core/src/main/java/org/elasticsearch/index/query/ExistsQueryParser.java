@@ -67,7 +67,6 @@ public class ExistsQueryParser extends BaseQueryParser {
 
         ExistsQueryBuilder builder = new ExistsQueryBuilder(fieldPattern);
         builder.queryName(queryName);
-        builder.validate();
         return builder;
     }
 

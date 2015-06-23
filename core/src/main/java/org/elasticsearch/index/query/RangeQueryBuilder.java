@@ -40,6 +40,10 @@ import java.util.Objects;
  */
 public class RangeQueryBuilder extends MultiTermQueryBuilder<RangeQueryBuilder> implements BoostableQueryBuilder<RangeQueryBuilder> {
 
+    public static final boolean DEFAULT_INCLUDE_UPPER = true;
+
+    public static final boolean DEFAULT_INCLUDE_LOWER = true;
+
     public static final String NAME = "range";
 
     private final String fieldName;
@@ -47,11 +51,12 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder<RangeQueryBuilder> 
     private Object from;
 
     private Object to;
+
     private String timeZone;
 
-    private boolean includeLower = true;
+    private boolean includeLower = DEFAULT_INCLUDE_LOWER;
 
-    private boolean includeUpper = true;
+    private boolean includeUpper = DEFAULT_INCLUDE_UPPER;
 
     private float boost = 1.0f;
 
@@ -255,16 +260,14 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder<RangeQueryBuilder> 
         builder.startObject(fieldName);
         builder.field("from", convertToStringIfBytesRef(this.from));
         builder.field("to", convertToStringIfBytesRef(this.to));
+        builder.field("include_lower", includeLower);
+        builder.field("include_upper", includeUpper);
+        builder.field("boost", boost);
         if (timeZone != null) {
             builder.field("time_zone", timeZone);
         }
         if (format != null) {
             builder.field("format", format);
-        }
-        builder.field("include_lower", includeLower);
-        builder.field("include_upper", includeUpper);
-        if (boost != 1.0f) {
-            builder.field("boost", boost);
         }
         builder.endObject();
         if (queryName != null) {

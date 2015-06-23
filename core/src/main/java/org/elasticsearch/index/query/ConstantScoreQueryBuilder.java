@@ -79,8 +79,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field("filter");
-        filterBuilder.toXContent(builder, params);
+        doXContentInnerBuilder(builder, "filter", filterBuilder, params);
         builder.field("boost", boost);
         builder.endObject();
     }
@@ -104,6 +103,12 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     }
 
     @Override
+    public QueryValidationException validate() {
+        // nothing to validate
+        return null;
+    }
+
+    @Override
     public String getName() {
         return NAME;
     }
@@ -116,7 +121,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     @Override
     public boolean doEquals(ConstantScoreQueryBuilder other) {
         return Objects.equals(boost, other.boost) &&
-                Objects.equals(filterBuilder, other.filterBuilder);
+               Objects.equals(filterBuilder, other.filterBuilder);
     }
 
     @Override
@@ -129,7 +134,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(this.filterBuilder);
+        out.writeNamedWriteable(filterBuilder);
         out.writeFloat(boost);
     }
 }

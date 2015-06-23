@@ -79,8 +79,7 @@ public class FQueryFilterBuilder extends AbstractQueryBuilder<FQueryFilterBuilde
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(FQueryFilterBuilder.NAME);
-        builder.field("query");
-        queryBuilder.toXContent(builder, params);
+        doXContentInnerBuilder(builder, "query", queryBuilder, params);
         if (queryName != null) {
             builder.field("_name", queryName);
         }
@@ -105,6 +104,12 @@ public class FQueryFilterBuilder extends AbstractQueryBuilder<FQueryFilterBuilde
     }
 
     @Override
+    public QueryValidationException validate() {
+        // nothing to validate
+        return null;
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(queryBuilder, queryName);
     }
@@ -125,7 +130,7 @@ public class FQueryFilterBuilder extends AbstractQueryBuilder<FQueryFilterBuilde
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(this.queryBuilder);
+        out.writeNamedWriteable(queryBuilder);
         out.writeOptionalString(queryName);
     }
 

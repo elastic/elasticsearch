@@ -78,7 +78,6 @@ public class ConstantScoreQueryParser extends BaseQueryParser {
 
         ConstantScoreQueryBuilder constantScoreBuilder = new ConstantScoreQueryBuilder(query);
         constantScoreBuilder.boost(boost);
-        constantScoreBuilder.validate();
         return constantScoreBuilder;
     }
 

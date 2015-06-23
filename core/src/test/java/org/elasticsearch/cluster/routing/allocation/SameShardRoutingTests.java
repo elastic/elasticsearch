@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
@@ -84,7 +84,7 @@ public class SameShardRoutingTests extends ElasticsearchAllocationTestCase {
 
         assertThat(numberOfShardsOfType(clusterState.readOnlyRoutingNodes(), ShardRoutingState.STARTED), equalTo(2));
         assertThat(numberOfShardsOfType(clusterState.readOnlyRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(2));
-        for (MutableShardRouting shardRouting : clusterState.readOnlyRoutingNodes().shardsWithState(INITIALIZING)) {
+        for (ShardRouting shardRouting : clusterState.readOnlyRoutingNodes().shardsWithState(INITIALIZING)) {
             assertThat(shardRouting.currentNodeId(), equalTo("node3"));
         }
     }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.shards;
 
-import org.elasticsearch.cluster.routing.ImmutableShardRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -71,7 +70,7 @@ public class ClusterSearchShardsGroup implements Streamable, ToXContent {
         shardId = in.readVInt();
         shards = new ShardRouting[in.readVInt()];
         for (int i = 0; i < shards.length; i++) {
-            shards[i] = ImmutableShardRouting.readShardRoutingEntry(in, index, shardId);
+            shards[i] = ShardRouting.readShardRoutingEntry(in, index, shardId);
         }
     }
 

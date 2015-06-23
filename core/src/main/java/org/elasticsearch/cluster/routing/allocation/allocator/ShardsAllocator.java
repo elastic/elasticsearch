@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
-import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -74,5 +73,5 @@ public interface ShardsAllocator {
      * @param allocation current node allocation
      * @return <code>true</code> if the allocation has changed, otherwise <code>false</code>
      */
-    boolean move(MutableShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation);
+    boolean move(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation);
 }

@@ -77,7 +77,7 @@ public abstract class CatAllocationTestBase extends ElasticsearchAllocationTestC
                     ShardRoutingState state = ShardRoutingState.valueOf(matcher.group(4));
                     String ip = matcher.group(5);
                     nodes.add(ip);
-                    MutableShardRouting routing = new MutableShardRouting(index, shard, ip, null, null, primary, state, 1);
+                    ShardRouting routing = new ShardRouting(index, shard, ip, null, null, primary, state, 1);
                     idx.add(routing);
                     logger.debug("Add routing {}", routing);
                 } else {
@@ -95,7 +95,7 @@ public abstract class CatAllocationTestBase extends ElasticsearchAllocationTestC
             builder.put(idxMeta, false);
             IndexRoutingTable.Builder tableBuilder = new IndexRoutingTable.Builder(idx.name).initializeAsRecovery(idxMeta);
             Map<Integer, IndexShardRoutingTable> shardIdToRouting = new HashMap<>();
-            for (MutableShardRouting r : idx.routing) {
+            for (ShardRouting r : idx.routing) {
                 IndexShardRoutingTable refData = new IndexShardRoutingTable.Builder(new ShardId(idx.name, r.id()), true).addShard(r).build();
                 if (shardIdToRouting.containsKey(r.getId())) {
                     refData = new IndexShardRoutingTable.Builder(shardIdToRouting.get(r.getId())).addShard(r).build();
@@ -155,20 +155,20 @@ public abstract class CatAllocationTestBase extends ElasticsearchAllocationTestC
 
     public class Idx {
         final String name;
-        final List<MutableShardRouting> routing = new ArrayList<>();
+        final List<ShardRouting> routing = new ArrayList<>();
 
         public Idx(String name) {
             this.name = name;
         }
 
 
-        public void add(MutableShardRouting r) {
+        public void add(ShardRouting r) {
             routing.add(r);
         }
 
         public int numReplicas() {
             int count = 0;
-            for (MutableShardRouting msr : routing) {
+            for (ShardRouting msr : routing) {
                 if (msr.primary() == false && msr.id()==0) {
                     count++;
                 }
@@ -178,7 +178,7 @@ public abstract class CatAllocationTestBase extends ElasticsearchAllocationTestC
 
         public int numShards() {
             int max = 0;
-            for (MutableShardRouting msr : routing) {
+            for (ShardRouting msr : routing) {
                 if (msr.primary()) {
                     max = Math.max(msr.getId()+1, max);
                 }

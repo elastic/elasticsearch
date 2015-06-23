@@ -32,7 +32,7 @@ import org.elasticsearch.index.shard.IndexShard;
 
 import java.io.IOException;
 
-import static org.elasticsearch.cluster.routing.ImmutableShardRouting.readShardRoutingEntry;
+import static org.elasticsearch.cluster.routing.ShardRouting.readShardRoutingEntry;
 
 /**
  */

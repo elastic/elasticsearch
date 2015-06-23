@@ -194,7 +194,7 @@ public class AllocationService extends AbstractComponent {
         boolean changed = false;
 
         // create a copy of the shards interleaving between nodes, and check if they can remain
-        List<MutableShardRouting> shards = new ArrayList<>();
+        List<ShardRouting> shards = new ArrayList<>();
         int index = 0;
         boolean found = true;
         final RoutingNodes routingNodes = allocation.routingNodes();
@@ -210,7 +210,7 @@ public class AllocationService extends AbstractComponent {
             index++;
         }
         for (int i = 0; i < shards.size(); i++) {
-            MutableShardRouting shardRouting = shards.get(i);
+            ShardRouting shardRouting = shards.get(i);
             // we can only move started shards...
             if (!shardRouting.started()) {
                 continue;
@@ -240,9 +240,9 @@ public class AllocationService extends AbstractComponent {
 
         // go over and remove dangling replicas that are initializing for primary shards
         List<ShardRouting> shardsToFail = Lists.newArrayList();
-        for (MutableShardRouting shardEntry : routingNodes.unassigned()) {
+        for (ShardRouting shardEntry : routingNodes.unassigned()) {
             if (shardEntry.primary()) {
-                for (MutableShardRouting routing : routingNodes.assignedShards(shardEntry)) {
+                for (ShardRouting routing : routingNodes.assignedShards(shardEntry)) {
                     if (!routing.primary() && routing.initializing()) {
                         shardsToFail.add(routing);
                     }
@@ -257,9 +257,9 @@ public class AllocationService extends AbstractComponent {
         // now, go over and elect a new primary if possible, not, from this code block on, if one is elected,
         // routingNodes.hasUnassignedPrimaries() will potentially be false
 
-        for (MutableShardRouting shardEntry : routingNodes.unassigned()) {
+        for (ShardRouting shardEntry : routingNodes.unassigned()) {
             if (shardEntry.primary()) {
-                MutableShardRouting candidate = allocation.routingNodes().activeReplica(shardEntry);
+                ShardRouting candidate = allocation.routingNodes().activeReplica(shardEntry);
                 if (candidate != null) {
                     IndexMetaData index = allocation.metaData().index(candidate.index());
                     routingNodes.swapPrimaryFlag(shardEntry, candidate);
@@ -268,7 +268,7 @@ public class AllocationService extends AbstractComponent {
                         // its also relocating, make sure to move the other routing to primary
                         RoutingNode node = routingNodes.node(candidate.relocatingNodeId());
                         if (node != null) {
-                            for (MutableShardRouting shardRouting : node) {
+                            for (ShardRouting shardRouting : node) {
                                 if (shardRouting.shardId().equals(candidate.shardId()) && !shardRouting.primary()) {
                                     routingNodes.swapPrimaryFlag(shardRouting);
                                     break;
@@ -312,7 +312,7 @@ public class AllocationService extends AbstractComponent {
             changed = true;
             // now, go over all the shards routing on the node, and fail them
             UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, "node_left[" + node.nodeId() + "]");
-            for (MutableShardRouting shardRouting : node.copyShards()) {
+            for (ShardRouting shardRouting : node.copyShards()) {
                 applyFailedShard(allocation, shardRouting, false, unassignedInfo);
             }
             // its a dead node, remove it, note, its important to remove it *after* we apply failed shard
@@ -333,7 +333,7 @@ public class AllocationService extends AbstractComponent {
 
             RoutingNodes.RoutingNodeIterator currentRoutingNode = routingNodes.routingNodeIter(startedShard.currentNodeId());
             if (currentRoutingNode != null) {
-                for (MutableShardRouting shard : currentRoutingNode) {
+                for (ShardRouting shard : currentRoutingNode) {
                     if (shard.shardId().equals(startedShard.shardId())) {
                         relocatingNodeId = shard.relocatingNodeId();
                         if (!shard.started()) {
@@ -356,7 +356,7 @@ public class AllocationService extends AbstractComponent {
             RoutingNodes.RoutingNodeIterator sourceRoutingNode = routingNodes.routingNodeIter(relocatingNodeId);
             if (sourceRoutingNode != null) {
                 while (sourceRoutingNode.hasNext()) {
-                    MutableShardRouting shard = sourceRoutingNode.next();
+                    ShardRouting shard = sourceRoutingNode.next();
                     if (shard.shardId().equals(startedShard.shardId())) {
                         if (shard.relocating()) {
                             dirty = true;
@@ -377,7 +377,7 @@ public class AllocationService extends AbstractComponent {
     private boolean applyFailedShard(RoutingAllocation allocation, ShardRouting failedShard, boolean addToIgnoreList, UnassignedInfo unassignedInfo) {
         // create a copy of the failed shard, since we assume we can change possible references to it without
         // changing the state of failed shard
-        failedShard = new ImmutableShardRouting(failedShard);
+        failedShard = new ShardRouting(failedShard);
 
         IndexRoutingTable indexRoutingTable = allocation.routingTable().index(failedShard.index());
         if (indexRoutingTable == null) {
@@ -394,7 +394,7 @@ public class AllocationService extends AbstractComponent {
                 RoutingNodes.RoutingNodeIterator initializingNode = routingNodes.routingNodeIter(failedShard.currentNodeId());
                 if (initializingNode != null) {
                     while (initializingNode.hasNext()) {
-                        MutableShardRouting shardRouting = initializingNode.next();
+                        ShardRouting shardRouting = initializingNode.next();
                         if (shardRouting.equals(failedShard)) {
                             dirty = true;
                             initializingNode.remove();
@@ -411,7 +411,7 @@ public class AllocationService extends AbstractComponent {
                     // now, find the node that we are relocating *from*, and cancel its relocation
                     RoutingNode relocatingFromNode = routingNodes.node(failedShard.relocatingNodeId());
                     if (relocatingFromNode != null) {
-                        for (MutableShardRouting shardRouting : relocatingFromNode) {
+                        for (ShardRouting shardRouting : relocatingFromNode) {
                             if (shardRouting.shardId().equals(failedShard.shardId()) && shardRouting.relocating()) {
                                 dirty = true;
                                 routingNodes.cancelRelocation(shardRouting);
@@ -431,7 +431,7 @@ public class AllocationService extends AbstractComponent {
                 RoutingNodes.RoutingNodeIterator relocatingFromNode = routingNodes.routingNodeIter(failedShard.currentNodeId());
                 if (relocatingFromNode != null) {
                     while (relocatingFromNode.hasNext()) {
-                        MutableShardRouting shardRouting = relocatingFromNode.next();
+                        ShardRouting shardRouting = relocatingFromNode.next();
                         if (shardRouting.equals(failedShard)) {
                             dirty = true;
                             if (addToIgnoreList) {
@@ -448,7 +448,7 @@ public class AllocationService extends AbstractComponent {
                     RoutingNodes.RoutingNodeIterator initializingNode = routingNodes.routingNodeIter(failedShard.relocatingNodeId());
                     if (initializingNode != null) {
                         while (initializingNode.hasNext()) {
-                            MutableShardRouting shardRouting = initializingNode.next();
+                            ShardRouting shardRouting = initializingNode.next();
                             if (shardRouting.shardId().equals(failedShard.shardId()) && shardRouting.state() == INITIALIZING) {
                                 dirty = true;
                                 initializingNode.remove();
@@ -466,7 +466,7 @@ public class AllocationService extends AbstractComponent {
             RoutingNodes.RoutingNodeIterator node = routingNodes.routingNodeIter(failedShard.currentNodeId());
             if (node != null) {
                 while (node.hasNext()) {
-                    MutableShardRouting shardRouting = node.next();
+                    ShardRouting shardRouting = node.next();
                     if (shardRouting.equals(failedShard)) {
                         dirty = true;
                         if (addToIgnoreList) {
@@ -477,9 +477,9 @@ public class AllocationService extends AbstractComponent {
                         // so we give a chance for other allocations and won't create poison failed allocations
                         // that can keep other shards from being allocated (because of limits applied on how many
                         // shards we can start per node)
-                        List<MutableShardRouting> shardsToMove = Lists.newArrayList();
-                        for (Iterator<MutableShardRouting> unassignedIt = routingNodes.unassigned().iterator(); unassignedIt.hasNext(); ) {
-                            MutableShardRouting unassignedShardRouting = unassignedIt.next();
+                        List<ShardRouting> shardsToMove = Lists.newArrayList();
+                        for (Iterator<ShardRouting> unassignedIt = routingNodes.unassigned().iterator(); unassignedIt.hasNext(); ) {
+                            ShardRouting unassignedShardRouting = unassignedIt.next();
                             if (unassignedShardRouting.shardId().equals(failedShard.shardId())) {
                                 unassignedIt.remove();
                                 shardsToMove.add(unassignedShardRouting);

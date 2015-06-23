@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -149,10 +149,10 @@ public class ShardsLimitAllocationTests extends ElasticsearchAllocationTestCase 
 
         assertThat(numberOfShardsOfType(clusterState.readOnlyRoutingNodes(), STARTED), equalTo(10));
 
-        for (MutableShardRouting shardRouting : clusterState.readOnlyRoutingNodes().node("node1")) {
+        for (ShardRouting shardRouting : clusterState.readOnlyRoutingNodes().node("node1")) {
             assertThat(shardRouting.index(), equalTo("test"));
         }
-        for (MutableShardRouting shardRouting : clusterState.readOnlyRoutingNodes().node("node2")) {
+        for (ShardRouting shardRouting : clusterState.readOnlyRoutingNodes().node("node2")) {
             assertThat(shardRouting.index(), equalTo("test1"));
         }
 

@@ -270,7 +270,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             }
             // now, go over and delete shards that needs to get deleted
             newShardIds.clear();
-            for (MutableShardRouting shard : routingNode) {
+            for (ShardRouting shard : routingNode) {
                 if (shard.index().equals(index)) {
                     newShardIds.add(shard.id());
                 }
@@ -301,7 +301,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         if (routingNode == null) {
             return;
         }
-        for (MutableShardRouting shard : routingNode) {
+        for (ShardRouting shard : routingNode) {
             if (!indicesService.hasIndex(shard.index())) {
                 final IndexMetaData indexMetaData = event.state().metaData().index(shard.index());
                 if (logger.isDebugEnabled()) {

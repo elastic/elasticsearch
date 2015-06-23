@@ -346,7 +346,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
 
             Map<String, IndexRoutingTable.Builder> indexRoutingTableBuilders = newHashMap();
             for (RoutingNode routingNode : routingNodes) {
-                for (MutableShardRouting shardRoutingEntry : routingNode) {
+                for (ShardRouting shardRoutingEntry : routingNode) {
                     // every relocating shard has a double entry, ignore the target one.
                     if (shardRoutingEntry.state() == ShardRoutingState.INITIALIZING && shardRoutingEntry.relocatingNodeId() != null)
                         continue;
@@ -362,7 +362,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                     indexBuilder.addShard(refData, shardRoutingEntry);
                 }
             }
-            for (MutableShardRouting shardRoutingEntry : Iterables.concat(routingNodes.unassigned(), routingNodes.ignoredUnassigned())) {
+            for (ShardRouting shardRoutingEntry : Iterables.concat(routingNodes.unassigned(), routingNodes.ignoredUnassigned())) {
                 String index = shardRoutingEntry.index();
                 IndexRoutingTable.Builder indexBuilder = indexRoutingTableBuilders.get(index);
                 if (indexBuilder == null) {

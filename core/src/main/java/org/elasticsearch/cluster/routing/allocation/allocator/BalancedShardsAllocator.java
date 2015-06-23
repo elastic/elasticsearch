@@ -23,7 +23,7 @@ import com.google.common.base.Predicate;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -118,7 +118,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
     }
 
     @Override
-    public boolean move(MutableShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+    public boolean move(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         final Balancer balancer = new Balancer(logger, allocation, weightFunction, threshold);
         return balancer.move(shardRouting, node);
     }
@@ -227,9 +227,9 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         private final float threshold;
         private final MetaData metaData;
 
-        private final Predicate<MutableShardRouting> assignedFilter = new Predicate<MutableShardRouting>() {
+        private final Predicate<ShardRouting> assignedFilter = new Predicate<ShardRouting>() {
             @Override
-            public boolean apply(MutableShardRouting input) {
+            public boolean apply(ShardRouting input) {
                 return input.assignedToNode();
             }
         };
@@ -476,7 +476,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
          *
          * @return <code>true</code> iff the shard has successfully been moved.
          */
-        public boolean move(MutableShardRouting shard, RoutingNode node ) {
+        public boolean move(ShardRouting shard, RoutingNode node ) {
             if (nodes.isEmpty() || !shard.started()) {
                 /* with no nodes or a not started shard this is pointless */
                 return false;
@@ -508,7 +508,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     Decision decision = allocation.deciders().canAllocate(shard, target, allocation);
                     if (decision.type() == Type.YES) { // TODO maybe we can respect throttling here too?
                         sourceNode.removeShard(shard);
-                        final MutableShardRouting initializingShard = new MutableShardRouting(shard.index(), shard.id(), currentNode.getNodeId(),
+                        final ShardRouting initializingShard = new ShardRouting(shard.index(), shard.id(), currentNode.getNodeId(),
                                 shard.currentNodeId(), shard.restoreSource(), shard.primary(), INITIALIZING, shard.version() + 1);
                         currentNode.addShard(initializingShard, decision);
                         routingNodes.assign(initializingShard, target.nodeId());
@@ -534,8 +534,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
          * on the target node which we respect during the allocation / balancing
          * process. In short, this method recreates the status-quo in the cluster.
          */
-        private void buildModelFromAssigned(Iterable<MutableShardRouting> shards) {
-            for (MutableShardRouting shard : shards) {
+        private void buildModelFromAssigned(Iterable<ShardRouting> shards) {
+            for (ShardRouting shard : shards) {
                 assert shard.assignedToNode();
                 /* we skip relocating shards here since we expect an initializing shard with the same id coming in */
                 if (shard.state() == RELOCATING) {
@@ -554,7 +554,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
          * Allocates all given shards on the minimal eligable node for the shards index
          * with respect to the weight function. All given shards must be unassigned.
          */
-        private boolean allocateUnassigned(RoutingNodes.UnassignedShards unassigned, List<MutableShardRouting> ignoredUnassigned) {
+        private boolean allocateUnassigned(RoutingNodes.UnassignedShards unassigned, List<ShardRouting> ignoredUnassigned) {
             assert !nodes.isEmpty();
             if (logger.isTraceEnabled()) {
                 logger.trace("Start allocating unassigned shards");
@@ -569,10 +569,10 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
              * use the sorter to save some iterations. 
              */
             final AllocationDeciders deciders = allocation.deciders();
-            final Comparator<MutableShardRouting> comparator = new Comparator<MutableShardRouting>() {
+            final Comparator<ShardRouting> comparator = new Comparator<ShardRouting>() {
                 @Override
-                public int compare(MutableShardRouting o1,
-                                   MutableShardRouting o2) {
+                public int compare(ShardRouting o1,
+                                   ShardRouting o2) {
                     if (o1.primary() ^ o2.primary()) {
                         return o1.primary() ? -1 : o2.primary() ? 1 : 0;
                     }
@@ -591,15 +591,15 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
              * if we allocate for instance (0, R, IDX1) we move the second replica to the secondary array and proceed with
              * the next replica. If we could not find a node to allocate (0,R,IDX1) we move all it's replicas to ingoreUnassigned.
              */
-            MutableShardRouting[] primary = unassigned.drain();
-            MutableShardRouting[] secondary = new MutableShardRouting[primary.length];
+            ShardRouting[] primary = unassigned.drain();
+            ShardRouting[] secondary = new ShardRouting[primary.length];
             int secondaryLength = 0;
             int primaryLength = primary.length;
             ArrayUtil.timSort(primary, comparator);
             final Set<ModelNode> throttledNodes = Collections.newSetFromMap(new IdentityHashMap<ModelNode, Boolean>());
             do {
                 for (int i = 0; i < primaryLength; i++) {
-                    MutableShardRouting shard = primary[i];
+                    ShardRouting shard = primary[i];
                     if (!shard.primary()) {
                         boolean drop = deciders.canAllocate(shard, allocation).type() == Type.NO;
                         if (drop) {
@@ -717,7 +717,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     }
                 }
                 primaryLength = secondaryLength;
-                MutableShardRouting[] tmp = primary;
+                ShardRouting[] tmp = primary;
                 primary = secondary;
                 secondary = tmp;
                 secondaryLength = 0;
@@ -740,11 +740,11 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                             minNode.getNodeId());
                 }
                 final RoutingNode node = routingNodes.node(minNode.getNodeId());
-                MutableShardRouting candidate = null;
+                ShardRouting candidate = null;
                 final AllocationDeciders deciders = allocation.deciders();
                 /* make a copy since we modify this list in the loop */
-                final ArrayList<MutableShardRouting> shards = new ArrayList<>(index.getAllShards());
-                for (MutableShardRouting shard : shards) {
+                final ArrayList<ShardRouting> shards = new ArrayList<>(index.getAllShards());
+                for (ShardRouting shard : shards) {
                     if (shard.started()) {
                         // skip initializing, unassigned and relocating shards we can't relocate them anyway
                         Decision allocationDecision = deciders.canAllocate(shard, node, allocation);
@@ -783,7 +783,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                         /* now allocate on the cluster - if we are started we need to relocate the shard */
                         if (candidate.started()) {
                             RoutingNode lowRoutingNode = routingNodes.node(minNode.getNodeId());
-                            routingNodes.assign(new MutableShardRouting(candidate.index(), candidate.id(), lowRoutingNode.nodeId(), candidate
+                            routingNodes.assign(new ShardRouting(candidate.index(), candidate.id(), lowRoutingNode.nodeId(), candidate
                                     .currentNodeId(), candidate.restoreSource(), candidate.primary(), INITIALIZING, candidate.version() + 1), lowRoutingNode.nodeId());
                             routingNodes.relocate(candidate, lowRoutingNode.nodeId());
 
@@ -839,8 +839,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             return index == null ? 0 : index.numShards();
         }
 
-        public Collection<MutableShardRouting> shards() {
-            Collection<MutableShardRouting> result = new ArrayList<>();
+        public Collection<ShardRouting> shards() {
+            Collection<ShardRouting> result = new ArrayList<>();
             for (ModelIndex index : indices.values()) {
                 result.addAll(index.getAllShards());
             }
@@ -855,7 +855,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             return -1;
         }
 
-        public void addShard(MutableShardRouting shard, Decision decision) {
+        public void addShard(ShardRouting shard, Decision decision) {
             numShards = -1;
             ModelIndex index = indices.get(shard.index());
             if (index == null) {
@@ -865,7 +865,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             index.addShard(shard, decision);
         }
 
-        public Decision removeShard(MutableShardRouting shard) {
+        public Decision removeShard(ShardRouting shard) {
             numShards = -1;
             ModelIndex index = indices.get(shard.index());
             Decision removed = null;
@@ -890,7 +890,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             return indices.values().iterator();
         }
 
-        public boolean containsShard(MutableShardRouting shard) {
+        public boolean containsShard(ShardRouting shard) {
             ModelIndex index = getIndex(shard.getIndex());
             return index == null ? false : index.containsShard(shard);
         }
@@ -899,7 +899,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
 
     static final class ModelIndex {
         private final String id;
-        private final Map<MutableShardRouting, Decision> shards = new HashMap<>();
+        private final Map<ShardRouting, Decision> shards = new HashMap<>();
         private int numPrimaries = -1;
         private int highestPrimary = -1;
 
@@ -910,7 +910,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         public int highestPrimary() {
             if (highestPrimary == -1) {
                 int maxId = -1;
-                for (MutableShardRouting shard : shards.keySet()) {
+                for (ShardRouting shard : shards.keySet()) {
                     if (shard.primary()) {
                         maxId = Math.max(maxId, shard.id());
                     }
@@ -924,7 +924,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             return id;
         }
 
-        public Decision getDecicion(MutableShardRouting shard) {
+        public Decision getDecicion(ShardRouting shard) {
             return shards.get(shard);
         }
 
@@ -932,14 +932,14 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             return shards.size();
         }
 
-        public Collection<MutableShardRouting> getAllShards() {
+        public Collection<ShardRouting> getAllShards() {
             return shards.keySet();
         }
 
         public int numPrimaries() {
             if (numPrimaries == -1) {
                 int num = 0;
-                for (MutableShardRouting shard : shards.keySet()) {
+                for (ShardRouting shard : shards.keySet()) {
                     if (shard.primary()) {
                         num++;
                     }
@@ -949,19 +949,19 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             return numPrimaries;
         }
 
-        public Decision removeShard(MutableShardRouting shard) {
+        public Decision removeShard(ShardRouting shard) {
             highestPrimary = numPrimaries = -1;
             return shards.remove(shard);
         }
 
-        public void addShard(MutableShardRouting shard, Decision decision) {
+        public void addShard(ShardRouting shard, Decision decision) {
             highestPrimary = numPrimaries = -1;
             assert decision != null;
             assert !shards.containsKey(shard) : "Shard already allocated on current node: " + shards.get(shard) + " " + shard;
             shards.put(shard, decision);
         }
 
-        public boolean containsShard(MutableShardRouting shard) {
+        public boolean containsShard(ShardRouting shard) {
             return shards.containsKey(shard);
         }
     }

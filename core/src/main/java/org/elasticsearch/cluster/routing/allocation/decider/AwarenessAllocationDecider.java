@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.google.common.collect.Maps;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -185,7 +184,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
             // build the count of shards per attribute value
             ObjectIntHashMap<String> shardPerAttribute = new ObjectIntHashMap<>();
-            for (MutableShardRouting assignedShard : allocation.routingNodes().assignedShards(shardRouting)) {
+            for (ShardRouting assignedShard : allocation.routingNodes().assignedShards(shardRouting)) {
                 // if the shard is relocating, then make sure we count it as part of the node it is relocating to
                 if (assignedShard.relocating()) {
                     RoutingNode relocationNode = allocation.routingNodes().node(assignedShard.relocatingNodeId());

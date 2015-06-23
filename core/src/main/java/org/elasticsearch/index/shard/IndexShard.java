@@ -177,8 +177,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final MeanMetric flushMetric = new MeanMetric();
 
     private final ShardEngineFailListener failedEngineListener = new ShardEngineFailListener();
-
-    private final MapperAnalyzer mapperAnalyzer;
     private volatile boolean flushOnClose = true;
 
     /**
@@ -235,7 +233,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.flushOnClose = indexSettings.getAsBoolean(INDEX_FLUSH_ON_CLOSE, true);
         this.nodeEnv = nodeEnv;
         indexSettingsService.addListener(applyRefreshSettings);
-        this.mapperAnalyzer = new MapperAnalyzer(mapperService);
         this.path = path;
         this.mergePolicyConfig = new MergePolicyConfig(logger, indexSettings);
         /* create engine config */
@@ -466,7 +463,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     public void create(Engine.Create create) {
         writeAllowed(create.origin());
         create = indexingService.preCreate(create);
-        mapperAnalyzer.setType(create.type());
         try {
             if (logger.isTraceEnabled()) {
                 logger.trace("index [{}][{}]{}", create.type(), create.id(), create.docs());
@@ -505,7 +501,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     public boolean index(Engine.Index index) {
         writeAllowed(index.origin());
         index = indexingService.preIndex(index);
-        mapperAnalyzer.setType(index.type());
         final boolean created;
         try {
             if (logger.isTraceEnabled()) {
@@ -1337,7 +1332,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     private final EngineConfig newEngineConfig(TranslogConfig translogConfig) {
-        final TranslogRecoveryPerformer translogRecoveryPerformer = new TranslogRecoveryPerformer(shardId, mapperService, mapperAnalyzer, queryParserService, indexAliasesService, indexCache) {
+        final TranslogRecoveryPerformer translogRecoveryPerformer = new TranslogRecoveryPerformer(shardId, mapperService, queryParserService, indexAliasesService, indexCache) {
             @Override
             protected void operationProcessed() {
                 assert recoveryState != null;
@@ -1346,7 +1341,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         };
         return new EngineConfig(shardId,
                 threadPool, indexingService, indexSettingsService, warmer, store, deletionPolicy, mergePolicyConfig.getMergePolicy(), mergeSchedulerConfig,
-                mapperAnalyzer, similarityService.similarity(), codecService, failedEngineListener, translogRecoveryPerformer, indexCache.filter(), indexCache.filterPolicy(), translogConfig);
+                mapperService.indexAnalyzer(), similarityService.similarity(), codecService, failedEngineListener, translogRecoveryPerformer, indexCache.filter(), indexCache.filterPolicy(), translogConfig);
     }
 
     private static class IndexShardOperationCounter extends AbstractRefCounted {

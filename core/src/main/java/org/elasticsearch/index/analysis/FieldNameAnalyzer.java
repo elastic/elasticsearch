@@ -52,20 +52,15 @@ public final class FieldNameAnalyzer extends DelegatingAnalyzerWrapper {
         return defaultAnalyzer;
     }
 
-    /** NOTE: public so MapperAnalyzer can invoke: */
     @Override
-    public Analyzer getWrappedAnalyzer(String fieldName) {
-        return getAnalyzer(fieldName);
-    }
-
-    private Analyzer getAnalyzer(String name) {
-        Analyzer analyzer = analyzers.get(name);
+    protected Analyzer getWrappedAnalyzer(String fieldName) {
+        Analyzer analyzer = analyzers.get(fieldName);
         if (analyzer != null) {
             return analyzer;
         }
         // Don't be lenient here and return the default analyzer
         // Fields need to be explicitly added
-        throw new IllegalArgumentException("Field [" + name + "] has no associated analyzer");
+        throw new IllegalArgumentException("Field [" + fieldName + "] has no associated analyzer");
     }
 
     /**

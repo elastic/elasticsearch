@@ -45,12 +45,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- *
- */
 public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
 
-    @Test
     public void test1Merge() throws Exception {
 
         String stage1Mapping = XContentFactory.jsonBuilder().startObject().startObject("person").startObject("properties")
@@ -79,7 +75,6 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
         assertThat(stage1.mappers().smartNameFieldMapper("obj1.prop1"), notNullValue());
     }
 
-    @Test
     public void testMergeObjectDynamic() throws Exception {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         String objectMapping = XContentFactory.jsonBuilder().startObject().startObject("type1").endObject().endObject().string();
@@ -95,7 +90,6 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
         assertThat(mapper.root().dynamic(), equalTo(ObjectMapper.Dynamic.FALSE));
     }
 
-    @Test
     public void testMergeObjectAndNested() throws Exception {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         String objectMapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
@@ -117,7 +111,6 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
         assertThat(mergeResult.buildConflicts()[0], equalTo("object mapping [obj] can't be changed from nested to non-nested"));
     }
 
-    @Test
     public void testMergeSearchAnalyzer() throws Exception {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         String mapping1 = XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -137,7 +130,6 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
         assertThat(((NamedAnalyzer) existing.mappers().getMapper("field").fieldType().searchAnalyzer()).name(), equalTo("keyword"));
     }
 
-    @Test
     public void testChangeSearchAnalyzerToDefault() throws Exception {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         String mapping1 = XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -165,7 +157,7 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
 
         DocumentFieldMappers dfm = documentMapper.mappers();
         try {
-            ((FieldNameAnalyzer) dfm.indexAnalyzer()).getWrappedAnalyzer("non_existing_field");
+            assertNotNull(dfm.indexAnalyzer().tokenStream("non_existing_field", "foo"));
             fail();
         } catch (IllegalArgumentException e) {
             // ok that's expected
@@ -207,7 +199,7 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
                     continue;
                 }
                 dfm = documentMapper.mappers();
-                ((FieldNameAnalyzer) dfm.indexAnalyzer()).getWrappedAnalyzer(fieldName);
+                assertNotNull(dfm.indexAnalyzer().tokenStream(fieldName, "foo"));
             }
         } finally {
             stopped.set(true);

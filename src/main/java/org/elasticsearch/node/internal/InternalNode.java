@@ -19,6 +19,8 @@
 
 package org.elasticsearch.node.internal;
 
+import org.apache.lucene.codecs.Codec;
+
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -150,6 +152,9 @@ public final class InternalNode implements Node {
                     env.homeFile(), env.configFile(), Arrays.toString(env.dataFiles()), env.logsFile(),
                     env.workFile(), env.pluginsFile());
         }
+        
+        // workaround for LUCENE-6482
+        Codec.availableCodecs();
 
         this.pluginsService = new PluginsService(tuple.v1(), tuple.v2());
         this.settings = pluginsService.updatedSettings();

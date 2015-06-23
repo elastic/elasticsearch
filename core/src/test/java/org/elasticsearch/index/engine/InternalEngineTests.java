@@ -1825,7 +1825,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         public final AtomicInteger recoveredOps = new AtomicInteger(0);
 
         public TranslogHandler(String indexName) {
-            super(new ShardId("test", 0), null, new MapperAnalyzer(null), null, null, null);
+            super(new ShardId("test", 0), null, null, null, null);
             Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
             RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder("test");
             Index index = new Index(indexName);

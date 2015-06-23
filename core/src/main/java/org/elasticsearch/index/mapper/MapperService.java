@@ -72,6 +72,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 
@@ -85,6 +86,23 @@ public class MapperService extends AbstractIndexComponent  {
             "_uid", "_id", "_type", "_all", "_parent", "_routing", "_index",
             "_size", "_timestamp", "_ttl"
     );
+
+    private static final Function<MappedFieldType, Analyzer> INDEX_ANALYZER_EXTRACTOR = new Function<MappedFieldType, Analyzer>() {
+        public Analyzer apply(MappedFieldType fieldType) {
+            return fieldType.indexAnalyzer();
+        }
+    };
+    private static final Function<MappedFieldType, Analyzer> SEARCH_ANALYZER_EXTRACTOR = new Function<MappedFieldType, Analyzer>() {
+        public Analyzer apply(MappedFieldType fieldType) {
+            return fieldType.searchAnalyzer();
+        }
+    };
+    private static final Function<MappedFieldType, Analyzer> SEARCH_QUOTE_ANALYZER_EXTRACTOR = new Function<MappedFieldType, Analyzer>() {
+        public Analyzer apply(MappedFieldType fieldType) {
+            return fieldType.searchQuoteAnalyzer();
+        }
+    };
+
     private final AnalysisService analysisService;
     private final IndexFieldDataService fieldDataService;
 
@@ -110,8 +128,9 @@ public class MapperService extends AbstractIndexComponent  {
 
     private final DocumentMapperParser documentParser;
 
-    private final SmartIndexNameSearchAnalyzer searchAnalyzer;
-    private final SmartIndexNameSearchQuoteAnalyzer searchQuoteAnalyzer;
+    private final MapperAnalyzerWrapper indexAnalyzer;
+    private final MapperAnalyzerWrapper searchAnalyzer;
+    private final MapperAnalyzerWrapper searchQuoteAnalyzer;
 
     private final List<DocumentTypeListener> typeListeners = new CopyOnWriteArrayList<>();
 
@@ -128,8 +147,9 @@ public class MapperService extends AbstractIndexComponent  {
         this.fieldDataService = fieldDataService;
         this.fieldTypes = new FieldTypeLookup();
         this.documentParser = new DocumentMapperParser(index, indexSettings, this, analysisService, similarityLookupService, scriptService);
-        this.searchAnalyzer = new SmartIndexNameSearchAnalyzer(analysisService.defaultSearchAnalyzer());
-        this.searchQuoteAnalyzer = new SmartIndexNameSearchQuoteAnalyzer(analysisService.defaultSearchQuoteAnalyzer());
+        this.indexAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultIndexAnalyzer(), INDEX_ANALYZER_EXTRACTOR);
+        this.searchAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultSearchAnalyzer(), SEARCH_ANALYZER_EXTRACTOR);
+        this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultSearchQuoteAnalyzer(), SEARCH_QUOTE_ANALYZER_EXTRACTOR);
 
         this.dynamic = indexSettings.getAsBoolean("index.mapper.dynamic", true);
         defaultPercolatorMappingSource = "{\n" +
@@ -558,6 +578,10 @@ public class MapperService extends AbstractIndexComponent  {
         return fieldType;
     }
 
+    public Analyzer indexAnalyzer() {
+        return this.indexAnalyzer;
+    }
+
     public Analyzer searchAnalyzer() {
         return this.searchAnalyzer;
     }
@@ -604,39 +628,26 @@ public class MapperService extends AbstractIndexComponent  {
         return META_FIELDS.contains(fieldName);
     }
 
-    final class SmartIndexNameSearchAnalyzer extends DelegatingAnalyzerWrapper {
+    /** An analyzer wrapper that can lookup fields within the index mappings */
+    final class MapperAnalyzerWrapper extends DelegatingAnalyzerWrapper {
 
         private final Analyzer defaultAnalyzer;
+        private final Function<MappedFieldType, Analyzer> extractAnalyzer;
 
-        SmartIndexNameSearchAnalyzer(Analyzer defaultAnalyzer) {
+        MapperAnalyzerWrapper(Analyzer defaultAnalyzer, Function<MappedFieldType, Analyzer> extractAnalyzer) {
             super(Analyzer.PER_FIELD_REUSE_STRATEGY);
             this.defaultAnalyzer = defaultAnalyzer;
+            this.extractAnalyzer = extractAnalyzer;
         }
 
         @Override
         protected Analyzer getWrappedAnalyzer(String fieldName) {
             MappedFieldType fieldType = smartNameFieldType(fieldName);
-            if (fieldType != null && fieldType.searchAnalyzer() != null) {
-                return fieldType.searchAnalyzer();
-            }
-            return defaultAnalyzer;
-        }
-    }
-
-    final class SmartIndexNameSearchQuoteAnalyzer extends DelegatingAnalyzerWrapper {
-
-        private final Analyzer defaultAnalyzer;
-
-        SmartIndexNameSearchQuoteAnalyzer(Analyzer defaultAnalyzer) {
-            super(Analyzer.PER_FIELD_REUSE_STRATEGY);
-            this.defaultAnalyzer = defaultAnalyzer;
-        }
-
-        @Override
-        protected Analyzer getWrappedAnalyzer(String fieldName) {
-            MappedFieldType fieldType = smartNameFieldType(fieldName);
-            if (fieldType != null && fieldType.searchQuoteAnalyzer() != null) {
-                return fieldType.searchQuoteAnalyzer();
+            if (fieldType != null) {
+                Analyzer analyzer = extractAnalyzer.apply(fieldType);
+                if (analyzer != null) {
+                    return analyzer;
+                }
             }
             return defaultAnalyzer;
         }

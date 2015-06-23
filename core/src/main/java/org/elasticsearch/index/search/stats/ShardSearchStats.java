@@ -21,15 +21,10 @@ package org.elasticsearch.index.search.stats;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.search.slowlog.ShardSlowLogSearchService;
-import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.shard.AbstractIndexShardComponent;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.HashMap;
@@ -38,19 +33,15 @@ import java.util.concurrent.TimeUnit;
 
 /**
  */
-public class ShardSearchService extends AbstractIndexShardComponent {
+public final class ShardSearchStats {
 
-    private final ShardSlowLogSearchService slowLogSearchService;
-
+    private final SearchSlowLog slowLogSearchService;
     private final StatsHolder totalStats = new StatsHolder();
     private final CounterMetric openContexts = new CounterMetric();
-
     private volatile Map<String, StatsHolder> groupsStats = ImmutableMap.of();
 
-    @Inject
-    public ShardSearchService(ShardId shardId, @IndexSettings Settings indexSettings, ShardSlowLogSearchService slowLogSearchService) {
-        super(shardId, indexSettings);
-        this.slowLogSearchService = slowLogSearchService;
+    public ShardSearchStats(Settings indexSettings) {
+        this.slowLogSearchService = new SearchSlowLog(indexSettings);
     }
 
     /**
@@ -178,7 +169,11 @@ public class ShardSearchService extends AbstractIndexShardComponent {
         openContexts.dec();
     }
 
-    static class StatsHolder {
+    public void onRefreshSettings(Settings settings) {
+        slowLogSearchService.onRefreshSettings(settings);
+    }
+
+    final static class StatsHolder {
         public final MeanMetric queryMetric = new MeanMetric();
         public final MeanMetric fetchMetric = new MeanMetric();
         public final CounterMetric queryCurrent = new CounterMetric();

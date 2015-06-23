@@ -57,7 +57,6 @@ import org.elasticsearch.index.deletionpolicy.KeepOnlyLastDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.indexing.ShardIndexingService;
-import org.elasticsearch.index.indexing.slowlog.ShardSlowLogIndexingService;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
@@ -65,7 +64,6 @@ import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.index.settings.IndexDynamicSettingsModule;
-import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
@@ -134,6 +132,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
                 .put(EngineConfig.INDEX_GC_DELETES_SETTING, "1h") // make sure this doesn't kick in on us
                 .put(EngineConfig.INDEX_CODEC_SETTING, codecName)
                 .put(EngineConfig.INDEX_CONCURRENCY_SETTING, indexConcurrency)
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build(); // TODO randomize more settings
         threadPool = new ThreadPool(getClass().getName());
         store = createStore();
@@ -218,10 +217,6 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         return new Translog(translogConfig);
     }
 
-    protected Translog createTranslogReplica() throws IOException {
-        return createTranslog(replicaTranslogDir);
-    }
-
     protected IndexDeletionPolicy createIndexDeletionPolicy() {
         return new KeepOnlyLastDeletionPolicy(shardId, EMPTY_SETTINGS);
     }
@@ -232,19 +227,18 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
 
     protected InternalEngine createEngine(Store store, Path translogPath) {
-        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), Settings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
-        return createEngine(indexSettingsService, store, translogPath, new MergeSchedulerConfig(indexSettingsService.indexSettings()), newMergePolicy());
+        return createEngine(defaultSettings, store, translogPath, new MergeSchedulerConfig(defaultSettings), newMergePolicy());
     }
 
-    protected InternalEngine createEngine(IndexSettingsService indexSettingsService, Store store, Path translogPath, MergeSchedulerConfig mergeSchedulerConfig,  MergePolicy mergePolicy) {
-        return new InternalEngine(config(indexSettingsService, store, translogPath, mergeSchedulerConfig, mergePolicy), false);
+    protected InternalEngine createEngine(Settings indexSettings, Store store, Path translogPath, MergeSchedulerConfig mergeSchedulerConfig,  MergePolicy mergePolicy) {
+        return new InternalEngine(config(indexSettings, store, translogPath, mergeSchedulerConfig, mergePolicy), false);
     }
 
-    public EngineConfig config(IndexSettingsService indexSettingsService, Store store, Path translogPath, MergeSchedulerConfig mergeSchedulerConfig, MergePolicy mergePolicy) {
+    public EngineConfig config(Settings indexSettings, Store store, Path translogPath, MergeSchedulerConfig mergeSchedulerConfig, MergePolicy mergePolicy) {
         IndexWriterConfig iwc = newIndexWriterConfig();
-        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettingsService.getSettings(), Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, threadPool);
+        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, threadPool);
 
-        EngineConfig config = new EngineConfig(shardId, threadPool, new ShardIndexingService(shardId, EMPTY_SETTINGS, new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, indexSettingsService)), indexSettingsService
+        EngineConfig config = new EngineConfig(shardId, threadPool, new ShardIndexingService(shardId, indexSettings), indexSettings
                 , null, store, createSnapshotDeletionPolicy(), mergePolicy, mergeSchedulerConfig,
                 iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(shardId.index()), new Engine.FailedEngineListener() {
             @Override
@@ -262,9 +256,8 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
     @Test
     public void testSegments() throws Exception {
-        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), Settings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         try (Store store = createStore();
-            Engine engine = createEngine(indexSettingsService, store, createTempDir(), new MergeSchedulerConfig(defaultSettings), NoMergePolicy.INSTANCE)) {
+            Engine engine = createEngine(defaultSettings, store, createTempDir(), new MergeSchedulerConfig(defaultSettings), NoMergePolicy.INSTANCE)) {
             List<Segment> segments = engine.segments(false);
             assertThat(segments.isEmpty(), equalTo(true));
             assertThat(engine.segmentsStats().getCount(), equalTo(0l));
@@ -384,9 +377,8 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     }
 
     public void testVerboseSegments() throws Exception {
-        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), Settings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         try (Store store = createStore();
-             Engine engine = createEngine(indexSettingsService, store, createTempDir(), new MergeSchedulerConfig(defaultSettings), NoMergePolicy.INSTANCE)) {
+             Engine engine = createEngine(defaultSettings, store, createTempDir(), new MergeSchedulerConfig(defaultSettings), NoMergePolicy.INSTANCE)) {
             List<Segment> segments = engine.segments(true);
             assertThat(segments.isEmpty(), equalTo(true));
 
@@ -417,9 +409,8 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
     @Test
     public void testSegmentsWithMergeFlag() throws Exception {
-        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), Settings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         try (Store store = createStore();
-             Engine engine = createEngine(indexSettingsService, store, createTempDir(), new MergeSchedulerConfig(defaultSettings), new TieredMergePolicy())) {
+             Engine engine = createEngine(defaultSettings, store, createTempDir(), new MergeSchedulerConfig(defaultSettings), new TieredMergePolicy())) {
             ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
             Engine.Index index = new Engine.Index(null, newUid("1"), doc);
             engine.index(index);
@@ -686,9 +677,8 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     }
 
     public void testSyncedFlush() throws IOException {
-        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), Settings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         try (Store store = createStore();
-             Engine engine = new InternalEngine(config(indexSettingsService, store, createTempDir(), new MergeSchedulerConfig(defaultSettings),
+             Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), new MergeSchedulerConfig(defaultSettings),
                      new LogByteSizeMergePolicy()), false)) {
             final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
             ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
@@ -904,9 +894,8 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     }
 
     public void testForceMerge() throws IOException {
-        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), Settings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         try (Store store = createStore();
-             Engine engine = new InternalEngine(config(indexSettingsService, store, createTempDir(), new MergeSchedulerConfig(defaultSettings),
+             Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), new MergeSchedulerConfig(defaultSettings),
                      new LogByteSizeMergePolicy()), false)) { // use log MP here we test some behavior in ESMP
             int numDocs = randomIntBetween(10, 100);
             for (int i = 0; i < numDocs; i++) {
@@ -1355,9 +1344,8 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     @Slow
     @Test
     public void testEnableGcDeletes() throws Exception {
-        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), Settings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         try (Store store = createStore();
-             Engine engine = new InternalEngine(config(indexSettingsService, store, createTempDir(), new MergeSchedulerConfig(defaultSettings), newMergePolicy()), false)) {
+             Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), new MergeSchedulerConfig(defaultSettings), newMergePolicy()), false)) {
             engine.config().setEnableGcDeletes(false);
 
             // Add document
@@ -1577,9 +1565,8 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         // Tiny indexing buffer:
         Settings indexSettings = Settings.builder().put(defaultSettings)
                 .put(EngineConfig.INDEX_BUFFER_SIZE_SETTING, "1kb").build();
-        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), indexSettings);
         try (Store store = createStore();
-             Engine engine = new InternalEngine(config(indexSettingsService, store, createTempDir(), new MergeSchedulerConfig(defaultSettings), newMergePolicy()),
+             Engine engine = new InternalEngine(config(indexSettings, store, createTempDir(), new MergeSchedulerConfig(defaultSettings), newMergePolicy()),
                      false)) {
             for (int i = 0; i < 100; i++) {
                 String id = Integer.toString(i);
@@ -1628,9 +1615,8 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             // expected
         }
         // now it should be OK.
-        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), Settings.builder().put(defaultSettings)
-                .put(EngineConfig.INDEX_FORCE_NEW_TRANSLOG, true).build());
-        engine = createEngine(indexSettingsService, store, primaryTranslogDir, new MergeSchedulerConfig(defaultSettings), newMergePolicy());
+        Settings indexSettings = Settings.builder().put(defaultSettings).put(EngineConfig.INDEX_FORCE_NEW_TRANSLOG, true).build();
+        engine = createEngine(indexSettings, store, primaryTranslogDir, new MergeSchedulerConfig(indexSettings), newMergePolicy());
     }
 
     public void testTranslogReplayWithFailure() throws IOException {
@@ -1882,7 +1868,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         /* create a TranslogConfig that has been created with a different UUID */
         TranslogConfig translogConfig = new TranslogConfig(shardId, translog.location(), config.getIndexSettings(), Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, threadPool);
 
-        EngineConfig brokenConfig = new EngineConfig(shardId, threadPool, config.getIndexingService(), config.getIndexSettingsService()
+        EngineConfig brokenConfig = new EngineConfig(shardId, threadPool, config.getIndexingService(), config.getIndexSettings()
                 , null, store, createSnapshotDeletionPolicy(), newMergePolicy(), config.getMergeSchedulerConfig(),
                 config.getAnalyzer(), config.getSimilarity(), new CodecService(shardId.index()), config.getFailedEngineListener()
         , config.getTranslogRecoveryPerformer(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig);

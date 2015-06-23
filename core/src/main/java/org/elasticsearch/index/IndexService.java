@@ -36,12 +36,10 @@ import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.cache.filter.ShardFilterCache;
 import org.elasticsearch.index.deletionpolicy.DeletionPolicyModule;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.gateway.IndexShardGatewayService;
+import org.elasticsearch.index.shard.StoreRecoveryService;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
@@ -60,10 +58,8 @@ import org.elasticsearch.plugins.ShardsPluginsModule;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -306,12 +302,16 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             // if we are on a shared FS we only own the shard (ie. we can safely delete it) if we are the primary.
             final boolean canDeleteShardContent = IndexMetaData.isOnSharedFilesystem(indexSettings) == false ||
                     (primary && IndexMetaData.isOnSharedFilesystem(indexSettings));
-            final ShardFilterCache shardFilterCache = new ShardFilterCache(shardId, injector.getInstance(IndicesFilterCache.class));
             ModulesBuilder modules = new ModulesBuilder();
             modules.add(new ShardsPluginsModule(indexSettings, pluginsService));
-            modules.add(new IndexShardModule(shardId, primary, indexSettings, shardFilterCache));
+            modules.add(new IndexShardModule(shardId, primary, indexSettings));
             modules.add(new StoreModule(injector.getInstance(IndexStore.class).shardDirectory(), lock,
-                    new StoreCloseListener(shardId, canDeleteShardContent, shardFilterCache), path));
+                    new StoreCloseListener(shardId, canDeleteShardContent,  new Closeable() {
+                        @Override
+                        public void close() throws IOException {
+                            injector.getInstance(IndicesFilterCache.class).onClose(shardId);
+                        }
+                    }), path));
             modules.add(new DeletionPolicyModule(indexSettings));
             try {
                 shardInjector = modules.createChildInjector(injector);
@@ -387,8 +387,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                     }
                 }
                 closeInjectorResource(sId, shardInjector,
-                        IndexShardGatewayService.class,
-                        PercolatorQueriesRegistry.class);
+                        StoreRecoveryService.class);
 
                 // call this before we close the store, so we can release resources for it
                 indicesLifecycle.afterIndexShardClosed(sId, indexShard, indexSettings);

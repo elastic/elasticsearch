@@ -32,7 +32,6 @@ public class ShardBitsetFilterCache extends AbstractIndexShardComponent {
 
     private final CounterMetric totalMetric = new CounterMetric();
 
-    @Inject
     public ShardBitsetFilterCache(ShardId shardId, @IndexSettings Settings indexSettings) {
         super(shardId, indexSettings);
     }

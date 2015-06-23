@@ -52,8 +52,8 @@ import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.aliases.IndexAlias;
 import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
-import org.elasticsearch.index.gateway.IndexShardGatewayService;
+import org.elasticsearch.index.shard.IndexShardRecoveryException;
+import org.elasticsearch.index.shard.StoreRecoveryService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettingsService;
@@ -586,7 +586,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     } else {
                         // if we happen to remove the shardRouting by id above we don't need to jump in here!
                         indexShard.updateRoutingEntry(shardRouting, event.state().blocks().disableStatePersistence() == false);
-                        indexService.shardInjectorSafe(shardId).getInstance(IndexShardGatewayService.class).routingStateChanged();
                     }
                 }
             }
@@ -729,14 +728,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             }
         } else {
             final IndexShardRoutingTable indexShardRouting = routingTable.index(shardRouting.index()).shard(shardRouting.id());
-            // we are the first primary, recover from the gateway
-            // if its post api allocation, the index should exists
-            boolean indexShouldExists = indexShardRouting.primaryAllocatedPostApi();
-            IndexShardGatewayService shardGatewayService = indexService.shardInjectorSafe(shardId).getInstance(IndexShardGatewayService.class);
-            shardGatewayService.recover(indexShouldExists, new IndexShardGatewayService.RecoveryListener() {
+            indexService.shard(shardId).recoverFromStore(indexShardRouting, new StoreRecoveryService.RecoveryListener() {
                 @Override
                 public void onRecoveryDone() {
-                    shardStateAction.shardStarted(shardRouting, indexMetaData.getUUID(), "after recovery from gateway");
+                    shardStateAction.shardStarted(shardRouting, indexMetaData.getUUID(), "after recovery from store");
                 }
 
                 @Override
@@ -744,7 +739,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 }
 
                 @Override
-                public void onRecoveryFailed(IndexShardGatewayRecoveryException e) {
+                public void onRecoveryFailed(IndexShardRecoveryException e) {
                     handleRecoveryFailure(indexService, shardRouting, true, e);
                 }
             });

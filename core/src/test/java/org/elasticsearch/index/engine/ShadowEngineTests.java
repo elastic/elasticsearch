@@ -42,7 +42,6 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.KeepOnlyLastDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.indexing.ShardIndexingService;
-import org.elasticsearch.index.indexing.slowlog.ShardSlowLogIndexingService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -115,6 +114,7 @@ public class ShadowEngineTests extends ElasticsearchTestCase {
                 .put(EngineConfig.INDEX_GC_DELETES_SETTING, "1h") // make sure this doesn't kick in on us
                 .put(EngineConfig.INDEX_CODEC_SETTING, codecName)
                 .put(EngineConfig.INDEX_CONCURRENCY_SETTING, indexConcurrency)
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build(); // TODO randomize more settings
         threadPool = new ThreadPool(getClass().getName());
         dirPath = createTempDir();
@@ -198,31 +198,29 @@ public class ShadowEngineTests extends ElasticsearchTestCase {
 
 
     protected ShadowEngine createShadowEngine(Store store) {
-        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), Settings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
-        return createShadowEngine(indexSettingsService, store);
+        return createShadowEngine(defaultSettings, store);
     }
 
     protected InternalEngine createInternalEngine(Store store, Path translogPath) {
-        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), Settings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
-        return createInternalEngine(indexSettingsService, store, translogPath);
+        return createInternalEngine(defaultSettings, store, translogPath);
     }
 
-    protected ShadowEngine createShadowEngine(IndexSettingsService indexSettingsService, Store store) {
-        return new ShadowEngine(config(indexSettingsService, store, null, new MergeSchedulerConfig(indexSettingsService.indexSettings()), null));
+    protected ShadowEngine createShadowEngine(Settings indexSettings, Store store) {
+        return new ShadowEngine(config(indexSettings, store, null, new MergeSchedulerConfig(indexSettings), null));
     }
 
-    protected InternalEngine createInternalEngine(IndexSettingsService indexSettingsService, Store store, Path translogPath) {
-        return createInternalEngine(indexSettingsService, store, translogPath, newMergePolicy());
+    protected InternalEngine createInternalEngine(Settings indexSettings, Store store, Path translogPath) {
+        return createInternalEngine(indexSettings, store, translogPath, newMergePolicy());
     }
 
-    protected InternalEngine createInternalEngine(IndexSettingsService indexSettingsService, Store store, Path translogPath, MergePolicy mergePolicy) {
-        return new InternalEngine(config(indexSettingsService, store, translogPath, new MergeSchedulerConfig(indexSettingsService.indexSettings()), mergePolicy), true);
+    protected InternalEngine createInternalEngine(Settings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy) {
+        return new InternalEngine(config(indexSettings, store, translogPath, new MergeSchedulerConfig(indexSettings), mergePolicy), true);
     }
 
-    public EngineConfig config(IndexSettingsService indexSettingsService, Store store, Path translogPath, MergeSchedulerConfig mergeSchedulerConfig, MergePolicy mergePolicy) {
+    public EngineConfig config(Settings indexSettings, Store store, Path translogPath, MergeSchedulerConfig mergeSchedulerConfig, MergePolicy mergePolicy) {
         IndexWriterConfig iwc = newIndexWriterConfig();
-        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettingsService.getSettings(), Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, threadPool);
-        EngineConfig config = new EngineConfig(shardId, threadPool, new ShardIndexingService(shardId, EMPTY_SETTINGS, new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, indexSettingsService)), indexSettingsService
+        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, threadPool);
+        EngineConfig config = new EngineConfig(shardId, threadPool, new ShardIndexingService(shardId, indexSettings), indexSettings
                 , null, store, createSnapshotDeletionPolicy(), mergePolicy, mergeSchedulerConfig,
                 iwc.getAnalyzer(), iwc.getSimilarity() , new CodecService(shardId.index()), new Engine.FailedEngineListener() {
             @Override
@@ -268,9 +266,8 @@ public class ShadowEngineTests extends ElasticsearchTestCase {
 
     @Test
     public void testSegments() throws Exception {
-        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), Settings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         primaryEngine.close(); // recreate without merging
-        primaryEngine = createInternalEngine(indexSettingsService, store, createTempDir(), NoMergePolicy.INSTANCE);
+        primaryEngine = createInternalEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE);
         List<Segment> segments = primaryEngine.segments(false);
         assertThat(segments.isEmpty(), equalTo(true));
         assertThat(primaryEngine.segmentsStats().getCount(), equalTo(0l));
@@ -440,9 +437,8 @@ public class ShadowEngineTests extends ElasticsearchTestCase {
 
     @Test
     public void testVerboseSegments() throws Exception {
-        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), Settings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         primaryEngine.close(); // recreate without merging
-        primaryEngine = createInternalEngine(indexSettingsService, store, createTempDir(), NoMergePolicy.INSTANCE);
+        primaryEngine = createInternalEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE);
         List<Segment> segments = primaryEngine.segments(true);
         assertThat(segments.isEmpty(), equalTo(true));
 

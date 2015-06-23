@@ -29,10 +29,17 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
+import org.elasticsearch.index.engine.SnapshotFailedEngineException;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.snapshots.IndexShardSnapshotAndRestoreService;
+import org.elasticsearch.index.snapshots.IndexShardRepository;
+import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -269,28 +276,72 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
             Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
             for (final Map.Entry<SnapshotId, Map<ShardId, IndexShardSnapshotStatus>> entry : newSnapshots.entrySet()) {
                 for (final Map.Entry<ShardId, IndexShardSnapshotStatus> shardEntry : entry.getValue().entrySet()) {
+                    final ShardId shardId = shardEntry.getKey();
                     try {
-                        final IndexShardSnapshotAndRestoreService shardSnapshotService = indicesService.indexServiceSafe(shardEntry.getKey().getIndex()).shardInjectorSafe(shardEntry.getKey().id())
-                                .getInstance(IndexShardSnapshotAndRestoreService.class);
+                        final IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).shard(shardId.id());
                         executor.execute(new AbstractRunnable() {
                             @Override
                             public void doRun() {
-                                shardSnapshotService.snapshot(entry.getKey(), shardEntry.getValue());
-                                updateIndexShardSnapshotStatus(entry.getKey(), shardEntry.getKey(), new SnapshotsInProgress.ShardSnapshotStatus(localNodeId, SnapshotsInProgress.State.SUCCESS));
+                                snapshot(indexShard, entry.getKey(), shardEntry.getValue());
+                                updateIndexShardSnapshotStatus(entry.getKey(), shardId, new SnapshotsInProgress.ShardSnapshotStatus(localNodeId, SnapshotsInProgress.State.SUCCESS));
                             }
 
                             @Override
                             public void onFailure(Throwable t) {
-                                logger.warn("[{}] [{}] failed to create snapshot", t, shardEntry.getKey(), entry.getKey());
-                                updateIndexShardSnapshotStatus(entry.getKey(), shardEntry.getKey(), new SnapshotsInProgress.ShardSnapshotStatus(localNodeId, SnapshotsInProgress.State.FAILED, ExceptionsHelper.detailedMessage(t)));
+                                logger.warn("[{}] [{}] failed to create snapshot", t, shardId, entry.getKey());
+                                updateIndexShardSnapshotStatus(entry.getKey(), shardId, new SnapshotsInProgress.ShardSnapshotStatus(localNodeId, SnapshotsInProgress.State.FAILED, ExceptionsHelper.detailedMessage(t)));
                             }
 
                         });
                     } catch (Throwable t) {
-                        updateIndexShardSnapshotStatus(entry.getKey(), shardEntry.getKey(), new SnapshotsInProgress.ShardSnapshotStatus(localNodeId, SnapshotsInProgress.State.FAILED, ExceptionsHelper.detailedMessage(t)));
+                        updateIndexShardSnapshotStatus(entry.getKey(), shardId, new SnapshotsInProgress.ShardSnapshotStatus(localNodeId, SnapshotsInProgress.State.FAILED, ExceptionsHelper.detailedMessage(t)));
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Creates shard snapshot
+     *
+     * @param snapshotId     snapshot id
+     * @param snapshotStatus snapshot status
+     */
+    private void snapshot(final IndexShard indexShard, final SnapshotId snapshotId, final IndexShardSnapshotStatus snapshotStatus) {
+        IndexShardRepository indexShardRepository = snapshotsService.getRepositoriesService().indexShardRepository(snapshotId.getRepository());
+        ShardId shardId = indexShard.shardId();
+        if (!indexShard.routingEntry().primary()) {
+            throw new IndexShardSnapshotFailedException(shardId, "snapshot should be performed only on primary");
+        }
+        if (indexShard.routingEntry().relocating()) {
+            // do not snapshot when in the process of relocation of primaries so we won't get conflicts
+            throw new IndexShardSnapshotFailedException(shardId, "cannot snapshot while relocating");
+        }
+        if (indexShard.state() == IndexShardState.CREATED || indexShard.state() == IndexShardState.RECOVERING) {
+            // shard has just been created, or still recovering
+            throw new IndexShardSnapshotFailedException(shardId, "shard didn't fully recover yet");
+        }
+
+        try {
+            // we flush first to make sure we get the latest writes snapshotted
+            SnapshotIndexCommit snapshotIndexCommit = indexShard.snapshotIndex(true);
+            try {
+                indexShardRepository.snapshot(snapshotId, shardId, snapshotIndexCommit, snapshotStatus);
+                if (logger.isDebugEnabled()) {
+                    StringBuilder sb = new StringBuilder();
+                    sb.append("snapshot (").append(snapshotId.getSnapshot()).append(") completed to ").append(indexShardRepository).append(", took [").append(TimeValue.timeValueMillis(snapshotStatus.time())).append("]\n");
+                    sb.append("    index    : version [").append(snapshotStatus.indexVersion()).append("], number_of_files [").append(snapshotStatus.numberOfFiles()).append("] with total_size [").append(new ByteSizeValue(snapshotStatus.totalSize())).append("]\n");
+                    logger.debug(sb.toString());
+                }
+            } finally {
+                snapshotIndexCommit.close();
+            }
+        } catch (SnapshotFailedEngineException e) {
+            throw e;
+        } catch (IndexShardSnapshotFailedException e) {
+            throw e;
+        } catch (Throwable e) {
+            throw new IndexShardSnapshotFailedException(shardId, "Failed to snapshot", e);
         }
     }
 

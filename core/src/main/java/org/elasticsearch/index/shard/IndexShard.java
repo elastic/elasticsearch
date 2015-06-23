@@ -34,6 +34,7 @@ import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RestoreSource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -51,7 +52,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.VersionType;
@@ -59,7 +59,6 @@ import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.elasticsearch.index.cache.filter.FilterCacheStats;
-import org.elasticsearch.index.cache.filter.ShardFilterCache;
 import org.elasticsearch.index.cache.query.ShardQueryCache;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
@@ -81,7 +80,7 @@ import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
-import org.elasticsearch.index.search.stats.ShardSearchService;
+import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
@@ -100,6 +99,7 @@ import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.InternalIndicesLifecycle;
+import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
@@ -131,10 +131,9 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final MergeSchedulerConfig mergeSchedulerConfig;
     private final IndexAliasesService indexAliasesService;
     private final ShardIndexingService indexingService;
-    private final ShardSearchService searchService;
+    private final ShardSearchStats searchService;
     private final ShardGetService getService;
     private final ShardIndexWarmerService shardWarmerService;
-    private final ShardFilterCache shardFilterCache;
     private final ShardQueryCache shardQueryCache;
     private final ShardFieldData shardFieldData;
     private final PercolatorQueriesRegistry percolatorQueriesRegistry;
@@ -148,7 +147,6 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     private final Object mutex = new Object();
     private final String checkIndexOnStartup;
-    private final NodeEnvironment nodeEnv;
     private final CodecService codecService;
     private final IndicesWarmer warmer;
     private final SnapshotDeletionPolicy deletionPolicy;
@@ -156,6 +154,8 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final EngineConfig engineConfig;
     private final TranslogConfig translogConfig;
     private final MergePolicyConfig mergePolicyConfig;
+    private final IndicesFilterCache indicesFilterCache;
+    private final StoreRecoveryService storeRecoveryService;
 
     private TimeValue refreshInterval;
 
@@ -191,13 +191,12 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final IndexShardOperationCounter indexShardOperationCounter;
 
     @Inject
-    public IndexShard(ShardId shardId, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store,
-                      ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService, ShardSearchService searchService, ShardIndexWarmerService shardWarmerService,
-                      ShardFilterCache shardFilterCache, ShardFieldData shardFieldData, PercolatorQueriesRegistry percolatorQueriesRegistry, ShardPercolateService shardPercolateService, CodecService codecService,
+    public IndexShard(ShardId shardId, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, StoreRecoveryService storeRecoveryService,
+                      ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService,
+                      IndicesFilterCache indicesFilterCache, ShardPercolateService shardPercolateService, CodecService codecService,
                       ShardTermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, IndexService indexService,
-                      ShardQueryCache shardQueryCache, ShardBitsetFilterCache shardBitsetFilterCache,
                       @Nullable IndicesWarmer warmer, SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService, EngineFactory factory,
-                      ClusterService clusterService, NodeEnvironment nodeEnv, ShardPath path, BigArrays bigArrays) {
+                      ClusterService clusterService, ShardPath path, BigArrays bigArrays) {
         super(shardId, indexSettingsService.getSettings());
         this.codecService = codecService;
         this.warmer = warmer;
@@ -209,31 +208,31 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
         this.indexSettingsService = indexSettingsService;
         this.store = store;
+        this.storeRecoveryService = storeRecoveryService;
         this.mergeSchedulerConfig = new MergeSchedulerConfig(indexSettings);
         this.threadPool = threadPool;
         this.mapperService = mapperService;
         this.queryParserService = queryParserService;
         this.indexCache = indexCache;
         this.indexAliasesService = indexAliasesService;
-        this.indexingService = indexingService;
+        this.indexingService = new ShardIndexingService(shardId, indexSettings);
         this.getService = new ShardGetService(this, mapperService);
         this.termVectorsService = termVectorsService.setIndexShard(this);
-        this.searchService = searchService;
-        this.shardWarmerService = shardWarmerService;
-        this.shardFilterCache = shardFilterCache;
-        this.shardQueryCache = shardQueryCache;
-        this.shardFieldData = shardFieldData;
-        this.percolatorQueriesRegistry = percolatorQueriesRegistry;
+        this.searchService = new ShardSearchStats(indexSettings);
+        this.shardWarmerService = new ShardIndexWarmerService(shardId, indexSettings);
+        this.indicesFilterCache = indicesFilterCache;
+        this.shardQueryCache = new ShardQueryCache(shardId, indexSettings);
+        this.shardFieldData = new ShardFieldData();
+        this.percolatorQueriesRegistry = new PercolatorQueriesRegistry(shardId, indexSettings, queryParserService, indexingService, indicesLifecycle, mapperService, indexFieldDataService, shardPercolateService);
         this.shardPercolateService = shardPercolateService;
         this.indexFieldDataService = indexFieldDataService;
         this.indexService = indexService;
-        this.shardBitsetFilterCache = shardBitsetFilterCache;
+        this.shardBitsetFilterCache = new ShardBitsetFilterCache(shardId, indexSettings);
         assert clusterService.localNode() != null : "Local node is null lifecycle state is: " + clusterService.lifecycleState();
         this.localNode = clusterService.localNode();
         state = IndexShardState.CREATED;
         this.refreshInterval = indexSettings.getAsTime(INDEX_REFRESH_INTERVAL, EngineConfig.DEFAULT_REFRESH_INTERVAL);
         this.flushOnClose = indexSettings.getAsBoolean(INDEX_FLUSH_ON_CLOSE, true);
-        this.nodeEnv = nodeEnv;
         indexSettingsService.addListener(applyRefreshSettings);
         this.mapperAnalyzer = new MapperAnalyzer(mapperService);
         this.path = path;
@@ -292,16 +291,12 @@ public class IndexShard extends AbstractIndexShardComponent {
         return indexService;
     }
 
-    public ShardSearchService searchService() {
+    public ShardSearchStats searchService() {
         return this.searchService;
     }
 
     public ShardIndexWarmerService warmerService() {
         return this.shardWarmerService;
-    }
-
-    public ShardFilterCache filterCache() {
-        return this.shardFilterCache;
     }
 
     public ShardQueryCache queryCache() {
@@ -625,7 +620,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public FilterCacheStats filterCacheStats() {
-        return shardFilterCache.stats();
+        return indicesFilterCache.getStats(shardId);
     }
 
     public FieldDataStats fieldDataStats(String... fields) {
@@ -765,7 +760,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                         engine.flushAndClose();
                     }
                 } finally { // playing safe here and close the engine even if the above succeeds - close can be called multiple times
-                    IOUtils.close(engine);
+                    IOUtils.close(engine, percolatorQueriesRegistry);
                 }
             }
         }
@@ -1023,6 +1018,13 @@ public class IndexShard extends AbstractIndexShardComponent {
         return path;
     }
 
+    public void recoverFromStore(IndexShardRoutingTable shardRoutingTable, StoreRecoveryService.RecoveryListener recoveryListener) {
+        // we are the first primary, recover from the gateway
+        // if its post api allocation, the index should exists
+        final boolean shouldExist = shardRoutingTable.primaryAllocatedPostApi();
+        storeRecoveryService.recover(this, shouldExist, recoveryListener);
+    }
+
     private class ApplyRefreshSettings implements IndexSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
@@ -1106,6 +1108,8 @@ public class IndexShard extends AbstractIndexShardComponent {
                 }
             }
             mergePolicyConfig.onRefreshSettings(settings);
+            searchService.onRefreshSettings(settings);
+            indexingService.onRefreshSettings(settings);
             if (change) {
                 refresh("apply settings");
             }
@@ -1345,7 +1349,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             }
         };
         return new EngineConfig(shardId,
-                threadPool, indexingService, indexSettingsService, warmer, store, deletionPolicy, mergePolicyConfig.getMergePolicy(), mergeSchedulerConfig,
+                threadPool, indexingService, indexSettingsService.indexSettings(), warmer, store, deletionPolicy, mergePolicyConfig.getMergePolicy(), mergeSchedulerConfig,
                 mapperAnalyzer, similarityService.similarity(), codecService, failedEngineListener, translogRecoveryPerformer, indexCache.filter(), indexCache.filterPolicy(), translogConfig);
     }
 

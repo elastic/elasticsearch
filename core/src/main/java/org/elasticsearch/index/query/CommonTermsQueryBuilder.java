@@ -334,8 +334,8 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
     @Override
     public CommonTermsQueryBuilder readFrom(StreamInput in) throws IOException {
         CommonTermsQueryBuilder commonTermsQueryBuilder = new CommonTermsQueryBuilder(in.readString(), in.readGenericValue());
-        commonTermsQueryBuilder.highFreqOperator = Operator.PROTOTYPE.readFrom(in);
-        commonTermsQueryBuilder.lowFreqOperator = Operator.PROTOTYPE.readFrom(in);
+        commonTermsQueryBuilder.highFreqOperator = Operator.readOperatorFrom(in);
+        commonTermsQueryBuilder.lowFreqOperator = Operator.readOperatorFrom(in);
         commonTermsQueryBuilder.analyzer = in.readOptionalString();
         commonTermsQueryBuilder.boost = in.readFloat();
         commonTermsQueryBuilder.lowFreqMinimumShouldMatch = in.readOptionalString();

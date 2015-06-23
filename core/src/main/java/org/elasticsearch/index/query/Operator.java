@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.index.query;
 
 import com.google.common.collect.Lists;
@@ -33,7 +32,7 @@ public enum Operator implements Writeable {
 
     private final int ordinal;
 
-    static final Operator PROTOTYPE = OR;
+    private static final Operator PROTOTYPE = OR;
 
     private Operator(int ordinal) {
         this.ordinal = ordinal;
@@ -59,6 +58,10 @@ public enum Operator implements Writeable {
             }
         }
         throw new ElasticsearchException("unknown serialized operator [" + ord + "]");
+    }
+
+    public static Operator readOperatorFrom(StreamInput in) throws IOException {
+        return PROTOTYPE.readFrom(in);
     }
 
     @Override

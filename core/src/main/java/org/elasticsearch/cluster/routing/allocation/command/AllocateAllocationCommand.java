@@ -19,10 +19,9 @@
 
 package org.elasticsearch.cluster.routing.allocation.command;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -168,8 +167,8 @@ public class AllocateAllocationCommand implements AllocationCommand {
     public RerouteExplanation execute(RoutingAllocation allocation, boolean explain) {
         DiscoveryNode discoNode = allocation.nodes().resolveNode(node);
 
-        MutableShardRouting shardRouting = null;
-        for (MutableShardRouting routing : allocation.routingNodes().unassigned()) {
+        ShardRouting shardRouting = null;
+        for (ShardRouting routing : allocation.routingNodes().unassigned()) {
             if (routing.shardId().equals(shardId)) {
                 // prefer primaries first to allocate
                 if (shardRouting == null || routing.primary()) {
@@ -219,7 +218,7 @@ public class AllocateAllocationCommand implements AllocationCommand {
             throw new IllegalArgumentException("[allocate] allocation of " + shardId + " on node " + discoNode + " is not allowed, reason: " + decision);
         }
         // go over and remove it from the unassigned
-        for (Iterator<MutableShardRouting> it = allocation.routingNodes().unassigned().iterator(); it.hasNext(); ) {
+        for (Iterator<ShardRouting> it = allocation.routingNodes().unassigned().iterator(); it.hasNext(); ) {
             if (it.next() != shardRouting) {
                 continue;
             }

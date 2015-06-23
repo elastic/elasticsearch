@@ -25,7 +25,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.logging.ESLogger;
@@ -85,9 +85,9 @@ public class FilterRoutingTests extends ElasticsearchAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logger.info("--> make sure shards are only allocated on tag1 with value1 and value2");
-        List<MutableShardRouting> startedShards = clusterState.routingNodes().shardsWithState(ShardRoutingState.STARTED);
+        List<ShardRouting> startedShards = clusterState.routingNodes().shardsWithState(ShardRoutingState.STARTED);
         assertThat(startedShards.size(), equalTo(4));
-        for (MutableShardRouting startedShard : startedShards) {
+        for (ShardRouting startedShard : startedShards) {
             assertThat(startedShard.currentNodeId(), Matchers.anyOf(equalTo("node1"), equalTo("node2")));
         }
     }
@@ -134,9 +134,9 @@ public class FilterRoutingTests extends ElasticsearchAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logger.info("--> make sure shards are only allocated on tag1 with value1 and value2");
-        List<MutableShardRouting> startedShards = clusterState.routingNodes().shardsWithState(ShardRoutingState.STARTED);
+        List<ShardRouting> startedShards = clusterState.routingNodes().shardsWithState(ShardRoutingState.STARTED);
         assertThat(startedShards.size(), equalTo(4));
-        for (MutableShardRouting startedShard : startedShards) {
+        for (ShardRouting startedShard : startedShards) {
             assertThat(startedShard.currentNodeId(), Matchers.anyOf(equalTo("node1"), equalTo("node2")));
         }
 
@@ -162,7 +162,7 @@ public class FilterRoutingTests extends ElasticsearchAllocationTestCase {
 
         startedShards = clusterState.routingNodes().shardsWithState(ShardRoutingState.STARTED);
         assertThat(startedShards.size(), equalTo(4));
-        for (MutableShardRouting startedShard : startedShards) {
+        for (ShardRouting startedShard : startedShards) {
             assertThat(startedShard.currentNodeId(), Matchers.anyOf(equalTo("node1"), equalTo("node4")));
         }
     }

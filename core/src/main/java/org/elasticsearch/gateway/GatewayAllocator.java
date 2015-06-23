@@ -33,12 +33,13 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.*;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasables;
@@ -54,7 +55,6 @@ import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  *
@@ -148,9 +148,9 @@ public class GatewayAllocator extends AbstractComponent {
 
         // First, handle primaries, they must find a place to be allocated on here
         MetaData metaData = routingNodes.metaData();
-        Iterator<MutableShardRouting> unassignedIterator = routingNodes.unassigned().iterator();
+        Iterator<ShardRouting> unassignedIterator = routingNodes.unassigned().iterator();
         while (unassignedIterator.hasNext()) {
-            MutableShardRouting shard = unassignedIterator.next();
+            ShardRouting shard = unassignedIterator.next();
 
             if (!shard.primary()) {
                 continue;
@@ -330,7 +330,7 @@ public class GatewayAllocator extends AbstractComponent {
                     // we found a match
                     changed = true;
                     // make sure we create one with the version from the recovered state
-                    allocation.routingNodes().assign(new MutableShardRouting(shard, highestVersion), node.nodeId());
+                    allocation.routingNodes().assign(new ShardRouting(shard, highestVersion), node.nodeId());
                     unassignedIterator.remove();
 
                     // found a node, so no throttling, no "no", and break out of the loop
@@ -350,7 +350,7 @@ public class GatewayAllocator extends AbstractComponent {
                     // we found a match
                     changed = true;
                     // make sure we create one with the version from the recovered state
-                    allocation.routingNodes().assign(new MutableShardRouting(shard, highestVersion), node.nodeId());
+                    allocation.routingNodes().assign(new ShardRouting(shard, highestVersion), node.nodeId());
                     unassignedIterator.remove();
                 }
             } else {
@@ -370,7 +370,7 @@ public class GatewayAllocator extends AbstractComponent {
         // Now, handle replicas, try to assign them to nodes that are similar to the one the primary was allocated on
         unassignedIterator = routingNodes.unassigned().iterator();
         while (unassignedIterator.hasNext()) {
-            MutableShardRouting shard = unassignedIterator.next();
+            ShardRouting shard = unassignedIterator.next();
             if (shard.primary()) {
                 continue;
             }
@@ -448,7 +448,7 @@ public class GatewayAllocator extends AbstractComponent {
 
                 if (!shard.primary()) {
                     hasReplicaData |= storeFilesMetaData.iterator().hasNext();
-                    MutableShardRouting primaryShard = routingNodes.activePrimary(shard);
+                    ShardRouting primaryShard = routingNodes.activePrimary(shard);
                     if (primaryShard != null) {
                         assert primaryShard.active();
                         DiscoveryNode primaryNode = nodes.get(primaryShard.currentNodeId());

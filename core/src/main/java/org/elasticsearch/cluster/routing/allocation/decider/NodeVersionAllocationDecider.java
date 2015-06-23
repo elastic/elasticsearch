@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -53,7 +52,7 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
                 // we are the primary we can allocate wherever
                 return allocation.decision(Decision.YES, NAME, "primary shard can be allocated anywhere");
             }
-            final MutableShardRouting primary = allocation.routingNodes().activePrimary(shardRouting);
+            final ShardRouting primary = allocation.routingNodes().activePrimary(shardRouting);
             if (primary == null) { // we have a primary - it's a start ;)
                 return allocation.decision(Decision.YES, NAME, "no active primary shard yet");
             }

@@ -33,7 +33,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
@@ -189,18 +189,18 @@ public class AckTests extends ElasticsearchIntegrationTest {
 
         for (Client client : clients()) {
             ClusterState clusterState = getLocalClusterState(client);
-            for (MutableShardRouting mutableShardRouting : clusterState.routingNodes().routingNodeIter(moveAllocationCommand.fromNode())) {
+            for (ShardRouting shardRouting : clusterState.routingNodes().routingNodeIter(moveAllocationCommand.fromNode())) {
                 //if the shard that we wanted to move is still on the same node, it must be relocating
-                if (mutableShardRouting.shardId().equals(moveAllocationCommand.shardId())) {
-                    assertThat(mutableShardRouting.relocating(), equalTo(true));
+                if (shardRouting.shardId().equals(moveAllocationCommand.shardId())) {
+                    assertThat(shardRouting.relocating(), equalTo(true));
                 }
 
             }
 
             boolean found = false;
-            for (MutableShardRouting mutableShardRouting : clusterState.routingNodes().routingNodeIter(moveAllocationCommand.toNode())) {
-                if (mutableShardRouting.shardId().equals(moveAllocationCommand.shardId())) {
-                    assertThat(mutableShardRouting.state(), anyOf(equalTo(ShardRoutingState.INITIALIZING), equalTo(ShardRoutingState.STARTED)));
+            for (ShardRouting shardRouting : clusterState.routingNodes().routingNodeIter(moveAllocationCommand.toNode())) {
+                if (shardRouting.shardId().equals(moveAllocationCommand.shardId())) {
+                    assertThat(shardRouting.state(), anyOf(equalTo(ShardRoutingState.INITIALIZING), equalTo(ShardRoutingState.STARTED)));
                     found = true;
                     break;
                 }
@@ -239,19 +239,19 @@ public class AckTests extends ElasticsearchIntegrationTest {
         //all nodes hold the same cluster state version. We only know there was no need to change anything, thus no need for ack on this update.
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
         boolean found = false;
-        for (MutableShardRouting mutableShardRouting : clusterStateResponse.getState().routingNodes().routingNodeIter(moveAllocationCommand.fromNode())) {
+        for (ShardRouting shardRouting : clusterStateResponse.getState().routingNodes().routingNodeIter(moveAllocationCommand.fromNode())) {
             //the shard that we wanted to move is still on the same node, as we had dryRun flag
-            if (mutableShardRouting.shardId().equals(moveAllocationCommand.shardId())) {
-                assertThat(mutableShardRouting.started(), equalTo(true));
+            if (shardRouting.shardId().equals(moveAllocationCommand.shardId())) {
+                assertThat(shardRouting.started(), equalTo(true));
                 found = true;
                 break;
             }
         }
         assertThat(found, equalTo(true));
 
-        for (MutableShardRouting mutableShardRouting : clusterStateResponse.getState().routingNodes().routingNodeIter(moveAllocationCommand.toNode())) {
-            if (mutableShardRouting.shardId().equals(moveAllocationCommand.shardId())) {
-                fail("shard [" + mutableShardRouting + "] shouldn't be on node [" + moveAllocationCommand.toString() + "]");
+        for (ShardRouting shardRouting : clusterStateResponse.getState().routingNodes().routingNodeIter(moveAllocationCommand.toNode())) {
+            if (shardRouting.shardId().equals(moveAllocationCommand.shardId())) {
+                fail("shard [" + shardRouting + "] shouldn't be on node [" + moveAllocationCommand.toString() + "]");
             }
         }
     }
@@ -274,7 +274,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
     private MoveAllocationCommand getAllocationCommand() {
         String fromNodeId = null;
         String toNodeId = null;
-        MutableShardRouting shardToBeMoved = null;
+        ShardRouting shardToBeMoved = null;
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
         for (RoutingNode routingNode : clusterStateResponse.getState().routingNodes()) {
             if (routingNode.node().isDataNode()) {

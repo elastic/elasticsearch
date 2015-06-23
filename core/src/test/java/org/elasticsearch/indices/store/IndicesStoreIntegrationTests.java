@@ -226,8 +226,8 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
         RoutingNode routingNode = stateResponse.getState().routingNodes().node(node_2_id);
         final int[] node2Shards = new int[routingNode.numberOfOwningShards()];
         int i = 0;
-        for (MutableShardRouting mutableShardRouting : routingNode) {
-            node2Shards[i] = mutableShardRouting.shardId().id();
+        for (ShardRouting shardRouting : routingNode) {
+            node2Shards[i] = shardRouting.shardId().id();
             i++;
         }
         logger.info("Node 2 has shards: {}", Arrays.toString(node2Shards));
@@ -249,7 +249,7 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
                 for (int i = 0; i < numShards; i++) {
                     indexRoutingTableBuilder.addIndexShard(
                             new IndexShardRoutingTable.Builder(new ShardId("test", i), false)
-                                    .addShard(new ImmutableShardRouting("test", i, node_1_id, true, ShardRoutingState.STARTED, shardVersions[shardIds[i]]))
+                                    .addShard(new ShardRouting("test", i, node_1_id, true, ShardRoutingState.STARTED, shardVersions[shardIds[i]]))
                                     .build()
                     );
                 }

@@ -43,3 +43,5 @@
         id: "my_watch"
   - match: { found : true}
   - match: { _id: "my_watch" }
+  - match: { _status.version: 1 }
+  - is_false: watch.status

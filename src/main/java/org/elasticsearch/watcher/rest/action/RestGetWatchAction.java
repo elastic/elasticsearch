@@ -8,14 +8,15 @@ package org.elasticsearch.watcher.rest.action;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.rest.WatcherRestHandler;
+import org.elasticsearch.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchRequest;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchResponse;
+import org.elasticsearch.watcher.watch.WatchStatus;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
@@ -30,17 +31,20 @@ public class RestGetWatchAction extends WatcherRestHandler {
     }
 
     @Override
-    protected void handleRequest(RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
+    protected void handleRequest(final RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
         final GetWatchRequest getWatchRequest = new GetWatchRequest(request.param("id"));
         client.getWatch(getWatchRequest, new RestBuilderListener<GetWatchResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetWatchResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject()
                         .field("found", response.isFound())
-                        .field("_id", response.getId())
-                        .field("_version", response.getVersion());
+                        .field("_id", response.getId());
                         if (response.isFound()) {
-                            builder.field("watch", response.getSource(), ToXContent.EMPTY_PARAMS);
+                            WatcherParams params = WatcherParams.builder(request)
+                                    .put(WatchStatus.INCLUDE_VERSION_KEY, true)
+                                    .build();
+                            builder.field("_status", response.getStatus(), params);
+                            builder.field("watch", response.getSource(), params);
                         }
                         builder.endObject();
 

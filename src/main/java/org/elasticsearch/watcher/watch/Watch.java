@@ -12,6 +12,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.watcher.support.xcontent.WatcherParams;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.PeriodType;
@@ -52,6 +53,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 public class Watch implements TriggerEngine.Job, ToXContent {
 
     public static final String ALL_ACTIONS_ID = "_all";
+    public static final String INCLUDE_STATUS_KEY = "include_status";
 
     private final String id;
     private final Trigger trigger;
@@ -174,7 +176,9 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         if (metadata != null) {
             builder.field(Field.METADATA.getPreferredName(), metadata);
         }
-        builder.field(Field.STATUS.getPreferredName(), status, params);
+        if (params.paramAsBoolean(INCLUDE_STATUS_KEY, false)) {
+            builder.field(Field.STATUS.getPreferredName(), status, params);
+        }
         builder.endObject();
         return builder;
     }
@@ -183,7 +187,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         // we don't want to cache this and instead rebuild it every time on demand. The watch is in
         // memory and we don't need this redundancy
         try {
-            return toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS).bytes();
+            return toXContent(jsonBuilder(), WatcherParams.builder().put(Watch.INCLUDE_STATUS_KEY, true).build()).bytes();
         } catch (IOException ioe) {
             throw new WatcherException("could not serialize watch [{}]", ioe, id);
         }

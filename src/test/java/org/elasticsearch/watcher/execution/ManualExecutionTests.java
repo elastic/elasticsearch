@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.execution;
 
 import org.elasticsearch.watcher.support.clock.SystemClock;
+import org.elasticsearch.watcher.transport.actions.get.GetWatchResponse;
 import org.joda.time.DateTime;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.unit.TimeValue;
@@ -136,10 +137,10 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
         Watch testWatch = watchService().getWatch("_id");
         if (recordExecution) {
             refresh();
-            Watch persistedWatch = watchParser().parse("_id", true, watcherClient().getWatch(new GetWatchRequest("_id")).actionGet().getSource().getBytes());
             if (ignoreCondition || conditionAlwaysTrue) {
                 assertThat(testWatch.status().actionStatus("log").ackStatus().state(), equalTo(ActionStatus.AckStatus.State.ACKABLE));
-                assertThat(persistedWatch.status().actionStatus("log").ackStatus().state(), equalTo(ActionStatus.AckStatus.State.ACKABLE));
+                GetWatchResponse response =  watcherClient().getWatch(new GetWatchRequest("_id")).actionGet();
+                assertThat(response.getStatus().actionStatus("log").ackStatus().state(), equalTo(ActionStatus.AckStatus.State.ACKABLE));
             } else {
                 assertThat(testWatch.status().actionStatus("log").ackStatus().state(), equalTo(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
             }

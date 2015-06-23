@@ -64,9 +64,12 @@ public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequ
             }
 
             try (XContentBuilder builder = jsonBuilder()) {
+                // When we return the watch via the get api, we want to return the watch as was specified in the put api,
+                // we don't include the status in the watch source itself, but as a separate top level field, so that
+                // it indicates the the status is managed by watcher itself.
                 watch.toXContent(builder, WatcherParams.builder().hideSecrets(true).build());
                 BytesReference watchSource = builder.bytes();
-                listener.onResponse(new GetWatchResponse(watch.id(), watch.status().version(), watchSource, XContentType.JSON));
+                listener.onResponse(new GetWatchResponse(watch.id(), watch.status(), watchSource, XContentType.JSON));
             } catch (IOException e) {
                 listener.onFailure(e);
             }

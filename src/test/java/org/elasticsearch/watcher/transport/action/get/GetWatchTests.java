@@ -31,7 +31,6 @@ public class GetWatchTests extends AbstractWatcherIntegrationTests {
 
     @Test
     public void testGet() throws Exception {
-        ensureWatcherStarted();
         PutWatchResponse putResponse = watcherClient().preparePutWatch("_name").setSource(watchBuilder()
                 .trigger(schedule(interval("5m")))
                 .input(simpleInput())
@@ -46,14 +45,14 @@ public class GetWatchTests extends AbstractWatcherIntegrationTests {
         assertThat(getResponse, notNullValue());
         assertThat(getResponse.isFound(), is(true));
         assertThat(getResponse.getId(), is("_name"));
-        assertThat(getResponse.getVersion(), is(putResponse.getVersion()));
+        assertThat(getResponse.getStatus().version(), is(putResponse.getVersion()));
         Map<String, Object> source = getResponse.getSource().getAsMap();
         assertThat(source, notNullValue());
         assertThat(source, hasKey("trigger"));
         assertThat(source, hasKey("input"));
         assertThat(source, hasKey("condition"));
         assertThat(source, hasKey("actions"));
-        assertThat(source, hasKey("status"));
+        assertThat(source, not(hasKey("status")));
     }
 
     @Test(expected = ActionRequestValidationException.class)
@@ -63,13 +62,11 @@ public class GetWatchTests extends AbstractWatcherIntegrationTests {
 
     @Test
     public void testGet_NotFound() throws Exception {
-        ensureWatcherStarted();
-
         GetWatchResponse getResponse = watcherClient().getWatch(new GetWatchRequest("_name")).get();
         assertThat(getResponse, notNullValue());
         assertThat(getResponse.getId(), is("_name"));
-        assertThat(getResponse.getVersion(), is(-1L));
         assertThat(getResponse.isFound(), is(false));
+        assertThat(getResponse.getStatus(), nullValue());
         assertThat(getResponse.getSource(), nullValue());
         XContentSource source = getResponse.getSource();
         assertThat(source, nullValue());

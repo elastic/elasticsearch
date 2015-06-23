@@ -32,6 +32,8 @@ import static org.elasticsearch.watcher.support.WatcherDateTimeUtils.*;
  */
 public class WatchStatus implements ToXContent, Streamable {
 
+    public static final String INCLUDE_VERSION_KEY = "include_version";
+
     private transient long version;
 
     private @Nullable DateTime lastChecked;
@@ -211,6 +213,9 @@ public class WatchStatus implements ToXContent, Streamable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        if (params.paramAsBoolean(INCLUDE_VERSION_KEY, false)) {
+            builder.field(Field.VERSION.getPreferredName(), version);
+        }
         if (lastChecked != null) {
             builder.field(Field.LAST_CHECKED.getPreferredName(), lastChecked);
         }
@@ -272,6 +277,7 @@ public class WatchStatus implements ToXContent, Streamable {
 
 
     interface Field {
+        ParseField VERSION = new ParseField("version");
         ParseField LAST_CHECKED = new ParseField("last_checked");
         ParseField LAST_MET_CONDITION = new ParseField("last_met_condition");
         ParseField ACTIONS = new ParseField("actions");

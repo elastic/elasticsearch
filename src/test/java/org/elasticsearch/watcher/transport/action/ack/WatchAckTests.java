@@ -257,13 +257,12 @@ public class WatchAckTests extends AbstractWatcherIntegrationTests {
         }
 
         GetWatchResponse watchResponse = watcherClient.getWatch(new GetWatchRequest("_name")).actionGet();
-        Watch watch = watchParser().parse("_name", true, watchResponse.getSource().getBytes());
-        assertThat(watch.status().actionStatus("_id").ackStatus().state(), Matchers.equalTo(ActionStatus.AckStatus.State.ACKED));
+        assertThat(watchResponse.getStatus().actionStatus("_id").ackStatus().state(), Matchers.equalTo(ActionStatus.AckStatus.State.ACKED));
 
         refresh();
         GetResponse getResponse = client().get(new GetRequest(WatchStore.INDEX, WatchStore.DOC_TYPE, "_name")).actionGet();
         Watch indexedWatch = watchParser().parse("_name", true, getResponse.getSourceAsBytesRef());
-        assertThat(watch.status().actionStatus("_id").ackStatus().state(), Matchers.equalTo(indexedWatch.status().actionStatus("_id").ackStatus().state()));
+        assertThat(watchResponse.getStatus().actionStatus("_id").ackStatus().state(), Matchers.equalTo(indexedWatch.status().actionStatus("_id").ackStatus().state()));
 
         if (timeWarped()) {
             timeWarp().scheduler().trigger("_name", 4, TimeValue.timeValueSeconds(5));

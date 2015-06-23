@@ -23,8 +23,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.watcher.WatcherVersion;
 import org.elasticsearch.watcher.actions.ActionStatus;
 import org.elasticsearch.watcher.history.HistoryStore;
-import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.watcher.transport.actions.service.WatcherServiceResponse;
 import org.junit.Test;
@@ -246,8 +246,8 @@ public class LicenseIntegrationTests extends AbstractWatcherIntegrationTests {
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                XContentSource source = watcherClient().prepareGetWatch(watchName).get().getSource();
-                assertThat(source.getValue("status.actions._index.ack.state"), is((Object) "ackable"));
+                GetWatchResponse response = watcherClient().prepareGetWatch(watchName).get();
+                assertThat(response.getStatus().actionStatus("_index").ackStatus().state(), equalTo(ActionStatus.AckStatus.State.ACKABLE));
             }
         });
 

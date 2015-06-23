@@ -68,7 +68,7 @@ public class CompositeTestCluster extends TestCluster {
     }
 
     @Override
-    public synchronized void beforeTest(Random random, double transportClientRatio) throws IOException {
+    public synchronized void beforeTest(Random random, double transportClientRatio) throws Exception {
         super.beforeTest(random, transportClientRatio);
         cluster.beforeTest(random, transportClientRatio);
         Settings defaultSettings = cluster.getDefaultSettings();

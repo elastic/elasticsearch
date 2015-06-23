@@ -82,8 +82,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardModule;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStoreModule;
-import org.elasticsearch.index.translog.TranslogConfig;
-import org.elasticsearch.index.translog.TranslogWriter;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -919,12 +917,12 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     @Override
-    public synchronized void beforeTest(Random random, double transportClientRatio) throws IOException {
+    public synchronized void beforeTest(Random random, double transportClientRatio) throws Exception {
         super.beforeTest(random, transportClientRatio);
         reset(true);
     }
 
-    private synchronized void reset(boolean wipeData) throws IOException {
+    private synchronized void reset(boolean wipeData) throws Exception {
         // clear all rules for mock transport services
         for (NodeAndClient nodeAndClient : nodes.values()) {
             TransportService transportService = nodeAndClient.node.injector().getInstance(TransportService.class);
@@ -946,6 +944,7 @@ public final class InternalTestCluster extends TestCluster {
 
 
         Set<NodeAndClient> sharedNodes = new HashSet<>();
+        List<ListenableFuture<String>> futures = new ArrayList<>();
         assert sharedNodesSeeds.length == numSharedDataNodes + numSharedClientNodes;
         boolean changed = false;
         for (int i = 0; i < numSharedDataNodes; i++) {
@@ -954,8 +953,21 @@ public final class InternalTestCluster extends TestCluster {
             if (nodeAndClient == null) {
                 changed = true;
                 nodeAndClient = buildNode(i, sharedNodesSeeds[i], null, Version.CURRENT);
-                nodeAndClient.node.start();
-                logger.info("Start Shared Node [{}] not shared", nodeAndClient.name);
+                final SettableFuture<String> future = SettableFuture.create();
+                final NodeAndClient fNode = nodeAndClient;
+                executor.execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            logger.info("Start Shared Node [{}] not shared", fNode.name);
+                            fNode.node().start();
+                            future.set(fNode.name);
+                        } catch (Throwable t) {
+                            future.setException(t);
+                        }
+                    }
+                });
+                futures.add(future);
             }
             sharedNodes.add(nodeAndClient);
         }
@@ -966,11 +978,27 @@ public final class InternalTestCluster extends TestCluster {
                 changed = true;
                 Builder clientSettingsBuilder = Settings.builder().put("node.client", true);
                 nodeAndClient = buildNode(i, sharedNodesSeeds[i], clientSettingsBuilder.build(), Version.CURRENT);
-                nodeAndClient.node.start();
-                logger.info("Start Shared Node [{}] not shared", nodeAndClient.name);
+                final SettableFuture<String> future = SettableFuture.create();
+                final NodeAndClient fNode = nodeAndClient;
+                executor.execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            logger.info("Start Shared Node [{}] not shared", fNode.name);
+                            fNode.node().start();
+                            future.set(fNode.name);
+                        } catch (Throwable t) {
+                            future.setException(t);
+                        }
+                    }
+                });
+                futures.add(future);
             }
             sharedNodes.add(nodeAndClient);
         }
+
+        Futures.allAsList(futures).get();
+
         if (!changed && sharedNodes.size() == nodes.size()) {
             logger.debug("Cluster is consistent - moving out - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]", nodes.keySet(), nextNodeId.get(), sharedNodesSeeds.length);
             if (size() > 0) {
@@ -1546,7 +1574,7 @@ public final class InternalTestCluster extends TestCluster {
         applyDisruptionSchemeToNode(nodeAndClient);
     }
 
-    public void closeNonSharedNodes(boolean wipeData) throws IOException {
+    public void closeNonSharedNodes(boolean wipeData) throws Exception {
         reset(wipeData);
     }
 

@@ -121,7 +121,9 @@ public class ByteFieldMapper extends NumberFieldMapper {
     }
 
     static final class ByteFieldType extends NumberFieldType {
-        public ByteFieldType() {}
+        public ByteFieldType() {
+            super(NumericType.INT);
+        }
 
         protected ByteFieldType(ByteFieldType ref) {
             super(ref);

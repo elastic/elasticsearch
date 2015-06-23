@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.core;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType.NumericType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.NumericRangeQuery;
@@ -126,7 +127,9 @@ public class ShortFieldMapper extends NumberFieldMapper {
 
     static final class ShortFieldType extends NumberFieldType {
 
-        public ShortFieldType() {}
+        public ShortFieldType() {
+            super(NumericType.INT);
+        }
 
         protected ShortFieldType(ShortFieldType ref) {
             super(ref);

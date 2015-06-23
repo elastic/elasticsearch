@@ -20,9 +20,11 @@
 package org.elasticsearch.index.mapper.core;
 
 import com.carrotsearch.hppc.FloatArrayList;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType.NumericType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.NumericRangeQuery;
@@ -127,7 +129,9 @@ public class FloatFieldMapper extends NumberFieldMapper {
 
     static final class FloatFieldType extends NumberFieldType {
 
-        public FloatFieldType() {}
+        public FloatFieldType() {
+            super(NumericType.FLOAT);
+        }
 
         protected FloatFieldType(FloatFieldType ref) {
             super(ref);

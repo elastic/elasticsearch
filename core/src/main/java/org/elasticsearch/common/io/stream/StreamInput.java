@@ -515,7 +515,7 @@ public abstract class StreamInput extends InputStream {
      * Reads a list of {@link NamedWriteable} from the current stream, by first reading its size and then
      * reading the individual objects using {@link #readNamedWriteable()}.
      */
-    public <C> List<C> readNamedWritableList() throws IOException {
+    public <C> List<C> readNamedWriteableList() throws IOException {
         List<C> list = new ArrayList<>();
         int size = readInt();
         for (int i = 0; i < size; i++) {

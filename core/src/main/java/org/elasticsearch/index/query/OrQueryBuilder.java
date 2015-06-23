@@ -143,7 +143,7 @@ public class OrQueryBuilder extends AbstractQueryBuilder<OrQueryBuilder> {
     @Override
     public OrQueryBuilder readFrom(StreamInput in) throws IOException {
         OrQueryBuilder orQueryBuilder = new OrQueryBuilder();
-        List<QueryBuilder> queryBuilders = in.readNamedWritableList();
+        List<QueryBuilder> queryBuilders = in.readNamedWriteableList();
         for (QueryBuilder queryBuilder : queryBuilders) {
             orQueryBuilder.add(queryBuilder);
         }
@@ -154,7 +154,7 @@ public class OrQueryBuilder extends AbstractQueryBuilder<OrQueryBuilder> {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWritableList(this.filters);
+        out.writeNamedWriteableList(this.filters);
         out.writeOptionalString(queryName);
     }
 }

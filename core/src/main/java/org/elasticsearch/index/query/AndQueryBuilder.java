@@ -144,7 +144,7 @@ public class AndQueryBuilder extends AbstractQueryBuilder<AndQueryBuilder> {
     @Override
     public AndQueryBuilder readFrom(StreamInput in) throws IOException {
         AndQueryBuilder andQueryBuilder = new AndQueryBuilder();
-        List<QueryBuilder> queryBuilders = in.readNamedWritableList();
+        List<QueryBuilder> queryBuilders = in.readNamedWriteableList();
         for (QueryBuilder queryBuilder : queryBuilders) {
             andQueryBuilder.add(queryBuilder);
         }
@@ -155,7 +155,7 @@ public class AndQueryBuilder extends AbstractQueryBuilder<AndQueryBuilder> {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWritableList(this.filters);
+        out.writeNamedWriteableList(this.filters);
         out.writeOptionalString(queryName);
     }
 }

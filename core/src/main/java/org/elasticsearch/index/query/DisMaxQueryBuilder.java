@@ -159,7 +159,7 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
     @Override
     public DisMaxQueryBuilder readFrom(StreamInput in) throws IOException {
         DisMaxQueryBuilder disMax = new DisMaxQueryBuilder();
-        List<QueryBuilder> queryBuilders = in.readNamedWritableList();
+        List<QueryBuilder> queryBuilders = in.readNamedWriteableList();
         disMax.queries.addAll(queryBuilders);
         disMax.tieBreaker = in.readFloat();
         disMax.queryName = in.readOptionalString();
@@ -169,7 +169,7 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWritableList(this.queries);
+        out.writeNamedWriteableList(this.queries);
         out.writeFloat(tieBreaker);
         out.writeOptionalString(queryName);
         out.writeFloat(boost);

@@ -218,8 +218,8 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
 
         QueryBuilder newQuery = queryParserService.queryParser(testQuery.getName()).fromXContent(context);
         assertNotSame(newQuery, testQuery);
-        assertEquals("Queries should be equal", testQuery, newQuery);
-        assertEquals("Queries should have equal hashcodes", testQuery.hashCode(), newQuery.hashCode());
+        assertEquals(testQuery, newQuery);
+        assertEquals(testQuery.hashCode(), newQuery.hashCode());
     }
 
     /**

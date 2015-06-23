@@ -19,10 +19,15 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.common.Nullable;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.Query;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * A query that applies a filter to the results of another query.
@@ -31,36 +36,103 @@ import java.io.IOException;
 @Deprecated
 public class FilteredQueryBuilder extends AbstractQueryBuilder<FilteredQueryBuilder> {
 
+    /** Name of the query in the REST API. */
     public static final String NAME = "filtered";
-
+    /** The query to filter. */
     private final QueryBuilder queryBuilder;
-
+    /** The filter to apply to the query. */
     private final QueryBuilder filterBuilder;
 
     static final FilteredQueryBuilder PROTOTYPE = new FilteredQueryBuilder(null, null);
 
     /**
+     * Returns a {@link MatchAllQueryBuilder} instance that will be used as
+     * default queryBuilder if none is supplied by the user. Feel free to
+     * set queryName and boost on that instance - it's always a new one.
+     * */
+    private static QueryBuilder generateDefaultQuery() {
+        return new MatchAllQueryBuilder();
+    }
+
+    /**
+     * A query that applies a filter to the results of a match_all query.
+     * @param filterBuilder The filter to apply on the query (Can be null)
+     * */
+    public FilteredQueryBuilder(QueryBuilder filterBuilder) {
+        this(generateDefaultQuery(), filterBuilder);
+    }
+
+    /**
      * A query that applies a filter to the results of another query.
      *
-     * @param queryBuilder  The query to apply the filter to (Can be null)
+     * @param queryBuilder  The query to apply the filter to
      * @param filterBuilder The filter to apply on the query (Can be null)
      */
-    public FilteredQueryBuilder(@Nullable QueryBuilder queryBuilder, @Nullable QueryBuilder filterBuilder) {
-        this.queryBuilder = queryBuilder;
-        this.filterBuilder = filterBuilder;
+    public FilteredQueryBuilder(QueryBuilder queryBuilder, QueryBuilder filterBuilder) {
+        this.queryBuilder = (queryBuilder != null) ? queryBuilder : generateDefaultQuery();
+        this.filterBuilder = (filterBuilder != null) ? filterBuilder : EmptyQueryBuilder.PROTOTYPE;
+    }
+
+    /** Returns the query to apply the filter to. */
+    public QueryBuilder query() {
+        return queryBuilder;
+    }
+
+    /** Returns the filter to apply to the query results. */
+    public QueryBuilder filter() {
+        return filterBuilder;
+    }
+
+    @Override
+    protected boolean doEquals(FilteredQueryBuilder other) {
+        return Objects.equals(queryBuilder, other.queryBuilder) &&
+                Objects.equals(filterBuilder, other.filterBuilder);
+    }
+
+    @Override
+    public int doHashCode() {
+        return Objects.hash(queryBuilder, filterBuilder);
+    }
+
+    @Override
+    public Query doToQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+        Query query = queryBuilder.toQuery(parseContext);
+        Query filter = filterBuilder.toQuery(parseContext);
+
+        if (query == null) {
+            // Most likely this query was generated from the JSON query DSL - it parsed to an EmptyQueryBuilder so we ignore
+            // the whole filtered query as there is nothing to filter on. See FilteredQueryParser for an example.
+            return null;
+        }
+
+        if (filter == null || Queries.isConstantMatchAllQuery(filter)) {
+            // no filter, or match all filter
+            return query;
+        } else if (Queries.isConstantMatchAllQuery(query)) {
+            // if its a match_all query, use constant_score
+            return new ConstantScoreQuery(filter);
+        }
+
+        // use a BooleanQuery
+        return Queries.filtered(query, filter);
+    }
+
+    @Override
+    public QueryValidationException validate() {
+        QueryValidationException validationException = null;
+        validationException = validateInnerQuery(queryBuilder, validationException);
+        validationException = validateInnerQuery(filterBuilder, validationException);
+        return validationException;
+
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        if (queryBuilder != null) {
-            builder.field("query");
-            queryBuilder.toXContent(builder, params);
-        }
-        if (filterBuilder != null) {
-            builder.field("filter");
-            filterBuilder.toXContent(builder, params);
-        }
+        builder.field("query");
+        queryBuilder.toXContent(builder, params);
+        builder.field("filter");
+        filterBuilder.toXContent(builder, params);
         printBoostAndQueryName(builder);
         builder.endObject();
     }
@@ -68,5 +140,19 @@ public class FilteredQueryBuilder extends AbstractQueryBuilder<FilteredQueryBuil
     @Override
     public String getName() {
         return NAME;
+    }
+
+    @Override
+    public FilteredQueryBuilder doReadFrom(StreamInput in) throws IOException {
+        QueryBuilder query = in.readNamedWriteable();
+        QueryBuilder filter = in.readNamedWriteable();
+        FilteredQueryBuilder qb = new FilteredQueryBuilder(query, filter);
+        return qb;
+    }
+
+    @Override
+    public void doWriteTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteable(queryBuilder);
+        out.writeNamedWriteable(filterBuilder);
     }
 }

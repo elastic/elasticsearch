@@ -24,10 +24,8 @@ import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.index.mapper.object.ObjectMapper;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -101,7 +99,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
     }
 
     /**
-     * Checks if the give mapper's field types are compatibile with existing field types.
+     * Checks if the given mappers' field types are compatible with existing field types.
      * If any are not compatible, an IllegalArgumentException is thrown.
      * If updateAllTypes is true, only basic compatibility is checked.
      */
@@ -109,7 +107,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
         for (FieldMapper fieldMapper : newFieldMappers) {
             MappedFieldTypeReference ref = fullNameToFieldType.get(fieldMapper.fieldType().names().fullName());
             if (ref != null) {
-                boolean strict = ref.getRefCount() > 1 && updateAllTypes == false;
+                boolean strict = ref.getNumAssociatedMappers() > 1 && updateAllTypes == false;
                 List<String> conflicts = new ArrayList<>();
                 ref.get().checkCompatibility(fieldMapper.fieldType(), conflicts, strict);
                 if (conflicts.isEmpty() == false) {
@@ -120,7 +118,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
             // field type for the index name must be compatible too
             MappedFieldTypeReference indexNameRef = fullNameToFieldType.get(fieldMapper.fieldType().names().indexName());
             if (indexNameRef != null) {
-                boolean strict = indexNameRef.getRefCount() > 1 && updateAllTypes == false;
+                boolean strict = indexNameRef.getNumAssociatedMappers() > 1 && updateAllTypes == false;
                 List<String> conflicts = new ArrayList<>();
                 indexNameRef.get().checkCompatibility(fieldMapper.fieldType(), conflicts, strict);
                 if (conflicts.isEmpty() == false) {

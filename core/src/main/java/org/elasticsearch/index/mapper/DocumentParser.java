@@ -529,7 +529,7 @@ class DocumentParser implements Closeable {
                         builder = MapperBuilders.longField(currentFieldName);
                     }
                     return builder;
-                } catch (Exception e) {
+                } catch (NumberFormatException e) {
                     // not a long number
                 }
                 try {
@@ -539,7 +539,7 @@ class DocumentParser implements Closeable {
                         builder = MapperBuilders.doubleField(currentFieldName);
                     }
                     return builder;
-                } catch (Exception e) {
+                } catch (NumberFormatException e) {
                     // not a long number
                 }
             }

@@ -350,7 +350,7 @@ public abstract class AbstractFieldMapper implements FieldMapper {
         if (ref.get().equals(fieldType()) == false) {
             throw new IllegalStateException("Cannot overwrite field type reference to unequal reference");
         }
-        ref.incRefCount();
+        ref.incrementAssociatedMappers();
         this.fieldTypeRef = ref;
     }
 
@@ -409,7 +409,7 @@ public abstract class AbstractFieldMapper implements FieldMapper {
         }
         AbstractFieldMapper fieldMergeWith = (AbstractFieldMapper) mergeWith;
         List<String> subConflicts = new ArrayList<>(); // TODO: just expose list from MergeResult?
-        boolean strict = this.fieldTypeRef.getRefCount() > 1 && mergeResult.updateAllTypes() == false;
+        boolean strict = this.fieldTypeRef.getNumAssociatedMappers() > 1 && mergeResult.updateAllTypes() == false;
         fieldType().checkCompatibility(fieldMergeWith.fieldType(), subConflicts, strict);
         for (String conflict : subConflicts) {
             mergeResult.addConflict(conflict);
@@ -482,8 +482,7 @@ public abstract class AbstractFieldMapper implements FieldMapper {
         }
 
         TreeMap<String, Object> orderedFielddataSettings = new TreeMap<>();
-        boolean hasCustomFieldDataSettings = customFieldDataSettings != null && customFieldDataSettings.equals(Settings.EMPTY) == false;
-        if (hasCustomFieldDataSettings) {
+        if (hasCustomFieldDataSettings()) {
             orderedFielddataSettings.putAll(customFieldDataSettings.getAsMap());
             builder.field("fielddata", orderedFielddataSettings);
         } else if (includeDefaults) {
@@ -561,6 +560,10 @@ public abstract class AbstractFieldMapper implements FieldMapper {
         } else {
             return "not_analyzed";
         }
+    }
+
+    protected boolean hasCustomFieldDataSettings() {
+        return customFieldDataSettings != null && customFieldDataSettings.equals(Settings.EMPTY) == false;
     }
 
     protected abstract String contentType();

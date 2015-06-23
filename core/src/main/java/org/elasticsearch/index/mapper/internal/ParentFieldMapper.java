@@ -324,11 +324,10 @@ public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper
             return builder;
         }
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-        boolean hasCustomFieldDataSettings = customFieldDataSettings != null && customFieldDataSettings.equals(Settings.EMPTY) == false;
 
         builder.startObject(CONTENT_TYPE);
         builder.field("type", type);
-        if (hasCustomFieldDataSettings) {
+        if (hasCustomFieldDataSettings()) {
             builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
         } else if (includeDefaults) {
             builder.field("fielddata", (Map) fieldType().fieldDataType().getSettings().getAsMap());

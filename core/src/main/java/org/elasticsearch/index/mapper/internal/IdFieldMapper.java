@@ -310,13 +310,12 @@ public class IdFieldMapper extends AbstractFieldMapper implements RootMapper {
             return builder;
         }
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-        boolean hasCustomFieldDataSettings = customFieldDataSettings != null && customFieldDataSettings.equals(Settings.EMPTY) == false;
 
         // if all are defaults, no sense to write it at all
         if (!includeDefaults && fieldType().stored() == Defaults.FIELD_TYPE.stored()
                 && fieldType().indexOptions() == Defaults.FIELD_TYPE.indexOptions()
                 && path == Defaults.PATH
-                && hasCustomFieldDataSettings == false) {
+                && hasCustomFieldDataSettings() == false) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
@@ -330,7 +329,7 @@ public class IdFieldMapper extends AbstractFieldMapper implements RootMapper {
             builder.field("path", path);
         }
 
-        if (hasCustomFieldDataSettings) {
+        if (hasCustomFieldDataSettings()) {
             builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
         } else if (includeDefaults) {
             builder.field("fielddata", (Map) fieldType().fieldDataType().getSettings().getAsMap());

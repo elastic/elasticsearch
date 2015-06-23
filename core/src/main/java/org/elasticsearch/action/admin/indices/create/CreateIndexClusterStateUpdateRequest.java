@@ -129,6 +129,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return blocks;
     }
 
+    /** True if all fields that span multiple types should be updated, false otherwise */
     public boolean updateAllTypes() {
         return updateAllTypes;
     }

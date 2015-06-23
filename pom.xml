@@ -33,9 +33,6 @@
 
     <properties>
         <!-- If we need to define any specific property -->
-        <!-- see https://github.com/elastic/elasticsearch-mapper-attachments/issues/129
-             this plugin is currently unusable unless users disable security -->
-        <tests.security.manager>false</tests.security.manager>
     </properties>
 
     <dependencies>
@@ -43,7 +40,7 @@
         <dependency>
             <groupId>org.apache.tika</groupId>
             <artifactId>tika-parsers</artifactId>
-            <version>1.8</version>
+            <version>1.9</version>
             <exclusions>
                 <!-- Not Apache2 License compatible -->
                 <exclusion>

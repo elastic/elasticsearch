@@ -25,7 +25,7 @@ public class IndexActionFactory extends ActionFactory<IndexAction, ExecutableInd
     private final DynamicIndexName.Parser indexNamesParser;
 
     @Inject
-    public IndexActionFactory(Settings settings, ClientProxy client, DynamicIndexName.Parser indexNamesParser) {
+    public IndexActionFactory(Settings settings, ClientProxy client) {
         super(Loggers.getLogger(ExecutableEmailAction.class, settings));
         this.client = client;
         String defaultDateFormat = DynamicIndexName.defaultDateFormat(settings, "watcher.actions.index");

@@ -111,7 +111,6 @@ import static org.mockito.Mockito.mock;
 public class WatchTests extends ElasticsearchTestCase {
 
     private ScriptServiceProxy scriptService;
-    private DynamicIndexName.Parser indexNamesParser;
     private ClientProxy client;
     private HttpClient httpClient;
     private EmailService emailService;
@@ -127,7 +126,6 @@ public class WatchTests extends ElasticsearchTestCase {
     @Before
     public void init() throws Exception {
         scriptService = mock(ScriptServiceProxy.class);
-        indexNamesParser = new DynamicIndexName.Parser();
         client = mock(ClientProxy.class);
         httpClient = mock(HttpClient.class);
         emailService = mock(EmailService.class);
@@ -416,7 +414,7 @@ public class WatchTests extends ElasticsearchTestCase {
                     parsers.put(EmailAction.TYPE, new EmailActionFactory(settings, emailService, templateEngine, htmlSanitizer));
                     break;
                 case IndexAction.TYPE:
-                    parsers.put(IndexAction.TYPE, new IndexActionFactory(settings, client, indexNamesParser));
+                    parsers.put(IndexAction.TYPE, new IndexActionFactory(settings, client));
                     break;
                 case WebhookAction.TYPE:
                     parsers.put(WebhookAction.TYPE, new WebhookActionFactory(settings,  httpClient,

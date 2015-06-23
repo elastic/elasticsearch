@@ -274,10 +274,12 @@ deprecated[1.5.0,Rivers have been deprecated.  See https://www.elastic.co/blog/d
 ==== Scripting Plugins
 
 .Supported by Elasticsearch
-* https://github.com/hiredman/elasticsearch-lang-clojure[Clojure Language Plugin] (by Kevin Downey)
 * https://github.com/elasticsearch/elasticsearch-lang-groovy[Groovy lang Plugin]
 * https://github.com/elasticsearch/elasticsearch-lang-javascript[JavaScript language Plugin]
 * https://github.com/elasticsearch/elasticsearch-lang-python[Python language Plugin]
+
+.Supported by the community
+* https://github.com/hiredman/elasticsearch-lang-clojure[Clojure Language Plugin] (by Kevin Downey)
 * https://github.com/NLPchina/elasticsearch-sql/[SQL language Plugin] (by nlpcn)
 
 [float]

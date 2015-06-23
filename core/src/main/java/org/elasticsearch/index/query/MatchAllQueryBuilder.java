@@ -76,15 +76,8 @@ public class MatchAllQueryBuilder extends AbstractQueryBuilder<MatchAllQueryBuil
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        MatchAllQueryBuilder that = (MatchAllQueryBuilder) o;
-        return Float.compare(that.boost, boost) == 0;
+    public boolean doEquals(MatchAllQueryBuilder other) {
+        return Float.compare(other.boost, boost) == 0;
     }
 
     @Override

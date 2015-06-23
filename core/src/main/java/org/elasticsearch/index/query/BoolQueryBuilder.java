@@ -335,14 +335,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> imp
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        BoolQueryBuilder other = (BoolQueryBuilder) obj;
+    public boolean doEquals(BoolQueryBuilder other) {
         return Objects.equals(boost, other.boost) &&
                 Objects.equals(adjustPureNegative, other.adjustPureNegative) &&
                 Objects.equals(disableCoord, other.disableCoord) &&

@@ -83,14 +83,7 @@ public class QueryFilterBuilder extends AbstractQueryBuilder<QueryFilterBuilder>
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        QueryFilterBuilder other = (QueryFilterBuilder) obj;
+    public boolean doEquals(QueryFilterBuilder other) {
         return Objects.equals(queryBuilder, other.queryBuilder);
     }
 

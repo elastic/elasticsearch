@@ -194,14 +194,7 @@ public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> 
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        BaseTermQueryBuilder other = (BaseTermQueryBuilder) obj;
+    public final boolean doEquals(BaseTermQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName) &&
                Objects.equals(value, other.value) &&
                Objects.equals(boost, other.boost) &&

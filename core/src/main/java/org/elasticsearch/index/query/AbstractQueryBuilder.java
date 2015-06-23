@@ -66,6 +66,38 @@ public abstract class AbstractQueryBuilder<QB extends QueryBuilder> extends ToXC
         return null;
     }
 
+    //norelease remove this once all builders implement readFrom themselves
+    @Override
+    public QB readFrom(StreamInput in) throws IOException {
+        return null;
+    }
+
+    //norelease remove this once all builders implement writeTo themselves
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+    }
+
+    @Override
+    public final boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        @SuppressWarnings("unchecked")
+        QB other = (QB) obj;
+        return doEquals(other);
+    }
+
+    /**
+     * Indicates whether some other {@link QueryBuilder} object of the same type is "equal to" this one.
+     */
+    //norelease to be made abstract once all queries are refactored
+    protected boolean doEquals(QB other) {
+        throw new UnsupportedOperationException();
+    }
+
     /**
      * This helper method checks if the object passed in is a string, if so it
      * converts it to a {@link BytesRef}.
@@ -111,16 +143,5 @@ public abstract class AbstractQueryBuilder<QB extends QueryBuilder> extends ToXC
             }
         }
         return queries;
-    }
-
-    //norelease remove this once all builders implement readFrom themselves
-    @Override
-    public QB readFrom(StreamInput in) throws IOException {
-        return null;
-    }
-
-    //norelease remove this once all builders implement writeTo themselves
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
     }
 }

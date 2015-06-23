@@ -56,15 +56,8 @@ public class LimitQueryBuilder extends AbstractQueryBuilder<LimitQueryBuilder> {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        LimitQueryBuilder that = (LimitQueryBuilder) o;
-        return Integer.compare(that.limit, limit) == 0;
+    public boolean doEquals(LimitQueryBuilder other) {
+        return Integer.compare(other.limit, limit) == 0;
     }
 
     @Override

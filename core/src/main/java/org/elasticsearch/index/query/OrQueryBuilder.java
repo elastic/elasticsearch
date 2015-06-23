@@ -135,14 +135,7 @@ public class OrQueryBuilder extends AbstractQueryBuilder<OrQueryBuilder> {
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        OrQueryBuilder other = (OrQueryBuilder) obj;
+    public boolean doEquals(OrQueryBuilder other) {
         return Objects.equals(filters, other.filters) &&
                Objects.equals(queryName, other.queryName);
     }

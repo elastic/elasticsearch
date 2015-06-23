@@ -176,14 +176,7 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        BoostingQueryBuilder other = (BoostingQueryBuilder) obj;
+    public boolean doEquals(BoostingQueryBuilder other) {
         return Objects.equals(this.boost, other.boost) &&
                 Objects.equals(this.negativeBoost, other.negativeBoost) &&
                 Objects.equals(this.positiveQuery, other.positiveQuery) &&

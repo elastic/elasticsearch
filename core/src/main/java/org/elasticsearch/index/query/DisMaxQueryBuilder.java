@@ -181,14 +181,7 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        DisMaxQueryBuilder other = (DisMaxQueryBuilder) obj;
+    public boolean doEquals(DisMaxQueryBuilder other) {
         return Objects.equals(queries, other.queries) &&
                Objects.equals(tieBreaker, other.tieBreaker) &&
                Objects.equals(boost, other.boost) &&

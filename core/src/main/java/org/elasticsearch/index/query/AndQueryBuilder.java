@@ -136,14 +136,7 @@ public class AndQueryBuilder extends AbstractQueryBuilder<AndQueryBuilder> {
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        AndQueryBuilder other = (AndQueryBuilder) obj;
+    public boolean doEquals(AndQueryBuilder other) {
         return Objects.equals(filters, other.filters) &&
                Objects.equals(queryName, other.queryName);
     }

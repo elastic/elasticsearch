@@ -217,14 +217,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> imple
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        IdsQueryBuilder other = (IdsQueryBuilder) obj;
+    public boolean doEquals(IdsQueryBuilder other) {
         return Objects.equals(ids, other.ids) &&
                Arrays.equals(types, other.types) &&
                Objects.equals(boost, other.boost) &&

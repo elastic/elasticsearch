@@ -161,14 +161,7 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        FieldMaskingSpanQueryBuilder other = (FieldMaskingSpanQueryBuilder) obj;
+    public boolean doEquals(FieldMaskingSpanQueryBuilder other) {
         return Objects.equals(queryBuilder, other.queryBuilder) &&
                Objects.equals(fieldName, other.fieldName) &&
                Objects.equals(boost, other.boost) &&

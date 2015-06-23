@@ -108,14 +108,7 @@ public class NotQueryBuilder extends AbstractQueryBuilder<NotQueryBuilder> {
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        NotQueryBuilder other = (NotQueryBuilder) obj;
+    public boolean doEquals(NotQueryBuilder other) {
         return Objects.equals(filter, other.filter) &&
                Objects.equals(queryName, other.queryName);
     }

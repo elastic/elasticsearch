@@ -110,14 +110,7 @@ public class FQueryFilterBuilder extends AbstractQueryBuilder<FQueryFilterBuilde
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        FQueryFilterBuilder other = (FQueryFilterBuilder) obj;
+    public boolean doEquals(FQueryFilterBuilder other) {
         return Objects.equals(queryBuilder, other.queryBuilder) &&
                 Objects.equals(queryName, other.queryName);
     }

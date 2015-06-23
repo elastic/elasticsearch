@@ -114,14 +114,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        ConstantScoreQueryBuilder other = (ConstantScoreQueryBuilder) obj;
+    public boolean doEquals(ConstantScoreQueryBuilder other) {
         return Objects.equals(boost, other.boost) &&
                 Objects.equals(filterBuilder, other.filterBuilder);
     }

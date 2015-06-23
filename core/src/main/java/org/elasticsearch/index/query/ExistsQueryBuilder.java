@@ -141,14 +141,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        ExistsQueryBuilder other = (ExistsQueryBuilder) obj;
+    public boolean doEquals(ExistsQueryBuilder other) {
         return Objects.equals(name, other.name) &&
                Objects.equals(queryName, other.queryName);
     }

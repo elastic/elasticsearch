@@ -319,7 +319,7 @@ public abstract class NumberFieldMapper extends AbstractFieldMapper implements A
             return;
         }
         NumberFieldMapper nfmMergeWith = (NumberFieldMapper) mergeWith;
-        if (this.fieldTypeRef.getRefCount() > 1 && mergeResult.updateAllTypes() == false) {
+        if (this.fieldTypeRef.getNumAssociatedMappers() > 1 && mergeResult.updateAllTypes() == false) {
             if (fieldType().numericPrecisionStep() != nfmMergeWith.fieldType().numericPrecisionStep()) {
                 mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] is used by multiple types. Set update_all_types to true to update precision_step across all types.");
             }

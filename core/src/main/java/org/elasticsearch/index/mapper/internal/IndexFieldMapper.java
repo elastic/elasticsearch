@@ -206,10 +206,9 @@ public class IndexFieldMapper extends AbstractFieldMapper implements RootMapper 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-        boolean hasCustomFieldDataSettings = customFieldDataSettings != null && customFieldDataSettings.equals(Settings.EMPTY) == false;
 
         // if all defaults, no need to write it at all
-        if (!includeDefaults && fieldType().stored() == Defaults.FIELD_TYPE.stored() && enabledState == Defaults.ENABLED_STATE && hasCustomFieldDataSettings == false) {
+        if (!includeDefaults && fieldType().stored() == Defaults.FIELD_TYPE.stored() && enabledState == Defaults.ENABLED_STATE && hasCustomFieldDataSettings() == false) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
@@ -221,7 +220,7 @@ public class IndexFieldMapper extends AbstractFieldMapper implements RootMapper 
         }
 
         if (indexCreatedBefore2x) {
-            if (hasCustomFieldDataSettings) {
+            if (hasCustomFieldDataSettings()) {
                 builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
             } else if (includeDefaults) {
                 builder.field("fielddata", (Map) fieldType().fieldDataType().getSettings().getAsMap());

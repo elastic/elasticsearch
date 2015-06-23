@@ -219,16 +219,15 @@ public class UidFieldMapper extends AbstractFieldMapper implements RootMapper {
             return builder;
         }
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-        boolean hasCustomFieldDataSettings = customFieldDataSettings != null && customFieldDataSettings.equals(Settings.EMPTY) == false;
 
         // if defaults, don't output
-        if (!includeDefaults && hasCustomFieldDataSettings == false) {
+        if (!includeDefaults && hasCustomFieldDataSettings() == false) {
             return builder;
         }
 
         builder.startObject(CONTENT_TYPE);
 
-        if (hasCustomFieldDataSettings) {
+        if (hasCustomFieldDataSettings()) {
             builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
         } else if (includeDefaults) {
             builder.field("fielddata", (Map) fieldType().fieldDataType().getSettings().getAsMap());

@@ -314,8 +314,7 @@ public class AllFieldMapper extends AbstractFieldMapper implements RootMapper {
             builder.field("similarity", SimilarityLookupService.DEFAULT_SIMILARITY);
         }
 
-        boolean hasCustomFieldDataSettings = customFieldDataSettings != null && customFieldDataSettings.equals(Settings.EMPTY) == false;
-        if (hasCustomFieldDataSettings) {
+        if (hasCustomFieldDataSettings()) {
             builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
         } else if (includeDefaults) {
             builder.field("fielddata", (Map) fieldType().fieldDataType().getSettings().getAsMap());

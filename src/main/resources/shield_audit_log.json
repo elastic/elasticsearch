@@ -13,70 +13,87 @@
       "properties": {
         "@timestamp": {
           "type": "date",
-          "format": "date_time"
+          "format": "date_time",
+          "doc_values": true
         },
         "node_name": {
           "type": "string",
-          "index": "not_analyzed"
+          "index": "not_analyzed",
+          "doc_values": true
         },
         "node_host_name": {
           "type": "string",
-          "index": "not_analyzed"
+          "index": "not_analyzed",
+          "doc_values": true
         },
         "node_host_address": {
           "type": "string",
-          "index": "not_analyzed"
+          "index": "not_analyzed",
+          "doc_values": true
         },
         "layer": {
           "type": "string",
-          "index": "not_analyzed"
+          "index": "not_analyzed",
+          "doc_values": true
         },
         "event_type": {
           "type": "string",
-          "index": "not_analyzed"
+          "index": "not_analyzed",
+          "doc_values": true
         },
         "origin_address": {
           "type": "string",
-          "index": "not_analyzed"
+          "index": "not_analyzed",
+          "doc_values": true
         },
         "origin_type": {
           "type": "string",
-          "index": "not_analyzed"
+          "index": "not_analyzed",
+          "doc_values": true
         },
         "principal": {
           "type": "string",
-          "index": "not_analyzed"
+          "index": "not_analyzed",
+          "doc_values": true
         },
         "action": {
           "type": "string",
-          "index": "not_analyzed"
+          "index": "not_analyzed",
+          "doc_values": true
         },
         "indices": {
           "type": "string",
-          "index": "not_analyzed"
+          "index": "not_analyzed",
+          "doc_values": true
         },
         "request": {
           "type": "string",
-          "index": "not_analyzed"
+          "index": "not_analyzed",
+          "doc_values": true
         },
         "request_body": {
-          "type": "string"
+          "type": "string",
+          "index": "no"
         },
         "uri": {
           "type": "string",
-          "index": "not_analyzed"
+          "index": "not_analyzed",
+          "doc_values": true
         },
         "realm": {
           "type": "string",
-          "index": "not_analyzed"
+          "index": "not_analyzed",
+          "doc_values": true
         },
         "transport_profile": {
           "type": "string",
-          "index": "not_analyzed"
+          "index": "not_analyzed",
+          "doc_values": true
         },
         "rule": {
           "type": "string",
-          "index": "not_analyzed"
+          "index": "not_analyzed",
+          "doc_values": true
         }
       }
     }

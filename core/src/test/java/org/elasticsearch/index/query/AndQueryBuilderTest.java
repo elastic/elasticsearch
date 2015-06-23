@@ -40,7 +40,10 @@ public class AndQueryBuilderTest extends BaseQueryTestCase<AndQueryBuilder> {
         }
         BooleanQuery query = new BooleanQuery();
         for (QueryBuilder subQuery : queryBuilder.filters()) {
-            query.add(subQuery.toQuery(context), Occur.MUST);
+            Query innerQuery = subQuery.toQuery(context);
+            if (innerQuery != null) {
+                query.add(innerQuery, Occur.MUST);
+            }
         }
         return query;
     }

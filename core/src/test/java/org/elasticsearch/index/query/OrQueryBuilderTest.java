@@ -40,7 +40,11 @@ public class OrQueryBuilderTest extends BaseQueryTestCase<OrQueryBuilder> {
         }
         BooleanQuery query = new BooleanQuery();
         for (QueryBuilder subQuery : queryBuilder.filters()) {
-            query.add(subQuery.toQuery(context), Occur.SHOULD);
+            Query innerQuery = subQuery.toQuery(context);
+            // ignore queries that are null
+            if (innerQuery != null) {
+                query.add(innerQuery, Occur.SHOULD);
+            }
         }
         return query;
     }

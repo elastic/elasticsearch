@@ -107,7 +107,11 @@ public class AndQueryBuilder extends AbstractQueryBuilder<AndQueryBuilder> {
 
         BooleanQuery query = new BooleanQuery();
         for (QueryBuilder f : filters) {
-            query.add(f.toQuery(parseContext), Occur.MUST);
+            Query innerQuery = f.toQuery(parseContext);
+            // ignore queries that are null
+            if (innerQuery != null) {
+                query.add(innerQuery, Occur.MUST);
+            }
         }
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);

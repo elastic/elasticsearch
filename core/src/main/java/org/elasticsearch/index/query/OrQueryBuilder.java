@@ -106,7 +106,11 @@ public class OrQueryBuilder extends AbstractQueryBuilder<OrQueryBuilder> {
 
         BooleanQuery query = new BooleanQuery();
         for (QueryBuilder f : filters) {
-            query.add(f.toQuery(parseContext), Occur.SHOULD);
+            Query innerQuery = f.toQuery(parseContext);
+            // ignore queries that are null
+            if (innerQuery != null) {
+                query.add(innerQuery, Occur.SHOULD);
+            }
         }
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);

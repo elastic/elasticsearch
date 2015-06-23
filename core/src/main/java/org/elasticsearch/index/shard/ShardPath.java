@@ -92,7 +92,7 @@ public final class ShardPath {
             ShardStateMetaData load = ShardStateMetaData.FORMAT.loadLatestState(logger, path);
             if (load != null) {
                 if ((load.indexUUID.equals(indexUUID) || IndexMetaData.INDEX_UUID_NA_VALUE.equals(load.indexUUID)) == false) {
-                    throw new IllegalStateException(shardId + " index UUID in shard state was: " + load.indexUUID + " excepted: " + indexUUID + " on shard path: " + path);
+                    throw new IllegalStateException(shardId + " index UUID in shard state was: " + load.indexUUID + " expected: " + indexUUID + " on shard path: " + path);
                 }
                 if (loadedPath == null) {
                     loadedPath = path;

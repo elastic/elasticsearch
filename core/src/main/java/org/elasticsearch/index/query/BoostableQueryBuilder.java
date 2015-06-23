@@ -22,7 +22,7 @@ package org.elasticsearch.index.query;
 /**
  * Query builder which allow setting some boost
  */
-interface BoostableQueryBuilder<B extends BoostableQueryBuilder<B>> {
+public interface BoostableQueryBuilder<B extends BoostableQueryBuilder<B>> {
 
     /**
      * Sets the boost for this query.  Documents matching this query will (in addition to the normal

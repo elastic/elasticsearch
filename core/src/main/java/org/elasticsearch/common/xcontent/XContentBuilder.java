@@ -43,6 +43,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -954,6 +955,14 @@ public final class XContentBuilder implements BytesStream, Releasable {
             field(readableFieldName, new ByteSizeValue(rawSize).toString());
         }
         field(rawFieldName, rawSize);
+        return this;
+    }
+
+    public XContentBuilder percentageField(XContentBuilderString rawFieldName, XContentBuilderString readableFieldName, double percentage) throws IOException {
+        if (humanReadable) {
+            field(readableFieldName, String.format(Locale.ROOT, "%1.1f%%", percentage));
+        }
+        field(rawFieldName, percentage);
         return this;
     }
 

@@ -74,7 +74,6 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
     private final IndexQueryParserService queryParserService;
     private final MapperService mapperService;
     private final IndicesLifecycle indicesLifecycle;
-    private final IndexCache indexCache;
     private final IndexFieldDataService indexFieldDataService;
 
     private final ShardIndexingService indexingService;
@@ -98,13 +97,12 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
     @Inject
     public PercolatorQueriesRegistry(ShardId shardId, @IndexSettings Settings indexSettings, IndexQueryParserService queryParserService,
                                      ShardIndexingService indexingService, IndicesLifecycle indicesLifecycle, MapperService mapperService,
-                                     IndexCache indexCache, IndexFieldDataService indexFieldDataService, ShardPercolateService shardPercolateService) {
+                                     IndexFieldDataService indexFieldDataService, ShardPercolateService shardPercolateService) {
         super(shardId, indexSettings);
         this.queryParserService = queryParserService;
         this.mapperService = mapperService;
         this.indicesLifecycle = indicesLifecycle;
         this.indexingService = indexingService;
-        this.indexCache = indexCache;
         this.indexFieldDataService = indexFieldDataService;
         this.shardPercolateService = shardPercolateService;
         this.mapUnmappedFieldsAsString = indexSettings.getAsBoolean(MAP_UNMAPPED_FIELDS_AS_STRING, false);
@@ -259,7 +257,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
         }
 
         @Override
-        public void afterIndexShardPostRecovery(IndexShard indexShard) {
+        public void beforeIndexShardPostRecovery(IndexShard indexShard) {
             if (hasPercolatorType(indexShard)) {
                 // percolator index has started, fetch what we can from it and initialize the indices
                 // we have
@@ -276,8 +274,9 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
 
         private int loadQueries(IndexShard shard) {
             shard.refresh("percolator_load_queries");
-            // Maybe add a mode load? This isn't really a write. We need write b/c state=post_recovery
-            try (Engine.Searcher searcher = shard.acquireSearcher("percolator_load_queries", true)) {
+            // NOTE: we acquire the searcher via the engine directly here since this is executed right
+            // before the shard is marked as POST_RECOVERY
+            try (Engine.Searcher searcher = shard.engine().acquireSearcher("percolator_load_queries")) {
                 Query query = new TermQuery(new Term(TypeFieldMapper.NAME, PercolatorService.TYPE_NAME));
                 QueriesLoaderCollector queryCollector = new QueriesLoaderCollector(PercolatorQueriesRegistry.this, logger, mapperService, indexFieldDataService);
                 searcher.searcher().search(query, queryCollector);

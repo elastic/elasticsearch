@@ -73,7 +73,7 @@ And here is a sample response:
     Set to `true` or `false` to enable or disable the caching
     of search results for requests where `size` is 0, ie
     aggregations and suggestions (no top hits returned).
-    See <<index-modules-shard-query-cache>>.
+    See <<shard-query-cache>>.
 
 `terminate_after`::
 

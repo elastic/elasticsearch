@@ -708,6 +708,7 @@
                     <configuration>
                         <resourceBundles>
                             <resourceBundle>org.elasticsearch:dev-tools:${elasticsearch.version}</resourceBundle>
+                            <resourceBundle>org.elasticsearch:rest-api-spec:${elasticsearch.version}</resourceBundle>
                         </resourceBundles>
                         <outputDirectory>${elasticsearch.tools.directory}</outputDirectory>
                         <!-- don't include dev-tools in artifacts -->
@@ -1457,6 +1458,7 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
     </profiles>
     <modules>
         <module>dev-tools</module>
+        <module>rest-api-spec</module>
         <module>plugins</module>
         <module>core</module>
     </modules>

@@ -36,6 +36,7 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
+    private static final TimeValue NO_WAIT_TIME_VALUE = TimeValue.timeValueMillis(0);
     private AtomicLong insertionOrder = new AtomicLong();
     private Queue<Runnable> current = ConcurrentCollections.newQueue();
 
@@ -54,6 +55,26 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
         int size = current.size();
         size += getQueue().size();
         return size;
+    }
+
+    /**
+     * Returns the waiting time of the first task in the queue
+     */
+    public TimeValue getMaxTaskWaitTime() {
+        if (getQueue().size() == 0) {
+            return NO_WAIT_TIME_VALUE;
+        }
+
+        long now = System.nanoTime();
+        long oldestCreationDateInNanos = now;
+        for (Runnable queuedRunnable : getQueue()) {
+            if (queuedRunnable instanceof PrioritizedRunnable) {
+                oldestCreationDateInNanos = Math.min(oldestCreationDateInNanos,
+                        ((PrioritizedRunnable) queuedRunnable).getCreationDateInNanos());
+            }
+        }
+
+        return TimeValue.timeValueNanos(now - oldestCreationDateInNanos);
     }
 
     private void addPending(List<Runnable> runnables, List<Pending> pending, boolean executing) {
@@ -191,7 +212,6 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
                 timeoutFuture = null;
             }
         }
-
     }
 
     private final class PrioritizedFutureTask<T> extends FutureTask<T> implements Comparable<PrioritizedFutureTask> {

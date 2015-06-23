@@ -162,43 +162,6 @@ public class AllocationService extends AbstractComponent {
         return new RoutingAllocation.Result(true, new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData()));
     }
 
-    /**
-     * Only handles reroute but *without* any reassignment of unassigned shards or rebalancing. Does
-     * make sure to handle removed nodes, but only moved the shards to UNASSIGNED, does not reassign
-     * them.
-     */
-    public RoutingAllocation.Result rerouteWithNoReassign(ClusterState clusterState) {
-        return rerouteWithNoReassign(clusterState, false);
-    }
-
-    /**
-     * Only handles reroute but *without* any reassignment of unassigned shards or rebalancing. Does
-     * make sure to handle removed nodes, but only moved the shards to UNASSIGNED, does not reassign
-     * them.
-     */
-    public RoutingAllocation.Result rerouteWithNoReassign(ClusterState clusterState, boolean debug) {
-        RoutingNodes routingNodes = clusterState.routingNodes();
-        // shuffle the unassigned nodes, just so we won't have things like poison failed shards
-        routingNodes.unassigned().shuffle();
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState.nodes(), clusterInfoService.getClusterInfo());
-        allocation.debugDecision(debug);
-        boolean changed = false;
-        // first, clear from the shards any node id they used to belong to that is now dead
-        changed |= deassociateDeadNodes(allocation);
-
-        // create a sorted list of from nodes with least number of shards to the maximum ones
-        applyNewNodes(allocation);
-
-        // elect primaries *before* allocating unassigned, so backups of primaries that failed
-        // will be moved to primary state and not wait for primaries to be allocated and recovered (*from gateway*)
-        changed |= electPrimariesAndUnassignedDanglingReplicas(allocation);
-
-        if (!changed) {
-            return new RoutingAllocation.Result(false, clusterState.routingTable());
-        }
-        return new RoutingAllocation.Result(true, new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData()));
-    }
-
     private boolean reroute(RoutingAllocation allocation) {
         boolean changed = false;
         // first, clear from the shards any node id they used to belong to that is now dead

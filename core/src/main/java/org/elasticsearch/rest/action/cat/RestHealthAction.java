@@ -80,6 +80,8 @@ public class RestHealthAction extends AbstractCatAction {
         t.addCell("init", "alias:i,shards.initializing,shardsInitializing;text-align:right;desc:number of initializing nodes");
         t.addCell("unassign", "alias:u,shards.unassigned,shardsUnassigned;text-align:right;desc:number of unassigned shards");
         t.addCell("pending_tasks", "alias:pt,pendingTasks;text-align:right;desc:number of pending tasks");
+        t.addCell("max_task_wait_time", "alias:mtwt,maxTaskWaitTime;text-align:right;desc:wait time of longest task pending");
+        t.addCell("active_shards_percent", "alias:asp,activeShardsPercent;text-align:right;desc:active number of shards in percent");
         t.endHeaders();
 
         return t;
@@ -103,6 +105,8 @@ public class RestHealthAction extends AbstractCatAction {
         t.addCell(health.getInitializingShards());
         t.addCell(health.getUnassignedShards());
         t.addCell(health.getNumberOfPendingTasks());
+        t.addCell(health.getTaskMaxWaitingTime().millis() == 0 ? "-" : health.getTaskMaxWaitingTime());
+        t.addCell(String.format(Locale.ROOT, "%1.1f%%", health.getActiveShardsPercent()));
         t.endRow();
         return t;
     }

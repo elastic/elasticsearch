@@ -72,6 +72,7 @@ public class IndexDeleteByQueryResponseTests extends ElasticsearchTestCase {
 
     @Test
     public void testNegativeCounters() {
+        assumeTrue("assertions must be enable for this test to pass", assertionsEnabled());
         try {
             new IndexDeleteByQueryResponse("index", -1L, 0L, 0L, 0L);
             fail("should have thrown an assertion error concerning the negative counter");
@@ -107,6 +108,7 @@ public class IndexDeleteByQueryResponseTests extends ElasticsearchTestCase {
 
     @Test
     public void testNegativeIncrements() {
+        assumeTrue("assertions must be enable for this test to pass", assertionsEnabled());
         try {
             IndexDeleteByQueryResponse response = new IndexDeleteByQueryResponse();
             response.incrementFound(-10L);
@@ -163,4 +165,5 @@ public class IndexDeleteByQueryResponseTests extends ElasticsearchTestCase {
         assertThat(deserializedResponse.getMissing(), equalTo(response.getMissing()));
         assertThat(deserializedResponse.getFailed(), equalTo(response.getFailed()));
     }
+
 }

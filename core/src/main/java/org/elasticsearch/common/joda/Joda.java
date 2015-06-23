@@ -26,6 +26,8 @@ import org.joda.time.field.OffsetDateTimeField;
 import org.joda.time.field.ScaledDurationField;
 import org.joda.time.format.*;
 
+import java.io.IOException;
+import java.io.Writer;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
@@ -135,9 +137,9 @@ public class Joda {
         } else if ("yearMonthDay".equals(input) || "year_month_day".equals(input)) {
             formatter = ISODateTimeFormat.yearMonthDay();
         } else if ("epoch_second".equals(input)) {
-            formatter = new DateTimeFormatterBuilder().append(new EpochTimeParser(false)).toFormatter();
+            formatter = new DateTimeFormatterBuilder().append(new EpochTimePrinter(false), new EpochTimeParser(false)).toFormatter();
         } else if ("epoch_millis".equals(input)) {
-            formatter = new DateTimeFormatterBuilder().append(new EpochTimeParser(true)).toFormatter();
+            formatter = new DateTimeFormatterBuilder().append(new EpochTimePrinter(true), new EpochTimeParser(true)).toFormatter();
         } else if (Strings.hasLength(input) && input.contains("||")) {
                 String[] formats = Strings.delimitedListToStringArray(input, "||");
                 DateTimeParser[] parsers = new DateTimeParser[formats.length];
@@ -200,8 +202,8 @@ public class Joda {
 
     public static class EpochTimeParser implements DateTimeParser {
 
-        private static final Pattern MILLI_SECOND_PRECISION_PATTERN = Pattern.compile("^\\d{1,13}$");
-        private static final Pattern SECOND_PRECISION_PATTERN = Pattern.compile("^\\d{1,10}$");
+        private static final Pattern MILLI_SECOND_PRECISION_PATTERN = Pattern.compile("^-?\\d{1,13}$");
+        private static final Pattern SECOND_PRECISION_PATTERN = Pattern.compile("^-?\\d{1,10}$");
 
         private final boolean hasMilliSecondPrecision;
         private final Pattern pattern;
@@ -218,7 +220,10 @@ public class Joda {
 
         @Override
         public int parseInto(DateTimeParserBucket bucket, String text, int position) {
-            if (text.length() > estimateParsedLength() ||
+            boolean isPositive = text.startsWith("-") == false;
+            boolean isTooLong = text.length() > estimateParsedLength();
+
+            if ((isPositive && isTooLong) ||
                 // timestamps have to have UTC timezone
                 bucket.getZone() != DateTimeZone.UTC ||
                 pattern.matcher(text).matches() == false) {
@@ -242,5 +247,66 @@ public class Joda {
             }
             return text.length();
         }
-    };
+    }
+
+    public static class EpochTimePrinter implements DateTimePrinter {
+
+        private boolean hasMilliSecondPrecision;
+
+        public EpochTimePrinter(boolean hasMilliSecondPrecision) {
+            this.hasMilliSecondPrecision = hasMilliSecondPrecision;
+        }
+
+        @Override
+        public int estimatePrintedLength() {
+            return hasMilliSecondPrecision ? 13 : 10;
+        }
+
+        @Override
+        public void printTo(StringBuffer buf, long instant, Chronology chrono, int displayOffset, DateTimeZone displayZone, Locale locale) {
+            if (hasMilliSecondPrecision) {
+                buf.append(instant);
+            } else {
+                buf.append(instant / 1000);
+            }
+        }
+
+        @Override
+        public void printTo(Writer out, long instant, Chronology chrono, int displayOffset, DateTimeZone displayZone, Locale locale) throws IOException {
+            if (hasMilliSecondPrecision) {
+                out.write(String.valueOf(instant));
+            } else {
+                out.append(String.valueOf(instant / 1000));
+            }
+        }
+
+        @Override
+        public void printTo(StringBuffer buf, ReadablePartial partial, Locale locale) {
+            if (hasMilliSecondPrecision) {
+                buf.append(String.valueOf(getDateTimeMillis(partial)));
+            } else {
+                buf.append(String.valueOf(getDateTimeMillis(partial) / 1000));
+            }
+        }
+
+        @Override
+        public void printTo(Writer out, ReadablePartial partial, Locale locale) throws IOException {
+            if (hasMilliSecondPrecision) {
+                out.append(String.valueOf(getDateTimeMillis(partial)));
+            } else {
+                out.append(String.valueOf(getDateTimeMillis(partial) / 1000));
+            }
+        }
+
+        private long getDateTimeMillis(ReadablePartial partial) {
+            int year = partial.get(DateTimeFieldType.year());
+            int monthOfYear = partial.get(DateTimeFieldType.monthOfYear());
+            int dayOfMonth = partial.get(DateTimeFieldType.dayOfMonth());
+            int hourOfDay = partial.get(DateTimeFieldType.hourOfDay());
+            int minuteOfHour = partial.get(DateTimeFieldType.minuteOfHour());
+            int secondOfMinute = partial.get(DateTimeFieldType.secondOfMinute());
+            int millisOfSecond = partial.get(DateTimeFieldType.millisOfSecond());
+            return partial.getChronology().getDateTimeMillis(year, monthOfYear, dayOfMonth, hourOfDay, minuteOfHour, secondOfMinute, millisOfSecond);
+        }
+    }
 }

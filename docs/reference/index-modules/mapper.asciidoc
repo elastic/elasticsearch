@@ -49,5 +49,10 @@ automatically.
 The default mapping can be overridden by specifying the `_default_` type when
 creating a new index.
 
-Dynamic creation of mappings for unmapped types can be completely
-disabled by setting `index.mapper.dynamic` to `false`.
+[float]
+=== Mapper settings
+
+`index.mapper.dynamic` (_static_)::
+
+    Dynamic creation of mappings for unmapped types can be completely
+    disabled by setting `index.mapper.dynamic` to `false`.

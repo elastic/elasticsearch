@@ -27,11 +27,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 
 /**
- * {@link AbstractQueryBuilder} that builds a GeoShape Filter
+ * {@link QueryBuilder} that builds a GeoShape Filter
  */
-public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuilder> {
+public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuilder> implements BoostableQueryBuilder<GeoShapeQueryBuilder> {
 
     public static final String NAME = "geo_shape";
+
+    static final GeoShapeQueryBuilder PROTOTYPE = new GeoShapeQueryBuilder(null, null);
 
     private final String name;
 
@@ -49,8 +51,8 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
 
     private ShapeRelation relation = null;
 
-    static final GeoShapeQueryBuilder PROTOTYPE = new GeoShapeQueryBuilder(null, null);
-
+    private float boost = -1;
+    
     /**
      * Creates a new GeoShapeQueryBuilder whose Filter will be against the
      * given field name using the given Shape
@@ -151,6 +153,12 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
     }
 
     @Override
+    public GeoShapeQueryBuilder boost(float boost) {
+        this.boost = boost;
+        return this;
+    }
+
+    @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
 
@@ -180,6 +188,10 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         }
 
         builder.endObject();
+
+        if (boost != -1) {
+            builder.field("boost", boost);
+        }
 
         if (name != null) {
             builder.field("_name", queryName);

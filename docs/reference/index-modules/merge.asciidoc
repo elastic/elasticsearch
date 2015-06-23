@@ -14,6 +14,11 @@ number of segments per tier. The merge policy is able to merge
 non-adjacent segments, and separates how many segments are merged at once from how many
 segments are allowed per tier. It also does not over-merge (i.e., cascade merges).
 
+[float]
+[[merge-settings]]
+=== Merge policy settings
+
+All merge policy settings are _dynamic_ and can be updated on a live index.
 The merge policy has the following settings:
 
 `index.merge.policy.expunge_deletes_allowed`::
@@ -80,30 +85,29 @@ possibly either increase the `max_merged_segment` or issue an optimize
 call for the index (try and aim to issue it on a low traffic time).
 
 [float]
-[[scheduling]]
-=== Scheduling
+[[merge-scheduling]]
+=== Merge scheduling
 
 The merge scheduler (ConcurrentMergeScheduler) controls the execution of
 merge operations once they are needed (according to the merge policy).  Merges
 run in separate threads, and when the maximum number of threads is reached,
-further merges will wait until a merge thread becomes available.  The merge
-scheduler supports this setting:
+further merges will wait until a merge thread becomes available.
+
+The merge scheduler supports the following _dynamic_ settings:
 
 `index.merge.scheduler.max_thread_count`::
 
-The maximum number of threads that may be merging at once. Defaults to
-`Math.max(1, Math.min(4, Runtime.getRuntime().availableProcessors() / 2))`
-which works well for a good solid-state-disk (SSD).  If your index is on
-spinning platter drives instead, decrease this to 1.
+    The maximum number of threads that may be merging at once. Defaults to
+    `Math.max(1, Math.min(4, Runtime.getRuntime().availableProcessors() / 2))`
+    which works well for a good solid-state-disk (SSD).  If your index is on
+    spinning platter drives instead, decrease this to 1.
 
 `index.merge.scheduler.auto_throttle`::
 
-If this is true (the default), then the merge scheduler will
-rate-limit IO (writes) for merges to an adaptive value depending on
-how many merges are requested over time.  An application with a low
-indexing rate that unluckily suddenly requires a large merge will see
-that merge aggressively throttled, while an application doing heavy
-indexing will see the throttle move higher to allow merges to keep up
-with ongoing indexing.  This is a dynamic setting (you can <<indices-update-settings,change it
-at any time on a running index>>).
+    If this is true (the default), then the merge scheduler will rate-limit IO
+    (writes) for merges to an adaptive value depending on how many merges are
+    requested over time.  An application with a low indexing rate that
+    unluckily suddenly requires a large merge will see that merge aggressively
+    throttled, while an application doing heavy indexing will see the throttle
+    move higher to allow merges to keep up with ongoing indexing.
 

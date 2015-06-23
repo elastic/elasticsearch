@@ -44,6 +44,32 @@ import java.util.Map;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.search.Scroll.readScroll;
 
+/**
+ * Creates a new {@link DeleteByQueryRequest}. Delete-by-query is since elasticsearch 2.0.0 moved into a plugin
+ * and is not part of elasticsearch core. In contrast to the previous, in-core, implementation delete-by-query now
+ * uses scan/scroll and the returned IDs do delete all documents matching the query. This can have performance
+ * as well as visibility implications. Delete-by-query now has the following semantics:
+ * <li>
+ *     <ul>it's <tt>non-actomic</tt>, a delete-by-query may fail at any time while some documents matching the query have already been deleted</ul>
+ *     <ul>it's <tt>try-once</tt>, a delete-by-query may fail at any time and will not retry it's execution. All retry logic is left to the user</ul>
+ *     <ul>it's <tt>syntactic sugar</tt>, a delete-by-query is equivalent to a scan/scroll search and corresponding bulk-deletes by ID</ul>
+ *     <ul>it's executed on a <tt>point-in-time</tt> snapshot, a delete-by-query will only delete the documents that are visible at the point in time the delete-by-query was started, equivalent to the scan/scroll API</ul>
+ *     <ul>it's <tt>consistent</tt>, a delete-by-query will yield consistent results across all replicas of a shard</ul>
+ *     <ul>it's <tt>forward-compativle</tt>, a delete-by-query will only send IDs to the shards as deletes such that no queries are stored in the transaction logs that might not be supported in the future.</ul>
+ *     <ul>it's results won't be visible until the user refreshes the index.</ul>
+ * </li>
+ *
+ * The main reason why delete-by-query is now extracted as a plugin are:
+ *  <li>
+ *     <ul><tt>forward-compatibility</tt>, the previous implementation was prone to store unsupported queries in the transaction logs which is equvalent to data-loss</ul>
+ *     <ul><tt>consistency & correctness</tt>, the previous implementation was prone to produce different results on a shards replica which can essentially result in a corrupted index</ul>
+ *     <ul><tt>resiliency</tt>, the previous implementation could cause OOM errors, merge-storms and dramatic slowdowns if used incorrectly</ul>
+ * </li>
+ *
+ * While delete-by-query is a very useful feature, it's implementation is very tricky in system that is based on per-document modifications. The move towards
+ * a plugin based solution was mainly done to minimize the risk of cluster failures or corrupted indices which where easily possible wiht the previous implementation.
+ * Users that rely delete by query should install the plugin in oder to use this functionality.
+ */
 public class DeleteByQueryRequest extends ActionRequest<DeleteByQueryRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices = Strings.EMPTY_ARRAY;

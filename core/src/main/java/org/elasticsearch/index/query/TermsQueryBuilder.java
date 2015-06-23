@@ -26,9 +26,11 @@ import java.io.IOException;
 /**
  * A filter for a field based on several terms matching on any of them.
  */
-public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
+public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> implements BoostableQueryBuilder<TermsQueryBuilder> {
 
     public static final String NAME = "terms";
+
+    static final TermsQueryBuilder PROTOTYPE = new TermsQueryBuilder(null, (Object) null);
 
     private final String name;
 
@@ -45,7 +47,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     private String lookupPath;
     private Boolean lookupCache;
 
-    static final TermsQueryBuilder PROTOTYPE = new TermsQueryBuilder(null, (Object) null);
+    private float boost = -1;
 
     /**
      * A filter for a field based on several terms matching on any of them.
@@ -185,6 +187,12 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     }
 
     @Override
+    public TermsQueryBuilder boost(float boost) {
+        this.boost = boost;
+        return this;
+    }
+
+    @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         if (values == null) {
@@ -208,6 +216,11 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         if (execution != null) {
             builder.field("execution", execution);
         }
+
+        if (boost != -1) {
+            builder.field("boost", boost);
+        }
+
         if (queryName != null) {
             builder.field("_name", queryName);
         }

@@ -22,7 +22,7 @@ package org.elasticsearch.index.query;
 
 /**
  * A filter for a field based on several terms matching on any of them.
- * @deprecated use {@link TermsQueryBuilder#TermsQueryBuilder(name, lookupIndex, lookupType, lookupId)} instead.
+ * @deprecated use {@link TermsQueryBuilder} instead.
  */
 @Deprecated
 public class TermsLookupQueryBuilder extends TermsQueryBuilder {

@@ -303,16 +303,21 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
 
         int availableProcessors;
         long availableMemory;
-        ObjectIntHashMap<OsInfo.Cpu> cpus;
+        final ObjectIntHashMap<String> names;
+        final ObjectIntHashMap<OsInfo.Cpu> cpus;
 
         public OsStats() {
             cpus = new ObjectIntHashMap<>();
+            names = new ObjectIntHashMap<>();
         }
 
         public void addNodeInfo(NodeInfo nodeInfo) {
             availableProcessors += nodeInfo.getOs().availableProcessors();
             if (nodeInfo.getOs() == null) {
                 return;
+            }
+            if (nodeInfo.getOs().getName() != null) {
+                names.addTo(nodeInfo.getOs().getName(), 1);
             }
             if (nodeInfo.getOs().cpu() != null) {
                 cpus.addTo(nodeInfo.getOs().cpu(), 1);
@@ -339,8 +344,13 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
             availableProcessors = in.readVInt();
             availableMemory = in.readLong();
             int size = in.readVInt();
-            cpus = new ObjectIntHashMap<>(size);
-            for (; size > 0; size--) {
+            names.clear();
+            for (int i = 0; i < size; i++) {
+                names.addTo(in.readString(), in.readVInt());
+            }
+            size = in.readVInt();
+            cpus.clear();
+            for (int i = 0; i < size; i++) {
                 cpus.addTo(OsInfo.Cpu.readCpu(in), in.readVInt());
             }
         }
@@ -349,12 +359,16 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(availableProcessors);
             out.writeLong(availableMemory);
+            out.writeVInt(names.size());
+            for (ObjectIntCursor<String> name : names) {
+                out.writeString(name.key);
+                out.writeVInt(name.value);
+            }
             out.writeVInt(cpus.size());
             for (ObjectIntCursor<OsInfo.Cpu> c : cpus) {
                 c.key.writeTo(out);
                 out.writeVInt(c.value);
             }
-
         }
 
         public static OsStats readOsStats(StreamInput in) throws IOException {
@@ -365,6 +379,8 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
 
         static final class Fields {
             static final XContentBuilderString AVAILABLE_PROCESSORS = new XContentBuilderString("available_processors");
+            static final XContentBuilderString NAME = new XContentBuilderString("name");
+            static final XContentBuilderString NAMES = new XContentBuilderString("names");
             static final XContentBuilderString MEM = new XContentBuilderString("mem");
             static final XContentBuilderString TOTAL = new XContentBuilderString("total");
             static final XContentBuilderString TOTAL_IN_BYTES = new XContentBuilderString("total_in_bytes");
@@ -378,6 +394,15 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
             builder.startObject(Fields.MEM);
             builder.byteSizeField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, availableMemory);
             builder.endObject();
+
+            builder.startArray(Fields.NAMES);
+            for (ObjectIntCursor<String> name : names) {
+                builder.startObject();
+                builder.field(Fields.NAME, name.key);
+                builder.field(Fields.COUNT, name.value);
+                builder.endObject();
+            }
+            builder.endArray();
 
             builder.startArray(Fields.CPU);
             for (ObjectIntCursor<OsInfo.Cpu> cpu : cpus) {

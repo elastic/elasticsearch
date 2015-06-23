@@ -464,14 +464,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        SimpleQueryStringBuilder other = (SimpleQueryStringBuilder) obj;
+    public boolean doEquals(SimpleQueryStringBuilder other) {
         return Objects.equals(fieldsAndWeights, other.fieldsAndWeights) && Objects.equals(analyzer, other.analyzer)
                 && Objects.equals(defaultOperator, other.defaultOperator) && Objects.equals(queryText, other.queryText)
                 && Objects.equals(queryName, other.queryName) && Objects.equals(minimumShouldMatch, other.minimumShouldMatch)

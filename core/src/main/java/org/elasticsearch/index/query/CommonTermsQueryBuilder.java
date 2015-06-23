@@ -368,15 +368,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        CommonTermsQueryBuilder other = (CommonTermsQueryBuilder) obj;
-        
+    public boolean doEquals(CommonTermsQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName) &&
                 Objects.equals(text, other.text) &&
                 Objects.equals(highFreqOperator, other.highFreqOperator) &&

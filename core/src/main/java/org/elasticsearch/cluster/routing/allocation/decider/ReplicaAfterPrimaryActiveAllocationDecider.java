@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -48,7 +47,7 @@ public class ReplicaAfterPrimaryActiveAllocationDecider extends AllocationDecide
         if (shardRouting.primary()) {
             return allocation.decision(Decision.YES, NAME, "shard is primary");
         }
-        MutableShardRouting primary = allocation.routingNodes().activePrimary(shardRouting);
+        ShardRouting primary = allocation.routingNodes().activePrimary(shardRouting);
         if (primary == null) {
             return allocation.decision(Decision.NO, NAME, "primary shard is not yet active");
         }

@@ -26,7 +26,7 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -135,9 +135,9 @@ public class TransportIndexFailuresTest extends ElasticsearchIntegrationTest {
         state = getNodeClusterState(randomFrom(nodes.toArray(Strings.EMPTY_ARRAY)));
         RoutingNodes rn = state.routingNodes();
         logger.info("--> counts: total: {}, unassigned: {}, initializing: {}, relocating: {}, started: {}",
-                rn.shards(new Predicate<MutableShardRouting>() {
+                rn.shards(new Predicate<ShardRouting>() {
                     @Override
-                    public boolean apply(org.elasticsearch.cluster.routing.MutableShardRouting input) {
+                    public boolean apply(ShardRouting input) {
                         return true;
                     }
                 }).size(),

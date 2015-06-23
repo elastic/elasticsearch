@@ -45,7 +45,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 
-import static org.elasticsearch.cluster.routing.ImmutableShardRouting.readShardRoutingEntry;
+import static org.elasticsearch.cluster.routing.ShardRouting.readShardRoutingEntry;
 
 /**
  *

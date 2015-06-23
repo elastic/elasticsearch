@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.Allocation;
@@ -236,22 +236,22 @@ public class EnableAllocationTests extends ElasticsearchAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         assertThat("expected 6 shards to be started 2 to relocate useClusterSettings: " + useClusterSetting, clusterState.routingNodes().shardsWithState(STARTED).size(), equalTo(6));
         assertThat("expected 2 shards to relocate useClusterSettings: " + useClusterSetting, clusterState.routingNodes().shardsWithState(RELOCATING).size(), equalTo(2));
-        List<MutableShardRouting> mutableShardRoutings = clusterState.routingNodes().shardsWithState(RELOCATING);
+        List<ShardRouting> mutableShardRoutings = clusterState.routingNodes().shardsWithState(RELOCATING);
         switch (allowedOnes) {
             case PRIMARIES:
-                for (MutableShardRouting routing : mutableShardRoutings) {
+                for (ShardRouting routing : mutableShardRoutings) {
                     assertTrue("only primaries are allowed to relocate", routing.primary());
                     assertThat("only test index can rebalance", routing.getIndex(), equalTo("test"));
                 }
                 break;
             case REPLICAS:
-                for (MutableShardRouting routing : mutableShardRoutings) {
+                for (ShardRouting routing : mutableShardRoutings) {
                     assertFalse("only replicas are allowed to relocate", routing.primary());
                     assertThat("only test index can rebalance", routing.getIndex(), equalTo("test"));
                 }
                 break;
             case ALL:
-                for (MutableShardRouting routing : mutableShardRoutings) {
+                for (ShardRouting routing : mutableShardRoutings) {
                     assertThat("only test index can rebalance", routing.getIndex(), equalTo("test"));
                 }
                 break;

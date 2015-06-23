@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.junit.Test;
@@ -108,7 +108,7 @@ public class PreferLocalPrimariesToRelocatingPrimariesTests extends Elasticsearc
         while (clusterState.routingNodes().shardsWithState(STARTED).size() < totalNumberOfShards) {
             int localInitializations = 0;
             int relocatingInitializations = 0;
-            for (MutableShardRouting routing : clusterState.routingNodes().shardsWithState(INITIALIZING)) {
+            for (ShardRouting routing : clusterState.routingNodes().shardsWithState(INITIALIZING)) {
                 if (routing.relocatingNodeId() == null) {
                     localInitializations++;
                 } else {

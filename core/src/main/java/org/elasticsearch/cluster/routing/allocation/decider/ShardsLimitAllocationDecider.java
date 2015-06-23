@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -71,7 +70,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         }
 
         int nodeCount = 0;
-        for (MutableShardRouting nodeShard : node) {
+        for (ShardRouting nodeShard : node) {
             if (!nodeShard.index().equals(shardRouting.index())) {
                 continue;
             }
@@ -97,7 +96,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         }
 
         int nodeCount = 0;
-        for (MutableShardRouting nodeShard : node) {
+        for (ShardRouting nodeShard : node) {
             if (!nodeShard.index().equals(shardRouting.index())) {
                 continue;
             }

@@ -156,9 +156,7 @@ public class AllFieldMapper extends AbstractFieldMapper implements RootMapper {
 
     static final class AllFieldType extends MappedFieldType {
 
-        public AllFieldType() {
-            super(AbstractFieldMapper.Defaults.FIELD_TYPE);
-        }
+        public AllFieldType() {}
 
         protected AllFieldType(AllFieldType ref) {
             super(ref);
@@ -167,6 +165,11 @@ public class AllFieldMapper extends AbstractFieldMapper implements RootMapper {
         @Override
         public MappedFieldType clone() {
             return new AllFieldType(this);
+        }
+
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
         }
 
         @Override

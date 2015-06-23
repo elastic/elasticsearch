@@ -125,9 +125,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper implements RootMappe
 
     static final class RoutingFieldType extends MappedFieldType {
 
-        public RoutingFieldType() {
-            super(AbstractFieldMapper.Defaults.FIELD_TYPE);
-        }
+        public RoutingFieldType() {}
 
         protected RoutingFieldType(RoutingFieldType ref) {
             super(ref);
@@ -136,6 +134,11 @@ public class RoutingFieldMapper extends AbstractFieldMapper implements RootMappe
         @Override
         public MappedFieldType clone() {
             return new RoutingFieldType(this);
+        }
+
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
         }
 
         @Override

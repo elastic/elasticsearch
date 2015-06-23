@@ -147,9 +147,7 @@ public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper
 
     static final class ParentFieldType extends MappedFieldType {
 
-        public ParentFieldType() {
-            super(AbstractFieldMapper.Defaults.FIELD_TYPE);
-        }
+        public ParentFieldType() {}
 
         protected ParentFieldType(ParentFieldType ref) {
             super(ref);
@@ -158,6 +156,11 @@ public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper
         @Override
         public MappedFieldType clone() {
             return new ParentFieldType(this);
+        }
+
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
         }
 
         @Override

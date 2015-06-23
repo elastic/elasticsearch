@@ -287,9 +287,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper implements ArrayVal
         private boolean normalizeLon = true;
         private boolean normalizeLat = true;
 
-        public GeoPointFieldType() {
-            super(StringFieldMapper.Defaults.FIELD_TYPE);
-        }
+        public GeoPointFieldType() {}
 
         protected GeoPointFieldType(GeoPointFieldType ref) {
             super(ref);
@@ -327,6 +325,11 @@ public class GeoPointFieldMapper extends AbstractFieldMapper implements ArrayVal
         @Override
         public int hashCode() {
             return java.util.Objects.hash(super.hashCode(), geohashFieldType, geohashPrecision, geohashPrefixEnabled, latFieldType, lonFieldType, validateLon, validateLat, normalizeLon, normalizeLat);
+        }
+
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
         }
         
         @Override

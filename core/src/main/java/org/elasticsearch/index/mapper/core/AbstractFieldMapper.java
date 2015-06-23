@@ -63,18 +63,6 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.DOC_VALUES;
 public abstract class AbstractFieldMapper implements FieldMapper {
 
     public static class Defaults {
-        public static final MappedFieldType FIELD_TYPE = new MappedFieldType();
-
-        static {
-            FIELD_TYPE.setTokenized(true);
-            FIELD_TYPE.setStored(false);
-            FIELD_TYPE.setStoreTermVectors(false);
-            FIELD_TYPE.setOmitNorms(false);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
-            FIELD_TYPE.setBoost(Defaults.BOOST);
-            FIELD_TYPE.freeze();
-        }
-
         public static final float BOOST = 1.0f;
         public static final ContentPath.Type PATH_TYPE = ContentPath.Type.FULL;
     }
@@ -409,6 +397,14 @@ public abstract class AbstractFieldMapper implements FieldMapper {
         }
         AbstractFieldMapper fieldMergeWith = (AbstractFieldMapper) mergeWith;
         List<String> subConflicts = new ArrayList<>(); // TODO: just expose list from MergeResult?
+        fieldType().checkTypeName(fieldMergeWith.fieldType(), subConflicts);
+        if (subConflicts.isEmpty() == false) {
+            // return early if field types don't match
+            assert subConflicts.size() == 1;
+            mergeResult.addConflict(subConflicts.get(0));
+            return;
+        }
+
         boolean strict = this.fieldTypeRef.getNumAssociatedMappers() > 1 && mergeResult.updateAllTypes() == false;
         fieldType().checkCompatibility(fieldMergeWith.fieldType(), subConflicts, strict);
         for (String conflict : subConflicts) {

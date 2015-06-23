@@ -126,7 +126,7 @@ public class DoubleFieldMapper extends NumberFieldMapper {
         }
     }
 
-    static final class DoubleFieldType extends NumberFieldType {
+    public static final class DoubleFieldType extends NumberFieldType {
 
         public DoubleFieldType() {
             super(NumericType.DOUBLE);
@@ -139,6 +139,11 @@ public class DoubleFieldMapper extends NumberFieldMapper {
         @Override
         public NumberFieldType clone() {
             return new DoubleFieldType(this);
+        }
+
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
         }
 
         @Override

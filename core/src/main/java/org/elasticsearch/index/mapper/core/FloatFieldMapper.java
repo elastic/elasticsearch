@@ -143,6 +143,11 @@ public class FloatFieldMapper extends NumberFieldMapper {
         }
 
         @Override
+        public String typeName() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public Float nullValue() {
             return (Float)super.nullValue();
         }

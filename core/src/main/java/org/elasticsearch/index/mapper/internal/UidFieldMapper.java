@@ -107,9 +107,7 @@ public class UidFieldMapper extends AbstractFieldMapper implements RootMapper {
 
     static final class UidFieldType extends MappedFieldType {
 
-        public UidFieldType() {
-            super(AbstractFieldMapper.Defaults.FIELD_TYPE);
-        }
+        public UidFieldType() {}
 
         protected UidFieldType(UidFieldType ref) {
             super(ref);
@@ -118,6 +116,11 @@ public class UidFieldMapper extends AbstractFieldMapper implements RootMapper {
         @Override
         public MappedFieldType clone() {
             return new UidFieldType(this);
+        }
+
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
         }
 
         @Override

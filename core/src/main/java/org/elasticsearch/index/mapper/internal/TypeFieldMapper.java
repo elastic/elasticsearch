@@ -106,9 +106,7 @@ public class TypeFieldMapper extends AbstractFieldMapper implements RootMapper {
 
     static final class TypeFieldType extends MappedFieldType {
 
-        public TypeFieldType() {
-            super(AbstractFieldMapper.Defaults.FIELD_TYPE);
-        }
+        public TypeFieldType() {}
 
         protected TypeFieldType(TypeFieldType ref) {
             super(ref);
@@ -117,6 +115,11 @@ public class TypeFieldMapper extends AbstractFieldMapper implements RootMapper {
         @Override
         public MappedFieldType clone() {
             return new TypeFieldType(this);
+        }
+
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
         }
 
         @Override

@@ -174,6 +174,11 @@ public class IpFieldMapper extends NumberFieldMapper {
         }
 
         @Override
+        public String typeName() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public Long value(Object value) {
             if (value == null) {
                 return null;

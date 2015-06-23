@@ -200,9 +200,7 @@ public class SourceFieldMapper extends AbstractFieldMapper implements RootMapper
 
     static final class SourceFieldType extends MappedFieldType {
 
-        public SourceFieldType() {
-            super(AbstractFieldMapper.Defaults.FIELD_TYPE);
-        }
+        public SourceFieldType() {}
 
         protected SourceFieldType(SourceFieldType ref) {
             super(ref);
@@ -211,6 +209,11 @@ public class SourceFieldMapper extends AbstractFieldMapper implements RootMapper
         @Override
         public MappedFieldType clone() {
             return new SourceFieldType(this);
+        }
+
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
         }
 
         @Override

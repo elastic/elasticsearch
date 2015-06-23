@@ -24,11 +24,20 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.similarity.BM25SimilarityProvider;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /** Base test case for subclasses of MappedFieldType */
 public abstract class FieldTypeTestCase extends ElasticsearchTestCase {
 
     /** Create a default constructed fieldtype */
     protected abstract MappedFieldType createDefaultFieldType();
+
+    MappedFieldType createNamedDefaultFieldType(String name) {
+        MappedFieldType fieldType = createDefaultFieldType();
+        fieldType.setNames(new MappedFieldType.Names(name));
+        return fieldType;
+    }
 
     /** A dummy null value to use when modifying null value */
     protected Object dummyNullValue() {
@@ -79,7 +88,7 @@ public abstract class FieldTypeTestCase extends ElasticsearchTestCase {
     }
 
     public void testClone() {
-        MappedFieldType fieldType = createDefaultFieldType();
+        MappedFieldType fieldType = createNamedDefaultFieldType("foo");
         MappedFieldType clone = fieldType.clone();
         assertNotSame(clone, fieldType);
         assertEquals(clone.getClass(), fieldType.getClass());
@@ -87,7 +96,7 @@ public abstract class FieldTypeTestCase extends ElasticsearchTestCase {
         assertEquals(clone, clone.clone()); // transitivity
 
         for (int i = 0; i < numProperties(); ++i) {
-            fieldType = createDefaultFieldType();
+            fieldType = createNamedDefaultFieldType("foo");
             modifyProperty(fieldType, i);
             clone = fieldType.clone();
             assertNotSame(clone, fieldType);
@@ -96,15 +105,15 @@ public abstract class FieldTypeTestCase extends ElasticsearchTestCase {
     }
 
     public void testEquals() {
-        MappedFieldType ft1 = createDefaultFieldType();
-        MappedFieldType ft2 = createDefaultFieldType();
+        MappedFieldType ft1 = createNamedDefaultFieldType("foo");
+        MappedFieldType ft2 = createNamedDefaultFieldType("foo");
         assertEquals(ft1, ft1); // reflexive
         assertEquals(ft1, ft2); // symmetric
         assertEquals(ft2, ft1);
         assertEquals(ft1.hashCode(), ft2.hashCode());
 
         for (int i = 0; i < numProperties(); ++i) {
-            ft2 = createDefaultFieldType();
+            ft2 = createNamedDefaultFieldType("foo");
             modifyProperty(ft2, i);
             assertNotEquals(ft1, ft2);
             assertNotEquals(ft1.hashCode(), ft2.hashCode());
@@ -113,7 +122,7 @@ public abstract class FieldTypeTestCase extends ElasticsearchTestCase {
 
     public void testFreeze() {
         for (int i = 0; i < numProperties(); ++i) {
-            MappedFieldType fieldType = createDefaultFieldType();
+            MappedFieldType fieldType = createNamedDefaultFieldType("foo");
             fieldType.freeze();
             try {
                 modifyProperty(fieldType, i);
@@ -122,5 +131,37 @@ public abstract class FieldTypeTestCase extends ElasticsearchTestCase {
                 assertTrue(e.getMessage().contains("already frozen"));
             }
         }
+    }
+
+    public void testCheckTypeName() {
+        final MappedFieldType fieldType = createNamedDefaultFieldType("foo");
+        List<String> conflicts = new ArrayList<>();
+        fieldType.checkTypeName(fieldType, conflicts);
+        assertTrue(conflicts.toString(), conflicts.isEmpty());
+
+        MappedFieldType bogus = new MappedFieldType() {
+            @Override
+            public MappedFieldType clone() {return null;}
+            @Override
+            public String typeName() { return fieldType.typeName();}
+        };
+        try {
+            fieldType.checkTypeName(bogus, conflicts);
+            fail("expected bad types exception");
+        } catch (IllegalStateException e) {
+            assertTrue(e.getMessage().contains("Type names equal"));
+        }
+        assertTrue(conflicts.toString(), conflicts.isEmpty());
+
+        MappedFieldType other = new MappedFieldType() {
+            @Override
+            public MappedFieldType clone() {return null;}
+            @Override
+            public String typeName() { return "othertype";}
+        };
+        fieldType.checkTypeName(other, conflicts);
+        assertFalse(conflicts.isEmpty());
+        assertTrue(conflicts.get(0).contains("cannot be changed from type"));
+        assertEquals(1, conflicts.size());
     }
 }

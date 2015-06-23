@@ -175,16 +175,30 @@ public class FieldTypeLookupTests extends ElasticsearchTestCase {
         return Lists.newArrayList(mapper);
     }
 
-    // this sucks how much must be overriden just do get a dummy field mapper...
+    // this sucks how much must be overridden just do get a dummy field mapper...
     static class FakeFieldMapper extends AbstractFieldMapper {
         static Settings dummySettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         public FakeFieldMapper(String fullName, String indexName) {
             super(makeFieldType(fullName, indexName), null, null, dummySettings, null, null);
         }
         static MappedFieldType makeFieldType(String fullName, String indexName) {
-            MappedFieldType fieldType = Defaults.FIELD_TYPE.clone();
+            FakeFieldType fieldType = new FakeFieldType();
             fieldType.setNames(new MappedFieldType.Names(fullName, indexName, indexName, fullName));
             return fieldType;
+        }
+        static class FakeFieldType extends MappedFieldType {
+            public FakeFieldType() {}
+            protected FakeFieldType(FakeFieldType ref) {
+                super(ref);
+            }
+            @Override
+            public MappedFieldType clone() {
+                return new FakeFieldType(this);
+            }
+            @Override
+            public String typeName() {
+                return "faketype";
+            }
         }
         @Override
         public MappedFieldType defaultFieldType() { return null; }

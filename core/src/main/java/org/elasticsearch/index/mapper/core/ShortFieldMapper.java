@@ -141,6 +141,11 @@ public class ShortFieldMapper extends NumberFieldMapper {
         }
 
         @Override
+        public String typeName() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public Short nullValue() {
             return (Short)super.nullValue();
         }

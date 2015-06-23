@@ -137,13 +137,16 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper implements RootMa
 
         private boolean enabled = Defaults.ENABLED;
 
-        public FieldNamesFieldType() {
-            super(AbstractFieldMapper.Defaults.FIELD_TYPE);
-        }
+        public FieldNamesFieldType() {}
 
         protected FieldNamesFieldType(FieldNamesFieldType ref) {
             super(ref);
             this.enabled = ref.enabled;
+        }
+
+        @Override
+        public FieldNamesFieldType clone() {
+            return new FieldNamesFieldType(this);
         }
 
         @Override
@@ -156,6 +159,11 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper implements RootMa
         @Override
         public int hashCode() {
             return Objects.hash(super.hashCode(), enabled);
+        }
+
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
         }
 
         @Override
@@ -175,11 +183,6 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper implements RootMa
 
         public boolean isEnabled() {
             return enabled;
-        }
-
-        @Override
-        public FieldNamesFieldType clone() {
-            return new FieldNamesFieldType(this);
         }
 
         @Override

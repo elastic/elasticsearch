@@ -120,9 +120,7 @@ public class IndexFieldMapper extends AbstractFieldMapper implements RootMapper 
 
     static final class IndexFieldType extends MappedFieldType {
 
-        public IndexFieldType() {
-            super(AbstractFieldMapper.Defaults.FIELD_TYPE);
-        }
+        public IndexFieldType() {}
 
         protected IndexFieldType(IndexFieldType ref) {
             super(ref);
@@ -131,6 +129,11 @@ public class IndexFieldMapper extends AbstractFieldMapper implements RootMapper 
         @Override
         public MappedFieldType clone() {
             return new IndexFieldType(this);
+        }
+
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
         }
 
         @Override

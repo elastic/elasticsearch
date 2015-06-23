@@ -24,7 +24,6 @@ import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryBuilder.Operator;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -92,10 +91,10 @@ public class CommonTermsQueryBuilderTest extends BaseQueryTestCase<CommonTermsQu
         Analyzer analyzer = context.mapperService().searchAnalyzer();
 
         // handle mapped field
-        MappedFieldType mapper = context.fieldMapper(fieldName);
-        if (mapper != null) {
-            fieldName = mapper.names().indexName();
-            analyzer = context.getSearchAnalyzer(mapper);
+        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        if (fieldType != null) {
+            fieldName = fieldType.names().indexName();
+            analyzer = context.getSearchAnalyzer(fieldType);
         }
 
         // handle specified analyzer
@@ -107,7 +106,7 @@ public class CommonTermsQueryBuilderTest extends BaseQueryTestCase<CommonTermsQu
         Occur lowFreqOccur = queryBuilder.lowFreqOperator().toBooleanClauseOccur();
 
         ExtendedCommonTermsQuery expectedQuery = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, queryBuilder.cutoffFrequency(), 
-                queryBuilder.disableCoord(), mapper);
+                queryBuilder.disableCoord(), fieldType);
         CommonTermsQueryBuilder.parseQueryString(expectedQuery, queryBuilder.text(), fieldName, analyzer, 
                 queryBuilder.lowFreqMinimumShouldMatch(), queryBuilder.highFreqMinimumShouldMatch());
 

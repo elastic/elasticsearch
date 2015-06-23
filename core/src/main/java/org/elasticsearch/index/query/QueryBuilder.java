@@ -19,73 +19,16 @@
 
 package org.elasticsearch.index.query;
 
-import com.google.common.collect.Lists;
-import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 
 public interface QueryBuilder<QB extends QueryBuilder> extends NamedWriteable<QB>, ToXContent {
-
-    public static enum Operator implements Writeable {
-        OR(0), AND(1);
-        
-        private final int ordinal;
-
-        static final Operator PROTOTYPE = OR;
-
-        private Operator(int ordinal) {
-            this.ordinal = ordinal;
-        }
-        
-        public BooleanClause.Occur toBooleanClauseOccur() {
-            switch (this) {
-                case OR:
-                    return BooleanClause.Occur.SHOULD;
-                case AND:
-                    return BooleanClause.Occur.MUST;
-                default:
-                    throw Operator.newOperatorException(this.toString());
-            }
-        }
-
-        public Operator readFrom(StreamInput in) throws IOException {
-            int ord = in.readVInt();
-            for (Operator operator : Operator.values()) {
-                if (operator.ordinal == ord) {
-                    return operator;
-                }
-            }
-            throw new ElasticsearchException("unknown serialized operator [" + ord + "]");
-        }
-
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(this.ordinal);
-        }
-
-        public static Operator fromString(String op) {
-            for (Operator operator : Operator.values()) {
-                if (operator.name().equalsIgnoreCase(op)) {
-                    return operator;
-                }
-            }
-            throw Operator.newOperatorException(op);
-        }
-        
-        private static IllegalArgumentException newOperatorException(String op) {
-            return new IllegalArgumentException("operator needs to be either " + Lists.newArrayList(Operator.values()) + 
-                    ", but not [" + op + "]");
-        }
-    }
     
     /**
      * Validate the query.

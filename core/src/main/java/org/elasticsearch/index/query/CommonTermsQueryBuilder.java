@@ -262,17 +262,17 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
     @Override
     public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
         String field;
-        MappedFieldType mapper = parseContext.fieldMapper(fieldName);
-        if (mapper != null) {
-            field = mapper.names().indexName();
+        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
+        if (fieldType != null) {
+            field = fieldType.names().indexName();
         } else {
             field = fieldName;
         }
 
         Analyzer analyzerObj;
         if (analyzer == null) {
-            if (mapper != null) {
-                analyzerObj = parseContext.getSearchAnalyzer(mapper);
+            if (fieldType != null) {
+                analyzerObj = parseContext.getSearchAnalyzer(fieldType);
             } else {
                 analyzerObj = parseContext.mapperService().searchAnalyzer();
             }
@@ -286,7 +286,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         Occur highFreqOccur = highFreqOperator.toBooleanClauseOccur();
         Occur lowFreqOccur = lowFreqOperator.toBooleanClauseOccur();
 
-        ExtendedCommonTermsQuery commonsQuery = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, cutoffFrequency, disableCoord, mapper);
+        ExtendedCommonTermsQuery commonsQuery = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, cutoffFrequency, disableCoord, fieldType);
         commonsQuery.setBoost(boost);
         Query query = parseQueryString(commonsQuery, text, field, analyzerObj, lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch);
         if (queryName != null) {

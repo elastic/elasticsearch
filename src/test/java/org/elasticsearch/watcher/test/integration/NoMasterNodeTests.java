@@ -11,7 +11,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
@@ -54,7 +53,7 @@ import static org.hamcrest.core.Is.is;
 /**
  */
 @Slow
-@TestLogging("discovery:TRACE")
+@TestLogging("discovery:TRACE,watcher:TRACE")
 @ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 0)
 public class NoMasterNodeTests extends AbstractWatcherIntegrationTests {
 

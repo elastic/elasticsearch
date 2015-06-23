@@ -17,19 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.index.search.slowlog;
+package org.elasticsearch.index.search.stats;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.settings.IndexSettingsService;
-import org.elasticsearch.index.shard.AbstractIndexShardComponent;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -38,7 +33,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  */
-public class ShardSlowLogSearchService extends AbstractIndexShardComponent {
+public final class SearchSlowLog{
 
     private boolean reformat;
 
@@ -57,71 +52,19 @@ public class ShardSlowLogSearchService extends AbstractIndexShardComponent {
     private final ESLogger queryLogger;
     private final ESLogger fetchLogger;
 
-    public static final String INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN = "index.search.slowlog.threshold.query.warn";
-    public static final String INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO = "index.search.slowlog.threshold.query.info";
-    public static final String INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG = "index.search.slowlog.threshold.query.debug";
-    public static final String INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE = "index.search.slowlog.threshold.query.trace";
-    public static final String INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN = "index.search.slowlog.threshold.fetch.warn";
-    public static final String INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO = "index.search.slowlog.threshold.fetch.info";
-    public static final String INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG = "index.search.slowlog.threshold.fetch.debug";
-    public static final String INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE = "index.search.slowlog.threshold.fetch.trace";
-    public static final String INDEX_SEARCH_SLOWLOG_REFORMAT = "index.search.slowlog.reformat";
-    public static final String INDEX_SEARCH_SLOWLOG_LEVEL = "index.search.slowlog.level";
+    private static final String INDEX_SEARCH_SLOWLOG_PREFIX = "index.search.slowlog";
+    public static final String INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN = INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.query.warn";
+    public static final String INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO = INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.query.info";
+    public static final String INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG = INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.query.debug";
+    public static final String INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE = INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.query.trace";
+    public static final String INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN = INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.fetch.warn";
+    public static final String INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO = INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.fetch.info";
+    public static final String INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG = INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.fetch.debug";
+    public static final String INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE = INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.fetch.trace";
+    public static final String INDEX_SEARCH_SLOWLOG_REFORMAT = INDEX_SEARCH_SLOWLOG_PREFIX + ".reformat";
+    public static final String INDEX_SEARCH_SLOWLOG_LEVEL = INDEX_SEARCH_SLOWLOG_PREFIX + ".level";
 
-    class ApplySettings implements IndexSettingsService.Listener {
-        @Override
-        public synchronized void onRefreshSettings(Settings settings) {
-            long queryWarnThreshold = settings.getAsTime(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN, TimeValue.timeValueNanos(ShardSlowLogSearchService.this.queryWarnThreshold)).nanos();
-            if (queryWarnThreshold != ShardSlowLogSearchService.this.queryWarnThreshold) {
-                ShardSlowLogSearchService.this.queryWarnThreshold = queryWarnThreshold;
-            }
-            long queryInfoThreshold = settings.getAsTime(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO, TimeValue.timeValueNanos(ShardSlowLogSearchService.this.queryInfoThreshold)).nanos();
-            if (queryInfoThreshold != ShardSlowLogSearchService.this.queryInfoThreshold) {
-                ShardSlowLogSearchService.this.queryInfoThreshold = queryInfoThreshold;
-            }
-            long queryDebugThreshold = settings.getAsTime(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG, TimeValue.timeValueNanos(ShardSlowLogSearchService.this.queryDebugThreshold)).nanos();
-            if (queryDebugThreshold != ShardSlowLogSearchService.this.queryDebugThreshold) {
-                ShardSlowLogSearchService.this.queryDebugThreshold = queryDebugThreshold;
-            }
-            long queryTraceThreshold = settings.getAsTime(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE, TimeValue.timeValueNanos(ShardSlowLogSearchService.this.queryTraceThreshold)).nanos();
-            if (queryTraceThreshold != ShardSlowLogSearchService.this.queryTraceThreshold) {
-                ShardSlowLogSearchService.this.queryTraceThreshold = queryTraceThreshold;
-            }
-
-            long fetchWarnThreshold = settings.getAsTime(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN, TimeValue.timeValueNanos(ShardSlowLogSearchService.this.fetchWarnThreshold)).nanos();
-            if (fetchWarnThreshold != ShardSlowLogSearchService.this.fetchWarnThreshold) {
-                ShardSlowLogSearchService.this.fetchWarnThreshold = fetchWarnThreshold;
-            }
-            long fetchInfoThreshold = settings.getAsTime(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO, TimeValue.timeValueNanos(ShardSlowLogSearchService.this.fetchInfoThreshold)).nanos();
-            if (fetchInfoThreshold != ShardSlowLogSearchService.this.fetchInfoThreshold) {
-                ShardSlowLogSearchService.this.fetchInfoThreshold = fetchInfoThreshold;
-            }
-            long fetchDebugThreshold = settings.getAsTime(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG, TimeValue.timeValueNanos(ShardSlowLogSearchService.this.fetchDebugThreshold)).nanos();
-            if (fetchDebugThreshold != ShardSlowLogSearchService.this.fetchDebugThreshold) {
-                ShardSlowLogSearchService.this.fetchDebugThreshold = fetchDebugThreshold;
-            }
-            long fetchTraceThreshold = settings.getAsTime(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE, TimeValue.timeValueNanos(ShardSlowLogSearchService.this.fetchTraceThreshold)).nanos();
-            if (fetchTraceThreshold != ShardSlowLogSearchService.this.fetchTraceThreshold) {
-                ShardSlowLogSearchService.this.fetchTraceThreshold = fetchTraceThreshold;
-            }
-
-            String level = settings.get(INDEX_SEARCH_SLOWLOG_LEVEL, ShardSlowLogSearchService.this.level);
-            if (!level.equals(ShardSlowLogSearchService.this.level)) {
-                ShardSlowLogSearchService.this.queryLogger.setLevel(level.toUpperCase(Locale.ROOT));
-                ShardSlowLogSearchService.this.fetchLogger.setLevel(level.toUpperCase(Locale.ROOT));
-                ShardSlowLogSearchService.this.level = level;
-            }
-
-            boolean reformat = settings.getAsBoolean(INDEX_SEARCH_SLOWLOG_REFORMAT, ShardSlowLogSearchService.this.reformat);
-            if (reformat != ShardSlowLogSearchService.this.reformat) {
-                ShardSlowLogSearchService.this.reformat = reformat;
-            }
-        }
-    }
-
-    @Inject
-    public ShardSlowLogSearchService(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService) {
-        super(shardId, indexSettings);
+    SearchSlowLog(Settings indexSettings) {
 
         this.reformat = indexSettings.getAsBoolean(INDEX_SEARCH_SLOWLOG_REFORMAT, true);
 
@@ -137,16 +80,14 @@ public class ShardSlowLogSearchService extends AbstractIndexShardComponent {
 
         this.level = indexSettings.get(INDEX_SEARCH_SLOWLOG_LEVEL, "TRACE").toUpperCase(Locale.ROOT);
 
-        this.queryLogger = Loggers.getLogger(logger, ".query");
-        this.fetchLogger = Loggers.getLogger(logger, ".fetch");
+        this.queryLogger = Loggers.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".query");
+        this.fetchLogger = Loggers.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch");
 
         queryLogger.setLevel(level);
         fetchLogger.setLevel(level);
-
-        indexSettingsService.addListener(new ApplySettings());
     }
 
-    public void onQueryPhase(SearchContext context, long tookInNanos) {
+    void onQueryPhase(SearchContext context, long tookInNanos) {
         if (queryWarnThreshold >= 0 && tookInNanos > queryWarnThreshold) {
             queryLogger.warn("{}", new SlowLogSearchContextPrinter(context, tookInNanos, reformat));
         } else if (queryInfoThreshold >= 0 && tookInNanos > queryInfoThreshold) {
@@ -158,7 +99,7 @@ public class ShardSlowLogSearchService extends AbstractIndexShardComponent {
         }
     }
 
-    public void onFetchPhase(SearchContext context, long tookInNanos) {
+    void onFetchPhase(SearchContext context, long tookInNanos) {
         if (fetchWarnThreshold >= 0 && tookInNanos > fetchWarnThreshold) {
             fetchLogger.warn("{}", new SlowLogSearchContextPrinter(context, tookInNanos, reformat));
         } else if (fetchInfoThreshold >= 0 && tookInNanos > fetchInfoThreshold) {
@@ -170,7 +111,55 @@ public class ShardSlowLogSearchService extends AbstractIndexShardComponent {
         }
     }
 
-    public static class SlowLogSearchContextPrinter {
+    synchronized void onRefreshSettings(Settings settings) {
+        long queryWarnThreshold = settings.getAsTime(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN, TimeValue.timeValueNanos(this.queryWarnThreshold)).nanos();
+        if (queryWarnThreshold != this.queryWarnThreshold) {
+            this.queryWarnThreshold = queryWarnThreshold;
+        }
+        long queryInfoThreshold = settings.getAsTime(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO, TimeValue.timeValueNanos(this.queryInfoThreshold)).nanos();
+        if (queryInfoThreshold != this.queryInfoThreshold) {
+            this.queryInfoThreshold = queryInfoThreshold;
+        }
+        long queryDebugThreshold = settings.getAsTime(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG, TimeValue.timeValueNanos(this.queryDebugThreshold)).nanos();
+        if (queryDebugThreshold != this.queryDebugThreshold) {
+            this.queryDebugThreshold = queryDebugThreshold;
+        }
+        long queryTraceThreshold = settings.getAsTime(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE, TimeValue.timeValueNanos(this.queryTraceThreshold)).nanos();
+        if (queryTraceThreshold != this.queryTraceThreshold) {
+            this.queryTraceThreshold = queryTraceThreshold;
+        }
+
+        long fetchWarnThreshold = settings.getAsTime(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN, TimeValue.timeValueNanos(this.fetchWarnThreshold)).nanos();
+        if (fetchWarnThreshold != this.fetchWarnThreshold) {
+            this.fetchWarnThreshold = fetchWarnThreshold;
+        }
+        long fetchInfoThreshold = settings.getAsTime(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO, TimeValue.timeValueNanos(this.fetchInfoThreshold)).nanos();
+        if (fetchInfoThreshold != this.fetchInfoThreshold) {
+            this.fetchInfoThreshold = fetchInfoThreshold;
+        }
+        long fetchDebugThreshold = settings.getAsTime(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG, TimeValue.timeValueNanos(this.fetchDebugThreshold)).nanos();
+        if (fetchDebugThreshold != this.fetchDebugThreshold) {
+            this.fetchDebugThreshold = fetchDebugThreshold;
+        }
+        long fetchTraceThreshold = settings.getAsTime(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE, TimeValue.timeValueNanos(this.fetchTraceThreshold)).nanos();
+        if (fetchTraceThreshold != this.fetchTraceThreshold) {
+            this.fetchTraceThreshold = fetchTraceThreshold;
+        }
+
+        String level = settings.get(INDEX_SEARCH_SLOWLOG_LEVEL, this.level);
+        if (!level.equals(this.level)) {
+            this.queryLogger.setLevel(level.toUpperCase(Locale.ROOT));
+            this.fetchLogger.setLevel(level.toUpperCase(Locale.ROOT));
+            this.level = level;
+        }
+
+        boolean reformat = settings.getAsBoolean(INDEX_SEARCH_SLOWLOG_REFORMAT, this.reformat);
+        if (reformat != this.reformat) {
+            this.reformat = reformat;
+        }
+    }
+
+    private static class SlowLogSearchContextPrinter {
         private final SearchContext context;
         private final long tookInNanos;
         private final boolean reformat;

@@ -28,14 +28,14 @@ like this:
       {
          "insert_order": 46,
          "priority": "HIGH",
-         "source": "shard-started ([foo_2][1], node[tMTocMvQQgGCkj7QDHl3OA], [P], s[INITIALIZING]), reason [after recovery from gateway]",
+         "source": "shard-started ([foo_2][1], node[tMTocMvQQgGCkj7QDHl3OA], [P], s[INITIALIZING]), reason [after recovery from shard_store]",
          "time_in_queue_millis": 842,
          "time_in_queue": "842ms"
       },
       {
          "insert_order": 45,
          "priority": "HIGH",
-         "source": "shard-started ([foo_2][0], node[tMTocMvQQgGCkj7QDHl3OA], [P], s[INITIALIZING]), reason [after recovery from gateway]",
+         "source": "shard-started ([foo_2][0], node[tMTocMvQQgGCkj7QDHl3OA], [P], s[INITIALIZING]), reason [after recovery from shard_store]",
          "time_in_queue_millis": 858,
          "time_in_queue": "858ms"
       }

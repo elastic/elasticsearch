@@ -101,7 +101,7 @@ Response:
   "index1" : {
     "shards" : [ {
       "id" : 0,
-      "type" : "GATEWAY",
+      "type" : "STORE",
       "stage" : "DONE",
       "primary" : true,
       "start_time" : "2014-02-24T12:38:06.349",
@@ -189,7 +189,7 @@ Description of output fields:
 [horizontal]
 `id`::              Shard ID
 `type`::            Recovery type:
-                        * gateway
+                        * store
                         * snapshot
                         * replica
                         * relocating

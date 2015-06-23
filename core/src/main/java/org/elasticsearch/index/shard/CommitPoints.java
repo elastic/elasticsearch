@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.gateway;
+package org.elasticsearch.index.shard;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;

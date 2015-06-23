@@ -17,9 +17,8 @@
  * under the License.
  */
 
-package org.elasticsearch.index.indexing.slowlog;
+package org.elasticsearch.index.indexing;
 
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -27,10 +26,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
-import org.elasticsearch.index.shard.AbstractIndexShardComponent;
-import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -38,7 +34,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  */
-public class ShardSlowLogIndexingService extends AbstractIndexShardComponent {
+public final class IndexingSlowLog {
 
     private boolean reformat;
 
@@ -52,53 +48,16 @@ public class ShardSlowLogIndexingService extends AbstractIndexShardComponent {
     private final ESLogger indexLogger;
     private final ESLogger deleteLogger;
 
-    public static final String INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN = "index.indexing.slowlog.threshold.index.warn";
-    public static final String INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO = "index.indexing.slowlog.threshold.index.info";
-    public static final String INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG = "index.indexing.slowlog.threshold.index.debug";
-    public static final String INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE = "index.indexing.slowlog.threshold.index.trace";
-    public static final String INDEX_INDEXING_SLOWLOG_REFORMAT = "index.indexing.slowlog.reformat";
-    public static final String INDEX_INDEXING_SLOWLOG_LEVEL = "index.indexing.slowlog.level";
+    private static final String INDEX_INDEXING_SLOWLOG_PREFIX = "index.indexing.slowlog";
+    public static final String INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN = INDEX_INDEXING_SLOWLOG_PREFIX +".threshold.index.warn";
+    public static final String INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO = INDEX_INDEXING_SLOWLOG_PREFIX +".threshold.index.info";
+    public static final String INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG = INDEX_INDEXING_SLOWLOG_PREFIX +".threshold.index.debug";
+    public static final String INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE = INDEX_INDEXING_SLOWLOG_PREFIX +".threshold.index.trace";
+    public static final String INDEX_INDEXING_SLOWLOG_REFORMAT = INDEX_INDEXING_SLOWLOG_PREFIX +".reformat";
+    public static final String INDEX_INDEXING_SLOWLOG_LEVEL = INDEX_INDEXING_SLOWLOG_PREFIX +".level";
 
-    class ApplySettings implements IndexSettingsService.Listener {
-        @Override
-        public synchronized void onRefreshSettings(Settings settings) {
-            long indexWarnThreshold = settings.getAsTime(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN, TimeValue.timeValueNanos(ShardSlowLogIndexingService.this.indexWarnThreshold)).nanos();
-            if (indexWarnThreshold != ShardSlowLogIndexingService.this.indexWarnThreshold) {
-                ShardSlowLogIndexingService.this.indexWarnThreshold = indexWarnThreshold;
-            }
-            long indexInfoThreshold = settings.getAsTime(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO, TimeValue.timeValueNanos(ShardSlowLogIndexingService.this.indexInfoThreshold)).nanos();
-            if (indexInfoThreshold != ShardSlowLogIndexingService.this.indexInfoThreshold) {
-                ShardSlowLogIndexingService.this.indexInfoThreshold = indexInfoThreshold;
-            }
-            long indexDebugThreshold = settings.getAsTime(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG, TimeValue.timeValueNanos(ShardSlowLogIndexingService.this.indexDebugThreshold)).nanos();
-            if (indexDebugThreshold != ShardSlowLogIndexingService.this.indexDebugThreshold) {
-                ShardSlowLogIndexingService.this.indexDebugThreshold = indexDebugThreshold;
-            }
-            long indexTraceThreshold = settings.getAsTime(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE, TimeValue.timeValueNanos(ShardSlowLogIndexingService.this.indexTraceThreshold)).nanos();
-            if (indexTraceThreshold != ShardSlowLogIndexingService.this.indexTraceThreshold) {
-                ShardSlowLogIndexingService.this.indexTraceThreshold = indexTraceThreshold;
-            }
-
-            String level = settings.get(INDEX_INDEXING_SLOWLOG_LEVEL, ShardSlowLogIndexingService.this.level);
-            if (!level.equals(ShardSlowLogIndexingService.this.level)) {
-                ShardSlowLogIndexingService.this.indexLogger.setLevel(level.toUpperCase(Locale.ROOT));
-                ShardSlowLogIndexingService.this.deleteLogger.setLevel(level.toUpperCase(Locale.ROOT));
-                ShardSlowLogIndexingService.this.level = level;
-            }
-
-            boolean reformat = settings.getAsBoolean(INDEX_INDEXING_SLOWLOG_REFORMAT, ShardSlowLogIndexingService.this.reformat);
-            if (reformat != ShardSlowLogIndexingService.this.reformat) {
-                ShardSlowLogIndexingService.this.reformat = reformat;
-            }
-        }
-    }
-
-    @Inject
-    public ShardSlowLogIndexingService(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService) {
-        super(shardId, indexSettings);
-
+    IndexingSlowLog(Settings indexSettings) {
         this.reformat = indexSettings.getAsBoolean(INDEX_INDEXING_SLOWLOG_REFORMAT, true);
-
         this.indexWarnThreshold = indexSettings.getAsTime(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN, TimeValue.timeValueNanos(-1)).nanos();
         this.indexInfoThreshold = indexSettings.getAsTime(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO, TimeValue.timeValueNanos(-1)).nanos();
         this.indexDebugThreshold = indexSettings.getAsTime(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG, TimeValue.timeValueNanos(-1)).nanos();
@@ -106,20 +65,49 @@ public class ShardSlowLogIndexingService extends AbstractIndexShardComponent {
 
         this.level = indexSettings.get(INDEX_INDEXING_SLOWLOG_LEVEL, "TRACE").toUpperCase(Locale.ROOT);
 
-        this.indexLogger = Loggers.getLogger(logger, ".index");
-        this.deleteLogger = Loggers.getLogger(logger, ".delete");
+        this.indexLogger = Loggers.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX +".index");
+        this.deleteLogger = Loggers.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX +".delete");
 
         indexLogger.setLevel(level);
         deleteLogger.setLevel(level);
-
-        indexSettingsService.addListener(new ApplySettings());
     }
 
-    public void postIndex(Engine.Index index, long tookInNanos) {
+    synchronized void onRefreshSettings(Settings settings) {
+        long indexWarnThreshold = settings.getAsTime(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN, TimeValue.timeValueNanos(this.indexWarnThreshold)).nanos();
+        if (indexWarnThreshold != this.indexWarnThreshold) {
+            this.indexWarnThreshold = indexWarnThreshold;
+        }
+        long indexInfoThreshold = settings.getAsTime(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO, TimeValue.timeValueNanos(this.indexInfoThreshold)).nanos();
+        if (indexInfoThreshold != this.indexInfoThreshold) {
+            this.indexInfoThreshold = indexInfoThreshold;
+        }
+        long indexDebugThreshold = settings.getAsTime(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG, TimeValue.timeValueNanos(this.indexDebugThreshold)).nanos();
+        if (indexDebugThreshold != this.indexDebugThreshold) {
+            this.indexDebugThreshold = indexDebugThreshold;
+        }
+        long indexTraceThreshold = settings.getAsTime(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE, TimeValue.timeValueNanos(this.indexTraceThreshold)).nanos();
+        if (indexTraceThreshold != this.indexTraceThreshold) {
+            this.indexTraceThreshold = indexTraceThreshold;
+        }
+
+        String level = settings.get(INDEX_INDEXING_SLOWLOG_LEVEL, this.level);
+        if (!level.equals(this.level)) {
+            this.indexLogger.setLevel(level.toUpperCase(Locale.ROOT));
+            this.deleteLogger.setLevel(level.toUpperCase(Locale.ROOT));
+            this.level = level;
+        }
+
+        boolean reformat = settings.getAsBoolean(INDEX_INDEXING_SLOWLOG_REFORMAT, this.reformat);
+        if (reformat != this.reformat) {
+            this.reformat = reformat;
+        }
+    }
+
+    void postIndex(Engine.Index index, long tookInNanos) {
         postIndexing(index.parsedDoc(), tookInNanos);
     }
 
-    public void postCreate(Engine.Create create, long tookInNanos) {
+    void postCreate(Engine.Create create, long tookInNanos) {
         postIndexing(create.parsedDoc(), tookInNanos);
     }
 
@@ -135,12 +123,12 @@ public class ShardSlowLogIndexingService extends AbstractIndexShardComponent {
         }
     }
 
-    public static class SlowLogParsedDocumentPrinter {
+    final static class SlowLogParsedDocumentPrinter {
         private final ParsedDocument doc;
         private final long tookInNanos;
         private final boolean reformat;
 
-        public SlowLogParsedDocumentPrinter(ParsedDocument doc, long tookInNanos, boolean reformat) {
+        SlowLogParsedDocumentPrinter(ParsedDocument doc, long tookInNanos, boolean reformat) {
             this.doc = doc;
             this.tookInNanos = tookInNanos;
             this.reformat = reformat;

@@ -161,6 +161,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
     /** All known time settings for an index. */
     public static final Set<String> INDEX_TIME_SETTINGS = ImmutableSet.of(
                                     "index.gateway.wait_for_mapping_update_post_recovery",
+                                    "index.shard.wait_for_mapping_update_post_recovery",
                                     "index.gc_deletes",
                                     "index.indexing.slowlog.threshold.index.debug",
                                     "index.indexing.slowlog.threshold.index.info",

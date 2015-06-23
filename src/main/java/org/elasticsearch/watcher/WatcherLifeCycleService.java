@@ -82,7 +82,7 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
         try {
             watcherService.start(state);
         } catch (Exception e) {
-            logger.debug("failed to start watcher. please wait for the cluster to become ready or try to start Watcher manually");
+            logger.warn("failed to start watcher. please wait for the cluster to become ready or try to start Watcher manually", e);
         }
     }
 

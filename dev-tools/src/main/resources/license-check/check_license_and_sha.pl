@@ -4,13 +4,15 @@ use strict;
 use warnings;
 use v5.10;
 use Digest::SHA qw(sha1);
-
+use File::Temp();
+use File::Basename qw(basename);
+use File::Find();
 my $mode = shift(@ARGV) || die usage();
 my $dir  = shift(@ARGV) || die usage();
-$dir=~s{/$}{};
+$dir =~ s{/$}{};
 
-our $JARS_DIR    = "$dir/target/lib/";
-our $LICENSE_DIR = "$dir/licenses/";
+our $RELEASES_DIR = "$dir/target/releases/";
+our $LICENSE_DIR  = "$dir/licenses/";
 
 $mode eq '--check'        ? check_shas_and_licenses($dir)
     : $mode eq '--update' ? write_shas($dir)
@@ -19,7 +21,9 @@ $mode eq '--check'        ? check_shas_and_licenses($dir)
 #===================================
 sub check_shas_and_licenses {
 #===================================
-    my %new      = get_shas();
+    my %new = get_shas_from_zip();
+    check_tar_has_same_shas(%new);
+
     my %old      = get_sha_files();
     my %licenses = get_files_with('LICENSE');
     my %notices  = get_files_with('NOTICE');
@@ -93,7 +97,7 @@ sub check_shas_and_licenses {
 #===================================
 sub write_shas {
 #===================================
-    my %new = get_shas();
+    my %new = get_shas_from_zip();
     my %old = get_sha_files();
 
     for my $jar ( sort keys %new ) {
@@ -150,17 +154,68 @@ sub get_sha_files {
 }
 
 #===================================
-sub get_shas {
+sub get_shas_from_zip {
 #===================================
-    die "Missing directory: $JARS_DIR\n"
-        . "Please run: mvn clean package -DskipTests\n"
-        unless -d $JARS_DIR;
+    my ($zip) = glob("$RELEASES_DIR/elasticsearch*.zip")
+        or die "No .zip file found in $RELEASES_DIR\n";
 
-    my $sha_list = `shasum $JARS_DIR/*`;
+    my $temp_dir = File::Temp->newdir;
+    my $dir_name = $temp_dir->dirname;
+    system( 'unzip', "-j", "-q", $zip, "*.jar", "-d" => $dir_name )
+        && die "Error unzipping <$zip> to <" . $dir_name . ">: $!\n";
 
+    my @jars = grep { !/\/elasticsearch[^\/]+.jar$/ } glob "$dir_name/*.jar";
+    return calculate_shas(@jars);
+}
+
+#===================================
+sub check_tar_has_same_shas {
+#===================================
+    my %zip_shas = @_;
+    my ($tar) = glob("$RELEASES_DIR/elasticsearch*.tar.gz")
+        or return;
+
+    my $temp_dir = File::Temp->newdir;
+    my $dir_name = $temp_dir->dirname;
+    system( 'tar', "-xz", "-C" => $dir_name, "-f" => $tar, "*.jar" )
+        && die "Error unpacking <$tar> to <" . $dir_name . ">: $!\n";
+
+    my @jars;
+    File::Find::find(
+        {   wanted =>
+                sub { push @jars, $_ if /\.jar$/ && !/elasticsearch[^\/]*$/ },
+            no_chdir => 1
+        },
+        $dir_name
+    );
+
+    my %tar_shas = calculate_shas(@jars);
+    my @errors;
+    for ( sort keys %zip_shas ) {
+        my $sha = delete $tar_shas{$_};
+        if ( !$sha ) {
+            push @errors, "$_: JAR present in zip but not in tar.gz";
+        }
+        elsif ( $sha ne $zip_shas{$_} ) {
+            push @errors, "$_: JAR in zip and tar.gz are different";
+        }
+    }
+    for ( sort keys %tar_shas ) {
+        push @errors, "$_: JAR present in tar.gz but not in zip";
+    }
+    if (@errors) {
+        die join "\n", @errors;
+    }
+}
+
+#===================================
+sub calculate_shas {
+#===================================
     my %shas;
-    while ( $sha_list =~ /^(\w{40}) \s+ .*?([^\/]+\.jar)\s*$/xgm ) {
-        $shas{"${2}.sha1"} = $1;
+    while ( my $file = shift() ) {
+        my $digest = eval { Digest::SHA->new(1)->addfile($file) }
+            or die "Error calculating SHA1 for <$file>: $!\n";
+        $shas{ basename($file) . ".sha1" } = $digest->hexdigest;
     }
     return %shas;
 }

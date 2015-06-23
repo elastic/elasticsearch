@@ -169,6 +169,10 @@ public class FieldDataTermsFilterTests extends ElasticsearchSingleNodeTest {
         hFilter = FieldDataTermsFilter.newBytes(getFieldData(dblMapper), hTerms);
         result.or(hFilter.getDocIdSet(reader.getContext(), reader.getLiveDocs()).iterator());
         assertThat(result.cardinality(), equalTo(0));
+
+        assertEquals(
+                FieldDataTermsFilter.newBytes(getFieldData(strMapper), hTerms),
+                FieldDataTermsFilter.newBytes(getFieldData(strMapper), hTerms));
     }
 
     @Test
@@ -208,6 +212,10 @@ public class FieldDataTermsFilterTests extends ElasticsearchSingleNodeTest {
 
         hFilter = FieldDataTermsFilter.newLongs(getFieldData(dblMapper), hTerms);
         assertNull(hFilter.getDocIdSet(reader.getContext(), reader.getLiveDocs()));
+
+        assertEquals(
+                FieldDataTermsFilter.newLongs(getFieldData(lngMapper), hTerms),
+                FieldDataTermsFilter.newLongs(getFieldData(lngMapper), hTerms));
     }
 
     @Test
@@ -247,6 +255,10 @@ public class FieldDataTermsFilterTests extends ElasticsearchSingleNodeTest {
 
         hFilter = FieldDataTermsFilter.newDoubles(getFieldData(lngMapper), hTerms);
         assertNull(hFilter.getDocIdSet(reader.getContext(), reader.getLiveDocs()));
+
+        assertEquals(
+                FieldDataTermsFilter.newDoubles(getFieldData(dblMapper), hTerms),
+                FieldDataTermsFilter.newDoubles(getFieldData(dblMapper), hTerms));
     }
 
     @Test

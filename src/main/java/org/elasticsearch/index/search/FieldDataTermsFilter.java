@@ -178,7 +178,7 @@ public abstract class FieldDataTermsFilter extends Filter {
             if (super.equals(obj) == false) {
                 return false;
             }
-            return terms.equals(((BytesFieldDataFilter) obj).terms);
+            return terms.equals(((LongsFieldDataFilter) obj).terms);
         }
 
         @Override
@@ -245,7 +245,7 @@ public abstract class FieldDataTermsFilter extends Filter {
             if (super.equals(obj) == false) {
                 return false;
             }
-            return terms.equals(((BytesFieldDataFilter) obj).terms);
+            return terms.equals(((DoublesFieldDataFilter) obj).terms);
         }
 
         @Override

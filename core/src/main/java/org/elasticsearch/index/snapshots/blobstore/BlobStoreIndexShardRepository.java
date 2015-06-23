@@ -599,6 +599,11 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
 
                 snapshotStatus.files(indexNumberOfFiles, indexTotalFilesSize);
 
+                if (snapshotStatus.aborted()) {
+                    logger.debug("[{}] [{}] Aborted during initialization", shardId, snapshotId);
+                    throw new IndexShardSnapshotFailedException(shardId, "Aborted");
+                }
+
                 snapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.STARTED);
 
                 for (FileInfo snapshotFileInfo : filesToSnapshot) {

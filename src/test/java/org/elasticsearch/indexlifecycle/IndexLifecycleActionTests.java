@@ -73,7 +73,6 @@ public class IndexLifecycleActionTests extends ElasticsearchIntegrationTest {
         Settings settings = settingsBuilder()
                 .put(SETTING_NUMBER_OF_SHARDS, 11)
                 .put(SETTING_NUMBER_OF_REPLICAS, 1)
-                .put("cluster.routing.schedule", "20ms") // reroute every 20ms so we identify new nodes fast
                 .build();
 
         // start one server
@@ -238,7 +237,6 @@ public class IndexLifecycleActionTests extends ElasticsearchIntegrationTest {
         Settings settings = settingsBuilder()
                 .put(SETTING_NUMBER_OF_SHARDS, 11)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("cluster.routing.schedule", "20ms") // reroute every 20ms so we identify new nodes fast
                 .build();
 
         // start one server

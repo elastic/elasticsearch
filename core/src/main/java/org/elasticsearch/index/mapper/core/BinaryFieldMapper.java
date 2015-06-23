@@ -109,9 +109,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper {
     static final class BinaryFieldType extends MappedFieldType {
         private boolean tryUncompressing = false;
 
-        public BinaryFieldType() {
-            super(AbstractFieldMapper.Defaults.FIELD_TYPE);
-        }
+        public BinaryFieldType() {}
 
         protected BinaryFieldType(BinaryFieldType ref) {
             super(ref);
@@ -133,6 +131,11 @@ public class BinaryFieldMapper extends AbstractFieldMapper {
         @Override
         public int hashCode() {
             return Objects.hash(super.hashCode(), tryUncompressing);
+        }
+
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
         }
 
         public boolean tryUncompressing() {

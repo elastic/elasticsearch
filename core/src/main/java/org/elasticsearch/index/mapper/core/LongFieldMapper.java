@@ -143,6 +143,11 @@ public class LongFieldMapper extends NumberFieldMapper {
         }
 
         @Override
+        public String typeName() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public Long nullValue() {
             return (Long)super.nullValue();
         }

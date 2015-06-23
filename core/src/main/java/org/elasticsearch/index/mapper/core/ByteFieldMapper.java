@@ -135,6 +135,11 @@ public class ByteFieldMapper extends NumberFieldMapper {
         }
 
         @Override
+        public String typeName() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public Byte nullValue() {
             return (Byte)super.nullValue();
         }

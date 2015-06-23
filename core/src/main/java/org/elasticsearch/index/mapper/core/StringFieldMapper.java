@@ -186,9 +186,7 @@ public class StringFieldMapper extends AbstractFieldMapper implements AllFieldMa
 
     public static final class StringFieldType extends MappedFieldType {
 
-        public StringFieldType() {
-            super(AbstractFieldMapper.Defaults.FIELD_TYPE);
-        }
+        public StringFieldType() {}
 
         protected StringFieldType(StringFieldType ref) {
             super(ref);
@@ -196,6 +194,11 @@ public class StringFieldMapper extends AbstractFieldMapper implements AllFieldMa
 
         public StringFieldType clone() {
             return new StringFieldType(this);
+        }
+
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
         }
 
         @Override

@@ -183,9 +183,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper {
         private RecursivePrefixTreeStrategy recursiveStrategy;
         private TermQueryPrefixTreeStrategy termStrategy;
 
-        public GeoShapeFieldType() {
-            super(AbstractFieldMapper.Defaults.FIELD_TYPE);
-        }
+        public GeoShapeFieldType() {}
 
         protected GeoShapeFieldType(GeoShapeFieldType ref) {
             super(ref);
@@ -219,6 +217,11 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper {
         @Override
         public int hashCode() {
             return Objects.hash(super.hashCode(), tree, strategyName, treeLevels, precisionInMeters, distanceErrorPct, defaultDistanceErrorPct, orientation);
+        }
+
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
         }
 
         @Override

@@ -118,9 +118,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper {
 
     public static final class BooleanFieldType extends MappedFieldType {
 
-        public BooleanFieldType() {
-            super(AbstractFieldMapper.Defaults.FIELD_TYPE);
-        }
+        public BooleanFieldType() {}
 
         protected BooleanFieldType(BooleanFieldType ref) {
             super(ref);
@@ -129,6 +127,11 @@ public class BooleanFieldMapper extends AbstractFieldMapper {
         @Override
         public MappedFieldType clone() {
             return new BooleanFieldType(this);
+        }
+
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
         }
 
         @Override

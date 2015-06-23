@@ -144,6 +144,11 @@ public class IntegerFieldMapper extends NumberFieldMapper {
         }
 
         @Override
+        public String typeName() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public Integer nullValue() {
             return (Integer)super.nullValue();
         }

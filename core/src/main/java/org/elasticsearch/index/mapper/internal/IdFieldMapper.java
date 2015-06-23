@@ -136,9 +136,7 @@ public class IdFieldMapper extends AbstractFieldMapper implements RootMapper {
 
     static final class IdFieldType extends MappedFieldType {
 
-        public IdFieldType() {
-            super(AbstractFieldMapper.Defaults.FIELD_TYPE);
-        }
+        public IdFieldType() {}
 
         protected IdFieldType(IdFieldType ref) {
             super(ref);
@@ -149,6 +147,10 @@ public class IdFieldMapper extends AbstractFieldMapper implements RootMapper {
             return new IdFieldType(this);
         }
 
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
+        }
 
         @Override
         public String value(Object value) {

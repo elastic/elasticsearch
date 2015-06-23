@@ -90,9 +90,7 @@ public class VersionFieldMapper extends AbstractFieldMapper implements RootMappe
 
     static final class VersionFieldType extends MappedFieldType {
 
-        public VersionFieldType() {
-            super(AbstractFieldMapper.Defaults.FIELD_TYPE);
-        }
+        public VersionFieldType() {}
 
         protected VersionFieldType(VersionFieldType ref) {
             super(ref);
@@ -101,6 +99,11 @@ public class VersionFieldMapper extends AbstractFieldMapper implements RootMappe
         @Override
         public MappedFieldType clone() {
             return new VersionFieldType(this);
+        }
+
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
         }
 
         @Override

@@ -61,6 +61,8 @@ public class WatcherService extends AbstractComponent {
             triggerService.start(watchStore.watches().values());
             state.set(WatcherState.STARTED);
             logger.info("watch service has started");
+        } else {
+            logger.debug("not starting watcher, because its state is [{}] while [{}] is expected", state, WatcherState.STOPPED);
         }
     }
 
@@ -81,6 +83,8 @@ public class WatcherService extends AbstractComponent {
             watchStore.stop();
             state.set(WatcherState.STOPPED);
             logger.info("watch service has stopped");
+        } else {
+            logger.debug("not stopping watcher, because its state is [{}] while [{}] is expected", state, WatcherState.STARTED);
         }
     }
 

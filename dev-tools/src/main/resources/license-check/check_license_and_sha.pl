@@ -177,7 +177,7 @@ sub check_tar_has_same_shas {
 
     my $temp_dir = File::Temp->newdir;
     my $dir_name = $temp_dir->dirname;
-    system( 'tar', "-xz", "-C" => $dir_name, "-f" => $tar, "*.jar" )
+    system( 'tar', "-xz", "-C" => $dir_name, "-f" => $tar )
         && die "Error unpacking <$tar> to <" . $dir_name . ">: $!\n";
 
     my @jars;

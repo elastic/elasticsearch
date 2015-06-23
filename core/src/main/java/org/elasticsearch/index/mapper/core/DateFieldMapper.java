@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper.core;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType.NumericType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
@@ -221,7 +222,9 @@ public class DateFieldMapper extends NumberFieldMapper {
         protected TimeUnit timeUnit = Defaults.TIME_UNIT;
         protected DateMathParser dateMathParser = new DateMathParser(dateTimeFormatter);
 
-        public DateFieldType() {}
+        public DateFieldType() {
+            super(NumericType.LONG);
+        }
 
         protected DateFieldType(DateFieldType ref) {
             super(ref);

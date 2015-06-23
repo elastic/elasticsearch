@@ -20,9 +20,11 @@
 package org.elasticsearch.index.mapper.core;
 
 import com.carrotsearch.hppc.DoubleArrayList;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType.NumericType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.NumericRangeQuery;
@@ -126,7 +128,9 @@ public class DoubleFieldMapper extends NumberFieldMapper {
 
     static final class DoubleFieldType extends NumberFieldType {
 
-        public DoubleFieldType() {}
+        public DoubleFieldType() {
+            super(NumericType.DOUBLE);
+        }
 
         protected DoubleFieldType(DoubleFieldType ref) {
             super(ref);

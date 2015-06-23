@@ -135,12 +135,13 @@ public abstract class NumberFieldMapper extends AbstractFieldMapper implements A
 
     public static abstract class NumberFieldType extends MappedFieldType {
 
-        public NumberFieldType() {
+        public NumberFieldType(NumericType numericType) {
             super(AbstractFieldMapper.Defaults.FIELD_TYPE);
             setTokenized(false);
             setOmitNorms(true);
             setIndexOptions(IndexOptions.DOCS);
             setStoreTermVectors(false);
+            setNumericType(numericType);
         }
 
         protected NumberFieldType(NumberFieldType ref) {

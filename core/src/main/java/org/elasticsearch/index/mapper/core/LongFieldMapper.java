@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.core;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType.NumericType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.NumericRangeQuery;
@@ -128,7 +129,9 @@ public class LongFieldMapper extends NumberFieldMapper {
 
     public static class LongFieldType extends NumberFieldType {
 
-        public LongFieldType() {}
+        public LongFieldType() {
+            super(NumericType.LONG);
+        }
 
         protected LongFieldType(LongFieldType ref) {
             super(ref);

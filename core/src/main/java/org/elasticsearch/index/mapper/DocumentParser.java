@@ -464,6 +464,7 @@ class DocumentParser implements Closeable {
                 if (builder == null) {
                     builder = MapperBuilders.longField(currentFieldName);
                 }
+                break;
             case DOUBLE:
                 builder = context.root().findTemplateBuilder(context, currentFieldName, "double");
                 if (builder == null) {
@@ -475,6 +476,7 @@ class DocumentParser implements Closeable {
                 if (builder == null) {
                     builder = MapperBuilders.integerField(currentFieldName);
                 }
+                break;
             case FLOAT:
                 builder = context.root().findTemplateBuilder(context, currentFieldName, "float");
                 if (builder == null) {
@@ -628,25 +630,30 @@ class DocumentParser implements Closeable {
         if (existingFieldType != null) {
             // create a builder of the same type
             builder = createBuilderFromFieldType(context, existingFieldType, currentFieldName);
+            if (builder != null) {
+                // best-effort to not introduce a conflict
+                if (builder instanceof StringFieldMapper.Builder) {
+                    StringFieldMapper.Builder stringBuilder = (StringFieldMapper.Builder) builder;
+                    stringBuilder.store(existingFieldType.stored());
+                    stringBuilder.indexOptions(existingFieldType.indexOptions());
+                    stringBuilder.tokenized(existingFieldType.tokenized());
+                    stringBuilder.omitNorms(existingFieldType.omitNorms());
+                    stringBuilder.docValues(existingFieldType.hasDocValues());
+                    stringBuilder.indexAnalyzer(existingFieldType.indexAnalyzer());
+                    stringBuilder.searchAnalyzer(existingFieldType.searchAnalyzer());
+                } else if (builder instanceof NumberFieldMapper.Builder) {
+                    NumberFieldMapper.Builder<?,?> numberBuilder = (NumberFieldMapper.Builder<?, ?>) builder;
+                    numberBuilder.store(existingFieldType.stored());
+                    numberBuilder.indexOptions(existingFieldType.indexOptions());
+                    numberBuilder.tokenized(existingFieldType.tokenized());
+                    numberBuilder.omitNorms(existingFieldType.omitNorms());
+                    numberBuilder.docValues(existingFieldType.hasDocValues());
+                    numberBuilder.precisionStep(existingFieldType.numericPrecisionStep());
+                }
+            }
         }
         if (builder == null) {
             builder = createBuilderFromDynamicValue(context, token, currentFieldName);
-        }
-        if (existingFieldType != null) {
-            // best-effort to not introduce a conflict
-            if (builder instanceof StringFieldMapper.Builder) {
-                StringFieldMapper.Builder stringBuilder = (StringFieldMapper.Builder) builder;
-                stringBuilder.store(existingFieldType.stored());
-                stringBuilder.indexOptions(existingFieldType.indexOptions());
-                stringBuilder.omitNorms(existingFieldType.omitNorms());
-                stringBuilder.docValues(existingFieldType.hasDocValues());
-            } else if (builder instanceof NumberFieldMapper.Builder) {
-                NumberFieldMapper.Builder<?,?> numberBuilder = (NumberFieldMapper.Builder<?, ?>) builder;
-                numberBuilder.store(existingFieldType.stored());
-                numberBuilder.indexOptions(existingFieldType.indexOptions());
-                numberBuilder.omitNorms(existingFieldType.omitNorms());
-                numberBuilder.docValues(existingFieldType.hasDocValues());
-            }
         }
         Mapper mapper = builder.build(builderContext);
 

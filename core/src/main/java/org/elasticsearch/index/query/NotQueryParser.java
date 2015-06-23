@@ -19,10 +19,8 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -30,7 +28,7 @@ import java.io.IOException;
 /**
  *
  */
-public class NotQueryParser extends BaseQueryParserTemp {
+public class NotQueryParser extends BaseQueryParser {
 
     private static final ParseField QUERY_FIELD = new ParseField("filter", "query");
 
@@ -44,10 +42,10 @@ public class NotQueryParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        Query query = null;
+        QueryBuilder query = null;
         boolean queryFound = false;
 
         String queryName = null;
@@ -60,17 +58,17 @@ public class NotQueryParser extends BaseQueryParserTemp {
                 // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (QUERY_FIELD.match(currentFieldName)) {
-                    query = parseContext.parseInnerFilter();
+                    query = parseContext.parseInnerFilterToQueryBuilder();
                     queryFound = true;
                 } else {
                     queryFound = true;
                     // its the filter, and the name is the field
-                    query = parseContext.parseInnerFilter(currentFieldName);
+                    query = parseContext.parseInnerFilterToQueryBuilder(currentFieldName);
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 queryFound = true;
                 // its the filter, and the name is the field
-                query = parseContext.parseInnerFilter(currentFieldName);
+                query = parseContext.parseInnerFilterToQueryBuilder(currentFieldName);
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
@@ -84,15 +82,9 @@ public class NotQueryParser extends BaseQueryParserTemp {
             throw new QueryParsingException(parseContext, "filter is required when using `not` query");
         }
 
-        if (query == null) {
-            return null;
-        }
-
-        Query notQuery = Queries.not(query);
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, notQuery);
-        }
-        return notQuery;
+        NotQueryBuilder notQueryBuilder = new NotQueryBuilder(query);
+        notQueryBuilder.queryName(queryName);
+        return notQueryBuilder;
     }
 
     @Override

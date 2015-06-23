@@ -21,11 +21,18 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.Lists;
 
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 
 /**
  * A filter that matches documents matching boolean combinations of other filters.
@@ -54,9 +61,26 @@ public class OrQueryBuilder extends AbstractQueryBuilder<OrQueryBuilder> {
         return this;
     }
 
+    /**
+     * @return the list of filters added to "or".
+     */
+    public List<QueryBuilder> filters() {
+        return this.filters;
+    }
+
+    /**
+     * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
+     */
     public OrQueryBuilder queryName(String queryName) {
         this.queryName = queryName;
         return this;
+    }
+
+    /**
+     * @return the query name.
+     */
+    public String queryName() {
+        return this.queryName;
     }
 
     @Override
@@ -74,7 +98,70 @@ public class OrQueryBuilder extends AbstractQueryBuilder<OrQueryBuilder> {
     }
 
     @Override
+    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+        if (filters.isEmpty()) {
+            // no filters provided, this should be ignored upstream
+            return null;
+        }
+
+        BooleanQuery query = new BooleanQuery();
+        for (QueryBuilder f : filters) {
+            Query innerQuery = f.toQuery(parseContext);
+            // ignore queries that are null
+            if (innerQuery != null) {
+                query.add(innerQuery, Occur.SHOULD);
+            }
+        }
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
+        }
+        return query;
+    }
+
+    @Override
+    public QueryValidationException validate() {
+        // nothing to validate.
+        return null;
+    }
+
+    @Override
     public String getName() {
         return NAME;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(filters, queryName);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        OrQueryBuilder other = (OrQueryBuilder) obj;
+        return Objects.equals(filters, other.filters) &&
+               Objects.equals(queryName, other.queryName);
+    }
+
+    @Override
+    public OrQueryBuilder readFrom(StreamInput in) throws IOException {
+        OrQueryBuilder orQueryBuilder = new OrQueryBuilder();
+        List<QueryBuilder> queryBuilders = in.readNamedWritableList();
+        for (QueryBuilder queryBuilder : queryBuilders) {
+            orQueryBuilder.add(queryBuilder);
+        }
+        orQueryBuilder.queryName = in.readOptionalString();
+        return orQueryBuilder;
+
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeNamedWritableList(this.filters);
+        out.writeOptionalString(queryName);
     }
 }

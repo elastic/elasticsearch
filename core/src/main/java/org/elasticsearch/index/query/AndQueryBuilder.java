@@ -80,10 +80,9 @@ public class AndQueryBuilder extends AbstractQueryBuilder<AndQueryBuilder> {
     /**
      * @return the query name.
      */
-    public Object queryName() {
+    public String queryName() {
         return this.queryName;
     }
-
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
@@ -108,12 +107,22 @@ public class AndQueryBuilder extends AbstractQueryBuilder<AndQueryBuilder> {
 
         BooleanQuery query = new BooleanQuery();
         for (QueryBuilder f : filters) {
-            query.add(f.toQuery(parseContext), Occur.MUST);
+            Query innerQuery = f.toQuery(parseContext);
+            // ignore queries that are null
+            if (innerQuery != null) {
+                query.add(innerQuery, Occur.MUST);
+            }
         }
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);
         }
         return query;
+    }
+
+    @Override
+    public QueryValidationException validate() {
+        // nothing to validate.
+        return null;
     }
 
     @Override
@@ -136,7 +145,7 @@ public class AndQueryBuilder extends AbstractQueryBuilder<AndQueryBuilder> {
         }
         AndQueryBuilder other = (AndQueryBuilder) obj;
         return Objects.equals(filters, other.filters) &&
-                Objects.equals(queryName, other.queryName);
+               Objects.equals(queryName, other.queryName);
     }
 
     @Override

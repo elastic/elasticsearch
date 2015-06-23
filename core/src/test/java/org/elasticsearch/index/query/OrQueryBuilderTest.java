@@ -31,29 +31,30 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.equalTo;
 
 @SuppressWarnings("deprecation")
-public class AndQueryBuilderTest extends BaseQueryTestCase<AndQueryBuilder> {
+public class OrQueryBuilderTest extends BaseQueryTestCase<OrQueryBuilder> {
 
     @Override
-    protected Query createExpectedQuery(AndQueryBuilder queryBuilder, QueryParseContext context) throws QueryParsingException, IOException {
+    protected Query createExpectedQuery(OrQueryBuilder queryBuilder, QueryParseContext context) throws QueryParsingException, IOException {
         if (queryBuilder.filters().isEmpty()) {
             return null;
         }
         BooleanQuery query = new BooleanQuery();
         for (QueryBuilder subQuery : queryBuilder.filters()) {
             Query innerQuery = subQuery.toQuery(context);
+            // ignore queries that are null
             if (innerQuery != null) {
-                query.add(innerQuery, Occur.MUST);
+                query.add(innerQuery, Occur.SHOULD);
             }
         }
         return query;
     }
 
     /**
-     * @return a AndQueryBuilder with random limit between 0 and 20
+     * @return an OrQueryBuilder with random limit between 0 and 20
      */
     @Override
-    protected AndQueryBuilder createTestQueryBuilder() {
-        AndQueryBuilder query = new AndQueryBuilder();
+    protected OrQueryBuilder createTestQueryBuilder() {
+        OrQueryBuilder query = new OrQueryBuilder();
         int subQueries = randomIntBetween(1, 5);
         for (int i = 0; i < subQueries; i++ ) {
             query.add(RandomQueryBuilder.create(random()));
@@ -65,7 +66,7 @@ public class AndQueryBuilderTest extends BaseQueryTestCase<AndQueryBuilder> {
     }
 
     @Override
-    protected void assertLuceneQuery(AndQueryBuilder queryBuilder, Query query, QueryParseContext context) {
+    protected void assertLuceneQuery(OrQueryBuilder queryBuilder, Query query, QueryParseContext context) {
         if (queryBuilder.queryName() != null) {
             Query namedQuery = context.copyNamedFilters().get(queryBuilder.queryName());
             assertThat(namedQuery, equalTo(query));
@@ -77,17 +78,17 @@ public class AndQueryBuilderTest extends BaseQueryTestCase<AndQueryBuilder> {
      */
     @Test
     public void testNoInnerQueries() throws QueryParsingException, IOException {
-        AndQueryBuilder andQuery = new AndQueryBuilder();
-        assertNull(andQuery.toQuery(createContext()));
+        OrQueryBuilder orQuery = new OrQueryBuilder();
+        assertNull(orQuery.toQuery(createContext()));
     }
 
     @Test(expected=QueryParsingException.class)
     public void testMissingFiltersSection() throws IOException {
         QueryParseContext context = createContext();
-        String queryString = "{ \"and\" : {}";
+        String queryString = "{ \"or\" : {}";
         XContentParser parser = XContentFactory.xContent(queryString).createParser(queryString);
         context.reset(parser);
-        assertQueryHeader(parser, AndQueryBuilder.PROTOTYPE.getName());
-        context.indexQueryParserService().queryParser(AndQueryBuilder.PROTOTYPE.getName()).fromXContent(context);
+        assertQueryHeader(parser, OrQueryBuilder.PROTOTYPE.getName());
+        context.indexQueryParserService().queryParser(OrQueryBuilder.PROTOTYPE.getName()).fromXContent(context);
     }
 }

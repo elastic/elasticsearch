@@ -223,7 +223,7 @@ public final class WatcherTestUtils {
                 new ScheduleTrigger(new CronSchedule("0/5 * * * * ? *")),
                 new ExecutableSimpleInput(new SimpleInput(new Payload.Simple(inputData)), logger),
                 new ExecutableScriptCondition(new ScriptCondition(Script.inline("return true").build()), logger, scriptService),
-                new ExecutableSearchTransform(new SearchTransform(transformRequest), logger, client, new DynamicIndexName.Parser()),
+                new ExecutableSearchTransform(new SearchTransform(transformRequest, null), logger, client, new DynamicIndexName.Parser()),
                 new TimeValue(0),
                 new ExecutableActions(actions),
                 metadata,

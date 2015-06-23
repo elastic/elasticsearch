@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.input.search;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -13,6 +12,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -115,7 +115,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
                 .request()
                 .source(searchSourceBuilder);
 
-        ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null), logger, ClientProxy.of(client()), new DynamicIndexName.Parser());
+        ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null, null), logger, ClientProxy.of(client()), new DynamicIndexName.Parser());
         WatchExecutionContext ctx = new TriggeredExecutionContext(
                 new Watch("test-watch",
                         new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
@@ -222,7 +222,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
                 .request()
                 .source(searchSourceBuilder);
 
-        ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null), logger, ClientProxy.of(client()), new DynamicIndexName.Parser());
+        ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null, null), logger, ClientProxy.of(client()), new DynamicIndexName.Parser());
         WatchExecutionContext ctx = new TriggeredExecutionContext(
                 new Watch("test-watch",
                         new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
@@ -253,7 +253,8 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
                 .source(searchSource()
                         .query(filteredQuery(matchQuery("event_type", "a"), rangeQuery("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}"))));
 
-        XContentBuilder builder = jsonBuilder().value(new SearchInput(request, null));
+        TimeValue timeout = randomBoolean() ? TimeValue.timeValueSeconds(randomInt(10)) : null;
+        XContentBuilder builder = jsonBuilder().value(new SearchInput(request, null, timeout));
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 
@@ -261,6 +262,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
 
         SearchInput searchInput = factory.parseInput("_id", parser);
         assertEquals(SearchInput.TYPE, searchInput.type());
+        assertThat(searchInput.getTimeout(), equalTo(timeout != null ? timeout : TimeValue.timeValueSeconds(30))); // 30s is the default
     }
 
     @Test
@@ -272,7 +274,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
                 .source(searchSource()
                         .query(boolQuery().must(matchQuery("event_type", "a")).filter(rangeQuery("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}"))));
 
-        XContentBuilder builder = jsonBuilder().value(new SearchInput(request, null));
+        XContentBuilder builder = jsonBuilder().value(new SearchInput(request, null, null));
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 
@@ -308,7 +310,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
                 .source(searchSource()
                         .query(filteredQuery(matchQuery("event_type", "a"), rangeQuery("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}"))));
 
-        XContentBuilder builder = jsonBuilder().value(new SearchInput(request, null));
+        XContentBuilder builder = jsonBuilder().value(new SearchInput(request, null, null));
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 

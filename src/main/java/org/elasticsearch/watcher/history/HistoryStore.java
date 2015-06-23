@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.settings.ClusterDynamicSettings;
 import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.unit.TimeValue;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
@@ -166,7 +167,7 @@ public class HistoryStore extends AbstractComponent implements NodeSettingsServi
             IndexRequest request = new IndexRequest(index, DOC_TYPE, watchRecord.id().value())
                     .source(XContentFactory.jsonBuilder().value(watchRecord))
                     .opType(IndexRequest.OpType.CREATE);
-            client.index(request);
+            client.index(request, (TimeValue) null);
         } catch (IOException e) {
             throw new HistoryException("failed to persist watch record [" + watchRecord + "]", e);
         } finally {

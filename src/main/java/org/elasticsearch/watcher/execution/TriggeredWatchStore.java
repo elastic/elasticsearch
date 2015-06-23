@@ -131,7 +131,7 @@ public class TriggeredWatchStore extends AbstractComponent {
             IndexRequest request = new IndexRequest(INDEX_NAME, DOC_TYPE, triggeredWatch.id().value())
                     .source(XContentFactory.jsonBuilder().value(triggeredWatch))
                     .opType(IndexRequest.OpType.CREATE);
-            client.index(request);
+            client.index(request, (TimeValue) null);
         } catch (IOException e) {
             throw new TriggeredWatchException("failed to persist triggered watch [{}]", e, triggeredWatch);
         } finally {
@@ -228,7 +228,7 @@ public class TriggeredWatchStore extends AbstractComponent {
                 indexRequest.opType(IndexRequest.OpType.CREATE);
                 request.add(indexRequest);
             }
-            BulkResponse response = client.bulk(request);
+            BulkResponse response = client.bulk(request, (TimeValue) null);
             List<Integer> successFullSlots = new ArrayList<>();
             for (int i = 0; i < response.getItems().length; i++) {
                 BulkItemResponse itemResponse = response.getItems()[i];
@@ -276,7 +276,7 @@ public class TriggeredWatchStore extends AbstractComponent {
         }
 
         SearchRequest searchRequest = createScanSearchRequest();
-        SearchResponse response = client.search(searchRequest);
+        SearchResponse response = client.search(searchRequest, null);
         List<TriggeredWatch> triggeredWatches = new ArrayList<>();
         try {
             if (response.getTotalShards() != response.getSuccessfulShards()) {

@@ -7,12 +7,12 @@ package org.elasticsearch.watcher.actions.index;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.support.DynamicIndexName;
+import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
 
 import java.io.IOException;
@@ -27,11 +27,13 @@ public class IndexAction implements Action {
     final String index;
     final String docType;
     final @Nullable String executionTimeField;
+    final @Nullable TimeValue timeout;
 
-    public IndexAction(String index, String docType, @Nullable String executionTimeField) {
+    public IndexAction(String index, String docType, @Nullable String executionTimeField, @Nullable TimeValue timeout) {
         this.index = index;
         this.docType = docType;
         this.executionTimeField = executionTimeField;
+        this.timeout = timeout;
     }
 
     @Override
@@ -79,13 +81,17 @@ public class IndexAction implements Action {
         if (executionTimeField != null) {
             builder.field(Field.EXECUTION_TIME_FIELD.getPreferredName(), executionTimeField);
         }
+        if (timeout != null) {
+            builder.field(Field.TIMEOUT.getPreferredName(), timeout);
+        };
         return builder.endObject();
     }
 
-    public static IndexAction parse(String watchId, String actionId, XContentParser parser) throws IOException {
+    public static IndexAction parse(String watchId, String actionId, XContentParser parser, TimeValue defaultTimeout) throws IOException {
         String index = null;
         String docType = null;
         String executionTimeField = null;
+        TimeValue timeout = defaultTimeout;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -103,6 +109,8 @@ public class IndexAction implements Action {
                     docType = parser.text();
                 } else if (Field.EXECUTION_TIME_FIELD.match(currentFieldName)) {
                     executionTimeField = parser.text();
+                } else if (Field.TIMEOUT.match(currentFieldName)) {
+                    timeout = WatcherDateTimeUtils.parseTimeValue(parser, Field.TIMEOUT.toString());
                 } else {
                     throw new IndexActionException("could not parse [{}] action [{}/{}]. unexpected string field [{}]", TYPE, watchId, actionId, currentFieldName);
                 }
@@ -119,7 +127,7 @@ public class IndexAction implements Action {
             throw new IndexActionException("could not parse [{}] action [{}/{}]. missing required [{}] field", TYPE, watchId, actionId, Field.DOC_TYPE.getPreferredName());
         }
 
-        return new IndexAction(index, docType, executionTimeField);
+        return new IndexAction(index, docType, executionTimeField, timeout);
     }
 
     public static Builder builder(String index, String docType) {
@@ -192,6 +200,7 @@ public class IndexAction implements Action {
         final String index;
         final String docType;
         String executionTimeField;
+        TimeValue timeout;
 
         private Builder(String index, String docType) {
             this.index = index;
@@ -203,9 +212,14 @@ public class IndexAction implements Action {
             return this;
         }
 
+        public Builder timeout(TimeValue writeTimeout) {
+            this.timeout = writeTimeout;
+            return this;
+        }
+
         @Override
         public IndexAction build() {
-            return new IndexAction(index, docType, executionTimeField);
+            return new IndexAction(index, docType, executionTimeField, timeout);
         }
     }
 
@@ -216,5 +230,6 @@ public class IndexAction implements Action {
         ParseField SOURCE = new ParseField("source");
         ParseField RESPONSE = new ParseField("response");
         ParseField REQUEST = new ParseField("request");
+        ParseField TIMEOUT = new ParseField("timeout");
     }
 }

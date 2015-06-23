@@ -182,7 +182,7 @@ public class TriggeredWatchStoreTests extends ElasticsearchTestCase {
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.getSuccessfulShards()).thenReturn(0);
         when(searchResponse.getTotalShards()).thenReturn(1);
-        when(clientProxy.search(any(SearchRequest.class))).thenReturn(searchResponse);
+        when(clientProxy.search(any(SearchRequest.class), any(TimeValue.class))).thenReturn(searchResponse);
 
         when(clientProxy.clearScroll(anyString())).thenReturn(new ClearScrollResponse(true, 1));
 
@@ -194,7 +194,7 @@ public class TriggeredWatchStoreTests extends ElasticsearchTestCase {
             assertThat(e.getMessage(), equalTo("scan search was supposed to run on [1] shards, but ran on [0] shards"));
         }
         verify(clientProxy, times(1)).refresh(any(RefreshRequest.class));
-        verify(clientProxy, times(1)).search(any(SearchRequest.class));
+        verify(clientProxy, times(1)).search(any(SearchRequest.class), any(TimeValue.class));
         verify(clientProxy, times(1)).clearScroll(anyString());
     }
 
@@ -227,7 +227,7 @@ public class TriggeredWatchStoreTests extends ElasticsearchTestCase {
         when(searchResponse.getSuccessfulShards()).thenReturn(1);
         when(searchResponse.getTotalShards()).thenReturn(1);
         when(searchResponse.getHits()).thenReturn(InternalSearchHits.empty());
-        when(clientProxy.search(any(SearchRequest.class))).thenReturn(searchResponse);
+        when(clientProxy.search(any(SearchRequest.class), any(TimeValue.class))).thenReturn(searchResponse);
 
         when(clientProxy.clearScroll(anyString())).thenReturn(new ClearScrollResponse(true, 1));
 
@@ -237,7 +237,7 @@ public class TriggeredWatchStoreTests extends ElasticsearchTestCase {
         assertThat(triggeredWatches, hasSize(0));
 
         verify(clientProxy, times(1)).refresh(any(RefreshRequest.class));
-        verify(clientProxy, times(1)).search(any(SearchRequest.class));
+        verify(clientProxy, times(1)).search(any(SearchRequest.class), any(TimeValue.class));
         verify(clientProxy, times(1)).clearScroll(anyString());
     }
 
@@ -276,7 +276,7 @@ public class TriggeredWatchStoreTests extends ElasticsearchTestCase {
         InternalSearchHits hits = new InternalSearchHits(new InternalSearchHit[]{hit}, 1, 1.0f);
         when(searchResponse1.getHits()).thenReturn(hits);
         when(searchResponse1.getScrollId()).thenReturn("_scrollId");
-        when(clientProxy.search(any(SearchRequest.class))).thenReturn(searchResponse1);
+        when(clientProxy.search(any(SearchRequest.class), any(TimeValue.class))).thenReturn(searchResponse1);
 
         // First return a scroll response with a single hit and then with no hits
         SearchResponse searchResponse2 = new SearchResponse(InternalSearchResponse.empty(), "_scrollId", 1, 1, 1, null);
@@ -294,7 +294,7 @@ public class TriggeredWatchStoreTests extends ElasticsearchTestCase {
         assertThat(triggeredWatches, hasSize(1));
 
         verify(clientProxy, times(1)).refresh(any(RefreshRequest.class));
-        verify(clientProxy, times(1)).search(any(SearchRequest.class));
+        verify(clientProxy, times(1)).search(any(SearchRequest.class), any(TimeValue.class));
         verify(clientProxy, times(2)).searchScroll(anyString(), any(TimeValue.class));
         verify(clientProxy, times(1)).clearScroll(anyString());
     }

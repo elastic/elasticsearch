@@ -65,7 +65,7 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
             logger.trace("[{}] running query for [{}] [{}]", ctx.id(), ctx.watch().id(), XContentHelper.convertToJson(source, false, true));
         }
 
-        SearchResponse response = client.search(request);
+        SearchResponse response = client.search(request, input.getTimeout());
 
         if (logger.isDebugEnabled()) {
             logger.debug("[{}] found [{}] hits", ctx.id(), response.getHits().getTotalHits());

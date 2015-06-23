@@ -23,12 +23,11 @@ import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.watcher.shield.ShieldIntegration;
 import org.elasticsearch.watcher.support.init.InitializingService;
-
-import java.util.concurrent.TimeUnit;
 
 /**
  * A lazily initialized proxy to an elasticsearch {@link Client}. Inject this proxy whenever a client
@@ -37,18 +36,24 @@ import java.util.concurrent.TimeUnit;
 public class ClientProxy implements InitializingService.Initializable {
 
     private final ShieldIntegration shieldIntegration;
+    private final TimeValue defaultSearchTimeout;
+    private final TimeValue defaultIndexTimeout;
+    private final TimeValue defaultBulkTimeout;
     private Client client;
 
     @Inject
-    public ClientProxy(ShieldIntegration shieldIntegration) {
+    public ClientProxy(Settings settings, ShieldIntegration shieldIntegration) {
         this.shieldIntegration = shieldIntegration;
+        defaultSearchTimeout = settings.getAsTime("watcher.internal.ops.search.default_timeout", TimeValue.timeValueSeconds(30));
+        defaultIndexTimeout = settings.getAsTime("watcher.internal.ops.index.default_timeout", TimeValue.timeValueSeconds(60));
+        defaultBulkTimeout = settings.getAsTime("watcher.internal.ops.bulk.default_timeout", TimeValue.timeValueSeconds(120));
     }
 
     /**
      * Creates a proxy to the given client (can be used for testing)
      */
     public static ClientProxy of(Client client) {
-        ClientProxy proxy = new ClientProxy(null);
+        ClientProxy proxy = new ClientProxy(Settings.EMPTY, null);
         proxy.client = client;
         return proxy;
     }
@@ -62,16 +67,22 @@ public class ClientProxy implements InitializingService.Initializable {
         return client.admin();
     }
 
-    public IndexResponse index(IndexRequest request) {
-        return client.index(preProcess(request)).actionGet();
+    public IndexResponse index(IndexRequest request, TimeValue timeout) {
+        if (timeout == null) {
+            timeout = defaultIndexTimeout;
+        }
+        return client.index(preProcess(request)).actionGet(timeout);
     }
 
     public UpdateResponse update(UpdateRequest request) {
-        return client.update(preProcess(request)).actionGet();
+        return client.update(preProcess(request)).actionGet(defaultIndexTimeout);
     }
 
-    public BulkResponse bulk(BulkRequest request) {
-        return client.bulk(preProcess(request)).actionGet();
+    public BulkResponse bulk(BulkRequest request, TimeValue timeout) {
+        if (timeout == null) {
+            timeout = defaultBulkTimeout;
+        }
+        return client.bulk(preProcess(request)).actionGet(timeout);
     }
 
     public void index(IndexRequest request, ActionListener<IndexResponse> listener) {
@@ -83,31 +94,34 @@ public class ClientProxy implements InitializingService.Initializable {
     }
 
     public DeleteResponse delete(DeleteRequest request) {
-        return client.delete(preProcess(request)).actionGet();
+        return client.delete(preProcess(request)).actionGet(defaultIndexTimeout);
     }
 
-    public SearchResponse search(SearchRequest request) {
-        return client.search(preProcess(request)).actionGet(5, TimeUnit.SECONDS);
+    public SearchResponse search(SearchRequest request, TimeValue timeout) {
+        if (timeout == null) {
+            timeout = defaultSearchTimeout;
+        }
+        return client.search(preProcess(request)).actionGet(timeout);
     }
 
     public SearchResponse searchScroll(String scrollId, TimeValue timeout) {
         SearchScrollRequest request = new SearchScrollRequest(scrollId).scroll(timeout);
-        return client.searchScroll(preProcess(request)).actionGet();
+        return client.searchScroll(preProcess(request)).actionGet(defaultSearchTimeout);
     }
 
     public ClearScrollResponse clearScroll(String scrollId) {
         ClearScrollRequest request = new ClearScrollRequest();
         request.addScrollId(scrollId);
-        return client.clearScroll(preProcess(request)).actionGet();
+        return client.clearScroll(preProcess(request)).actionGet(defaultSearchTimeout);
     }
 
     public RefreshResponse refresh(RefreshRequest request) {
-        return client.admin().indices().refresh(preProcess(request)).actionGet();
+        return client.admin().indices().refresh(preProcess(request)).actionGet(defaultSearchTimeout);
     }
 
     public PutIndexTemplateResponse putTemplate(PutIndexTemplateRequest request) {
         preProcess(request);
-        return client.admin().indices().putTemplate(request).actionGet();
+        return client.admin().indices().putTemplate(request).actionGet(defaultIndexTimeout);
     }
 
     <M extends TransportMessage> M preProcess(M message) {

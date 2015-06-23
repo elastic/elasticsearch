@@ -9,11 +9,13 @@ import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.support.SearchRequestEquivalence;
 import org.elasticsearch.watcher.support.SearchRequestParseException;
+import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.watch.Payload;
 
@@ -31,10 +33,12 @@ public class SearchInput implements Input {
 
     private final SearchRequest searchRequest;
     private final @Nullable Set<String> extractKeys;
+    private final @Nullable TimeValue timeout;
 
-    public SearchInput(SearchRequest searchRequest, @Nullable Set<String> extractKeys) {
+    public SearchInput(SearchRequest searchRequest, @Nullable Set<String> extractKeys, @Nullable TimeValue timeout) {
         this.searchRequest = searchRequest;
         this.extractKeys = extractKeys;
+        this.timeout = timeout;
     }
 
     @Override
@@ -68,6 +72,10 @@ public class SearchInput implements Input {
         return extractKeys;
     }
 
+    public TimeValue getTimeout() {
+        return timeout;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -76,13 +84,17 @@ public class SearchInput implements Input {
         if (extractKeys != null) {
             builder.field(Field.EXTRACT.getPreferredName(), extractKeys);
         }
+        if (timeout != null) {
+            builder.field(Field.TIMEOUT.getPreferredName(), timeout);
+        }
         builder.endObject();
         return builder;
     }
 
-    public static SearchInput parse(String watchId, XContentParser parser) throws IOException {
+    public static SearchInput parse(String watchId, XContentParser parser, TimeValue defaultTimeout) throws IOException {
         SearchRequest request = null;
         Set<String> extract = null;
+        TimeValue timeout = defaultTimeout;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -108,6 +120,8 @@ public class SearchInput implements Input {
                 } else {
                     throw new SearchInputException("could not parse [{}] input for watch [{}]. unexpected array field [{}]", TYPE, watchId, currentFieldName);
                 }
+            } else if (Field.TIMEOUT.match(currentFieldName)) {
+                timeout = WatcherDateTimeUtils.parseTimeValue(parser, Field.TIMEOUT.toString());
             } else {
                 throw new SearchInputException("could not parse [{}] input for watch [{}]. unexpected token [{}]", TYPE, watchId, token);
             }
@@ -116,7 +130,7 @@ public class SearchInput implements Input {
         if (request == null) {
             throw new SearchInputException("could not parse [{}] input for watch [{}]. missing required [{}] field", TYPE, watchId, Field.REQUEST.getPreferredName());
         }
-        return new SearchInput(request, extract);
+        return new SearchInput(request, extract, timeout);
     }
 
     public static Builder builder(SearchRequest request) {
@@ -157,6 +171,7 @@ public class SearchInput implements Input {
 
         private final SearchRequest request;
         private final ImmutableSet.Builder<String> extractKeys = ImmutableSet.builder();
+        private TimeValue timeout;
 
         private Builder(SearchRequest request) {
             this.request = request;
@@ -172,15 +187,21 @@ public class SearchInput implements Input {
             return this;
         }
 
+        public Builder timeout(TimeValue readTimeout) {
+            this.timeout = readTimeout;
+            return this;
+        }
+
         @Override
         public SearchInput build() {
             Set<String> keys = extractKeys.build();
-            return new SearchInput(request, keys.isEmpty() ? null : keys);
+            return new SearchInput(request, keys.isEmpty() ? null : keys, timeout);
         }
     }
 
     public interface Field extends Input.Field {
         ParseField REQUEST = new ParseField("request");
         ParseField EXTRACT = new ParseField("extract");
+        ParseField TIMEOUT = new ParseField("timeout");
     }
 }

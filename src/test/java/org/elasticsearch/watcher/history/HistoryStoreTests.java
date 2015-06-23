@@ -8,6 +8,7 @@ package org.elasticsearch.watcher.history;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.settings.DynamicSettings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.settings.NodeSettingsService;
@@ -53,9 +54,9 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
 
         IndexResponse indexResponse = mock(IndexResponse.class);
         IndexRequest indexRequest = indexRequest(".watch_history-1970.01.01", HistoryStore.DOC_TYPE, wid.value(), IndexRequest.OpType.CREATE);
-        when(clientProxy.index(indexRequest)).thenReturn(indexResponse);
+        when(clientProxy.index(indexRequest, Matchers.<TimeValue>any())).thenReturn(indexResponse);
         historyStore.put(watchRecord);
-        verify(clientProxy).index(Matchers.<IndexRequest>any());
+        verify(clientProxy).index(Matchers.<IndexRequest>any(), Matchers.<TimeValue>any());
     }
 
     @Test(expected = HistoryException.class)

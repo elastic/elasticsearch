@@ -8,6 +8,7 @@ package org.elasticsearch.watcher.input.search;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.input.InputFactory;
 import org.elasticsearch.watcher.input.simple.ExecutableSimpleInput;
@@ -23,6 +24,7 @@ public class SearchInputFactory extends InputFactory<SearchInput, SearchInput.Re
 
     private final ClientProxy client;
     private final DynamicIndexName.Parser indexNameParser;
+    private final TimeValue defaultTimeout;
 
     @Inject
     public SearchInputFactory(Settings settings, ClientProxy client) {
@@ -30,6 +32,7 @@ public class SearchInputFactory extends InputFactory<SearchInput, SearchInput.Re
         this.client = client;
         String defaultDateFormat = DynamicIndexName.defaultDateFormat(settings, "watcher.input.search");
         this.indexNameParser = new DynamicIndexName.Parser(defaultDateFormat);
+        this.defaultTimeout = settings.getAsTime("watcher.input.search.default_timeout", TimeValue.timeValueSeconds(30));
     }
 
     @Override
@@ -39,7 +42,7 @@ public class SearchInputFactory extends InputFactory<SearchInput, SearchInput.Re
 
     @Override
     public SearchInput parseInput(String watchId, XContentParser parser) throws IOException {
-        return SearchInput.parse(watchId, parser);
+        return SearchInput.parse(watchId, parser, defaultTimeout);
     }
 
     @Override

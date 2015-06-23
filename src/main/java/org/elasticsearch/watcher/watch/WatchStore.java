@@ -132,7 +132,7 @@ public class WatchStore extends AbstractComponent {
     public WatchPut put(Watch watch) {
         ensureStarted();
         IndexRequest indexRequest = createIndexRequest(watch.id(), watch.getAsBytes(), Versions.MATCH_ANY);
-        IndexResponse response = client.index(indexRequest);
+        IndexResponse response = client.index(indexRequest, (TimeValue) null);
         watch.status().version(response.getVersion());
         watch.version(response.getVersion());
         Watch previous = watches.put(watch.id(), watch);
@@ -225,7 +225,7 @@ public class WatchStore extends AbstractComponent {
                 .source(new SearchSourceBuilder()
                         .size(scrollSize)
                         .version(true));
-        SearchResponse response = client.search(searchRequest);
+        SearchResponse response = client.search(searchRequest, null);
         try {
             if (response.getTotalShards() != response.getSuccessfulShards()) {
                 throw new ElasticsearchException("Partial response while loading watches");

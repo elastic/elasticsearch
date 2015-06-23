@@ -358,17 +358,18 @@ public class WatchTests extends ElasticsearchTestCase {
 
     private ExecutableTransform randomTransform() {
         String type = randomFrom(ScriptTransform.TYPE, SearchTransform.TYPE, ChainTransform.TYPE);
+        TimeValue timeout = randomBoolean() ? TimeValue.timeValueSeconds(5) : null;
         switch (type) {
             case ScriptTransform.TYPE:
                 return new ExecutableScriptTransform(new ScriptTransform(Script.inline("_script").build()), logger, scriptService);
             case SearchTransform.TYPE:
-                return new ExecutableSearchTransform(new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS)), logger, client, indexNameParser);
+                return new ExecutableSearchTransform(new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS), timeout), logger, client, indexNameParser);
             default: // chain
                 ChainTransform chainTransform = new ChainTransform(ImmutableList.of(
-                        new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS)),
+                        new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS), timeout),
                         new ScriptTransform(Script.inline("_script").build())));
                 return new ExecutableChainTransform(chainTransform, logger, ImmutableList.<ExecutableTransform>of(
-                        new ExecutableSearchTransform(new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS)), logger, client, indexNameParser),
+                        new ExecutableSearchTransform(new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS), timeout), logger, client, indexNameParser),
                         new ExecutableScriptTransform(new ScriptTransform(Script.inline("_script").build()), logger, scriptService)));
         }
     }
@@ -392,7 +393,7 @@ public class WatchTests extends ElasticsearchTestCase {
             list.add(new ActionWrapper("_email_" + randomAsciiOfLength(8), randomThrottler(), transform, new ExecutableEmailAction(action, logger, emailService, templateEngine, htmlSanitizer)));
         }
         if (randomBoolean()) {
-            IndexAction action = new IndexAction("_index", "_type", null);
+            IndexAction action = new IndexAction("_index", "_type", null, null);
             list.add(new ActionWrapper("_index_" + randomAsciiOfLength(8), randomThrottler(), randomTransform(), new ExecutableIndexAction(action, logger, client, indexNameParser)));
         }
         if (randomBoolean()) {

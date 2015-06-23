@@ -133,7 +133,7 @@ public class WatchStoreTests extends ElasticsearchTestCase {
         }
         verifyZeroInteractions(templateUtils);
         verify(clientProxy, times(1)).refresh(any(RefreshRequest.class));
-        verify(clientProxy, never()).search(any(SearchRequest.class));
+        verify(clientProxy, never()).search(any(SearchRequest.class), any(TimeValue.class));
         verify(clientProxy, never()).clearScroll(anyString());
     }
 
@@ -160,7 +160,7 @@ public class WatchStoreTests extends ElasticsearchTestCase {
         when(clientProxy.refresh(any(RefreshRequest.class))).thenReturn(refreshResponse);
 
         SearchResponse searchResponse = mockSearchResponse(1, 0, 0);
-        when(clientProxy.search(any(SearchRequest.class))).thenReturn(searchResponse);
+        when(clientProxy.search(any(SearchRequest.class), any(TimeValue.class))).thenReturn(searchResponse);
 
         when(clientProxy.clearScroll(anyString())).thenReturn(new ClearScrollResponse(true, 0));
 
@@ -173,7 +173,7 @@ public class WatchStoreTests extends ElasticsearchTestCase {
         }
         verifyZeroInteractions(templateUtils);
         verify(clientProxy, times(1)).refresh(any(RefreshRequest.class));
-        verify(clientProxy, times(1)).search(any(SearchRequest.class));
+        verify(clientProxy, times(1)).search(any(SearchRequest.class), any(TimeValue.class));
         verify(clientProxy, times(1)).clearScroll(anyString());
     }
 
@@ -200,7 +200,7 @@ public class WatchStoreTests extends ElasticsearchTestCase {
         when(clientProxy.refresh(any(RefreshRequest.class))).thenReturn(refreshResponse);
 
         SearchResponse searchResponse = mockSearchResponse(1, 1, 0);
-        when(clientProxy.search(any(SearchRequest.class))).thenReturn(searchResponse);
+        when(clientProxy.search(any(SearchRequest.class), any(TimeValue.class))).thenReturn(searchResponse);
 
         when(clientProxy.clearScroll(anyString())).thenReturn(new ClearScrollResponse(true, 0));
 
@@ -211,7 +211,7 @@ public class WatchStoreTests extends ElasticsearchTestCase {
         assertThat(watchStore.watches().size(), equalTo(0));
         verify(templateUtils, times(1)).putTemplate("watches", null);
         verify(clientProxy, times(1)).refresh(any(RefreshRequest.class));
-        verify(clientProxy, times(1)).search(any(SearchRequest.class));
+        verify(clientProxy, times(1)).search(any(SearchRequest.class), any(TimeValue.class));
         verify(clientProxy, times(1)).clearScroll(anyString());
     }
 
@@ -238,7 +238,7 @@ public class WatchStoreTests extends ElasticsearchTestCase {
         when(clientProxy.refresh(any(RefreshRequest.class))).thenReturn(refreshResponse);
 
         SearchResponse searchResponse1 = mockSearchResponse(1, 1, 2);
-        when(clientProxy.search(any(SearchRequest.class))).thenReturn(searchResponse1);
+        when(clientProxy.search(any(SearchRequest.class), any(TimeValue.class))).thenReturn(searchResponse1);
 
         BytesReference source = new BytesArray("{}");
         InternalSearchHit hit1 = new InternalSearchHit(0, "_id1", new StringText("type"), Collections.<String, SearchHitField>emptyMap());
@@ -266,7 +266,7 @@ public class WatchStoreTests extends ElasticsearchTestCase {
         assertThat(watchStore.watches().size(), equalTo(2));
         verify(templateUtils, times(1)).putTemplate("watches", null);
         verify(clientProxy, times(1)).refresh(any(RefreshRequest.class));
-        verify(clientProxy, times(1)).search(any(SearchRequest.class));
+        verify(clientProxy, times(1)).search(any(SearchRequest.class), any(TimeValue.class));
         verify(clientProxy, times(2)).searchScroll(anyString(), any(TimeValue.class));
         verify(clientProxy, times(1)).clearScroll(anyString());
     }

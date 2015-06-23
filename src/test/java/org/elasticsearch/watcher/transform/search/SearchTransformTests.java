@@ -14,6 +14,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -245,6 +246,7 @@ public class SearchTransformTests extends ElasticsearchIntegrationTest {
         SearchType searchType = getRandomSupportedSearchType();
         String templateName = randomBoolean() ? null : "template1";
         XContentBuilder builder = jsonBuilder().startObject();
+        builder.startObject("request");
         if (indices != null) {
             builder.array("indices", indices);
         }
@@ -272,6 +274,11 @@ public class SearchTransformTests extends ElasticsearchIntegrationTest {
                 .endObject();
 
         builder.endObject();
+        TimeValue readTimeout = randomBoolean() ? TimeValue.timeValueSeconds(randomInt(10)) : null;
+        if (readTimeout != null) {
+            builder.field("timeout", readTimeout);
+        }
+        builder.endObject();
 
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
@@ -292,12 +299,14 @@ public class SearchTransformTests extends ElasticsearchIntegrationTest {
             assertThat(executable.transform().getRequest().templateSource().toUtf8(), equalTo("{\"file\":\"template1\"}"));
         }
         assertThat(executable.transform().getRequest().source().toBytes(), equalTo(source.toBytes()));
+        assertThat(executable.transform().getTimeout(), equalTo(readTimeout != null ? readTimeout : TimeValue.timeValueSeconds(30))); // 30s is the default
     }
 
     @Test
     public void testParser_WithIndexNames() throws Exception {
         SearchType searchType = getRandomSupportedSearchType();
         XContentBuilder builder = jsonBuilder().startObject();
+        builder.startObject("request");
         builder.array("indices", "idx", "<idx-{now/d-3d}>");
         if (searchType != null) {
             builder.field("search_type", searchType.name());
@@ -310,6 +319,7 @@ public class SearchTransformTests extends ElasticsearchIntegrationTest {
                 .endObject()
                 .endObject();
 
+        builder.endObject();
         builder.endObject();
 
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());

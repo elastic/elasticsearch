@@ -10,6 +10,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -72,7 +73,7 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
                     .get().isAcknowledged(), is(true));
         }
 
-        IndexAction action = new IndexAction("test-index", "test-type", timestampField);
+        IndexAction action = new IndexAction("test-index", "test-type", timestampField, null);
         ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, ClientProxy.of(client()), new DynamicIndexName.Parser());
         DateTime executionTime = DateTime.now(UTC);
         Payload payload = randomBoolean() ? new Payload.Simple("foo", "bar") : new Payload.Simple("_doc", ImmutableMap.of("foo", "bar"));
@@ -135,7 +136,7 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
                 ImmutableSet.of(ImmutableMap.of("foo", "bar"), ImmutableMap.of("foo", "bar1"))
         );
 
-        IndexAction action = new IndexAction("test-index", "test-type", timestampField);
+        IndexAction action = new IndexAction("test-index", "test-type", timestampField, null);
         ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, ClientProxy.of(client()), new DynamicIndexName.Parser());
         DateTime executionTime = DateTime.now(UTC);
         WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", executionTime, new Payload.Simple("_doc", list));
@@ -197,6 +198,10 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
         if (timestampField != null) {
             builder.field(IndexAction.Field.EXECUTION_TIME_FIELD.getPreferredName(), timestampField);
         }
+        TimeValue writeTimeout = randomBoolean() ? TimeValue.timeValueSeconds(randomInt(10)) : null;
+        if (writeTimeout != null) {
+            builder.field(IndexAction.Field.TIMEOUT.getPreferredName(), writeTimeout);
+        }
         builder.endObject();
 
         IndexActionFactory actionParser = new IndexActionFactory(Settings.EMPTY, ClientProxy.of(client()));
@@ -209,6 +214,12 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
         assertThat(executable.action().index, equalTo("test-index"));
         if (timestampField != null) {
             assertThat(executable.action().executionTimeField, equalTo(timestampField));
+        }
+        if (writeTimeout != null) {
+            assertThat(executable.action().timeout, equalTo(writeTimeout));
+        } else {
+            // default:
+            assertThat(executable.action().timeout, equalTo(TimeValue.timeValueSeconds(60)));
         }
     }
 

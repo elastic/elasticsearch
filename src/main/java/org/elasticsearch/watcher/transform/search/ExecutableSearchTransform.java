@@ -30,7 +30,7 @@ public class ExecutableSearchTransform extends ExecutableTransform<SearchTransfo
     public ExecutableSearchTransform(SearchTransform transform, ESLogger logger, ClientProxy client, DynamicIndexName.Parser indexNameParser) {
         super(transform, logger);
         this.client = client;
-        String[] indices = transform.request.indices();
+        String[] indices = transform.getRequest().indices();
         this.indexNames = indices != null ? indexNameParser.parse(indices) : null;
     }
 
@@ -42,8 +42,8 @@ public class ExecutableSearchTransform extends ExecutableTransform<SearchTransfo
     public SearchTransform.Result execute(WatchExecutionContext ctx, Payload payload) {
         SearchRequest request = null;
         try {
-            request = WatcherUtils.createSearchRequestFromPrototype(transform.request, indexNames, ctx, payload);
-            SearchResponse resp = client.search(request);
+            request = WatcherUtils.createSearchRequestFromPrototype(transform.getRequest(), indexNames, ctx, payload);
+            SearchResponse resp = client.search(request, transform.getTimeout());
             return new SearchTransform.Result(request, new Payload.XContent(resp));
         } catch (Exception e) {
             logger.error("failed to execute [{}] transform for [{}]", e, SearchTransform.TYPE, ctx.id());

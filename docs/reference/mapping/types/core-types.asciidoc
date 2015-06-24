@@ -591,6 +591,7 @@ Multiple fields are also supported:
 --------------------------------------------------
 
 [float]
+[[multi-fields]]
 ===== Multi fields
 
 The `fields` options allows to map several core types fields into a single

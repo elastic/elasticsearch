@@ -679,7 +679,10 @@ class DocumentParser implements Closeable {
     }
 
     private static XContentParser transform(Mapping mapping, XContentParser parser) throws IOException {
-        Map<String, Object> transformed = transformSourceAsMap(mapping, parser.mapOrderedAndClose());
+        Map<String, Object> transformed;
+        try (XContentParser _ = parser) {
+            transformed = transformSourceAsMap(mapping, parser.mapOrdered());
+        }
         XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType()).value(transformed);
         return parser.contentType().xContent().createParser(builder.bytes());
     }

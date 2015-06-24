@@ -30,6 +30,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
@@ -553,8 +554,8 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
      */
     public RestoreSnapshotRequest source(String source) {
         if (hasLength(source)) {
-            try {
-                return source(XContentFactory.xContent(source).createParser(source).mapOrderedAndClose());
+            try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
+                return source(parser.mapOrdered());
             } catch (Exception e) {
                 throw new IllegalArgumentException("failed to parse repository source [" + source + "]", e);
             }
@@ -586,8 +587,8 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
      */
     public RestoreSnapshotRequest source(byte[] source, int offset, int length) {
         if (length > 0) {
-            try {
-                return source(XContentFactory.xContent(source, offset, length).createParser(source, offset, length).mapOrderedAndClose());
+            try (XContentParser parser = XContentFactory.xContent(source, offset, length).createParser(source, offset, length)) {
+                return source(parser.mapOrdered());
             } catch (IOException e) {
                 throw new IllegalArgumentException("failed to parse repository source", e);
             }
@@ -604,8 +605,8 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
      * @return this request
      */
     public RestoreSnapshotRequest source(BytesReference source) {
-        try {
-            return source(XContentFactory.xContent(source).createParser(source).mapOrderedAndClose());
+        try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
+            return source(parser.mapOrdered());
         } catch (IOException e) {
             throw new IllegalArgumentException("failed to parse template source", e);
         }

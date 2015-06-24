@@ -81,9 +81,8 @@ public class AliasValidator extends AbstractComponent {
     public void validateAliasStandalone(Alias alias) {
         validateAliasStandalone(alias.name(), alias.indexRouting());
         if (Strings.hasLength(alias.filter())) {
-            try {
-                XContentParser parser = XContentFactory.xContent(alias.filter()).createParser(alias.filter());
-                parser.mapAndClose();
+            try (XContentParser parser = XContentFactory.xContent(alias.filter()).createParser(alias.filter())) {
+                parser.map();
             } catch (Throwable e) {
                 throw new IllegalArgumentException("failed to parse filter for alias [" + alias.name() + "]", e);
             }

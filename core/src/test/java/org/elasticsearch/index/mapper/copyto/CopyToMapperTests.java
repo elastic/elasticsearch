@@ -26,6 +26,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -91,7 +92,10 @@ public class CopyToMapperTests extends ElasticsearchSingleNodeTest {
         XContentBuilder builder = jsonBuilder().startObject();
         stringFieldMapper.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject();
         builder.close();
-        Map<String, Object> serializedMap = JsonXContent.jsonXContent.createParser(builder.bytes()).mapAndClose();
+        Map<String, Object> serializedMap;
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes())) {
+            serializedMap = parser.map();
+        }
         Map<String, Object> copyTestMap = (Map<String, Object>) serializedMap.get("copy_test");
         assertThat(copyTestMap.get("type").toString(), is("string"));
         List<String> copyToList = (List<String>) copyTestMap.get("copy_to");

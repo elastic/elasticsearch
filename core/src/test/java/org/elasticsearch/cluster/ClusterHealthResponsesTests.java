@@ -107,7 +107,7 @@ public class ClusterHealthResponsesTests extends ElasticsearchTestCase {
 
     static int node_id = 1;
 
-    private ImmutableShardRouting genShardRouting(String index, int shardId, boolean primary) {
+    private ShardRouting genShardRouting(String index, int shardId, boolean primary) {
 
         ShardRoutingState state;
 
@@ -122,11 +122,11 @@ public class ClusterHealthResponsesTests extends ElasticsearchTestCase {
 
         switch (state) {
             case STARTED:
-                return new MutableShardRouting(index, shardId, "node_" + Integer.toString(node_id++), null, null, primary, ShardRoutingState.STARTED, 1);
+                return new ShardRouting(index, shardId, "node_" + Integer.toString(node_id++), null, null, primary, ShardRoutingState.STARTED, 1);
             case INITIALIZING:
-                return new MutableShardRouting(index, shardId, "node_" + Integer.toString(node_id++), null, null, primary, ShardRoutingState.INITIALIZING, 1);
+                return new ShardRouting(index, shardId, "node_" + Integer.toString(node_id++), null, null, primary, ShardRoutingState.INITIALIZING, 1);
             case RELOCATING:
-                return new MutableShardRouting(index, shardId, "node_" + Integer.toString(node_id++), "node_" + Integer.toString(node_id++), null, primary, ShardRoutingState.RELOCATING, 1);
+                return new ShardRouting(index, shardId, "node_" + Integer.toString(node_id++), "node_" + Integer.toString(node_id++), null, primary, ShardRoutingState.RELOCATING, 1);
             default:
                 throw new ElasticsearchException("Unknown state: " + state.name());
         }
@@ -135,7 +135,7 @@ public class ClusterHealthResponsesTests extends ElasticsearchTestCase {
 
     private IndexShardRoutingTable genShardRoutingTable(String index, int shardId, int replicas, ShardCounter counter) {
         IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(new ShardId(index, shardId), true);
-        ImmutableShardRouting shardRouting = genShardRouting(index, shardId, true);
+        ShardRouting shardRouting = genShardRouting(index, shardId, true);
         counter.update(shardRouting);
         builder.addShard(shardRouting);
         for (; replicas > 0; replicas--) {

@@ -215,8 +215,10 @@ public class SimpleThreadPoolTests extends ElasticsearchIntegrationTest {
         info.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         builder.close();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.string());
-        Map<String, Object> poolsMap = parser.mapAndClose();
+        Map<String, Object> poolsMap;
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(builder.string())) {
+            poolsMap = parser.map();
+        }
         return (Map<String, Object>) ((Map<String, Object>) poolsMap.get("thread_pool")).get(poolName);
     }
 

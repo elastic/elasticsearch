@@ -32,16 +32,14 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasables;
@@ -57,7 +55,6 @@ import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  *
@@ -70,8 +67,7 @@ public class GatewayAllocator extends AbstractComponent {
 
     private final TransportNodesListGatewayStartedShards startedAction;
     private final TransportNodesListShardStoreMetaData storeAction;
-    private ClusterService clusterService;
-    private AllocationService allocationService;
+    private RoutingService routingService;
 
     private final ConcurrentMap<ShardId, AsyncShardFetch<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards>> asyncFetchStarted = ConcurrentCollections.newConcurrentMap();
     private final ConcurrentMap<ShardId, AsyncShardFetch<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData>> asyncFetchStore = ConcurrentCollections.newConcurrentMap();
@@ -87,9 +83,8 @@ public class GatewayAllocator extends AbstractComponent {
         logger.debug("using initial_shards [{}]", initialShards);
     }
 
-    public void setReallocation(final ClusterService clusterService, final AllocationService allocationService) {
-        this.clusterService = clusterService;
-        this.allocationService = allocationService;
+    public void setReallocation(final ClusterService clusterService, final RoutingService routingService) {
+        this.routingService = routingService;
         clusterService.add(new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
@@ -153,9 +148,9 @@ public class GatewayAllocator extends AbstractComponent {
 
         // First, handle primaries, they must find a place to be allocated on here
         MetaData metaData = routingNodes.metaData();
-        Iterator<MutableShardRouting> unassignedIterator = routingNodes.unassigned().iterator();
+        Iterator<ShardRouting> unassignedIterator = routingNodes.unassigned().iterator();
         while (unassignedIterator.hasNext()) {
-            MutableShardRouting shard = unassignedIterator.next();
+            ShardRouting shard = unassignedIterator.next();
 
             if (!shard.primary()) {
                 continue;
@@ -335,7 +330,7 @@ public class GatewayAllocator extends AbstractComponent {
                     // we found a match
                     changed = true;
                     // make sure we create one with the version from the recovered state
-                    allocation.routingNodes().assign(new MutableShardRouting(shard, highestVersion), node.nodeId());
+                    allocation.routingNodes().assign(new ShardRouting(shard, highestVersion), node.nodeId());
                     unassignedIterator.remove();
 
                     // found a node, so no throttling, no "no", and break out of the loop
@@ -355,7 +350,7 @@ public class GatewayAllocator extends AbstractComponent {
                     // we found a match
                     changed = true;
                     // make sure we create one with the version from the recovered state
-                    allocation.routingNodes().assign(new MutableShardRouting(shard, highestVersion), node.nodeId());
+                    allocation.routingNodes().assign(new ShardRouting(shard, highestVersion), node.nodeId());
                     unassignedIterator.remove();
                 }
             } else {
@@ -375,7 +370,7 @@ public class GatewayAllocator extends AbstractComponent {
         // Now, handle replicas, try to assign them to nodes that are similar to the one the primary was allocated on
         unassignedIterator = routingNodes.unassigned().iterator();
         while (unassignedIterator.hasNext()) {
-            MutableShardRouting shard = unassignedIterator.next();
+            ShardRouting shard = unassignedIterator.next();
             if (shard.primary()) {
                 continue;
             }
@@ -453,7 +448,7 @@ public class GatewayAllocator extends AbstractComponent {
 
                 if (!shard.primary()) {
                     hasReplicaData |= storeFilesMetaData.iterator().hasNext();
-                    MutableShardRouting primaryShard = routingNodes.activePrimary(shard);
+                    ShardRouting primaryShard = routingNodes.activePrimary(shard);
                     if (primaryShard != null) {
                         assert primaryShard.active();
                         DiscoveryNode primaryNode = nodes.get(primaryShard.currentNodeId());
@@ -535,8 +530,6 @@ public class GatewayAllocator extends AbstractComponent {
         return changed;
     }
 
-    private final AtomicBoolean rerouting = new AtomicBoolean();
-
     class InternalAsyncFetch<T extends BaseNodeResponse> extends AsyncShardFetch<T> {
 
         public InternalAsyncFetch(ESLogger logger, String type, ShardId shardId, List<? extends BaseNodesResponse<T>, T> action) {
@@ -545,30 +538,8 @@ public class GatewayAllocator extends AbstractComponent {
 
         @Override
         protected void reroute(ShardId shardId, String reason) {
-            if (rerouting.compareAndSet(false, true) == false) {
-                logger.trace("{} already has pending reroute, ignoring {}", shardId, reason);
-                return;
-            }
-            clusterService.submitStateUpdateTask("async_shard_fetch", Priority.HIGH, new ClusterStateUpdateTask() {
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    rerouting.set(false);
-                    if (currentState.nodes().masterNode() == null) {
-                        return currentState;
-                    }
-                    RoutingAllocation.Result routingResult = allocationService.reroute(currentState);
-                    if (!routingResult.changed()) {
-                        return currentState;
-                    }
-                    return ClusterState.builder(currentState).routingResult(routingResult).build();
-                }
-
-                @Override
-                public void onFailure(String source, Throwable t) {
-                    rerouting.set(false);
-                    logger.warn("failed to perform reroute post async fetch for {}", t, source);
-                }
-            });
+            logger.trace("{} scheduling reroute for {}", shardId, reason);
+            routingService.reroute("async_shard_fetch");
         }
     }
 }

@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.cluster.repositories.put;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -29,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
@@ -231,8 +231,8 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
      * @param repositoryDefinition repository definition
      */
     public PutRepositoryRequest source(String repositoryDefinition) {
-        try {
-            return source(XContentFactory.xContent(repositoryDefinition).createParser(repositoryDefinition).mapOrderedAndClose());
+        try (XContentParser parser = XContentFactory.xContent(repositoryDefinition).createParser(repositoryDefinition)) {
+            return source(parser.mapOrdered());
         } catch (IOException e) {
             throw new IllegalArgumentException("failed to parse repository source [" + repositoryDefinition + "]", e);
         }
@@ -255,8 +255,8 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
      * @param repositoryDefinition repository definition
      */
     public PutRepositoryRequest source(byte[] repositoryDefinition, int offset, int length) {
-        try {
-            return source(XContentFactory.xContent(repositoryDefinition, offset, length).createParser(repositoryDefinition, offset, length).mapOrderedAndClose());
+        try (XContentParser parser = XContentFactory.xContent(repositoryDefinition, offset, length).createParser(repositoryDefinition, offset, length)) {
+            return source(parser.mapOrdered());
         } catch (IOException e) {
             throw new IllegalArgumentException("failed to parse repository source", e);
         }
@@ -269,8 +269,8 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
      * @param repositoryDefinition repository definition
      */
     public PutRepositoryRequest source(BytesReference repositoryDefinition) {
-        try {
-            return source(XContentFactory.xContent(repositoryDefinition).createParser(repositoryDefinition).mapOrderedAndClose());
+        try (XContentParser parser = XContentFactory.xContent(repositoryDefinition).createParser(repositoryDefinition)) {
+            return source(parser.mapOrdered());
         } catch (IOException e) {
             throw new IllegalArgumentException("failed to parse template source", e);
         }

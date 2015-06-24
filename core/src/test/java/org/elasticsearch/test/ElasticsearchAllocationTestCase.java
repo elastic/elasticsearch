@@ -23,7 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocators;
@@ -114,7 +114,7 @@ public abstract class ElasticsearchAllocationTestCase extends ElasticsearchTestC
     }
 
     public static ClusterState startRandomInitializingShard(ClusterState clusterState, AllocationService strategy) {
-        List<MutableShardRouting> initializingShards = clusterState.routingNodes().shardsWithState(INITIALIZING);
+        List<ShardRouting> initializingShards = clusterState.routingNodes().shardsWithState(INITIALIZING);
         if (initializingShards.isEmpty()) {
             return clusterState;
         }

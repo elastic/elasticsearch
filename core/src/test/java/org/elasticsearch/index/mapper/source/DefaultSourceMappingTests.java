@@ -27,6 +27,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
@@ -122,7 +123,10 @@ public class DefaultSourceMappingTests extends ElasticsearchSingleNodeTest {
             .endObject().bytes());
 
         IndexableField sourceField = doc.rootDoc().getField("_source");
-        Map<String, Object> sourceAsMap = XContentFactory.xContent(XContentType.JSON).createParser(new BytesArray(sourceField.binaryValue())).mapAndClose();
+        Map<String, Object> sourceAsMap;
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(new BytesArray(sourceField.binaryValue()))) {
+            sourceAsMap = parser.map();
+        }
         assertThat(sourceAsMap.containsKey("path1"), equalTo(true));
         assertThat(sourceAsMap.containsKey("path2"), equalTo(false));
     }
@@ -140,7 +144,10 @@ public class DefaultSourceMappingTests extends ElasticsearchSingleNodeTest {
             .endObject().bytes());
 
         IndexableField sourceField = doc.rootDoc().getField("_source");
-        Map<String, Object> sourceAsMap = XContentFactory.xContent(XContentType.JSON).createParser(new BytesArray(sourceField.binaryValue())).mapAndClose();
+        Map<String, Object> sourceAsMap;
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(new BytesArray(sourceField.binaryValue()))) {
+            sourceAsMap = parser.map();
+        }
         assertThat(sourceAsMap.containsKey("path1"), equalTo(false));
         assertThat(sourceAsMap.containsKey("path2"), equalTo(true));
     }

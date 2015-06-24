@@ -17,7 +17,7 @@
       indices.recovery:
         index: [test_1]
 
-  - match: { test_1.shards.0.type:                                 "GATEWAY"               }
+  - match: { test_1.shards.0.type:                                 "STORE"               }
   - match: { test_1.shards.0.stage:                                "DONE"                  }
   - match: { test_1.shards.0.primary:                              true                    }
   - match: { test_1.shards.0.target.ip:                            /^\d+\.\d+\.\d+\.\d+$/  }

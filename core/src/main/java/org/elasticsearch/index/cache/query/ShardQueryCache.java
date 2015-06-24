@@ -39,7 +39,6 @@ public class ShardQueryCache extends AbstractIndexShardComponent implements Remo
     final CounterMetric hitCount = new CounterMetric();
     final CounterMetric missCount = new CounterMetric();
 
-    @Inject
     public ShardQueryCache(ShardId shardId, @IndexSettings Settings indexSettings) {
         super(shardId, indexSettings);
     }

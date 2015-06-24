@@ -45,7 +45,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 
-import static org.elasticsearch.cluster.routing.ImmutableShardRouting.readShardRoutingEntry;
+import static org.elasticsearch.cluster.routing.ShardRouting.readShardRoutingEntry;
 
 /**
  *
@@ -183,7 +183,7 @@ public class ShardStateAction extends AbstractComponent {
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 if (oldState != newState && newState.getRoutingNodes().hasUnassigned()) {
                     logger.trace("unassigned shards after shard failures. scheduling a reroute.");
-                    routingService.scheduleReroute();
+                    routingService.reroute("unassigned shards after shard failures, scheduling a reroute");
                 }
             }
         });

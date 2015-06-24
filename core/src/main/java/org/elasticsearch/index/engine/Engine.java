@@ -45,7 +45,6 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
-import org.elasticsearch.index.fielddata.ShardFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -995,7 +994,6 @@ public abstract class Engine implements Closeable {
     public static class Get {
         private final boolean realtime;
         private final Term uid;
-        private boolean loadSource = true;
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
 
@@ -1010,15 +1008,6 @@ public abstract class Engine implements Closeable {
 
         public Term uid() {
             return uid;
-        }
-
-        public boolean loadSource() {
-            return this.loadSource;
-        }
-
-        public Get loadSource(boolean loadSource) {
-            this.loadSource = loadSource;
-            return this;
         }
 
         public long version() {

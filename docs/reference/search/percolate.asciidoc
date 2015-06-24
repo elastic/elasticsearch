@@ -493,6 +493,8 @@ the time the percolate API needs to run can be decreased.
 Because the percolator API is processing one document at a time, it doesn't support queries and filters that run
 against child documents such as `has_child` and `has_parent`.
 
+The `inner_hits` feature on the `nested` query isn't supported in the percolate api.
+
 The `wildcard` and `regexp` query natively use a lot of memory and because the percolator keeps the queries into memory
 this can easily take up the available memory in the heap space. If possible try to use a `prefix` query or ngramming to
 achieve the same result (with way less memory being used).

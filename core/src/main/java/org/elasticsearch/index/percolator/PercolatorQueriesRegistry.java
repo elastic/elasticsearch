@@ -26,14 +26,12 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.indexing.IndexingOperationListener;
@@ -94,7 +92,6 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
         }
     };
 
-    @Inject
     public PercolatorQueriesRegistry(ShardId shardId, @IndexSettings Settings indexSettings, IndexQueryParserService queryParserService,
                                      ShardIndexingService indexingService, IndicesLifecycle indicesLifecycle, MapperService mapperService,
                                      IndexFieldDataService indexFieldDataService, ShardPercolateService shardPercolateService) {

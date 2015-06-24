@@ -21,15 +21,12 @@ package org.elasticsearch.index.indexing;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.indexing.slowlog.ShardSlowLogIndexingService;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -42,7 +39,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class ShardIndexingService extends AbstractIndexShardComponent {
 
-    private final ShardSlowLogIndexingService slowLog;
+    private final IndexingSlowLog slowLog;
 
     private final StatsHolder totalStats = new StatsHolder();
 
@@ -50,10 +47,9 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
 
     private volatile Map<String, StatsHolder> typesStats = ImmutableMap.of();
 
-    @Inject
-    public ShardIndexingService(ShardId shardId, @IndexSettings Settings indexSettings, ShardSlowLogIndexingService slowLog) {
+    public ShardIndexingService(ShardId shardId, Settings indexSettings) {
         super(shardId, indexSettings);
-        this.slowLog = slowLog;
+        this.slowLog = new IndexingSlowLog(indexSettings);
     }
 
     /**
@@ -250,6 +246,10 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
             }
         }
         return stats;
+    }
+
+    public void onRefreshSettings(Settings settings) {
+        slowLog.onRefreshSettings(settings);
     }
 
     static class StatsHolder {

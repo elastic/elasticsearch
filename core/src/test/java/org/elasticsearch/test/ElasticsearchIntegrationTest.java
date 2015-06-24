@@ -31,7 +31,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.index.shard.MergeSchedulerConfig;
-import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
@@ -110,19 +109,15 @@ import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.index.translog.TranslogWriter;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
-import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.flush.IndicesSyncedFlushResult;
 import org.elasticsearch.indices.flush.SyncedFlushService;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.client.RandomizingClient;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
-import org.elasticsearch.transport.netty.NettyTransport;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTimeZone;
 import org.junit.*;
@@ -355,7 +350,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         // TODO move settings for random directory etc here into the index based randomized settings.
         if (cluster().size() > 0) {
             Settings.Builder randomSettingsBuilder =
-                    setRandomSettings(getRandom(), Settings.builder())
+                    setRandomIndexSettings(getRandom(), Settings.builder())
                             .put(SETTING_INDEX_SEED, getRandom().nextLong());
 
             randomSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards())
@@ -441,6 +436,10 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 mappings.endObject().endObject();
             }
 
+            for (String setting : randomSettingsBuilder.internalMap().keySet()) {
+                assertThat("non index. prefix setting set on index template, its a node setting...", setting, startsWith("index."));
+            }
+
             PutIndexTemplateRequestBuilder putTemplate = client().admin().indices()
                     .preparePutTemplate("random_index_template")
                     .setTemplate("*")
@@ -454,40 +453,13 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
     }
 
-    protected Settings.Builder setRandomSettings(Random random, Settings.Builder builder) {
-        setRandomMerge(random, builder);
-        setRandomTranslogSettings(random, builder);
-        setRandomNormsLoading(random, builder);
-        setRandomScriptingSettings(random, builder);
-        if (random.nextBoolean()) {
-            if (random.nextInt(10) == 0) { // do something crazy slow here
-                builder.put(IndicesStore.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC, new ByteSizeValue(RandomInts.randomIntBetween(random, 1, 10), ByteSizeUnit.MB));
-            } else {
-                builder.put(IndicesStore.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC, new ByteSizeValue(RandomInts.randomIntBetween(random, 10, 200), ByteSizeUnit.MB));
-            }
-        }
-        if (random.nextBoolean()) {
-            builder.put(IndicesStore.INDICES_STORE_THROTTLE_TYPE, RandomPicks.randomFrom(random, StoreRateLimiting.Type.values()));
-        }
+    protected Settings.Builder setRandomIndexSettings(Random random, Settings.Builder builder) {
+        setRandomIndexMergeSettings(random, builder);
+        setRandomIndexTranslogSettings(random, builder);
+        setRandomIndexNormsLoading(random, builder);
 
         if (random.nextBoolean()) {
             builder.put(MergeSchedulerConfig.AUTO_THROTTLE, false);
-        }
-
-        if (random.nextBoolean()) {
-            if (random.nextInt(10) == 0) { // do something crazy slow here
-                builder.put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, new ByteSizeValue(RandomInts.randomIntBetween(random, 1, 10), ByteSizeUnit.MB));
-            } else {
-                builder.put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, new ByteSizeValue(RandomInts.randomIntBetween(random, 10, 200), ByteSizeUnit.MB));
-            }
-        }
-
-        if (random.nextBoolean()) {
-            builder.put(RecoverySettings.INDICES_RECOVERY_COMPRESS, random.nextBoolean());
-        }
-
-        if (random.nextBoolean()) {
-            builder.put(TranslogConfig.INDEX_TRANSLOG_FS_TYPE, RandomPicks.randomFrom(random, TranslogWriter.Type.values()).name());
         }
 
         if (random.nextBoolean()) {
@@ -498,14 +470,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             builder.put("index.shard.check_on_startup", randomFrom(random, "false", "checksum", "true"));
         }
 
-        if (random.nextBoolean()) {
-            builder.put(IndicesQueryCache.INDICES_CACHE_QUERY_CONCURRENCY_LEVEL, RandomInts.randomIntBetween(random, 1, 32));
-            builder.put(IndicesFieldDataCache.FIELDDATA_CACHE_CONCURRENCY_LEVEL, RandomInts.randomIntBetween(random, 1, 32));
-        }
-        if (random.nextBoolean()) {
-            builder.put(NettyTransport.PING_SCHEDULE, RandomInts.randomIntBetween(random, 100, 2000) + "ms");
-        }
-
         if (randomBoolean()) {
             // keep this low so we don't stall tests
             builder.put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, RandomInts.randomIntBetween(random, 1, 15) + "ms");
@@ -514,17 +478,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return builder;
     }
 
-    private static Settings.Builder setRandomScriptingSettings(Random random, Settings.Builder builder) {
-        if (random.nextBoolean()) {
-            builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING, RandomInts.randomIntBetween(random, -100, 2000));
-        }
-        if (random.nextBoolean()) {
-            builder.put(ScriptService.SCRIPT_CACHE_EXPIRE_SETTING, TimeValue.timeValueMillis(RandomInts.randomIntBetween(random, 750, 10000000)));
-        }
-        return builder;
-    }
-
-    private static Settings.Builder setRandomMerge(Random random, Settings.Builder builder) {
+    private static Settings.Builder setRandomIndexMergeSettings(Random random, Settings.Builder builder) {
         if (random.nextBoolean()) {
             builder.put(MergePolicyConfig.INDEX_COMPOUND_FORMAT,
                     random.nextBoolean() ? random.nextDouble() : random.nextBoolean());
@@ -541,14 +495,14 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return builder;
     }
 
-    private static Settings.Builder setRandomNormsLoading(Random random, Settings.Builder builder) {
+    private static Settings.Builder setRandomIndexNormsLoading(Random random, Settings.Builder builder) {
         if (random.nextBoolean()) {
             builder.put(SearchService.NORMS_LOADING_KEY, RandomPicks.randomFrom(random, Arrays.asList(MappedFieldType.Loading.EAGER, MappedFieldType.Loading.LAZY)));
         }
         return builder;
     }
 
-    private static Settings.Builder setRandomTranslogSettings(Random random, Settings.Builder builder) {
+    private static Settings.Builder setRandomIndexTranslogSettings(Random random, Settings.Builder builder) {
         if (random.nextBoolean()) {
             builder.put(TranslogService.INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS, RandomInts.randomIntBetween(random, 1, 10000));
         }
@@ -567,6 +521,16 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         if (random.nextBoolean()) {
             builder.put(TranslogConfig.INDEX_TRANSLOG_DURABILITY, RandomPicks.randomFrom(random, Translog.Durabilty.values()));
         }
+
+        if (random.nextBoolean()) {
+            builder.put(TranslogConfig.INDEX_TRANSLOG_FS_TYPE, RandomPicks.randomFrom(random, TranslogWriter.Type.values()));
+            if (rarely(random)) {
+                builder.put(TranslogConfig.INDEX_TRANSLOG_SYNC_INTERVAL, 0); // 0 has special meaning to sync each op
+            } else {
+                builder.put(TranslogConfig.INDEX_TRANSLOG_SYNC_INTERVAL, RandomInts.randomIntBetween(random, 100, 5000), TimeUnit.MILLISECONDS);
+            }
+        }
+
         return builder;
     }
 

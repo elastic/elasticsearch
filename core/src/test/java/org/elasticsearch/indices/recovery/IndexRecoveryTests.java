@@ -164,7 +164,7 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
         ShardRecoveryResponse shardResponse = shardResponses.get(0);
         RecoveryState state = shardResponse.recoveryState();
 
-        assertRecoveryState(state, 0, Type.GATEWAY, Stage.DONE, node, node, false);
+        assertRecoveryState(state, 0, Type.STORE, Stage.DONE, node, node, false);
 
         validateIndexRecoveryState(state.getIndex());
     }
@@ -219,7 +219,7 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
 
         // validate node A recovery
         ShardRecoveryResponse nodeAShardResponse = nodeAResponses.get(0);
-        assertRecoveryState(nodeAShardResponse.recoveryState(), 0, Type.GATEWAY, Stage.DONE, nodeA, nodeA, false);
+        assertRecoveryState(nodeAShardResponse.recoveryState(), 0, Type.STORE, Stage.DONE, nodeA, nodeA, false);
         validateIndexRecoveryState(nodeAShardResponse.recoveryState().getIndex());
 
         // validate node B recovery
@@ -272,7 +272,7 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
         List<ShardRecoveryResponse> nodeBResponses = findRecoveriesForTargetNode(nodeB, shardResponses);
         assertThat(nodeBResponses.size(), equalTo(1));
 
-        assertRecoveryState(nodeAResponses.get(0).recoveryState(), 0, Type.GATEWAY, Stage.DONE, nodeA, nodeA, false);
+        assertRecoveryState(nodeAResponses.get(0).recoveryState(), 0, Type.STORE, Stage.DONE, nodeA, nodeA, false);
         validateIndexRecoveryState(nodeAResponses.get(0).recoveryState().getIndex());
 
         assertOnGoingRecoveryState(nodeBResponses.get(0).recoveryState(), 0, Type.RELOCATION, nodeA, nodeB, false);
@@ -519,7 +519,6 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
         final Settings nodeSettings = Settings.builder()
                 .put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK, "100ms")
                 .put(RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT, "1s")
-                .put("cluster.routing.schedule", "100ms") // aggressive reroute post shard failures
                 .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
                 .put(MockFSDirectoryService.RANDOM_PREVENT_DOUBLE_WRITE, false) // restarted recoveries will delete temp files and write them again
                 .build();

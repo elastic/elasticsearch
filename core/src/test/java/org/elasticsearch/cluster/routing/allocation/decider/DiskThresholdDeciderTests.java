@@ -829,8 +829,8 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 .build();
 
         // Two shards consuming each 80% of disk space while 70% is allowed, so shard 0 isn't allowed here
-        MutableShardRouting firstRouting = new MutableShardRouting("test", 0, "node1", null, null, true, ShardRoutingState.STARTED, 1);
-        MutableShardRouting secondRouting = new MutableShardRouting("test", 1, "node1", null, null, true, ShardRoutingState.STARTED, 1);
+        ShardRouting firstRouting = new ShardRouting("test", 0, "node1", null, null, true, ShardRoutingState.STARTED, 1);
+        ShardRouting secondRouting = new ShardRouting("test", 1, "node1", null, null, true, ShardRoutingState.STARTED, 1);
         RoutingNode firstRoutingNode = new RoutingNode("node1", discoveryNode1, Arrays.asList(firstRouting, secondRouting));
         RoutingTable.Builder builder = RoutingTable.builder().add(
                 IndexRoutingTable.builder("test")
@@ -849,8 +849,8 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
         assertThat(decision.type(), equalTo(Decision.Type.NO));
 
         // Two shards consuming each 80% of disk space while 70% is allowed, but one is relocating, so shard 0 can stay
-        firstRouting = new MutableShardRouting("test", 0, "node1", null, null, true, ShardRoutingState.STARTED, 1);
-        secondRouting = new MutableShardRouting("test", 1, "node1", "node2", null, true, ShardRoutingState.RELOCATING, 1);
+        firstRouting = new ShardRouting("test", 0, "node1", null, null, true, ShardRoutingState.STARTED, 1);
+        secondRouting = new ShardRouting("test", 1, "node1", "node2", null, true, ShardRoutingState.RELOCATING, 1);
         firstRoutingNode = new RoutingNode("node1", discoveryNode1, Arrays.asList(firstRouting, secondRouting));
         builder = RoutingTable.builder().add(
                 IndexRoutingTable.builder("test")
@@ -904,9 +904,9 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
     public void logShardStates(ClusterState state) {
         RoutingNodes rn = state.routingNodes();
         logger.info("--> counts: total: {}, unassigned: {}, initializing: {}, relocating: {}, started: {}",
-                rn.shards(new Predicate<MutableShardRouting>() {
+                rn.shards(new Predicate<ShardRouting>() {
                     @Override
-                    public boolean apply(org.elasticsearch.cluster.routing.MutableShardRouting input) {
+                    public boolean apply(ShardRouting input) {
                         return true;
                     }
                 }).size(),

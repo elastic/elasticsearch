@@ -184,7 +184,10 @@ case "$1" in
 		do
 			sleep 1
 			i=$(($i + 1))
-			[ $i -gt $timeout ] && log_end_msg 1
+			if [ $i -gt $timeout ]; then
+				log_end_msg 1
+				exit 1
+			fi
 		done
 	else
 		log_end_msg $return

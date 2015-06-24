@@ -26,7 +26,7 @@ import java.io.IOException;
 /**
  * A filer for a field based on several terms matching on any of them.
  */
-public class TermsQueryBuilder extends QueryBuilder {
+public class TermsQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<TermsQueryBuilder> {
 
     private final String name;
 
@@ -35,6 +35,8 @@ public class TermsQueryBuilder extends QueryBuilder {
     private String queryName;
 
     private String execution;
+
+    private float boost = -1;
 
     /**
      * A filer for a field based on several terms matching on any of them.
@@ -132,12 +134,22 @@ public class TermsQueryBuilder extends QueryBuilder {
     }
 
     @Override
+    public TermsQueryBuilder boost(float boost) {
+        this.boost = boost;
+        return this;
+    }
+
+    @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(TermsQueryParser.NAME);
         builder.field(name, values);
 
         if (execution != null) {
             builder.field("execution", execution);
+        }
+
+        if (boost != -1) {
+            builder.field("boost", boost);
         }
 
         if (queryName != null) {

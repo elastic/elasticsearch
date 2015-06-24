@@ -25,7 +25,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -270,7 +270,7 @@ public class SingleShardNoReplicasRoutingTests extends ElasticsearchAllocationTe
             int nodeIndex = Integer.parseInt(routingNode.nodeId().substring("node".length()));
             assertThat(nodeIndex, lessThan(25));
             // check that we don't have a shard associated with a node with the same index name (we have a single shard)
-            for (MutableShardRouting shardRoutingEntry : routingNode) {
+            for (ShardRouting shardRoutingEntry : routingNode) {
                 assertThat(encounteredIndices, not(hasItem(shardRoutingEntry.index())));
                 encounteredIndices.add(shardRoutingEntry.index());
             }

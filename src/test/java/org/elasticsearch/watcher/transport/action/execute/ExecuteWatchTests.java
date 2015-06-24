@@ -38,6 +38,7 @@ import static org.elasticsearch.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.cron;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -297,7 +298,7 @@ public class ExecuteWatchTests extends AbstractWatcherIntegrationTests {
                     @Override
                     public void run() {
                         GetWatchResponse getWatchResponse = watcherClient.prepareGetWatch("_id").get();
-                        assertValue(getWatchResponse.getSource(), "status.actions.log.ack.state", is("ackable"));
+                        assertThat(getWatchResponse.getStatus().actionStatus("log").ackStatus().state(), equalTo(ActionStatus.AckStatus.State.ACKABLE));
                     }
                 });
             }

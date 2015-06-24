@@ -69,7 +69,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
 
                 @Override
                 public void onFailure(Throwable e) {
-                    responses.set(index, new MultiSearchResponse.Item(null, ExceptionsHelper.detailedMessage(e)));
+                    responses.set(index, new MultiSearchResponse.Item(null, e));
                     if (counter.decrementAndGet() == 0) {
                         finishHim();
                     }

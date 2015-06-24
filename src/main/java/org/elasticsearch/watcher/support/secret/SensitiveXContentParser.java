@@ -12,6 +12,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -82,6 +83,16 @@ public class SensitiveXContentParser implements XContentParser {
     @Override
     public Map<String, Object> mapOrdered() throws IOException {
         return parser.mapOrdered();
+    }
+
+    @Override
+    public List<Object> list() throws IOException {
+        return parser.list();
+    }
+
+    @Override
+    public List<Object> listOrderedMap() throws IOException {
+        return parser.listOrderedMap();
     }
 
     @Override

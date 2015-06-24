@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -43,16 +44,7 @@ import org.elasticsearch.search.aggregations.bucket.significant.SignificantStrin
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsBuilder;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.GND;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.MutualInformation;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ScriptHeuristic;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicBuilder;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicStreams;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificantTermsHeuristicModule;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.TransportSignificantTermsHeuristicModule;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.*;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
@@ -60,12 +52,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -73,10 +60,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -234,7 +218,7 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
         public static class SimpleHeuristicParser implements SignificanceHeuristicParser {
 
             @Override
-            public SignificanceHeuristic parse(XContentParser parser) throws IOException, QueryParsingException {
+            public SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException, QueryParsingException {
                 parser.nextToken();
                 return new SimpleHeuristic();
             }

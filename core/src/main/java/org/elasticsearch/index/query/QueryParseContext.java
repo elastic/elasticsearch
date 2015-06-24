@@ -33,6 +33,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
@@ -51,9 +52,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.util.*;
 
-/**
- *
- */
 public class QueryParseContext {
 
     private static final ParseField CACHE = new ParseField("_cache").withAllDeprecated("Elasticsearch makes its own caching decisions");
@@ -91,7 +89,7 @@ public class QueryParseContext {
 
     private XContentParser parser;
 
-    private EnumSet<ParseField.Flag> parseFlags = ParseField.EMPTY_FLAGS;
+    private ParseFieldMatcher parseFieldMatcher;
 
     private boolean allowUnmappedFields;
 
@@ -107,17 +105,17 @@ public class QueryParseContext {
         this.indexQueryParser = indexQueryParser;
     }
 
-    public void parseFlags(EnumSet<ParseField.Flag> parseFlags) {
-        this.parseFlags = parseFlags == null ? ParseField.EMPTY_FLAGS : parseFlags;
+    public void parseFieldMatcher(ParseFieldMatcher parseFieldMatcher) {
+        this.parseFieldMatcher = parseFieldMatcher;
     }
 
-    public EnumSet<ParseField.Flag> parseFlags() {
-        return parseFlags;
+    public ParseFieldMatcher parseFieldMatcher() {
+        return parseFieldMatcher;
     }
 
     public void reset(XContentParser jp) {
         allowUnmappedFields = indexQueryParser.defaultAllowUnmappedFields();
-        this.parseFlags = ParseField.EMPTY_FLAGS;
+        this.parseFieldMatcher = ParseFieldMatcher.EMPTY;
         this.lookup = null;
         this.parser = jp;
         this.namedQueries.clear();
@@ -382,7 +380,7 @@ public class QueryParseContext {
      * Return whether the setting is deprecated.
      */
     public boolean isDeprecatedSetting(String setting) {
-        return CACHE.match(setting) || CACHE_KEY.match(setting);
+        return parseFieldMatcher.match(setting, CACHE) || parseFieldMatcher.match(setting, CACHE_KEY);
     }
 
     public Version indexVersionCreated() {

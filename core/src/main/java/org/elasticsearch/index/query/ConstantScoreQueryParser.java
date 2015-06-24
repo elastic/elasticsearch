@@ -61,7 +61,7 @@ public class ConstantScoreQueryParser implements QueryParser {
             } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
                 // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (INNER_QUERY_FIELD.match(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, INNER_QUERY_FIELD)) {
                     filter = parseContext.parseInnerFilter();
                     queryFound = true;
                 } else {

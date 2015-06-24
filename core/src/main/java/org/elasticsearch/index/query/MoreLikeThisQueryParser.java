@@ -116,47 +116,47 @@ public class MoreLikeThisQueryParser implements QueryParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (Fields.LIKE_TEXT.match(currentFieldName, parseContext.parseFlags())) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, Fields.LIKE_TEXT)) {
                     likeTexts.add(parser.text());
-                } else if (Fields.LIKE.match(currentFieldName, parseContext.parseFlags())) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Fields.LIKE)) {
                     parseLikeField(parser, likeTexts, likeItems);
-                } else if (Fields.UNLIKE.match(currentFieldName, parseContext.parseFlags())) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Fields.UNLIKE)) {
                     parseLikeField(parser, unlikeTexts, unlikeItems);
-                } else if (Fields.MIN_TERM_FREQ.match(currentFieldName, parseContext.parseFlags())) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Fields.MIN_TERM_FREQ)) {
                     mltQuery.setMinTermFrequency(parser.intValue());
-                } else if (Fields.MAX_QUERY_TERMS.match(currentFieldName, parseContext.parseFlags())) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Fields.MAX_QUERY_TERMS)) {
                     mltQuery.setMaxQueryTerms(parser.intValue());
-                } else if (Fields.MIN_DOC_FREQ.match(currentFieldName, parseContext.parseFlags())) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Fields.MIN_DOC_FREQ)) {
                     mltQuery.setMinDocFreq(parser.intValue());
-                } else if (Fields.MAX_DOC_FREQ.match(currentFieldName, parseContext.parseFlags())) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Fields.MAX_DOC_FREQ)) {
                     mltQuery.setMaxDocFreq(parser.intValue());
-                } else if (Fields.MIN_WORD_LENGTH.match(currentFieldName, parseContext.parseFlags())) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Fields.MIN_WORD_LENGTH)) {
                     mltQuery.setMinWordLen(parser.intValue());
-                } else if (Fields.MAX_WORD_LENGTH.match(currentFieldName, parseContext.parseFlags())) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Fields.MAX_WORD_LENGTH)) {
                     mltQuery.setMaxWordLen(parser.intValue());
-                } else if (Fields.BOOST_TERMS.match(currentFieldName, parseContext.parseFlags())) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Fields.BOOST_TERMS)) {
                     float boostFactor = parser.floatValue();
                     if (boostFactor != 0) {
                         mltQuery.setBoostTerms(true);
                         mltQuery.setBoostTermsFactor(boostFactor);
                     }
-                } else if (Fields.MINIMUM_SHOULD_MATCH.match(currentFieldName, parseContext.parseFlags())) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Fields.MINIMUM_SHOULD_MATCH)) {
                     mltQuery.setMinimumShouldMatch(parser.text());
                 } else if ("analyzer".equals(currentFieldName)) {
                     analyzer = parseContext.analysisService().analyzer(parser.text());
                 } else if ("boost".equals(currentFieldName)) {
                     mltQuery.setBoost(parser.floatValue());
-                } else if (Fields.FAIL_ON_UNSUPPORTED_FIELD.match(currentFieldName, parseContext.parseFlags())) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Fields.FAIL_ON_UNSUPPORTED_FIELD)) {
                     failOnUnsupportedField = parser.booleanValue();
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
-                } else if (Fields.INCLUDE.match(currentFieldName, parseContext.parseFlags())) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Fields.INCLUDE)) {
                     include = parser.booleanValue();
                 } else {
                     throw new QueryParsingException(parseContext, "[mlt] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (Fields.STOP_WORDS.match(currentFieldName, parseContext.parseFlags())) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, Fields.STOP_WORDS)) {
                     Set<String> stopWords = Sets.newHashSet();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         stopWords.add(parser.text());
@@ -169,25 +169,25 @@ public class MoreLikeThisQueryParser implements QueryParser {
                         MappedFieldType fieldType = parseContext.fieldMapper(field);
                         moreLikeFields.add(fieldType == null ? field : fieldType.names().indexName());
                     }
-                } else if (Fields.DOCUMENT_IDS.match(currentFieldName, parseContext.parseFlags())) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Fields.DOCUMENT_IDS)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (!token.isValue()) {
                             throw new IllegalArgumentException("ids array element should only contain ids");
                         }
                         likeItems.add(newTermVectorsRequest().id(parser.text()));
                     }
-                } else if (Fields.DOCUMENTS.match(currentFieldName, parseContext.parseFlags())) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Fields.DOCUMENTS)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token != XContentParser.Token.START_OBJECT) {
                             throw new IllegalArgumentException("docs array element should include an object");
                         }
                         likeItems.add(parseDocument(parser));
                     }
-                } else if (Fields.LIKE.match(currentFieldName, parseContext.parseFlags())) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Fields.LIKE)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         parseLikeField(parser, likeTexts, likeItems);
                     }
-                } else if (Fields.UNLIKE.match(currentFieldName, parseContext.parseFlags())) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Fields.UNLIKE)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         parseLikeField(parser, unlikeTexts, unlikeItems);
                     }
@@ -195,10 +195,10 @@ public class MoreLikeThisQueryParser implements QueryParser {
                     throw new QueryParsingException(parseContext, "[mlt] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (Fields.LIKE.match(currentFieldName, parseContext.parseFlags())) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, Fields.LIKE)) {
                     parseLikeField(parser, likeTexts, likeItems);
                 }
-                else if (Fields.UNLIKE.match(currentFieldName, parseContext.parseFlags())) {
+                else if (parseContext.parseFieldMatcher().match(currentFieldName, Fields.UNLIKE)) {
                     parseLikeField(parser, unlikeTexts, unlikeItems);
                 } else {
                     throw new QueryParsingException(parseContext, "[mlt] query does not support [" + currentFieldName + "]");

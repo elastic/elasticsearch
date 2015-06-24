@@ -59,18 +59,18 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
             } else if (doParse(pipelineAggregatorName, currentFieldName, token, parser, context)) {
                 // Do nothing as subclass has stored the state for this token
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (FORMAT.match(currentFieldName)) {
+                if (context.parseFieldMatcher().match(currentFieldName, FORMAT)) {
                     format = parser.text();
-                } else if (BUCKETS_PATH.match(currentFieldName)) {
+                } else if (context.parseFieldMatcher().match(currentFieldName, BUCKETS_PATH)) {
                     bucketsPaths = new String[] { parser.text() };
-                } else if (GAP_POLICY.match(currentFieldName)) {
+                } else if (context.parseFieldMatcher().match(currentFieldName, GAP_POLICY)) {
                     gapPolicy = GapPolicy.parse(context, parser.text(), parser.getTokenLocation());
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: ["
                             + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (BUCKETS_PATH.match(currentFieldName)) {
+                if (context.parseFieldMatcher().match(currentFieldName, BUCKETS_PATH)) {
                     List<String> paths = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         String path = parser.text();

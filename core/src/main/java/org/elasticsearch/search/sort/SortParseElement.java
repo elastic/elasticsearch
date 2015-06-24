@@ -157,13 +157,13 @@ public class SortParseElement implements SearchParseElement {
                                     }
                                 } else if ("missing".equals(innerJsonName)) {
                                     missing = parser.textOrNull();
-                                } else if (IGNORE_UNMAPPED.match(innerJsonName)) {
+                                } else if (context.parseFieldMatcher().match(innerJsonName, IGNORE_UNMAPPED)) {
                                     // backward compatibility: ignore_unmapped has been replaced with unmapped_type
                                     if (unmappedType == null // don't override if unmapped_type has been provided too
                                             && parser.booleanValue()) {
                                         unmappedType = LongFieldMapper.CONTENT_TYPE;
                                     }
-                                } else if (UNMAPPED_TYPE.match(innerJsonName)) {
+                                } else if (context.parseFieldMatcher().match(innerJsonName, UNMAPPED_TYPE)) {
                                     unmappedType = parser.textOrNull();
                                 } else if ("mode".equals(innerJsonName)) {
                                     sortMode = MultiValueMode.fromString(parser.text());

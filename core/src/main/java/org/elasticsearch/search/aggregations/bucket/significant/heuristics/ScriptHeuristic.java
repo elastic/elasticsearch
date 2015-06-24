@@ -23,6 +23,7 @@ package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -122,15 +123,15 @@ public class ScriptHeuristic extends SignificanceHeuristic {
 
     public static class ScriptHeuristicParser implements SignificanceHeuristicParser {
         private final ScriptService scriptService;
+
         @Inject
         public ScriptHeuristicParser(ScriptService scriptService) {
             this.scriptService = scriptService;
         }
 
         @Override
-        public SignificanceHeuristic parse(XContentParser parser) throws IOException, QueryParsingException {
+        public SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException, QueryParsingException {
             String heuristicName = parser.currentName();
-            NAMES_FIELD.match(heuristicName, ParseField.EMPTY_FLAGS);
             Script script = null;
             XContentParser.Token token;
             Map<String, Object> params = null;
@@ -140,14 +141,14 @@ public class ScriptHeuristic extends SignificanceHeuristic {
                 if (token.equals(XContentParser.Token.FIELD_NAME)) {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    if (ScriptField.SCRIPT.match(currentFieldName)) {
-                        script = Script.parse(parser);
+                    if (parseFieldMatcher.match(currentFieldName, ScriptField.SCRIPT)) {
+                        script = Script.parse(parser, parseFieldMatcher);
                     } else if ("params".equals(currentFieldName)) { // TODO remove in 3.0 (here to support old script APIs)
                         params = parser.map();
                     } else {
                         throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. unknown object [{}]", heuristicName, currentFieldName);
                     }
-                } else if (!scriptParameterParser.token(currentFieldName, token, parser)) {
+                } else if (!scriptParameterParser.token(currentFieldName, token, parser, parseFieldMatcher)) {
                     throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. unknown field [{}]", heuristicName, currentFieldName);
                 }
             }

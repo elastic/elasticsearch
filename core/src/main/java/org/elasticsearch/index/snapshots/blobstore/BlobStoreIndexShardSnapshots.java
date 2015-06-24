@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -224,7 +225,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         return builder;
     }
 
-    public static BlobStoreIndexShardSnapshots fromXContent(XContentParser parser) throws IOException {
+    public static BlobStoreIndexShardSnapshots fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
         XContentParser.Token token = parser.currentToken();
         Map<String, List<String>> snapshotsMap = newHashMap();
         ImmutableMap.Builder<String, FileInfo> filesBuilder = ImmutableMap.builder();
@@ -236,7 +237,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                 String currentFieldName = parser.currentName();
                 token = parser.nextToken();
                 if (token == XContentParser.Token.START_ARRAY) {
-                    if (ParseFields.FILES.match(currentFieldName) == false) {
+                    if (parseFieldMatcher.match(currentFieldName, ParseFields.FILES) == false) {
                         throw new ElasticsearchParseException("unknown array [{}]", currentFieldName);
                     }
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
@@ -244,7 +245,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                         filesBuilder.put(fileInfo.name(), fileInfo);
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    if (ParseFields.SNAPSHOTS.match(currentFieldName) == false) {
+                    if (parseFieldMatcher.match(currentFieldName, ParseFields.SNAPSHOTS) == false) {
                         throw new ElasticsearchParseException("unknown object [{}]", currentFieldName);
                     }
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -259,7 +260,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                             if (token == XContentParser.Token.FIELD_NAME) {
                                 currentFieldName = parser.currentName();
                                 if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
-                                    if (ParseFields.FILES.match(currentFieldName) == false) {
+                                    if (parseFieldMatcher.match(currentFieldName, ParseFields.FILES) == false) {
                                         throw new ElasticsearchParseException("unknown array [{}]", currentFieldName);
                                     }
                                     List<String> fileNames = newArrayList();

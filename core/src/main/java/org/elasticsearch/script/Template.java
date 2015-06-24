@@ -20,6 +20,7 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -119,23 +120,23 @@ public class Template extends Script {
     }
 
     @SuppressWarnings("unchecked")
-    public static Script parse(Map<String, Object> config, boolean removeMatchedEntries) {
-        return new TemplateParser(Collections.EMPTY_MAP, MustacheScriptEngineService.NAME).parse(config, removeMatchedEntries);
+    public static Script parse(Map<String, Object> config, boolean removeMatchedEntries, ParseFieldMatcher parseFieldMatcher) {
+        return new TemplateParser(Collections.EMPTY_MAP, MustacheScriptEngineService.NAME).parse(config, removeMatchedEntries, parseFieldMatcher);
     }
 
     @SuppressWarnings("unchecked")
-    public static Template parse(XContentParser parser) throws IOException {
-        return new TemplateParser(Collections.EMPTY_MAP, MustacheScriptEngineService.NAME).parse(parser);
+    public static Template parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
+        return new TemplateParser(Collections.EMPTY_MAP, MustacheScriptEngineService.NAME).parse(parser, parseFieldMatcher);
     }
 
     @Deprecated
-    public static Template parse(XContentParser parser, Map<String, ScriptType> additionalTemplateFieldNames) throws IOException {
-        return new TemplateParser(additionalTemplateFieldNames, MustacheScriptEngineService.NAME).parse(parser);
+    public static Template parse(XContentParser parser, Map<String, ScriptType> additionalTemplateFieldNames, ParseFieldMatcher parseFieldMatcher) throws IOException {
+        return new TemplateParser(additionalTemplateFieldNames, MustacheScriptEngineService.NAME).parse(parser, parseFieldMatcher);
     }
 
     @Deprecated
-    public static Template parse(XContentParser parser, Map<String, ScriptType> additionalTemplateFieldNames, String defaultLang) throws IOException {
-        return new TemplateParser(additionalTemplateFieldNames, defaultLang).parse(parser);
+    public static Template parse(XContentParser parser, Map<String, ScriptType> additionalTemplateFieldNames, String defaultLang, ParseFieldMatcher parseFieldMatcher) throws IOException {
+        return new TemplateParser(additionalTemplateFieldNames, defaultLang).parse(parser, parseFieldMatcher);
     }
 
     @Override

@@ -25,15 +25,12 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.index.FilterableTermsEnum;
 import org.elasticsearch.common.lucene.index.FreqTermsEnum;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.NonCollectingAggregator;
+import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
@@ -103,9 +100,9 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             }
         };
 
-        public static ExecutionMode fromString(String value) {
+        public static ExecutionMode fromString(String value, ParseFieldMatcher parseFieldMatcher) {
             for (ExecutionMode mode : values()) {
-                if (mode.parseField.match(value)) {
+                if (parseFieldMatcher.match(value, mode.parseField)) {
                     return mode;
                 }
             }
@@ -184,7 +181,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         if (valuesSource instanceof ValuesSource.Bytes) {
             ExecutionMode execution = null;
             if (executionHint != null) {
-                execution = ExecutionMode.fromString(executionHint);
+                execution = ExecutionMode.fromString(executionHint, aggregationContext.searchContext().parseFieldMatcher());
             }
             if (!(valuesSource instanceof ValuesSource.Bytes.WithOrdinals)) {
                 execution = ExecutionMode.MAP;

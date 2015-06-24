@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRespo
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -57,7 +58,7 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         ClearIndicesCacheRequest clearIndicesCacheRequest = new ClearIndicesCacheRequest(Strings.splitStringByCommaToArray(request.param("index")));
         clearIndicesCacheRequest.indicesOptions(IndicesOptions.fromRequest(request, clearIndicesCacheRequest.indicesOptions()));
-        fromRequest(request, clearIndicesCacheRequest);
+        fromRequest(request, clearIndicesCacheRequest, parseFieldMatcher);
         client.admin().indices().clearCache(clearIndicesCacheRequest, new RestBuilderListener<ClearIndicesCacheResponse>(channel) {
             @Override
             public RestResponse buildResponse(ClearIndicesCacheResponse response, XContentBuilder builder) throws Exception {
@@ -69,20 +70,19 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
         });
     }
 
-    public static ClearIndicesCacheRequest fromRequest(final RestRequest request, ClearIndicesCacheRequest clearIndicesCacheRequest) {
+    public static ClearIndicesCacheRequest fromRequest(final RestRequest request, ClearIndicesCacheRequest clearIndicesCacheRequest, ParseFieldMatcher parseFieldMatcher) {
 
         for (Map.Entry<String, String> entry : request.params().entrySet()) {
-
-            if (Fields.QUERY.match(entry.getKey())) {
+            if (parseFieldMatcher.match(entry.getKey(), Fields.QUERY)) {
                 clearIndicesCacheRequest.queryCache(request.paramAsBoolean(entry.getKey(), clearIndicesCacheRequest.queryCache()));
             }
-            if (Fields.FIELD_DATA.match(entry.getKey())) {
+            if (parseFieldMatcher.match(entry.getKey(), Fields.FIELD_DATA)) {
                 clearIndicesCacheRequest.fieldDataCache(request.paramAsBoolean(entry.getKey(), clearIndicesCacheRequest.fieldDataCache()));
             }
-            if (Fields.RECYCLER.match(entry.getKey())) {
+            if (parseFieldMatcher.match(entry.getKey(), Fields.RECYCLER)) {
                 clearIndicesCacheRequest.recycler(request.paramAsBoolean(entry.getKey(), clearIndicesCacheRequest.recycler()));
             }
-            if (Fields.FIELDS.match(entry.getKey())) {
+            if (parseFieldMatcher.match(entry.getKey(), Fields.FIELDS)) {
                 clearIndicesCacheRequest.fields(request.paramAsStringArray(entry.getKey(), clearIndicesCacheRequest.fields()));
             }
         }

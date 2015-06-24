@@ -23,6 +23,7 @@ package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -137,16 +138,16 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
     public static abstract class NXYParser implements SignificanceHeuristicParser {
 
         @Override
-        public SignificanceHeuristic parse(XContentParser parser) throws IOException, QueryParsingException {
+        public SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException, QueryParsingException {
             String givenName = parser.currentName();
             boolean includeNegatives = false;
             boolean backgroundIsSuperset = true;
             XContentParser.Token token = parser.nextToken();
             while (!token.equals(XContentParser.Token.END_OBJECT)) {
-                if (INCLUDE_NEGATIVES_FIELD.match(parser.currentName())) {
+                if (parseFieldMatcher.match(parser.currentName(), INCLUDE_NEGATIVES_FIELD)) {
                     parser.nextToken();
                     includeNegatives = parser.booleanValue();
-                } else if (BACKGROUND_IS_SUPERSET.match(parser.currentName())) {
+                } else if (parseFieldMatcher.match(parser.currentName(), BACKGROUND_IS_SUPERSET)) {
                     parser.nextToken();
                     backgroundIsSuperset = parser.booleanValue();
                 } else {

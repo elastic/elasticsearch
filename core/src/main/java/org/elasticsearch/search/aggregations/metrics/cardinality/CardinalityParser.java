@@ -59,7 +59,7 @@ public class CardinalityParser implements Aggregator.Parser {
             } else if (token.isValue()) {
                 if ("rehash".equals(currentFieldName)) {
                     rehash = parser.booleanValue();
-                } else if (PRECISION_THRESHOLD.match(currentFieldName)) {
+                } else if (context.parseFieldMatcher().match(currentFieldName, PRECISION_THRESHOLD)) {
                     precisionThreshold = parser.longValue();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + name + "]: [" + currentFieldName

@@ -48,7 +48,7 @@ public class GeoPointParser {
     }
 
     public boolean token(String currentFieldName, XContentParser.Token token, XContentParser parser) throws IOException {
-        if (!field.match(currentFieldName)) {
+        if (!context.parseFieldMatcher().match(currentFieldName, field)) {
             return false;
         }
         if (token == XContentParser.Token.VALUE_STRING) {

@@ -67,8 +67,8 @@ public class ScriptFieldsParseElement implements SearchParseElement {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else if (token == XContentParser.Token.START_OBJECT) {
-                        if (ScriptField.SCRIPT.match(currentFieldName)) {
-                            script = Script.parse(parser);
+                        if (context.parseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
+                            script = Script.parse(parser, context.parseFieldMatcher());
                         } else if ("params".equals(currentFieldName)) {
                             params = parser.map();
                         }
@@ -76,7 +76,7 @@ public class ScriptFieldsParseElement implements SearchParseElement {
                         if ("ignore_failure".equals(currentFieldName)) {
                             ignoreException = parser.booleanValue();
                         } else {
-                            scriptParameterParser.token(currentFieldName, token, parser);
+                            scriptParameterParser.token(currentFieldName, token, parser, context.parseFieldMatcher());
                         }
                     }
                 }

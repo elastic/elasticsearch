@@ -114,7 +114,7 @@ public class ValuesSourceParser<VS extends ValuesSource> {
                                 "] aggregation can only work on value of type [" + targetValueType + "]",
                                 parser.getTokenLocation());
                     }
-                } else if (!scriptParameterParser.token(currentFieldName, token, parser)) {
+                } else if (!scriptParameterParser.token(currentFieldName, token, parser, context.parseFieldMatcher())) {
                     return false;
                 }
                 return true;
@@ -124,8 +124,8 @@ public class ValuesSourceParser<VS extends ValuesSource> {
             return true;
         }
         if (scriptable && token == XContentParser.Token.START_OBJECT) {
-            if (ScriptField.SCRIPT.match(currentFieldName)) {
-                input.script = Script.parse(parser);
+            if (context.parseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
+                input.script = Script.parse(parser, context.parseFieldMatcher());
                 return true;
             } else if ("params".equals(currentFieldName)) {
                 input.params = parser.map();

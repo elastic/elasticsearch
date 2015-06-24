@@ -172,9 +172,7 @@ public class IndicesResolverIntegrationTests extends ShieldIntegrationTest {
                 .add(Requests.searchRequest())
                 .add(Requests.searchRequest("test4")).get();
         assertReturnedIndices(multiSearchResponse.getResponses()[0].getResponse(), "test1", "test2", "test3");
-        // FIXME this returns less information than before elasticsearch 2.0. We used to get the actual name of the index that is
-        // missing but now we only get a generic exception
-        assertThat(multiSearchResponse.getResponses()[1].getFailureMessage(), equalTo("IndexMissingException[no such index]"));
+        assertThat(multiSearchResponse.getResponses()[1].getFailure().toString(), equalTo("[test4] no such index"));
     }
 
     @Test(expected = IndexMissingException.class)

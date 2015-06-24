@@ -22,10 +22,10 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
@@ -58,7 +58,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (!SuggestUtils.parseSuggestContext(parser, mapperService, fieldName, suggestion)) {
+                if (!SuggestUtils.parseSuggestContext(parser, mapperService, fieldName, suggestion, queryParserService.parseFieldMatcher())) {
                     if ("real_word_error_likelihood".equals(fieldName) || "realWorldErrorLikelihood".equals(fieldName)) {
                         suggestion.setRealWordErrorLikelihood(parser.floatValue());
                         if (suggestion.realworldErrorLikelyhood() <= 0.0) {
@@ -104,7 +104,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                                 fieldName = parser.currentName();
                             }
                             if (token.isValue()) {
-                                parseCandidateGenerator(parser, mapperService, fieldName, generator);
+                                parseCandidateGenerator(parser, mapperService, fieldName, generator, queryParserService.parseFieldMatcher());
                             }
                         }
                         verifyGenerator(generator);
@@ -139,7 +139,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                             if (suggestion.getCollateQueryScript() != null) {
                                 throw new IllegalArgumentException("suggester[phrase][collate] query already set, doesn't support additional [" + fieldName + "]");
                             }
-                            Template template = Template.parse(parser);
+                            Template template = Template.parse(parser, queryParserService.parseFieldMatcher());
                             CompiledScript compiledScript = suggester.scriptService().compile(template, ScriptContext.Standard.SEARCH);
                             suggestion.setCollateQueryScript(compiledScript);
                         } else if ("params".equals(fieldName)) {
@@ -321,8 +321,8 @@ public final class PhraseSuggestParser implements SuggestContextParser {
     }
 
     private void parseCandidateGenerator(XContentParser parser, MapperService mapperService, String fieldName,
-            PhraseSuggestionContext.DirectCandidateGenerator generator) throws IOException {
-        if (!SuggestUtils.parseDirectSpellcheckerSettings(parser, fieldName, generator)) {
+            PhraseSuggestionContext.DirectCandidateGenerator generator, ParseFieldMatcher parseFieldMatcher) throws IOException {
+        if (!SuggestUtils.parseDirectSpellcheckerSettings(parser, fieldName, generator, parseFieldMatcher)) {
             if ("field".equals(fieldName)) {
                 generator.setField(parser.text());
                 if (mapperService.smartNameFieldType(generator.field()) == null) {

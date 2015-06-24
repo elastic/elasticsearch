@@ -21,8 +21,6 @@ package org.elasticsearch.index.mapper.core;
 
 import com.carrotsearch.hppc.ObjectArrayList;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
@@ -35,7 +33,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.compress.NotXContentException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -98,7 +95,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
                 if (parserContext.indexVersionCreated().before(Version.V_2_0_0) &&
-                        (COMPRESS.match(fieldName) || COMPRESS_THRESHOLD.match(fieldName))) {
+                        (parserContext.parseFieldMatcher().match(fieldName, COMPRESS) || parserContext.parseFieldMatcher().match(fieldName, COMPRESS_THRESHOLD))) {
                     iterator.remove();
                 }
             }

@@ -25,6 +25,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -79,11 +80,11 @@ public class RestSearchAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         SearchRequest searchRequest;
-        searchRequest = RestSearchAction.parseSearchRequest(request);
+        searchRequest = RestSearchAction.parseSearchRequest(request, parseFieldMatcher);
         client.search(searchRequest, new RestStatusToXContentListener<SearchResponse>(channel));
     }
 
-    public static SearchRequest parseSearchRequest(RestRequest request) {
+    public static SearchRequest parseSearchRequest(RestRequest request, ParseFieldMatcher parseFieldMatcher) {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         SearchRequest searchRequest = new SearchRequest(indices);
         // get the content, and put it in the body
@@ -101,8 +102,8 @@ public class RestSearchAction extends BaseRestHandler {
         // from the REST layer. these modes are an internal optimization and should
         // not be specified explicitly by the user.
         String searchType = request.param("search_type");
-        if (SearchType.fromString(searchType).equals(SearchType.QUERY_AND_FETCH) ||
-                SearchType.fromString(searchType).equals(SearchType.DFS_QUERY_AND_FETCH)) {
+        if (SearchType.fromString(searchType, parseFieldMatcher).equals(SearchType.QUERY_AND_FETCH) ||
+                SearchType.fromString(searchType, parseFieldMatcher).equals(SearchType.DFS_QUERY_AND_FETCH)) {
             throw new IllegalArgumentException("Unsupported search type [" + searchType + "]");
         } else {
             searchRequest.searchType(searchType);

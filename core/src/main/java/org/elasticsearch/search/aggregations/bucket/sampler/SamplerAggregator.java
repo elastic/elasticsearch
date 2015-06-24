@@ -20,14 +20,9 @@ package org.elasticsearch.search.aggregations.bucket.sampler;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.aggregations.NonCollectingAggregator;
+import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.bucket.BestDocsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
@@ -111,9 +106,9 @@ public class SamplerAggregator extends SingleBucketAggregator {
 
         };
 
-        public static ExecutionMode fromString(String value) {
+        public static ExecutionMode fromString(String value, ParseFieldMatcher parseFieldMatcher) {
             for (ExecutionMode mode : values()) {
-                if (mode.parseField.match(value)) {
+                if (parseFieldMatcher.match(value, mode.parseField)) {
                     return mode;
                 }
             }
@@ -222,7 +217,7 @@ public class SamplerAggregator extends SingleBucketAggregator {
             if (valuesSource instanceof ValuesSource.Bytes) {
                 ExecutionMode execution = null;
                 if (executionHint != null) {
-                    execution = ExecutionMode.fromString(executionHint);
+                    execution = ExecutionMode.fromString(executionHint, context.searchContext().parseFieldMatcher());
                 }
 
                 // In some cases using ordinals is just not supported: override

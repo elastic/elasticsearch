@@ -22,22 +22,12 @@ package org.elasticsearch.search.internal;
 import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-
 import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.common.HasContext;
-import org.elasticsearch.common.HasContextAndHeaders;
-import org.elasticsearch.common.HasHeaders;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.*;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -74,10 +64,7 @@ import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 /**
  *
@@ -140,7 +127,8 @@ public class DefaultSearchContext extends SearchContext {
     public DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
                          Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard,
                          ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
-                         BigArrays bigArrays, Counter timeEstimateCounter) {
+                         BigArrays bigArrays, Counter timeEstimateCounter, ParseFieldMatcher parseFieldMatcher) {
+        super(parseFieldMatcher);
         this.id = id;
         this.request = request;
         this.searchType = request.searchType();
@@ -368,8 +356,6 @@ public class DefaultSearchContext extends SearchContext {
 
     /**
      * A shortcut function to see whether there is a fetchSourceContext and it says the source is requested.
-     *
-     * @return
      */
     @Override
     public boolean sourceRequested() {

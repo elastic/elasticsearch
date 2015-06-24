@@ -62,7 +62,7 @@ public class ExtendedStatsParser  implements Aggregator.Parser {
             } else if (vsParser.token(currentFieldName, token, parser)) {
                 continue;
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                if (SIGMA.match(currentFieldName)) {
+                if (context.parseFieldMatcher().match(currentFieldName, SIGMA)) {
                     sigma = parser.doubleValue();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["

@@ -93,7 +93,7 @@ public class HistogramParser implements Aggregator.Parser {
                             order = resolveOrder(currentFieldName, asc);
                         }
                     }
-                } else if (EXTENDED_BOUNDS.match(currentFieldName)) {
+                } else if (context.parseFieldMatcher().match(currentFieldName, EXTENDED_BOUNDS)) {
                     extendedBounds = new ExtendedBounds();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {

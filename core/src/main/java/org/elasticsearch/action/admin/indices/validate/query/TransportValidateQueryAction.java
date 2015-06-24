@@ -168,7 +168,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
         DefaultSearchContext searchContext = new DefaultSearchContext(0,
                 new ShardSearchLocalRequest(request.types(), request.nowInMillis(), request.filteringAliases()),
                 null, searcher, indexService, indexShard,
-                scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter()
+                scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher
         );
         SearchContext.setCurrent(searchContext);
         try {
@@ -187,10 +187,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
         } catch (QueryParsingException e) {
             valid = false;
             error = e.getDetailedMessage();
-        } catch (AssertionError e) {
-            valid = false;
-            error = e.getMessage();
-        } catch (IOException e) {
+        } catch (AssertionError|IOException e) {
             valid = false;
             error = e.getMessage();
         } finally {

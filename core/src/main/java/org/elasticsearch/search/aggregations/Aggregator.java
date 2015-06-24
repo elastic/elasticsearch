@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
@@ -28,7 +29,6 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.EnumSet;
 
 /**
  * An Aggregator.
@@ -42,7 +42,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      *
      * @see {@link AggregatorFactory}
     */
-    public static interface Parser {
+    public interface Parser {
 
         /**
          * @return The aggregation type this parser is associated with.
@@ -134,14 +134,10 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
             return parseField;
         }
 
-        public static SubAggCollectionMode parse(String value) {
-            return parse(value, ParseField.EMPTY_FLAGS);
-        }
-
-        public static SubAggCollectionMode parse(String value, EnumSet<ParseField.Flag> flags) {
+        public static SubAggCollectionMode parse(String value, ParseFieldMatcher parseFieldMatcher) {
             SubAggCollectionMode[] modes = SubAggCollectionMode.values();
             for (SubAggCollectionMode mode : modes) {
-                if (mode.parseField.match(value, flags)) {
+                if (parseFieldMatcher.match(value, mode.parseField)) {
                     return mode;
                 }
             }

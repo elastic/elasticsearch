@@ -175,19 +175,19 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
                     
                     indexAnalyzer = getNamedAnalyzer(parserContext, fieldNode.toString());
                     iterator.remove();
-                } else if (Fields.SEARCH_ANALYZER.match(fieldName)) {
+                } else if (parserContext.parseFieldMatcher().match(fieldName, Fields.SEARCH_ANALYZER)) {
                     searchAnalyzer = getNamedAnalyzer(parserContext, fieldNode.toString());
                     iterator.remove();
                 } else if (fieldName.equals(Fields.PAYLOADS)) {
                     builder.payloads(Boolean.parseBoolean(fieldNode.toString()));
                     iterator.remove();
-                } else if (Fields.PRESERVE_SEPARATORS.match(fieldName)) {
+                } else if (parserContext.parseFieldMatcher().match(fieldName, Fields.PRESERVE_SEPARATORS)) {
                     builder.preserveSeparators(Boolean.parseBoolean(fieldNode.toString()));
                     iterator.remove();
-                } else if (Fields.PRESERVE_POSITION_INCREMENTS.match(fieldName)) {
+                } else if (parserContext.parseFieldMatcher().match(fieldName, Fields.PRESERVE_POSITION_INCREMENTS)) {
                     builder.preservePositionIncrements(Boolean.parseBoolean(fieldNode.toString()));
                     iterator.remove();
-                } else if (Fields.MAX_INPUT_LENGTH.match(fieldName)) {
+                } else if (parserContext.parseFieldMatcher().match(fieldName, Fields.MAX_INPUT_LENGTH)) {
                     builder.maxInputLength(Integer.parseInt(fieldNode.toString()));
                     iterator.remove();
                 } else if (parseMultiField(builder, name, parserContext, fieldName, fieldNode)) {

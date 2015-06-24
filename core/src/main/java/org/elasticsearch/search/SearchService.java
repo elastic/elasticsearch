@@ -36,6 +36,7 @@ import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -144,11 +145,14 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     private final ImmutableMap<String, SearchParseElement> elementParsers;
 
+    private final ParseFieldMatcher parseFieldMatcher;
+
     @Inject
     public SearchService(Settings settings, ClusterService clusterService, IndicesService indicesService,IndicesWarmer indicesWarmer, ThreadPool threadPool,
                          ScriptService scriptService, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, DfsPhase dfsPhase, QueryPhase queryPhase, FetchPhase fetchPhase,
                          IndicesRequestCache indicesQueryCache) {
         super(settings);
+        this.parseFieldMatcher = new ParseFieldMatcher(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
@@ -582,12 +586,13 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().id(), request.index(), request.shardId());
 
         Engine.Searcher engineSearcher = searcher == null ? indexShard.acquireSearcher("search") : searcher;
-        SearchContext context = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget, engineSearcher, indexService, indexShard, scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter());
+
+        SearchContext context = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget, engineSearcher, indexService, indexShard, scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher);
         SearchContext.setCurrent(context);
         try {
             context.scroll(request.scroll());
 
-            parseTemplate(request);
+            parseTemplate(request, context);
             parseSource(context, request.source());
             parseSource(context, request.extraSource());
 
@@ -680,7 +685,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         }
     }
 
-    private void parseTemplate(ShardSearchRequest request) {
+    private void parseTemplate(ShardSearchRequest request, SearchContext searchContext) {
 
         BytesReference processedQuery;
         if (request.template() != null) {
@@ -695,7 +700,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
             try {
                 parser = XContentFactory.xContent(request.templateSource()).createParser(request.templateSource());
-                template = TemplateQueryParser.parse(parser, "params", "template");
+                template = TemplateQueryParser.parse(parser, searchContext.parseFieldMatcher(), "params", "template");
 
                 if (template.getType() == ScriptService.ScriptType.INLINE) {
                     //Try to double parse for nested template id/file
@@ -714,7 +719,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                     }
                     if (parser != null) {
                         try {
-                            Template innerTemplate = TemplateQueryParser.parse(parser);
+                            Template innerTemplate = TemplateQueryParser.parse(parser, searchContext.parseFieldMatcher());
                             if (hasLength(innerTemplate.getScript()) && !innerTemplate.getType().equals(ScriptService.ScriptType.INLINE)) {
                                 //An inner template referring to a filename or id
                                 template = new Template(innerTemplate.getScript(), innerTemplate.getType(),

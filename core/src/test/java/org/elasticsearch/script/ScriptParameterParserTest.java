@@ -20,6 +20,7 @@
 package org.elasticsearch.script;
 
 
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.ToXContent.MapParams;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -32,12 +33,7 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -52,15 +48,15 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
             token = parser.nextToken();
         }
         ScriptParameterParser paramParser = new ScriptParameterParser();
-        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser), equalTo(true));
+        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(true));
         assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.INLINE);
         assertThat(paramParser.lang(), nullValue());
         paramParser = new ScriptParameterParser(null);
-        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser), equalTo(true));
+        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(true));
         assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.INLINE);
         assertThat(paramParser.lang(), nullValue());
         paramParser = new ScriptParameterParser(new HashSet<String>());
-        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser), equalTo(true));
+        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(true));
         assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.INLINE);
         assertThat(paramParser.lang(), nullValue());
     }
@@ -73,7 +69,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
             token = parser.nextToken();
         }
         ScriptParameterParser paramParser = new ScriptParameterParser();
-        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser), equalTo(true));
+        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(true));
         assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.FILE);
         assertThat(paramParser.lang(), nullValue());
 
@@ -83,7 +79,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
             token = parser.nextToken();
         }
         paramParser = new ScriptParameterParser();
-        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser), equalTo(true));
+        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(true));
         assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.FILE);
         assertThat(paramParser.lang(), nullValue());
     }
@@ -96,7 +92,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
             token = parser.nextToken();
         }
         ScriptParameterParser paramParser = new ScriptParameterParser();
-        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser), equalTo(true));
+        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(true));
         assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.INDEXED);
         assertThat(paramParser.lang(), nullValue());
 
@@ -106,7 +102,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
             token = parser.nextToken();
         }
         paramParser = new ScriptParameterParser();
-        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser), equalTo(true));
+        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(true));
         assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.INDEXED);
         assertThat(paramParser.lang(), nullValue());
     }
@@ -119,7 +115,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
             token = parser.nextToken();
         }
         ScriptParameterParser paramParser = new ScriptParameterParser();
-        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser), equalTo(false));
+        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(false));
         assertThat(paramParser.getDefaultScriptParameterValue(), nullValue());
         assertThat(paramParser.getScriptParameterValue("script"), nullValue());
         assertThat(paramParser.lang(), nullValue());
@@ -135,7 +131,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         Set<String> parameters = Collections.singleton("foo");
         ScriptParameterParser paramParser = new ScriptParameterParser(parameters);
         assertThat(paramParser.getScriptParameterValue("foo"), nullValue());
-        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser), equalTo(true));
+        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(true));
         assertParameterValue(paramParser, "foo", "scriptValue", ScriptType.INLINE);
         assertThat(paramParser.lang(), nullValue());
     }
@@ -150,7 +146,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         Set<String> parameters = Collections.singleton("foo");
         ScriptParameterParser paramParser = new ScriptParameterParser(parameters);
         assertThat(paramParser.getScriptParameterValue("foo"), nullValue());
-        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser), equalTo(true));
+        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(true));
         assertParameterValue(paramParser, "foo", "scriptValue", ScriptType.FILE);
         assertThat(paramParser.lang(), nullValue());
     }
@@ -165,7 +161,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         Set<String> parameters = Collections.singleton("foo");
         ScriptParameterParser paramParser = new ScriptParameterParser(parameters);
         assertThat(paramParser.getScriptParameterValue("foo"), nullValue());
-        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser), equalTo(true));
+        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(true));
         assertParameterValue(paramParser, "foo", "scriptValue", ScriptType.INDEXED);
         assertThat(paramParser.lang(), nullValue());
     }
@@ -180,14 +176,14 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         Set<String> parameters = Collections.singleton("foo");
         ScriptParameterParser paramParser = new ScriptParameterParser(parameters);
         assertThat(paramParser.getScriptParameterValue("foo"), nullValue());
-        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser), equalTo(true));
+        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(true));
         assertParameterValue(paramParser, "foo", "scriptValue", ScriptType.INLINE);
         assertThat(paramParser.lang(), nullValue());
         token = parser.nextToken();
         while (token != Token.VALUE_STRING) {
             token = parser.nextToken();
         }
-        paramParser.token(parser.currentName(), parser.currentToken(), parser);
+        paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT);
     }
 
     @Test(expected = ScriptParseException.class)
@@ -200,14 +196,14 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         Set<String> parameters = Collections.singleton("foo");
         ScriptParameterParser paramParser = new ScriptParameterParser(parameters);
         assertThat(paramParser.getScriptParameterValue("foo"), nullValue());
-        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser), equalTo(true));
+        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(true));
         assertParameterValue(paramParser, "foo", "scriptValue", ScriptType.INLINE);
         assertThat(paramParser.lang(), nullValue());
         token = parser.nextToken();
         while (token != Token.VALUE_STRING) {
             token = parser.nextToken();
         }
-        paramParser.token(parser.currentName(), parser.currentToken(), parser);
+        paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT);
     }
 
     @Test(expected = ScriptParseException.class)
@@ -220,14 +216,14 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         Set<String> parameters = Collections.singleton("foo");
         ScriptParameterParser paramParser = new ScriptParameterParser(parameters);
         assertThat(paramParser.getScriptParameterValue("foo"), nullValue());
-        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser), equalTo(true));
+        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(true));
         assertParameterValue(paramParser, "foo", "scriptValue", ScriptType.FILE);
         assertThat(paramParser.lang(), nullValue());
         token = parser.nextToken();
         while (token != Token.VALUE_STRING) {
             token = parser.nextToken();
         }
-        paramParser.token(parser.currentName(), parser.currentToken(), parser);
+        paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT);
     }
 
     @Test(expected = ScriptParseException.class)
@@ -240,14 +236,14 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         Set<String> parameters = Collections.singleton("foo");
         ScriptParameterParser paramParser = new ScriptParameterParser(parameters);
         assertThat(paramParser.getScriptParameterValue("foo"), nullValue());
-        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser), equalTo(true));
+        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(true));
         assertParameterValue(paramParser, "foo", "scriptValue", ScriptType.FILE);
         assertThat(paramParser.lang(), nullValue());
         token = parser.nextToken();
         while (token != Token.VALUE_STRING) {
             token = parser.nextToken();
         }
-        paramParser.token(parser.currentName(), parser.currentToken(), parser);
+        paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT);
     }
 
     @Test(expected = ScriptParseException.class)
@@ -260,14 +256,14 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         Set<String> parameters = Collections.singleton("foo");
         ScriptParameterParser paramParser = new ScriptParameterParser(parameters);
         assertThat(paramParser.getScriptParameterValue("foo"), nullValue());
-        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser), equalTo(true));
+        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(true));
         assertParameterValue(paramParser, "foo", "scriptValue", ScriptType.INDEXED);
         assertThat(paramParser.lang(), nullValue());
         token = parser.nextToken();
         while (token != Token.VALUE_STRING) {
             token = parser.nextToken();
         }
-        paramParser.token(parser.currentName(), parser.currentToken(), parser);
+        paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT);
     }
 
     @Test(expected = ScriptParseException.class)
@@ -280,14 +276,14 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         Set<String> parameters = Collections.singleton("foo");
         ScriptParameterParser paramParser = new ScriptParameterParser(parameters);
         assertThat(paramParser.getScriptParameterValue("foo"), nullValue());
-        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser), equalTo(true));
+        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(true));
         assertParameterValue(paramParser, "foo", "scriptValue", ScriptType.INDEXED);
         assertThat(paramParser.lang(), nullValue());
         token = parser.nextToken();
         while (token != Token.VALUE_STRING) {
             token = parser.nextToken();
         }
-        paramParser.token(parser.currentName(), parser.currentToken(), parser);
+        paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT);
     }
 
     @Test
@@ -308,7 +304,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         while (token != Token.VALUE_STRING) {
             token = parser.nextToken();
         }
-        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser), equalTo(true));
+        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(true));
         assertParameterValue(paramParser, "foo", "fooScriptValue", ScriptType.INLINE);
         assertThat(paramParser.getScriptParameterValue("bar"), nullValue());
         assertThat(paramParser.getScriptParameterValue("baz"), nullValue());
@@ -319,7 +315,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         while (token != Token.VALUE_STRING) {
             token = parser.nextToken();
         }
-        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser), equalTo(true));
+        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(true));
         assertParameterValue(paramParser, "foo", "fooScriptValue", ScriptType.INLINE);
         assertParameterValue(paramParser, "bar", "barScriptValue", ScriptType.FILE);
         assertThat(paramParser.getScriptParameterValue("baz"), nullValue());
@@ -330,7 +326,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         while (token != Token.VALUE_STRING) {
             token = parser.nextToken();
         }
-        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser), equalTo(true));
+        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(true));
         assertParameterValue(paramParser, "foo", "fooScriptValue", ScriptType.INLINE);
         assertParameterValue(paramParser, "bar", "barScriptValue", ScriptType.FILE);
         assertParameterValue(paramParser, "baz", "bazScriptValue", ScriptType.INDEXED);
@@ -357,7 +353,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         while (token != Token.VALUE_STRING) {
             token = parser.nextToken();
         }
-        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser), equalTo(true));
+        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(true));
         assertParameterValue(paramParser, "foo", "fooScriptValue", ScriptType.INLINE);
         assertThat(paramParser.getScriptParameterValue("bar"), nullValue());
         assertThat(paramParser.getScriptParameterValue("baz"), nullValue());
@@ -368,7 +364,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         while (token != Token.VALUE_STRING) {
             token = parser.nextToken();
         }
-        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser), equalTo(true));
+        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(true));
         assertParameterValue(paramParser, "foo", "fooScriptValue", ScriptType.INLINE);
         assertParameterValue(paramParser, "bar", "barScriptValue", ScriptType.FILE);
         assertThat(paramParser.getScriptParameterValue("baz"), nullValue());
@@ -379,7 +375,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         while (token != Token.VALUE_STRING) {
             token = parser.nextToken();
         }
-        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser), equalTo(true));
+        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(true));
         assertParameterValue(paramParser, "foo", "fooScriptValue", ScriptType.INLINE);
         assertParameterValue(paramParser, "bar", "barScriptValue", ScriptType.FILE);
         assertThat(paramParser.getScriptParameterValue("baz"), nullValue());
@@ -390,7 +386,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         while (token != Token.VALUE_STRING) {
             token = parser.nextToken();
         }
-        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser), equalTo(true));
+        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(true));
         assertParameterValue(paramParser, "foo", "fooScriptValue", ScriptType.INLINE);
         assertParameterValue(paramParser, "bar", "barScriptValue", ScriptType.FILE);
         assertParameterValue(paramParser, "baz", "bazScriptValue", ScriptType.INDEXED);
@@ -417,7 +413,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         while (token != Token.VALUE_STRING) {
             token = parser.nextToken();
         }
-        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser), equalTo(false));
+        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(false));
         assertThat(paramParser.getScriptParameterValue("other"), nullValue());
         assertThat(paramParser.getScriptParameterValue("foo"), nullValue());
         assertThat(paramParser.getScriptParameterValue("bar"), nullValue());
@@ -447,7 +443,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         while (token != Token.VALUE_STRING) {
             token = parser.nextToken();
         }
-        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser), equalTo(true));
+        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(true));
         assertParameterValue(paramParser, "foo", "fooScriptValue", ScriptType.INLINE);
         assertThat(paramParser.getScriptParameterValue("bar"), nullValue());
         assertThat(paramParser.getScriptParameterValue("baz"), nullValue());
@@ -460,7 +456,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         while (token != Token.VALUE_STRING) {
             token = parser.nextToken();
         }
-        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser), equalTo(false));
+        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(false));
         assertParameterValue(paramParser, "foo", "fooScriptValue", ScriptType.INLINE);
         assertThat(paramParser.getScriptParameterValue("bar"), nullValue());
         assertThat(paramParser.getScriptParameterValue("baz"), nullValue());
@@ -473,7 +469,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         while (token != Token.VALUE_STRING) {
             token = parser.nextToken();
         }
-        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser), equalTo(true));
+        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(true));
         assertParameterValue(paramParser, "foo", "fooScriptValue", ScriptType.INLINE);
         assertThat(paramParser.getScriptParameterValue("bar"), nullValue());
         assertParameterValue(paramParser, "baz", "bazScriptValue", ScriptType.INDEXED);
@@ -498,7 +494,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         assertThat(paramParser.getScriptParameterValue("bar_file"), nullValue());
         assertThat(paramParser.getScriptParameterValue("baz_id"), nullValue());
         assertThat(paramParser.lang(), nullValue());
-        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser), equalTo(false));
+        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(false));
         assertThat(paramParser.getScriptParameterValue("foo"), nullValue());
         assertThat(paramParser.getScriptParameterValue("bar"), nullValue());
         assertThat(paramParser.getScriptParameterValue("baz"), nullValue());
@@ -518,21 +514,21 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("script", "scriptValue");
         ScriptParameterParser paramParser = new ScriptParameterParser();
-        paramParser.parseConfig(config, true);
+        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
         assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.INLINE);
         assertThat(paramParser.lang(), nullValue());
         assertThat(config.isEmpty(), equalTo(true));
         config = new HashMap<>();
         config.put("script", "scriptValue");
         paramParser = new ScriptParameterParser(null);
-        paramParser.parseConfig(config, true);
+        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
         assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.INLINE);
         assertThat(paramParser.lang(), nullValue());
         assertThat(config.isEmpty(), equalTo(true));
         config = new HashMap<>();
         config.put("script", "scriptValue");
         paramParser = new ScriptParameterParser(new HashSet<String>());
-        paramParser.parseConfig(config, true);
+        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
         assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.INLINE);
         assertThat(paramParser.lang(), nullValue());
         assertThat(config.isEmpty(), equalTo(true));
@@ -543,7 +539,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("script_file", "scriptValue");
         ScriptParameterParser paramParser = new ScriptParameterParser();
-        paramParser.parseConfig(config, true);
+        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
         assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.FILE);
         assertThat(paramParser.lang(), nullValue());
         assertThat(config.isEmpty(), equalTo(true));
@@ -551,7 +547,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         config = new HashMap<>();
         config.put("scriptFile", "scriptValue");
         paramParser = new ScriptParameterParser();
-        paramParser.parseConfig(config, true);
+        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
         assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.FILE);
         assertThat(paramParser.lang(), nullValue());
         assertThat(config.isEmpty(), equalTo(true));
@@ -562,7 +558,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("script_id", "scriptValue");
         ScriptParameterParser paramParser = new ScriptParameterParser();
-        paramParser.parseConfig(config, true);
+        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
         assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.INDEXED);
         assertThat(paramParser.lang(), nullValue());
         assertThat(config.isEmpty(), equalTo(true));
@@ -570,7 +566,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         config = new HashMap<>();
         config.put("scriptId", "scriptValue");
         paramParser = new ScriptParameterParser();
-        paramParser.parseConfig(config, true);
+        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
         assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.INDEXED);
         assertThat(paramParser.lang(), nullValue());
         assertThat(config.isEmpty(), equalTo(true));
@@ -581,7 +577,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("script_id", "scriptValue");
         ScriptParameterParser paramParser = new ScriptParameterParser();
-        paramParser.parseConfig(config, false);
+        paramParser.parseConfig(config, false, ParseFieldMatcher.STRICT);
         assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.INDEXED);
         assertThat(paramParser.lang(), nullValue());
         assertThat(config.size(), equalTo(1));
@@ -590,7 +586,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         config = new HashMap<>();
         config.put("scriptId", "scriptValue");
         paramParser = new ScriptParameterParser();
-        paramParser.parseConfig(config, false);
+        paramParser.parseConfig(config, false, ParseFieldMatcher.STRICT);
         assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.INDEXED);
         assertThat(paramParser.lang(), nullValue());
         assertThat(config.size(), equalTo(1));
@@ -602,7 +598,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("foo", "bar");
         ScriptParameterParser paramParser = new ScriptParameterParser();
-        paramParser.parseConfig(config, true);
+        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
         assertThat(paramParser.getDefaultScriptParameterValue(), nullValue());
         assertThat(paramParser.getScriptParameterValue("script"), nullValue());
         assertThat(paramParser.lang(), nullValue());
@@ -617,7 +613,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         Set<String> parameters = Collections.singleton("foo");
         ScriptParameterParser paramParser = new ScriptParameterParser(parameters);
         assertThat(paramParser.getScriptParameterValue("foo"), nullValue());
-        paramParser.parseConfig(config, true);
+        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
         assertParameterValue(paramParser, "foo", "scriptValue", ScriptType.INLINE);
         assertThat(paramParser.lang(), nullValue());
         assertThat(config.isEmpty(), equalTo(true));
@@ -630,7 +626,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         Set<String> parameters = Collections.singleton("foo");
         ScriptParameterParser paramParser = new ScriptParameterParser(parameters);
         assertThat(paramParser.getScriptParameterValue("foo"), nullValue());
-        paramParser.parseConfig(config, true);
+        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
         assertParameterValue(paramParser, "foo", "scriptValue", ScriptType.FILE);
         assertThat(paramParser.lang(), nullValue());
         assertThat(config.isEmpty(), equalTo(true));
@@ -643,7 +639,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         Set<String> parameters = Collections.singleton("foo");
         ScriptParameterParser paramParser = new ScriptParameterParser(parameters);
         assertThat(paramParser.getScriptParameterValue("foo"), nullValue());
-        paramParser.parseConfig(config, true);
+        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
         assertParameterValue(paramParser, "foo", "scriptValue", ScriptType.INDEXED);
         assertThat(paramParser.lang(), nullValue());
         assertThat(config.isEmpty(), equalTo(true));
@@ -657,7 +653,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         Set<String> parameters = Collections.singleton("foo");
         ScriptParameterParser paramParser = new ScriptParameterParser(parameters);
         assertThat(paramParser.getScriptParameterValue("foo"), nullValue());
-        paramParser.parseConfig(config, true);
+        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
     }
 
     @Test(expected = ScriptParseException.class)
@@ -668,7 +664,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         Set<String> parameters = Collections.singleton("foo");
         ScriptParameterParser paramParser = new ScriptParameterParser(parameters);
         assertThat(paramParser.getScriptParameterValue("foo"), nullValue());
-        paramParser.parseConfig(config, true);
+        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
     }
 
     @Test(expected = ScriptParseException.class)
@@ -679,7 +675,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         Set<String> parameters = Collections.singleton("foo");
         ScriptParameterParser paramParser = new ScriptParameterParser(parameters);
         assertThat(paramParser.getScriptParameterValue("foo"), nullValue());
-        paramParser.parseConfig(config, true);
+        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
     }
 
     @Test(expected = ScriptParseException.class)
@@ -690,7 +686,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         Set<String> parameters = Collections.singleton("foo");
         ScriptParameterParser paramParser = new ScriptParameterParser(parameters);
         assertThat(paramParser.getScriptParameterValue("foo"), nullValue());
-        paramParser.parseConfig(config, true);
+        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
     }
 
     @Test(expected = ScriptParseException.class)
@@ -701,7 +697,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         Set<String> parameters = Collections.singleton("foo");
         ScriptParameterParser paramParser = new ScriptParameterParser(parameters);
         assertThat(paramParser.getScriptParameterValue("foo"), nullValue());
-        paramParser.parseConfig(config, true);
+        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
     }
 
     @Test(expected = ScriptParseException.class)
@@ -712,7 +708,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         Set<String> parameters = Collections.singleton("foo");
         ScriptParameterParser paramParser = new ScriptParameterParser(parameters);
         assertThat(paramParser.getScriptParameterValue("foo"), nullValue());
-        paramParser.parseConfig(config, true);
+        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
     }
 
     @Test
@@ -732,7 +728,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         assertThat(paramParser.getScriptParameterValue("bar_file"), nullValue());
         assertThat(paramParser.getScriptParameterValue("baz_id"), nullValue());
         assertThat(paramParser.lang(), nullValue());
-        paramParser.parseConfig(config, true);
+        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
         assertParameterValue(paramParser, "foo", "fooScriptValue", ScriptType.INLINE);
         assertParameterValue(paramParser, "bar", "barScriptValue", ScriptType.FILE);
         assertParameterValue(paramParser, "baz", "bazScriptValue", ScriptType.INDEXED);
@@ -760,7 +756,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         assertThat(paramParser.getScriptParameterValue("bar_file"), nullValue());
         assertThat(paramParser.getScriptParameterValue("baz_id"), nullValue());
         assertThat(paramParser.lang(), nullValue());
-        paramParser.parseConfig(config, true);
+        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
         assertParameterValue(paramParser, "foo", "fooScriptValue", ScriptType.INLINE);
         assertParameterValue(paramParser, "bar", "barScriptValue", ScriptType.FILE);
         assertParameterValue(paramParser, "baz", "bazScriptValue", ScriptType.INDEXED);
@@ -788,7 +784,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         assertThat(paramParser.getScriptParameterValue("bar_file"), nullValue());
         assertThat(paramParser.getScriptParameterValue("baz_id"), nullValue());
         assertThat(paramParser.lang(), nullValue());
-        paramParser.parseConfig(config, false);
+        paramParser.parseConfig(config, false, ParseFieldMatcher.STRICT);
         assertParameterValue(paramParser, "foo", "fooScriptValue", ScriptType.INLINE);
         assertParameterValue(paramParser, "bar", "barScriptValue", ScriptType.FILE);
         assertParameterValue(paramParser, "baz", "bazScriptValue", ScriptType.INDEXED);
@@ -817,7 +813,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         assertThat(paramParser.getScriptParameterValue("bar_file"), nullValue());
         assertThat(paramParser.getScriptParameterValue("baz_id"), nullValue());
         assertThat(paramParser.lang(), nullValue());
-        paramParser.parseConfig(config, true);
+        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
         assertThat(paramParser.getScriptParameterValue("other"), nullValue());
         assertThat(paramParser.getScriptParameterValue("foo"), nullValue());
         assertThat(paramParser.getScriptParameterValue("bar"), nullValue());
@@ -848,7 +844,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         assertThat(paramParser.getScriptParameterValue("other"), nullValue());
         assertThat(paramParser.getScriptParameterValue("other_file"), nullValue());
         assertThat(paramParser.lang(), nullValue());
-        paramParser.parseConfig(config, true);
+        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
         assertParameterValue(paramParser, "foo", "fooScriptValue", ScriptType.INLINE);
         assertThat(paramParser.getScriptParameterValue("bar"), nullValue());
         assertParameterValue(paramParser, "baz", "bazScriptValue", ScriptType.INDEXED);
@@ -879,7 +875,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         assertThat(paramParser.getScriptParameterValue("bar_file"), nullValue());
         assertThat(paramParser.getScriptParameterValue("baz_id"), nullValue());
         assertThat(paramParser.lang(), nullValue());
-        paramParser.parseConfig(config, true);
+        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
     }
 
     @Test(expected = ScriptParseException.class)
@@ -900,7 +896,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         assertThat(paramParser.getScriptParameterValue("bar_file"), nullValue());
         assertThat(paramParser.getScriptParameterValue("baz_id"), nullValue());
         assertThat(paramParser.lang(), nullValue());
-        paramParser.parseConfig(config, true);
+        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
     }
 
     @Test(expected = ScriptParseException.class)
@@ -921,7 +917,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         assertThat(paramParser.getScriptParameterValue("bar_file"), nullValue());
         assertThat(paramParser.getScriptParameterValue("baz_id"), nullValue());
         assertThat(paramParser.lang(), nullValue());
-        paramParser.parseConfig(config, true);
+        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
     }
 
     @Test(expected = ScriptParseException.class)
@@ -942,7 +938,7 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         assertThat(paramParser.getScriptParameterValue("bar_file"), nullValue());
         assertThat(paramParser.getScriptParameterValue("baz_id"), nullValue());
         assertThat(paramParser.lang(), nullValue());
-        paramParser.parseConfig(config, true);
+        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
     }
 
     @Test
@@ -1265,5 +1261,4 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         assertThat(value.scriptType(), equalTo(expectedScriptType));
         assertThat(value.script(), equalTo(expectedScript));
     }
-
 }

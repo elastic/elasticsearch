@@ -21,11 +21,11 @@ package org.elasticsearch.search.aggregations.pipeline.movavg.models;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgParser;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -152,7 +152,7 @@ public class HoltLinearModel extends MovAvgModel {
         }
 
         @Override
-        public MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName, int windowSize) throws ParseException {
+        public MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName, int windowSize, ParseFieldMatcher parseFieldMatcher) throws ParseException {
 
             double alpha = parseDoubleParam(settings, "alpha", 0.5);
             double beta = parseDoubleParam(settings, "beta", 0.5);

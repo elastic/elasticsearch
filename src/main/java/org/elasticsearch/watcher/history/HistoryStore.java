@@ -117,7 +117,12 @@ public class HistoryStore extends AbstractComponent implements NodeSettingsServi
 
     public void start() {
         if (started.compareAndSet(false, true)) {
-            templateUtils.putTemplate(INDEX_TEMPLATE_NAME, customIndexSettings);
+            try {
+                templateUtils.putTemplate(INDEX_TEMPLATE_NAME, customIndexSettings);
+            } catch (Exception e) {
+                started.set(false);
+                throw e;
+            }
         }
     }
 

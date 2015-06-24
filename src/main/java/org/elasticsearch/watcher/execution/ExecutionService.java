@@ -80,13 +80,18 @@ public class ExecutionService extends AbstractComponent {
 
         assert executor.queue().isEmpty() : "queue should be empty, but contains " + executor.queue().size() + " elements.";
         if (started.compareAndSet(false, true)) {
-            logger.debug("starting execution service");
-            historyStore.start();
-            triggeredWatchStore.start();
-            currentExecutions = new CurrentExecutions();
-            Collection<TriggeredWatch> triggeredWatches = triggeredWatchStore.loadTriggeredWatches(state);
-            executeTriggeredWatches(triggeredWatches);
-            logger.debug("started execution service");
+            try {
+                logger.debug("starting execution service");
+                historyStore.start();
+                triggeredWatchStore.start();
+                currentExecutions = new CurrentExecutions();
+                Collection<TriggeredWatch> triggeredWatches = triggeredWatchStore.loadTriggeredWatches(state);
+                executeTriggeredWatches(triggeredWatches);
+                logger.debug("started execution service");
+            } catch (Exception e) {
+                started.set(false);
+                throw e;
+            }
         }
     }
 

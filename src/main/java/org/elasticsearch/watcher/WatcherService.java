@@ -52,15 +52,20 @@ public class WatcherService extends AbstractComponent {
 
     public void start(ClusterState clusterState) {
         if (state.compareAndSet(WatcherState.STOPPED, WatcherState.STARTING)) {
-            logger.info("starting watch service...");
-            watchLockService.start();
+            try {
+                logger.info("starting watch service...");
+                watchLockService.start();
 
-            // Try to load watch store before the execution service, b/c action depends on watch store
-            watchStore.start(clusterState);
-            executionService.start(clusterState);
-            triggerService.start(watchStore.watches().values());
-            state.set(WatcherState.STARTED);
-            logger.info("watch service has started");
+                // Try to load watch store before the execution service, b/c action depends on watch store
+                watchStore.start(clusterState);
+                executionService.start(clusterState);
+                triggerService.start(watchStore.watches().values());
+                state.set(WatcherState.STARTED);
+                logger.info("watch service has started");
+            } catch (Exception e) {
+                state.set(WatcherState.STOPPED);
+                throw e;
+            }
         } else {
             logger.debug("not starting watcher, because its state is [{}] while [{}] is expected", state, WatcherState.STOPPED);
         }

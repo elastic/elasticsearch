@@ -263,7 +263,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
 
     /** Specifies whether wildcards should be analyzed. Defaults to false. */
     public SimpleQueryStringBuilder analyzeWildcard(boolean analyzeWildcard) {
-        this.settings.analyzeWildcard(DEFAULT_ANALYZE_WILDCARD);
+        this.settings.analyzeWildcard(analyzeWildcard);
         return this;
     }
 

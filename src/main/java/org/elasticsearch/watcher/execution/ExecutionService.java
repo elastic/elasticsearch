@@ -117,11 +117,11 @@ public class ExecutionService extends AbstractComponent {
         return defaultThrottlePeriod;
     }
 
-    public long queueSize() {
+    public long executionThreadPoolQueueSize() {
         return executor.queue().size();
     }
 
-    public long largestQueueSize() {
+    public long executionThreadPoolMaxSize() {
         return executor.largestPoolSize();
     }
 

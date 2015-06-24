@@ -44,9 +44,9 @@ public class WatcherStatsTests extends AbstractWatcherIntegrationTests {
         WatcherStatsResponse response = watcherClient().watcherStats(watcherStatsRequest).actionGet();
 
         assertThat(response.getWatcherState(), is(WatcherState.STARTED));
-        assertThat(response.getExecutionQueueSize(), is(0L));
+        assertThat(response.getThreadPoolQueueSize(), is(0L));
         assertThat(response.getWatchesCount(), is(0L));
-        assertThat(response.getWatchExecutionQueueMaxSize(), is(timeWarped() ? 1L : 0L));
+        assertThat(response.getThreadPoolMaxSize(), is(timeWarped() ? 1L : 0L));
         assertThat(response.getVersion(), is(WatcherVersion.CURRENT));
         assertThat(response.getBuild(), is(WatcherBuild.CURRENT));
     }
@@ -80,6 +80,6 @@ public class WatcherStatsTests extends AbstractWatcherIntegrationTests {
 
         assertThat(response.getWatcherState(), is(WatcherState.STARTED));
         assertThat(response.getWatchesCount(), is(1L));
-        assertThat(response.getWatchExecutionQueueMaxSize(), greaterThan(0L));
+        assertThat(response.getThreadPoolMaxSize(), greaterThan(0L));
     }
 }

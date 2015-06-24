@@ -28,8 +28,8 @@ public class WatcherStatsResponse extends ActionResponse implements ToXContent {
     private WatcherBuild build;
     private long watchesCount;
     private WatcherState watcherState;
-    private long watchExecutionQueueSize;
-    private long watchExecutionQueueMaxSize;
+    private long threadPoolQueueSize;
+    private long threadPoolMaxSize;
 
     private List<WatchExecutionSnapshot> snapshots;
     private List<QueuedWatch> queuedWatches;
@@ -38,25 +38,25 @@ public class WatcherStatsResponse extends ActionResponse implements ToXContent {
     }
 
     /**
-     * @return The current watch execution queue size
+     * @return The current execution thread pool queue size
      */
-    public long getExecutionQueueSize() {
-        return watchExecutionQueueSize;
+    public long getThreadPoolQueueSize() {
+        return threadPoolQueueSize;
     }
 
-    void setWatchExecutionQueueSize(long watchExecutionQueueSize) {
-        this.watchExecutionQueueSize = watchExecutionQueueSize;
+    void setThreadPoolQueueSize(long threadPoolQueueSize) {
+        this.threadPoolQueueSize = threadPoolQueueSize;
     }
 
     /**
-     * @return The max size of the watch execution queue
+     * @return The max number of threads in the execution thread pool
      */
-    public long getWatchExecutionQueueMaxSize() {
-        return watchExecutionQueueMaxSize;
+    public long getThreadPoolMaxSize() {
+        return threadPoolMaxSize;
     }
 
-    void setWatchExecutionQueueMaxSize(long watchExecutionQueueMaxSize) {
-        this.watchExecutionQueueMaxSize = watchExecutionQueueMaxSize;
+    void setThreadPoolMaxSize(long threadPoolMaxSize) {
+        this.threadPoolMaxSize = threadPoolMaxSize;
     }
 
     /**
@@ -125,8 +125,8 @@ public class WatcherStatsResponse extends ActionResponse implements ToXContent {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         watchesCount = in.readLong();
-        watchExecutionQueueSize = in.readLong();
-        watchExecutionQueueMaxSize = in.readLong();
+        threadPoolQueueSize = in.readLong();
+        threadPoolMaxSize = in.readLong();
         watcherState = WatcherState.fromId(in.readByte());
         version = WatcherVersion.readVersion(in);
         build = WatcherBuild.readBuild(in);
@@ -151,8 +151,8 @@ public class WatcherStatsResponse extends ActionResponse implements ToXContent {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeLong(watchesCount);
-        out.writeLong(watchExecutionQueueSize);
-        out.writeLong(watchExecutionQueueMaxSize);
+        out.writeLong(threadPoolQueueSize);
+        out.writeLong(threadPoolMaxSize);
         out.writeByte(watcherState.getId());
         WatcherVersion.writeVersion(version, out);
         WatcherBuild.writeBuild(build, out);
@@ -182,9 +182,9 @@ public class WatcherStatsResponse extends ActionResponse implements ToXContent {
         builder.startObject();
         builder.field("watcher_state", watcherState.toString().toLowerCase(Locale.ROOT));
         builder.field("watch_count", watchesCount);
-        builder.startObject("execution_queue");
-        builder.field("size", watchExecutionQueueSize);
-        builder.field("max_size", watchExecutionQueueMaxSize);
+        builder.startObject("execution_thread_pool");
+        builder.field("queue_size", threadPoolQueueSize);
+        builder.field("max_size", threadPoolMaxSize);
         builder.endObject();
 
         if (snapshots != null) {

@@ -255,7 +255,7 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTests {
             assertThat(watcherService.state(), is(WatcherState.STOPPED));
         }
         for (ExecutionService executionService : internalTestCluster().getInstances(ExecutionService.class)) {
-            assertThat(executionService.queueSize(), equalTo(0l));
+            assertThat(executionService.executionThreadPoolQueueSize(), equalTo(0l));
         }
     }
 

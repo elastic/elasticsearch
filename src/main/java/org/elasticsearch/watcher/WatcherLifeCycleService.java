@@ -40,7 +40,7 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
         clusterService.addLifecycleListener(new LifecycleListener() {
             @Override
             public void beforeStop() {
-                stop(false);
+                stop(true);
             }
         });
         manuallyStopped = !settings.getAsBoolean("watcher.start_immediately",  true);

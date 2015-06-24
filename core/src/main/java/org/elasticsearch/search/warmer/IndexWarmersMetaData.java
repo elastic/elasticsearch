@@ -248,7 +248,10 @@ public class IndexWarmersMetaData extends AbstractDiffable<IndexMetaData.Custom>
         if (binary) {
             builder.value(entry.source());
         } else {
-            Map<String, Object> mapping = XContentFactory.xContent(entry.source()).createParser(entry.source()).mapOrderedAndClose();
+            Map<String, Object> mapping;
+            try (XContentParser parser = XContentFactory.xContent(entry.source()).createParser(entry.source())) {
+                mapping = parser.mapOrdered();
+            }
             builder.map(mapping);
         }
         builder.endObject();

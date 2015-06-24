@@ -64,8 +64,8 @@ public class XContentHelper {
 
     public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered) throws ElasticsearchParseException {
         try {
-            XContentParser parser;
             XContentType contentType;
+            InputStream input;
             Compressor compressor = CompressorFactory.compressor(bytes);
             if (compressor != null) {
                 InputStream compressedStreamInput = compressor.streamInput(bytes.streamInput());
@@ -73,15 +73,17 @@ public class XContentHelper {
                     compressedStreamInput = new BufferedInputStream(compressedStreamInput);
                 }
                 contentType = XContentFactory.xContentType(compressedStreamInput);
-                parser = XContentFactory.xContent(contentType).createParser(compressedStreamInput);
+                input = compressedStreamInput;
             } else {
                 contentType = XContentFactory.xContentType(bytes);
-                parser = XContentFactory.xContent(contentType).createParser(bytes.streamInput());
+                input = bytes.streamInput();
             }
-            if (ordered) {
-                return Tuple.tuple(contentType, parser.mapOrderedAndClose());
-            } else {
-                return Tuple.tuple(contentType, parser.mapAndClose());
+            try (XContentParser parser = XContentFactory.xContent(contentType).createParser(input)) {
+                if (ordered) {
+                    return Tuple.tuple(contentType, parser.mapOrdered());
+                } else {
+                    return Tuple.tuple(contentType, parser.map());
+                }
             }
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);

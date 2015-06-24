@@ -1,0 +1,15 @@
+[[java-query-dsl-geo-polygon-query]]
+==== Geo Polygon Query
+
+See {ref}/query-dsl-geo-polygon-query.html[Geo Polygon Query]
+
+[source,java]
+--------------------------------------------------
+QueryBuilder qb = geoPolygonQuery("pin.location")       <1>
+    .addPoint(40, -70)                                  <2>
+    .addPoint(30, -80)                                  <2>
+    .addPoint(20, -90);                                 <2>
+--------------------------------------------------
+<1> field
+<2> add your polygon of points a document should fall within
+

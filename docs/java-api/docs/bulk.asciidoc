@@ -1,5 +1,5 @@
-[[bulk]]
-== Bulk API
+[[java-docs-bulk]]
+=== Bulk API
 
 The bulk API allows one to index and delete several documents in a
 single request. Here is a sample usage:
@@ -31,14 +31,14 @@ bulkRequest.add(client.prepareIndex("twitter", "tweet", "2")
                   )
         );
         
-BulkResponse bulkResponse = bulkRequest.execute().actionGet();
+BulkResponse bulkResponse = bulkRequest.get();
 if (bulkResponse.hasFailures()) {
     // process failures by iterating through each bulk response item
 }
 --------------------------------------------------
 
-[float]
-== Using Bulk Processor
+[[java-docs-bulk-processor]]
+=== Using Bulk Processor
 
 The `BulkProcessor` class offers a simple interface to flush bulk operations automatically based on the number or size
 of requests, or after a given period.

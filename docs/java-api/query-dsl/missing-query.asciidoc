@@ -1,0 +1,15 @@
+[[java-query-dsl-missing-query]]
+==== Missing Query
+
+See {ref}/query-dsl-missing-query.html[Missing Query]
+
+[source,java]
+--------------------------------------------------
+QueryBuilder qb = missingQuery("user");         <1>
+    .existence(true)                            <2>
+    .nullValue(true);                           <3>
+--------------------------------------------------
+<1> field
+<2> find missing field that doesn’t exist
+<3> find missing field with an explicit `null` value
+

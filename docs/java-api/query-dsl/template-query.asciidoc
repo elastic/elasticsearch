@@ -1,0 +1,71 @@
+[[java-query-dsl-template-query]]
+==== Template Query
+
+See {ref}/search-template.html[Search Template] documentation
+
+Define your template parameters as a `Map<String,Object>`:
+
+[source,java]
+--------------------------------------------------
+Map<String, Object> template_params = new HashMap<>();
+template_params.put("param_gender", "male");
+--------------------------------------------------
+
+You can use your stored search templates in `config/scripts`.
+For example, if you have a file named `config/scripts/template_gender.mustache` containing:
+
+[source,js]
+--------------------------------------------------
+{
+    "template" : {
+        "query" : {
+            "match" : {
+                "gender" : "{{param_gender}}"
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Define your template query:
+
+[source,java]
+--------------------------------------------------
+QueryBuilder qb = templateQuery(
+    "gender_template",                  <1>
+    ScriptService.ScriptType.FILE,      <2>
+    template_params);                   <3>
+--------------------------------------------------
+<1> template name
+<2> template stored on disk in `gender_template.mustache`
+<3> parameters
+
+You can also store your template in a special index named `.scripts`:
+
+[source,java]
+--------------------------------------------------
+client.preparePutIndexedScript("mustache", "template_gender",
+        "{\n" +
+        "    \"template\" : {\n" +
+        "        \"query\" : {\n" +
+        "            \"match\" : {\n" +
+        "                \"gender\" : \"{{param_gender}}\"\n" +
+        "            }\n" +
+        "        }\n" +
+        "    }\n" +
+        "}").get();
+--------------------------------------------------
+
+To execute an indexed templates, use `ScriptService.ScriptType.INDEXED`:
+
+[source,java]
+--------------------------------------------------
+QueryBuilder qb = templateQuery(
+    "gender_template",                  <1>
+    ScriptService.ScriptType.INDEXED,   <2>
+    template_params);                   <3>
+--------------------------------------------------
+<1> template name
+<2> template stored in an index
+<3> parameters
+

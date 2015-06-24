@@ -1,5 +1,5 @@
-[[java-update-api]]
-== Update API
+[[java-docs-update]]
+=== Update API
 
 
 You can either create an `UpdateRequest` and send it to the client:
@@ -38,8 +38,8 @@ In that case, you'll need to use `ScriptService.ScriptType.FILE`
 
 Note that you can't provide both `script` and `doc`.
 
-[[java-update-api-script]]
-=== Update by script
+[[java-docs-update-api-script]]
+==== Update by script
 
 The update API allows to update a document based on a script provided:
 
@@ -51,8 +51,8 @@ client.update(updateRequest).get();
 --------------------------------------------------
 
 
-[[java-update-api-merge-docs]]
-=== Update by merging documents
+[[java-docs-update-api-merge-docs]]
+==== Update by merging documents
 
 The update API also support passing a partial document, which will be merged into the existing document (simple
 recursive merge, inner merging of objects, replacing core "keys/values" and arrays). For example:
@@ -68,8 +68,8 @@ client.update(updateRequest).get();
 --------------------------------------------------
 
 
-[[java-update-api-upsert]]
-=== Upsert
+[[java-docs-update-api-upsert]]
+==== Upsert
 
 There is also support for `upsert`. If the document already exists, the content of the `upsert`
 element will be used to index the fresh doc:

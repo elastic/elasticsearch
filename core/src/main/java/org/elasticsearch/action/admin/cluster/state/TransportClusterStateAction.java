@@ -76,7 +76,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
         logger.trace("Serving cluster state request using version {}", currentState.version());
         ClusterState.Builder builder = ClusterState.builder(currentState.getClusterName());
         builder.version(currentState.version());
-        builder.uuid(currentState.uuid());
+        builder.updateId(currentState.updateId());
         if (request.nodes()) {
             builder.nodes(currentState.nodes());
         }

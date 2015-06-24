@@ -750,7 +750,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation("test1", "cluster.service", Level.DEBUG, "*processing [test1]: took * no change in cluster_state"));
         mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation("test2", "cluster.service", Level.TRACE, "*failed to execute cluster state update in *"));
-        mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation("test3", "cluster.service", Level.DEBUG, "*processing [test3]: took * done applying updated cluster_state (version: *, uuid: *)"));
+        mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation("test3", "cluster.service", Level.DEBUG, "*processing [test3]: took * done applying updated cluster_state (version: *, updateId: *)"));
 
         Logger rootLogger = Logger.getRootLogger();
         rootLogger.addAppender(mockAppender);

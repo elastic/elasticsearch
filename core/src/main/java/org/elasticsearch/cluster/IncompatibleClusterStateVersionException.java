@@ -22,14 +22,14 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.ElasticsearchException;
 
 /**
- * Thrown by {@link Diffable#readDiffAndApply(org.elasticsearch.common.io.stream.StreamInput)} method
+ * Thrown by {@link Diff#apply} method if the diffs cannot be applied to the given cluster state
  */
 public class IncompatibleClusterStateVersionException extends ElasticsearchException {
     public IncompatibleClusterStateVersionException(String msg) {
         super(msg);
     }
 
-    public IncompatibleClusterStateVersionException(long expectedVersion, String expectedUuid, long receivedVersion, String receivedUuid) {
-        super("Expected diff for version " + expectedVersion + " with uuid " + expectedUuid + " got version " + receivedVersion + " and uuid " + receivedUuid);
+    public IncompatibleClusterStateVersionException(long expectedVersion, String expectedUpdateId, long receivedVersion, String receivedUpdateId) {
+        super("Expected diff for version " + expectedVersion + " with updateId " + expectedUpdateId + " got version " + receivedVersion + " and updateId " + receivedUpdateId);
     }
 }

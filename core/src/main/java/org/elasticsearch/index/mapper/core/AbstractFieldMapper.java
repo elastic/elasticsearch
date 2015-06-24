@@ -564,11 +564,6 @@ public abstract class AbstractFieldMapper implements FieldMapper {
 
     protected abstract String contentType();
 
-    @Override
-    public void close() {
-        multiFields.close();
-    }
-
     public static class MultiFields {
 
         public static MultiFields empty() {
@@ -700,12 +695,6 @@ public abstract class AbstractFieldMapper implements FieldMapper {
                     return cursor.value;
                 }
             });
-        }
-
-        public void close() {
-            for (ObjectCursor<FieldMapper> cursor : mappers.values()) {
-                cursor.value.close();
-            }
         }
 
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

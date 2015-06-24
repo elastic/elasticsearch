@@ -442,10 +442,6 @@ public class DocumentMapper implements ToXContent {
 
     public void close() {
         documentParser.close();
-        mapping.root.close();
-        for (RootMapper rootMapper : mapping.rootMappers) {
-            rootMapper.close();
-        }
     }
 
     @Override

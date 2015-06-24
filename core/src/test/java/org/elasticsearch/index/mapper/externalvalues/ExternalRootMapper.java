@@ -53,10 +53,6 @@ public class ExternalRootMapper implements RootMapper {
     }
 
     @Override
-    public void close() {
-    }
-
-    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.startObject(CONTENT_TYPE).endObject();
     }

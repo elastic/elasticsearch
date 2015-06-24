@@ -1,0 +1,17 @@
+[[java-query-dsl-geohash-cell-query]]
+==== Geohash Cell Query
+
+See {ref}/query-dsl-geohash-cell-query.html[Geohash Cell Query]
+
+[source,java]
+--------------------------------------------------
+QueryBuilder qb = geoHashCellQuery("pin.location",  <1>
+            new GeoPoint(13.4080, 52.5186))         <2>
+        .neighbors(true)                            <3>
+        .precision(3);                              <4>
+--------------------------------------------------
+<1> field
+<2> point. Can also be a hash like `u30`
+<3> The `neighbors` option of the filter offers the possibility to filter cells
+    next to the given cell.
+<4> precision level

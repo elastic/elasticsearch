@@ -1,19 +1,15 @@
-[[search]]
+[[java-search]]
 == Search API
 
 The search API allows one to execute a search query and get back search hits
 that match the query. It can be executed across one or more indices and
-across one or more types. The query can either be provided using the
-<<query-dsl-queries,query Java API>> or
-the <<query-dsl-filters,filter Java API>>. 
-The body of the search request is built using the
-`SearchSourceBuilder`. Here is an example:
+across one or more types. The query can provided using the <<java-query-dsl,query Java API>>.
+The body of the search request is built using the `SearchSourceBuilder`. Here is an example:
 
 [source,java]
 --------------------------------------------------
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.index.query.FilterBuilders.*;
 import org.elasticsearch.index.query.QueryBuilders.*;
 --------------------------------------------------
 
@@ -22,8 +18,8 @@ import org.elasticsearch.index.query.QueryBuilders.*;
 SearchResponse response = client.prepareSearch("index1", "index2")
         .setTypes("type1", "type2")
         .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-        .setQuery(QueryBuilders.termQuery("multi", "test"))             // Query
-        .setPostFilter(FilterBuilders.rangeFilter("age").from(12).to(18))   // Filter
+        .setQuery(QueryBuilders.termQuery("multi", "test"))                 // Query
+        .setPostFilter(QueryBuilders.rangeQuery("age").from(12).to(18))     // Filter
         .setFrom(0).setSize(60).setExplain(true)
         .execute()
         .actionGet();
@@ -46,7 +42,7 @@ For more information on the search operation, check out the REST
 {ref}/search.html[search] docs.
 
 
-[[scrolling]]
+[[java-search-scrolling]]
 === Using scrolls in Java
 
 Read the {ref}/search-request-scroll.html[scroll documentation]
@@ -54,7 +50,6 @@ first!
 
 [source,java]
 --------------------------------------------------
-import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 
 QueryBuilder qb = termQuery("multi", "test");
@@ -78,7 +73,7 @@ while (true) {
 }
 --------------------------------------------------
 
-[[msearch]]
+[[java-search-msearch]]
 === MultiSearch API
 
 See {ref}/search-multi-search.html[MultiSearch API Query]
@@ -132,69 +127,22 @@ DateHistogram agg2 = sr.getAggregations().get("agg2");
 See <<java-aggs,Aggregations Java API>>
 documentation for details.
 
-[[java-search-template]]
-=== Using Search Templates
 
-See {ref}/search-template.html[Search Template] documentation
+[[java-search-terminate-after]]
+=== Terminate After
 
-Define your template parameters as a `Map<String,Object>`:
+The maximum number of documents to collect for each shard, upon reaching which the query execution will terminate early.
+If set, you will be able to check if the operation terminated early by asking for `isTerminatedEarly()` in the
+`SearchResponse` onject:
 
 [source,java]
 --------------------------------------------------
-Map<String, Object> template_params = new HashMap<>();
-template_params.put("param_gender", "male");
---------------------------------------------------
+SearchResponse sr = client.prepareSearch(INDEX)
+    .setTerminateAfter(1000)    <1>
+    .get();
 
-You can use your stored search templates in `config/scripts`.
-For example, if you have a file named `config/scripts/template_gender.mustache` containing:
-
-[source,js]
---------------------------------------------------
-{
-    "template" : {
-        "query" : {
-            "match" : {
-                "gender" : "{{param_gender}}"
-            }
-        }
-    }
+if (sr.isTerminatedEarly()) {
+    // We finished early
 }
 --------------------------------------------------
-
-Execute it with:
-
-[source,java]
---------------------------------------------------
-SearchResponse sr = client.prepareSearch()
-        .setTemplateName("template_gender")
-        .setTemplateType(ScriptService.ScriptType.FILE)
-        .setTemplateParams(template_params)
-        .get();
---------------------------------------------------
-
-You can also store your template in a special index named `.scripts`:
-
-[source,java]
---------------------------------------------------
-client.preparePutIndexedScript("mustache", "template_gender",
-        "{\n" +
-        "    \"template\" : {\n" +
-        "        \"query\" : {\n" +
-        "            \"match\" : {\n" +
-        "                \"gender\" : \"{{param_gender}}\"\n" +
-        "            }\n" +
-        "        }\n" +
-        "    }\n" +
-        "}").get();
---------------------------------------------------
-
-To execute an indexed templates, use `ScriptService.ScriptType.INDEXED`:
-
-[source,java]
---------------------------------------------------
-SearchResponse sr = client.prepareSearch()
-        .setTemplateName("template_gender")
-        .setTemplateType(ScriptService.ScriptType.INDEXED)
-        .setTemplateParams(template_params)
-        .get();
---------------------------------------------------
+<1> Finish after 1000 docs

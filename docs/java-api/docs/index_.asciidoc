@@ -1,12 +1,12 @@
-[[index_]]
-== Index API
+[[java-docs-index]]
+=== Index API
 
 The index API allows one to index a typed JSON document into a specific
 index and make it searchable.
 
 
-[[generate]]
-=== Generate JSON document
+[[java-docs-index-generate]]
+==== Generate JSON document
 
 There are several different ways of generating a JSON document:
 
@@ -26,7 +26,8 @@ use it. The `jsonBuilder` is highly optimized JSON generator that
 directly constructs a `byte[]`.
 
 
-==== Do It Yourself
+[[java-docs-index-generate-diy]]
+===== Do It Yourself
 
 Nothing really difficult here but note that you will have to encode
 dates according to the
@@ -42,8 +43,8 @@ String json = "{" +
 --------------------------------------------------
 
 
-[[using-map]]
-==== Using Map
+[[java-docs-index-generate-using-map]]
+===== Using Map
 
 Map is a key:values pair collection. It represents a JSON structure:
 
@@ -56,8 +57,8 @@ json.put("message","trying out Elasticsearch");
 --------------------------------------------------
 
 
-[[beans]]
-==== Serialize your beans
+[[java-docs-index-generate-beans]]
+===== Serialize your beans
 
 Elasticsearch already uses Jackson but shades it under
 `org.elasticsearch.common.jackson` package. +
@@ -90,8 +91,8 @@ byte[] json = mapper.writeValueAsBytes(yourbeaninstance);
 --------------------------------------------------
 
 
-[[helpers]]
-==== Use Elasticsearch helpers
+[[java-docs-index-generate-helpers]]
+===== Use Elasticsearch helpers
 
 Elasticsearch provides built-in helpers to generate JSON content.
 
@@ -121,8 +122,8 @@ String json = builder.string();
 --------------------------------------------------
 
 
-[[index-doc]]
-=== Index document
+[[java-docs-index-doc]]
+==== Index document
 
 The following example indexes a JSON document into an index called
 twitter, under a type called tweet, with id valued 1:
@@ -139,8 +140,7 @@ IndexResponse response = client.prepareIndex("twitter", "tweet", "1")
                         .field("message", "trying out Elasticsearch")
                     .endObject()
                   )
-        .execute()
-        .actionGet();
+        .get();
 --------------------------------------------------
 
 Note that you can also index your documents as JSON String and that you
@@ -156,8 +156,7 @@ String json = "{" +
 
 IndexResponse response = client.prepareIndex("twitter", "tweet")
         .setSource(json)
-        .execute()
-        .actionGet();
+        .get();
 --------------------------------------------------
 
 `IndexResponse` object will give you a report:
@@ -180,7 +179,8 @@ For more information on the index operation, check out the REST
 {ref}/docs-index_.html[index] docs.
 
 
-=== Operation Threading
+[[java-docs-index-thread]]
+==== Operation Threading
 
 The index API allows one to set the threading model the operation will be
 performed when the actual execution of the API is performed on the same

@@ -1,0 +1,9 @@
+[[java-query-dsl-match-all-query]]
+=== Match All Query
+
+See {ref}/query-dsl-match-all-query.html[Match All Query]
+
+[source,java]
+--------------------------------------------------
+QueryBuilder qb = matchAllQuery();
+--------------------------------------------------

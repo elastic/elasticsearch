@@ -1,0 +1,29 @@
+[[java-query-dsl-range-query]]
+==== Range Query
+
+See {ref}/query-dsl-range-query.html[Range Query]
+
+[source,java]
+--------------------------------------------------
+QueryBuilder qb = rangeQuery("price")   <1>
+    .from(5)                            <2>
+    .to(10)                             <3>
+    .includeLower(true)                 <4>
+    .includeUpper(false);               <5>
+--------------------------------------------------
+<1> field
+<2> from
+<3> to
+<4> include lower value means that `from` is `gt` when `false` or `gte` when `true`
+<5> include upper value means that `to` is `lt` when `false` or `lte` when `true`
+
+[source,java]
+--------------------------------------------------
+// A simplified form using gte, gt, lt or lte
+QueryBuilder qb = rangeQuery("age")   <1>
+    .gte("10")                        <2>
+    .lt("20");                        <3>
+--------------------------------------------------
+<1> field
+<2> set `from` to 10 and `includeLower` to `true`
+<3> set `to` to 20 and `includeUpper` to `false`

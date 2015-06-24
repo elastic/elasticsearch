@@ -476,7 +476,7 @@ Example using Java:
 
 ```java
 client.admin().cluster().preparePutRepository("my_backup3")
-    .setType("azure").setSettings(ImmutableSettings.settingsBuilder()
+    .setType("azure").setSettings(Settings.settingsBuilder()
         .put(Storage.CONTAINER, "backup_container")
         .put(Storage.CHUNK_SIZE, new ByteSizeValue(32, ByteSizeUnit.MB))
     ).get();

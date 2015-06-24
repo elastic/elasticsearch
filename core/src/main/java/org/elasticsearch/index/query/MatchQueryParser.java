@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
-import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
@@ -110,15 +109,7 @@ public class MatchQueryParser extends BaseQueryParserTemp {
                     } else if ("max_expansions".equals(currentFieldName) || "maxExpansions".equals(currentFieldName)) {
                         matchQuery.setMaxExpansions(parser.intValue());
                     } else if ("operator".equals(currentFieldName)) {
-                        String op = parser.text();
-                        if ("or".equalsIgnoreCase(op)) {
-                            matchQuery.setOccur(BooleanClause.Occur.SHOULD);
-                        } else if ("and".equalsIgnoreCase(op)) {
-                            matchQuery.setOccur(BooleanClause.Occur.MUST);
-                        } else {
-                            throw new QueryParsingException(parseContext, "text query requires operator to be either 'and' or 'or', not ["
-                                    + op + "]");
-                        }
+                        matchQuery.setOccur(Operator.fromString(parser.text()).toBooleanClauseOccur());
                     } else if ("minimum_should_match".equals(currentFieldName) || "minimumShouldMatch".equals(currentFieldName)) {
                         minimumShouldMatch = parser.textOrNull();
                     } else if ("rewrite".equals(currentFieldName)) {

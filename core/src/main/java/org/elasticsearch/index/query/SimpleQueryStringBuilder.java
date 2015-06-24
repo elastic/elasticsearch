@@ -22,7 +22,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.BooleanClause.Occur;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -91,25 +90,6 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     private Settings settings = new Settings();
 
     static final SimpleQueryStringBuilder PROTOTYPE = new SimpleQueryStringBuilder(null);
-
-    /** Operators available for linking boolean clauses. */
-    // Move out after #11345 is in.
-    public static enum Operator {
-        AND,
-        OR;
-
-        public static Operator parseFromInt(int ordinal) {
-            switch (ordinal) {
-                case 0:
-                    return AND;
-                case 1:
-                    return OR;
-                default:
-                    throw new IllegalArgumentException("cannot parse Operator from ordinal " + ordinal);
-            }
-
-        }
-    }
 
     /** Construct a new simple query with this query string. */
     public SimpleQueryStringBuilder(String queryText) {
@@ -328,17 +308,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
 
         }
         SimpleQueryParser sqp = new SimpleQueryParser(luceneAnalyzer, fieldsAndWeights, flags, settings);
-
-        if (defaultOperator != null) {
-            switch (defaultOperator) {
-                case OR:
-                    sqp.setDefaultOperator(Occur.SHOULD);
-                    break;
-                case AND:
-                    sqp.setDefaultOperator(Occur.MUST);
-                    break;
-            }
-        }
+        sqp.setDefaultOperator(defaultOperator.toBooleanClauseOccur());
 
         Query query = sqp.parse(queryText);
         if (queryName != null) {
@@ -423,7 +393,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         result.flags = in.readInt();
         result.analyzer = in.readOptionalString();
 
-        result.defaultOperator = Operator.parseFromInt(in.readInt());
+        result.defaultOperator = Operator.readOperatorFrom(in);
         result.settings.lowercaseExpandedTerms(in.readBoolean());
         result.settings.lenient(in.readBoolean());
         result.settings.analyzeWildcard(in.readBoolean());
@@ -448,7 +418,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         }
         out.writeInt(flags);
         out.writeOptionalString(analyzer);
-        out.writeInt(defaultOperator.ordinal());
+        defaultOperator.writeTo(out);
         out.writeBoolean(settings.lowercaseExpandedTerms());
         out.writeBoolean(settings.lenient());
         out.writeBoolean(settings.analyzeWildcard());

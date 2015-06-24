@@ -42,11 +42,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
     public static final String NAME = "query_string";
 
-    public enum Operator {
-        OR,
-        AND
-    }
-
     private final String queryString;
 
     private String defaultField;

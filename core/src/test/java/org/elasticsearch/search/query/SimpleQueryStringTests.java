@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.SimpleQueryStringBuilder;
 import org.elasticsearch.index.query.SimpleQueryStringFlag;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -70,7 +71,7 @@ public class SimpleQueryStringTests extends ElasticsearchIntegrationTest {
         assertFirstHit(searchResponse, hasId("3"));
 
         searchResponse = client().prepareSearch().setQuery(
-                simpleQueryStringQuery("foo bar").defaultOperator(SimpleQueryStringBuilder.Operator.AND)).get();
+                simpleQueryStringQuery("foo bar").defaultOperator(Operator.AND)).get();
         assertHitCount(searchResponse, 1l);
         assertFirstHit(searchResponse, hasId("3"));
 
@@ -256,21 +257,21 @@ public class SimpleQueryStringTests extends ElasticsearchIntegrationTest {
 
         searchResponse = client().prepareSearch().setQuery(
                 simpleQueryStringQuery("foo | bar")
-                        .defaultOperator(SimpleQueryStringBuilder.Operator.AND)
+                        .defaultOperator(Operator.AND)
                         .flags(SimpleQueryStringFlag.OR)).get();
         assertHitCount(searchResponse, 3l);
         assertSearchHits(searchResponse, "1", "2", "3");
 
         searchResponse = client().prepareSearch().setQuery(
                 simpleQueryStringQuery("foo | bar")
-                        .defaultOperator(SimpleQueryStringBuilder.Operator.AND)
+                        .defaultOperator(Operator.AND)
                         .flags(SimpleQueryStringFlag.NONE)).get();
         assertHitCount(searchResponse, 1l);
         assertFirstHit(searchResponse, hasId("3"));
 
         searchResponse = client().prepareSearch().setQuery(
                 simpleQueryStringQuery("baz | egg*")
-                        .defaultOperator(SimpleQueryStringBuilder.Operator.AND)
+                        .defaultOperator(Operator.AND)
                         .flags(SimpleQueryStringFlag.NONE)).get();
         assertHitCount(searchResponse, 0l);
 
@@ -287,7 +288,7 @@ public class SimpleQueryStringTests extends ElasticsearchIntegrationTest {
 
         searchResponse = client().prepareSearch().setQuery(
                 simpleQueryStringQuery("baz | egg*")
-                        .defaultOperator(SimpleQueryStringBuilder.Operator.AND)
+                        .defaultOperator(Operator.AND)
                         .flags(SimpleQueryStringFlag.WHITESPACE, SimpleQueryStringFlag.PREFIX)).get();
         assertHitCount(searchResponse, 1l);
         assertFirstHit(searchResponse, hasId("4"));

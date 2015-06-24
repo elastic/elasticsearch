@@ -327,18 +327,18 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
         assertThirdHit(searchResponse, hasId("2"));
 
         // try the same with match query
-        searchResponse = client().prepareSearch().setQuery(matchQuery("field1", "the quick brown").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.AND)).get();
+        searchResponse = client().prepareSearch().setQuery(matchQuery("field1", "the quick brown").cutoffFrequency(3).operator(Operator.AND)).get();
         assertHitCount(searchResponse, 2l);
         assertFirstHit(searchResponse, hasId("1"));
         assertSecondHit(searchResponse, hasId("2"));
 
-        searchResponse = client().prepareSearch().setQuery(matchQuery("field1", "the quick brown").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.OR)).get();
+        searchResponse = client().prepareSearch().setQuery(matchQuery("field1", "the quick brown").cutoffFrequency(3).operator(Operator.OR)).get();
         assertHitCount(searchResponse, 3l);
         assertFirstHit(searchResponse, hasId("1"));
         assertSecondHit(searchResponse, hasId("2"));
         assertThirdHit(searchResponse, hasId("3"));
 
-        searchResponse = client().prepareSearch().setQuery(matchQuery("field1", "the quick brown").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.AND).analyzer("stop")).get();
+        searchResponse = client().prepareSearch().setQuery(matchQuery("field1", "the quick brown").cutoffFrequency(3).operator(Operator.AND).analyzer("stop")).get();
         assertHitCount(searchResponse, 3l);
         // stop drops "the" since its a stopword
         assertFirstHit(searchResponse, hasId("1"));
@@ -346,7 +346,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
         assertThirdHit(searchResponse, hasId("2"));
 
         // try the same with multi match query
-        searchResponse = client().prepareSearch().setQuery(multiMatchQuery("the quick brown", "field1", "field2").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.AND)).get();
+        searchResponse = client().prepareSearch().setQuery(multiMatchQuery("the quick brown", "field1", "field2").cutoffFrequency(3).operator(Operator.AND)).get();
         assertHitCount(searchResponse, 3l);
         assertFirstHit(searchResponse, hasId("3")); // better score due to different query stats
         assertSecondHit(searchResponse, hasId("1"));
@@ -420,18 +420,18 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
         assertThirdHit(searchResponse, hasId("2"));
 
         // try the same with match query
-        searchResponse = client().prepareSearch().setQuery(matchQuery("field1", "the fast brown").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.AND)).get();
+        searchResponse = client().prepareSearch().setQuery(matchQuery("field1", "the fast brown").cutoffFrequency(3).operator(Operator.AND)).get();
         assertHitCount(searchResponse, 2l);
         assertFirstHit(searchResponse, hasId("1"));
         assertSecondHit(searchResponse, hasId("2"));
 
-        searchResponse = client().prepareSearch().setQuery(matchQuery("field1", "the fast brown").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.OR)).get();
+        searchResponse = client().prepareSearch().setQuery(matchQuery("field1", "the fast brown").cutoffFrequency(3).operator(Operator.OR)).get();
         assertHitCount(searchResponse, 3l);
         assertFirstHit(searchResponse, hasId("1"));
         assertSecondHit(searchResponse, hasId("2"));
         assertThirdHit(searchResponse, hasId("3"));
 
-        searchResponse = client().prepareSearch().setQuery(matchQuery("field1", "the fast brown").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.AND).analyzer("stop")).get();
+        searchResponse = client().prepareSearch().setQuery(matchQuery("field1", "the fast brown").cutoffFrequency(3).operator(Operator.AND).analyzer("stop")).get();
         assertHitCount(searchResponse, 3l);
         // stop drops "the" since its a stopword
         assertFirstHit(searchResponse, hasId("1"));
@@ -444,7 +444,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
         assertSecondHit(searchResponse, hasId("2"));
 
         // try the same with multi match query
-        searchResponse = client().prepareSearch().setQuery(multiMatchQuery("the fast brown", "field1", "field2").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.AND)).get();
+        searchResponse = client().prepareSearch().setQuery(multiMatchQuery("the fast brown", "field1", "field2").cutoffFrequency(3).operator(Operator.AND)).get();
         assertHitCount(searchResponse, 3l);
         assertFirstHit(searchResponse, hasId("3")); // better score due to different query stats
         assertSecondHit(searchResponse, hasId("1"));
@@ -862,7 +862,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
 
         client().admin().indices().prepareRefresh("test").get();
         builder = multiMatchQuery("value1", "field1", "field2")
-                .operator(MatchQueryBuilder.Operator.AND); // Operator only applies on terms inside a field! Fields are always OR-ed together.
+                .operator(Operator.AND); // Operator only applies on terms inside a field! Fields are always OR-ed together.
         searchResponse = client().prepareSearch()
                 .setQuery(builder)
                 .get();
@@ -871,14 +871,14 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
 
         refresh();
         builder = multiMatchQuery("value1", "field1", "field3^1.5")
-                .operator(MatchQueryBuilder.Operator.AND); // Operator only applies on terms inside a field! Fields are always OR-ed together.
+                .operator(Operator.AND); // Operator only applies on terms inside a field! Fields are always OR-ed together.
         searchResponse = client().prepareSearch().setQuery(builder).get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "3", "1");
 
         client().admin().indices().prepareRefresh("test").get();
         builder = multiMatchQuery("value1").field("field1").field("field3", 1.5f)
-                .operator(MatchQueryBuilder.Operator.AND); // Operator only applies on terms inside a field! Fields are always OR-ed together.
+                .operator(Operator.AND); // Operator only applies on terms inside a field! Fields are always OR-ed together.
         searchResponse = client().prepareSearch().setQuery(builder).get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "3", "1");
@@ -1696,18 +1696,18 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
         ensureGreen();
         client().prepareIndex("test", "test", "1").setSource("text", "quick brown fox").get();
         refresh();
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchQuery("text", "quick").operator(MatchQueryBuilder.Operator.AND)).get();
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchQuery("text", "quick").operator(Operator.AND)).get();
         assertHitCount(searchResponse, 1);
-        searchResponse = client().prepareSearch("test").setQuery(matchQuery("text", "quick brown").operator(MatchQueryBuilder.Operator.AND)).get();
+        searchResponse = client().prepareSearch("test").setQuery(matchQuery("text", "quick brown").operator(Operator.AND)).get();
         assertHitCount(searchResponse, 1);
-        searchResponse = client().prepareSearch("test").setQuery(matchQuery("text", "fast").operator(MatchQueryBuilder.Operator.AND)).get();
+        searchResponse = client().prepareSearch("test").setQuery(matchQuery("text", "fast").operator(Operator.AND)).get();
         assertHitCount(searchResponse, 1);
 
         client().prepareIndex("test", "test", "2").setSource("text", "fast brown fox").get();
         refresh();
-        searchResponse = client().prepareSearch("test").setQuery(matchQuery("text", "quick").operator(MatchQueryBuilder.Operator.AND)).get();
+        searchResponse = client().prepareSearch("test").setQuery(matchQuery("text", "quick").operator(Operator.AND)).get();
         assertHitCount(searchResponse, 2);
-        searchResponse = client().prepareSearch("test").setQuery(matchQuery("text", "quick brown").operator(MatchQueryBuilder.Operator.AND)).get();
+        searchResponse = client().prepareSearch("test").setQuery(matchQuery("text", "quick brown").operator(Operator.AND)).get();
         assertHitCount(searchResponse, 2);
     }
 
@@ -1727,12 +1727,12 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
         ensureGreen();
         client().prepareIndex("test", "test", "1").setSource("text", "the fox runs across the street").get();
         refresh();
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchQuery("text", "fox runs").operator(MatchQueryBuilder.Operator.AND)).get();
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchQuery("text", "fox runs").operator(Operator.AND)).get();
         assertHitCount(searchResponse, 1);
 
         client().prepareIndex("test", "test", "2").setSource("text", "run fox run").get();
         refresh();
-        searchResponse = client().prepareSearch("test").setQuery(matchQuery("text", "fox runs").operator(MatchQueryBuilder.Operator.AND)).get();
+        searchResponse = client().prepareSearch("test").setQuery(matchQuery("text", "fox runs").operator(Operator.AND)).get();
         assertHitCount(searchResponse, 2);
     }
 
@@ -1754,19 +1754,19 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "test", "1").setSource("text", "quick brown fox").get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(queryStringQuery("quick").defaultField("text").defaultOperator(QueryStringQueryBuilder.Operator.AND)).get();
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(queryStringQuery("quick").defaultField("text").defaultOperator(Operator.AND)).get();
         assertHitCount(searchResponse, 1);
-        searchResponse = client().prepareSearch("test").setQuery(queryStringQuery("quick brown").defaultField("text").defaultOperator(QueryStringQueryBuilder.Operator.AND)).get();
+        searchResponse = client().prepareSearch("test").setQuery(queryStringQuery("quick brown").defaultField("text").defaultOperator(Operator.AND)).get();
         assertHitCount(searchResponse, 1);
-        searchResponse = client().prepareSearch().setQuery(queryStringQuery("fast").defaultField("text").defaultOperator(QueryStringQueryBuilder.Operator.AND)).get();
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("fast").defaultField("text").defaultOperator(Operator.AND)).get();
         assertHitCount(searchResponse, 1);
 
         client().prepareIndex("test", "test", "2").setSource("text", "fast brown fox").get();
         refresh();
 
-        searchResponse = client().prepareSearch("test").setQuery(queryStringQuery("quick").defaultField("text").defaultOperator(QueryStringQueryBuilder.Operator.AND)).get();
+        searchResponse = client().prepareSearch("test").setQuery(queryStringQuery("quick").defaultField("text").defaultOperator(Operator.AND)).get();
         assertHitCount(searchResponse, 2);
-        searchResponse = client().prepareSearch("test").setQuery(queryStringQuery("quick brown").defaultField("text").defaultOperator(QueryStringQueryBuilder.Operator.AND)).get();
+        searchResponse = client().prepareSearch("test").setQuery(queryStringQuery("quick brown").defaultField("text").defaultOperator(Operator.AND)).get();
         assertHitCount(searchResponse, 2);
     }
 
@@ -1793,7 +1793,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client()
                 .prepareSearch("test")
                 .setQuery(
-                        queryStringQuery("foo.baz").useDisMax(false).defaultOperator(QueryStringQueryBuilder.Operator.AND)
+                        queryStringQuery("foo.baz").useDisMax(false).defaultOperator(Operator.AND)
                                 .field("field1").field("field2")).get();
         assertHitCount(response, 1l);
     }

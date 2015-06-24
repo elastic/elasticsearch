@@ -25,7 +25,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.SimpleQueryStringBuilder.Operator;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -145,14 +144,7 @@ public class SimpleQueryStringParser extends BaseQueryParser {
                 } else if ("field".equals(currentFieldName)) {
                     field = parser.text();
                 } else if ("default_operator".equals(currentFieldName) || "defaultOperator".equals(currentFieldName)) {
-                    String op = parser.text();
-                    if ("or".equalsIgnoreCase(op)) {
-                        defaultOperator = Operator.OR;
-                    } else if ("and".equalsIgnoreCase(op)) {
-                        defaultOperator = Operator.AND;
-                    } else {
-                        throw new QueryParsingException(parseContext, "[" + SimpleQueryStringBuilder.NAME + "] default operator [" + op + "] is not allowed");
-                    }
+                    defaultOperator = Operator.fromString(parser.text());
                 } else if ("flags".equals(currentFieldName)) {
                     if (parser.currentToken() != XContentParser.Token.VALUE_NUMBER) {
                         // Possible options are:

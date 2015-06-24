@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.script.Script;
@@ -116,7 +117,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
         ensureYellow();
         refresh();
         SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(MatchQueryBuilder.Operator.OR))
+                .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
                 .setRescorer(RescoreBuilder.queryRescorer(QueryBuilders.matchPhraseQuery("field1", "quick brown").slop(2).boost(4.0f)).setRescoreQueryWeight(2))
                 .setRescoreWindow(5).execute().actionGet();
 
@@ -126,7 +127,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("2"));
 
         searchResponse = client().prepareSearch()
-                .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(MatchQueryBuilder.Operator.OR))
+                .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
                 .setRescorer(RescoreBuilder.queryRescorer(QueryBuilders.matchPhraseQuery("field1", "the quick brown").slop(3)))
                 .setRescoreWindow(5).execute().actionGet();
 
@@ -136,7 +137,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
         assertThirdHit(searchResponse, hasId("3"));
 
         searchResponse = client().prepareSearch()
-                .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(MatchQueryBuilder.Operator.OR))
+                .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
                 .setRescorer(RescoreBuilder.queryRescorer((QueryBuilders.matchPhraseQuery("field1", "the quick brown"))))
                 .setRescoreWindow(5).execute().actionGet();
 
@@ -179,7 +180,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareRefresh("test").execute().actionGet();
         SearchResponse searchResponse = client()
                 .prepareSearch()
-                .setQuery(QueryBuilders.matchQuery("field1", "lexington avenue massachusetts").operator(MatchQueryBuilder.Operator.OR))
+                .setQuery(QueryBuilders.matchQuery("field1", "lexington avenue massachusetts").operator(Operator.OR))
                 .setFrom(0)
                 .setSize(5)
                 .setRescorer(
@@ -194,7 +195,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
 
         searchResponse = client()
                 .prepareSearch()
-                .setQuery(QueryBuilders.matchQuery("field1", "lexington avenue massachusetts").operator(MatchQueryBuilder.Operator.OR))
+                .setQuery(QueryBuilders.matchQuery("field1", "lexington avenue massachusetts").operator(Operator.OR))
                 .setFrom(0)
                 .setSize(5)
                 .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
@@ -211,7 +212,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
         // Make sure non-zero from works:
         searchResponse = client()
                 .prepareSearch()
-                .setQuery(QueryBuilders.matchQuery("field1", "lexington avenue massachusetts").operator(MatchQueryBuilder.Operator.OR))
+                .setQuery(QueryBuilders.matchQuery("field1", "lexington avenue massachusetts").operator(Operator.OR))
                 .setFrom(2)
                 .setSize(5)
                 .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
@@ -320,7 +321,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
 
         SearchResponse searchResponse = client()
                 .prepareSearch()
-                .setQuery(QueryBuilders.matchQuery("field1", "massachusetts").operator(MatchQueryBuilder.Operator.OR))
+                .setQuery(QueryBuilders.matchQuery("field1", "massachusetts").operator(Operator.OR))
                 .setFrom(0)
             .setSize(5).execute().actionGet();
         assertThat(searchResponse.getHits().hits().length, equalTo(4));
@@ -333,7 +334,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
         // Now, penalizing rescore (nothing matches the rescore query):
         searchResponse = client()
                 .prepareSearch()
-                .setQuery(QueryBuilders.matchQuery("field1", "massachusetts").operator(MatchQueryBuilder.Operator.OR))
+                .setQuery(QueryBuilders.matchQuery("field1", "massachusetts").operator(Operator.OR))
                 .setFrom(0)
                 .setSize(5)
                 .setRescorer(
@@ -425,7 +426,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
                     .prepareSearch()
                     .setSearchType(SearchType.QUERY_THEN_FETCH)
                     .setPreference("test") // ensure we hit the same shards for tie-breaking
-                    .setQuery(QueryBuilders.matchQuery("field1", query).operator(MatchQueryBuilder.Operator.OR))
+                    .setQuery(QueryBuilders.matchQuery("field1", query).operator(Operator.OR))
                     .setFrom(0)
                     .setSize(resultSize)
                     .setRescorer(
@@ -440,7 +441,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
             SearchResponse plain = client().prepareSearch()
                     .setSearchType(SearchType.QUERY_THEN_FETCH)
                     .setPreference("test") // ensure we hit the same shards for tie-breaking
-                    .setQuery(QueryBuilders.matchQuery("field1", query).operator(MatchQueryBuilder.Operator.OR)).setFrom(0).setSize(resultSize)
+                    .setQuery(QueryBuilders.matchQuery("field1", query).operator(Operator.OR)).setFrom(0).setSize(resultSize)
                     .execute().actionGet();
             
             // check equivalence
@@ -450,7 +451,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
                     .prepareSearch()
                     .setSearchType(SearchType.QUERY_THEN_FETCH)
                     .setPreference("test") // ensure we hit the same shards for tie-breaking
-                    .setQuery(QueryBuilders.matchQuery("field1", query).operator(MatchQueryBuilder.Operator.OR))
+                    .setQuery(QueryBuilders.matchQuery("field1", query).operator(Operator.OR))
                     .setFrom(0)
                     .setSize(resultSize)
                     .setRescorer(
@@ -468,7 +469,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
                     .prepareSearch()
                     .setSearchType(SearchType.QUERY_THEN_FETCH)
                     .setPreference("test") // ensure we hit the same shards for tie-breaking
-                    .setQuery(QueryBuilders.matchQuery("field1", query).operator(MatchQueryBuilder.Operator.OR))
+                    .setQuery(QueryBuilders.matchQuery("field1", query).operator(Operator.OR))
                     .setFrom(0)
                     .setSize(resultSize)
                     .setRescorer(
@@ -503,7 +504,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
             SearchResponse searchResponse = client()
                     .prepareSearch()
                     .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                    .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(MatchQueryBuilder.Operator.OR))
+                    .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
                     .setRescorer(
                             RescoreBuilder.queryRescorer(QueryBuilders.matchPhraseQuery("field1", "the quick brown").slop(2).boost(4.0f))
                                     .setQueryWeight(0.5f).setRescoreQueryWeight(0.4f)).setRescoreWindow(5).setExplain(true).execute()
@@ -541,7 +542,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
             SearchResponse searchResponse = client()
                     .prepareSearch()
                     .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                    .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(MatchQueryBuilder.Operator.OR))
+                    .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
                     .setRescorer(innerRescoreQuery).setRescoreWindow(5).setExplain(true).execute()
                     .actionGet();
             assertHitCount(searchResponse, 3);
@@ -564,7 +565,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
                 searchResponse = client()
                         .prepareSearch()
                         .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                        .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(MatchQueryBuilder.Operator.OR))
+                        .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
                         .addRescorer(innerRescoreQuery).setRescoreWindow(5)
                         .addRescorer(outerRescoreQuery).setRescoreWindow(10)
                         .setExplain(true).get();

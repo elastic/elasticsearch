@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.Maps;
 
-import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
@@ -100,15 +99,7 @@ public class MultiMatchQueryParser extends BaseQueryParserTemp {
                 } else if ("max_expansions".equals(currentFieldName) || "maxExpansions".equals(currentFieldName)) {
                     multiMatchQuery.setMaxExpansions(parser.intValue());
                 } else if ("operator".equals(currentFieldName)) {
-                    String op = parser.text();
-                    if ("or".equalsIgnoreCase(op)) {
-                        multiMatchQuery.setOccur(BooleanClause.Occur.SHOULD);
-                    } else if ("and".equalsIgnoreCase(op)) {
-                        multiMatchQuery.setOccur(BooleanClause.Occur.MUST);
-                    } else {
-                        throw new QueryParsingException(parseContext, "text query requires operator to be either 'and' or 'or', not [" + op
-                                + "]");
-                    }
+                    multiMatchQuery.setOccur(Operator.fromString(parser.text()).toBooleanClauseOccur());
                 } else if ("minimum_should_match".equals(currentFieldName) || "minimumShouldMatch".equals(currentFieldName)) {
                     minimumShouldMatch = parser.textOrNull();
                 } else if ("rewrite".equals(currentFieldName)) {

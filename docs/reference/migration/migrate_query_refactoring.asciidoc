@@ -11,3 +11,8 @@ on the query-refactoring feature branch.
 Removed the setter `queryName(String queryName)` since this field is not supported
 in this type of query. Use `FQueryFilterBuilder.queryName(String queryName)` instead 
 when in need to wrap a named query as a filter.
+
+Removed the enums called "Operator" from MatchQueryBuilder, QueryStringQueryBuilder,
+SimpleQueryStringBuilder, and CommonTermsQueryBuilder in favour of using the enum
+defined in org.elasticsearch.index.query.Operator in an effort to consolidate the
+codebase and avoid duplication.

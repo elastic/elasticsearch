@@ -27,7 +27,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
-public enum Operator implements Writeable {
+public enum Operator implements Writeable<Operator> {
     OR(0), AND(1);
 
     private final int ordinal;

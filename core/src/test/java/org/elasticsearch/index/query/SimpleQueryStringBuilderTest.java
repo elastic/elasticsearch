@@ -29,7 +29,6 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.query.SimpleQueryParser.Settings;
-import org.elasticsearch.index.query.SimpleQueryStringBuilder.Operator;
 import org.junit.Test;
 
 import java.io.IOException;

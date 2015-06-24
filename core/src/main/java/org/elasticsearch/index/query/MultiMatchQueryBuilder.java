@@ -48,7 +48,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
 
     private MultiMatchQueryBuilder.Type type;
 
-    private MatchQueryBuilder.Operator operator;
+    private Operator operator;
 
     private String analyzer;
 
@@ -205,7 +205,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     /**
      * Sets the operator to use when using a boolean query. Defaults to <tt>OR</tt>.
      */
-    public MultiMatchQueryBuilder operator(MatchQueryBuilder.Operator operator) {
+    public MultiMatchQueryBuilder operator(Operator operator) {
         this.operator = operator;
         return this;
     }

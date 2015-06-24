@@ -210,9 +210,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         if (translogGeneration.translogUUID != null) {
             throw new IllegalArgumentException("TranslogGeneration has a non-null UUID - index must have already been upgraded");
         }
-        assert translogGeneration.translogUUID == null : "Already upgrade";
         try {
-            assert Checkpoint.read(translogPath.resolve(CHECKPOINT_FILE_NAME)) == null;
+            if (Checkpoint.read(translogPath.resolve(CHECKPOINT_FILE_NAME)) != null) {
+                throw new IllegalStateException(CHECKPOINT_FILE_NAME + " file already present, translog is already upgraded");
+            }
         } catch (NoSuchFileException | FileNotFoundException ex) {
             logger.debug("upgrading translog - no checkpoint found");
         }

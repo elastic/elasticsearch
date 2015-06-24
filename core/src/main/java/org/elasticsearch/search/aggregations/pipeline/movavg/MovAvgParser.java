@@ -74,14 +74,14 @@ public class MovAvgParser implements PipelineAggregator.Parser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                if (WINDOW.match(currentFieldName)) {
+                if (context.parseFieldMatcher().match(currentFieldName, WINDOW)) {
                     window = parser.intValue();
                     if (window <= 0) {
                         throw new SearchParseException(context, "[" + currentFieldName + "] value must be a positive, "
                                 + "non-zero integer.  Value supplied was [" + predict + "] in [" + pipelineAggregatorName + "].",
                                 parser.getTokenLocation());
                     }
-                } else if (PREDICT.match(currentFieldName)) {
+                } else if (context.parseFieldMatcher().match(currentFieldName, PREDICT)) {
                     predict = parser.intValue();
                     if (predict <= 0) {
                         throw new SearchParseException(context, "[" + currentFieldName + "] value must be a positive, "
@@ -93,20 +93,20 @@ public class MovAvgParser implements PipelineAggregator.Parser {
                             + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (FORMAT.match(currentFieldName)) {
+                if (context.parseFieldMatcher().match(currentFieldName, FORMAT)) {
                     format = parser.text();
-                } else if (BUCKETS_PATH.match(currentFieldName)) {
+                } else if (context.parseFieldMatcher().match(currentFieldName, BUCKETS_PATH)) {
                     bucketsPaths = new String[] { parser.text() };
-                } else if (GAP_POLICY.match(currentFieldName)) {
+                } else if (context.parseFieldMatcher().match(currentFieldName, GAP_POLICY)) {
                     gapPolicy = GapPolicy.parse(context, parser.text(), parser.getTokenLocation());
-                } else if (MODEL.match(currentFieldName)) {
+                } else if (context.parseFieldMatcher().match(currentFieldName, MODEL)) {
                     model = parser.text();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: ["
                             + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (BUCKETS_PATH.match(currentFieldName)) {
+                if (context.parseFieldMatcher().match(currentFieldName, BUCKETS_PATH)) {
                     List<String> paths = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         String path = parser.text();
@@ -118,7 +118,7 @@ public class MovAvgParser implements PipelineAggregator.Parser {
                             + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (SETTINGS.match(currentFieldName)) {
+                if (context.parseFieldMatcher().match(currentFieldName, SETTINGS)) {
                     settings = parser.map();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: ["
@@ -150,7 +150,7 @@ public class MovAvgParser implements PipelineAggregator.Parser {
 
         MovAvgModel movAvgModel;
         try {
-            movAvgModel = modelParser.parse(settings, pipelineAggregatorName, window);
+            movAvgModel = modelParser.parse(settings, pipelineAggregatorName, window, context.parseFieldMatcher());
         } catch (ParseException exception) {
             throw new SearchParseException(context, "Could not parse settings for model [" + model + "].", null, exception);
         }

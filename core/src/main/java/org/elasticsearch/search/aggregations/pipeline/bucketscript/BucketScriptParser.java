@@ -61,21 +61,21 @@ public class BucketScriptParser implements PipelineAggregator.Parser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (FORMAT.match(currentFieldName)) {
+                if (context.parseFieldMatcher().match(currentFieldName, FORMAT)) {
                     format = parser.text();
-                } else if (BUCKETS_PATH.match(currentFieldName)) {
+                } else if (context.parseFieldMatcher().match(currentFieldName, BUCKETS_PATH)) {
                     bucketsPathsMap = new HashMap<>();
                     bucketsPathsMap.put("_value", parser.text());
-                } else if (GAP_POLICY.match(currentFieldName)) {
+                } else if (context.parseFieldMatcher().match(currentFieldName, GAP_POLICY)) {
                     gapPolicy = GapPolicy.parse(context, parser.text(), parser.getTokenLocation());
-                } else if (ScriptField.SCRIPT.match(currentFieldName)) {
-                    script = Script.parse(parser);
+                } else if (context.parseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
+                    script = Script.parse(parser, context.parseFieldMatcher());
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + reducerName + "]: ["
                             + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (BUCKETS_PATH.match(currentFieldName)) {
+                if (context.parseFieldMatcher().match(currentFieldName, BUCKETS_PATH)) {
                     List<String> paths = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         String path = parser.text();
@@ -90,9 +90,9 @@ public class BucketScriptParser implements PipelineAggregator.Parser {
                             + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (ScriptField.SCRIPT.match(currentFieldName)) {
-                    script = Script.parse(parser);
-                } else if (BUCKETS_PATH.match(currentFieldName)) {
+                if (context.parseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
+                    script = Script.parse(parser, context.parseFieldMatcher());
+                } else if (context.parseFieldMatcher().match(currentFieldName, BUCKETS_PATH)) {
                     Map<String, Object> map = parser.map();
                     bucketsPathsMap = new HashMap<>();
                     for (Map.Entry<String, Object> entry : map.entrySet()) {

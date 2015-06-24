@@ -64,8 +64,8 @@ public class SignificantTermsParametersParser extends AbstractTermsParametersPar
         if (token == XContentParser.Token.START_OBJECT) {
             SignificanceHeuristicParser significanceHeuristicParser = significanceHeuristicParserMapper.get(currentFieldName);
             if (significanceHeuristicParser != null) {
-                significanceHeuristic = significanceHeuristicParser.parse(parser);
-            } else if (BACKGROUND_FILTER.match(currentFieldName)) {
+                significanceHeuristic = significanceHeuristicParser.parse(parser, context.parseFieldMatcher());
+            } else if (context.parseFieldMatcher().match(currentFieldName, BACKGROUND_FILTER)) {
                 filter = context.queryParserService().parseInnerFilter(parser).query();
             } else {
                 throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["

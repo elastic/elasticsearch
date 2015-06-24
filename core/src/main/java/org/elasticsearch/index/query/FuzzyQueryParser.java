@@ -27,7 +27,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.support.QueryParsers;
 
@@ -86,7 +85,7 @@ public class FuzzyQueryParser implements QueryParser {
                         value = parser.text();
                     } else if ("boost".equals(currentFieldName)) {
                         boost = parser.floatValue();
-                    } else if (FUZZINESS.match(currentFieldName, parseContext.parseFlags())) {
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, FUZZINESS)) {
                         fuzziness = Fuzziness.parse(parser);
                     } else if ("prefix_length".equals(currentFieldName) || "prefixLength".equals(currentFieldName)) {
                         prefixLength = parser.intValue();

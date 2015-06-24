@@ -18,8 +18,7 @@
  */
 package org.elasticsearch.search.suggest.term;
 
-import java.io.IOException;
-
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
@@ -27,6 +26,8 @@ import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
 import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
+
+import java.io.IOException;
 
 public final class TermSuggestParser implements SuggestContextParser {
 
@@ -46,7 +47,7 @@ public final class TermSuggestParser implements SuggestContextParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
             } else if (token.isValue()) {
-                parseTokenValue(parser, mapperService, fieldName, suggestion, settings);
+                parseTokenValue(parser, mapperService, fieldName, suggestion, settings, queryParserService.parseFieldMatcher());
             } else {
                 throw new IllegalArgumentException("suggester[term]  doesn't support field [" + fieldName + "]");
             }
@@ -55,9 +56,9 @@ public final class TermSuggestParser implements SuggestContextParser {
     }
 
     private void parseTokenValue(XContentParser parser, MapperService mapperService, String fieldName, TermSuggestionContext suggestion,
-            DirectSpellcheckerSettings settings) throws IOException {
-        if (!(SuggestUtils.parseSuggestContext(parser, mapperService, fieldName, suggestion) || SuggestUtils.parseDirectSpellcheckerSettings(
-                parser, fieldName, settings))) {
+            DirectSpellcheckerSettings settings, ParseFieldMatcher parseFieldMatcher) throws IOException {
+        if (!(SuggestUtils.parseSuggestContext(parser, mapperService, fieldName, suggestion, parseFieldMatcher) || SuggestUtils.parseDirectSpellcheckerSettings(
+                parser, fieldName, settings, parseFieldMatcher))) {
             throw new IllegalArgumentException("suggester[term] doesn't support [" + fieldName + "]");
 
         }

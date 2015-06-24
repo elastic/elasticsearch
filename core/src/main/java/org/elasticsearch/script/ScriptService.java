@@ -25,7 +25,6 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 import com.google.common.collect.ImmutableMap;
-
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -39,6 +38,7 @@ import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptRequest;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -103,10 +103,12 @@ public class ScriptService extends AbstractComponent implements Closeable {
     private final ScriptModes scriptModes;
     private final ScriptContextRegistry scriptContextRegistry;
 
+    private final ParseFieldMatcher parseFieldMatcher;
+
     private Client client = null;
 
     /**
-     * @deprecated Use {@link ScriptField} instead. This should be removed in
+     * @deprecated Use {@link org.elasticsearch.script.Script.ScriptField} instead. This should be removed in
      *             2.0
      */
     public static final ParseField SCRIPT_LANG = new ParseField("lang","script_lang");
@@ -130,7 +132,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
     public ScriptService(Settings settings, Environment env, Set<ScriptEngineService> scriptEngines,
                          ResourceWatcherService resourceWatcherService, ScriptContextRegistry scriptContextRegistry) throws IOException {
         super(settings);
-
+        this.parseFieldMatcher = new ParseFieldMatcher(settings);
         if (Strings.hasLength(settings.get(DISABLE_DYNAMIC_SCRIPTING_SETTING))) {
             throw new IllegalArgumentException(DISABLE_DYNAMIC_SCRIPTING_SETTING + " is not a supported setting, replace with fine-grained script settings. \n" +
                     "Dynamic scripts can be enabled for all languages and all operations by replacing `script.disable_dynamic: false` with `script.inline: on` and `script.indexed: on` in elasticsearch.yml");
@@ -329,7 +331,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
         try {
             XContentParser parser = XContentFactory.xContent(scriptBytes).createParser(scriptBytes);
             parser.nextToken();
-            Template template = TemplateQueryParser.parse(scriptLang, parser, "params", "script", "template");
+            Template template = TemplateQueryParser.parse(scriptLang, parser, parseFieldMatcher, "params", "script", "template");
             if (Strings.hasLength(template.getScript())) {
                 //Just try and compile it
                 //This will have the benefit of also adding the script to the cache if it compiles

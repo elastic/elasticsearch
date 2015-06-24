@@ -26,9 +26,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.common.HasContext;
-import org.elasticsearch.common.HasContextAndHeaders;
-import org.elasticsearch.common.HasHeaders;
+import org.elasticsearch.common.*;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -61,13 +59,13 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import java.util.List;
 import java.util.Set;
 
-/**
- */
 public abstract class FilteredSearchContext extends SearchContext {
 
     private final SearchContext in;
 
     public FilteredSearchContext(SearchContext in) {
+        //inner_hits in percolator ends up with null inner search context
+        super(in == null ? ParseFieldMatcher.EMPTY : in.parseFieldMatcher());
         this.in = in;
     }
 

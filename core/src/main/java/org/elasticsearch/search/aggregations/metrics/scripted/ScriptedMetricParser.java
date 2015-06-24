@@ -74,24 +74,24 @@ public class ScriptedMetricParser implements Aggregator.Parser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (INIT_SCRIPT_FIELD.match(currentFieldName)) {
-                    initScript = Script.parse(parser);
-                } else if (MAP_SCRIPT_FIELD.match(currentFieldName)) {
-                    mapScript = Script.parse(parser);
-                } else if (COMBINE_SCRIPT_FIELD.match(currentFieldName)) {
-                    combineScript = Script.parse(parser);
-                } else if (REDUCE_SCRIPT_FIELD.match(currentFieldName)) {
-                    reduceScript = Script.parse(parser);
-                } else if (PARAMS_FIELD.match(currentFieldName)) {
+                if (context.parseFieldMatcher().match(currentFieldName, INIT_SCRIPT_FIELD)) {
+                    initScript = Script.parse(parser, context.parseFieldMatcher());
+                } else if (context.parseFieldMatcher().match(currentFieldName, MAP_SCRIPT_FIELD)) {
+                    mapScript = Script.parse(parser, context.parseFieldMatcher());
+                } else if (context.parseFieldMatcher().match(currentFieldName, COMBINE_SCRIPT_FIELD)) {
+                    combineScript = Script.parse(parser, context.parseFieldMatcher());
+                } else if (context.parseFieldMatcher().match(currentFieldName, REDUCE_SCRIPT_FIELD)) {
+                    reduceScript = Script.parse(parser, context.parseFieldMatcher());
+                } else if (context.parseFieldMatcher().match(currentFieldName, PARAMS_FIELD)) {
                     params = parser.map();
-                } else if (REDUCE_PARAMS_FIELD.match(currentFieldName)) {
+                } else if (context.parseFieldMatcher().match(currentFieldName, REDUCE_PARAMS_FIELD)) {
                   reduceParams = parser.map();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
                             + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else if (token.isValue()) {
-                if (!scriptParameterParser.token(currentFieldName, token, parser)) {
+                if (!scriptParameterParser.token(currentFieldName, token, parser, context.parseFieldMatcher())) {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
                             + currentFieldName + "].", parser.getTokenLocation());
                 }

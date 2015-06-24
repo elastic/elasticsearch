@@ -26,6 +26,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -239,7 +240,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
      * "query_then_fetch"/"queryThenFetch", and "query_and_fetch"/"queryAndFetch".
      */
     public SearchRequest searchType(String searchType) {
-        return searchType(SearchType.fromString(searchType));
+        return searchType(SearchType.fromString(searchType, ParseFieldMatcher.EMPTY));
     }
 
     /**

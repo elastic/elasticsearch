@@ -65,7 +65,7 @@ public class BucketHelpers {
         public static GapPolicy parse(SearchContext context, String text, XContentLocation tokenLocation) {
             GapPolicy result = null;
             for (GapPolicy policy : values()) {
-                if (policy.parseField.match(text)) {
+                if (context.parseFieldMatcher().match(text, policy.parseField)) {
                     if (result == null) {
                         result = policy;
                     } else {
@@ -94,9 +94,6 @@ public class BucketHelpers {
 
         /**
          * Serialize the GapPolicy to the output stream
-         *
-         * @param out
-         * @throws IOException
          */
         public void writeTo(StreamOutput out) throws IOException {
             out.writeByte(id);
@@ -136,7 +133,7 @@ public class BucketHelpers {
      * bucket). If the bucket is empty, the configured GapPolicy is invoked to
      * resolve the missing bucket
      *
-     * @param histo
+     * @param agg
      *            A series of agg buckets in the form of a histogram
      * @param bucket
      *            A specific bucket that a value needs to be extracted from.

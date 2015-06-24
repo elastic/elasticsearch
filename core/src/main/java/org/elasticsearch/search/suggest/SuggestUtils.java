@@ -30,6 +30,7 @@ import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.FastCharArrayReader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
@@ -190,30 +191,30 @@ public final class SuggestUtils {
    }      
     
     public static boolean parseDirectSpellcheckerSettings(XContentParser parser, String fieldName,
-                DirectSpellcheckerSettings suggestion) throws IOException {
+                DirectSpellcheckerSettings suggestion, ParseFieldMatcher parseFieldMatcher) throws IOException {
             if ("accuracy".equals(fieldName)) {
                 suggestion.accuracy(parser.floatValue());
-            } else if (Fields.SUGGEST_MODE.match(fieldName)) {
+            } else if (parseFieldMatcher.match(fieldName, Fields.SUGGEST_MODE)) {
                 suggestion.suggestMode(SuggestUtils.resolveSuggestMode(parser.text()));
             } else if ("sort".equals(fieldName)) {
                 suggestion.sort(SuggestUtils.resolveSort(parser.text()));
-            } else if (Fields.STRING_DISTANCE.match(fieldName)) {
-                suggestion.stringDistance(SuggestUtils.resolveDistance(parser.text()));
-            } else if (Fields.MAX_EDITS.match(fieldName)) {
-                suggestion.maxEdits(parser.intValue());
+            } else if (parseFieldMatcher.match(fieldName, Fields.STRING_DISTANCE)) {
+            suggestion.stringDistance(SuggestUtils.resolveDistance(parser.text()));
+            } else if (parseFieldMatcher.match(fieldName, Fields.MAX_EDITS)) {
+            suggestion.maxEdits(parser.intValue());
                 if (suggestion.maxEdits() < 1 || suggestion.maxEdits() > LevenshteinAutomata.MAXIMUM_SUPPORTED_DISTANCE) {
                     throw new IllegalArgumentException("Illegal max_edits value " + suggestion.maxEdits());
                 }
-            } else if (Fields.MAX_INSPECTIONS.match(fieldName)) {
-                suggestion.maxInspections(parser.intValue());
-            } else if (Fields.MAX_TERM_FREQ.match(fieldName)) {
-                suggestion.maxTermFreq(parser.floatValue());
-            } else if (Fields.PREFIX_LENGTH.match(fieldName)) {
-                suggestion.prefixLength(parser.intValue());
-            } else if (Fields.MIN_WORD_LENGTH.match(fieldName)) {
-                suggestion.minQueryLength(parser.intValue());
-            } else if (Fields.MIN_DOC_FREQ.match(fieldName)) {
-                suggestion.minDocFreq(parser.floatValue());
+            } else if (parseFieldMatcher.match(fieldName, Fields.MAX_INSPECTIONS)) {
+            suggestion.maxInspections(parser.intValue());
+            } else if (parseFieldMatcher.match(fieldName, Fields.MAX_TERM_FREQ)) {
+            suggestion.maxTermFreq(parser.floatValue());
+            } else if (parseFieldMatcher.match(fieldName, Fields.PREFIX_LENGTH)) {
+            suggestion.prefixLength(parser.intValue());
+            } else if (parseFieldMatcher.match(fieldName, Fields.MIN_WORD_LENGTH)) {
+            suggestion.minQueryLength(parser.intValue());
+            } else if (parseFieldMatcher.match(fieldName, Fields.MIN_DOC_FREQ)) {
+            suggestion.minDocFreq(parser.floatValue());
             } else {
                 return false;
             }
@@ -221,7 +222,7 @@ public final class SuggestUtils {
     }
     
     public static boolean parseSuggestContext(XContentParser parser, MapperService mapperService, String fieldName,
-            SuggestionSearchContext.SuggestionContext suggestion) throws IOException {
+            SuggestionSearchContext.SuggestionContext suggestion, ParseFieldMatcher parseFieldMatcher) throws IOException {
         
         if ("analyzer".equals(fieldName)) {
             String analyzerName = parser.text();
@@ -234,7 +235,7 @@ public final class SuggestUtils {
             suggestion.setField(parser.text());
         } else if ("size".equals(fieldName)) {
             suggestion.setSize(parser.intValue());
-        } else if (Fields.SHARD_SIZE.match(fieldName)) {
+        } else if (parseFieldMatcher.match(fieldName, Fields.SHARD_SIZE)) {
             suggestion.setShardSize(parser.intValue());
         } else {
            return false;

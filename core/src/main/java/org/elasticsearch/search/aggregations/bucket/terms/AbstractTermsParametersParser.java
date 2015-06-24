@@ -77,23 +77,23 @@ public abstract class AbstractTermsParametersParser {
             } else if (incExcParser.token(currentFieldName, token, parser)) {
                 continue;
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (EXECUTION_HINT_FIELD_NAME.match(currentFieldName)) {
+                if (context.parseFieldMatcher().match(currentFieldName, EXECUTION_HINT_FIELD_NAME)) {
                     executionHint = parser.text();
-                } else if(SubAggCollectionMode.KEY.match(currentFieldName)){
-                    collectMode = SubAggCollectionMode.parse(parser.text());
-                } else if (REQUIRED_SIZE_FIELD_NAME.match(currentFieldName)) {
+                } else if(context.parseFieldMatcher().match(currentFieldName, SubAggCollectionMode.KEY)){
+                    collectMode = SubAggCollectionMode.parse(parser.text(), context.parseFieldMatcher());
+                } else if (context.parseFieldMatcher().match(currentFieldName, REQUIRED_SIZE_FIELD_NAME)) {
                     bucketCountThresholds.setRequiredSize(parser.intValue());
                 } else {
                     parseSpecial(aggregationName, parser, context, token, currentFieldName);
                 }
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                if (REQUIRED_SIZE_FIELD_NAME.match(currentFieldName)) {
+                if (context.parseFieldMatcher().match(currentFieldName, REQUIRED_SIZE_FIELD_NAME)) {
                     bucketCountThresholds.setRequiredSize(parser.intValue());
-                } else if (SHARD_SIZE_FIELD_NAME.match(currentFieldName)) {
+                } else if (context.parseFieldMatcher().match(currentFieldName, SHARD_SIZE_FIELD_NAME)) {
                     bucketCountThresholds.setShardSize(parser.intValue());
-                } else if (MIN_DOC_COUNT_FIELD_NAME.match(currentFieldName)) {
+                } else if (context.parseFieldMatcher().match(currentFieldName, MIN_DOC_COUNT_FIELD_NAME)) {
                     bucketCountThresholds.setMinDocCount(parser.intValue());
-                } else if (SHARD_MIN_DOC_COUNT_FIELD_NAME.match(currentFieldName)) {
+                } else if (context.parseFieldMatcher().match(currentFieldName, SHARD_MIN_DOC_COUNT_FIELD_NAME)) {
                     bucketCountThresholds.setShardMinDocCount(parser.longValue());
                 } else {
                     parseSpecial(aggregationName, parser, context, token, currentFieldName);

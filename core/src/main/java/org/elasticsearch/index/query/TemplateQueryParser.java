@@ -20,6 +20,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -75,7 +76,7 @@ public class TemplateQueryParser implements QueryParser {
     @Nullable
     public Query parse(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
-        Template template = parse(parser);
+        Template template = parse(parser, parseContext.parseFieldMatcher());
         ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH);
 
         BytesReference querySource = (BytesReference) executable.run();
@@ -87,29 +88,29 @@ public class TemplateQueryParser implements QueryParser {
         }
     }
 
-    public static Template parse(XContentParser parser, String... parameters) throws IOException {
+    public static Template parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher, String... parameters) throws IOException {
 
         Map<String, ScriptService.ScriptType> parameterMap = new HashMap<>(parametersToTypes);
         for (String parameter : parameters) {
             parameterMap.put(parameter, ScriptService.ScriptType.INLINE);
         }
-        return parse(parser, parameterMap);
+        return parse(parser, parameterMap, parseFieldMatcher);
     }
 
-    public static Template parse(String defaultLang, XContentParser parser, String... parameters) throws IOException {
+    public static Template parse(String defaultLang, XContentParser parser, ParseFieldMatcher parseFieldMatcher, String... parameters) throws IOException {
 
         Map<String, ScriptService.ScriptType> parameterMap = new HashMap<>(parametersToTypes);
         for (String parameter : parameters) {
             parameterMap.put(parameter, ScriptService.ScriptType.INLINE);
         }
-        return Template.parse(parser, parameterMap, defaultLang);
+        return Template.parse(parser, parameterMap, defaultLang, parseFieldMatcher);
     }
 
-    public static Template parse(XContentParser parser) throws IOException {
-        return parse(parser, parametersToTypes);
+    public static Template parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
+        return parse(parser, parametersToTypes, parseFieldMatcher);
     }
 
-    public static Template parse(XContentParser parser, Map<String, ScriptService.ScriptType> parameterMap) throws IOException {
-        return Template.parse(parser, parameterMap);
+    public static Template parse(XContentParser parser, Map<String, ScriptService.ScriptType> parameterMap, ParseFieldMatcher parseFieldMatcher) throws IOException {
+        return Template.parse(parser, parameterMap, parseFieldMatcher);
     }
 }

@@ -27,7 +27,6 @@ import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.joda.time.DateTimeZone;
@@ -112,7 +111,7 @@ public class RangeQueryParser implements QueryParser {
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
-                } else if (FIELDDATA_FIELD.match(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, FIELDDATA_FIELD)) {
                     // ignore
                 } else {
                     throw new QueryParsingException(parseContext, "[range] query does not support [" + currentFieldName + "]");

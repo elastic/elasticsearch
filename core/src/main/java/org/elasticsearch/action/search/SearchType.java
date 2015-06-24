@@ -20,6 +20,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 
 /**
  * Search type represent the manner at which the search operation is executed.
@@ -108,7 +109,7 @@ public enum SearchType {
      * one of "dfs_query_then_fetch"/"dfsQueryThenFetch", "dfs_query_and_fetch"/"dfsQueryAndFetch",
      * "query_then_fetch"/"queryThenFetch", "query_and_fetch"/"queryAndFetch", and "scan".
      */
-    public static SearchType fromString(String searchType) {
+    public static SearchType fromString(String searchType, ParseFieldMatcher parseFieldMatcher) {
         if (searchType == null) {
             return SearchType.DEFAULT;
         }
@@ -122,7 +123,7 @@ public enum SearchType {
             return SearchType.QUERY_AND_FETCH;
         } else if ("scan".equals(searchType)) {
             return SearchType.SCAN;
-        } else if (COUNT_VALUE.match(searchType)) {
+        } else if (parseFieldMatcher.match(searchType, COUNT_VALUE)) {
             return SearchType.COUNT;
         } else {
             throw new IllegalArgumentException("No search type for [" + searchType + "]");

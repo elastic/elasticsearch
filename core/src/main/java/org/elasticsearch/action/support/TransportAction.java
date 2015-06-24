@@ -20,6 +20,7 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.action.*;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -37,9 +38,11 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
     protected final ThreadPool threadPool;
     protected final String actionName;
     private final ActionFilter[] filters;
+    protected final ParseFieldMatcher parseFieldMatcher;
 
     protected TransportAction(Settings settings, String actionName, ThreadPool threadPool, ActionFilters actionFilters) {
         super(settings);
+        this.parseFieldMatcher = new ParseFieldMatcher(settings);
         this.actionName = actionName;
         this.filters = actionFilters.filters();
         this.threadPool = threadPool;

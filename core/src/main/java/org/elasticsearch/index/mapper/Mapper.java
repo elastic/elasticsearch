@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -92,14 +93,17 @@ public interface Mapper extends ToXContent, Iterable<Mapper> {
 
             private final Version indexVersionCreated;
 
+            private final ParseFieldMatcher parseFieldMatcher;
+
             public ParserContext(AnalysisService analysisService, SimilarityLookupService similarityLookupService,
-                                 MapperService mapperService,
-                                 ImmutableMap<String, TypeParser> typeParsers, Version indexVersionCreated) {
+                                 MapperService mapperService, ImmutableMap<String, TypeParser> typeParsers,
+                                Version indexVersionCreated, ParseFieldMatcher parseFieldMatcher) {
                 this.analysisService = analysisService;
                 this.similarityLookupService = similarityLookupService;
                 this.mapperService = mapperService;
                 this.typeParsers = typeParsers;
                 this.indexVersionCreated = indexVersionCreated;
+                this.parseFieldMatcher = parseFieldMatcher;
             }
 
             public AnalysisService analysisService() {
@@ -120,6 +124,10 @@ public interface Mapper extends ToXContent, Iterable<Mapper> {
 
             public Version indexVersionCreated() {
                 return indexVersionCreated;
+            }
+
+            public ParseFieldMatcher parseFieldMatcher() {
+                return parseFieldMatcher;
             }
         }
 

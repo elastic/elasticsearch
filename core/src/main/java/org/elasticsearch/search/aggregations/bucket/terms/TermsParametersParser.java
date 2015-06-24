@@ -76,7 +76,7 @@ public class TermsParametersParser extends AbstractTermsParametersParser {
                         + currentFieldName + "].", parser.getTokenLocation());
             }
         } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-            if (SHOW_TERM_DOC_COUNT_ERROR.match(currentFieldName)) {
+            if (context.parseFieldMatcher().match(currentFieldName, SHOW_TERM_DOC_COUNT_ERROR)) {
                 showTermDocCountError = parser.booleanValue();
             }
         } else {

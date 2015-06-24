@@ -105,7 +105,7 @@ public class MatchQueryParser implements QueryParser {
                         boost = parser.floatValue();
                     } else if ("slop".equals(currentFieldName) || "phrase_slop".equals(currentFieldName) || "phraseSlop".equals(currentFieldName)) {
                         matchQuery.setPhraseSlop(parser.intValue());
-                    } else if (Fuzziness.FIELD.match(currentFieldName, parseContext.parseFlags())) {
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, Fuzziness.FIELD)) {
                         matchQuery.setFuzziness(Fuzziness.parse(parser));
                     } else if ("prefix_length".equals(currentFieldName) || "prefixLength".equals(currentFieldName)) {
                         matchQuery.setFuzzyPrefixLength(parser.intValue());

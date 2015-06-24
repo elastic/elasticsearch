@@ -23,6 +23,7 @@ import java.util.EnumSet;
 import java.util.HashSet;
 
 /**
+ * Holds a field that can be found in a request while parsing and its different variants, which may be deprecated.
  */
 public class ParseField {
     private final String camelCaseName;
@@ -30,9 +31,10 @@ public class ParseField {
     private final String[] deprecatedNames;
     private String allReplacedWith = null;
 
-    public static final EnumSet<Flag> EMPTY_FLAGS = EnumSet.noneOf(Flag.class);
+    static final EnumSet<Flag> EMPTY_FLAGS = EnumSet.noneOf(Flag.class);
+    static final EnumSet<Flag> STRICT_FLAGS = EnumSet.of(Flag.STRICT);
 
-    public static enum Flag {
+    enum Flag {
         STRICT
     }
 
@@ -47,7 +49,7 @@ public class ParseField {
                 set.add(Strings.toCamelCase(depName));
                 set.add(Strings.toUnderscoreCase(depName));
             }
-            this.deprecatedNames = set.toArray(new String[0]);
+            this.deprecatedNames = set.toArray(new String[set.size()]);
         }
     }
 
@@ -78,11 +80,7 @@ public class ParseField {
         return parseField;
     }
 
-    public boolean match(String currentFieldName) {
-        return match(currentFieldName, EMPTY_FLAGS);
-    }
-    
-    public boolean match(String currentFieldName, EnumSet<Flag> flags) {
+    boolean match(String currentFieldName, EnumSet<Flag> flags) {
         if (allReplacedWith == null && (currentFieldName.equals(camelCaseName) || currentFieldName.equals(underscoreName))) {
             return true;
         }

@@ -60,14 +60,14 @@ public class FiltersParser implements Aggregator.Parser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                if (OTHER_BUCKET_FIELD.match(currentFieldName)) {
+                if (context.parseFieldMatcher().match(currentFieldName, OTHER_BUCKET_FIELD)) {
                     otherBucket = parser.booleanValue();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
                             + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (OTHER_BUCKET_KEY_FIELD.match(currentFieldName)) {
+                if (context.parseFieldMatcher().match(currentFieldName, OTHER_BUCKET_KEY_FIELD)) {
                     otherBucketKey = parser.text();
                     otherBucket = true;
                 } else {
@@ -75,7 +75,7 @@ public class FiltersParser implements Aggregator.Parser {
                             + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (FILTERS_FIELD.match(currentFieldName)) {
+                if (context.parseFieldMatcher().match(currentFieldName, FILTERS_FIELD)) {
                     keyed = true;
                     String key = null;
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -91,7 +91,7 @@ public class FiltersParser implements Aggregator.Parser {
                             + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (FILTERS_FIELD.match(currentFieldName)) {
+                if (context.parseFieldMatcher().match(currentFieldName, FILTERS_FIELD)) {
                     keyed = false;
                     int idx = 0;
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {

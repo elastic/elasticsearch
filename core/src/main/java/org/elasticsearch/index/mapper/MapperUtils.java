@@ -19,28 +19,16 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
-import java.io.IOException;
 import java.util.Collection;
 
 public enum MapperUtils {
     ;
 
     private static MergeResult newStrictMergeResult() {
-        return new MergeResult(false) {
-
-            @Override
-            public boolean hasConflicts() {
-                return false;
-            }
-
-            @Override
-            public String[] buildConflicts() {
-                return Strings.EMPTY_ARRAY;
-            }
+        return new MergeResult(false, false) {
 
             @Override
             public void addFieldMappers(Collection<FieldMapper> fieldMappers) {

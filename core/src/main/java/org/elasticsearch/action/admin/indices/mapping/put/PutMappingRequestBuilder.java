@@ -91,4 +91,10 @@ public class PutMappingRequestBuilder extends AcknowledgedRequestBuilder<PutMapp
         return this;
     }
 
+    /** True if all fields that span multiple types should be updated, false otherwise */
+    public PutMappingRequestBuilder setUpdateAllTypes(boolean updateAllTypes) {
+        request.updateAllTypes(updateAllTypes);
+        return this;
+    }
+
 }

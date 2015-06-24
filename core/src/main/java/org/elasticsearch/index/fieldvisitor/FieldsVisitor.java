@@ -109,9 +109,20 @@ public class FieldsVisitor extends StoredFieldVisitor {
 
     public void postProcess(DocumentMapper documentMapper) {
         for (Map.Entry<String, List<Object>> entry : fields().entrySet()) {
-            FieldMapper fieldMapper = documentMapper.mappers().indexName(entry.getKey()).mapper();
+            String indexName = entry.getKey();
+            FieldMapper fieldMapper = documentMapper.mappers().getMapper(indexName);
             if (fieldMapper == null) {
-                continue;
+                // it's possible index name doesn't match field name (legacy feature)
+                for (FieldMapper mapper : documentMapper.mappers()) {
+                    if (mapper.fieldType().names().indexName().equals(indexName)) {
+                        fieldMapper = mapper;
+                        break;
+                    }
+                }
+                if (fieldMapper == null) {
+                    // no index name or full name found, so skip
+                    continue;
+                }
             }
             List<Object> fieldValues = entry.getValue();
             for (int i = 0; i < fieldValues.size(); i++) {

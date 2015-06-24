@@ -121,7 +121,9 @@ public class ByteFieldMapper extends NumberFieldMapper {
     }
 
     static final class ByteFieldType extends NumberFieldType {
-        public ByteFieldType() {}
+        public ByteFieldType() {
+            super(NumericType.INT);
+        }
 
         protected ByteFieldType(ByteFieldType ref) {
             super(ref);
@@ -130,6 +132,11 @@ public class ByteFieldMapper extends NumberFieldMapper {
         @Override
         public NumberFieldType clone() {
             return new ByteFieldType(this);
+        }
+
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
         }
 
         @Override

@@ -18,10 +18,33 @@
  */
 package org.elasticsearch.index.mapper;
 
-public class MappedFieldTypeTests extends FieldTypeTestCase {
+/**
+ * A container for a {@link MappedFieldType} which can be updated and is reference counted.
+ */
+public class MappedFieldTypeReference {
+    private MappedFieldType fieldType; // the current field type this reference points to
+    private int numAssociatedMappers;
 
-    @Override
-    public MappedFieldType createDefaultFieldType() {
-        return new MappedFieldType();
+    public MappedFieldTypeReference(MappedFieldType fieldType) {
+        fieldType.freeze(); // ensure frozen
+        this.fieldType = fieldType;
+        this.numAssociatedMappers = 1;
+    }
+
+    public MappedFieldType get() {
+        return fieldType;
+    }
+
+    public void set(MappedFieldType fieldType) {
+        fieldType.freeze(); // ensure frozen
+        this.fieldType = fieldType;
+    }
+
+    public int getNumAssociatedMappers() {
+        return numAssociatedMappers;
+    }
+
+    public void incrementAssociatedMappers() {
+        ++numAssociatedMappers;
     }
 }

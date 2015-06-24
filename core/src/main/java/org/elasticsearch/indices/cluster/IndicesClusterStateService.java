@@ -419,7 +419,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     logger.debug("[{}] adding mapping [{}] (source suppressed due to length, use TRACE level if needed)", index, mappingType);
                 }
                 // we don't apply default, since it has been applied when the mappings were parsed initially
-                mapperService.merge(mappingType, mappingSource, false);
+                mapperService.merge(mappingType, mappingSource, false, true);
                 if (!mapperService.documentMapper(mappingType).mappingSource().equals(mappingSource)) {
                     logger.debug("[{}] parsed mapping [{}], and got different sources\noriginal:\n{}\nparsed:\n{}", index, mappingType, mappingSource, mapperService.documentMapper(mappingType).mappingSource());
                     requiresRefresh = true;
@@ -436,7 +436,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                         logger.debug("[{}] updating mapping [{}] (source suppressed due to length, use TRACE level if needed)", index, mappingType);
                     }
                     // we don't apply default, since it has been applied when the mappings were parsed initially
-                    mapperService.merge(mappingType, mappingSource, false);
+                    mapperService.merge(mappingType, mappingSource, false, true);
                     if (!mapperService.documentMapper(mappingType).mappingSource().equals(mappingSource)) {
                         requiresRefresh = true;
                         logger.debug("[{}] parsed mapping [{}], and got different sources\noriginal:\n{}\nparsed:\n{}", index, mappingType, mappingSource, mapperService.documentMapper(mappingType).mappingSource());

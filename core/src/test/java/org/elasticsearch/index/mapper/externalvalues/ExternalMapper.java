@@ -80,7 +80,7 @@ public class ExternalMapper extends AbstractFieldMapper {
         private String mapperName;
 
         public Builder(String name, String generatedValue, String mapperName) {
-            super(name, Defaults.FIELD_TYPE);
+            super(name, new ExternalFieldType());
             this.builder = this;
             this.stringBuilder = stringField(name).store(false);
             this.generatedValue = generatedValue;
@@ -142,6 +142,25 @@ public class ExternalMapper extends AbstractFieldMapper {
         }
     }
 
+    static class ExternalFieldType extends MappedFieldType {
+
+        public ExternalFieldType() {}
+
+        protected ExternalFieldType(ExternalFieldType ref) {
+            super(ref);
+        }
+
+        @Override
+        public MappedFieldType clone() {
+            return new ExternalFieldType(this);
+        }
+
+        @Override
+        public String typeName() {
+            return "faketype";
+        }
+    }
+
     private final String generatedValue;
     private final String mapperName;
 
@@ -168,7 +187,7 @@ public class ExternalMapper extends AbstractFieldMapper {
 
     @Override
     public MappedFieldType defaultFieldType() {
-        return Defaults.FIELD_TYPE;
+        return new ExternalFieldType();
     }
 
     @Override

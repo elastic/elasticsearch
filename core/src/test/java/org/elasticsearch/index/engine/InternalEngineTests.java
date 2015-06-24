@@ -1811,14 +1811,14 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         public final AtomicInteger recoveredOps = new AtomicInteger(0);
 
         public TranslogHandler(String indexName) {
-            super(new ShardId("test", 0), null, new MapperAnalyzer(null), null, null, null);
+            super(new ShardId("test", 0), null, null, null, null);
             Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
             RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder("test");
             Index index = new Index(indexName);
             AnalysisService analysisService = new AnalysisService(index, settings);
             SimilarityLookupService similarityLookupService = new SimilarityLookupService(index, settings);
             MapperService mapperService = new MapperService(index, settings, analysisService, null, similarityLookupService, null);
-            DocumentMapper.Builder b = new DocumentMapper.Builder(indexName, settings, rootBuilder);
+            DocumentMapper.Builder b = new DocumentMapper.Builder(indexName, settings, rootBuilder, mapperService);
             DocumentMapperParser parser = new DocumentMapperParser(index, settings, mapperService, analysisService, similarityLookupService, null);
             this.docMapper = b.build(mapperService, parser);
 

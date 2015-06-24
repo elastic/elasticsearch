@@ -101,11 +101,11 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                                         try {
                                             indexService = indicesService.createIndex(indexMetaData.index(), indexMetaData.settings(), clusterService.localNode().id());
                                             if (indexMetaData.mappings().containsKey(MapperService.DEFAULT_MAPPING)) {
-                                                indexService.mapperService().merge(MapperService.DEFAULT_MAPPING, indexMetaData.mappings().get(MapperService.DEFAULT_MAPPING).source(), false);
+                                                indexService.mapperService().merge(MapperService.DEFAULT_MAPPING, indexMetaData.mappings().get(MapperService.DEFAULT_MAPPING).source(), false, false);
                                             }
                                             for (ObjectCursor<MappingMetaData> cursor : indexMetaData.mappings().values()) {
                                                 MappingMetaData mappingMetaData = cursor.value;
-                                                indexService.mapperService().merge(mappingMetaData.type(), mappingMetaData.source(), false);
+                                                indexService.mapperService().merge(mappingMetaData.type(), mappingMetaData.source(), false, false);
                                             }
                                         } catch (Exception e) {
                                             logger.warn("[{}] failed to temporary create in order to apply alias action", e, indexMetaData.index());

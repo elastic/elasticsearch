@@ -790,7 +790,7 @@ public class ChildQuerySearchTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "child", "2").setParent("1").setSource("c_field", 1).get();
         client().admin().indices().prepareFlush("test").get();
 
-        client().prepareIndex("test", "type1", "3").setSource("p_field", "p_value1").get();
+        client().prepareIndex("test", "type1", "3").setSource("p_field", 2).get();
         client().admin().indices().prepareFlush("test").get();
 
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -1163,7 +1163,7 @@ public class ChildQuerySearchTests extends ElasticsearchIntegrationTest {
                 .addMapping("child1"));
         ensureGreen();
 
-        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1", "_parent", "bla").get();
+        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").get();
         try {
             client().prepareIndex("test", "child1", "c1").setParent("p1").setSource("c_field", "blue").get();
             fail();

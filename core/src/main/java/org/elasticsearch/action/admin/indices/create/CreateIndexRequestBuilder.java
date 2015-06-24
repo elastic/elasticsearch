@@ -243,4 +243,10 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<Create
         request.source(source);
         return this;
     }
+
+    /** True if all fields that span multiple types should be updated, false otherwise */
+    public CreateIndexRequestBuilder setUpdateAllTypes(boolean updateAllTypes) {
+        request.updateAllTypes(updateAllTypes);
+        return this;
+    }
 }

@@ -281,6 +281,11 @@ public abstract class ParseContext {
         }
 
         @Override
+        public MapperService mapperService() {
+            return in.mapperService();
+        }
+
+        @Override
         public String id() {
             return in.id();
         }
@@ -514,6 +519,11 @@ public abstract class ParseContext {
         }
 
         @Override
+        public MapperService mapperService() {
+            return docMapperParser.mapperService;
+        }
+
+        @Override
         public String id() {
             return id;
         }
@@ -700,6 +710,8 @@ public abstract class ParseContext {
     public abstract DocumentMapper docMapper();
 
     public abstract AnalysisService analysisService();
+
+    public abstract MapperService mapperService();
 
     public abstract String id();
 

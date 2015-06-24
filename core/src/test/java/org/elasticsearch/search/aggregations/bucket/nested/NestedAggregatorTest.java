@@ -117,7 +117,7 @@ public class NestedAggregatorTest extends ElasticsearchSingleNodeTest {
         IndexSearcher searcher = new IndexSearcher(directoryReader);
 
         IndexService indexService = createIndex("test");
-        indexService.mapperService().merge("test", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("test", "nested_field", "type=nested").string()), true);
+        indexService.mapperService().merge("test", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("test", "nested_field", "type=nested").string()), true, false);
         SearchContext searchContext = createSearchContext(indexService);
         AggregationContext context = new AggregationContext(searchContext);
 

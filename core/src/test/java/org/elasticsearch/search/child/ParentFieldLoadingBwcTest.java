@@ -55,8 +55,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-/**
- */
 public class ParentFieldLoadingBwcTest extends ElasticsearchIntegrationTest {
 
     private final Settings indexSettings = Settings.builder()
@@ -68,7 +66,6 @@ public class ParentFieldLoadingBwcTest extends ElasticsearchIntegrationTest {
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_6_0)
             .build();
 
-    @Test
     @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/9270")
     public void testParentFieldDataCacheBug() throws Exception {
         assertAcked(prepareCreate("test")
@@ -145,13 +142,13 @@ public class ParentFieldLoadingBwcTest extends ElasticsearchIntegrationTest {
         assertThat(indicesStatsResponse.getTotal().getFieldData().getFields().get("_parent"), equalTo(0l));
     }
 
-    @Test
     public void testEagerParentFieldLoading() throws Exception {
         logger.info("testing lazy loading...");
         assertAcked(prepareCreate("test")
                 .setSettings(indexSettings)
                 .addMapping("parent")
-                .addMapping("child", childMapping(MappedFieldType.Loading.LAZY)));
+                .addMapping("child", childMapping(MappedFieldType.Loading.LAZY))
+                .setUpdateAllTypes(true));
         ensureGreen();
 
         client().prepareIndex("test", "parent", "1").setSource("{}").get();
@@ -166,7 +163,8 @@ public class ParentFieldLoadingBwcTest extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("test")
                 .setSettings(indexSettings)
                 .addMapping("parent")
-                .addMapping("child", "_parent", "type=parent"));
+                .addMapping("child", "_parent", "type=parent")
+                .setUpdateAllTypes(true));
         ensureGreen();
 
         client().prepareIndex("test", "parent", "1").setSource("{}").get();
@@ -182,7 +180,8 @@ public class ParentFieldLoadingBwcTest extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("test")
                 .setSettings(indexSettings)
                 .addMapping("parent")
-                .addMapping("child", childMapping(MappedFieldType.Loading.EAGER)));
+                .addMapping("child", childMapping(MappedFieldType.Loading.EAGER))
+                .setUpdateAllTypes(true));
         ensureGreen();
 
         client().prepareIndex("test", "parent", "1").setSource("{}").get();
@@ -195,9 +194,10 @@ public class ParentFieldLoadingBwcTest extends ElasticsearchIntegrationTest {
         logger.info("testing eager global ordinals loading...");
         assertAcked(client().admin().indices().prepareDelete("test").get());
         assertAcked(prepareCreate("test")
-                .setSettings(indexSettings)
-                .addMapping("parent")
-                .addMapping("child", childMapping(MappedFieldType.Loading.EAGER_GLOBAL_ORDINALS)));
+            .setSettings(indexSettings)
+            .addMapping("parent")
+            .addMapping("child", childMapping(MappedFieldType.Loading.EAGER_GLOBAL_ORDINALS))
+            .setUpdateAllTypes(true));
         ensureGreen();
 
         // Need to do 2 separate refreshes, otherwise we have 1 segment and then we can't measure if global ordinals
@@ -210,8 +210,7 @@ public class ParentFieldLoadingBwcTest extends ElasticsearchIntegrationTest {
         response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), greaterThan(fielddataSizeDefault));
     }
-
-    @Test
+    
     public void testChangingEagerParentFieldLoadingAtRuntime() throws Exception {
         assertAcked(prepareCreate("test")
                 .setSettings(indexSettings)
@@ -229,6 +228,7 @@ public class ParentFieldLoadingBwcTest extends ElasticsearchIntegrationTest {
 
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("child")
                 .setSource(childMapping(MappedFieldType.Loading.EAGER_GLOBAL_ORDINALS))
+                .setUpdateAllTypes(true)
                 .get();
         assertAcked(putMappingResponse);
         assertBusy(new Runnable() {

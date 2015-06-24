@@ -26,14 +26,19 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.inject.util.Providers;
-import org.elasticsearch.common.io.stream.*;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
@@ -57,30 +62,25 @@ import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
+import org.junit.*;
 
 import java.io.IOException;
+import java.util.Arrays;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ESTestCase {
 
-    protected static final String OBJECT_FIELD_NAME = "mapped_object";
-    protected static final String DATE_FIELD_NAME = "mapped_date";
-    protected static final String INT_FIELD_NAME = "mapped_int";
     protected static final String STRING_FIELD_NAME = "mapped_string";
+    protected static final String INT_FIELD_NAME = "mapped_int";
     protected static final String DOUBLE_FIELD_NAME = "mapped_double";
     protected static final String BOOLEAN_FIELD_NAME = "mapped_boolean";
-    protected static final String[] mappedFieldNames = new String[] { DATE_FIELD_NAME, INT_FIELD_NAME, STRING_FIELD_NAME,
-            DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, OBJECT_FIELD_NAME };
+    protected static final String DATE_FIELD_NAME = "mapped_date";
+    protected static final String OBJECT_FIELD_NAME = "mapped_object";
+    protected static final String[] mappedFieldNames = new String[] { STRING_FIELD_NAME, INT_FIELD_NAME,
+            DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME, OBJECT_FIELD_NAME };
 
     private static Injector injector;
     private static IndexQueryParserService queryParserService;
@@ -136,13 +136,13 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
         for (int i = 0; i < currentTypes.length; i++) {
             String type = randomAsciiOfLengthBetween(1, 10);
             mapperService.merge(type, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(type,
-                    DATE_FIELD_NAME, "type=date",
+                    STRING_FIELD_NAME, "type=string",
                     INT_FIELD_NAME, "type=integer",
                     DOUBLE_FIELD_NAME, "type=double",
                     BOOLEAN_FIELD_NAME, "type=boolean",
-                    STRING_FIELD_NAME, "type=string",
+                    DATE_FIELD_NAME, "type=date",
                     OBJECT_FIELD_NAME, "type=object"
-                    ).string()), false, false);
+            ).string()), false, false);
             // also add mappings for two inner field in the object field
             mapperService.merge(type, new CompressedXContent("{\"properties\":{\""+OBJECT_FIELD_NAME+"\":{\"type\":\"object\","
                     + "\"properties\":{\""+DATE_FIELD_NAME+"\":{\"type\":\"date\"},\""+INT_FIELD_NAME+"\":{\"type\":\"integer\"}}}}}"), false, false);
@@ -395,5 +395,64 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
 
     protected String getRandomType() {
         return (currentTypes.length == 0) ? MetaData.ALL : randomFrom(currentTypes);
+    }
+
+    /**
+     * Helper method to return a random field (mapped or unmapped) and a value
+     */
+    protected static Tuple<String, Object> getRandomFieldNameAndValue() {
+        // if no type is set then return random field name and value
+        if (currentTypes == null || currentTypes.length == 0) {
+            return new Tuple(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 50));
+        }
+        // mapped fields
+        String fieldName = randomFrom(mappedFieldNames);
+        Object value = randomAsciiOfLengthBetween(1, 50);
+        switch(fieldName) {
+            case STRING_FIELD_NAME:
+                value = rarely() ? randomUnicodeOfLength(10) : value; // unicode in 10% cases
+                break;
+            case INT_FIELD_NAME:
+                value = randomIntBetween(0, 10);
+                break;
+            case DOUBLE_FIELD_NAME:
+                value = randomDouble() * 10;
+                break;
+            case BOOLEAN_FIELD_NAME:
+                value = randomBoolean();
+                break;
+            case DATE_FIELD_NAME:
+                value = new DateTime(System.currentTimeMillis(), DateTimeZone.UTC).toString();
+                break;
+        } // all other fields assigned to random string
+
+        // unmapped fields
+        if (randomBoolean()) {
+            fieldName = randomAsciiOfLengthBetween(1, 10);
+        }
+        return new Tuple(fieldName, value);
+    }
+    
+    protected static Fuzziness randomFuzziness(String fieldName) {
+        Fuzziness fuzziness = Fuzziness.AUTO;
+        switch (fieldName) {
+            case INT_FIELD_NAME:
+                fuzziness = Fuzziness.build(randomIntBetween(3, 100));
+                break;
+            case DOUBLE_FIELD_NAME:
+                fuzziness = Fuzziness.build(1 + randomFloat() * 10);
+                break;
+            case DATE_FIELD_NAME:
+                fuzziness = Fuzziness.build(randomTimeValue());
+                break;
+        }
+        if (randomBoolean()) {
+            fuzziness = Fuzziness.fromEdits(randomIntBetween(0, 2));
+        }
+        return fuzziness;
+    }
+
+    protected static boolean isNumericFieldName(String fieldName) {
+        return INT_FIELD_NAME.equals(fieldName) || DOUBLE_FIELD_NAME.equals(fieldName);
     }
 }

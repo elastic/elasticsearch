@@ -383,6 +383,11 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         return array;
     }
+    
+    public static String randomTimeValue() {
+        final String[] values = new String[]{"d", "H", "ms", "s", "S", "w"};
+        return randomIntBetween(0, 1000) + randomFrom(values);
+    }
 
     /**
      * Runs the code block for 10 seconds waiting for no assertion to trip.

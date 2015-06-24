@@ -85,16 +85,6 @@ public class SensitiveXContentParser implements XContentParser {
     }
 
     @Override
-    public Map<String, Object> mapAndClose() throws IOException {
-        return parser.mapAndClose();
-    }
-
-    @Override
-    public Map<String, Object> mapOrderedAndClose() throws IOException {
-        return parser.mapOrderedAndClose();
-    }
-
-    @Override
     public String text() throws IOException {
         return parser.text();
     }

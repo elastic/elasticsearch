@@ -12,7 +12,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.input.ExecutableInput;
-import org.elasticsearch.watcher.input.search.SearchInput;
 import org.elasticsearch.watcher.support.Variables;
 import org.elasticsearch.watcher.support.XContentFilterKeysUtils;
 import org.elasticsearch.watcher.support.http.HttpClient;
@@ -85,7 +84,7 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
             payload = new Payload.Simple(filteredKeys);
         } else {
             if (parser != null) {
-                Map<String, Object> map = parser.mapOrderedAndClose();
+                Map<String, Object> map = parser.mapOrdered();
                 payload = new Payload.Simple(map);
             } else {
                 payload = new Payload.Simple("_value", response.body().toUtf8());

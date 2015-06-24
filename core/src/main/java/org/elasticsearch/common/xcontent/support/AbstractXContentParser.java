@@ -278,9 +278,15 @@ public abstract class AbstractXContentParser implements XContentParser {
     }
 
     static List<Object> readList(XContentParser parser, MapFactory mapFactory) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        if (token == XContentParser.Token.FIELD_NAME) {
+            token = parser.nextToken();
+        }
+        if (token == XContentParser.Token.START_ARRAY) {
+            token = parser.nextToken();
+        }
         ArrayList<Object> list = new ArrayList<>();
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+        for (; token != XContentParser.Token.END_ARRAY; token = parser.nextToken()) {
             list.add(readValue(parser, mapFactory, token));
         }
         return list;

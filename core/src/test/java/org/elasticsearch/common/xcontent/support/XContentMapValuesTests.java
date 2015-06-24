@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.xcontent.support;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -30,7 +32,9 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -481,4 +485,85 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
         assertThat(((Map<String, Object>) filteredSource.get("obj1")), hasKey("obj2"));
         assertThat(((Map) ((Map) filteredSource.get("obj1")).get("obj2")).size(), equalTo(0));
     }
+
+    public void testEmptyList() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+                .startArray("some_array")
+                .endArray().endObject();
+
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals("some_array", parser.currentName());
+            if (random().nextBoolean()) {
+                // sometimes read the start array token, sometimes not
+                assertEquals(XContentParser.Token.START_ARRAY, parser.nextToken());
+            }
+            assertEquals(Collections.emptyList(), parser.list());
+        }
+    }
+
+    public void testSimpleList() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+                .startArray("some_array")
+                    .value(1)
+                    .value(3)
+                    .value(0)
+                .endArray().endObject();
+
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals("some_array", parser.currentName());
+            if (random().nextBoolean()) {
+                // sometimes read the start array token, sometimes not
+                assertEquals(XContentParser.Token.START_ARRAY, parser.nextToken());
+            }
+            assertEquals(Arrays.asList(1, 3, 0), parser.list());
+        }
+    }
+
+    public void testNestedList() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+                .startArray("some_array")
+                    .startArray().endArray()
+                    .startArray().value(1).value(3).endArray()
+                    .startArray().value(2).endArray()
+                .endArray().endObject();
+
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals("some_array", parser.currentName());
+            if (random().nextBoolean()) {
+                // sometimes read the start array token, sometimes not
+                assertEquals(XContentParser.Token.START_ARRAY, parser.nextToken());
+            }
+            assertEquals(
+                    Arrays.asList(Collections.<Integer>emptyList(), Arrays.asList(1, 3), Arrays.asList(2)),
+                    parser.list());
+        }
+    }
+
+    public void testNestedMapInList() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+                .startArray("some_array")
+                    .startObject().field("foo", "bar").endObject()
+                    .startObject().endObject()
+                .endArray().endObject();
+
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals("some_array", parser.currentName());
+            if (random().nextBoolean()) {
+                // sometimes read the start array token, sometimes not
+                assertEquals(XContentParser.Token.START_ARRAY, parser.nextToken());
+            }
+            assertEquals(
+                    Arrays.asList(ImmutableMap.of("foo", "bar"), Collections.<String, Object>emptyMap()),
+                    parser.list());
+        }
+    }
+
 }

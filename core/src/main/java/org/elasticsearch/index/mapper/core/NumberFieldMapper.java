@@ -335,10 +335,6 @@ public abstract class NumberFieldMapper extends AbstractFieldMapper implements A
         }
     }
 
-    @Override
-    public void close() {
-    }
-
     protected NumericTokenStream popCachedStream() {
         if (fieldType().numericPrecisionStep() == 4) {
             return tokenStream4.get();

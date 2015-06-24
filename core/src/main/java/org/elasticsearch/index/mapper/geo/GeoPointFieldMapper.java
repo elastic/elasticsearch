@@ -740,20 +740,6 @@ public class GeoPointFieldMapper extends AbstractFieldMapper implements ArrayVal
     }
 
     @Override
-    public void close() {
-        super.close();
-        if (latMapper != null) {
-            latMapper.close();
-        }
-        if (lonMapper != null) {
-            lonMapper.close();
-        }
-        if (geohashMapper != null) {
-            geohashMapper.close();
-        }
-    }
-
-    @Override
     public Iterator<Mapper> iterator() {
         List<Mapper> extras = new ArrayList<>();
         if (fieldType().isGeohashEnabled()) {

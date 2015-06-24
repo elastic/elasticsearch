@@ -237,15 +237,6 @@ public class ExternalMapper extends AbstractFieldMapper {
     }
 
     @Override
-    public void close() {
-        binMapper.close();
-        boolMapper.close();
-        pointMapper.close();
-        shapeMapper.close();
-        stringMapper.close();
-    }
-
-    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(fieldType().names().shortName());
         builder.field("type", mapperName);

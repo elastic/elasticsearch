@@ -122,13 +122,24 @@ final class JVMCheck {
                 }
             }
         } else if ("IBM Corporation".equals(Constants.JVM_VENDOR)) {
-            // currently any JVM from IBM will easily result in index corruption.
-            StringBuilder sb = new StringBuilder();
-            sb.append("IBM runtimes suffer from several bugs which can cause data corruption.");
-            sb.append(System.lineSeparator());
-            sb.append("Please upgrade the JVM, see ").append(JVM_RECOMMENDATIONS);
-            sb.append(" for current recommendations.");
-            throw new RuntimeException(sb.toString());
+            // currently some old JVM versions from IBM will easily result in index corruption.
+            // 2.8+ seems ok for ES from testing.
+            float version = Float.POSITIVE_INFINITY;
+            try {
+                version = Float.parseFloat(Constants.JVM_VERSION);
+            } catch (NumberFormatException ignored) {
+                // this is just a simple best-effort to detect old runtimes,
+                // if we cannot parse it, we don't fail.
+            }
+            if (version < 2.8f) {
+                StringBuilder sb = new StringBuilder();
+                sb.append("IBM J9 runtimes < 2.8 suffer from several bugs which can cause data corruption.");
+                sb.append(System.lineSeparator());
+                sb.append("Your version: " + Constants.JVM_VERSION);
+                sb.append(System.lineSeparator());
+                sb.append("Please upgrade the JVM to a recent IBM JDK");
+                throw new RuntimeException(sb.toString());
+            }
         }
     }
 }

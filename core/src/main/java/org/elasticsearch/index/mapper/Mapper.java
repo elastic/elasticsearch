@@ -129,6 +129,4 @@ public interface Mapper extends ToXContent, Iterable<Mapper> {
     String name();
 
     void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException;
-
-    void close();
 }

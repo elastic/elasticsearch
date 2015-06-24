@@ -53,7 +53,7 @@ grant {
   // needed by GroovyScriptEngineService
   permission java.lang.RuntimePermission "closeClassLoader";
 
-  // needed by ImmutableSettings
+  // needed by Settings
   permission java.lang.RuntimePermission "getenv.*";
 
   // needed by LuceneTestCase/TestRuleLimitSysouts

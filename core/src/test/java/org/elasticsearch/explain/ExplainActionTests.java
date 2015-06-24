@@ -19,6 +19,8 @@
 
 package org.elasticsearch.explain;
 
+import com.google.common.collect.ImmutableSet;
+
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.explain.ExplainResponse;
@@ -26,6 +28,7 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.joda.time.DateTime;
@@ -35,7 +38,9 @@ import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
@@ -138,7 +143,9 @@ public class ExplainActionTests extends ElasticsearchIntegrationTest {
         assertThat(response.getExplanation().getValue(), equalTo(1.0f));
         assertThat(response.getGetResult().isExists(), equalTo(true));
         assertThat(response.getGetResult().getId(), equalTo("1"));
-        assertThat(response.getGetResult().getFields().size(), equalTo(1));
+        Set<String> fields = new HashSet<>(response.getGetResult().getFields().keySet());
+        fields.remove(TimestampFieldMapper.NAME); // randomly added via templates
+        assertThat(fields, equalTo((Set<String>) ImmutableSet.of("obj1.field1")));
         assertThat(response.getGetResult().getFields().get("obj1.field1").getValue().toString(), equalTo("value1"));
         assertThat(response.getGetResult().isSourceEmpty(), equalTo(true));
 
@@ -153,7 +160,9 @@ public class ExplainActionTests extends ElasticsearchIntegrationTest {
         assertThat(response.getExplanation().getValue(), equalTo(1.0f));
         assertThat(response.getGetResult().isExists(), equalTo(true));
         assertThat(response.getGetResult().getId(), equalTo("1"));
-        assertThat(response.getGetResult().getFields().size(), equalTo(1));
+        fields = new HashSet<>(response.getGetResult().getFields().keySet());
+        fields.remove(TimestampFieldMapper.NAME); // randomly added via templates
+        assertThat(fields, equalTo((Set<String>) ImmutableSet.of("obj1.field1")));
         assertThat(response.getGetResult().getFields().get("obj1.field1").getValue().toString(), equalTo("value1"));
         assertThat(response.getGetResult().isSourceEmpty(), equalTo(false));
 

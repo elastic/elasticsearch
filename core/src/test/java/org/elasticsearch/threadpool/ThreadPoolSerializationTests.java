@@ -82,8 +82,10 @@ public class ThreadPoolSerializationTests extends ElasticsearchTestCase {
         builder.endObject();
 
         BytesReference bytesReference = builder.bytes();
-        XContentParser parser = XContentFactory.xContent(bytesReference).createParser(bytesReference);
-        Map<String, Object> map = parser.mapAndClose();
+        Map<String, Object> map;
+        try (XContentParser parser = XContentFactory.xContent(bytesReference).createParser(bytesReference)) {
+            map = parser.map();
+        }
         assertThat(map, hasKey("foo"));
         map = (Map<String, Object>) map.get("foo");
         assertThat(map, hasKey("queue_size"));

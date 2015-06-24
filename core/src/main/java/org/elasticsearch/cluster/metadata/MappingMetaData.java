@@ -288,7 +288,10 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
 
     public MappingMetaData(CompressedXContent mapping) throws IOException {
         this.source = mapping;
-        Map<String, Object> mappingMap = XContentHelper.createParser(mapping.compressedReference()).mapOrderedAndClose();
+        Map<String, Object> mappingMap;
+        try (XContentParser parser = XContentHelper.createParser(mapping.compressedReference())) {
+            mappingMap = parser.mapOrdered();
+        }
         if (mappingMap.size() != 1) {
             throw new IllegalStateException("Can't derive type from mapping, no root type: " + mapping.string());
         }

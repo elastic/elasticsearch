@@ -213,25 +213,6 @@ public abstract class AbstractXContentParser implements XContentParser {
         return readOrderedMap(this);
     }
 
-    @Override
-    public Map<String, Object> mapAndClose() throws IOException {
-        try {
-            return map();
-        } finally {
-            close();
-        }
-    }
-
-    @Override
-    public Map<String, Object> mapOrderedAndClose() throws IOException {
-        try {
-            return mapOrdered();
-        } finally {
-            close();
-        }
-    }
-
-
     static interface MapFactory {
         Map<String, Object> newMap();
     }

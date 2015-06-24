@@ -19,6 +19,7 @@
 package org.elasticsearch.index.fieldvisitor;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.StoredFieldVisitor;
@@ -27,29 +28,62 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
+import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
+import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
+import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static com.google.common.collect.Maps.newHashMap;
 
 /**
+ * Base {@link StoredFieldsVisitor} that retrieves all non-redundant metadata.
  */
-public abstract class FieldsVisitor extends StoredFieldVisitor {
+public class FieldsVisitor extends StoredFieldVisitor {
 
+    private static final Set<String> BASE_REQUIRED_FIELDS = ImmutableSet.of(
+            UidFieldMapper.NAME,
+            TimestampFieldMapper.NAME,
+            TTLFieldMapper.NAME,
+            RoutingFieldMapper.NAME,
+            ParentFieldMapper.NAME
+   );
+
+    private final boolean loadSource;
+    private final Set<String> requiredFields;
     protected BytesReference source;
     protected Uid uid;
     protected Map<String, List<Object>> fieldsValues;
+
+    public FieldsVisitor(boolean loadSource) {
+        this.loadSource = loadSource;
+        requiredFields = new HashSet<>();
+        reset();
+    }
+
+    @Override
+    public Status needsField(FieldInfo fieldInfo) throws IOException {
+        if (requiredFields.remove(fieldInfo.name)) {
+            return Status.YES;
+        }
+        // All these fields are single-valued so we can stop when the set is
+        // empty
+        return requiredFields.isEmpty()
+                ? Status.STOP
+                : Status.NO;
+    }
 
     public void postProcess(MapperService mapperService) {
         if (uid != null) {
@@ -133,6 +167,18 @@ public abstract class FieldsVisitor extends StoredFieldVisitor {
         return uid;
     }
 
+    public String routing() {
+        if (fieldsValues == null) {
+            return null;
+        }
+        List<Object> values = fieldsValues.get(RoutingFieldMapper.NAME);
+        if (values == null || values.isEmpty()) {
+            return null;
+        }
+        assert values.size() == 1;
+        return values.get(0).toString();
+    }
+
     public Map<String, List<Object>> fields() {
         return fieldsValues != null
                 ? fieldsValues
@@ -143,6 +189,11 @@ public abstract class FieldsVisitor extends StoredFieldVisitor {
         if (fieldsValues != null) fieldsValues.clear();
         source = null;
         uid = null;
+
+        requiredFields.addAll(BASE_REQUIRED_FIELDS);
+        if (loadSource) {
+            requiredFields.add(SourceFieldMapper.NAME);
+        }
     }
 
     void addValue(String name, Object value) {

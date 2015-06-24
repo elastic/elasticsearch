@@ -545,13 +545,6 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll, Clonea
     }
 
     @Override
-    public void close() {
-        for (Mapper mapper : mappers.values()) {
-            mapper.close();
-        }
-    }
-
-    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         toXContent(builder, params, null);
         return builder;

@@ -46,8 +46,8 @@ public class SimpleMapperTests extends ElasticsearchSingleNodeTest {
         DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
         DocumentMapper docMapper = doc("test", settings,
                 rootObject("person")
-                        .add(object("name").add(stringField("first").store(true).index(false)))
-        ).build(indexService.mapperService(), mapperParser);
+                        .add(object("name").add(stringField("first").store(true).index(false))),
+            indexService.mapperService()).build(indexService.mapperService(), mapperParser);
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
         Document doc = docMapper.parse("person", "1", json).rootDoc();
@@ -124,8 +124,8 @@ public class SimpleMapperTests extends ElasticsearchSingleNodeTest {
         DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
         DocumentMapper docMapper = doc("test", settings,
                 rootObject("person")
-                        .add(object("name").add(stringField("first").store(true).index(false)))
-        ).build(indexService.mapperService(), mapperParser);
+                        .add(object("name").add(stringField("first").store(true).index(false))),
+            indexService.mapperService()).build(indexService.mapperService(), mapperParser);
 
         BytesReference json = new BytesArray("".getBytes(Charsets.UTF_8));
         try {

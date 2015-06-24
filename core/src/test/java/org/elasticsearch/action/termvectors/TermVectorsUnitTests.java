@@ -268,7 +268,7 @@ public class TermVectorsUnitTests extends ElasticsearchTestCase {
         ft.setStoreTermVectorPositions(true);
         String ftOpts = AbstractFieldMapper.termVectorOptionsToString(ft);
         assertThat("with_positions_payloads", equalTo(ftOpts));
-        AllFieldMapper.Builder builder = new AllFieldMapper.Builder();
+        AllFieldMapper.Builder builder = new AllFieldMapper.Builder(null);
         boolean exceptiontrown = false;
         try {
             TypeParsers.parseTermVector("", ftOpts, builder);

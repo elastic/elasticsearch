@@ -287,9 +287,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper implements ArrayVal
         private boolean normalizeLon = true;
         private boolean normalizeLat = true;
 
-        public GeoPointFieldType() {
-            super(StringFieldMapper.Defaults.FIELD_TYPE);
-        }
+        public GeoPointFieldType() {}
 
         protected GeoPointFieldType(GeoPointFieldType ref) {
             super(ref);
@@ -328,10 +326,15 @@ public class GeoPointFieldMapper extends AbstractFieldMapper implements ArrayVal
         public int hashCode() {
             return java.util.Objects.hash(super.hashCode(), geohashFieldType, geohashPrecision, geohashPrefixEnabled, latFieldType, lonFieldType, validateLon, validateLat, normalizeLon, normalizeLat);
         }
+
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
+        }
         
         @Override
-        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts) {
-            super.checkCompatibility(fieldType, conflicts);
+        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts, boolean strict) {
+            super.checkCompatibility(fieldType, conflicts, strict);
             GeoPointFieldType other = (GeoPointFieldType)fieldType;
             if (isLatLonEnabled() != other.isLatLonEnabled()) {
                 conflicts.add("mapper [" + names().fullName() + "] has different lat_lon");

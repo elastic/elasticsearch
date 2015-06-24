@@ -104,7 +104,7 @@ public class SimpleExistsTests extends ElasticsearchIntegrationTest {
         createIndex("test");
         client().prepareIndex("test", "type1", "1").setSource("field", 2).execute().actionGet();
         client().prepareIndex("test", "type1", "2").setSource("field", 5).execute().actionGet();
-        client().prepareIndex("test", "type", "XXX1").setSource("field", "value").execute().actionGet();
+        client().prepareIndex("test", "type", "XXX1").setSource("str_field", "value").execute().actionGet();
         ensureGreen();
         refresh();
         ExistsResponse existsResponse = client().prepareExists("test").setQuery(QueryBuilders.rangeQuery("field").gte(6).lte(8)).execute().actionGet();

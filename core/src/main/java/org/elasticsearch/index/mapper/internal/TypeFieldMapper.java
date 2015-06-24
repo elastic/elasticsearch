@@ -50,7 +50,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.MapperBuilders.type;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
 /**
@@ -81,15 +80,15 @@ public class TypeFieldMapper extends AbstractFieldMapper implements RootMapper {
 
     public static class Builder extends AbstractFieldMapper.Builder<Builder, TypeFieldMapper> {
 
-        public Builder() {
-            super(Defaults.NAME, Defaults.FIELD_TYPE);
+        public Builder(MappedFieldType existing) {
+            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing);
             indexName = Defaults.NAME;
         }
 
         @Override
         public TypeFieldMapper build(BuilderContext context) {
             fieldType.setNames(new MappedFieldType.Names(name, indexName, indexName, name));
-            return new TypeFieldMapper(fieldType, fieldDataSettings, context.indexSettings());
+            return new TypeFieldMapper(fieldType, context.indexSettings());
         }
     }
 
@@ -99,7 +98,7 @@ public class TypeFieldMapper extends AbstractFieldMapper implements RootMapper {
             if (parserContext.indexVersionCreated().onOrAfter(Version.V_2_0_0)) {
                 throw new MapperParsingException(NAME + " is not configurable");
             }
-            TypeFieldMapper.Builder builder = type();
+            Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
             parseField(builder, builder.name, node, parserContext);
             return builder;
         }
@@ -107,9 +106,7 @@ public class TypeFieldMapper extends AbstractFieldMapper implements RootMapper {
 
     static final class TypeFieldType extends MappedFieldType {
 
-        public TypeFieldType() {
-            super(AbstractFieldMapper.Defaults.FIELD_TYPE);
-        }
+        public TypeFieldType() {}
 
         protected TypeFieldType(TypeFieldType ref) {
             super(ref);
@@ -118,6 +115,11 @@ public class TypeFieldMapper extends AbstractFieldMapper implements RootMapper {
         @Override
         public MappedFieldType clone() {
             return new TypeFieldType(this);
+        }
+
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
         }
 
         @Override
@@ -142,12 +144,13 @@ public class TypeFieldMapper extends AbstractFieldMapper implements RootMapper {
         }
     }
 
-    public TypeFieldMapper(Settings indexSettings) {
-        this(Defaults.FIELD_TYPE.clone(), null, indexSettings);
+    public TypeFieldMapper(Settings indexSettings, MappedFieldType existing) {
+        this(existing == null ? Defaults.FIELD_TYPE.clone() : existing.clone(),
+             indexSettings);
     }
 
-    public TypeFieldMapper(MappedFieldType fieldType, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(fieldType, false, fieldDataSettings, indexSettings);
+    public TypeFieldMapper(MappedFieldType fieldType, Settings indexSettings) {
+        super(fieldType, false, null, indexSettings);
     }
 
     @Override

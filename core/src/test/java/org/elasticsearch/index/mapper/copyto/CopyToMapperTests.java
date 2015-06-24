@@ -233,11 +233,11 @@ public class CopyToMapperTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapper docMapperAfter = parser.parse(mappingAfter);
 
-        MergeResult mergeResult = docMapperBefore.merge(docMapperAfter.mapping(), true);
+        MergeResult mergeResult = docMapperBefore.merge(docMapperAfter.mapping(), true, false);
 
         assertThat(Arrays.toString(mergeResult.buildConflicts()), mergeResult.hasConflicts(), equalTo(false));
 
-        docMapperBefore.merge(docMapperAfter.mapping(), false);
+        docMapperBefore.merge(docMapperAfter.mapping(), false, false);
 
         fields = docMapperBefore.mappers().getMapper("copy_test").copyTo().copyToFields();
 

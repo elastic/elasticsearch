@@ -28,69 +28,12 @@ import org.elasticsearch.index.mapper.ip.IpFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
-/**
- *
- */
 public final class MapperBuilders {
 
-    private MapperBuilders() {
+    private MapperBuilders() {}
 
-    }
-
-    public static DocumentMapper.Builder doc(String index, Settings settings, RootObjectMapper.Builder objectBuilder) {
-        return new DocumentMapper.Builder(index, settings, objectBuilder);
-    }
-
-    public static SourceFieldMapper.Builder source() {
-        return new SourceFieldMapper.Builder();
-    }
-
-    public static IdFieldMapper.Builder id() {
-        return new IdFieldMapper.Builder();
-    }
-
-    public static RoutingFieldMapper.Builder routing() {
-        return new RoutingFieldMapper.Builder();
-    }
-
-    public static UidFieldMapper.Builder uid() {
-        return new UidFieldMapper.Builder();
-    }
-
-    public static SizeFieldMapper.Builder size() {
-        return new SizeFieldMapper.Builder();
-    }
-
-    public static VersionFieldMapper.Builder version() {
-        return new VersionFieldMapper.Builder();
-    }
-
-    public static TypeFieldMapper.Builder type() {
-        return new TypeFieldMapper.Builder();
-    }
-
-    public static FieldNamesFieldMapper.Builder fieldNames() {
-        return new FieldNamesFieldMapper.Builder();
-    }
-
-    public static IndexFieldMapper.Builder index() {
-        return new IndexFieldMapper.Builder();
-    }
-
-    public static TimestampFieldMapper.Builder timestamp() {
-        return new TimestampFieldMapper.Builder();
-    }
-
-    public static TTLFieldMapper.Builder ttl() {
-        return new TTLFieldMapper.Builder();
-    }
-
-    public static ParentFieldMapper.Builder parent() {
-        return new ParentFieldMapper.Builder();
-    }
-
-    public static AllFieldMapper.Builder all() {
-        return new AllFieldMapper.Builder();
+    public static DocumentMapper.Builder doc(String index, Settings settings, RootObjectMapper.Builder objectBuilder, MapperService mapperService) {
+        return new DocumentMapper.Builder(index, settings, objectBuilder, mapperService);
     }
 
     public static RootObjectMapper.Builder rootObject(String name) {

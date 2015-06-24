@@ -130,7 +130,9 @@ public class IntegerFieldMapper extends NumberFieldMapper {
 
     public static final class IntegerFieldType extends NumberFieldType {
 
-        public IntegerFieldType() {}
+        public IntegerFieldType() {
+            super(NumericType.INT);
+        }
 
         protected IntegerFieldType(IntegerFieldType ref) {
             super(ref);
@@ -139,6 +141,11 @@ public class IntegerFieldMapper extends NumberFieldMapper {
         @Override
         public NumberFieldType clone() {
             return new IntegerFieldType(this);
+        }
+
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
         }
 
         @Override

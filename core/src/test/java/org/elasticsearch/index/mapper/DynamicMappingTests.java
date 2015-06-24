@@ -30,6 +30,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 
 import java.io.IOException;
@@ -359,5 +361,51 @@ public class DynamicMappingTests extends ElasticsearchSingleNodeTest {
                 .startObject("baz").field("type", "long").endObject()
                 .endObject().endObject()
                 .endObject().endObject().endObject().string(), serialize(update));
+    }
+
+    public void testReuseExistingMappings() throws IOException, Exception {
+        IndexService indexService = createIndex("test", Settings.EMPTY, "type", "my_field1", "type=string,store=yes", "my_field2", "type=integer,precision_step=10");
+
+        // Even if the dynamic type of our new field is long, we already have a mapping for the same field
+        // of type string so it should be mapped as a string
+        DocumentMapper newMapper = indexService.mapperService().documentMapperWithAutoCreate("type2").v1();
+        Mapper update = parse(newMapper, indexService.mapperService().documentMapperParser(),
+                XContentFactory.jsonBuilder().startObject().field("my_field1", 42).endObject());
+        Mapper myField1Mapper = null;
+        for (Mapper m : update) {
+            if (m.name().equals("my_field1")) {
+                myField1Mapper = m;
+            }
+        }
+        assertNotNull(myField1Mapper);
+        // same type
+        assertTrue(myField1Mapper instanceof StringFieldMapper);
+        // and same option
+        assertTrue(((StringFieldMapper) myField1Mapper).fieldType().stored());
+
+        // Even if dynamic mappings would map a numeric field as a long, here it should map it as a integer
+        // since we already have a mapping of type integer
+        update = parse(newMapper, indexService.mapperService().documentMapperParser(),
+                XContentFactory.jsonBuilder().startObject().field("my_field2", 42).endObject());
+        Mapper myField2Mapper = null;
+        for (Mapper m : update) {
+            if (m.name().equals("my_field2")) {
+                myField2Mapper = m;
+            }
+        }
+        assertNotNull(myField2Mapper);
+        // same type
+        assertTrue(myField2Mapper instanceof IntegerFieldMapper);
+        // and same option
+        assertEquals(10, ((IntegerFieldMapper) myField2Mapper).fieldType().numericPrecisionStep());
+
+        // This can't work
+        try {
+            parse(newMapper, indexService.mapperService().documentMapperParser(),
+                    XContentFactory.jsonBuilder().startObject().field("my_field2", "foobar").endObject());
+            fail("Cannot succeed, incompatible types");
+        } catch (MapperParsingException e) {
+            // expected
+        }
     }
 }

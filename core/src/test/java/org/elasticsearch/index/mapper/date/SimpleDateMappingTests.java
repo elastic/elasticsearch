@@ -352,7 +352,7 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
         Map<String, String> config = getConfigurationViaXContent(initialDateFieldMapper);
         assertThat(config.get("format"), is("EEE MMM dd HH:mm:ss.S Z yyyy||EEE MMM dd HH:mm:ss.SSS Z yyyy"));
 
-        MergeResult mergeResult = defaultMapper.merge(mergeMapper.mapping(), false);
+        MergeResult mergeResult = defaultMapper.merge(mergeMapper.mapping(), false, false);
 
         assertThat("Merging resulting in conflicts: " + Arrays.asList(mergeResult.buildConflicts()), mergeResult.hasConflicts(), is(false));
         assertThat(defaultMapper.mappers().getMapper("field"), is(instanceOf(DateFieldMapper.class)));

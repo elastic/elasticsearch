@@ -183,9 +183,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper {
         private RecursivePrefixTreeStrategy recursiveStrategy;
         private TermQueryPrefixTreeStrategy termStrategy;
 
-        public GeoShapeFieldType() {
-            super(AbstractFieldMapper.Defaults.FIELD_TYPE);
-        }
+        public GeoShapeFieldType() {}
 
         protected GeoShapeFieldType(GeoShapeFieldType ref) {
             super(ref);
@@ -199,7 +197,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper {
         }
 
         @Override
-        public MappedFieldType clone() {
+        public GeoShapeFieldType clone() {
             return new GeoShapeFieldType(this);
         }
 
@@ -219,6 +217,11 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper {
         @Override
         public int hashCode() {
             return Objects.hash(super.hashCode(), tree, strategyName, treeLevels, precisionInMeters, distanceErrorPct, defaultDistanceErrorPct, orientation);
+        }
+
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
         }
 
         @Override
@@ -246,8 +249,8 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper {
         }
         
         @Override
-        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts) {
-            super.checkCompatibility(fieldType, conflicts);
+        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts, boolean strict) {
+            super.checkCompatibility(fieldType, conflicts, strict);
             GeoShapeFieldType other = (GeoShapeFieldType)fieldType;
             // prevent user from changing strategies
             if (strategyName().equals(other.strategyName()) == false) {

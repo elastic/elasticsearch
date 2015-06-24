@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 
 import java.util.ArrayList;
@@ -26,29 +27,55 @@ import java.util.Collection;
 import java.util.List;
 
 /** A container for tracking results of a mapping merge. */
-public abstract class MergeResult {
+public class MergeResult {
 
     private final boolean simulate;
+    private final boolean updateAllTypes;
 
-    public MergeResult(boolean simulate) {
+    private final List<String> conflicts = new ArrayList<>();
+    private final List<FieldMapper> newFieldMappers = new ArrayList<>();
+    private final List<ObjectMapper> newObjectMappers = new ArrayList<>();
+
+    public MergeResult(boolean simulate, boolean updateAllTypes) {
         this.simulate = simulate;
+        this.updateAllTypes = updateAllTypes;
     }
 
-    public abstract void addFieldMappers(Collection<FieldMapper> fieldMappers);
+    public void addFieldMappers(Collection<FieldMapper> fieldMappers) {
+        assert simulate() == false;
+        newFieldMappers.addAll(fieldMappers);
+    }
 
-    public abstract void addObjectMappers(Collection<ObjectMapper> objectMappers);
+    public void addObjectMappers(Collection<ObjectMapper> objectMappers) {
+        assert simulate() == false;
+        newObjectMappers.addAll(objectMappers);
+    }
 
-    public abstract Collection<FieldMapper> getNewFieldMappers();
+    public Collection<FieldMapper> getNewFieldMappers() {
+        return newFieldMappers;
+    }
 
-    public abstract Collection<ObjectMapper> getNewObjectMappers();
+    public Collection<ObjectMapper> getNewObjectMappers() {
+        return newObjectMappers;
+    }
 
     public boolean simulate() {
         return simulate;
     }
 
-    public abstract void addConflict(String mergeFailure);
+    public boolean updateAllTypes() {
+        return updateAllTypes;
+    }
 
-    public abstract boolean hasConflicts();
+    public void addConflict(String mergeFailure) {
+        conflicts.add(mergeFailure);
+    }
 
-    public abstract String[] buildConflicts();
+    public boolean hasConflicts() {
+        return conflicts.isEmpty() == false;
+    }
+
+    public String[] buildConflicts() {
+        return conflicts.toArray(Strings.EMPTY_ARRAY);
+    }
 }

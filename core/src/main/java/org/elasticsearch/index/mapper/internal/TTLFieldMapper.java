@@ -67,6 +67,8 @@ public class TTLFieldMapper extends LongFieldMapper implements RootMapper {
             TTL_FIELD_TYPE.setStored(true);
             TTL_FIELD_TYPE.setTokenized(false);
             TTL_FIELD_TYPE.setNumericPrecisionStep(Defaults.PRECISION_STEP_64_BIT);
+            TTL_FIELD_TYPE.setIndexAnalyzer(NumericLongAnalyzer.buildNamedAnalyzer(Defaults.PRECISION_STEP_64_BIT));
+            TTL_FIELD_TYPE.setSearchAnalyzer(NumericLongAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE));
             TTL_FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
             TTL_FIELD_TYPE.freeze();
         }

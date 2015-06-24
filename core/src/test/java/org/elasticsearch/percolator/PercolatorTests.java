@@ -45,6 +45,7 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.query.functionscore.factor.FactorBuilder;
+import org.elasticsearch.index.query.support.QueryInnerHitBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.highlight.HighlightBuilder;
@@ -71,13 +72,7 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.smileBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.yamlBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
-import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
@@ -2028,7 +2023,34 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
         assertMatchCount(response1, 1l);
         assertThat(response1.getMatches(), arrayWithSize(1));
+    }
 
+    @Test
+    public void testFailNicelyWithInnerHits() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("mapping")
+                    .startObject("properties")
+                        .startObject("nested")
+                            .field("type", "nested")
+                            .startObject("properties")
+                                .startObject("name")
+                                    .field("type", "string")
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject();
+
+        assertAcked(prepareCreate("index").addMapping("mapping", mapping));
+        try {
+            client().prepareIndex("index", PercolatorService.TYPE_NAME, "1")
+                    .setSource(jsonBuilder().startObject().field("query", nestedQuery("nested", matchQuery("nested.name", "value")).innerHit(new QueryInnerHitBuilder())).endObject())
+                    .execute().actionGet();
+            fail("Expected a parse error, because inner_hits isn't supported in the percolate api");
+        } catch (Exception e) {
+            assertThat(e.getCause(), instanceOf(QueryParsingException.class));
+            assertThat(e.getCause().getMessage(), containsString("inner_hits unsupported"));
+        }
     }
 }
 

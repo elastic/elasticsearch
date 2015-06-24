@@ -326,7 +326,7 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
             }
 
             @Override
-            public boolean move(MutableShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            public boolean move(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                 return false;
             }
 
@@ -365,7 +365,7 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
             public boolean allocateUnassigned(RoutingAllocation allocation) {
                 RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();
                 boolean changed = !unassigned.isEmpty();
-                for (MutableShardRouting sr : unassigned) {
+                for (ShardRouting sr : unassigned) {
                     switch (sr.id()) {
                         case 0:
                             if (sr.primary()) {
@@ -430,8 +430,8 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
         RoutingNodes routingNodes = clusterState.routingNodes();
 
         for (RoutingNode routingNode : routingNodes) {
-            for (MutableShardRouting mutableShardRouting : routingNode) {
-                assertThat(mutableShardRouting.state(), Matchers.equalTo(ShardRoutingState.INITIALIZING));
+            for (ShardRouting shardRouting : routingNode) {
+                assertThat(shardRouting.state(), Matchers.equalTo(ShardRoutingState.INITIALIZING));
             }
         }
         strategy = createAllocationService(settings.build());
@@ -442,8 +442,8 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.routingNodes();
         for (RoutingNode routingNode : routingNodes) {
-            for (MutableShardRouting mutableShardRouting : routingNode) {
-                assertThat(mutableShardRouting.state(), Matchers.equalTo(ShardRoutingState.STARTED));
+            for (ShardRouting shardRouting : routingNode) {
+                assertThat(shardRouting.state(), Matchers.equalTo(ShardRoutingState.STARTED));
             }
         }
 
@@ -453,8 +453,8 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
         routingNodes = clusterState.routingNodes();
 
         for (RoutingNode routingNode : routingNodes) {
-            for (MutableShardRouting mutableShardRouting : routingNode) {
-                assertThat(mutableShardRouting.state(), Matchers.equalTo(ShardRoutingState.STARTED));
+            for (ShardRouting shardRouting : routingNode) {
+                assertThat(shardRouting.state(), Matchers.equalTo(ShardRoutingState.STARTED));
             }
         }
 
@@ -464,8 +464,8 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
         routingNodes = clusterState.routingNodes();
 
         for (RoutingNode routingNode : routingNodes) {
-            for (MutableShardRouting mutableShardRouting : routingNode) {
-                assertThat(mutableShardRouting.state(), Matchers.equalTo(ShardRoutingState.STARTED));
+            for (ShardRouting shardRouting : routingNode) {
+                assertThat(shardRouting.state(), Matchers.equalTo(ShardRoutingState.STARTED));
             }
         }
 

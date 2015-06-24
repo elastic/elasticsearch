@@ -46,7 +46,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
@@ -221,7 +220,7 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
         /* generate term vectors from fetched document fields */
         GetResult getResult = indexShard.getService().get(
                 get, request.id(), request.type(), validFields.toArray(Strings.EMPTY_ARRAY), null, false);
-        Fields generatedTermVectors = generateTermVectors(getResult.getFields().values(), request.offsets(), request.perFieldAnalyzer());
+        Fields generatedTermVectors = generateTermVectors(getResult.getFields().values(), request.offsets(), request.perFieldAnalyzer(), validFields);
 
         /* merge with existing Fields */
         if (termVectorsByField == null) {
@@ -255,12 +254,16 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
         return selectedFields;
     }
 
-    private Fields generateTermVectors(Collection<GetField> getFields, boolean withOffsets, @Nullable Map<String, String> perFieldAnalyzer)
+    private Fields generateTermVectors(Collection<GetField> getFields, boolean withOffsets, @Nullable Map<String, String> perFieldAnalyzer, Set<String> fields)
             throws IOException {
         /* store document in memory index */
         MemoryIndex index = new MemoryIndex(withOffsets);
         for (GetField getField : getFields) {
             String field = getField.getName();
+            if (fields.contains(field) == false) {
+                // some fields are returned even when not asked for, eg. _timestamp
+                continue;
+            }
             Analyzer analyzer = getAnalyzerAtField(field, perFieldAnalyzer);
             for (Object text : getField.getValues()) {
                 index.addField(field, text.toString(), analyzer);
@@ -276,16 +279,10 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
 
         // select the right fields and generate term vectors
         ParseContext.Document doc = parsedDocument.rootDoc();
-        Collection<String> seenFields = new HashSet<>();
+        Set<String> seenFields = new HashSet<>();
         Collection<GetField> getFields = new HashSet<>();
         for (IndexableField field : doc.getFields()) {
             MappedFieldType fieldType = indexShard.mapperService().smartNameFieldType(field.name());
-            if (seenFields.contains(field.name())) {
-                continue;
-            }
-            else {
-                seenFields.add(field.name());
-            }
             if (!isValidField(fieldType)) {
                 continue;
             }
@@ -295,10 +292,16 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
             if (request.selectedFields() != null && !request.selectedFields().contains(field.name())) {
                 continue;
             }
+            if (seenFields.contains(field.name())) {
+                continue;
+            }
+            else {
+                seenFields.add(field.name());
+            }
             String[] values = doc.getValues(field.name());
             getFields.add(new GetField(field.name(), Arrays.asList((Object[]) values)));
         }
-        return generateTermVectors(getFields, request.offsets(), request.perFieldAnalyzer());
+        return generateTermVectors(getFields, request.offsets(), request.perFieldAnalyzer(), seenFields);
     }
 
     private ParsedDocument parseDocument(String index, String type, BytesReference doc) throws Throwable {

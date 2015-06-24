@@ -176,7 +176,9 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                             nodesBuilder.put(discovery.localNode);
                         }
                         nodesBuilder.localNodeId(master.localNode().id()).masterNodeId(master.localNode().id());
-                        return ClusterState.builder(currentState).nodes(nodesBuilder).build();
+                        ClusterState updatedState = ClusterState.builder(currentState).nodes(nodesBuilder).build();
+                        RoutingAllocation.Result routingResult = master.allocationService.reroute(ClusterState.builder(updatedState).build());
+                        return ClusterState.builder(updatedState).routingResult(routingResult).build();
                     }
 
                     @Override

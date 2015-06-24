@@ -214,23 +214,14 @@ public abstract class AbstractXContentParser implements XContentParser {
     }
 
     @Override
-    public Map<String, Object> mapAndClose() throws IOException {
-        try {
-            return map();
-        } finally {
-            close();
-        }
+    public List<Object> list() throws IOException {
+        return readList(this);
     }
 
     @Override
-    public Map<String, Object> mapOrderedAndClose() throws IOException {
-        try {
-            return mapOrdered();
-        } finally {
-            close();
-        }
+    public List<Object> listOrderedMap() throws IOException {
+        return readListOrderedMap(this);
     }
-
 
     static interface MapFactory {
         Map<String, Object> newMap();
@@ -258,6 +249,14 @@ public abstract class AbstractXContentParser implements XContentParser {
         return readMap(parser, ORDERED_MAP_FACTORY);
     }
 
+    static List<Object> readList(XContentParser parser) throws IOException {
+        return readList(parser, SIMPLE_MAP_FACTORY);
+    }
+
+    static List<Object> readListOrderedMap(XContentParser parser) throws IOException {
+        return readList(parser, ORDERED_MAP_FACTORY);
+    }
+
     static Map<String, Object> readMap(XContentParser parser, MapFactory mapFactory) throws IOException {
         Map<String, Object> map = mapFactory.newMap();
         XContentParser.Token token = parser.currentToken();
@@ -278,15 +277,22 @@ public abstract class AbstractXContentParser implements XContentParser {
         return map;
     }
 
-    private static List<Object> readList(XContentParser parser, MapFactory mapFactory, XContentParser.Token token) throws IOException {
+    static List<Object> readList(XContentParser parser, MapFactory mapFactory) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        if (token == XContentParser.Token.FIELD_NAME) {
+            token = parser.nextToken();
+        }
+        if (token == XContentParser.Token.START_ARRAY) {
+            token = parser.nextToken();
+        }
         ArrayList<Object> list = new ArrayList<>();
-        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+        for (; token != XContentParser.Token.END_ARRAY; token = parser.nextToken()) {
             list.add(readValue(parser, mapFactory, token));
         }
         return list;
     }
 
-    private static Object readValue(XContentParser parser, MapFactory mapFactory, XContentParser.Token token) throws IOException {
+    static Object readValue(XContentParser parser, MapFactory mapFactory, XContentParser.Token token) throws IOException {
         if (token == XContentParser.Token.VALUE_NULL) {
             return null;
         } else if (token == XContentParser.Token.VALUE_STRING) {
@@ -307,7 +313,7 @@ public abstract class AbstractXContentParser implements XContentParser {
         } else if (token == XContentParser.Token.START_OBJECT) {
             return readMap(parser, mapFactory);
         } else if (token == XContentParser.Token.START_ARRAY) {
-            return readList(parser, mapFactory, token);
+            return readList(parser, mapFactory);
         } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
             return parser.binaryValue();
         }

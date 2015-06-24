@@ -43,7 +43,7 @@ specified as well in the URI. Those stats can be any of:
 `fielddata`::   Fielddata statistics.
 `flush`::       Flush statistics.
 `merge`::       Merge statistics.
-`query_cache`:: <<index-modules-shard-query-cache,Shard query cache>> statistics.
+`query_cache`:: <<shard-query-cache,Shard query cache>> statistics.
 `refresh`::     Refresh statistics.
 `suggest`::     Suggest statistics.
 `warmer`::      Warmer statistics.
@@ -80,7 +80,7 @@ curl 'localhost:9200/_stats/search?groups=group1,group2
 --------------------------------------------------
 
 The stats returned are aggregated on the index level, with
-`primaries` and `total` aggregations, where `primaries` are the values for only the 
+`primaries` and `total` aggregations, where `primaries` are the values for only the
 primary shards, and `total` are the cumulated values for both primary and replica shards.
 
 In order to get back shard level stats, set the `level` parameter to `shards`.

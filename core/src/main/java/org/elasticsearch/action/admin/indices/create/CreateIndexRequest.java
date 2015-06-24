@@ -364,8 +364,8 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     public CreateIndexRequest source(BytesReference source) {
         XContentType xContentType = XContentFactory.xContentType(source);
         if (xContentType != null) {
-            try {
-                source(XContentFactory.xContent(xContentType).createParser(source).mapAndClose());
+            try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(source)) {
+                source(parser.map());
             } catch (IOException e) {
                 throw new ElasticsearchParseException("failed to parse source for create index", e);
             }

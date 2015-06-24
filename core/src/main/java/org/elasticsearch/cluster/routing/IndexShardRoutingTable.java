@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.routing;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
-import com.google.common.collect.UnmodifiableIterator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -141,7 +140,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             if (shards.get(i).version() == highestVersion) {
                 shardRoutings.add(shards.get(i));
             } else {
-                shardRoutings.add(new ImmutableShardRouting(shards.get(i), highestVersion));
+                shardRoutings.add(new ShardRouting(shards.get(i), highestVersion));
             }
         }
         return new IndexShardRoutingTable(shardId, ImmutableList.copyOf(shardRoutings), primaryAllocatedPostApi);
@@ -559,7 +558,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             this.primaryAllocatedPostApi = primaryAllocatedPostApi;
         }
 
-        public Builder addShard(ImmutableShardRouting shardEntry) {
+        public Builder addShard(ShardRouting shardEntry) {
             for (ShardRouting shard : shards) {
                 // don't add two that map to the same node id
                 // we rely on the fact that a node does not have primary and backup of the same shard
@@ -601,7 +600,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
             int size = in.readVInt();
             for (int i = 0; i < size; i++) {
-                ImmutableShardRouting shard = ImmutableShardRouting.readShardRoutingEntry(in, index, iShardId);
+                ShardRouting shard = ShardRouting.readShardRoutingEntry(in, index, iShardId);
                 builder.addShard(shard);
             }
 

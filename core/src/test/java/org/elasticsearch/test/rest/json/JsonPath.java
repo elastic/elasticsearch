@@ -19,6 +19,8 @@
 package org.elasticsearch.test.rest.json;
 
 import com.google.common.collect.Lists;
+
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.Stash;
 
@@ -40,7 +42,9 @@ public class JsonPath {
     }
 
     private static Map<String, Object> convertToMap(String json) throws IOException {
-        return JsonXContent.jsonXContent.createParser(json).mapOrderedAndClose();
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(json)) {
+            return parser.mapOrdered();
+        }
     }
 
     /**

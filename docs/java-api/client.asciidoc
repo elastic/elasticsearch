@@ -148,7 +148,7 @@ Note that you have to set the cluster name if you use one different than
 
 [source,java]
 --------------------------------------------------
-Settings settings = ImmutableSettings.settingsBuilder()
+Settings settings = Settings.settingsBuilder()
         .put("cluster.name", "myClusterName").build();
 Client client = TransportClient.builder().settings(settings).build();
 //Add transport addresses and do something with the client...
@@ -164,7 +164,7 @@ used will be the ones that the other nodes were started with (the
 
 [source,java]
 --------------------------------------------------
-Settings settings = ImmutableSettings.settingsBuilder()
+Settings settings = Settings.settingsBuilder()
         .put("client.transport.sniff", true).build();
 TransportClient client = TransportClient.builder().settings(settings).build();
 --------------------------------------------------

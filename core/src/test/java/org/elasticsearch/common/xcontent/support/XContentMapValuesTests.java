@@ -19,17 +19,22 @@
 
 package org.elasticsearch.common.xcontent.support;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,7 +54,10 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
                 .field("something_else", "value3")
                 .endObject();
 
-        Map<String, Object> source = XContentFactory.xContent(XContentType.JSON).createParser(builder.string()).mapAndClose();
+        Map<String, Object> source;
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+            source = parser.map();
+        }
         Map<String, Object> filter = XContentMapValues.filter(source, new String[]{"test1"}, Strings.EMPTY_ARRAY);
         assertThat(filter.size(), equalTo(1));
         assertThat(filter.get("test1").toString(), equalTo("value1"));
@@ -75,7 +83,9 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
                 .field("test1", "value1")
                 .endObject();
 
-        source = XContentFactory.xContent(XContentType.JSON).createParser(builder.string()).mapAndClose();
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+            source = parser.map();
+        }
         filter = XContentMapValues.filter(source, new String[]{"path1"}, Strings.EMPTY_ARRAY);
         assertThat(filter.size(), equalTo(1));
 
@@ -99,7 +109,10 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
                 .field("test", "value")
                 .endObject();
 
-        Map<String, Object> map = XContentFactory.xContent(XContentType.JSON).createParser(builder.string()).mapAndClose();
+        Map<String, Object> map;
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+            map = parser.map();
+        }
         assertThat(XContentMapValues.extractValue("test", map).toString(), equalTo("value"));
         assertThat(XContentMapValues.extractValue("test.me", map), nullValue());
         assertThat(XContentMapValues.extractValue("something.else.2", map), nullValue());
@@ -108,7 +121,9 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
                 .startObject("path1").startObject("path2").field("test", "value").endObject().endObject()
                 .endObject();
 
-        map = XContentFactory.xContent(XContentType.JSON).createParser(builder.string()).mapAndClose();
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+            map = parser.map();
+        }
         assertThat(XContentMapValues.extractValue("path1.path2.test", map).toString(), equalTo("value"));
         assertThat(XContentMapValues.extractValue("path1.path2.test_me", map), nullValue());
         assertThat(XContentMapValues.extractValue("path1.non_path2.test", map), nullValue());
@@ -128,7 +143,9 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
                 .startObject("path1").field("test", "value1", "value2").endObject()
                 .endObject();
 
-        map = XContentFactory.xContent(XContentType.JSON).createParser(builder.string()).mapAndClose();
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+            map = parser.map();
+        }
 
         extValue = XContentMapValues.extractValue("path1.test", map);
         assertThat(extValue, instanceOf(List.class));
@@ -145,7 +162,9 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
                 .endObject()
                 .endObject();
 
-        map = XContentFactory.xContent(XContentType.JSON).createParser(builder.string()).mapAndClose();
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+            map = parser.map();
+        }
 
         extValue = XContentMapValues.extractValue("path1.path2.test", map);
         assertThat(extValue, instanceOf(List.class));
@@ -159,14 +178,18 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
         builder = XContentFactory.jsonBuilder().startObject()
                 .field("xxx.yyy", "value")
                 .endObject();
-        map = XContentFactory.xContent(XContentType.JSON).createParser(builder.string()).mapAndClose();
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+            map = parser.map();
+        }
         assertThat(XContentMapValues.extractValue("xxx.yyy", map).toString(), equalTo("value"));
 
         builder = XContentFactory.jsonBuilder().startObject()
                 .startObject("path1.xxx").startObject("path2.yyy").field("test", "value").endObject().endObject()
                 .endObject();
 
-        map = XContentFactory.xContent(XContentType.JSON).createParser(builder.string()).mapAndClose();
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+            map = parser.map();
+        }
         assertThat(XContentMapValues.extractValue("path1.xxx.path2.yyy.test", map).toString(), equalTo("value"));
     }
 
@@ -177,28 +200,37 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
                 .field("test", "value")
                 .endObject();
 
-        Map<String, Object> map = XContentFactory.xContent(XContentType.JSON).createParser(builder.string()).mapAndClose();
+        Map<String, Object> map;
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+            map = parser.map();
+        }
         assertThat(XContentMapValues.extractRawValues("test", map).get(0).toString(), equalTo("value"));
 
         builder = XContentFactory.jsonBuilder().startObject()
                 .field("test.me", "value")
                 .endObject();
 
-        map = XContentFactory.xContent(XContentType.JSON).createParser(builder.string()).mapAndClose();
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+            map = parser.map();
+        }
         assertThat(XContentMapValues.extractRawValues("test.me", map).get(0).toString(), equalTo("value"));
 
         builder = XContentFactory.jsonBuilder().startObject()
                 .startObject("path1").startObject("path2").field("test", "value").endObject().endObject()
                 .endObject();
 
-        map = XContentFactory.xContent(XContentType.JSON).createParser(builder.string()).mapAndClose();
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+            map = parser.map();
+        }
         assertThat(XContentMapValues.extractRawValues("path1.path2.test", map).get(0).toString(), equalTo("value"));
 
         builder = XContentFactory.jsonBuilder().startObject()
                 .startObject("path1.xxx").startObject("path2.yyy").field("test", "value").endObject().endObject()
                 .endObject();
 
-        map = XContentFactory.xContent(XContentType.JSON).createParser(builder.string()).mapAndClose();
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+            map = parser.map();
+        }
         assertThat(XContentMapValues.extractRawValues("path1.xxx.path2.yyy.test", map).get(0).toString(), equalTo("value"));
     }
 
@@ -453,4 +485,85 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
         assertThat(((Map<String, Object>) filteredSource.get("obj1")), hasKey("obj2"));
         assertThat(((Map) ((Map) filteredSource.get("obj1")).get("obj2")).size(), equalTo(0));
     }
+
+    public void testEmptyList() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+                .startArray("some_array")
+                .endArray().endObject();
+
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals("some_array", parser.currentName());
+            if (random().nextBoolean()) {
+                // sometimes read the start array token, sometimes not
+                assertEquals(XContentParser.Token.START_ARRAY, parser.nextToken());
+            }
+            assertEquals(Collections.emptyList(), parser.list());
+        }
+    }
+
+    public void testSimpleList() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+                .startArray("some_array")
+                    .value(1)
+                    .value(3)
+                    .value(0)
+                .endArray().endObject();
+
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals("some_array", parser.currentName());
+            if (random().nextBoolean()) {
+                // sometimes read the start array token, sometimes not
+                assertEquals(XContentParser.Token.START_ARRAY, parser.nextToken());
+            }
+            assertEquals(Arrays.asList(1, 3, 0), parser.list());
+        }
+    }
+
+    public void testNestedList() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+                .startArray("some_array")
+                    .startArray().endArray()
+                    .startArray().value(1).value(3).endArray()
+                    .startArray().value(2).endArray()
+                .endArray().endObject();
+
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals("some_array", parser.currentName());
+            if (random().nextBoolean()) {
+                // sometimes read the start array token, sometimes not
+                assertEquals(XContentParser.Token.START_ARRAY, parser.nextToken());
+            }
+            assertEquals(
+                    Arrays.asList(Collections.<Integer>emptyList(), Arrays.asList(1, 3), Arrays.asList(2)),
+                    parser.list());
+        }
+    }
+
+    public void testNestedMapInList() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+                .startArray("some_array")
+                    .startObject().field("foo", "bar").endObject()
+                    .startObject().endObject()
+                .endArray().endObject();
+
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals("some_array", parser.currentName());
+            if (random().nextBoolean()) {
+                // sometimes read the start array token, sometimes not
+                assertEquals(XContentParser.Token.START_ARRAY, parser.nextToken());
+            }
+            assertEquals(
+                    Arrays.asList(ImmutableMap.of("foo", "bar"), Collections.<String, Object>emptyMap()),
+                    parser.list());
+        }
+    }
+
 }

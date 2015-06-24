@@ -26,7 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-import static org.elasticsearch.cluster.routing.ImmutableShardRouting.readShardRoutingEntry;
+import static org.elasticsearch.cluster.routing.ShardRouting.readShardRoutingEntry;
 
 public class ShardUpgradeStatus extends BroadcastShardResponse {
 

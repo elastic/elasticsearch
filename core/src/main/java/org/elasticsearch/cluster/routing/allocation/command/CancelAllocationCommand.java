@@ -164,7 +164,7 @@ public class CancelAllocationCommand implements AllocationCommand {
         DiscoveryNode discoNode = allocation.nodes().resolveNode(node);
         boolean found = false;
         for (RoutingNodes.RoutingNodeIterator it = allocation.routingNodes().routingNodeIter(discoNode.id()); it.hasNext(); ) {
-            MutableShardRouting shardRouting = it.next();
+            ShardRouting shardRouting = it.next();
             if (!shardRouting.shardId().equals(shardId)) {
                 continue;
             }
@@ -176,7 +176,7 @@ public class CancelAllocationCommand implements AllocationCommand {
                     // and cancel the relocating state from the shard its being relocated from
                     RoutingNode relocatingFromNode = allocation.routingNodes().node(shardRouting.relocatingNodeId());
                     if (relocatingFromNode != null) {
-                        for (MutableShardRouting fromShardRouting : relocatingFromNode) {
+                        for (ShardRouting fromShardRouting : relocatingFromNode) {
                             if (fromShardRouting.shardId().equals(shardRouting.shardId()) && fromShardRouting.state() == RELOCATING) {
                                 allocation.routingNodes().cancelRelocation(fromShardRouting);
                                 break;
@@ -200,7 +200,7 @@ public class CancelAllocationCommand implements AllocationCommand {
                     RoutingNodes.RoutingNodeIterator initializingNode = allocation.routingNodes().routingNodeIter(shardRouting.relocatingNodeId());
                     if (initializingNode != null) {
                         while (initializingNode.hasNext()) {
-                            MutableShardRouting initializingShardRouting = initializingNode.next();
+                            ShardRouting initializingShardRouting = initializingNode.next();
                             if (initializingShardRouting.shardId().equals(shardRouting.shardId()) && initializingShardRouting.state() == INITIALIZING) {
                                 initializingNode.remove();
                             }

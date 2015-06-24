@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.*;
@@ -380,7 +381,10 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
     private Map<String, String> getConfigurationViaXContent(DateFieldMapper dateFieldMapper) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         dateFieldMapper.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject();
-        Map<String, Object> dateFieldMapperMap = JsonXContent.jsonXContent.createParser(builder.string()).mapAndClose();
+        Map<String, Object> dateFieldMapperMap;
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes())) {
+            dateFieldMapperMap = parser.map();
+        }
         assertThat(dateFieldMapperMap, hasKey("field"));
         assertThat(dateFieldMapperMap.get("field"), is(instanceOf(Map.class)));
         return (Map<String, String>) dateFieldMapperMap.get("field");

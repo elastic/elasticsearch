@@ -31,7 +31,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-import static org.elasticsearch.cluster.routing.ImmutableShardRouting.readShardRoutingEntry;
+import static org.elasticsearch.cluster.routing.ShardRouting.readShardRoutingEntry;
 
 public class ShardSegments extends BroadcastShardResponse implements Iterable<Segment> {
 

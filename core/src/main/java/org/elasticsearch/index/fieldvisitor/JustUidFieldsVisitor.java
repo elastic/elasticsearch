@@ -27,6 +27,10 @@ import java.io.IOException;
  */
 public class JustUidFieldsVisitor extends FieldsVisitor {
 
+    public JustUidFieldsVisitor() {
+        super(false);
+    }
+
     @Override
     public Status needsField(FieldInfo fieldInfo) throws IOException {
         if (UidFieldMapper.NAME.equals(fieldInfo.name)) {

@@ -284,7 +284,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
             throw new IllegalStateException("cluster state does not contain this node - cannot write index meta state");
         }
         Set<String> indices = new HashSet<>();
-        for (MutableShardRouting routing : newRoutingNode) {
+        for (ShardRouting routing : newRoutingNode) {
             indices.add(routing.index());
         }
         // we have to check the meta data also: closed indices will not appear in the routing table, but we must still write the state if we have it written on disk previously

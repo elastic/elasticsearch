@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.fields;
 
+import com.google.common.collect.ImmutableSet;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -32,6 +34,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
@@ -46,8 +49,10 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.client.Requests.refreshRequest;
@@ -58,10 +63,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFail
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -167,17 +169,23 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().getAt(0).isSourceEmpty(), equalTo(true));
         assertThat(response.getHits().getAt(0).id(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).fields().size(), equalTo(3));
+        Set<String> fields = new HashSet<>(response.getHits().getAt(0).fields().keySet());
+        fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
+        assertThat(fields, equalTo((Set<String>) ImmutableSet.of("sNum1", "sNum1_field", "date1")));
         assertThat((Double) response.getHits().getAt(0).fields().get("sNum1").values().get(0), equalTo(1.0));
         assertThat((Double) response.getHits().getAt(0).fields().get("sNum1_field").values().get(0), equalTo(1.0));
         assertThat((Long) response.getHits().getAt(0).fields().get("date1").values().get(0), equalTo(0l));
         assertThat(response.getHits().getAt(1).id(), equalTo("2"));
-        assertThat(response.getHits().getAt(1).fields().size(), equalTo(3));
+        fields = new HashSet<>(response.getHits().getAt(0).fields().keySet());
+        fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
+        assertThat(fields, equalTo((Set<String>) ImmutableSet.of("sNum1", "sNum1_field", "date1")));
         assertThat((Double) response.getHits().getAt(1).fields().get("sNum1").values().get(0), equalTo(2.0));
         assertThat((Double) response.getHits().getAt(1).fields().get("sNum1_field").values().get(0), equalTo(2.0));
         assertThat((Long) response.getHits().getAt(1).fields().get("date1").values().get(0), equalTo(25000l));
         assertThat(response.getHits().getAt(2).id(), equalTo("3"));
-        assertThat(response.getHits().getAt(2).fields().size(), equalTo(3));
+        fields = new HashSet<>(response.getHits().getAt(0).fields().keySet());
+        fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
+        assertThat(fields, equalTo((Set<String>) ImmutableSet.of("sNum1", "sNum1_field", "date1")));
         assertThat((Double) response.getHits().getAt(2).fields().get("sNum1").values().get(0), equalTo(3.0));
         assertThat((Double) response.getHits().getAt(2).fields().get("sNum1_field").values().get(0), equalTo(3.0));
         assertThat((Long) response.getHits().getAt(2).fields().get("date1").values().get(0), equalTo(120000l));
@@ -192,13 +200,19 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().getAt(0).id(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).fields().size(), equalTo(1));
+        fields = new HashSet<>(response.getHits().getAt(0).fields().keySet());
+        fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
+        assertThat(fields, equalTo((Set<String>) ImmutableSet.of("sNum1")));
         assertThat((Double) response.getHits().getAt(0).fields().get("sNum1").values().get(0), equalTo(2.0));
         assertThat(response.getHits().getAt(1).id(), equalTo("2"));
-        assertThat(response.getHits().getAt(1).fields().size(), equalTo(1));
+        fields = new HashSet<>(response.getHits().getAt(0).fields().keySet());
+        fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
+        assertThat(fields, equalTo((Set<String>) ImmutableSet.of("sNum1")));
         assertThat((Double) response.getHits().getAt(1).fields().get("sNum1").values().get(0), equalTo(4.0));
         assertThat(response.getHits().getAt(2).id(), equalTo("3"));
-        assertThat(response.getHits().getAt(2).fields().size(), equalTo(1));
+        fields = new HashSet<>(response.getHits().getAt(0).fields().keySet());
+        fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
+        assertThat(fields, equalTo((Set<String>) ImmutableSet.of("sNum1")));
         assertThat((Double) response.getHits().getAt(2).fields().get("sNum1").values().get(0), equalTo(6.0));
     }
 
@@ -224,7 +238,9 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().totalHits(), equalTo((long)numDocs));
         for (int i = 0; i < numDocs; i++) {
             assertThat(response.getHits().getAt(i).id(), equalTo(Integer.toString(i)));
-            assertThat(response.getHits().getAt(i).fields().size(), equalTo(1));
+            Set<String> fields = new HashSet<>(response.getHits().getAt(i).fields().keySet());
+            fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
+            assertThat(fields, equalTo((Set<String>) ImmutableSet.of("uid")));
             assertThat((String)response.getHits().getAt(i).fields().get("uid").value(), equalTo("type1#" + Integer.toString(i)));
         }
 
@@ -237,7 +253,9 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().totalHits(), equalTo((long)numDocs));
         for (int i = 0; i < numDocs; i++) {
             assertThat(response.getHits().getAt(i).id(), equalTo(Integer.toString(i)));
-            assertThat(response.getHits().getAt(i).fields().size(), equalTo(1));
+            Set<String> fields = new HashSet<>(response.getHits().getAt(i).fields().keySet());
+            fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
+            assertThat(fields, equalTo((Set<String>) ImmutableSet.of("id")));
             assertThat((String)response.getHits().getAt(i).fields().get("id").value(), equalTo(Integer.toString(i)));
         }
 
@@ -250,7 +268,9 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().totalHits(), equalTo((long)numDocs));
         for (int i = 0; i < numDocs; i++) {
             assertThat(response.getHits().getAt(i).id(), equalTo(Integer.toString(i)));
-            assertThat(response.getHits().getAt(i).fields().size(), equalTo(1));
+            Set<String> fields = new HashSet<>(response.getHits().getAt(i).fields().keySet());
+            fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
+            assertThat(fields, equalTo((Set<String>) ImmutableSet.of("type")));
             assertThat((String)response.getHits().getAt(i).fields().get("type").value(), equalTo("type1"));
         }
 
@@ -264,7 +284,9 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().totalHits(), equalTo((long)numDocs));
         for (int i = 0; i < numDocs; i++) {
             assertThat(response.getHits().getAt(i).id(), equalTo(Integer.toString(i)));
-            assertThat(response.getHits().getAt(i).fields().size(), equalTo(3));
+            Set<String> fields = new HashSet<>(response.getHits().getAt(i).fields().keySet());
+            fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
+            assertThat(fields, equalTo((Set<String>) ImmutableSet.of("uid", "type", "id")));
             assertThat((String)response.getHits().getAt(i).fields().get("uid").value(), equalTo("type1#" + Integer.toString(i)));
             assertThat((String)response.getHits().getAt(i).fields().get("type").value(), equalTo("type1"));
             assertThat((String)response.getHits().getAt(i).fields().get("id").value(), equalTo(Integer.toString(i)));
@@ -383,7 +405,10 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().hits().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).fields().size(), equalTo(9));
+        Set<String> fields = new HashSet<>(searchResponse.getHits().getAt(0).fields().keySet());
+        fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
+        assertThat(fields, equalTo((Set<String>) ImmutableSet.of("byte_field", "short_field", "integer_field", "long_field",
+                "float_field", "double_field", "date_field", "boolean_field", "binary_field")));
 
 
         assertThat(searchResponse.getHits().getAt(0).fields().get("byte_field").value().toString(), equalTo("1"));
@@ -559,7 +584,10 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().hits().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).fields().size(), equalTo(9));
+        Set<String> fields = new HashSet<>(searchResponse.getHits().getAt(0).fields().keySet());
+        fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
+        assertThat(fields, equalTo((Set<String>) ImmutableSet.of("byte_field", "short_field", "integer_field", "long_field",
+                "float_field", "double_field", "date_field", "boolean_field", "string_field")));
 
         assertThat(searchResponse.getHits().getAt(0).fields().get("byte_field").value().toString(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(0).fields().get("short_field").value().toString(), equalTo("2"));
@@ -609,5 +637,38 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
             assertThat(fields.get("ml").getValues(), equalTo(Arrays.<Object> asList((long) id, id + 1L)));
             assertThat(fields.get("md").getValues(), equalTo(Arrays.<Object> asList((double) id, id + 1d)));
         }
+    }
+
+    public void testLoadMetadata() throws Exception {
+        assertAcked(prepareCreate("test")
+                .addMapping("parent")
+                .addMapping("my-type1", "_timestamp", "enabled=true", "_ttl", "enabled=true", "_parent", "type=parent"));
+
+        indexRandom(true,
+                client().prepareIndex("test", "my-type1", "1")
+                    .setRouting("1")
+                    .setTimestamp("205097")
+                    .setTTL(10000000000000L)
+                    .setParent("parent_1")
+                    .setSource(jsonBuilder().startObject().field("field1", "value").endObject()));
+
+        SearchResponse response = client().prepareSearch("test").addField("field1").get();
+        assertSearchResponse(response);
+        assertHitCount(response, 1);
+
+        Map<String, SearchHitField> fields = response.getHits().getAt(0).getFields();
+
+        assertThat(fields.get("field1").isMetadataField(), equalTo(false));
+        assertThat(fields.get("field1").getValue().toString(), equalTo("value"));
+        assertThat(fields.get("_routing").isMetadataField(), equalTo(true));
+        assertThat(fields.get("_routing").getValue().toString(), equalTo("1"));
+        assertThat(fields.get("_timestamp").isMetadataField(), equalTo(true));
+        assertThat(fields.get("_timestamp").getValue().toString(), equalTo("205097"));
+        assertThat(fields.get("_ttl").isMetadataField(), equalTo(true));
+        // TODO: _ttl should return the original value, but it does not work today because
+        // it would use now() instead of the value of _timestamp to rebase
+        // assertThat(fields.get("_ttl").getValue().toString(), equalTo("10000000205097"));
+        assertThat(fields.get("_parent").isMetadataField(), equalTo(true));
+        assertThat(fields.get("_parent").getValue().toString(), equalTo("parent_1"));
     }
 }

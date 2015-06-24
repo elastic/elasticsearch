@@ -22,7 +22,7 @@ Installing plugins typically take the following form:
 
 [source,shell]
 -----------------------------------
-plugin --install <org>/<user/component>/<version>
+bin/plugin --install <org>/<user/component>/<version>
 -----------------------------------
 
 The plugins will be
@@ -231,10 +231,12 @@ You can disable that check using `plugins.check_lucene: false`.
 ==== Scripting Plugins
 
 .Supported by Elasticsearch
-* https://github.com/hiredman/elasticsearch-lang-clojure[Clojure Language Plugin] (by Kevin Downey)
 * https://github.com/elasticsearch/elasticsearch-lang-groovy[Groovy lang Plugin]
 * https://github.com/elasticsearch/elasticsearch-lang-javascript[JavaScript language Plugin]
 * https://github.com/elasticsearch/elasticsearch-lang-python[Python language Plugin]
+
+.Supported by the community
+* https://github.com/hiredman/elasticsearch-lang-clojure[Clojure Language Plugin] (by Kevin Downey)
 * https://github.com/NLPchina/elasticsearch-sql/[SQL language Plugin] (by nlpcn)
 
 [float]

@@ -19,6 +19,7 @@
 package org.elasticsearch.index.percolator;
 
 import com.google.common.collect.Maps;
+
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
@@ -29,8 +30,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.fieldvisitor.JustSourceFieldsVisitor;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
@@ -44,7 +44,7 @@ import java.util.Map;
 final class QueriesLoaderCollector extends SimpleCollector {
 
     private final Map<BytesRef, Query> queries = Maps.newHashMap();
-    private final JustSourceFieldsVisitor fieldsVisitor = new JustSourceFieldsVisitor();
+    private final FieldsVisitor fieldsVisitor = new FieldsVisitor(true);
     private final PercolatorQueriesRegistry percolator;
     private final IndexFieldData<?> uidFieldData;
     private final ESLogger logger;

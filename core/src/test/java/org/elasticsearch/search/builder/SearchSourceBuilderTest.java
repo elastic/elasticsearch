@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.builder;
 
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -78,7 +79,10 @@ public class SearchSourceBuilderTest extends ElasticsearchTestCase {
     }
 
     private Map<String, Object> getSourceMap(SearchSourceBuilder builder) throws IOException {
-        Map<String, Object> data = JsonXContent.jsonXContent.createParser(builder.toString()).mapAndClose();
+        Map<String, Object> data;
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(builder.toString())) {
+            data = parser.map();
+        }
         assertThat(data, hasKey("_source"));
         return (Map<String, Object>) data.get("_source");
     }

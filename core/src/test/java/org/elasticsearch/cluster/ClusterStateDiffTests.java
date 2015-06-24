@@ -222,7 +222,7 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
             int replicaCount = randomIntBetween(1, 10);
             for (int j = 0; j < replicaCount; j++) {
                 indexShard.addShard(
-                        new MutableShardRouting(index, i, randomFrom(nodeIds), null, null, j == 0, ShardRoutingState.fromValue((byte) randomIntBetween(2, 4)), 1));
+                        new ShardRouting(index, i, randomFrom(nodeIds), null, null, j == 0, ShardRoutingState.fromValue((byte) randomIntBetween(2, 4)), 1));
             }
             builder.addIndexShard(indexShard.build());
         }
@@ -456,7 +456,7 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
             public IndexMetaData randomCreate(String name) {
                 IndexMetaData.Builder builder = IndexMetaData.builder(name);
                 Settings.Builder settingsBuilder = Settings.builder();
-                setRandomSettings(getRandom(), settingsBuilder);
+                setRandomIndexSettings(getRandom(), settingsBuilder);
                 settingsBuilder.put(randomSettings(Settings.EMPTY)).put(IndexMetaData.SETTING_VERSION_CREATED, randomVersion(random()));
                 builder.settings(settingsBuilder);
                 builder.numberOfShards(randomIntBetween(1, 10)).numberOfReplicas(randomInt(10));

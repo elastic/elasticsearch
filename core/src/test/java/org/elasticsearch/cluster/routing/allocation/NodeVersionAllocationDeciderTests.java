@@ -25,7 +25,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -316,8 +316,8 @@ public class NodeVersionAllocationDeciderTests extends ElasticsearchAllocationTe
     private final void assertRecoveryNodeVersions(RoutingNodes routingNodes) {
         logger.trace("RoutingNodes: {}", routingNodes.prettyPrint());
 
-        List<MutableShardRouting> mutableShardRoutings = routingNodes.shardsWithState(ShardRoutingState.RELOCATING);
-        for (MutableShardRouting r : mutableShardRoutings) {
+        List<ShardRouting> mutableShardRoutings = routingNodes.shardsWithState(ShardRoutingState.RELOCATING);
+        for (ShardRouting r : mutableShardRoutings) {
             String toId = r.relocatingNodeId();
             String fromId = r.currentNodeId();
             assertThat(fromId, notNullValue());
@@ -327,9 +327,9 @@ public class NodeVersionAllocationDeciderTests extends ElasticsearchAllocationTe
         }
 
         mutableShardRoutings = routingNodes.shardsWithState(ShardRoutingState.INITIALIZING);
-        for (MutableShardRouting r : mutableShardRoutings) {
+        for (ShardRouting r : mutableShardRoutings) {
             if (r.initializing() && r.relocatingNodeId() == null && !r.primary()) {
-                MutableShardRouting primary = routingNodes.activePrimary(r);
+                ShardRouting primary = routingNodes.activePrimary(r);
                 assertThat(primary, notNullValue());
                 String fromId = primary.currentNodeId();
                 String toId = r.currentNodeId();

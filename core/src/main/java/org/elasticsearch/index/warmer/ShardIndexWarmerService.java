@@ -37,8 +37,6 @@ public class ShardIndexWarmerService extends AbstractIndexShardComponent {
     private final CounterMetric current = new CounterMetric();
     private final MeanMetric warmerMetric = new MeanMetric();
 
-
-    @Inject
     public ShardIndexWarmerService(ShardId shardId, @IndexSettings Settings indexSettings) {
         super(shardId, indexSettings);
     }

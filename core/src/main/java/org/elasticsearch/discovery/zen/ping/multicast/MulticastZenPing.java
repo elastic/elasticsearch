@@ -39,6 +39,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.zen.ping.PingContextProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
@@ -408,9 +409,9 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                     xContentType = XContentFactory.xContentType(data);
                     if (xContentType != null) {
                         // an external ping
-                        externalPingData = XContentFactory.xContent(xContentType)
-                                .createParser(data)
-                                .mapAndClose();
+                        try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(data)) {
+                            externalPingData = parser.map();
+                        }
                     } else {
                         throw new IllegalStateException("failed multicast message, probably message from previous version");
                     }

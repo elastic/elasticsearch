@@ -19,6 +19,7 @@
 package org.elasticsearch.index.mapper.completion;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -76,7 +77,10 @@ public class CompletionFieldMapperTests extends ElasticsearchSingleNodeTest {
         XContentBuilder builder = jsonBuilder().startObject();
         completionFieldMapper.toXContent(builder, null).endObject();
         builder.close();
-        Map<String, Object> serializedMap = JsonXContent.jsonXContent.createParser(builder.bytes()).mapAndClose();
+        Map<String, Object> serializedMap;
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes())) {
+            serializedMap = parser.map();
+        }
         Map<String, Object> configMap = (Map<String, Object>) serializedMap.get("completion");
         assertThat(configMap.get("analyzer").toString(), is("simple"));
         assertThat(configMap.get("search_analyzer").toString(), is("standard"));
@@ -105,7 +109,10 @@ public class CompletionFieldMapperTests extends ElasticsearchSingleNodeTest {
         XContentBuilder builder = jsonBuilder().startObject();
         completionFieldMapper.toXContent(builder, null).endObject();
         builder.close();
-        Map<String, Object> serializedMap = JsonXContent.jsonXContent.createParser(builder.bytes()).mapAndClose();
+        Map<String, Object> serializedMap;
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes())) {
+            serializedMap = parser.map();
+        }
         Map<String, Object> configMap = (Map<String, Object>) serializedMap.get("completion");
         assertThat(configMap.get("analyzer").toString(), is("simple"));
     }

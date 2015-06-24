@@ -98,7 +98,10 @@ shards).
 Now, if we start two more nodes, with `node.rack_id` set to `rack_two`,
 shards will relocate to even the number of shards across the nodes, but,
 a shard and its replica will not be allocated in the same `rack_id`
-value.
+value. The only exception to the later is when the cluster is left with less
+`rack_id` values then shard copies. If your cluster spans two racks and one of 
+them is lost, it is still worth while to spread replicas across the nodes in the
+rack that was left (see <<forced-awareness,Forced Awareness>> for an alternative).
 
 The awareness attributes can hold several values, for example:
 

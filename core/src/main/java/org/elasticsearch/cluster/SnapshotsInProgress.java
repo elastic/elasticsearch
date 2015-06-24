@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -176,6 +177,22 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
         }
 
     }
+
+    /**
+     * Checks if all shards in the list have completed
+     *
+     * @param shards list of shard statuses
+     * @return true if all shards have completed (either successfully or failed), false otherwise
+     */
+    public static boolean completed(Collection<ShardSnapshotStatus> shards) {
+        for (ShardSnapshotStatus status : shards) {
+            if (status.state().completed() == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
 
     public static class ShardSnapshotStatus {
         private State state;

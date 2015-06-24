@@ -294,19 +294,14 @@ public final class InnerHitsContext {
                 field = ParentFieldMapper.NAME;
                 term = Uid.createUid(hitContext.hit().type(), hitContext.hit().id());
             } else if (isChildHit(hitContext.hit())) {
+                DocumentMapper hitDocumentMapper = mapperService.documentMapper(hitContext.hit().type());
+                final String parentType = hitDocumentMapper.parentFieldMapper().type();
                 field = UidFieldMapper.NAME;
                 SearchHitField parentField = hitContext.hit().field(ParentFieldMapper.NAME);
-                if (parentField != null) {
-                    term = parentField.getValue();
-                } else {
-                    SingleFieldsVisitor fieldsVisitor = new SingleFieldsVisitor(ParentFieldMapper.NAME);
-                    hitContext.reader().document(hitContext.docId(), fieldsVisitor);
-                    if (fieldsVisitor.fields().isEmpty()) {
-                        return Lucene.EMPTY_TOP_DOCS;
-                    }
-                    term = (String) fieldsVisitor.fields().get(ParentFieldMapper.NAME).get(0);
+                if (parentField == null) {
+                    throw new IllegalStateException("All children must have a _parent");
                 }
-
+                term = Uid.createUid(parentType, (String) parentField.getValue());
             } else {
                 return Lucene.EMPTY_TOP_DOCS;
             }

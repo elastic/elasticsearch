@@ -61,10 +61,10 @@ import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.avg.AvgBucke
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.max.MaxBucketParser;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min.MinBucketParser;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.sum.SumBucketParser;
+import org.elasticsearch.search.aggregations.pipeline.bucketscript.BucketScriptParser;
 import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativeParser;
 import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgParser;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModelModule;
-import org.elasticsearch.search.aggregations.pipeline.seriesarithmetic.SeriesArithmeticParser;
 
 import java.util.List;
 
@@ -115,7 +115,7 @@ public class AggregationModule extends AbstractModule implements SpawnModules{
         pipelineAggParsers.add(AvgBucketParser.class);
         pipelineAggParsers.add(SumBucketParser.class);
         pipelineAggParsers.add(MovAvgParser.class);
-        pipelineAggParsers.add(SeriesArithmeticParser.class);
+        pipelineAggParsers.add(BucketScriptParser.class);
     }
 
     /**

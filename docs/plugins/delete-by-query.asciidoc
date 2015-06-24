@@ -1,0 +1,163 @@
+[[plugins-delete-by-query]]
+== Delete By Query Plugin
+
+The delete by query plugin adds support for deleting all of the documents
+(from one or more indices) which match the specified query. It is a
+replacement for the problematic _delete-by-query_ functionality which has been
+removed from Elasticsearch core.
+
+Internally, it uses the <<scroll-scan, Scan/Scroll>> and <<docs-bulk, Bulk>>
+APIs to delete documents in an efficient and safe manner. It is slower than
+the old _delete-by-query_ functionality, but fixes the problems with the
+previous implementation.
+
+TIP: Queries which match large numbers of documents may run for a long time,
+as every document has to be deleted individually.  Don't use _delete-by-query_
+to clean out all or most documents in an index.  Rather create a new index and
+perhaps reindex the documents you want to keep.
+
+=== Installation
+
+This plugin can be installed using the plugin manager:
+
+[source,sh]
+----------------------------------------------------------------
+bin/plugin -i elasticsearch/elasticsearch-delete-by-query
+----------------------------------------------------------------
+
+The plugin must be installed on every node in the cluster, and each node must
+be restarted after installation.
+
+=== Removal
+
+The plugin can be removed with the following command:
+
+[source,sh]
+----------------------------------------------------------------
+bin/plugin -r elasticsearch/elasticsearch-delete-by-query
+----------------------------------------------------------------
+
+The node must be stopped before removing the plugin.
+
+=== Usage
+
+The query can either be provided using a simple query string as
+a parameter:
+
+[source,shell]
+--------------------------------------------------
+curl -XDELETE 'http://localhost:9200/twitter/tweet/_query?q=user:kimchy'
+--------------------------------------------------
+
+or using the <<query-dsl,Query DSL>> defined within the request body:
+
+[source,js]
+--------------------------------------------------
+curl -XDELETE 'http://localhost:9200/twitter/tweet/_query' -d '{
+    "query" : { <1>
+        "term" : { "user" : "kimchy" }
+    }
+}
+'
+--------------------------------------------------
+<1> The query must be passed as a value to the `query` key, in the same way as
+the <<search-search,search api>>.
+
+Both of the above examples end up doing the same thing, which is to delete all
+tweets from the twitter index for the user `kimchy`.
+
+Delete-by-query supports deletion across <<search-multi-index-type,multiple indices and multiple types>>.
+
+==== Query-string parameters
+
+The following query string parameters are supported:
+
+`q`::
+
+Instead of using the <<query-dsl,Query DSL>> to pass a `query` in the request
+body, you can use the `q` query string parameter to  specify a query using
+<<query-string-syntax,`query_string` syntax>>. In this case, the following
+additional parameters are supported: `df`, `analyzer`, `default_operator`,
+ `lowercase_expanded_terms`, `analyze_wildcard` and `lenient`.
+See <<search-uri-request>> for details.
+
+`size`::
+
+The number of hits returned *per shard* by the <<scroll-scan,scroll/scan>>
+request.  Defaults to 10.  May also be specified in the request body.
+
+`timeout`::
+
+The maximum execution time of the delete by query process. Once expired, no
+more documents will be deleted.
+
+`routing`::
+
+A comma separated list of routing values to control which shards the delete by
+query request should be executed on.
+
+When using the `q` parameter, the following additional parameters are
+supported (as explained in <<search-uri-request>>): `df`, `analyzer`,
+`default_operator`.
+
+
+==== Response body
+
+The JSON response looks like this:
+
+[source,js]
+--------------------------------------------------
+{
+  "took" : 639,
+  "timed_out" : false,
+  "_indices" : {
+    "_all" : {
+      "found" : 5901,
+      "deleted" : 5901,
+      "missing" : 0,
+      "failed" : 0
+    },
+    "twitter" : {
+      "found" : 5901,
+      "deleted" : 5901,
+      "missing" : 0,
+      "failed" : 0
+    }
+  },
+  "failures" : [ ]
+}
+--------------------------------------------------
+
+Internally, the query is used to execute an initial
+<<scroll-scan,scroll/scan>> request. As hits are pulled from the scroll API,
+they are passed to the <<bulk,Bulk API>> for deletion.
+
+IMPORTANT: Delete by query will only delete the version of the document that
+was visible to search at the time the request was executed.  Any documents
+that have been reindexed or updated during execution will not be deleted.
+
+Since documents can be updated or deleted by external operations during the
+_scan-scroll-bulk_ process, the plugin keeps track of different counters for
+each index, with the totals displayed under the `_all` index.  The counters
+are as follows:
+
+`found`::
+
+The number of documents matching the query for the given index.
+
+`deleted`::
+
+The number of documents successfully deleted for the given index.
+
+`missing`::
+
+The number of documents that were missing when the plugin tried to delete
+them. Missing documents were present when the original query was run, but have
+already been deleted by another process.
+
+`failed`::
+
+The number of documents that failed to be deleted for the given index. A
+document may fail to be deleted if it has been updated to a new version by
+another process, or if the shard containing the document has gone missing due
+to hardware failure, for example.

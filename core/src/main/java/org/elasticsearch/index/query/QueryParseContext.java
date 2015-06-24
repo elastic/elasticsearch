@@ -204,6 +204,10 @@ public class QueryParseContext {
 
     public void addInnerHits(String name, InnerHitsContext.BaseInnerHits context) {
         SearchContext sc = SearchContext.current();
+        if (sc == null) {
+            throw new QueryParsingException(this, "inner_hits unsupported");
+        }
+
         InnerHitsContext innerHitsContext;
         if (sc.innerHits() == null) {
             innerHitsContext = new InnerHitsContext(new HashMap<String, InnerHitsContext.BaseInnerHits>());

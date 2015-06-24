@@ -133,7 +133,7 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
     }
 
     @Override
-    protected Settings.Builder setRandomSettings(Random random, Settings.Builder builder) {
+    protected Settings.Builder setRandomIndexSettings(Random random, Settings.Builder builder) {
         if (globalCompatibilityVersion().before(Version.V_1_3_2)) {
             // if we test against nodes before 1.3.2 we disable all the compression due to a known bug
             // see #7210

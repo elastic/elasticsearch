@@ -35,6 +35,7 @@ public class SingleFieldsVisitor extends FieldsVisitor {
     private String field;
 
     public SingleFieldsVisitor(String field) {
+        super(false);
         this.field = field;
     }
 

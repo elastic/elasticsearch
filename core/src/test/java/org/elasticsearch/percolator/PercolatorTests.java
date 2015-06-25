@@ -1812,7 +1812,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     @Test
     public void testPercolatorQueryWithNowRange() throws Exception {
         client().admin().indices().prepareCreate("test")
-                .addMapping("my-type", "timestamp", "type=date")
+                .addMapping("my-type", "timestamp", "type=date,format=epoch_millis")
                 .get();
         ensureGreen();
 

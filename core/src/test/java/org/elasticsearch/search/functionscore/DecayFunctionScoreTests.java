@@ -449,7 +449,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("test").addMapping(
                 "type1",
                 jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "string")
-                        .endObject().startObject("num1").field("type", "date").endObject().endObject().endObject().endObject()));
+                        .endObject().startObject("num1").field("type", "date").field("format", "epoch_millis").endObject().endObject().endObject().endObject()));
         ensureYellow();
         client().index(
                 indexRequest("test").type("type1").id("1")

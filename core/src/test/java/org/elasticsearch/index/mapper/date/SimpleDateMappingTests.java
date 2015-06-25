@@ -25,7 +25,9 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.LocaleUtils;
@@ -53,6 +55,7 @@ import java.util.*;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.mapper.string.SimpleStringMappingTests.docValuesType;
+import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.*;
 
 public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
@@ -147,12 +150,21 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
     int i = 0;
 
     private DocumentMapper mapper(String type, String mapping) throws IOException {
+        return mapper(type, mapping, Version.CURRENT);
+    }
+
+    private DocumentMapper mapper(String type, String mapping, Version version) throws IOException {
         final String indexName = "test-" + (i++);
-        IndexService index = createIndex(indexName);
+        IndexService index;
+        if (version.equals(Version.CURRENT)) {
+            index = createIndex(indexName);
+        } else {
+            index = createIndex(indexName, settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build());
+        }
         client().admin().indices().preparePutMapping(indexName).setType(type).setSource(mapping).get();
         return index.mapperService().documentMapper(type);
     }
-    
+
     private void assertNumericTokensEqual(ParsedDocument doc, DocumentMapper defaultMapper, String fieldA, String fieldB) throws IOException {
         assertThat(doc.rootDoc().getField(fieldA).tokenStream(defaultMapper.mappers().indexAnalyzer(), null), notNullValue());
         assertThat(doc.rootDoc().getField(fieldB).tokenStream(defaultMapper.mappers().indexAnalyzer(), null), notNullValue());
@@ -181,15 +193,15 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
 
         DocumentMapper defaultMapper = mapper("type", mapping);
-
         long value = System.currentTimeMillis();
+
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("date_field", value)
                 .endObject()
                 .bytes());
 
-        assertThat(doc.rootDoc().getField("date_field").tokenStream(defaultMapper.mappers().indexAnalyzer(), null), notNullValue());
+         assertThat(doc.rootDoc().getField("date_field").tokenStream(defaultMapper.mappers().indexAnalyzer(), null), notNullValue());
     }
 
     public void testDateDetection() throws Exception {
@@ -290,7 +302,8 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
                     .endObject()
                     .bytes());
         } catch (MapperParsingException e) {
-            assertThat(e.getCause(), instanceOf(MapperParsingException.class));
+            assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+            assertThat(e.getMessage(), is("failed to parse [field2]"));
         }
 
         // Verify that the default is false
@@ -301,7 +314,8 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
                     .endObject()
                     .bytes());
         } catch (MapperParsingException e) {
-            assertThat(e.getCause(), instanceOf(MapperParsingException.class));
+            assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+            assertThat(e.getMessage(), is("failed to parse [field3]"));
         }
 
         // Unless the global ignore_malformed option is set to true
@@ -322,7 +336,8 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
                     .endObject()
                     .bytes());
         } catch (MapperParsingException e) {
-            assertThat(e.getCause(), instanceOf(MapperParsingException.class));
+            assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+            assertThat(e.getMessage(), is("failed to parse [field2]"));
         }
     }
 
@@ -399,12 +414,12 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
         throw new AssertionError("missing");
     }
 
-    public void testNumericResolution() throws Exception {
+    public void testNumericResolutionBackwardsCompat() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("date_field").field("type", "date").field("format", "date_time").field("numeric_resolution", "seconds").endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = mapper("type", mapping);
+        DocumentMapper defaultMapper = mapper("type", mapping, Version.V_0_90_0);
 
         // provided as an int
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
@@ -429,6 +444,16 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject()
                 .bytes());
         assertThat(getDateAsMillis(doc.rootDoc(), "date_field"), equalTo(44000L));
+
+        // expected to fail due to field epoch date formatters not being set
+        DocumentMapper currentMapper = mapper("type", mapping);
+        try {
+            currentMapper.parse("type", "2", XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("date_field", randomBoolean() ? "43" : 43)
+                    .endObject()
+                    .bytes());
+        } catch (MapperParsingException e) {}
     }
 
     public void testThatEpochCanBeIgnoredWithCustomFormat() throws Exception {

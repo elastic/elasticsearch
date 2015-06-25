@@ -312,6 +312,9 @@ date.
 This is not supported anymore. If you want to store unix timestamps, you need to specify
 the appropriate formats in the mapping, namely `epoch_second` or `epoch_millis`.
 
+In addition the `numeric_resolution` mapping parameter is ignored. Use the
+`epoch_second` and `epoch_millis` date formats instead.
+
 ==== Source field limitations
 The `_source` field could previously be disabled dynamically. Since this field
 is a critical piece of many features like the Update API, it is no longer

@@ -38,12 +38,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MergeResult;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
@@ -57,7 +52,9 @@ import java.util.Map;
 
 import static org.elasticsearch.Version.V_1_5_0;
 import static org.elasticsearch.Version.V_2_0_0;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
+import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -249,15 +246,15 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                     .field("foo", "bar")
                 .endObject();
 
-        MetaData metaData = MetaData.builder().build();
         DocumentMapper docMapper = createIndex("test", BWC_SETTINGS).mapperService().documentMapperParser().parse(mapping.string());
+        MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
 
         MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
 
         IndexRequest request = new IndexRequest("test", "type", "1").source(doc);
         request.process(metaData, mappingMetaData, true, "test");
         assertThat(request.timestamp(), notNullValue());
-        assertThat(request.timestamp(), is(MappingMetaData.Timestamp.parseStringTimestamp("1970-01-01", Joda.forPattern("YYYY-MM-dd"))));
+        assertThat(request.timestamp(), is(MappingMetaData.Timestamp.parseStringTimestamp("1970-01-01", Joda.forPattern("YYYY-MM-dd"), Version.CURRENT)));
     }
 
     @Test // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
@@ -274,15 +271,15 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                     .field("foo", "bar")
                 .endObject();
 
-        MetaData metaData = MetaData.builder().build();
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping.string());
+        MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
 
         MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
 
         IndexRequest request = new IndexRequest("test", "type", "1").source(doc);
         request.process(metaData, mappingMetaData, true, "test");
         assertThat(request.timestamp(), notNullValue());
-        assertThat(request.timestamp(), is(MappingMetaData.Timestamp.parseStringTimestamp("1970-01-01", Joda.forPattern("YYYY-MM-dd"))));
+        assertThat(request.timestamp(), is(MappingMetaData.Timestamp.parseStringTimestamp("1970-01-01", Joda.forPattern("YYYY-MM-dd"), Version.CURRENT)));
     }
 
     @Test // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
@@ -751,11 +748,12 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
             .startObject("_timestamp").field("enabled", true).field("path", "custom_timestamp").endObject()
             .endObject().endObject().string();
         DocumentMapper docMapper = createIndex("test", BWC_SETTINGS).mapperService().documentMapperParser().parse(mapping);
+        MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
 
         XContentBuilder doc = XContentFactory.jsonBuilder().startObject().field("custom_timestamp", 1).endObject();
         MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
         IndexRequest request = new IndexRequest("test", "type", "1").source(doc);
-        request.process(MetaData.builder().build(), mappingMetaData, true, "test");
+        request.process(metaData, mappingMetaData, true, "test");
 
         assertEquals(request.timestamp(), "1");
     }
@@ -766,28 +764,69 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
             .endObject().endObject().string();
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
         DocumentMapper docMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+        MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
 
         XContentBuilder doc = XContentFactory.jsonBuilder().startObject().field("_timestamp", 2000000).endObject();
         MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
         IndexRequest request = new IndexRequest("test", "type", "1").source(doc);
-        request.process(MetaData.builder().build(), mappingMetaData, true, "test");
+        request.process(metaData, mappingMetaData, true, "test");
 
         // _timestamp in a document never worked, so backcompat is ignoring the field
-        assertEquals(MappingMetaData.Timestamp.parseStringTimestamp("1970", Joda.forPattern("YYYY")), request.timestamp());
+        assertEquals(MappingMetaData.Timestamp.parseStringTimestamp("1970", Joda.forPattern("YYYY"), Version.V_1_4_2), request.timestamp());
         assertNull(docMapper.parse("type", "1", doc.bytes()).rootDoc().get("_timestamp"));
     }
 
     public void testThatEpochCanBeIgnoredWithCustomFormat() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("_timestamp").field("enabled", true).field("format", "yyyyMMddHH").endObject()
+                .startObject("_timestamp").field("enabled", true).field("format", "yyyyMMddHH").endObject()
             .endObject().endObject().string();
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
 
         XContentBuilder doc = XContentFactory.jsonBuilder().startObject().endObject();
         IndexRequest request = new IndexRequest("test", "type", "1").source(doc).timestamp("2015060210");
         MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
-        request.process(MetaData.builder().build(), mappingMetaData, true, "test");
+        request.process(metaData, mappingMetaData, true, "test");
 
         assertThat(request.timestamp(), is("1433239200000"));
+    }
+
+    public void testThatIndicesBefore2xMustSupportUnixTimestampsInAnyDateFormat() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_timestamp").field("enabled", true).field("format", "dateOptionalTime").endObject()
+                .endObject().endObject().string();
+
+        BytesReference source = XContentFactory.jsonBuilder().startObject().field("field", "value").endObject().bytes();
+
+        //
+        // test with older versions
+        Settings oldSettings = settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, randomVersionBetween(random(), Version.V_0_90_0, Version.V_1_6_0)).build();
+        DocumentMapper docMapper = createIndex("old-index", oldSettings).mapperService().documentMapperParser().parse(mapping);
+
+        MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
+
+        // both index request are successfully processed
+        IndexRequest oldIndexDateIndexRequest = new IndexRequest("old-index", "type", "1").source(source).timestamp("1970-01-01");
+        oldIndexDateIndexRequest.process(metaData, new MappingMetaData(docMapper), true, "old-index");
+        IndexRequest oldIndexTimestampIndexRequest = new IndexRequest("old-index", "type", "1").source(source).timestamp("1234567890");
+        oldIndexTimestampIndexRequest.process(metaData, new MappingMetaData(docMapper), true, "old-index");
+
+        //
+        // test with 2.x
+        DocumentMapper currentMapper = createIndex("new-index").mapperService().documentMapperParser().parse(mapping);
+        MetaData newMetaData = client().admin().cluster().prepareState().get().getState().getMetaData();
+
+        // this works with 2.x
+        IndexRequest request = new IndexRequest("new-index", "type", "1").source(source).timestamp("1970-01-01");
+        request.process(newMetaData, new MappingMetaData(currentMapper), true, "new-index");
+
+        // this fails with 2.x
+        request = new IndexRequest("new-index", "type", "1").source(source).timestamp("1234567890");
+        try {
+            request.process(newMetaData, new MappingMetaData(currentMapper), true, "new-index");
+        } catch (Exception e) {
+            assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+            assertThat(e.getMessage(), containsString("failed to parse timestamp [1234567890]"));
+        }
     }
 }

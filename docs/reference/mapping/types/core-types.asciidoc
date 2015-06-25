@@ -378,9 +378,6 @@ defaults to `true` or to the parent `object` type setting.
 
 |`ignore_malformed` |Ignored a malformed number. Defaults to `false`.
 
-|`numeric_resolution` |The unit to use when passed in a numeric values. Possible
-values include `seconds` and  `milliseconds` (default).
-
 |=======================================================================
 
 [float]

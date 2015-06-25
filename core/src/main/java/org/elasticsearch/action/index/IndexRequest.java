@@ -22,6 +22,7 @@ package org.elasticsearch.action.index;
 import com.google.common.base.Charsets;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.client.Requests;
@@ -562,8 +563,10 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
         routing(metaData.resolveIndexRouting(routing, index));
         // resolve timestamp if provided externally
         if (timestamp != null) {
+            Version version = Version.indexCreated(metaData.getIndices().get(concreteIndex).settings());
             timestamp = MappingMetaData.Timestamp.parseStringTimestamp(timestamp,
-                    mappingMd != null ? mappingMd.timestamp().dateTimeFormatter() : TimestampFieldMapper.Defaults.DATE_TIME_FORMATTER);
+                    mappingMd != null ? mappingMd.timestamp().dateTimeFormatter() : TimestampFieldMapper.Defaults.DATE_TIME_FORMATTER,
+                    version);
         }
         // extract values if needed
         if (mappingMd != null) {
@@ -586,7 +589,8 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
                     if (parseContext.shouldParseTimestamp()) {
                         timestamp = parseContext.timestamp();
                         if (timestamp != null) {
-                            timestamp = MappingMetaData.Timestamp.parseStringTimestamp(timestamp, mappingMd.timestamp().dateTimeFormatter());
+                            Version version = Version.indexCreated(metaData.getIndices().get(concreteIndex).settings());
+                            timestamp = MappingMetaData.Timestamp.parseStringTimestamp(timestamp, mappingMd.timestamp().dateTimeFormatter(), version);
                         }
                     }
                 } catch (MapperParsingException e) {
@@ -638,7 +642,8 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
             if (defaultTimestamp.equals(TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP)) {
                 timestamp = Long.toString(System.currentTimeMillis());
             } else {
-                timestamp = MappingMetaData.Timestamp.parseStringTimestamp(defaultTimestamp, mappingMd.timestamp().dateTimeFormatter());
+                Version version = Version.indexCreated(metaData.getIndices().get(concreteIndex).settings());
+                timestamp = MappingMetaData.Timestamp.parseStringTimestamp(defaultTimestamp, mappingMd.timestamp().dateTimeFormatter(), version);
             }
         }
     }

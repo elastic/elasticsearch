@@ -881,7 +881,6 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
         long version = searchHit.version();
         assertThat(version, equalTo(1l));
 
-        // Can't use named queries for the same reason explain doesn't work:
         assertThat(searchHit.matchedQueries(), arrayContaining("test"));
 
         SearchHitField field = searchHit.field("comments.user");

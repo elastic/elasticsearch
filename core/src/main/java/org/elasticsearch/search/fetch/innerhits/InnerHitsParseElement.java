@@ -19,12 +19,11 @@
 
 package org.elasticsearch.search.fetch.innerhits;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsParseElement;
@@ -169,7 +168,7 @@ public class InnerHitsParseElement implements SearchParseElement {
     }
 
     private ParseResult parseSubSearchContext(SearchContext searchContext, QueryParseContext parseContext, XContentParser parser) throws Exception {
-        Query query = null;
+        ParsedQuery query = null;
         Map<String, InnerHitsContext.BaseInnerHits> childInnerHits = null;
         SubSearchContext subSearchContext = new SubSearchContext(searchContext);
         String fieldName = null;
@@ -179,7 +178,8 @@ public class InnerHitsParseElement implements SearchParseElement {
                 fieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("query".equals(fieldName)) {
-                    query = searchContext.queryParserService().parseInnerQuery(parseContext);
+                    Query q = searchContext.queryParserService().parseInnerQuery(parseContext);
+                    query = new ParsedQuery(q, parseContext.copyNamedQueries());
                 } else if ("inner_hits".equals(fieldName)) {
                     childInnerHits = parseInnerHits(parser, parseContext, searchContext);
                 } else {
@@ -191,7 +191,7 @@ public class InnerHitsParseElement implements SearchParseElement {
         }
 
         if (query == null) {
-            query = new MatchAllDocsQuery();
+            query = ParsedQuery.parsedMatchAllQuery();
         }
         return new ParseResult(subSearchContext, query, childInnerHits);
     }
@@ -199,10 +199,10 @@ public class InnerHitsParseElement implements SearchParseElement {
     private static final class ParseResult {
 
         private final SubSearchContext context;
-        private final Query query;
+        private final ParsedQuery query;
         private final Map<String, InnerHitsContext.BaseInnerHits> childInnerHits;
 
-        private ParseResult(SubSearchContext context, Query query, Map<String, InnerHitsContext.BaseInnerHits> childInnerHits) {
+        private ParseResult(SubSearchContext context, ParsedQuery query, Map<String, InnerHitsContext.BaseInnerHits> childInnerHits) {
             this.context = context;
             this.query = query;
             this.childInnerHits = childInnerHits;
@@ -212,7 +212,7 @@ public class InnerHitsParseElement implements SearchParseElement {
             return context;
         }
 
-        public Query query() {
+        public ParsedQuery query() {
             return query;
         }
 

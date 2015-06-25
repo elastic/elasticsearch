@@ -151,7 +151,8 @@ public class NestedQueryParser implements QueryParser {
             }
 
             if (innerHits != null) {
-                InnerHitsContext.NestedInnerHits nestedInnerHits = new InnerHitsContext.NestedInnerHits(innerHits.v2(), innerQuery, null, getParentObjectMapper(), nestedObjectMapper);
+                ParsedQuery parsedQuery = new ParsedQuery(innerQuery, parseContext.copyNamedQueries());
+                InnerHitsContext.NestedInnerHits nestedInnerHits = new InnerHitsContext.NestedInnerHits(innerHits.v2(), parsedQuery, null, getParentObjectMapper(), nestedObjectMapper);
                 String name = innerHits.v1() != null ? innerHits.v1() : path;
                 parseContext.addInnerHits(name, nestedInnerHits);
             }

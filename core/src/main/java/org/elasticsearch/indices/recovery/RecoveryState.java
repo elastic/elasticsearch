@@ -389,12 +389,14 @@ public class RecoveryState implements ToXContent, Streamable {
 
     public static class Timer implements Streamable {
         protected long startTime = 0;
+        protected long startNanoTime = 0;
         protected long time = -1;
         protected long stopTime = 0;
 
         public synchronized void start() {
             assert startTime == 0 : "already started";
-            startTime = TimeValue.nsecToMSec(System.nanoTime());
+            startTime = System.currentTimeMillis();
+            startNanoTime = System.nanoTime();
         }
 
         /** Returns start time in millis */
@@ -404,13 +406,13 @@ public class RecoveryState implements ToXContent, Streamable {
 
         /** Returns elapsed time in millis, or 0 if timer was not started */
         public synchronized long time() {
-            if (startTime == 0) {
+            if (startNanoTime == 0) {
                 return 0;
             }
             if (time >= 0) {
                 return time;
             }
-            return Math.max(0, TimeValue.nsecToMSec(System.nanoTime()) - startTime);
+            return Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - startNanoTime));
         }
 
         /** Returns stop time in millis */
@@ -420,13 +422,14 @@ public class RecoveryState implements ToXContent, Streamable {
 
         public synchronized void stop() {
             assert stopTime == 0 : "already stopped";
-            stopTime = Math.max(TimeValue.nsecToMSec(System.nanoTime()), startTime);
-            time = stopTime - startTime;
+            stopTime = Math.max(System.currentTimeMillis(), startTime);
+            time = TimeValue.nsecToMSec(System.nanoTime() - startNanoTime);
             assert time >= 0;
         }
 
         public synchronized void reset() {
             startTime = 0;
+            startNanoTime = 0;
             time = -1;
             stopTime = 0;
         }
@@ -435,6 +438,7 @@ public class RecoveryState implements ToXContent, Streamable {
         @Override
         public synchronized void readFrom(StreamInput in) throws IOException {
             startTime = in.readVLong();
+            startNanoTime = in.readVLong();
             stopTime = in.readVLong();
             time = in.readVLong();
         }
@@ -442,6 +446,7 @@ public class RecoveryState implements ToXContent, Streamable {
         @Override
         public synchronized void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(startTime);
+            out.writeVLong(startNanoTime);
             out.writeVLong(stopTime);
             // write a snapshot of current time, which is not per se the time field
             out.writeVLong(time());

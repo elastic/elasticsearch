@@ -260,7 +260,7 @@ public class TriggeredWatchStore extends AbstractComponent {
     public Collection<TriggeredWatch> loadTriggeredWatches(ClusterState state) {
         IndexMetaData indexMetaData = state.getMetaData().index(INDEX_NAME);
         if (indexMetaData == null) {
-            logger.debug("no .watch_history indices found. skipping loading awaiting triggered watches");
+            logger.debug("no .triggered_watches indices found. skipping loading awaiting triggered watches");
             return Collections.emptySet();
         }
 

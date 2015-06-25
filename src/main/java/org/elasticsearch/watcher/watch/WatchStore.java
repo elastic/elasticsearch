@@ -97,14 +97,16 @@ public class WatchStore extends AbstractComponent {
     public boolean validate(ClusterState state) {
         IndexMetaData watchesIndexMetaData = state.getMetaData().index(INDEX);
         if (watchesIndexMetaData == null) {
-            logger.debug("watches index [{}] doesn't exist, so we can start", INDEX);
+            logger.debug("index [{}] doesn't exist, so we can start", INDEX);
             return true;
         }
         if (state.routingTable().index(INDEX).allPrimaryShardsActive()) {
-            logger.debug("watches index [{}] exists and all primary shards are started, so we can start", INDEX);
+            logger.debug("index [{}] exists and all primary shards are started, so we can start", INDEX);
             return true;
+        } else {
+            logger.debug("not all primary shards active for index [{}], so we cannot start", INDEX);
+            return false;
         }
-        return false;
     }
 
     public boolean started() {

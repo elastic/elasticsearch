@@ -55,6 +55,12 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
     }
 
     private synchronized void stop(boolean manual) {
+        WatcherState watcherState = watcherService.state();
+        if (watcherState != WatcherState.STARTED) {
+            logger.debug("not stopping watcher. watcher can only stop if its current state is [{}], but its current state now is [{}]", WatcherState.STARTED, watcherState);
+            return;
+        }
+
         manuallyStopped = manual;
         watcherService.stop();
     }
@@ -62,7 +68,7 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
     private synchronized void start(ClusterState state, boolean manual) {
         WatcherState watcherState = watcherService.state();
         if (watcherState != WatcherState.STOPPED) {
-            logger.debug("not starting watcher. watcher can only start if its current state is [{}]", WatcherState.STOPPED);
+            logger.debug("not starting watcher. watcher can only start if its current state is [{}], but its current state now is [{}]", WatcherState.STOPPED, watcherState);
             return;
         }
 
@@ -78,7 +84,7 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
             return;
         }
 
-        logger.trace("starting... (based on cluster state version [{}])", state.getVersion());
+        logger.trace("starting... (based on cluster state version [{}]) (manual [{}])", state.getVersion(), manual);
         try {
             watcherService.start(state);
         } catch (Exception e) {
@@ -89,6 +95,11 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
     @Override
     public void clusterChanged(final ClusterChangedEvent event) {
         if (!event.localNodeMaster()) {
+            if (watcherService.state() != WatcherState.STARTED) {
+                // to avoid unnecessary forking of threads...
+                return;
+            }
+
             // We're no longer the master so we need to stop the watcher.
             // Stopping the watcher may take a while since it will wait on the scheduler to complete shutdown,
             // so we fork here so that we don't wait too long. Other events may need to be processed and
@@ -103,6 +114,10 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
             if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
                 // wait until the gateway has recovered from disk, otherwise we think may not have .watches and
                 // a .triggered_watches index, but they may not have been restored from the cluster state on disk
+                return;
+            }
+            if (watcherService.state() != WatcherState.STOPPED) {
+                // to avoid unnecessary forking of threads...
                 return;
             }
 

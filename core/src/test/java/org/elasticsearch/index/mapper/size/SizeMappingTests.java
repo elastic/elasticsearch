@@ -112,7 +112,7 @@ public class SizeMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
         DocumentMapper disabledMapper = parser.parse(disabledMapping);
 
-        enabledMapper.merge(disabledMapper.mapping(), false);
+        enabledMapper.merge(disabledMapper.mapping(), false, false);
         assertThat(enabledMapper.SizeFieldMapper().enabled(), is(false));
     }
 }

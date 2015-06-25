@@ -30,7 +30,7 @@
                 index1      \s+
                 \d          \s+                                 # shard
                 \d+         \s+                                 # time
-                (gateway|replica|snapshot|relocating)     \s+   # type
+                (store|replica|snapshot|relocating)     \s+   # type
                 (init|index|start|translog|finalize|done) \s+   # stage
                 [-\w./]+    \s+                                 # source_host
                 [-\w./]+    \s+                                 # target_host

@@ -52,7 +52,6 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeMapValue;
-import static org.elasticsearch.index.mapper.MapperBuilders.all;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
 /**
@@ -92,8 +91,8 @@ public class AllFieldMapper extends AbstractFieldMapper implements RootMapper {
 
         private EnabledAttributeMapper enabled = Defaults.ENABLED;
 
-        public Builder() {
-            super(Defaults.NAME, Defaults.FIELD_TYPE);
+        public Builder(MappedFieldType existing) {
+            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing);
             builder = this;
             indexName = Defaults.INDEX_NAME;
         }
@@ -119,7 +118,7 @@ public class AllFieldMapper extends AbstractFieldMapper implements RootMapper {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            AllFieldMapper.Builder builder = all();
+            Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
             
             // parseField below will happily parse the doc_values setting, but it is then never passed to
             // the AllFieldMapper ctor in the builder since it is not valid. Here we validate
@@ -157,9 +156,7 @@ public class AllFieldMapper extends AbstractFieldMapper implements RootMapper {
 
     static final class AllFieldType extends MappedFieldType {
 
-        public AllFieldType() {
-            super(AbstractFieldMapper.Defaults.FIELD_TYPE);
-        }
+        public AllFieldType() {}
 
         protected AllFieldType(AllFieldType ref) {
             super(ref);
@@ -168,6 +165,11 @@ public class AllFieldMapper extends AbstractFieldMapper implements RootMapper {
         @Override
         public MappedFieldType clone() {
             return new AllFieldType(this);
+        }
+
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
         }
 
         @Override
@@ -191,8 +193,11 @@ public class AllFieldMapper extends AbstractFieldMapper implements RootMapper {
 
     private EnabledAttributeMapper enabledState;
 
-    public AllFieldMapper(Settings indexSettings) {
-        this(Defaults.FIELD_TYPE.clone(), Defaults.ENABLED, null, indexSettings);
+    public AllFieldMapper(Settings indexSettings, MappedFieldType existing) {
+        this(existing == null ? Defaults.FIELD_TYPE.clone() : existing.clone(),
+             Defaults.ENABLED,
+             existing == null ? null : (existing.fieldDataType() == null ? null : existing.fieldDataType().getSettings()),
+             indexSettings);
     }
 
     protected AllFieldMapper(MappedFieldType fieldType, EnabledAttributeMapper enabled,
@@ -312,7 +317,7 @@ public class AllFieldMapper extends AbstractFieldMapper implements RootMapper {
             builder.field("similarity", SimilarityLookupService.DEFAULT_SIMILARITY);
         }
 
-        if (customFieldDataSettings != null) {
+        if (hasCustomFieldDataSettings()) {
             builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
         } else if (includeDefaults) {
             builder.field("fielddata", (Map) fieldType().fieldDataType().getSettings().getAsMap());

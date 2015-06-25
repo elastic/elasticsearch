@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -153,7 +154,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
         DocumentMapper disabledMapper = parser.parse(disabledMapping);
 
-        enabledMapper.merge(disabledMapper.mapping(), false);
+        enabledMapper.merge(disabledMapper.mapping(), false, false);
 
         assertThat(enabledMapper.timestampFieldMapper().enabled(), is(false));
     }
@@ -168,7 +169,10 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         enabledMapper.timestampFieldMapper().toXContent(builder, ToXContent.EMPTY_PARAMS).endObject();
         builder.close();
-        Map<String, Object> serializedMap = JsonXContent.jsonXContent.createParser(builder.bytes()).mapAndClose();
+        Map<String, Object> serializedMap;
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes())) {
+            serializedMap = parser.map();
+        }
         assertThat(serializedMap, hasKey("_timestamp"));
         assertThat(serializedMap.get("_timestamp"), instanceOf(Map.class));
         Map<String, Object> timestampConfiguration = (Map<String, Object>) serializedMap.get("_timestamp");
@@ -514,7 +518,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 .startObject("_timestamp").field("enabled", randomBoolean()).startObject("fielddata").field("loading", "eager").field("format", "array").endObject().field("store", "yes").endObject()
                 .endObject().endObject().string();
 
-        MergeResult mergeResult = docMapper.merge(parser.parse(mapping).mapping(), false);
+        MergeResult mergeResult = docMapper.merge(parser.parse(mapping).mapping(), false, false);
         assertThat(mergeResult.buildConflicts().length, equalTo(0));
         assertThat(docMapper.timestampFieldMapper().fieldType().fieldDataType().getLoading(), equalTo(MappedFieldType.Loading.EAGER));
         assertThat(docMapper.timestampFieldMapper().fieldType().fieldDataType().getFormat(indexSettings), equalTo("array"));
@@ -582,7 +586,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject()
                 .endObject().endObject().string();
 
-        MergeResult mergeResult = docMapper.merge(parser.parse(mapping).mapping(), true);
+        MergeResult mergeResult = docMapper.merge(parser.parse(mapping).mapping(), true, false);
         List<String> expectedConflicts = new ArrayList<>(Arrays.asList(
             "mapper [_timestamp] has different index values",
             "mapper [_timestamp] has different store values",
@@ -621,7 +625,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject()
                 .endObject().endObject().string();
 
-        MergeResult mergeResult = docMapper.merge(parser.parse(mapping).mapping(), true);
+        MergeResult mergeResult = docMapper.merge(parser.parse(mapping).mapping(), true, false);
         List<String> expectedConflicts = new ArrayList<>();
         expectedConflicts.add("mapper [_timestamp] has different index values");
         expectedConflicts.add("mapper [_timestamp] has different tokenize values");
@@ -681,7 +685,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
     void assertConflict(String mapping1, String mapping2, DocumentMapperParser parser, String conflict) throws IOException {
         DocumentMapper docMapper = parser.parse(mapping1);
         docMapper = parser.parse(docMapper.mappingSource().string());
-        MergeResult mergeResult = docMapper.merge(parser.parse(mapping2).mapping(), true);
+        MergeResult mergeResult = docMapper.merge(parser.parse(mapping2).mapping(), true, false);
         assertThat(mergeResult.buildConflicts().length, equalTo(conflict == null ? 0 : 1));
         if (conflict != null) {
             assertThat(mergeResult.buildConflicts()[0], containsString(conflict));

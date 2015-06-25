@@ -27,6 +27,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
@@ -122,7 +123,10 @@ public class DefaultSourceMappingTests extends ElasticsearchSingleNodeTest {
             .endObject().bytes());
 
         IndexableField sourceField = doc.rootDoc().getField("_source");
-        Map<String, Object> sourceAsMap = XContentFactory.xContent(XContentType.JSON).createParser(new BytesArray(sourceField.binaryValue())).mapAndClose();
+        Map<String, Object> sourceAsMap;
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(new BytesArray(sourceField.binaryValue()))) {
+            sourceAsMap = parser.map();
+        }
         assertThat(sourceAsMap.containsKey("path1"), equalTo(true));
         assertThat(sourceAsMap.containsKey("path2"), equalTo(false));
     }
@@ -140,7 +144,10 @@ public class DefaultSourceMappingTests extends ElasticsearchSingleNodeTest {
             .endObject().bytes());
 
         IndexableField sourceField = doc.rootDoc().getField("_source");
-        Map<String, Object> sourceAsMap = XContentFactory.xContent(XContentType.JSON).createParser(new BytesArray(sourceField.binaryValue())).mapAndClose();
+        Map<String, Object> sourceAsMap;
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(new BytesArray(sourceField.binaryValue()))) {
+            sourceAsMap = parser.map();
+        }
         assertThat(sourceAsMap.containsKey("path1"), equalTo(false));
         assertThat(sourceAsMap.containsKey("path2"), equalTo(true));
     }
@@ -193,7 +200,7 @@ public class DefaultSourceMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
 
         MapperService mapperService = createIndex("test").mapperService();
-        mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent(defaultMapping), true);
+        mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent(defaultMapping), true, false);
 
         DocumentMapper mapper = mapperService.documentMapperWithAutoCreate("my_type").v1();
         assertThat(mapper.type(), equalTo("my_type"));
@@ -206,12 +213,12 @@ public class DefaultSourceMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
 
         MapperService mapperService = createIndex("test").mapperService();
-        mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent(defaultMapping), true);
+        mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent(defaultMapping), true, false);
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("my_type")
                 .startObject("_source").field("enabled", true).endObject()
                 .endObject().endObject().string();
-        mapperService.merge("my_type", new CompressedXContent(mapping), true);
+        mapperService.merge("my_type", new CompressedXContent(mapping), true, false);
 
         DocumentMapper mapper = mapperService.documentMapper("my_type");
         assertThat(mapper.type(), equalTo("my_type"));
@@ -221,7 +228,7 @@ public class DefaultSourceMappingTests extends ElasticsearchSingleNodeTest {
     void assertConflicts(String mapping1, String mapping2, DocumentMapperParser parser, String... conflicts) throws IOException {
         DocumentMapper docMapper = parser.parse(mapping1);
         docMapper = parser.parse(docMapper.mappingSource().string());
-        MergeResult mergeResult = docMapper.merge(parser.parse(mapping2).mapping(), true);
+        MergeResult mergeResult = docMapper.merge(parser.parse(mapping2).mapping(), true, false);
 
         List<String> expectedConflicts = new ArrayList<>(Arrays.asList(conflicts));
         for (String conflict : mergeResult.buildConflicts()) {

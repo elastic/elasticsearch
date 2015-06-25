@@ -486,7 +486,7 @@ public class GeoPointFieldMapperTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
         DocumentMapper stage2 = parser.parse(stage2Mapping);
 
-        MergeResult mergeResult = stage1.merge(stage2.mapping(), false);
+        MergeResult mergeResult = stage1.merge(stage2.mapping(), false, false);
         assertThat(mergeResult.hasConflicts(), equalTo(true));
         assertThat(mergeResult.buildConflicts().length, equalTo(2));
         // todo better way of checking conflict?
@@ -498,7 +498,7 @@ public class GeoPointFieldMapperTests extends ElasticsearchSingleNodeTest {
                 .field("validate", true).field("normalize", true).endObject().endObject()
                 .endObject().endObject().string();
         stage2 = parser.parse(stage2Mapping);
-        mergeResult = stage1.merge(stage2.mapping(), false);
+        mergeResult = stage1.merge(stage2.mapping(), false, false);
         assertThat(Arrays.toString(mergeResult.buildConflicts()), mergeResult.hasConflicts(), equalTo(false));
     }
 }

@@ -17,23 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.index.gateway;
+package org.elasticsearch.index.shard;
 
 import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.index.shard.ShardId;
 
 /**
- * An exception marking that this recovery attempt should be ignored (since probably, we already recovered).
- *
  *
  */
-public class IgnoreGatewayRecoveryException extends IndexShardException {
-
-    public IgnoreGatewayRecoveryException(ShardId shardId, String msg) {
-        super(shardId, msg);
-    }
-
-    public IgnoreGatewayRecoveryException(ShardId shardId, String msg, Throwable cause) {
+public class IndexShardRecoveryException extends IndexShardException {
+    public IndexShardRecoveryException(ShardId shardId, String msg, Throwable cause) {
         super(shardId, msg, cause);
     }
 }

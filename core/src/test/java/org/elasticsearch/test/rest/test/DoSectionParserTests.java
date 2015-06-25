@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test.rest.test;
 
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.rest.parser.DoSectionParser;
@@ -387,7 +388,10 @@ public class DoSectionParserTests extends AbstractParserTests {
     }
 
     private static void assertJsonEquals(Map<String, Object> actual, String expected) throws IOException {
-        Map<String,Object> expectedMap = JsonXContent.jsonXContent.createParser(expected).mapOrderedAndClose();
+        Map<String,Object> expectedMap;
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(expected)) {
+            expectedMap = parser.mapOrdered();
+        }
         MatcherAssert.assertThat(actual, equalTo(expectedMap));
     }
 }

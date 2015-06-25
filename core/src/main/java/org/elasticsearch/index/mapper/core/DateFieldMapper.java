@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper.core;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType.NumericType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
@@ -221,7 +222,9 @@ public class DateFieldMapper extends NumberFieldMapper {
         protected TimeUnit timeUnit = Defaults.TIME_UNIT;
         protected DateMathParser dateMathParser = new DateMathParser(dateTimeFormatter);
 
-        public DateFieldType() {}
+        public DateFieldType() {
+            super(NumericType.LONG);
+        }
 
         protected DateFieldType(DateFieldType ref) {
             super(ref);
@@ -239,12 +242,35 @@ public class DateFieldMapper extends NumberFieldMapper {
             if (!super.equals(o)) return false;
             DateFieldType that = (DateFieldType) o;
             return Objects.equals(dateTimeFormatter.format(), that.dateTimeFormatter.format()) &&
+                   Objects.equals(dateTimeFormatter.locale(), that.dateTimeFormatter.locale()) &&
                    Objects.equals(timeUnit, that.timeUnit);
         }
 
         @Override
         public int hashCode() {
             return Objects.hash(super.hashCode(), dateTimeFormatter.format(), timeUnit);
+        }
+
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
+        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts, boolean strict) {
+            super.checkCompatibility(fieldType, conflicts, strict);
+            if (strict) {
+                DateFieldType other = (DateFieldType)fieldType;
+                if (Objects.equals(dateTimeFormatter().format(), other.dateTimeFormatter().format()) == false) {
+                    conflicts.add("mapper [" + names().fullName() + "] is used by multiple types. Set update_all_types to true to update [format] across all types.");
+                }
+                if (Objects.equals(dateTimeFormatter().locale(), other.dateTimeFormatter().locale()) == false) {
+                    conflicts.add("mapper [" + names().fullName() + "] is used by multiple types. Set update_all_types to true to update [locale] across all types.");
+                }
+                if (Objects.equals(timeUnit(), other.timeUnit()) == false) {
+                    conflicts.add("mapper [" + names().fullName() + "] is used by multiple types. Set update_all_types to true to update [numeric_resolution] across all types.");
+                }
+            }
         }
 
         public FormatDateTimeFormatter dateTimeFormatter() {

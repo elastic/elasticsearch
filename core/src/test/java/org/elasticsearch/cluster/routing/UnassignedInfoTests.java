@@ -87,7 +87,7 @@ public class UnassignedInfoTests extends ElasticsearchAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
                 .metaData(metaData)
                 .routingTable(RoutingTable.builder().addAsNew(metaData.index("test"))).build();
-        for (MutableShardRouting shard : clusterState.routingNodes().shardsWithState(UNASSIGNED)) {
+        for (ShardRouting shard : clusterState.routingNodes().shardsWithState(UNASSIGNED)) {
             assertThat(shard.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.INDEX_CREATED));
         }
     }
@@ -100,7 +100,7 @@ public class UnassignedInfoTests extends ElasticsearchAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
                 .metaData(metaData)
                 .routingTable(RoutingTable.builder().addAsRecovery(metaData.index("test"))).build();
-        for (MutableShardRouting shard : clusterState.routingNodes().shardsWithState(UNASSIGNED)) {
+        for (ShardRouting shard : clusterState.routingNodes().shardsWithState(UNASSIGNED)) {
             assertThat(shard.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.CLUSTER_RECOVERED));
         }
     }
@@ -113,7 +113,7 @@ public class UnassignedInfoTests extends ElasticsearchAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
                 .metaData(metaData)
                 .routingTable(RoutingTable.builder().addAsFromCloseToOpen(metaData.index("test"))).build();
-        for (MutableShardRouting shard : clusterState.routingNodes().shardsWithState(UNASSIGNED)) {
+        for (ShardRouting shard : clusterState.routingNodes().shardsWithState(UNASSIGNED)) {
             assertThat(shard.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.INDEX_REOPENED));
         }
     }
@@ -126,7 +126,7 @@ public class UnassignedInfoTests extends ElasticsearchAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
                 .metaData(metaData)
                 .routingTable(RoutingTable.builder().addAsNewRestore(metaData.index("test"), new RestoreSource(new SnapshotId("rep1", "snp1"), "test"), new IntHashSet())).build();
-        for (MutableShardRouting shard : clusterState.routingNodes().shardsWithState(UNASSIGNED)) {
+        for (ShardRouting shard : clusterState.routingNodes().shardsWithState(UNASSIGNED)) {
             assertThat(shard.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.NEW_INDEX_RESTORED));
         }
     }
@@ -139,7 +139,7 @@ public class UnassignedInfoTests extends ElasticsearchAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
                 .metaData(metaData)
                 .routingTable(RoutingTable.builder().addAsRestore(metaData.index("test"), new RestoreSource(new SnapshotId("rep1", "snp1"), "test"))).build();
-        for (MutableShardRouting shard : clusterState.routingNodes().shardsWithState(UNASSIGNED)) {
+        for (ShardRouting shard : clusterState.routingNodes().shardsWithState(UNASSIGNED)) {
             assertThat(shard.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED));
         }
     }
@@ -152,7 +152,7 @@ public class UnassignedInfoTests extends ElasticsearchAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
                 .metaData(metaData)
                 .routingTable(RoutingTable.builder().addAsFromDangling(metaData.index("test"))).build();
-        for (MutableShardRouting shard : clusterState.routingNodes().shardsWithState(UNASSIGNED)) {
+        for (ShardRouting shard : clusterState.routingNodes().shardsWithState(UNASSIGNED)) {
             assertThat(shard.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.DANGLING_INDEX_IMPORTED));
         }
     }
@@ -186,8 +186,8 @@ public class UnassignedInfoTests extends ElasticsearchAllocationTestCase {
      */
     @Test
     public void testStateTransitionMetaHandling() {
-        ImmutableShardRouting shard = new ImmutableShardRouting("test", 1, null, null, null, true, ShardRoutingState.UNASSIGNED, 1, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
-        MutableShardRouting mutable = new MutableShardRouting(shard);
+        ShardRouting shard = new ShardRouting("test", 1, null, null, null, true, ShardRoutingState.UNASSIGNED, 1, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
+        ShardRouting mutable = new ShardRouting(shard);
         assertThat(mutable.unassignedInfo(), notNullValue());
         mutable.assignToNode("test_node");
         assertThat(mutable.state(), equalTo(ShardRoutingState.INITIALIZING));

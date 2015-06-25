@@ -36,17 +36,11 @@ import java.util.concurrent.ConcurrentMap;
 
 /**
  */
-public class ShardFieldData extends AbstractIndexShardComponent implements IndexFieldDataCache.Listener {
+public class ShardFieldData implements IndexFieldDataCache.Listener {
 
     final CounterMetric evictionsMetric = new CounterMetric();
     final CounterMetric totalMetric = new CounterMetric();
-
     final ConcurrentMap<String, CounterMetric> perFieldTotals = ConcurrentCollections.newConcurrentMap();
-
-    @Inject
-    public ShardFieldData(ShardId shardId, @IndexSettings Settings indexSettings) {
-        super(shardId, indexSettings);
-    }
 
     public FieldDataStats stats(String... fields) {
         ObjectLongHashMap<String> fieldTotals = null;

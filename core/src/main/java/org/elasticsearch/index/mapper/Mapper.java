@@ -86,14 +86,18 @@ public interface Mapper extends ToXContent, Iterable<Mapper> {
 
             private final SimilarityLookupService similarityLookupService;
 
+            private final MapperService mapperService;
+
             private final ImmutableMap<String, TypeParser> typeParsers;
 
             private final Version indexVersionCreated;
 
             public ParserContext(AnalysisService analysisService, SimilarityLookupService similarityLookupService,
+                                 MapperService mapperService,
                                  ImmutableMap<String, TypeParser> typeParsers, Version indexVersionCreated) {
                 this.analysisService = analysisService;
                 this.similarityLookupService = similarityLookupService;
+                this.mapperService = mapperService;
                 this.typeParsers = typeParsers;
                 this.indexVersionCreated = indexVersionCreated;
             }
@@ -104,6 +108,10 @@ public interface Mapper extends ToXContent, Iterable<Mapper> {
 
             public SimilarityLookupService similarityLookupService() {
                 return similarityLookupService;
+            }
+
+            public MapperService mapperService() {
+                return mapperService;
             }
 
             public TypeParser typeParser(String type) {
@@ -121,6 +129,4 @@ public interface Mapper extends ToXContent, Iterable<Mapper> {
     String name();
 
     void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException;
-
-    void close();
 }

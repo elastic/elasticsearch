@@ -51,7 +51,6 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeTimeValue;
-import static org.elasticsearch.index.mapper.MapperBuilders.ttl;
 
 public class TTLFieldMapper extends LongFieldMapper implements RootMapper {
 
@@ -68,6 +67,8 @@ public class TTLFieldMapper extends LongFieldMapper implements RootMapper {
             TTL_FIELD_TYPE.setStored(true);
             TTL_FIELD_TYPE.setTokenized(false);
             TTL_FIELD_TYPE.setNumericPrecisionStep(Defaults.PRECISION_STEP_64_BIT);
+            TTL_FIELD_TYPE.setIndexAnalyzer(NumericLongAnalyzer.buildNamedAnalyzer(Defaults.PRECISION_STEP_64_BIT));
+            TTL_FIELD_TYPE.setSearchAnalyzer(NumericLongAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE));
             TTL_FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
             TTL_FIELD_TYPE.freeze();
         }
@@ -115,7 +116,7 @@ public class TTLFieldMapper extends LongFieldMapper implements RootMapper {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            TTLFieldMapper.Builder builder = ttl();
+            Builder builder = new Builder();
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());

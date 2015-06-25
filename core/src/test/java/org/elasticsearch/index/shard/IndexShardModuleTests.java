@@ -41,10 +41,10 @@ public class IndexShardModuleTests extends ElasticsearchTestCase {
                 .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
                 .build();
 
-        IndexShardModule ism1 = new IndexShardModule(shardId, true, regularSettings, null);
-        IndexShardModule ism2 = new IndexShardModule(shardId, false, regularSettings, null);
-        IndexShardModule ism3 = new IndexShardModule(shardId, true, shadowSettings, null);
-        IndexShardModule ism4 = new IndexShardModule(shardId, false, shadowSettings, null);
+        IndexShardModule ism1 = new IndexShardModule(shardId, true, regularSettings);
+        IndexShardModule ism2 = new IndexShardModule(shardId, false, regularSettings);
+        IndexShardModule ism3 = new IndexShardModule(shardId, true, shadowSettings);
+        IndexShardModule ism4 = new IndexShardModule(shardId, false, shadowSettings);
 
         assertFalse("no shadow replicas for normal settings", ism1.useShadowEngine());
         assertFalse("no shadow replicas for normal settings", ism2.useShadowEngine());

@@ -633,7 +633,8 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                         .endObject().endObject())
                 .addMapping("type2", jsonBuilder().startObject().startObject("type2")
                         .startObject("_type").field("index", index).endObject()
-                        .endObject().endObject()));
+                        .endObject().endObject())
+                .setUpdateAllTypes(true));
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "value1"),
                 client().prepareIndex("test", "type2", "1").setSource("field1", "value1"),
                 client().prepareIndex("test", "type1", "2").setSource("field1", "value1"),

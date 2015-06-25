@@ -27,12 +27,14 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.get.*;
+import org.elasticsearch.action.get.GetRequestBuilder;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetRequest;
+import org.elasticsearch.action.get.MultiGetRequestBuilder;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
@@ -52,7 +54,13 @@ import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class GetActionTests extends ElasticsearchIntegrationTest {
 
@@ -256,87 +264,6 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         GetResponse getResponse = client().prepareGet("test", "type", "1").get();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo(fieldValue));
-    }
-
-    @Test
-    public void getFieldsWithDifferentTypes() throws Exception {
-        assertAcked(prepareCreate("test").setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1))
-                .addMapping("type1", jsonBuilder().startObject().startObject("type1").endObject().endObject())
-                .addMapping("type2", jsonBuilder().startObject().startObject("type2")
-                        .startObject("properties")
-                        .startObject("str").field("type", "string").field("store", "yes").endObject()
-                        .startObject("strs").field("type", "string").field("store", "yes").endObject()
-                        .startObject("int").field("type", "integer").field("store", "yes").endObject()
-                        .startObject("ints").field("type", "integer").field("store", "yes").endObject()
-                        .startObject("date").field("type", "date").field("store", "yes").endObject()
-                        .startObject("binary").field("type", "binary").field("store", "yes").endObject()
-                        .endObject()
-                        .endObject().endObject()));
-        ensureGreen();
-
-        client().prepareIndex("test", "type1", "1").setSource(
-                jsonBuilder().startObject()
-                        .field("str", "test")
-                        .field("strs", new String[]{"A", "B", "C"})
-                        .field("int", 42)
-                        .field("ints", new int[]{1, 2, 3, 4})
-                        .field("date", "2012-11-13T15:26:14.000Z")
-                        .field("binary", Base64.encodeBytes(new byte[]{1, 2, 3}))
-                        .endObject()).get();
-
-        client().prepareIndex("test", "type2", "1").setSource(
-                jsonBuilder().startObject()
-                        .field("str", "test")
-                        .field("strs", new String[]{"A", "B", "C"})
-                        .field("int", 42)
-                        .field("ints", new int[]{1, 2, 3, 4})
-                        .field("date", "2012-11-13T15:26:14.000Z")
-                        .field("binary", Base64.encodeBytes(new byte[]{1, 2, 3}))
-                        .endObject()).get();
-
-        // realtime get with stored source
-        logger.info("--> realtime get (from source)");
-        GetResponse getResponse = client().prepareGet("test", "type1", "1").setFields("str", "strs", "int", "ints", "date", "binary").get();
-        assertThat(getResponse.isExists(), equalTo(true));
-        assertThat((String) getResponse.getField("str").getValue(), equalTo("test"));
-        assertThat(getResponse.getField("strs").getValues(), contains((Object) "A", "B", "C"));
-        assertThat((Long) getResponse.getField("int").getValue(), equalTo(42l));
-        assertThat(getResponse.getField("ints").getValues(), contains((Object) 1L, 2L, 3L, 4L));
-        assertThat((String) getResponse.getField("date").getValue(), equalTo("2012-11-13T15:26:14.000Z"));
-        assertThat(getResponse.getField("binary").getValue(), instanceOf(String.class)); // its a String..., not binary mapped
-
-        logger.info("--> realtime get (from stored fields)");
-        getResponse = client().prepareGet("test", "type2", "1").setFields("str", "strs", "int", "ints", "date", "binary").get();
-        assertThat(getResponse.isExists(), equalTo(true));
-        assertThat((String) getResponse.getField("str").getValue(), equalTo("test"));
-        assertThat(getResponse.getField("strs").getValues(), contains((Object) "A", "B", "C"));
-        assertThat((Integer) getResponse.getField("int").getValue(), equalTo(42));
-        assertThat(getResponse.getField("ints").getValues(), contains((Object) 1, 2, 3, 4));
-        assertThat((String) getResponse.getField("date").getValue(), equalTo("2012-11-13T15:26:14.000Z"));
-        assertThat((BytesReference) getResponse.getField("binary").getValue(), equalTo((BytesReference) new BytesArray(new byte[]{1, 2, 3})));
-
-        logger.info("--> flush the index, so we load it from it");
-        flush();
-
-        logger.info("--> non realtime get (from source)");
-        getResponse = client().prepareGet("test", "type1", "1").setFields("str", "strs", "int", "ints", "date", "binary").get();
-        assertThat(getResponse.isExists(), equalTo(true));
-        assertThat((String) getResponse.getField("str").getValue(), equalTo("test"));
-        assertThat(getResponse.getField("strs").getValues(), contains((Object) "A", "B", "C"));
-        assertThat((Long) getResponse.getField("int").getValue(), equalTo(42l));
-        assertThat(getResponse.getField("ints").getValues(), contains((Object) 1L, 2L, 3L, 4L));
-        assertThat((String) getResponse.getField("date").getValue(), equalTo("2012-11-13T15:26:14.000Z"));
-        assertThat(getResponse.getField("binary").getValue(), instanceOf(String.class)); // its a String..., not binary mapped
-
-        logger.info("--> non realtime get (from stored fields)");
-        getResponse = client().prepareGet("test", "type2", "1").setFields("str", "strs", "int", "ints", "date", "binary").get();
-        assertThat(getResponse.isExists(), equalTo(true));
-        assertThat((String) getResponse.getField("str").getValue(), equalTo("test"));
-        assertThat(getResponse.getField("strs").getValues(), contains((Object) "A", "B", "C"));
-        assertThat((Integer) getResponse.getField("int").getValue(), equalTo(42));
-        assertThat(getResponse.getField("ints").getValues(), contains((Object) 1, 2, 3, 4));
-        assertThat((String) getResponse.getField("date").getValue(), equalTo("2012-11-13T15:26:14.000Z"));
-        assertThat((BytesReference) getResponse.getField("binary").getValue(), equalTo((BytesReference) new BytesArray(new byte[]{1, 2, 3})));
     }
 
     @Test
@@ -1005,7 +932,11 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                 "    \"refresh_interval\": \"-1\"\n" +
                 "  },\n" +
                 "  \"mappings\": {\n" +
-                "    \"parentdoc\": {},\n" +
+                "    \"parentdoc\": {\n" +
+                "      \"_ttl\": {\n" +
+                "        \"enabled\": true\n" +
+                "      }\n" +
+                "    },\n" +
                 "    \"doc\": {\n" +
                 "      \"_parent\": {\n" +
                 "        \"type\": \"parentdoc\"\n" +

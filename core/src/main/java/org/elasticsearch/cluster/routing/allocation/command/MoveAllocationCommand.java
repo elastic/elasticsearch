@@ -19,10 +19,9 @@
 
 package org.elasticsearch.cluster.routing.allocation.command;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
@@ -152,7 +151,7 @@ public class MoveAllocationCommand implements AllocationCommand {
         Decision decision = null;
 
         boolean found = false;
-        for (MutableShardRouting shardRouting : allocation.routingNodes().node(fromDiscoNode.id())) {
+        for (ShardRouting shardRouting : allocation.routingNodes().node(fromDiscoNode.id())) {
             if (!shardRouting.shardId().equals(shardId)) {
                 continue;
             }
@@ -180,7 +179,7 @@ public class MoveAllocationCommand implements AllocationCommand {
                 // its being throttled, maybe have a flag to take it into account and fail? for now, just do it since the "user" wants it...
             }
 
-            allocation.routingNodes().assign(new MutableShardRouting(shardRouting.index(), shardRouting.id(),
+            allocation.routingNodes().assign(new ShardRouting(shardRouting.index(), shardRouting.id(),
                     toRoutingNode.nodeId(), shardRouting.currentNodeId(), shardRouting.restoreSource(),
                     shardRouting.primary(), ShardRoutingState.INITIALIZING, shardRouting.version() + 1), toRoutingNode.nodeId());
 

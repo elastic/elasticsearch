@@ -26,6 +26,7 @@ import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.search.highlight.*;
 import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -118,7 +119,7 @@ public class PlainHighlighter implements Highlighter {
                 }
             }
         } catch (Exception e) {
-            if (e instanceof BytesRefHash.MaxBytesLengthExceededException) {
+            if (ExceptionsHelper.unwrap(e, BytesRefHash.MaxBytesLengthExceededException.class) != null) {
                 // this can happen if for example a field is not_analyzed and ignore_above option is set.
                 // the field will be ignored when indexing but the huge term is still in the source and
                 // the plain highlighter will parse the source and try to analyze it.

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.gateway;
+package org.elasticsearch.index.shard;
 
 import com.google.common.base.Charsets;
 import com.google.common.collect.Lists;

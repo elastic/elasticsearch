@@ -185,16 +185,13 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> Add dummy docs");
         client().prepareIndex("test", "type1", "1").setSource("field1", 0).get();
-        client().prepareIndex("test", "type2", "1").setSource("field1", "0").get();
+        client().prepareIndex("test", "type2", "1").setSource("field1", 1).get();
 
         logger.info("--> register a queries");
         for (int i = 1; i <= 100; i++) {
             client().prepareIndex("test", PercolatorService.TYPE_NAME, Integer.toString(i))
                     .setSource(jsonBuilder().startObject()
                             .field("query", rangeQuery("field1").from(0).to(i))
-                                    // The type must be set now, because two fields with the same name exist in different types.
-                                    // Setting the type to `type1`, makes sure that the range query gets parsed to a Lucene NumericRangeQuery.
-                            .field("type", "type1")
                             .endObject())
                     .get();
         }

@@ -63,6 +63,8 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
 
     private String source;
 
+    private boolean updateAllTypes = false;
+
     PutMappingRequest() {
     }
 
@@ -236,6 +238,17 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         return this;
     }
 
+    /** True if all fields that span multiple types should be updated, false otherwise */
+    public boolean updateAllTypes() {
+        return updateAllTypes;
+    }
+
+    /** See {@link #updateAllTypes()} */
+    public PutMappingRequest updateAllTypes(boolean updateAllTypes) {
+        this.updateAllTypes = updateAllTypes;
+        return this;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -243,6 +256,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         type = in.readOptionalString();
         source = in.readString();
+        updateAllTypes = in.readBoolean();
         readTimeout(in);
     }
 
@@ -253,6 +267,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalString(type);
         out.writeString(source);
+        out.writeBoolean(updateAllTypes);
         writeTimeout(out);
     }
 }

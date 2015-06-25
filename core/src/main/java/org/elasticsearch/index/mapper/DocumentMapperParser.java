@@ -34,6 +34,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -167,7 +168,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
     }
 
     public Mapper.TypeParser.ParserContext parserContext() {
-        return new Mapper.TypeParser.ParserContext(analysisService, similarityLookupService, typeParsers, indexVersionCreated);
+        return new Mapper.TypeParser.ParserContext(analysisService, similarityLookupService, mapperService, typeParsers, indexVersionCreated);
     }
 
     public DocumentMapper parse(String source) throws MapperParsingException {
@@ -227,7 +228,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
 
         Mapper.TypeParser.ParserContext parserContext = parserContext();
         // parse RootObjectMapper
-        DocumentMapper.Builder docBuilder = doc(index.name(), indexSettings, (RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext));
+        DocumentMapper.Builder docBuilder = doc(index.name(), indexSettings, (RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext), mapperService);
         Iterator<Map.Entry<String, Object>> iterator = mapping.entrySet().iterator();
         // parse DocumentMapper
         while(iterator.hasNext()) {
@@ -304,8 +305,8 @@ public class DocumentMapperParser extends AbstractIndexComponent {
 
     private Tuple<String, Map<String, Object>> extractMapping(String type, String source) throws MapperParsingException {
         Map<String, Object> root;
-        try {
-            root = XContentFactory.xContent(source).createParser(source).mapOrderedAndClose();
+        try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
+            root = parser.mapOrdered();
         } catch (Exception e) {
             throw new MapperParsingException("failed to parse mapping definition", e);
         }

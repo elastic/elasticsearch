@@ -226,9 +226,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
         private AnalyzingCompletionLookupProvider analyzingSuggestLookupProvider;
         private SortedMap<String, ContextMapping> contextMapping = ContextMapping.EMPTY_MAPPING;
 
-        public CompletionFieldType() {
-            super(AbstractFieldMapper.Defaults.FIELD_TYPE);
-        }
+        public CompletionFieldType() {}
 
         protected CompletionFieldType(CompletionFieldType ref) {
             super(ref);
@@ -243,8 +241,13 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
         }
 
         @Override
-        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts) {
-            super.checkCompatibility(fieldType, conflicts);
+        public String typeName() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
+        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts, boolean strict) {
+            super.checkCompatibility(fieldType, conflicts, strict);
             CompletionFieldType other = (CompletionFieldType)fieldType;
             if (analyzingSuggestLookupProvider.hasPayloads() != other.analyzingSuggestLookupProvider.hasPayloads()) {
                 conflicts.add("mapper [" + names().fullName() + "] has different payload values");

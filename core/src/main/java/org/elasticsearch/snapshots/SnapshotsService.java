@@ -1068,6 +1068,10 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
         clusterService.remove(this);
     }
 
+    public RepositoriesService getRepositoriesService() {
+        return repositoriesService;
+    }
+
     /**
      * Listener for create snapshot operation
      */

@@ -126,6 +126,10 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         search = client().prepareSearch().setQuery(constantScoreQuery(matchQuery("text", "text"))).addHighlightedField(new Field("long_text").highlighterType(highlighter)).get();
         assertNoFailures(search);
         assertThat(search.getHits().getAt(0).getHighlightFields().size(), equalTo(0));
+
+        search = client().prepareSearch().setQuery(prefixQuery("text", "te")).addHighlightedField(new Field("long_text").highlighterType(highlighter)).get();
+        assertNoFailures(search);
+        assertThat(search.getHits().getAt(0).getHighlightFields().size(), equalTo(0));
     }
 
     @Test

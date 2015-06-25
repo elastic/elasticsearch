@@ -20,6 +20,8 @@ package org.elasticsearch.index.mapper.geo;
 
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
 
 public class GeoPointFieldTypeTests extends FieldTypeTestCase {
     @Override
@@ -36,8 +38,8 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
     protected void modifyProperty(MappedFieldType ft, int propNum) {
         GeoPointFieldMapper.GeoPointFieldType gft = (GeoPointFieldMapper.GeoPointFieldType)ft;
         switch (propNum) {
-            case 0: gft.setGeohashEnabled(new MappedFieldType(), 1, true); break;
-            case 1: gft.setLatLonEnabled(new MappedFieldType(), new MappedFieldType()); break;
+            case 0: gft.setGeohashEnabled(new StringFieldMapper.StringFieldType(), 1, true); break;
+            case 1: gft.setLatLonEnabled(new DoubleFieldMapper.DoubleFieldType(), new DoubleFieldMapper.DoubleFieldType()); break;
             case 2: gft.setValidateLon(!gft.validateLon()); break;
             case 3: gft.setValidateLat(!gft.validateLat()); break;
             case 4: gft.setNormalizeLon(!gft.normalizeLon()); break;

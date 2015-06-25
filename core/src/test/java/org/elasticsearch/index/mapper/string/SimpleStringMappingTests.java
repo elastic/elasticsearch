@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -286,7 +287,10 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
         fieldMapper.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject();
         builder.close();
         
-        Map<String, Object> fieldMap = JsonXContent.jsonXContent.createParser(builder.bytes()).mapAndClose();
+        Map<String, Object> fieldMap;
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes())) {
+            fieldMap = parser.map();
+        }
         @SuppressWarnings("unchecked")
         Map<String, Object> result = (Map<String, Object>) fieldMap.get(fieldName);
         return result;
@@ -498,7 +502,7 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
         String updatedMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "string").startObject("norms").field("enabled", false).endObject()
                 .endObject().endObject().endObject().endObject().string();
-        MergeResult mergeResult = defaultMapper.merge(parser.parse(updatedMapping).mapping(), false);
+        MergeResult mergeResult = defaultMapper.merge(parser.parse(updatedMapping).mapping(), false, false);
         assertFalse(Arrays.toString(mergeResult.buildConflicts()), mergeResult.hasConflicts());
 
         doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
@@ -513,7 +517,7 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
         updatedMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "string").startObject("norms").field("enabled", true).endObject()
                 .endObject().endObject().endObject().endObject().string();
-        mergeResult = defaultMapper.merge(parser.parse(updatedMapping).mapping(), true);
+        mergeResult = defaultMapper.merge(parser.parse(updatedMapping).mapping(), true, false);
         assertTrue(mergeResult.hasConflicts());
         assertEquals(1, mergeResult.buildConflicts().length);
         assertTrue(mergeResult.buildConflicts()[0].contains("cannot enable norms"));

@@ -58,7 +58,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.MapperBuilders.id;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
 /**
@@ -92,8 +91,8 @@ public class IdFieldMapper extends AbstractFieldMapper implements RootMapper {
 
         private String path = Defaults.PATH;
 
-        public Builder() {
-            super(Defaults.NAME, Defaults.FIELD_TYPE);
+        public Builder(MappedFieldType existing) {
+            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing);
             indexName = Defaults.NAME;
         }
 
@@ -120,7 +119,7 @@ public class IdFieldMapper extends AbstractFieldMapper implements RootMapper {
             if (parserContext.indexVersionCreated().onOrAfter(Version.V_2_0_0)) {
                 throw new MapperParsingException(NAME + " is not configurable");
             }
-            IdFieldMapper.Builder builder = id();
+            Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
             parseField(builder, builder.name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -137,9 +136,7 @@ public class IdFieldMapper extends AbstractFieldMapper implements RootMapper {
 
     static final class IdFieldType extends MappedFieldType {
 
-        public IdFieldType() {
-            super(AbstractFieldMapper.Defaults.FIELD_TYPE);
-        }
+        public IdFieldType() {}
 
         protected IdFieldType(IdFieldType ref) {
             super(ref);
@@ -150,6 +147,10 @@ public class IdFieldMapper extends AbstractFieldMapper implements RootMapper {
             return new IdFieldType(this);
         }
 
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
+        }
 
         @Override
         public String value(Object value) {
@@ -226,8 +227,10 @@ public class IdFieldMapper extends AbstractFieldMapper implements RootMapper {
 
     private final String path;
 
-    public IdFieldMapper(Settings indexSettings) {
-        this(idFieldType(indexSettings), null, Defaults.PATH, null, indexSettings);
+    public IdFieldMapper(Settings indexSettings, MappedFieldType existing) {
+        this(idFieldType(indexSettings, existing), null, Defaults.PATH,
+             existing == null ? null : (existing.fieldDataType() == null ? null : existing.fieldDataType().getSettings()),
+             indexSettings);
     }
 
     protected IdFieldMapper(MappedFieldType fieldType, Boolean docValues, String path,
@@ -236,7 +239,10 @@ public class IdFieldMapper extends AbstractFieldMapper implements RootMapper {
         this.path = path;
     }
     
-    private static MappedFieldType idFieldType(Settings indexSettings) {
+    private static MappedFieldType idFieldType(Settings indexSettings, MappedFieldType existing) {
+        if (existing != null) {
+            return existing.clone();
+        }
         MappedFieldType fieldType = Defaults.FIELD_TYPE.clone();
         boolean pre2x = Version.indexCreated(indexSettings).before(Version.V_2_0_0);
         if (pre2x && indexSettings.getAsBoolean("index.mapping._id.indexed", true) == false) {
@@ -311,7 +317,7 @@ public class IdFieldMapper extends AbstractFieldMapper implements RootMapper {
         if (!includeDefaults && fieldType().stored() == Defaults.FIELD_TYPE.stored()
                 && fieldType().indexOptions() == Defaults.FIELD_TYPE.indexOptions()
                 && path == Defaults.PATH
-                && customFieldDataSettings == null) {
+                && hasCustomFieldDataSettings() == false) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
@@ -325,7 +331,7 @@ public class IdFieldMapper extends AbstractFieldMapper implements RootMapper {
             builder.field("path", path);
         }
 
-        if (customFieldDataSettings != null) {
+        if (hasCustomFieldDataSettings()) {
             builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
         } else if (includeDefaults) {
             builder.field("fielddata", (Map) fieldType().fieldDataType().getSettings().getAsMap());

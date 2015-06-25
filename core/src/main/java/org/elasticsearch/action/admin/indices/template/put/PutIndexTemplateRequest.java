@@ -308,8 +308,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * The template source definition.
      */
     public PutIndexTemplateRequest source(String templateSource) {
-        try {
-            return source(XContentFactory.xContent(templateSource).createParser(templateSource).mapOrderedAndClose());
+        try (XContentParser parser = XContentFactory.xContent(templateSource).createParser(templateSource)) {
+            return source(parser.mapOrdered());
         } catch (Exception e) {
             throw new IllegalArgumentException("failed to parse template source [" + templateSource + "]", e);
         }
@@ -326,8 +326,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * The template source definition.
      */
     public PutIndexTemplateRequest source(byte[] source, int offset, int length) {
-        try {
-            return source(XContentFactory.xContent(source, offset, length).createParser(source, offset, length).mapOrderedAndClose());
+        try (XContentParser parser = XContentFactory.xContent(source, offset, length).createParser(source, offset, length)) {
+            return source(parser.mapOrdered());
         } catch (IOException e) {
             throw new IllegalArgumentException("failed to parse template source", e);
         }
@@ -337,8 +337,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * The template source definition.
      */
     public PutIndexTemplateRequest source(BytesReference source) {
-        try {
-            return source(XContentFactory.xContent(source).createParser(source).mapOrderedAndClose());
+        try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
+            return source(parser.mapOrdered());
         } catch (IOException e) {
             throw new IllegalArgumentException("failed to parse template source", e);
         }

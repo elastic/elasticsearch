@@ -104,7 +104,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public static final String CHECKPOINT_SUFFIX = ".ckp";
     public static final String CHECKPOINT_FILE_NAME = "translog" + CHECKPOINT_SUFFIX;
 
-    static final Pattern PARSE_ID_PATTERN = Pattern.compile("^" + TRANSLOG_FILE_PREFIX + "(\\d+)((\\.recovering)|(\\.tlog))?$");
+    static final Pattern PARSE_STRICT_ID_PATTERN = Pattern.compile("^" + TRANSLOG_FILE_PREFIX + "(\\d+)(\\.tlog)$");
 
     private final List<ImmutableTranslogReader> recoveredTranslogs;
     private volatile ScheduledFuture<?> syncScheduler;
@@ -210,30 +210,41 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         if (translogGeneration.translogUUID != null) {
             throw new IllegalArgumentException("TranslogGeneration has a non-null UUID - index must have already been upgraded");
         }
-        assert translogGeneration.translogUUID == null : "Already upgrade";
         try {
-            assert Checkpoint.read(translogPath.resolve(CHECKPOINT_FILE_NAME)) == null;
+            if (Checkpoint.read(translogPath.resolve(CHECKPOINT_FILE_NAME)) != null) {
+                throw new IllegalStateException(CHECKPOINT_FILE_NAME + " file already present, translog is already upgraded");
+            }
         } catch (NoSuchFileException | FileNotFoundException ex) {
             logger.debug("upgrading translog - no checkpoint found");
         }
-
+        final Pattern parseLegacyIdPattern = Pattern.compile("^" + TRANSLOG_FILE_PREFIX + "(\\d+)((\\.recovering))?$"); // here we have to be lenient - nowhere else!
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(translogPath, new DirectoryStream.Filter<Path>() {
             @Override
             public boolean accept(Path entry) throws IOException {
-                Matcher matcher = PARSE_ID_PATTERN.matcher(entry.getFileName().toString());
-                return matcher.matches();
+                Matcher matcher = parseLegacyIdPattern.matcher(entry.getFileName().toString());
+                if (matcher.matches() == false) {
+                    Matcher newIdMatcher = PARSE_STRICT_ID_PATTERN.matcher(entry.getFileName().toString());
+                    return newIdMatcher.matches();
+                } else {
+                    return true;
+                }
             }
         })) {
             long latestGeneration = -1;
             List<Tuple<Path, Long>> filesToUpgrade = new ArrayList<>();
             for (Path path : stream) {
-                Matcher matcher = PARSE_ID_PATTERN.matcher(path.getFileName().toString());
+                Matcher matcher = parseLegacyIdPattern.matcher(path.getFileName().toString());
                 if (matcher.matches()) {
                     long generation = Long.parseLong(matcher.group(1));
                     if (generation >= translogGeneration.translogFileGeneration) {
                         latestGeneration = Math.max(translogGeneration.translogFileGeneration, generation);
                     }
                     filesToUpgrade.add(new Tuple<>(path, generation));
+                } else {
+                    Matcher strict_matcher = PARSE_STRICT_ID_PATTERN.matcher(path.getFileName().toString());
+                    if (strict_matcher.matches()) {
+                        throw new IllegalStateException("non-legacy translog file [" + path.getFileName().toString() + "] found on a translog that wasn't upgraded yet");
+                    }
                 }
             }
             if (latestGeneration < translogGeneration.translogFileGeneration) {
@@ -301,9 +312,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     ImmutableTranslogReader openReader(Path path, Checkpoint checkpoint) throws IOException {
-        final long generation = parseIdFromFileName(path);
-        if (generation < 0) {
-            throw new TranslogException(shardId, "failed to parse generation from file name matching pattern " + path);
+        final long generation;
+        try {
+            generation = parseIdFromFileName(path);
+        } catch (IllegalArgumentException ex) {
+            throw new TranslogException(shardId, "failed to parse generation from file name matching pattern " + path, ex);
         }
         FileChannel channel = FileChannel.open(path, StandardOpenOption.READ);
         try {
@@ -316,18 +329,22 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    /* extracts the translog generation from a file name. returns -1 upon failure */
+    /**
+     * Extracts the translog generation from a file name.
+     *
+     * @throw IllegalArgumentException if the path doesn't match the expected pattern.
+     */
     public static long parseIdFromFileName(Path translogFile) {
         final String fileName = translogFile.getFileName().toString();
-        final Matcher matcher = PARSE_ID_PATTERN.matcher(fileName);
+        final Matcher matcher = PARSE_STRICT_ID_PATTERN.matcher(fileName);
         if (matcher.matches()) {
             try {
                 return Long.parseLong(matcher.group(1));
             } catch (NumberFormatException e) {
-                throw new ElasticsearchException("number formatting issue in a file that passed PARSE_ID_PATTERN: " + fileName + "]", e);
+                throw new IllegalStateException("number formatting issue in a file that passed PARSE_STRICT_ID_PATTERN: " + fileName + "]", e);
             }
         }
-        return -1;
+        throw new IllegalArgumentException("can't parse id from file: " + fileName);
     }
 
     public void updateBuffer(ByteSizeValue bufferSize) {
@@ -616,7 +633,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 }
                 try (DirectoryStream<Path> stream = Files.newDirectoryStream(location)) {
                     for (Path path : stream) {
-                        Matcher matcher = PARSE_ID_PATTERN.matcher(path.getFileName().toString());
+                        Matcher matcher = PARSE_STRICT_ID_PATTERN.matcher(path.getFileName().toString());
                         if (matcher.matches()) {
                             long generation = Long.parseLong(matcher.group(1));
                             if (isReferencedGeneration(generation) == false) {

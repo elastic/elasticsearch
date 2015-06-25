@@ -27,6 +27,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
@@ -48,7 +49,10 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
         final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = Requests.clusterUpdateSettingsRequest();
         clusterUpdateSettingsRequest.timeout(request.paramAsTime("timeout", clusterUpdateSettingsRequest.timeout()));
         clusterUpdateSettingsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterUpdateSettingsRequest.masterNodeTimeout()));
-        Map<String, Object> source = XContentFactory.xContent(request.content()).createParser(request.content()).mapAndClose();
+        Map<String, Object> source;
+        try (XContentParser parser = XContentFactory.xContent(request.content()).createParser(request.content())) {
+            source = parser.map();
+        }
         if (source.containsKey("transient")) {
             clusterUpdateSettingsRequest.transientSettings((Map) source.get("transient"));
         }

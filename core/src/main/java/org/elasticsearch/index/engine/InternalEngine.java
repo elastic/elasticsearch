@@ -178,8 +178,12 @@ public class InternalEngine extends Engine {
             }
         }
         final Translog translog = new Translog(translogConfig);
-        if (generation == null) {
-            logger.debug("no translog ID present in the current generation - creating one");
+        if (generation == null || generation.translogUUID == null) {
+            if (generation == null) {
+                logger.debug("no translog ID present in the current generation - creating one");
+            } else if (generation.translogUUID == null) {
+                logger.debug("upgraded translog to pre 2.0 format, associating translog with index - writing translog UUID");
+            }
             boolean success = false;
             try {
                 commitIndexWriter(writer, translog);

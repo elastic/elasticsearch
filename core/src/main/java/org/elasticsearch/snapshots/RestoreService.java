@@ -49,6 +49,8 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.StoreRecoveryService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -79,10 +81,10 @@ import static org.elasticsearch.cluster.metadata.MetaDataIndexStateService.INDEX
  * method.
  * <p/>
  * Individual shards are getting restored as part of normal recovery process in
- * {@link org.elasticsearch.index.gateway.IndexShardGatewayService#recover(boolean, org.elasticsearch.index.gateway.IndexShardGatewayService.RecoveryListener)}
+ * {@link StoreRecoveryService#recover(IndexShard, boolean, StoreRecoveryService.RecoveryListener)}
  * method, which detects that shard should be restored from snapshot rather than recovered from gateway by looking
  * at the {@link org.elasticsearch.cluster.routing.ShardRouting#restoreSource()} property. If this property is not null
- * {@code recover} method uses {@link org.elasticsearch.index.snapshots.IndexShardSnapshotAndRestoreService#restore(org.elasticsearch.indices.recovery.RecoveryState)}
+ * {@code recover} method uses {@link StoreRecoveryService#restore(org.elasticsearch.indices.recovery.RecoveryState)}
  * method to start shard restore process.
  * <p/>
  * At the end of the successful restore process {@code IndexShardSnapshotAndRestoreService} calls {@link #indexShardRestoreCompleted(SnapshotId, ShardId)},
@@ -449,7 +451,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
     }
 
     /**
-     * This method is used by {@link org.elasticsearch.index.snapshots.IndexShardSnapshotAndRestoreService} to notify
+     * This method is used by {@link StoreRecoveryService} to notify
      * {@code RestoreService} about shard restore completion.
      *
      * @param snapshotId snapshot id

@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Charsets;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -53,6 +54,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -345,7 +347,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     // first, add the default mapping
                     if (mappings.containsKey(MapperService.DEFAULT_MAPPING)) {
                         try {
-                            mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent(XContentFactory.jsonBuilder().map(mappings.get(MapperService.DEFAULT_MAPPING)).string()), false);
+                            mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent(XContentFactory.jsonBuilder().map(mappings.get(MapperService.DEFAULT_MAPPING)).string()), false, request.updateAllTypes());
                         } catch (Exception e) {
                             removalReason = "failed on parsing default mapping on index creation";
                             throw new MapperParsingException("mapping [" + MapperService.DEFAULT_MAPPING + "]", e);
@@ -357,7 +359,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         }
                         try {
                             // apply the default here, its the first time we parse it
-                            mapperService.merge(entry.getKey(), new CompressedXContent(XContentFactory.jsonBuilder().map(entry.getValue()).string()), true);
+                            mapperService.merge(entry.getKey(), new CompressedXContent(XContentFactory.jsonBuilder().map(entry.getValue()).string()), true, request.updateAllTypes());
                         } catch (Exception e) {
                             removalReason = "failed on parsing mappings on index creation";
                             throw new MapperParsingException("mapping [" + entry.getKey() + "]", e);
@@ -451,7 +453,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     }
 
     private Map<String, Object> parseMapping(String mappingSource) throws Exception {
-        return XContentFactory.xContent(mappingSource).createParser(mappingSource).mapAndClose();
+        try (XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource)) {
+            return parser.map();
+        }
     }
 
     private void addMappings(Map<String, Map<String, Object>> mappings, Path mappingsDir) throws IOException {

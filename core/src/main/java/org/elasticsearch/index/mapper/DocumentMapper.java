@@ -23,7 +23,6 @@ import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -32,7 +31,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -43,6 +41,7 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.Mapping.SourceTransform;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
@@ -96,28 +95,32 @@ public class DocumentMapper implements ToXContent {
 
         private final Mapper.BuilderContext builderContext;
 
-        public Builder(String index, Settings indexSettings, RootObjectMapper.Builder builder) {
+        public Builder(String index, Settings indexSettings, RootObjectMapper.Builder builder, MapperService mapperService) {
             this.index = index;
             this.indexSettings = indexSettings;
             this.builderContext = new Mapper.BuilderContext(indexSettings, new ContentPath(1));
             this.rootObjectMapper = builder.build(builderContext);
 
+            // TODO: find a cleaner way to handle existing root mappings and using their field type as the default.
+            // the vast majority of these root mappers only need the existing type for backwards compatibility, since
+            // the pre 2.0 field type settings could be modified
+
             // UID first so it will be the first stored field to load (so will benefit from "fields: []" early termination
-            this.rootMappers.put(UidFieldMapper.class, new UidFieldMapper(indexSettings));
-            this.rootMappers.put(IdFieldMapper.class, new IdFieldMapper(indexSettings));
-            this.rootMappers.put(RoutingFieldMapper.class, new RoutingFieldMapper(indexSettings));
+            this.rootMappers.put(UidFieldMapper.class, new UidFieldMapper(indexSettings, mapperService.fullName(UidFieldMapper.NAME)));
+            this.rootMappers.put(IdFieldMapper.class, new IdFieldMapper(indexSettings, mapperService.fullName(IdFieldMapper.NAME)));
+            this.rootMappers.put(RoutingFieldMapper.class, new RoutingFieldMapper(indexSettings, mapperService.fullName(RoutingFieldMapper.NAME)));
             // add default mappers, order is important (for example analyzer should come before the rest to set context.analyzer)
-            this.rootMappers.put(SizeFieldMapper.class, new SizeFieldMapper(indexSettings));
-            this.rootMappers.put(IndexFieldMapper.class, new IndexFieldMapper(indexSettings));
+            this.rootMappers.put(SizeFieldMapper.class, new SizeFieldMapper(indexSettings, mapperService.fullName(SizeFieldMapper.NAME)));
+            this.rootMappers.put(IndexFieldMapper.class, new IndexFieldMapper(indexSettings, mapperService.fullName(IndexFieldMapper.NAME)));
             this.rootMappers.put(SourceFieldMapper.class, new SourceFieldMapper(indexSettings));
-            this.rootMappers.put(TypeFieldMapper.class, new TypeFieldMapper(indexSettings));
-            this.rootMappers.put(AllFieldMapper.class, new AllFieldMapper(indexSettings));
-            this.rootMappers.put(TimestampFieldMapper.class, new TimestampFieldMapper(indexSettings));
+            this.rootMappers.put(TypeFieldMapper.class, new TypeFieldMapper(indexSettings, mapperService.fullName(TypeFieldMapper.NAME)));
+            this.rootMappers.put(AllFieldMapper.class, new AllFieldMapper(indexSettings, mapperService.fullName(AllFieldMapper.NAME)));
+            this.rootMappers.put(TimestampFieldMapper.class, new TimestampFieldMapper(indexSettings, mapperService.fullName(TimestampFieldMapper.NAME)));
             this.rootMappers.put(TTLFieldMapper.class, new TTLFieldMapper(indexSettings));
             this.rootMappers.put(VersionFieldMapper.class, new VersionFieldMapper(indexSettings));
-            this.rootMappers.put(ParentFieldMapper.class, new ParentFieldMapper(indexSettings));
+            this.rootMappers.put(ParentFieldMapper.class, new ParentFieldMapper(indexSettings, mapperService.fullName(ParentFieldMapper.NAME)));
             // _field_names last so that it can see all other fields
-            this.rootMappers.put(FieldNamesFieldMapper.class, new FieldNamesFieldMapper(indexSettings));
+            this.rootMappers.put(FieldNamesFieldMapper.class, new FieldNamesFieldMapper(indexSettings, mapperService.fullName(FieldNamesFieldMapper.NAME)));
         }
 
         public Builder meta(ImmutableMap<String, Object> meta) {
@@ -393,87 +396,40 @@ public class DocumentMapper implements ToXContent {
         return DocumentParser.transformSourceAsMap(mapping, sourceAsMap);
     }
 
-    private void addFieldMappers(Collection<FieldMapper> fieldMappers) {
-        assert mappingLock.isWriteLockedByCurrentThread();
-            this.fieldMappers = this.fieldMappers.copyAndAllAll(fieldMappers);
-        mapperService.addFieldMappers(fieldMappers);
-    }
-
     public boolean isParent(String type) {
         return mapperService.getParentTypes().contains(type);
     }
 
-    private void addObjectMappers(Collection<ObjectMapper> objectMappers) {
+    private void addMappers(Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers) {
         assert mappingLock.isWriteLockedByCurrentThread();
-            MapBuilder<String, ObjectMapper> builder = MapBuilder.newMapBuilder(this.objectMappers);
-            for (ObjectMapper objectMapper : objectMappers) {
-                builder.put(objectMapper.fullPath(), objectMapper);
-                if (objectMapper.nested().isNested()) {
-                    hasNestedObjects = true;
-                }
+        // first ensure we don't have any incompatible new fields
+        mapperService.checkNewMappersCompatibility(objectMappers, fieldMappers, true);
+
+        // update mappers for this document type
+        MapBuilder<String, ObjectMapper> builder = MapBuilder.newMapBuilder(this.objectMappers);
+        for (ObjectMapper objectMapper : objectMappers) {
+            builder.put(objectMapper.fullPath(), objectMapper);
+            if (objectMapper.nested().isNested()) {
+                hasNestedObjects = true;
             }
-            this.objectMappers = builder.immutableMap();
-        mapperService.addObjectMappers(objectMappers);
-    }
-
-    private MergeResult newMergeContext(boolean simulate) {
-        return new MergeResult(simulate) {
-
-            final List<String> conflicts = new ArrayList<>();
-            final List<FieldMapper> newFieldMappers = new ArrayList<>();
-            final List<ObjectMapper> newObjectMappers = new ArrayList<>();
-
-            @Override
-            public void addFieldMappers(Collection<FieldMapper> fieldMappers) {
-                assert simulate() == false;
-                newFieldMappers.addAll(fieldMappers);
-            }
-
-            @Override
-            public void addObjectMappers(Collection<ObjectMapper> objectMappers) {
-                assert simulate() == false;
-                newObjectMappers.addAll(objectMappers);
-            }
-
-            @Override
-            public Collection<FieldMapper> getNewFieldMappers() {
-                return newFieldMappers;
-            }
-
-            @Override
-            public Collection<ObjectMapper> getNewObjectMappers() {
-                return newObjectMappers;
-            }
-
-            @Override
-            public void addConflict(String mergeFailure) {
-                conflicts.add(mergeFailure);
-            }
-
-            @Override
-            public boolean hasConflicts() {
-                return conflicts.isEmpty() == false;
-            }
-
-            @Override
-            public String[] buildConflicts() {
-                return conflicts.toArray(Strings.EMPTY_ARRAY);
-            }
-
-        };
-    }
-
-    public MergeResult merge(Mapping mapping, boolean simulate) {
-        try (ReleasableLock lock = mappingWriteLock.acquire()) {
-        final MergeResult mergeResult = newMergeContext(simulate);
-        this.mapping.merge(mapping, mergeResult);
-        if (simulate == false) {
-            addFieldMappers(mergeResult.getNewFieldMappers());
-            addObjectMappers(mergeResult.getNewObjectMappers());
-            refreshSource();
         }
-        return mergeResult;
+        this.objectMappers = builder.immutableMap();
+        this.fieldMappers = this.fieldMappers.copyAndAllAll(fieldMappers);
+
+        // finally update for the entire index
+        mapperService.addMappers(objectMappers, fieldMappers);
     }
+
+    public MergeResult merge(Mapping mapping, boolean simulate, boolean updateAllTypes) {
+        try (ReleasableLock lock = mappingWriteLock.acquire()) {
+            final MergeResult mergeResult = new MergeResult(simulate, updateAllTypes);
+            this.mapping.merge(mapping, mergeResult);
+            if (simulate == false) {
+                addMappers(mergeResult.getNewObjectMappers(), mergeResult.getNewFieldMappers());
+                refreshSource();
+            }
+            return mergeResult;
+        }
     }
 
     private void refreshSource() throws ElasticsearchGenerationException {
@@ -486,10 +442,6 @@ public class DocumentMapper implements ToXContent {
 
     public void close() {
         documentParser.close();
-        mapping.root.close();
-        for (RootMapper rootMapper : mapping.rootMappers) {
-            rootMapper.close();
-        }
     }
 
     @Override

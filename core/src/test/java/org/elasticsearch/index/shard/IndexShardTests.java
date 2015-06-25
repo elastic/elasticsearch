@@ -22,7 +22,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -140,40 +139,40 @@ public class IndexShardTests extends ElasticsearchSingleNodeTest {
         IndexShard shard = test.shard(0);
         ShardStateMetaData shardStateMetaData = load(logger, env.availableShardPaths(shard.shardId));
         assertEquals(getShardStateMetadata(shard), shardStateMetaData);
-        ShardRouting routing = new MutableShardRouting(shard.shardRouting, shard.shardRouting.version() + 1);
+        ShardRouting routing = new ShardRouting(shard.shardRouting, shard.shardRouting.version() + 1);
         shard.updateRoutingEntry(routing, true);
 
         shardStateMetaData = load(logger, env.availableShardPaths(shard.shardId));
         assertEquals(shardStateMetaData, getShardStateMetadata(shard));
         assertEquals(shardStateMetaData, new ShardStateMetaData(routing.version(), routing.primary(), shard.indexSettings.get(IndexMetaData.SETTING_UUID)));
 
-        routing = new MutableShardRouting(shard.shardRouting, shard.shardRouting.version() + 1);
+        routing = new ShardRouting(shard.shardRouting, shard.shardRouting.version() + 1);
         shard.updateRoutingEntry(routing, true);
         shardStateMetaData = load(logger, env.availableShardPaths(shard.shardId));
         assertEquals(shardStateMetaData, getShardStateMetadata(shard));
         assertEquals(shardStateMetaData, new ShardStateMetaData(routing.version(), routing.primary(), shard.indexSettings.get(IndexMetaData.SETTING_UUID)));
 
-        routing = new MutableShardRouting(shard.shardRouting, shard.shardRouting.version() + 1);
+        routing = new ShardRouting(shard.shardRouting, shard.shardRouting.version() + 1);
         shard.updateRoutingEntry(routing, true);
         shardStateMetaData = load(logger, env.availableShardPaths(shard.shardId));
         assertEquals(shardStateMetaData, getShardStateMetadata(shard));
         assertEquals(shardStateMetaData, new ShardStateMetaData(routing.version(), routing.primary(), shard.indexSettings.get(IndexMetaData.SETTING_UUID)));
 
         // test if we still write it even if the shard is not active
-        MutableShardRouting inactiveRouting = new MutableShardRouting(shard.shardRouting.index(), shard.shardRouting.shardId().id(), shard.shardRouting.currentNodeId(), null, null, true, ShardRoutingState.INITIALIZING, shard.shardRouting.version() + 1);
+        ShardRouting inactiveRouting = new ShardRouting(shard.shardRouting.index(), shard.shardRouting.shardId().id(), shard.shardRouting.currentNodeId(), null, null, true, ShardRoutingState.INITIALIZING, shard.shardRouting.version() + 1);
         shard.persistMetadata(inactiveRouting, shard.shardRouting);
         shardStateMetaData = load(logger, env.availableShardPaths(shard.shardId));
         assertEquals("inactive shard state shouldn't be persisted", shardStateMetaData, getShardStateMetadata(shard));
         assertEquals("inactive shard state shouldn't be persisted", shardStateMetaData, new ShardStateMetaData(routing.version(), routing.primary(), shard.indexSettings.get(IndexMetaData.SETTING_UUID)));
 
 
-        shard.updateRoutingEntry(new MutableShardRouting(shard.shardRouting, shard.shardRouting.version() + 1), false);
+        shard.updateRoutingEntry(new ShardRouting(shard.shardRouting, shard.shardRouting.version() + 1), false);
         shardStateMetaData = load(logger, env.availableShardPaths(shard.shardId));
         assertFalse("shard state persisted despite of persist=false", shardStateMetaData.equals(getShardStateMetadata(shard)));
         assertEquals("shard state persisted despite of persist=false", shardStateMetaData, new ShardStateMetaData(routing.version(), routing.primary(), shard.indexSettings.get(IndexMetaData.SETTING_UUID)));
 
 
-        routing = new MutableShardRouting(shard.shardRouting, shard.shardRouting.version() + 1);
+        routing = new ShardRouting(shard.shardRouting, shard.shardRouting.version() + 1);
         shard.updateRoutingEntry(routing, true);
         shardStateMetaData = load(logger, env.availableShardPaths(shard.shardId));
         assertEquals(shardStateMetaData, getShardStateMetadata(shard));
@@ -198,7 +197,7 @@ public class IndexShardTests extends ElasticsearchSingleNodeTest {
         ShardStateMetaData shardStateMetaData = load(logger, env.availableShardPaths(shard.shardId));
         assertEquals(shardStateMetaData, getShardStateMetadata(shard));
 
-        routing = new MutableShardRouting(shard.shardId.index().getName(), shard.shardId.id(), routing.currentNodeId(), null, null, routing.primary(), ShardRoutingState.INITIALIZING, shard.shardRouting.version() + 1);
+        routing = new ShardRouting(shard.shardId.index().getName(), shard.shardId.id(), routing.currentNodeId(), null, null, routing.primary(), ShardRoutingState.INITIALIZING, shard.shardRouting.version() + 1);
         shard.updateRoutingEntry(routing, true);
         shard.deleteShardState();
 

@@ -60,6 +60,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.hamcrest.Matchers.*;
@@ -69,6 +71,8 @@ import static org.hamcrest.Matchers.*;
  */
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class TranslogTests extends ElasticsearchTestCase {
+
+    private static final Pattern PARSE_LEGACY_ID_PATTERN = Pattern.compile("^" + Translog.TRANSLOG_FILE_PREFIX + "(\\d+)((\\.recovering))?$");
 
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
 
@@ -126,17 +130,40 @@ public class TranslogTests extends ElasticsearchTestCase {
 
     public void testIdParsingFromFile() {
         long id = randomIntBetween(0, Integer.MAX_VALUE);
-        Path file = translogDir.resolve(Translog.TRANSLOG_FILE_PREFIX + id);
+        Path file = translogDir.resolve(Translog.TRANSLOG_FILE_PREFIX + id + ".tlog");
         assertThat(Translog.parseIdFromFileName(file), equalTo(id));
+
+        id = randomIntBetween(0, Integer.MAX_VALUE);
+        file = translogDir.resolve(Translog.TRANSLOG_FILE_PREFIX + id);
+        try {
+            Translog.parseIdFromFileName(file);
+            fail("invalid pattern");
+        } catch (IllegalArgumentException ex) {
+            // all good
+        }
 
         file = translogDir.resolve(Translog.TRANSLOG_FILE_PREFIX + id + ".recovering");
-        assertThat(Translog.parseIdFromFileName(file), equalTo(id));
+        try {
+            Translog.parseIdFromFileName(file);
+            fail("invalid pattern");
+        } catch (IllegalArgumentException ex) {
+            // all good
+        }
 
         file = translogDir.resolve(Translog.TRANSLOG_FILE_PREFIX + randomNonTranslogPatternString(1, 10) + id);
-        assertThat(Translog.parseIdFromFileName(file), equalTo(-1l));
-
+        try {
+            Translog.parseIdFromFileName(file);
+            fail("invalid pattern");
+        } catch (IllegalArgumentException ex) {
+            // all good
+        }
         file = translogDir.resolve(randomNonTranslogPatternString(1, Translog.TRANSLOG_FILE_PREFIX.length() - 1));
-        assertThat(Translog.parseIdFromFileName(file), equalTo(-1l));
+        try {
+            Translog.parseIdFromFileName(file);
+            fail("invalid pattern");
+        } catch (IllegalArgumentException ex) {
+            // all good
+        }
     }
 
     private String randomNonTranslogPatternString(int min, int max) {
@@ -151,7 +178,7 @@ public class TranslogTests extends ElasticsearchTestCase {
             } catch (InvalidPathException ex) {
                 // some FS don't like our random file names -- let's just skip these random choices
             }
-        } while (Translog.PARSE_ID_PATTERN.matcher(string).matches() || validPathString == false);
+        } while (Translog.PARSE_STRICT_ID_PATTERN.matcher(string).matches() || validPathString == false);
         return string;
     }
 
@@ -1166,7 +1193,7 @@ public class TranslogTests extends ElasticsearchTestCase {
             assertEquals(tlogFiles.length, 1);
             final long size = Files.size(tlogFiles[0]);
 
-            final long generation = Translog.parseIdFromFileName(tlogFiles[0]);
+            final long generation = parseLegacyTranslogFile(tlogFiles[0]);
             assertTrue(generation >= 1);
             logger.debug("upgrading index {} file: {} size: {}", indexName, tlogFiles[0].getFileName(), size);
             TranslogConfig upgradeConfig = new TranslogConfig(config.getShardId(), translog, config.getIndexSettings(), config.getDurabilty(), config.getBigArrays(), config.getThreadPool());
@@ -1226,7 +1253,7 @@ public class TranslogTests extends ElasticsearchTestCase {
                 } catch (IllegalArgumentException ex) {
                     // expected
                 }
-                long generation = Translog.parseIdFromFileName(legacyTranslog);
+                long generation = parseLegacyTranslogFile(legacyTranslog);
                 upgradeConfig.setTranslogGeneration(new Translog.TranslogGeneration(null, generation));
                 Translog.upgradeLegacyTranslog(logger, upgradeConfig);
                 try (Translog tlog = new Translog(upgradeConfig)) {
@@ -1242,5 +1269,18 @@ public class TranslogTests extends ElasticsearchTestCase {
                 }
             }
         }
+    }
+
+    public static long parseLegacyTranslogFile(Path translogFile) {
+        final String fileName = translogFile.getFileName().toString();
+        final Matcher matcher = PARSE_LEGACY_ID_PATTERN.matcher(fileName);
+        if (matcher.matches()) {
+            try {
+                return Long.parseLong(matcher.group(1));
+            } catch (NumberFormatException e) {
+                throw new IllegalStateException("number formatting issue in a file that passed PARSE_STRICT_ID_PATTERN: " + fileName + "]", e);
+            }
+        }
+        throw new IllegalArgumentException("can't parse id from file: " + fileName);
     }
 }

@@ -97,7 +97,7 @@ public class RecoveryState implements ToXContent, Streamable {
     }
 
     public static enum Type {
-        GATEWAY((byte) 0),
+        STORE((byte) 0),
         SNAPSHOT((byte) 1),
         REPLICA((byte) 2),
         RELOCATION((byte) 3);

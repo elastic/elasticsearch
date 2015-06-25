@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -59,8 +58,8 @@ public class SameShardAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        Iterable<MutableShardRouting> assignedShards = allocation.routingNodes().assignedShards(shardRouting);
-        for (MutableShardRouting assignedShard : assignedShards) {
+        Iterable<ShardRouting> assignedShards = allocation.routingNodes().assignedShards(shardRouting);
+        for (ShardRouting assignedShard : assignedShards) {
             if (node.nodeId().equals(assignedShard.currentNodeId())) {
                 return allocation.decision(Decision.NO, NAME, "shard cannot be allocated on same node [%s] it already exists on", node.nodeId());
             }
@@ -83,7 +82,7 @@ public class SameShardAllocationDecider extends AllocationDecider {
                         }
                     }
                     if (checkNodeOnSameHost) {
-                        for (MutableShardRouting assignedShard : assignedShards) {
+                        for (ShardRouting assignedShard : assignedShards) {
                             if (checkNode.nodeId().equals(assignedShard.currentNodeId())) {
                                 return allocation.decision(Decision.NO, NAME,
                                         "shard cannot be allocated on same host [%s] it already exists on", node.nodeId());

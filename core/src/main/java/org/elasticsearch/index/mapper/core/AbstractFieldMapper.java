@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper.core;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Function;
-import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
 import org.apache.lucene.document.Field;
@@ -39,6 +38,7 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedFieldTypeReference;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
@@ -63,18 +63,6 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.DOC_VALUES;
 public abstract class AbstractFieldMapper implements FieldMapper {
 
     public static class Defaults {
-        public static final MappedFieldType FIELD_TYPE = new MappedFieldType();
-
-        static {
-            FIELD_TYPE.setTokenized(true);
-            FIELD_TYPE.setStored(false);
-            FIELD_TYPE.setStoreTermVectors(false);
-            FIELD_TYPE.setOmitNorms(false);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
-            FIELD_TYPE.setBoost(Defaults.BOOST);
-            FIELD_TYPE.freeze();
-        }
-
         public static final float BOOST = 1.0f;
         public static final ContentPath.Type PATH_TYPE = ContentPath.Type.FULL;
     }
@@ -133,7 +121,7 @@ public abstract class AbstractFieldMapper implements FieldMapper {
         }
 
         public T storeTermVectors(boolean termVectors) {
-            if (termVectors) {
+            if (termVectors != this.fieldType.storeTermVectors()) {
                 this.fieldType.setStoreTermVectors(termVectors);
             } // don't set it to false, it is default and might be flipped by a more specific option
             return builder;
@@ -268,7 +256,7 @@ public abstract class AbstractFieldMapper implements FieldMapper {
         }
     }
 
-    protected MappedFieldType fieldType;
+    protected MappedFieldTypeReference fieldTypeRef;
     protected final boolean hasDefaultDocValues;
     protected Settings customFieldDataSettings;
     protected final MultiFields multiFields;
@@ -302,14 +290,16 @@ public abstract class AbstractFieldMapper implements FieldMapper {
         }
         hasDefaultDocValues = docValues == null;
 
-        this.fieldType = fieldType.clone();
+        this.fieldTypeRef = new MappedFieldTypeReference(fieldType); // must init first so defaultDocValues() can be called
+        fieldType = fieldType.clone();
         if (fieldType.indexAnalyzer() == null && fieldType.tokenized() == false && fieldType.indexOptions() != IndexOptions.NONE) {
-            this.fieldType().setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            this.fieldType().setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
+            fieldType.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            fieldType.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
-        this.fieldType().setHasDocValues(docValues == null ? defaultDocValues() : docValues);
-        this.fieldType().setFieldDataType(fieldDataType);
-        this.fieldType().freeze();
+        fieldType.setHasDocValues(docValues == null ? defaultDocValues() : docValues);
+        fieldType.setFieldDataType(fieldDataType);
+        fieldType.freeze();
+        this.fieldTypeRef.set(fieldType); // now reset ref once extra settings have been initialized
 
         this.multiFields = multiFields;
         this.copyTo = copyTo;
@@ -335,7 +325,21 @@ public abstract class AbstractFieldMapper implements FieldMapper {
 
     @Override
     public MappedFieldType fieldType() {
-        return fieldType;
+        return fieldTypeRef.get();
+    }
+
+    @Override
+    public MappedFieldTypeReference fieldTypeReference() {
+        return fieldTypeRef;
+    }
+
+    @Override
+    public void setFieldTypeReference(MappedFieldTypeReference ref) {
+        if (ref.get().equals(fieldType()) == false) {
+            throw new IllegalStateException("Cannot overwrite field type reference to unequal reference");
+        }
+        ref.incrementAssociatedMappers();
+        this.fieldTypeRef = ref;
     }
 
     @Override
@@ -393,7 +397,16 @@ public abstract class AbstractFieldMapper implements FieldMapper {
         }
         AbstractFieldMapper fieldMergeWith = (AbstractFieldMapper) mergeWith;
         List<String> subConflicts = new ArrayList<>(); // TODO: just expose list from MergeResult?
-        fieldType().checkCompatibility(fieldMergeWith.fieldType(), subConflicts);
+        fieldType().checkTypeName(fieldMergeWith.fieldType(), subConflicts);
+        if (subConflicts.isEmpty() == false) {
+            // return early if field types don't match
+            assert subConflicts.size() == 1;
+            mergeResult.addConflict(subConflicts.get(0));
+            return;
+        }
+
+        boolean strict = this.fieldTypeRef.getNumAssociatedMappers() > 1 && mergeResult.updateAllTypes() == false;
+        fieldType().checkCompatibility(fieldMergeWith.fieldType(), subConflicts, strict);
         for (String conflict : subConflicts) {
             mergeResult.addConflict(conflict);
         }
@@ -401,13 +414,10 @@ public abstract class AbstractFieldMapper implements FieldMapper {
 
         if (mergeResult.simulate() == false && mergeResult.hasConflicts() == false) {
             // apply changeable values
-            this.fieldType = fieldMergeWith.fieldType().clone();
-            this.fieldType().freeze();
-            if (fieldMergeWith.customFieldDataSettings != null) {
-                if (!Objects.equal(fieldMergeWith.customFieldDataSettings, this.customFieldDataSettings)) {
-                    this.customFieldDataSettings = fieldMergeWith.customFieldDataSettings;
-                }
-            }
+            MappedFieldType fieldType = fieldMergeWith.fieldType().clone();
+            fieldType.freeze();
+            fieldTypeRef.set(fieldType);
+            this.customFieldDataSettings = fieldMergeWith.customFieldDataSettings;
             this.copyTo = fieldMergeWith.copyTo;
         }
     }
@@ -468,7 +478,7 @@ public abstract class AbstractFieldMapper implements FieldMapper {
         }
 
         TreeMap<String, Object> orderedFielddataSettings = new TreeMap<>();
-        if (customFieldDataSettings != null) {
+        if (hasCustomFieldDataSettings()) {
             orderedFielddataSettings.putAll(customFieldDataSettings.getAsMap());
             builder.field("fielddata", orderedFielddataSettings);
         } else if (includeDefaults) {
@@ -548,12 +558,11 @@ public abstract class AbstractFieldMapper implements FieldMapper {
         }
     }
 
-    protected abstract String contentType();
-
-    @Override
-    public void close() {
-        multiFields.close();
+    protected boolean hasCustomFieldDataSettings() {
+        return customFieldDataSettings != null && customFieldDataSettings.equals(Settings.EMPTY) == false;
     }
+
+    protected abstract String contentType();
 
     public static class MultiFields {
 
@@ -686,12 +695,6 @@ public abstract class AbstractFieldMapper implements FieldMapper {
                     return cursor.value;
                 }
             });
-        }
-
-        public void close() {
-            for (ObjectCursor<FieldMapper> cursor : mappers.values()) {
-                cursor.value.close();
-            }
         }
 
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

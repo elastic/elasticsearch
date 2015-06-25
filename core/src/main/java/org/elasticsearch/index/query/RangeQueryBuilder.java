@@ -29,19 +29,14 @@ import java.io.IOException;
 public class RangeQueryBuilder extends MultiTermQueryBuilder implements BoostableQueryBuilder<RangeQueryBuilder> {
 
     private final String name;
-
     private Object from;
-
     private Object to;
     private String timeZone;
-
     private boolean includeLower = true;
-
     private boolean includeUpper = true;
-
     private float boost = -1;
-
     private String queryName;
+    private String format;
 
     /**
      * A Query that matches documents within an range of terms.
@@ -406,6 +401,14 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Boostabl
         return this;
     }
 
+    /**
+     * In case of date field, we can set the format to be used instead of the mapper format
+     */
+    public RangeQueryBuilder format(String format) {
+        this.format = format;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(RangeQueryParser.NAME);
@@ -414,6 +417,9 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Boostabl
         builder.field("to", to);
         if (timeZone != null) {
             builder.field("time_zone", timeZone);
+        }
+        if (format != null) {
+            builder.field("format", format);
         }
         builder.field("include_lower", includeLower);
         builder.field("include_upper", includeUpper);

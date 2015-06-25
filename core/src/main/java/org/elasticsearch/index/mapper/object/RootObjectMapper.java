@@ -147,6 +147,9 @@ public class RootObjectMapper extends ObjectMapper {
                 List<FormatDateTimeFormatter> dateTimeFormatters = newArrayList();
                 if (fieldNode instanceof List) {
                     for (Object node1 : (List) fieldNode) {
+                        if (node1.toString().startsWith("epoch_")) {
+                            throw new MapperParsingException("Epoch ["+ node1.toString() +"] is not supported as dynamic date format");
+                        }
                         dateTimeFormatters.add(parseDateTimeFormatter(node1));
                     }
                 } else if ("none".equals(fieldNode.toString())) {

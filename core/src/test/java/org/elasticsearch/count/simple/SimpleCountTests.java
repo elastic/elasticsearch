@@ -181,7 +181,7 @@ public class SimpleCountTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testThatNonEpochDatesCanBeSearch() throws Exception {
+    public void testThatNonEpochDatesCanBeSearched() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type1",
                     jsonBuilder().startObject().startObject("type1")
@@ -201,16 +201,9 @@ public class SimpleCountTests extends ElasticsearchIntegrationTest {
                 .endObject();
         assertThat(client().prepareIndex("test", "type1").setSource(document).get().isCreated(), is(true));
 
-        // this is a timestamp in 2015 and should not be returned in counting when filtering by year
-        document = jsonBuilder()
-                .startObject()
-                .field("date_field", "1433236702")
-                .endObject();
-        assertThat(client().prepareIndex("test", "type1").setSource(document).get().isCreated(), is(true));
-
         refresh();
 
-        assertHitCount(client().prepareCount("test").get(), 3);
+        assertHitCount(client().prepareCount("test").get(), 2);
 
         CountResponse countResponse = client().prepareCount("test").setQuery(QueryBuilders.rangeQuery("date_field").from("2015010100").to("2015123123")).get();
         assertHitCount(countResponse, 1);

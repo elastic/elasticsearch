@@ -69,6 +69,7 @@ import org.elasticsearch.search.aggregations.pipeline.cumulativesum.CumulativeSu
 import org.elasticsearch.search.aggregations.pipeline.bucketscript.BucketScriptPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.derivative.InternalDerivative;
+import org.elasticsearch.search.aggregations.pipeline.having.BucketSelectorPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.TransportMovAvgModelModule;
 
@@ -131,6 +132,7 @@ public class TransportAggregationModule extends AbstractModule implements SpawnM
         MovAvgPipelineAggregator.registerStreams();
         CumulativeSumPipelineAggregator.registerStreams();
         BucketScriptPipelineAggregator.registerStreams();
+        BucketSelectorPipelineAggregator.registerStreams();
     }
 
     @Override

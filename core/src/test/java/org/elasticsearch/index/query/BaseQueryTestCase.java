@@ -137,7 +137,7 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends Ela
                     STRING_FIELD_NAME, "type=string",
                     OBJECT_FIELD_NAME, "type=object",
                     OBJECT_FIELD_NAME+"."+DATE_FIELD_NAME, "type=date",
-                    OBJECT_FIELD_NAME+"."+INT_FIELD_NAME, "type=integer").string()), false);
+                    OBJECT_FIELD_NAME+"."+INT_FIELD_NAME, "type=integer").string()), false, false);
             currentTypes[i] = type;
         }
         namedWriteableRegistry = injector.getInstance(NamedWriteableRegistry.class);

@@ -33,11 +33,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> i
 
     public static final String NAME = "match";
 
-    public enum Operator {
-        OR,
-        AND
-    }
-
     public enum Type {
         /**
          * The text is analyzed and terms are added to a boolean query.

@@ -137,6 +137,8 @@ public class CommonTermsQueryBuilderTest extends BaseQueryTestCase<CommonTermsQu
     @Test
     public void testNoTermsFromQueryString() throws IOException {
         CommonTermsQueryBuilder builder = new CommonTermsQueryBuilder(STRING_FIELD_NAME, "");
-        assertNull(builder.toQuery(createContext()));
+        QueryParseContext context = createContext();
+        context.setAllowUnmappedFields(true);
+        assertNull(builder.toQuery(context));
     }
 }

@@ -500,28 +500,36 @@ public final class XContentBuilder implements BytesStream, Releasable {
 
     public XContentBuilder field(String name, BigDecimal value, int scale, RoundingMode rounding, boolean toDouble) throws IOException {
         field(name);
-        if (toDouble) {
-            try {
-                generator.writeNumber(value.setScale(scale, rounding).doubleValue());
-            } catch (ArithmeticException e) {
+        if (value == null) {
+            generator.writeNull();
+        } else {
+            if (toDouble) {
+                try {
+                    generator.writeNumber(value.setScale(scale, rounding).doubleValue());
+                } catch (ArithmeticException e) {
+                    generator.writeString(value.toEngineeringString());
+                }
+            } else {
                 generator.writeString(value.toEngineeringString());
             }
-        } else {
-            generator.writeString(value.toEngineeringString());
         }
         return this;
     }
 
     public XContentBuilder field(XContentBuilderString name, BigDecimal value, int scale, RoundingMode rounding, boolean toDouble) throws IOException {
         field(name);
-        if (toDouble) {
-            try {
-                generator.writeNumber(value.setScale(scale, rounding).doubleValue());
-            } catch (ArithmeticException e) {
+        if (value == null) {
+            generator.writeNull();
+        } else {
+            if (toDouble) {
+                try {
+                    generator.writeNumber(value.setScale(scale, rounding).doubleValue());
+                } catch (ArithmeticException e) {
+                    generator.writeString(value.toEngineeringString());
+                }
+            } else {
                 generator.writeString(value.toEngineeringString());
             }
-        } else {
-            generator.writeString(value.toEngineeringString());
         }
         return this;
     }

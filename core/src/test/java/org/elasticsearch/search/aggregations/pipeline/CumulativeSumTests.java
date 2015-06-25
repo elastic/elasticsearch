@@ -122,6 +122,7 @@ public class CumulativeSumTests extends ElasticsearchIntegrationTest {
                 .prepareSearch("idx")
                 .addAggregation(
                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
+                                .extendedBounds((long) minRandomValue, (long) maxRandomValue)
                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
                                 .subAggregation(cumulativeSum("cumulative_sum").setBucketsPaths("sum"))).execute().actionGet();
 

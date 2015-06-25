@@ -358,6 +358,6 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         ParseField TRANSFORM = new ParseField("transform");
         ParseField THROTTLE_PERIOD = new ParseField("throttle_period");
         ParseField METADATA = new ParseField("metadata");
-        ParseField STATUS = new ParseField("status");
+        ParseField STATUS = new ParseField("_status");
     }
 }

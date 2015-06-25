@@ -62,7 +62,7 @@ public class WrapperQueryParser implements QueryParser {
             context.reset(qSourceParser);
             Query result = context.parseInnerQuery();
             parser.nextToken();
-            parseContext.combineNamedFilters(context);
+            parseContext.combineNamedQueries(context);
             return result;
         }
     }

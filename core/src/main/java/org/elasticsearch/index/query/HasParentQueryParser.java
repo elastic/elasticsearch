@@ -154,7 +154,8 @@ public class HasParentQueryParser implements QueryParser {
         }
 
         if (innerHits != null) {
-            InnerHitsContext.ParentChildInnerHits parentChildInnerHits = new InnerHitsContext.ParentChildInnerHits(innerHits.v2(), innerQuery, null, parseContext.mapperService(), parentDocMapper);
+            ParsedQuery parsedQuery = new ParsedQuery(innerQuery, parseContext.copyNamedQueries());
+            InnerHitsContext.ParentChildInnerHits parentChildInnerHits = new InnerHitsContext.ParentChildInnerHits(innerHits.v2(), parsedQuery, null, parseContext.mapperService(), parentDocMapper);
             String name = innerHits.v1() != null ? innerHits.v1() : parentType;
             parseContext.addInnerHits(name, parentChildInnerHits);
         }

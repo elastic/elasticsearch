@@ -217,7 +217,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
             if (filter == null) {
                 return null;
             }
-            return new ParsedQuery(filter, context.copyNamedFilters());
+            return new ParsedQuery(filter, context.copyNamedQueries());
         } finally {
             context.reset(null);
         }
@@ -300,7 +300,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
             if (query == null) {
                 query = Queries.newMatchNoDocsQuery();
             }
-            return new ParsedQuery(query, parseContext.copyNamedFilters());
+            return new ParsedQuery(query, parseContext.copyNamedQueries());
         } finally {
             parseContext.reset(null);
         }

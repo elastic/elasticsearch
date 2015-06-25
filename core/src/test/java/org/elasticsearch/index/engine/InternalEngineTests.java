@@ -77,6 +77,7 @@ import org.elasticsearch.index.store.DirectoryUtils;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
+import org.elasticsearch.index.translog.TranslogTests;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -94,12 +95,15 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.hamcrest.Matchers.*;
 public class InternalEngineTests extends ElasticsearchTestCase {
+
+    private static final Pattern PARSE_LEGACY_ID_PATTERN = Pattern.compile("^" + Translog.TRANSLOG_FILE_PREFIX + "(\\d+)((\\.recovering))?$");
 
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
 
@@ -1753,7 +1757,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             assertEquals(Arrays.toString(tlogFiles), tlogFiles.length, 1);
             final long size = Files.size(tlogFiles[0]);
 
-            final long generation = Translog.parseIdFromFileName(tlogFiles[0]);
+            final long generation = TranslogTests.parseLegacyTranslogFile(tlogFiles[0]);
             assertTrue(generation >= 1);
             logger.debug("upgrading index {} file: {} size: {}", indexName, tlogFiles[0].getFileName(), size);
             Directory directory = newFSDirectory(src.resolve("0").resolve("index"));

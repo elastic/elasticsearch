@@ -5,19 +5,22 @@
  */
 package org.elasticsearch.watcher.support;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.WatcherException;
 import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.Callable;
 
 /**
@@ -88,6 +91,20 @@ public class DynamicIndexName implements ToXContent {
         return settings.get("watcher.dynamic_indices.default_date_format", DEFAULT_DATE_FORMAT);
     }
 
+    public static DateTimeZone timeZone(Settings settings, String componentPrefix) {
+        if (componentPrefix == null) {
+            return timeZone(settings);
+        }
+
+        String timeZoneId = settings.get(componentPrefix + ".dynamic_indices.time_zone", DateTimeZone.UTC.getID());
+        return DateTimeZone.forID(timeZoneId);
+    }
+
+    public static DateTimeZone timeZone(Settings settings) {
+        String timeZoneId = settings.get("watcher.dynamic_indices.time_zone", DateTimeZone.UTC.getID());
+        return DateTimeZone.forID(timeZoneId);
+    }
+
     interface Expression {
 
         String eval(DateTime now);
@@ -108,6 +125,48 @@ public class DynamicIndexName implements ToXContent {
         }
     }
 
+    static class DateMathExpression implements Expression {
+
+        private final DateMathParser dateMathParser;
+        private final String mathExpression;
+        private final FormatDateTimeFormatter formatter;
+        private final DateTimeZone timeZone;
+
+        public DateMathExpression(String defaultFormat, DateTimeZone timeZone, String expression) {
+            this.timeZone = timeZone;
+            int i = expression.indexOf(LEFT_BOUND);
+            String format;
+            if (i < 0) {
+                mathExpression = expression;
+                format = defaultFormat;
+            } else {
+                if (expression.lastIndexOf(RIGHT_BOUND) != expression.length() - 1) {
+                    throw new ParseException("invalid dynamic name expression [{}]. missing closing `}` for date math format", expression);
+                }
+                if (i == expression.length() - 2) {
+                    throw new ParseException("invalid dynamic name expression [{}]. missing date format", expression);
+                }
+                mathExpression = expression.substring(0, i);
+                format = expression.substring(i + 1, expression.length() - 1);
+
+            }
+            DateTimeFormatter parser = DateTimeFormat.forPattern(format).withZone(timeZone);
+            formatter = new FormatDateTimeFormatter(defaultFormat, parser, Locale.ROOT);
+            dateMathParser = new DateMathParser(formatter);
+        }
+
+        @Override
+        public String eval(final DateTime now) {
+            long millis = dateMathParser.parse(mathExpression, new Callable<Long>() {
+                @Override
+                public Long call() throws Exception {
+                    return now.getMillis();
+                }
+            }, false, timeZone);
+            return formatter.printer().print(millis);
+        }
+    }
+
     static class CompoundExpression implements Expression {
 
         private final Expression[] parts;
@@ -125,7 +184,7 @@ public class DynamicIndexName implements ToXContent {
             return sb.toString();
         }
 
-        static Expression parse(String defaultDateFormat, char[] text, int from, int length) {
+        static Expression parse(String defaultDateFormat, DateTimeZone timeZone, char[] text, int from, int length) {
             boolean dynamic = false;
             List<Expression> expressions = new ArrayList<>();
             StringBuilder sb = new StringBuilder();
@@ -170,7 +229,7 @@ public class DynamicIndexName implements ToXContent {
                                 inDateFormat = false;
                                 sb.append(c);
                             } else {
-                                expressions.add(new DateMathExpression(defaultDateFormat, sb.toString()));
+                                expressions.add(new DateMathExpression(defaultDateFormat, timeZone, sb.toString()));
                                 sb = new StringBuilder();
                                 inPlaceHolder = false;
                                 dynamic = true;
@@ -227,81 +286,54 @@ public class DynamicIndexName implements ToXContent {
         }
     }
 
-    static class DateMathExpression implements Expression {
-
-        private final DateMathParser dateMathParser;
-        private final String mathExpression;
-        private final FormatDateTimeFormatter formatter;
-
-        public DateMathExpression(String defaultFormat, String expression) {
-            int i = expression.indexOf(LEFT_BOUND);
-            if (i < 0) {
-                mathExpression = expression;
-                formatter = Joda.forPattern(defaultFormat);
-            } else {
-                if (expression.lastIndexOf(RIGHT_BOUND) != expression.length() - 1) {
-                    throw new ParseException("invalid dynamic name expression [{}]. missing closing `}` for date math format", expression);
-                }
-                if (i == expression.length() - 2) {
-                    throw new ParseException("invalid dynamic name expression [{}]. missing date format", expression);
-                }
-                mathExpression = expression.substring(0, i);
-                formatter = Joda.forPattern(expression.substring(i + 1, expression.length() - 1));
-            }
-            dateMathParser = new DateMathParser(formatter);
-        }
-
-        @Override
-        public String eval(final DateTime now) {
-            long millis = dateMathParser.parse(mathExpression, new Callable<Long>() {
-                @Override
-                public Long call() throws Exception {
-                    return now.getMillis();
-                }
-            });
-            return formatter.printer().print(millis);
-        }
-    }
-
     public static class Parser {
 
         private final String defaultDateFormat;
+        private final DateTimeZone timeZone;
 
         public Parser() {
-            this(DEFAULT_DATE_FORMAT);
+            this(DEFAULT_DATE_FORMAT, DateTimeZone.UTC);
         }
 
-        public Parser(String defaultDateFormat) {
+        public Parser(String defaultDateFormat, DateTimeZone timeZone) {
             this.defaultDateFormat = defaultDateFormat;
+            this.timeZone = timeZone;
+        }
+
+        public Parser(Settings settings, String componentPrefix) {
+            this(defaultDateFormat(settings, componentPrefix), timeZone(settings, componentPrefix));
         }
 
         public DynamicIndexName parse(String template) {
+            return parse(template, null);
+        }
+
+        public DynamicIndexName parse(String template, @Nullable DateTimeZone timeZone) {
+            DateTimeZone tz = timeZone != null ? timeZone : this.timeZone;
             if (template == null) {
                 return null;
             }
             if (!template.startsWith(EXPRESSION_LEFT_BOUND) || !template.endsWith(EXPRESSION_RIGHT_BOUND)) {
                 return new DynamicIndexName(template, new StaticExpression(template));
             }
-            return new DynamicIndexName(template, CompoundExpression.parse(defaultDateFormat, template.toCharArray(), 1, template.length() - 1));
+            return new DynamicIndexName(template, CompoundExpression.parse(defaultDateFormat, tz, template.toCharArray(), 1, template.length() - 1));
         }
 
         public DynamicIndexName[] parse(String[] templates) {
+            return parse(templates, null);
+        }
+
+        public DynamicIndexName[] parse(String[] templates, @Nullable DateTimeZone timeZone) {
             if (templates.length == 0) {
                 return null;
             }
             DynamicIndexName[] dynamicIndexNames = new DynamicIndexName[templates.length];
             for (int i = 0; i < dynamicIndexNames.length; i++) {
-                dynamicIndexNames[i] = parse(templates[i]);
+                dynamicIndexNames[i] = parse(templates[i], timeZone);
             }
             return dynamicIndexNames;
         }
 
-        public DynamicIndexName parse(XContentParser parser) throws IOException {
-            if (parser.currentToken() != XContentParser.Token.VALUE_STRING) {
-                throw new ParseException("could not parse index name. expected a string value but found [{}] instead", parser.currentToken());
-            }
-            return parse(parser.text());
-        }
     }
 
     public static class ParseException extends WatcherException {

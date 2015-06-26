@@ -18,6 +18,7 @@ import org.elasticsearch.watcher.support.SearchRequestParseException;
 import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.watch.Payload;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -34,11 +35,14 @@ public class SearchInput implements Input {
     private final SearchRequest searchRequest;
     private final @Nullable Set<String> extractKeys;
     private final @Nullable TimeValue timeout;
+    private final @Nullable DateTimeZone dynamicNameTimeZone;
 
-    public SearchInput(SearchRequest searchRequest, @Nullable Set<String> extractKeys, @Nullable TimeValue timeout) {
+    public SearchInput(SearchRequest searchRequest, @Nullable Set<String> extractKeys,
+                       @Nullable TimeValue timeout, @Nullable DateTimeZone dynamicNameTimeZone) {
         this.searchRequest = searchRequest;
         this.extractKeys = extractKeys;
         this.timeout = timeout;
+        this.dynamicNameTimeZone = dynamicNameTimeZone;
     }
 
     @Override
@@ -54,13 +58,17 @@ public class SearchInput implements Input {
         SearchInput that = (SearchInput) o;
 
         if (!SearchRequestEquivalence.INSTANCE.equivalent(searchRequest, this.searchRequest)) return false;
-        return !(extractKeys != null ? !extractKeys.equals(that.extractKeys) : that.extractKeys != null);
+        if (extractKeys != null ? !extractKeys.equals(that.extractKeys) : that.extractKeys != null) return false;
+        if (timeout != null ? !timeout.equals(that.timeout) : that.timeout != null) return false;
+        return !(dynamicNameTimeZone != null ? !dynamicNameTimeZone.equals(that.dynamicNameTimeZone) : that.dynamicNameTimeZone != null);
     }
 
     @Override
     public int hashCode() {
         int result = searchRequest.hashCode();
         result = 31 * result + (extractKeys != null ? extractKeys.hashCode() : 0);
+        result = 31 * result + (timeout != null ? timeout.hashCode() : 0);
+        result = 31 * result + (dynamicNameTimeZone != null ? dynamicNameTimeZone.hashCode() : 0);
         return result;
     }
 
@@ -76,6 +84,10 @@ public class SearchInput implements Input {
         return timeout;
     }
 
+    public DateTimeZone getDynamicNameTimeZone() {
+        return dynamicNameTimeZone;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -87,14 +99,18 @@ public class SearchInput implements Input {
         if (timeout != null) {
             builder.field(Field.TIMEOUT.getPreferredName(), timeout);
         }
+        if (dynamicNameTimeZone != null) {
+            builder.field(Field.DYNAMIC_NAME_TIMEZONE.getPreferredName(), dynamicNameTimeZone);
+        }
         builder.endObject();
         return builder;
     }
 
-    public static SearchInput parse(String watchId, XContentParser parser, TimeValue defaultTimeout) throws IOException {
+    public static SearchInput parse(String watchId, XContentParser parser) throws IOException {
         SearchRequest request = null;
         Set<String> extract = null;
-        TimeValue timeout = defaultTimeout;
+        TimeValue timeout = null;
+        DateTimeZone dynamicNameTimeZone = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -122,6 +138,12 @@ public class SearchInput implements Input {
                 }
             } else if (Field.TIMEOUT.match(currentFieldName)) {
                 timeout = WatcherDateTimeUtils.parseTimeValue(parser, Field.TIMEOUT.toString());
+            } else if (Field.DYNAMIC_NAME_TIMEZONE.match(currentFieldName)) {
+                if (token == XContentParser.Token.VALUE_STRING) {
+                    dynamicNameTimeZone = DateTimeZone.forID(parser.text());
+                } else {
+                    throw new SearchInputException("could not parse [{}] input for watch [{}]. failed to parse [{}]. must be a string value (e.g. 'UTC' or '+01:00').", TYPE, watchId, currentFieldName);
+                }
             } else {
                 throw new SearchInputException("could not parse [{}] input for watch [{}]. unexpected token [{}]", TYPE, watchId, token);
             }
@@ -130,7 +152,7 @@ public class SearchInput implements Input {
         if (request == null) {
             throw new SearchInputException("could not parse [{}] input for watch [{}]. missing required [{}] field", TYPE, watchId, Field.REQUEST.getPreferredName());
         }
-        return new SearchInput(request, extract, timeout);
+        return new SearchInput(request, extract, timeout, dynamicNameTimeZone);
     }
 
     public static Builder builder(SearchRequest request) {
@@ -172,6 +194,7 @@ public class SearchInput implements Input {
         private final SearchRequest request;
         private final ImmutableSet.Builder<String> extractKeys = ImmutableSet.builder();
         private TimeValue timeout;
+        private DateTimeZone dynamicNameTimeZone;
 
         private Builder(SearchRequest request) {
             this.request = request;
@@ -192,10 +215,15 @@ public class SearchInput implements Input {
             return this;
         }
 
+        public Builder dynamicNameTimeZone(DateTimeZone dynamicNameTimeZone) {
+            this.dynamicNameTimeZone = dynamicNameTimeZone;
+            return this;
+        }
+
         @Override
         public SearchInput build() {
             Set<String> keys = extractKeys.build();
-            return new SearchInput(request, keys.isEmpty() ? null : keys, timeout);
+            return new SearchInput(request, keys.isEmpty() ? null : keys, timeout, dynamicNameTimeZone);
         }
     }
 
@@ -203,5 +231,6 @@ public class SearchInput implements Input {
         ParseField REQUEST = new ParseField("request");
         ParseField EXTRACT = new ParseField("extract");
         ParseField TIMEOUT = new ParseField("timeout");
+        ParseField DYNAMIC_NAME_TIMEZONE = new ParseField("dynamic_name_timezone");
     }
 }

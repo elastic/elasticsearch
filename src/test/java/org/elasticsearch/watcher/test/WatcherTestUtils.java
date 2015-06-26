@@ -5,20 +5,19 @@
  */
 package org.elasticsearch.watcher.test;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.*;
-import org.elasticsearch.script.ScriptContextRegistry;
-import org.joda.time.DateTime;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
@@ -66,6 +65,7 @@ import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.watch.WatchStatus;
 import org.hamcrest.Matcher;
+import org.joda.time.DateTime;
 
 import javax.mail.internet.AddressException;
 import java.io.IOException;
@@ -75,10 +75,10 @@ import java.util.*;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomInt;
 import static org.apache.lucene.util.LuceneTestCase.createTempDir;
-import static org.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.ElasticsearchTestCase.randomFrom;
+import static org.joda.time.DateTimeZone.UTC;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -223,7 +223,7 @@ public final class WatcherTestUtils {
                 new ScheduleTrigger(new CronSchedule("0/5 * * * * ? *")),
                 new ExecutableSimpleInput(new SimpleInput(new Payload.Simple(inputData)), logger),
                 new ExecutableScriptCondition(new ScriptCondition(Script.inline("return true").build()), logger, scriptService),
-                new ExecutableSearchTransform(new SearchTransform(transformRequest, null), logger, client, new DynamicIndexName.Parser()),
+                new ExecutableSearchTransform(new SearchTransform(transformRequest, null, null), logger, client, null, new DynamicIndexName.Parser()),
                 new TimeValue(0),
                 new ExecutableActions(actions),
                 metadata,

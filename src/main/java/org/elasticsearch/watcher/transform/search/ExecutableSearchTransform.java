@@ -10,6 +10,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.DynamicIndexName;
 import org.elasticsearch.watcher.support.WatcherUtils;
@@ -25,13 +26,15 @@ public class ExecutableSearchTransform extends ExecutableTransform<SearchTransfo
     public static final SearchType DEFAULT_SEARCH_TYPE = SearchType.QUERY_THEN_FETCH;
 
     protected final ClientProxy client;
+    protected final @Nullable TimeValue timeout;
     private final @Nullable DynamicIndexName[] indexNames;
 
-    public ExecutableSearchTransform(SearchTransform transform, ESLogger logger, ClientProxy client, DynamicIndexName.Parser indexNameParser) {
+    public ExecutableSearchTransform(SearchTransform transform, ESLogger logger, ClientProxy client, @Nullable TimeValue defaultTimeout, DynamicIndexName.Parser indexNameParser) {
         super(transform, logger);
         this.client = client;
+        this.timeout = transform.getTimeout() != null ? transform.getTimeout() : defaultTimeout;
         String[] indices = transform.getRequest().indices();
-        this.indexNames = indices != null ? indexNameParser.parse(indices) : null;
+        this.indexNames = indices != null ? indexNameParser.parse(indices, transform.getDynamicNameTimeZone()) : null;
     }
 
     DynamicIndexName[] indexNames() {
@@ -43,7 +46,7 @@ public class ExecutableSearchTransform extends ExecutableTransform<SearchTransfo
         SearchRequest request = null;
         try {
             request = WatcherUtils.createSearchRequestFromPrototype(transform.getRequest(), indexNames, ctx, payload);
-            SearchResponse resp = client.search(request, transform.getTimeout());
+            SearchResponse resp = client.search(request, timeout);
             return new SearchTransform.Result(request, new Payload.XContent(resp));
         } catch (Exception e) {
             logger.error("failed to execute [{}] transform for [{}]", e, SearchTransform.TYPE, ctx.id());

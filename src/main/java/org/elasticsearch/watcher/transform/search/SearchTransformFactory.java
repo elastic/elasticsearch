@@ -29,9 +29,8 @@ public class SearchTransformFactory extends TransformFactory<SearchTransform, Se
     public SearchTransformFactory(Settings settings, ClientProxy client) {
         super(Loggers.getLogger(ExecutableSearchTransform.class, settings));
         this.client = client;
-        String defaultDateFormat = DynamicIndexName.defaultDateFormat(settings, "watcher.transform.search");
-        this.indexNameParser = new DynamicIndexName.Parser(defaultDateFormat);
-        this.defaultTimeout = settings.getAsTime("watcher.transform.search.default_timeout", TimeValue.timeValueSeconds(30));
+        this.indexNameParser = new DynamicIndexName.Parser(settings, "watcher.transform.search");
+        this.defaultTimeout = settings.getAsTime("watcher.transform.search.default_timeout", null);
     }
 
     @Override
@@ -41,11 +40,11 @@ public class SearchTransformFactory extends TransformFactory<SearchTransform, Se
 
     @Override
     public SearchTransform parseTransform(String watchId, XContentParser parser) throws IOException {
-        return SearchTransform.parse(watchId, parser, defaultTimeout);
+        return SearchTransform.parse(watchId, parser);
     }
 
     @Override
     public ExecutableSearchTransform createExecutable(SearchTransform transform) {
-        return new ExecutableSearchTransform(transform, transformLogger, client, indexNameParser);
+        return new ExecutableSearchTransform(transform, transformLogger, client, defaultTimeout, indexNameParser);
     }
 }

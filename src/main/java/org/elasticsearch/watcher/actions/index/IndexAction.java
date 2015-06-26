@@ -14,6 +14,7 @@ import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.support.DynamicIndexName;
 import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 
@@ -28,12 +29,15 @@ public class IndexAction implements Action {
     final String docType;
     final @Nullable String executionTimeField;
     final @Nullable TimeValue timeout;
+    final @Nullable DateTimeZone dynamicNameTimeZone;
 
-    public IndexAction(String index, String docType, @Nullable String executionTimeField, @Nullable TimeValue timeout) {
+    public IndexAction(String index, String docType, @Nullable String executionTimeField,
+                       @Nullable TimeValue timeout, @Nullable DateTimeZone dynamicNameTimeZone) {
         this.index = index;
         this.docType = docType;
         this.executionTimeField = executionTimeField;
         this.timeout = timeout;
+        this.dynamicNameTimeZone = dynamicNameTimeZone;
     }
 
     @Override
@@ -53,6 +57,10 @@ public class IndexAction implements Action {
         return executionTimeField;
     }
 
+    public DateTimeZone getDynamicNameTimeZone() {
+        return dynamicNameTimeZone;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -62,7 +70,10 @@ public class IndexAction implements Action {
 
         if (!index.equals(that.index)) return false;
         if (!docType.equals(that.docType)) return false;
-        return !(executionTimeField != null ? !executionTimeField.equals(that.executionTimeField) : that.executionTimeField != null);
+        if (executionTimeField != null ? !executionTimeField.equals(that.executionTimeField) : that.executionTimeField != null)
+            return false;
+        if (timeout != null ? !timeout.equals(that.timeout) : that.timeout != null) return false;
+        return !(dynamicNameTimeZone != null ? !dynamicNameTimeZone.equals(that.dynamicNameTimeZone) : that.dynamicNameTimeZone != null);
     }
 
     @Override
@@ -70,6 +81,8 @@ public class IndexAction implements Action {
         int result = index.hashCode();
         result = 31 * result + docType.hashCode();
         result = 31 * result + (executionTimeField != null ? executionTimeField.hashCode() : 0);
+        result = 31 * result + (timeout != null ? timeout.hashCode() : 0);
+        result = 31 * result + (dynamicNameTimeZone != null ? dynamicNameTimeZone.hashCode() : 0);
         return result;
     }
 
@@ -83,15 +96,19 @@ public class IndexAction implements Action {
         }
         if (timeout != null) {
             builder.field(Field.TIMEOUT.getPreferredName(), timeout);
-        };
+        }
+        if (dynamicNameTimeZone != null) {
+            builder.field(Field.DYNAMIC_NAME_TIMEZONE.getPreferredName(), dynamicNameTimeZone);
+        }
         return builder.endObject();
     }
 
-    public static IndexAction parse(String watchId, String actionId, XContentParser parser, TimeValue defaultTimeout) throws IOException {
+    public static IndexAction parse(String watchId, String actionId, XContentParser parser) throws IOException {
         String index = null;
         String docType = null;
         String executionTimeField = null;
-        TimeValue timeout = defaultTimeout;
+        TimeValue timeout = null;
+        DateTimeZone dynamicNameTimeZone = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -111,6 +128,12 @@ public class IndexAction implements Action {
                     executionTimeField = parser.text();
                 } else if (Field.TIMEOUT.match(currentFieldName)) {
                     timeout = WatcherDateTimeUtils.parseTimeValue(parser, Field.TIMEOUT.toString());
+                } else if (Field.DYNAMIC_NAME_TIMEZONE.match(currentFieldName)) {
+                    if (token == XContentParser.Token.VALUE_STRING) {
+                        dynamicNameTimeZone = DateTimeZone.forID(parser.text());
+                    } else {
+                        throw new IndexActionException("could not parse [{}] action for watch [{}]. failed to parse [{}]. must be a string value (e.g. 'UTC' or '+01:00').", TYPE, watchId, currentFieldName);
+                    }
                 } else {
                     throw new IndexActionException("could not parse [{}] action [{}/{}]. unexpected string field [{}]", TYPE, watchId, actionId, currentFieldName);
                 }
@@ -127,7 +150,7 @@ public class IndexAction implements Action {
             throw new IndexActionException("could not parse [{}] action [{}/{}]. missing required [{}] field", TYPE, watchId, actionId, Field.DOC_TYPE.getPreferredName());
         }
 
-        return new IndexAction(index, docType, executionTimeField, timeout);
+        return new IndexAction(index, docType, executionTimeField, timeout, dynamicNameTimeZone);
     }
 
     public static Builder builder(String index, String docType) {
@@ -201,6 +224,7 @@ public class IndexAction implements Action {
         final String docType;
         String executionTimeField;
         TimeValue timeout;
+        DateTimeZone dynamicNameTimeZone;
 
         private Builder(String index, String docType) {
             this.index = index;
@@ -217,9 +241,14 @@ public class IndexAction implements Action {
             return this;
         }
 
+        public Builder dynamicNameTimeZone(DateTimeZone dynamicNameTimeZone) {
+            this.dynamicNameTimeZone = dynamicNameTimeZone;
+            return this;
+        }
+
         @Override
         public IndexAction build() {
-            return new IndexAction(index, docType, executionTimeField, timeout);
+            return new IndexAction(index, docType, executionTimeField, timeout, dynamicNameTimeZone);
         }
     }
 
@@ -231,5 +260,6 @@ public class IndexAction implements Action {
         ParseField RESPONSE = new ParseField("response");
         ParseField REQUEST = new ParseField("request");
         ParseField TIMEOUT = new ParseField("timeout");
+        ParseField DYNAMIC_NAME_TIMEZONE = new ParseField("dynamic_name_timezone");
     }
 }

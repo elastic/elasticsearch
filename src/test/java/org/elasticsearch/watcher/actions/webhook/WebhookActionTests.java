@@ -6,7 +6,6 @@
 package org.elasticsearch.watcher.actions.webhook;
 
 import com.google.common.collect.ImmutableMap;
-import org.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -34,6 +33,7 @@ import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
 import org.hamcrest.Matchers;
+import org.joda.time.DateTime;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -43,13 +43,13 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.Is.is;
+import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.*;
 
@@ -217,8 +217,7 @@ public class WebhookActionTests extends ElasticsearchTestCase {
     }
 
     private WebhookActionFactory webhookFactory(HttpClient client) {
-        return new WebhookActionFactory(Settings.EMPTY, client, new HttpRequest.Parser(authRegistry),
-                new HttpRequestTemplate.Parser(authRegistry), templateEngine);
+        return new WebhookActionFactory(Settings.EMPTY, client, new HttpRequestTemplate.Parser(authRegistry), templateEngine);
     }
 
     @Test

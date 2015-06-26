@@ -11,6 +11,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -35,13 +36,15 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
     public static final SearchType DEFAULT_SEARCH_TYPE = SearchType.QUERY_THEN_FETCH;
 
     private final ClientProxy client;
+    private final @Nullable TimeValue timeout;
     private final @Nullable DynamicIndexName[] indexNames;
 
-    public ExecutableSearchInput(SearchInput input, ESLogger logger, ClientProxy client, DynamicIndexName.Parser indexNameParser) {
+    public ExecutableSearchInput(SearchInput input, ESLogger logger, ClientProxy client, @Nullable TimeValue defaultTimeout, DynamicIndexName.Parser indexNameParser) {
         super(input, logger);
         this.client = client;
+        this.timeout = input.getTimeout() != null ? input.getTimeout() : defaultTimeout;
         String[] indices = input.getSearchRequest().indices();
-        indexNames =  indices != null ? indexNameParser.parse(indices) : null;
+        indexNames =  indices != null ? indexNameParser.parse(indices, input.getDynamicNameTimeZone()) : null;
     }
 
     DynamicIndexName[] indexNames() {
@@ -65,7 +68,7 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
             logger.trace("[{}] running query for [{}] [{}]", ctx.id(), ctx.watch().id(), XContentHelper.convertToJson(source, false, true));
         }
 
-        SearchResponse response = client.search(request, input.getTimeout());
+        SearchResponse response = client.search(request, timeout);
 
         if (logger.isDebugEnabled()) {
             logger.debug("[{}] found [{}] hits", ctx.id(), response.getHits().getTotalHits());

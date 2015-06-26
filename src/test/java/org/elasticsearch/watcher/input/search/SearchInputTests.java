@@ -39,6 +39,7 @@ import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.watch.WatchStatus;
 import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
 import org.junit.Test;
 
@@ -115,7 +116,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
                 .request()
                 .source(searchSourceBuilder);
 
-        ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null, null), logger, ClientProxy.of(client()), new DynamicIndexName.Parser());
+        ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null, null, null), logger, ClientProxy.of(client()), null, new DynamicIndexName.Parser());
         WatchExecutionContext ctx = new TriggeredExecutionContext(
                 new Watch("test-watch",
                         new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
@@ -222,7 +223,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
                 .request()
                 .source(searchSourceBuilder);
 
-        ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null, null), logger, ClientProxy.of(client()), new DynamicIndexName.Parser());
+        ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null, null, null), logger, ClientProxy.of(client()), null, new DynamicIndexName.Parser());
         WatchExecutionContext ctx = new TriggeredExecutionContext(
                 new Watch("test-watch",
                         new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
@@ -254,7 +255,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
                         .query(filteredQuery(matchQuery("event_type", "a"), rangeQuery("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}"))));
 
         TimeValue timeout = randomBoolean() ? TimeValue.timeValueSeconds(randomInt(10)) : null;
-        XContentBuilder builder = jsonBuilder().value(new SearchInput(request, null, timeout));
+        XContentBuilder builder = jsonBuilder().value(new SearchInput(request, null, timeout, null));
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 
@@ -262,44 +263,58 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
 
         SearchInput searchInput = factory.parseInput("_id", parser);
         assertEquals(SearchInput.TYPE, searchInput.type());
-        assertThat(searchInput.getTimeout(), equalTo(timeout != null ? timeout : TimeValue.timeValueSeconds(30))); // 30s is the default
+        assertThat(searchInput.getTimeout(), equalTo(timeout));
     }
 
     @Test
     public void testParser_IndexNames() throws Exception {
         SearchRequest request = client().prepareSearch()
                 .setSearchType(ExecutableSearchInput.DEFAULT_SEARCH_TYPE)
-                .setIndices("test", "<test-{now/M-1M}>")
+                .setIndices("test", "<test-{now/d-1d}>")
                 .request()
                 .source(searchSource()
                         .query(boolQuery().must(matchQuery("event_type", "a")).filter(rangeQuery("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}"))));
 
-        XContentBuilder builder = jsonBuilder().value(new SearchInput(request, null, null));
+        DateTime now = DateTime.now(UTC);
+        DateTimeZone timeZone = randomBoolean() ? DateTimeZone.forOffsetHours(-2) : null;
+        if (timeZone != null) {
+            now = now.withHourOfDay(0).withMinuteOfHour(0);
+        }
+
+        boolean timeZoneInWatch = randomBoolean();
+        SearchInput input = timeZone != null && timeZoneInWatch ?
+                new SearchInput(request, null, null, timeZone) :
+                new SearchInput(request, null, null, null);
+
+        XContentBuilder builder = jsonBuilder().value(input);
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 
         String dateFormat;
-        Settings settings;
+        Settings.Builder settingsBuilder = Settings.builder();
         if (randomBoolean()) {
             dateFormat = DynamicIndexName.DEFAULT_DATE_FORMAT;
-            settings = Settings.EMPTY;
         } else {
-            dateFormat = "YYYY-MM";
-            settings = Settings.builder()
-                    .put("watcher.input.search.dynamic_indices.default_date_format", dateFormat)
-                    .build();
+            dateFormat = "YYYY-MM-dd";
+            settingsBuilder.put("watcher.input.search.dynamic_indices.default_date_format", dateFormat);
+        }
+        if (timeZone != null && !timeZoneInWatch) {
+            settingsBuilder.put("watcher.input.search.dynamic_indices.time_zone", timeZone);
         }
 
-        SearchInputFactory factory = new SearchInputFactory(settings, ClientProxy.of(client()));
+        SearchInputFactory factory = new SearchInputFactory(settingsBuilder.build(), ClientProxy.of(client()));
 
         ExecutableSearchInput executable = factory.parseExecutable("_id", parser);
         DynamicIndexName[] indexNames = executable.indexNames();
         assertThat(indexNames, notNullValue());
-        DateTime now = DateTime.now(UTC);
+
         String[] names = DynamicIndexName.names(indexNames, now);
         assertThat(names, notNullValue());
         assertThat(names.length, is(2));
-        assertThat(names, arrayContaining("test", "test-" + DateTimeFormat.forPattern(dateFormat).print(now.withDayOfMonth(1).minusMonths(1))));
+        if (timeZone != null) {
+            now = now.withZone(timeZone);
+        }
+        assertThat(names, arrayContaining("test", "test-" + DateTimeFormat.forPattern(dateFormat).print(now.minusDays(1))));
     }
 
     @Test(expected = SearchInputException.class)
@@ -310,7 +325,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
                 .source(searchSource()
                         .query(filteredQuery(matchQuery("event_type", "a"), rangeQuery("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}"))));
 
-        XContentBuilder builder = jsonBuilder().value(new SearchInput(request, null, null));
+        XContentBuilder builder = jsonBuilder().value(new SearchInput(request, null, null, null));
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 
@@ -343,7 +358,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
 
         SearchInput si = siBuilder.build();
 
-        ExecutableSearchInput searchInput = new ExecutableSearchInput(si, logger, ClientProxy.of(client()), new DynamicIndexName.Parser());
+        ExecutableSearchInput searchInput = new ExecutableSearchInput(si, logger, ClientProxy.of(client()), null, new DynamicIndexName.Parser());
         return searchInput.execute(ctx);
     }
 

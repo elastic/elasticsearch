@@ -17,6 +17,7 @@ import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.watch.Payload;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 
@@ -29,10 +30,12 @@ public class SearchTransform implements Transform {
 
     private final SearchRequest request;
     private final @Nullable TimeValue timeout;
+    private final @Nullable DateTimeZone dynamicNameTimeZone;
 
-    public SearchTransform(SearchRequest request, @Nullable TimeValue timeout) {
+    public SearchTransform(SearchRequest request, @Nullable TimeValue timeout, @Nullable DateTimeZone dynamicNameTimeZone) {
         this.request = request;
         this.timeout = timeout;
+        this.dynamicNameTimeZone = dynamicNameTimeZone;
     }
 
     @Override
@@ -48,19 +51,28 @@ public class SearchTransform implements Transform {
         return timeout;
     }
 
+    public DateTimeZone getDynamicNameTimeZone() {
+        return dynamicNameTimeZone;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        SearchTransform transform = (SearchTransform) o;
+        SearchTransform that = (SearchTransform) o;
 
-        return SearchRequestEquivalence.INSTANCE.equivalent(request, transform.request);
+        if (!SearchRequestEquivalence.INSTANCE.equivalent(request, this.request)) return false;
+        if (timeout != null ? !timeout.equals(that.timeout) : that.timeout != null) return false;
+        return !(dynamicNameTimeZone != null ? !dynamicNameTimeZone.equals(that.dynamicNameTimeZone) : that.dynamicNameTimeZone != null);
     }
 
     @Override
     public int hashCode() {
-        return request.hashCode();
+        int result = request.hashCode();
+        result = 31 * result + (timeout != null ? timeout.hashCode() : 0);
+        result = 31 * result + (dynamicNameTimeZone != null ? dynamicNameTimeZone.hashCode() : 0);
+        return result;
     }
 
     @Override
@@ -71,13 +83,17 @@ public class SearchTransform implements Transform {
         if (timeout != null) {
             builder.field(Field.TIMEOUT.getPreferredName(), timeout);
         }
+        if (dynamicNameTimeZone != null) {
+            builder.field(Field.DYNAMIC_NAME_TIMEZONE.getPreferredName(), dynamicNameTimeZone);
+        }
         builder.endObject();
         return builder;
     }
 
-    public static SearchTransform parse(String watchId, XContentParser parser, TimeValue defaultTimeout) throws IOException {
+    public static SearchTransform parse(String watchId, XContentParser parser) throws IOException {
         SearchRequest request = null;
-        TimeValue timeout = defaultTimeout;
+        TimeValue timeout = null;
+        DateTimeZone dynamicNameTimeZone = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -92,6 +108,12 @@ public class SearchTransform implements Transform {
                 }
             } else if (Field.TIMEOUT.match(currentFieldName)) {
                 timeout = WatcherDateTimeUtils.parseTimeValue(parser, Field.TIMEOUT.toString());
+            } else if (Field.DYNAMIC_NAME_TIMEZONE.match(currentFieldName)) {
+                if (token == XContentParser.Token.VALUE_STRING) {
+                    dynamicNameTimeZone = DateTimeZone.forID(parser.text());
+                } else {
+                    throw new SearchTransformException("could not parse [{}] transform for watch [{}]. failed to parse [{}]. must be a string value (e.g. 'UTC' or '+01:00').", TYPE, watchId, currentFieldName);
+                }
             } else {
                 throw new SearchTransformException("could not parse [{}] transform for watch [{}]. unexpected field [{}]", TYPE, watchId, currentFieldName);
             }
@@ -100,7 +122,7 @@ public class SearchTransform implements Transform {
         if (request == null) {
             throw new SearchTransformException("could not parse [{}] transform for watch [{}]. missing required [{}] field", TYPE, watchId, Field.REQUEST.getPreferredName());
         }
-        return new SearchTransform(request, timeout);
+        return new SearchTransform(request, timeout, dynamicNameTimeZone);
     }
 
     public static Builder builder(SearchRequest request) {
@@ -141,6 +163,7 @@ public class SearchTransform implements Transform {
 
         private final SearchRequest request;
         private TimeValue timeout;
+        private DateTimeZone dynamicNameTimeZone;
 
         public Builder(SearchRequest request) {
             this.request = request;
@@ -151,14 +174,20 @@ public class SearchTransform implements Transform {
             return this;
         }
 
+        public Builder dynamicNameTimeZone(DateTimeZone dynamicNameTimeZone) {
+            this.dynamicNameTimeZone = dynamicNameTimeZone;
+            return this;
+        }
+
         @Override
         public SearchTransform build() {
-            return new SearchTransform(request, timeout);
+            return new SearchTransform(request, timeout, dynamicNameTimeZone);
         }
     }
 
     public interface Field extends Transform.Field {
         ParseField REQUEST = new ParseField("request");
         ParseField TIMEOUT = new ParseField("timeout");
+        ParseField DYNAMIC_NAME_TIMEZONE = new ParseField("dynamic_name_timezone");
     }
 }

@@ -30,9 +30,8 @@ public class IndexActionFactory extends ActionFactory<IndexAction, ExecutableInd
     public IndexActionFactory(Settings settings, ClientProxy client) {
         super(Loggers.getLogger(ExecutableEmailAction.class, settings));
         this.client = client;
-        String defaultDateFormat = DynamicIndexName.defaultDateFormat(settings, "watcher.actions.index");
-        this.indexNamesParser = new DynamicIndexName.Parser(defaultDateFormat);
-        this.defaultTimeout = settings.getAsTime("watcher.action.index.default_timeout", TimeValue.timeValueSeconds(60));
+        this.indexNamesParser = new DynamicIndexName.Parser(settings, "watcher.actions.index");
+        this.defaultTimeout = settings.getAsTime("watcher.actions.index.default_timeout", null);
     }
 
     @Override
@@ -42,11 +41,11 @@ public class IndexActionFactory extends ActionFactory<IndexAction, ExecutableInd
 
     @Override
     public IndexAction parseAction(String watchId, String actionId, XContentParser parser) throws IOException {
-        return IndexAction.parse(watchId, actionId, parser, defaultTimeout);
+        return IndexAction.parse(watchId, actionId, parser);
     }
 
     @Override
     public ExecutableIndexAction createExecutable(IndexAction action) {
-        return new ExecutableIndexAction(action, actionLogger, client, indexNamesParser);
+        return new ExecutableIndexAction(action, actionLogger, client, defaultTimeout, indexNamesParser);
     }
 }

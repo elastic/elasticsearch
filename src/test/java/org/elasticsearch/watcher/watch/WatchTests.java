@@ -66,7 +66,6 @@ import org.elasticsearch.watcher.support.clock.ClockMock;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.http.HttpMethod;
-import org.elasticsearch.watcher.support.http.HttpRequest;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthFactory;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
@@ -95,6 +94,7 @@ import org.elasticsearch.watcher.trigger.TriggerService;
 import org.elasticsearch.watcher.trigger.schedule.*;
 import org.elasticsearch.watcher.trigger.schedule.support.*;
 import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -310,7 +310,7 @@ public class WatchTests extends ElasticsearchTestCase {
         switch (type) {
             case SearchInput.TYPE:
                 SearchInput searchInput = searchInput(WatcherTestUtils.newInputSearchRequest("idx")).build();
-                return new ExecutableSearchInput(searchInput, logger, client, indexNameParser);
+                return new ExecutableSearchInput(searchInput, logger, client, null, indexNameParser);
             default:
                 SimpleInput simpleInput = InputBuilders.simpleInput(ImmutableMap.<String, Object>builder().put("_key", "_val")).build();
                 return new ExecutableSimpleInput(simpleInput, logger);
@@ -359,17 +359,18 @@ public class WatchTests extends ElasticsearchTestCase {
     private ExecutableTransform randomTransform() {
         String type = randomFrom(ScriptTransform.TYPE, SearchTransform.TYPE, ChainTransform.TYPE);
         TimeValue timeout = randomBoolean() ? TimeValue.timeValueSeconds(5) : null;
+        DateTimeZone timeZone = randomBoolean() ? DateTimeZone.UTC : null;
         switch (type) {
             case ScriptTransform.TYPE:
                 return new ExecutableScriptTransform(new ScriptTransform(Script.inline("_script").build()), logger, scriptService);
             case SearchTransform.TYPE:
-                return new ExecutableSearchTransform(new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS), timeout), logger, client, indexNameParser);
+                return new ExecutableSearchTransform(new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS), timeout, timeZone), logger, client, null, indexNameParser);
             default: // chain
                 ChainTransform chainTransform = new ChainTransform(ImmutableList.of(
-                        new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS), timeout),
+                        new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS), timeout, timeZone),
                         new ScriptTransform(Script.inline("_script").build())));
                 return new ExecutableChainTransform(chainTransform, logger, ImmutableList.<ExecutableTransform>of(
-                        new ExecutableSearchTransform(new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS), timeout), logger, client, indexNameParser),
+                        new ExecutableSearchTransform(new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS), timeout, timeZone), logger, client, null, indexNameParser),
                         new ExecutableScriptTransform(new ScriptTransform(Script.inline("_script").build()), logger, scriptService)));
         }
     }
@@ -393,8 +394,10 @@ public class WatchTests extends ElasticsearchTestCase {
             list.add(new ActionWrapper("_email_" + randomAsciiOfLength(8), randomThrottler(), transform, new ExecutableEmailAction(action, logger, emailService, templateEngine, htmlSanitizer)));
         }
         if (randomBoolean()) {
-            IndexAction action = new IndexAction("_index", "_type", null, null);
-            list.add(new ActionWrapper("_index_" + randomAsciiOfLength(8), randomThrottler(), randomTransform(), new ExecutableIndexAction(action, logger, client, indexNameParser)));
+            DateTimeZone timeZone = randomBoolean() ? DateTimeZone.UTC : null;
+            TimeValue timeout = randomBoolean() ? TimeValue.timeValueSeconds(30) : null;
+            IndexAction action = new IndexAction("_index", "_type", null, timeout, timeZone);
+            list.add(new ActionWrapper("_index_" + randomAsciiOfLength(8), randomThrottler(), randomTransform(), new ExecutableIndexAction(action, logger, client, null, indexNameParser)));
         }
         if (randomBoolean()) {
             HttpRequestTemplate httpRequest = HttpRequestTemplate.builder("test.host", randomIntBetween(8000, 9000))
@@ -418,8 +421,7 @@ public class WatchTests extends ElasticsearchTestCase {
                     parsers.put(IndexAction.TYPE, new IndexActionFactory(settings, client));
                     break;
                 case WebhookAction.TYPE:
-                    parsers.put(WebhookAction.TYPE, new WebhookActionFactory(settings,  httpClient,
-                            new HttpRequest.Parser(authRegistry), new HttpRequestTemplate.Parser(authRegistry), templateEngine));
+                    parsers.put(WebhookAction.TYPE, new WebhookActionFactory(settings,  httpClient, new HttpRequestTemplate.Parser(authRegistry), templateEngine));
                     break;
             }
         }

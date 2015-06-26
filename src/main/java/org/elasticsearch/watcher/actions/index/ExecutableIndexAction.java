@@ -10,7 +10,9 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
@@ -33,12 +35,14 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
 
     private final ClientProxy client;
+    private final TimeValue timeout;
     private final DynamicIndexName indexName;
 
-    public ExecutableIndexAction(IndexAction action, ESLogger logger, ClientProxy client, DynamicIndexName.Parser indexNameParser) {
+    public ExecutableIndexAction(IndexAction action, ESLogger logger, ClientProxy client, @Nullable TimeValue defaultTimeout, DynamicIndexName.Parser indexNameParser) {
         super(action, logger);
         this.client = client;
-        this.indexName = indexNameParser.parse(action.index);
+        this.timeout = action.timeout != null ? action.timeout : defaultTimeout;
+        this.indexName = indexNameParser.parse(action.index, action.dynamicNameTimeZone);
     }
 
     DynamicIndexName indexName() {
@@ -83,7 +87,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
             return new IndexAction.Result.Simulated(indexRequest.index(), action.docType, new XContentSource(indexRequest.source(), XContentType.JSON));
         }
 
-        IndexResponse response = client.index(indexRequest, action.timeout);
+        IndexResponse response = client.index(indexRequest, timeout);
         XContentBuilder jsonBuilder = jsonBuilder();
         indexResponseToXContent(jsonBuilder, response);
         return new IndexAction.Result.Success(new XContentSource(jsonBuilder));

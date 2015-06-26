@@ -20,12 +20,10 @@
 package org.elasticsearch.http.netty;
 
 import com.google.common.base.Strings;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.netty.NettyUtils;
 import org.elasticsearch.common.netty.ReleaseChannelFutureListener;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.netty.pipelining.OrderedDownstreamChannelEvent;
@@ -34,7 +32,6 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.support.RestUtils;
 import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.*;
 import org.jboss.netty.handler.codec.http.*;
 
@@ -100,7 +97,10 @@ public class NettyHttpChannel extends HttpChannel {
                 String originHeader = request.header(ORIGIN);
                 if (!Strings.isNullOrEmpty(originHeader)) {
                     if (corsPattern == null) {
-                        resp.headers().add(ACCESS_CONTROL_ALLOW_ORIGIN, transport.settings().get(SETTING_CORS_ALLOW_ORIGIN, "*"));
+                        String allowedOrigins = transport.settings().get(SETTING_CORS_ALLOW_ORIGIN, null);
+                        if (!Strings.isNullOrEmpty(allowedOrigins)) {
+                            resp.headers().add(ACCESS_CONTROL_ALLOW_ORIGIN, allowedOrigins);
+                        }
                     } else {
                         resp.headers().add(ACCESS_CONTROL_ALLOW_ORIGIN, corsPattern.matcher(originHeader).matches() ? originHeader : "null");
                     }

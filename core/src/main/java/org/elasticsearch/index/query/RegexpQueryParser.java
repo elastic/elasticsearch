@@ -19,23 +19,12 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RegexpQuery;
-import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 
-/**
- *
- */
-public class RegexpQueryParser extends BaseQueryParserTemp {
+public class RegexpQueryParser extends BaseQueryParser {
 
     public static final int DEFAULT_FLAGS_VALUE = RegexpFlag.ALL.value();
 
@@ -49,16 +38,16 @@ public class RegexpQueryParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = parser.currentName();
-        String rewriteMethod = null;
+        String rewrite = null;
 
         String value = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
-        int flagsValue = DEFAULT_FLAGS_VALUE;
-        int maxDeterminizedStates = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
+        int flagsValue = RegexpQueryBuilder.DEFAULT_FLAGS_VALUE;
+        int maxDeterminizedStates = RegexpQueryBuilder.DEFAULT_MAX_DETERMINIZED_STATES;
         String queryName = null;
         String currentFieldName = null;
         XContentParser.Token token;
@@ -78,7 +67,7 @@ public class RegexpQueryParser extends BaseQueryParserTemp {
                         } else if ("boost".equals(currentFieldName)) {
                             boost = parser.floatValue();
                         } else if ("rewrite".equals(currentFieldName)) {
-                            rewriteMethod = parser.textOrNull();
+                            rewrite = parser.textOrNull();
                         } else if ("flags".equals(currentFieldName)) {
                             String flags = parser.textOrNull();
                             flagsValue = RegexpFlag.resolveValue(flags);
@@ -106,32 +95,16 @@ public class RegexpQueryParser extends BaseQueryParserTemp {
         if (value == null) {
             throw new QueryParsingException(parseContext, "No value specified for regexp query");
         }
-
-        MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(parseContext.parseFieldMatcher(), rewriteMethod, null);
-
-        Query query = null;
-        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
-        if (fieldType != null) {
-            query = fieldType.regexpQuery(value, flagsValue, maxDeterminizedStates, method, parseContext);
-        }
-        if (query == null) {
-            RegexpQuery regexpQuery = new RegexpQuery(new Term(fieldName, BytesRefs.toBytesRef(value)), flagsValue, maxDeterminizedStates);
-            if (method != null) {
-                regexpQuery.setRewriteMethod(method);
-            }
-            query = regexpQuery;
-        }
-        query.setBoost(boost);
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
-        }
-        return query;
+        return new RegexpQueryBuilder(fieldName, value)
+                .flags(flagsValue)
+                .maxDeterminizedStates(maxDeterminizedStates)
+                .rewrite(rewrite)
+                .boost(boost)
+                .queryName(queryName);
     }
 
     @Override
     public RegexpQueryBuilder getBuilderPrototype() {
         return RegexpQueryBuilder.PROTOTYPE;
     }
-
-
 }

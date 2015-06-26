@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
@@ -46,6 +47,7 @@ import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
+import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -58,20 +60,11 @@ import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Ignore;
-import org.junit.Test;
+import org.junit.*;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 @Ignore
 public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ElasticsearchTestCase {
@@ -337,5 +330,22 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
             default : value = randomAsciiOfLengthBetween(1, 10);
         }
         return value;
+    }
+
+    /**
+     * Helper method to return a random rewrite method
+     */
+    protected static String getRandomRewriteMethod() {
+        String rewrite;
+        if (randomBoolean()) {
+            rewrite = randomFrom(new ParseField[]{QueryParsers.CONSTANT_SCORE,
+                    QueryParsers.SCORING_BOOLEAN,
+                    QueryParsers.CONSTANT_SCORE_BOOLEAN}).getPreferredName();
+        } else {
+            rewrite = randomFrom(new ParseField[]{QueryParsers.TOP_TERMS,
+                    QueryParsers.TOP_TERMS_BOOST,
+                    QueryParsers.TOP_TERMS_BLENDED_FREQS}).getPreferredName() + "1";
+        }
+        return rewrite;
     }
 }

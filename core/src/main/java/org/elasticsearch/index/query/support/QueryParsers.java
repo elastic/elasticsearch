@@ -29,12 +29,12 @@ import org.elasticsearch.common.ParseFieldMatcher;
  */
 public final class QueryParsers {
 
-    private static final ParseField CONSTANT_SCORE = new ParseField("constant_score", "constant_score_auto", "constant_score_filter");
-    private static final ParseField SCORING_BOOLEAN = new ParseField("scoring_boolean");
-    private static final ParseField CONSTANT_SCORE_BOOLEAN = new ParseField("constant_score_boolean");
-    private static final ParseField TOP_TERMS = new ParseField("top_terms_");
-    private static final ParseField TOP_TERMS_BOOST = new ParseField("top_terms_boost_");
-    private static final ParseField TOP_TERMS_BLENDED_FREQS = new ParseField("top_terms_blended_freqs_");
+    public static final ParseField CONSTANT_SCORE = new ParseField("constant_score", "constant_score_auto", "constant_score_filter");
+    public static final ParseField SCORING_BOOLEAN = new ParseField("scoring_boolean");
+    public static final ParseField CONSTANT_SCORE_BOOLEAN = new ParseField("constant_score_boolean");
+    public static final ParseField TOP_TERMS = new ParseField("top_terms_");
+    public static final ParseField TOP_TERMS_BOOST = new ParseField("top_terms_boost_");
+    public static final ParseField TOP_TERMS_BLENDED_FREQS = new ParseField("top_terms_blended_freqs_");
 
     private QueryParsers() {
 

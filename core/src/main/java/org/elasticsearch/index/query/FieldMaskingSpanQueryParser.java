@@ -57,7 +57,7 @@ public class FieldMaskingSpanQueryParser extends BaseQueryParser {
                 if ("query".equals(currentFieldName)) {
                     QueryBuilder query = parseContext.parseInnerQueryBuilder();
                     if (!(query instanceof SpanQueryBuilder)) {
-                        throw new QueryParsingException(parseContext, "[field_masking_span] query] must be of type span query");
+                        throw new QueryParsingException(parseContext, "[field_masking_span] query must be of type span query");
                     }
                     inner = (SpanQueryBuilder) query;
                 } else {

@@ -132,9 +132,10 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     public QueryValidationException validate() {
         QueryValidationException validationException = null;
         if (negativeBoost < 0) {
-            validationException = QueryValidationException
-                    .addValidationError("[boosting] query requires negativeBoost to be set to positive value", validationException);
+            validationException = addValidationError("query requires negativeBoost to be set to positive value", validationException);
         }
+        validationException = validateInnerQuery(negativeQuery, validationException);
+        validationException = validateInnerQuery(positiveQuery, validationException);
         return validationException;
     };
 

@@ -125,8 +125,7 @@ public class AndQueryBuilder extends AbstractQueryBuilder<AndQueryBuilder> {
 
     @Override
     public QueryValidationException validate() {
-        // nothing to validate
-        return null;
+        return validateInnerQueries(filters, null);
     }
 
     @Override

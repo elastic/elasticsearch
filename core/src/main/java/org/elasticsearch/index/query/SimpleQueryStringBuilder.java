@@ -277,11 +277,9 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     @Override
     public QueryValidationException validate() {
         QueryValidationException validationException = null;
-
         // Query text is required
         if (queryText == null) {
-            validationException = QueryValidationException.addValidationError("[" + SimpleQueryStringBuilder.NAME + "] query text missing",
-                    validationException);
+            validationException = addValidationError("query text missing", validationException);
         }
 
         return validationException;

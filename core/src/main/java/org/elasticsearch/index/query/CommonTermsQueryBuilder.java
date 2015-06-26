@@ -323,10 +323,10 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
     public QueryValidationException validate() {
         QueryValidationException validationException = null;
         if (Strings.isEmpty(this.fieldName)) {
-            validationException = QueryValidationException.addValidationError("field name cannot be null or empty.", validationException);
+            validationException = addValidationError("field name cannot be null or empty.", validationException);
         }
         if (this.text == null) {
-            validationException = QueryValidationException.addValidationError("query text cannot be null", validationException);
+            validationException = addValidationError("query text cannot be null", validationException);
         }
         return validationException;
     }

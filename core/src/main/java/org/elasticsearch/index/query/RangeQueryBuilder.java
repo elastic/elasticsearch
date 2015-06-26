@@ -326,13 +326,13 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder<RangeQueryBuilder> 
     public QueryValidationException validate() {
         QueryValidationException validationException = null;
         if (this.fieldName == null || this.fieldName.isEmpty()) {
-            validationException = QueryValidationException.addValidationError("field name cannot be null or empty.", validationException);
+            validationException = addValidationError("field name cannot be null or empty.", validationException);
         }
         if (this.timeZone != null) {
             try {
                 DateTimeZone.forID(this.timeZone);
             } catch (Exception e) {
-                validationException = QueryValidationException.addValidationError("error parsing timezone." + e.getMessage(),
+                validationException = addValidationError("error parsing timezone." + e.getMessage(),
                         validationException);
             }
         }
@@ -340,7 +340,7 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder<RangeQueryBuilder> 
             try {
                 Joda.forPattern(this.format);
             } catch (Exception e) {
-                validationException = QueryValidationException.addValidationError("error parsing format." + e.getMessage(),
+                validationException = addValidationError("error parsing format." + e.getMessage(),
                         validationException);
             }
         }

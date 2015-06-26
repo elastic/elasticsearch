@@ -31,19 +31,41 @@ import java.util.Random;
 public class RandomQueryBuilder {
 
     /**
+     * Create a new query of a random type
      * @param r random seed
      * @return a random {@link QueryBuilder}
      */
-    public static QueryBuilder create(Random r) {
-        QueryBuilder query = null;
+    public static QueryBuilder createQuery(Random r) {
         switch (RandomInts.randomIntBetween(r, 0, 2)) {
-        case 0:
-            return new MatchAllQueryBuilderTest().createTestQueryBuilder();
-        case 1:
-            return new TermQueryBuilderTest().createTestQueryBuilder();
-        case 2:
-            return new IdsQueryBuilderTest().createTestQueryBuilder();
+            case 0:
+                return new MatchAllQueryBuilderTest().createTestQueryBuilder();
+            case 1:
+                return new TermQueryBuilderTest().createTestQueryBuilder();
+            case 2:
+                return new IdsQueryBuilderTest().createTestQueryBuilder();
+            default:
+                throw new UnsupportedOperationException();
         }
-        return query;
+    }
+
+    /**
+     * Create a new invalid query of a random type
+     * @param r random seed
+     * @return a random {@link QueryBuilder} that is invalid, meaning that calling validate against it
+     * will return an error. We can rely on the fact that a single error will be returned per query.
+     */
+    public static QueryBuilder createInvalidQuery(Random r) {
+        switch (RandomInts.randomIntBetween(r, 0, 3)) {
+            case 0:
+                return new TermQueryBuilder("", "test");
+            case 1:
+                return new BoostingQueryBuilder().negativeBoost(-1f);
+            case 2:
+                return new CommonTermsQueryBuilder("", "text");
+            case 3:
+                return new SimpleQueryStringBuilder(null);
+            default:
+                throw new UnsupportedOperationException();
+        }
     }
 }

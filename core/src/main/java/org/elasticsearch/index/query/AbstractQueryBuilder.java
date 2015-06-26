@@ -76,6 +76,10 @@ public abstract class AbstractQueryBuilder<QB extends QueryBuilder> extends ToXC
     public void writeTo(StreamOutput out) throws IOException {
     }
 
+    protected final QueryValidationException addValidationError(String validationError, QueryValidationException validationException) {
+        return QueryValidationException.addValidationError(getName(), validationError, validationException);
+    }
+
     @Override
     public final boolean equals(Object obj) {
         if (this == obj) {
@@ -158,5 +162,24 @@ public abstract class AbstractQueryBuilder<QB extends QueryBuilder> extends ToXC
             xContentBuilder.startObject();
             xContentBuilder.endObject();
         }
+    }
+
+    protected static QueryValidationException validateInnerQueries(List<QueryBuilder> queryBuilders, QueryValidationException initialValidationException) {
+        QueryValidationException validationException = initialValidationException;
+        for (QueryBuilder queryBuilder : queryBuilders) {
+            validationException = validateInnerQuery(queryBuilder, validationException);
+        }
+        return validationException;
+    }
+
+    protected static QueryValidationException validateInnerQuery(QueryBuilder queryBuilder, QueryValidationException initialValidationException) {
+        QueryValidationException validationException = initialValidationException;
+        if (queryBuilder != null) {
+            QueryValidationException queryValidationException = queryBuilder.validate();
+            if (queryValidationException != null) {
+                validationException = QueryValidationException.addValidationErrors(queryValidationException.validationErrors(), validationException);
+            }
+        }
+        return validationException;
     }
 }

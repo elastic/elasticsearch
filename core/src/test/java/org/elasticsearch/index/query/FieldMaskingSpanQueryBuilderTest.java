@@ -27,9 +27,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.is;
-
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.*;
 
 public class FieldMaskingSpanQueryBuilderTest extends BaseQueryTestCase<FieldMaskingSpanQueryBuilder> {
 
@@ -60,7 +58,7 @@ public class FieldMaskingSpanQueryBuilderTest extends BaseQueryTestCase<FieldMas
 
     @Override
     protected FieldMaskingSpanQueryBuilder createTestQueryBuilder() {
-        String fieldName = null;
+        String fieldName;
         if (randomBoolean()) {
             fieldName = randomFrom(mappedFieldNames);
         } else {
@@ -79,16 +77,22 @@ public class FieldMaskingSpanQueryBuilderTest extends BaseQueryTestCase<FieldMas
 
     @Test
     public void testValidate() {
-        FieldMaskingSpanQueryBuilder queryBuilder = new FieldMaskingSpanQueryBuilder(new SpanTermQueryBuilder("name", "value"), "fieldName");
-        assertNull(queryBuilder.validate());
-
-        queryBuilder = new FieldMaskingSpanQueryBuilder(null, "fieldName");
-        assertThat(queryBuilder.validate().validationErrors().size(), is(1));
-
-        queryBuilder = new FieldMaskingSpanQueryBuilder(null, "");
-        assertThat(queryBuilder.validate().validationErrors().size(), is(2));
-
-        queryBuilder = new FieldMaskingSpanQueryBuilder(null, null);
-        assertThat(queryBuilder.validate().validationErrors().size(), is(2));
+        String fieldName;
+        SpanQueryBuilder spanQueryBuilder;
+        int totalExpectedErrors = 0;
+        if (randomBoolean()) {
+            fieldName = "fieldName";
+        } else {
+            fieldName = randomBoolean() ? "" : null;
+            totalExpectedErrors++;
+        }
+        if (randomBoolean()) {
+            spanQueryBuilder = new SpanTermQueryBuilder("", "test");
+            totalExpectedErrors++;
+        } else {
+            spanQueryBuilder = new SpanTermQueryBuilder("name", "value");
+        }
+        FieldMaskingSpanQueryBuilder queryBuilder = new FieldMaskingSpanQueryBuilder(spanQueryBuilder, fieldName);
+        assertValidate(queryBuilder, totalExpectedErrors);
     }
 }

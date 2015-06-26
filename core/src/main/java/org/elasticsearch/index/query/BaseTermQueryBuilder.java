@@ -178,10 +178,10 @@ public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> 
     public QueryValidationException validate() {
         QueryValidationException validationException = null;
         if (fieldName == null || fieldName.isEmpty()) {
-            validationException = QueryValidationException.addValidationError("field name cannot be null or empty.", validationException);
+            validationException = addValidationError("field name cannot be null or empty.", validationException);
         }
         if (value == null) {
-            validationException = QueryValidationException.addValidationError("value cannot be null.", validationException);
+            validationException = addValidationError("value cannot be null.", validationException);
         }
         return validationException;
     }

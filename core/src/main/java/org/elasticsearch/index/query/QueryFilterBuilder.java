@@ -78,8 +78,7 @@ public class QueryFilterBuilder extends AbstractQueryBuilder<QueryFilterBuilder>
 
     @Override
     public QueryValidationException validate() {
-        // nothing to validate
-        return null;
+        return validateInnerQuery(queryBuilder, null);
     }
 
     @Override

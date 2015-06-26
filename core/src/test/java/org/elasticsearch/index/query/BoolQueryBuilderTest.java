@@ -20,17 +20,18 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.BooleanClause.Occur;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
+import static org.hamcrest.Matchers.equalTo;
 
 public class BoolQueryBuilderTest extends BaseQueryTestCase<BoolQueryBuilder> {
 
@@ -63,19 +64,19 @@ public class BoolQueryBuilderTest extends BaseQueryTestCase<BoolQueryBuilder> {
         }
         int mustClauses = randomIntBetween(0, 3);
         for (int i = 0; i < mustClauses; i++) {
-            query.must(RandomQueryBuilder.create(random()));
+            query.must(RandomQueryBuilder.createQuery(random()));
         }
         int mustNotClauses = randomIntBetween(0, 3);
         for (int i = 0; i < mustNotClauses; i++) {
-            query.mustNot(RandomQueryBuilder.create(random()));
+            query.mustNot(RandomQueryBuilder.createQuery(random()));
         }
         int shouldClauses = randomIntBetween(0, 3);
         for (int i = 0; i < shouldClauses; i++) {
-            query.should(RandomQueryBuilder.create(random()));
+            query.should(RandomQueryBuilder.createQuery(random()));
         }
         int filterClauses = randomIntBetween(0, 3);
         for (int i = 0; i < filterClauses; i++) {
-            query.filter(RandomQueryBuilder.create(random()));
+            query.filter(RandomQueryBuilder.createQuery(random()));
         }
         if (randomBoolean()) {
             query.queryName(randomUnicodeOfLengthBetween(3, 15));
@@ -106,5 +107,46 @@ public class BoolQueryBuilderTest extends BaseQueryTestCase<BoolQueryBuilder> {
         for (QueryBuilder query : clauses) {
             booleanQuery.add(new BooleanClause(query.toQuery(parseContext), occurs));
         }
+    }
+
+    @Test
+    public void testValidate() {
+        BoolQueryBuilder booleanQuery = new BoolQueryBuilder();
+        int iters = randomIntBetween(0, 3);
+        int totalExpectedErrors = 0;
+        for (int i = 0; i < iters; i++) {
+            if (randomBoolean()) {
+                booleanQuery.must(RandomQueryBuilder.createInvalidQuery(random()));
+                totalExpectedErrors++;
+            } else {
+                booleanQuery.must(RandomQueryBuilder.createQuery(random()));
+            }
+        }
+        iters = randomIntBetween(0, 3);
+        for (int i = 0; i < iters; i++) {
+            if (randomBoolean()) {
+                booleanQuery.should(RandomQueryBuilder.createInvalidQuery(random()));
+                totalExpectedErrors++;
+            } else {
+                booleanQuery.should(RandomQueryBuilder.createQuery(random()));
+            }
+        }
+        for (int i = 0; i < iters; i++) {
+            if (randomBoolean()) {
+                booleanQuery.mustNot(RandomQueryBuilder.createInvalidQuery(random()));
+                totalExpectedErrors++;
+            } else {
+                booleanQuery.mustNot(RandomQueryBuilder.createQuery(random()));
+            }
+        }
+        for (int i = 0; i < iters; i++) {
+            if (randomBoolean()) {
+                booleanQuery.filter(RandomQueryBuilder.createInvalidQuery(random()));
+                totalExpectedErrors++;
+            } else {
+                booleanQuery.filter(RandomQueryBuilder.createQuery(random()));
+            }
+        }
+        assertValidate(booleanQuery, totalExpectedErrors);
     }
 }

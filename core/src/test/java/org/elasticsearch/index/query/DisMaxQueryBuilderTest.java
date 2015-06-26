@@ -47,7 +47,7 @@ public class DisMaxQueryBuilderTest extends BaseQueryTestCase<DisMaxQueryBuilder
         DisMaxQueryBuilder dismax = new DisMaxQueryBuilder();
         int clauses = randomIntBetween(1, 5);
         for (int i = 0; i < clauses; i++) {
-            dismax.add(RandomQueryBuilder.create(random()));
+            dismax.add(RandomQueryBuilder.createQuery(random()));
         }
         if (randomBoolean()) {
             dismax.boost(2.0f / randomIntBetween(1, 20));
@@ -91,5 +91,21 @@ public class DisMaxQueryBuilderTest extends BaseQueryTestCase<DisMaxQueryBuilder
 
         DisMaxQueryBuilder disMaxBuilder = new DisMaxQueryBuilder().add(innerQueryBuilder);
         assertNull(disMaxBuilder.toQuery(context));
+    }
+
+    @Test
+    public void testValidate() {
+        DisMaxQueryBuilder disMaxQuery = new DisMaxQueryBuilder();
+        int iters = randomIntBetween(0, 5);
+        int totalExpectedErrors = 0;
+        for (int i = 0; i < iters; i++) {
+            if (randomBoolean()) {
+                disMaxQuery.add(RandomQueryBuilder.createInvalidQuery(random()));
+                totalExpectedErrors++;
+            } else {
+                disMaxQuery.add(RandomQueryBuilder.createQuery(random()));
+            }
+        }
+        assertValidate(disMaxQuery, totalExpectedErrors);
     }
 }

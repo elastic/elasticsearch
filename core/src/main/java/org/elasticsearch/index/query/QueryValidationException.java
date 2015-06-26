@@ -34,6 +34,11 @@ public class QueryValidationException extends IllegalArgumentException {
         validationErrors.add(error);
     }
 
+    public QueryValidationException(List<String> errors) {
+        super("query validation failed");
+        validationErrors.addAll(errors);
+    }
+
     public void addValidationError(String error) {
         validationErrors.add(error);
     }
@@ -62,15 +67,33 @@ public class QueryValidationException extends IllegalArgumentException {
     /**
      * Helper method than can be used to add error messages to an existing {@link QueryValidationException}.
      * When passing {@code null} as the initial exception, a new exception is created.
+     *
+     * @param queryId
      * @param validationError the error message to add to an initial exception
      * @param validationException an initial exception. Can be {@code null}, in which case a new exception is created.
      * @return a {@link QueryValidationException} with added validation error message
      */
-    public static QueryValidationException addValidationError(String validationError, QueryValidationException validationException) {
+    public static QueryValidationException addValidationError(String queryId, String validationError, QueryValidationException validationException) {
         if (validationException == null) {
-            validationException = new QueryValidationException(validationError);
+            validationException = new QueryValidationException("[" + queryId + "] " + validationError);
         } else {
             validationException.addValidationError(validationError);
+        }
+        return validationException;
+    }
+
+    /**
+     * Helper method than can be used to add error messages to an existing {@link QueryValidationException}.
+     * When passing {@code null} as the initial exception, a new exception is created.
+     * @param validationErrors the error messages to add to an initial exception
+     * @param validationException an initial exception. Can be {@code null}, in which case a new exception is created.
+     * @return a {@link QueryValidationException} with added validation error message
+     */
+    public static QueryValidationException addValidationErrors(List<String> validationErrors, QueryValidationException validationException) {
+        if (validationException == null) {
+            validationException = new QueryValidationException(validationErrors);
+        } else {
+            validationException.addValidationErrors(validationErrors);
         }
         return validationException;
     }

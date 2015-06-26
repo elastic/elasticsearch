@@ -273,4 +273,14 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends Ela
         assertThat(parser.currentName(), is(expectedParserName));
         assertThat(parser.nextToken(), is(XContentParser.Token.START_OBJECT));
     }
+
+    protected static void assertValidate(QueryBuilder queryBuilder, int totalExpectedErrors) {
+        QueryValidationException queryValidationException = queryBuilder.validate();
+        if (totalExpectedErrors > 0) {
+            assertThat(queryValidationException, notNullValue());
+            assertThat(queryValidationException.validationErrors().size(), equalTo(totalExpectedErrors));
+        } else {
+            assertThat(queryValidationException, nullValue());
+        }
+    }
 }

@@ -104,8 +104,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
 
     @Override
     public QueryValidationException validate() {
-        // nothing to validate
-        return null;
+        return validateInnerQuery(filterBuilder, null);
     }
 
     @Override

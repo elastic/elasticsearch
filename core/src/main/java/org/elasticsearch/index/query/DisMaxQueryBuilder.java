@@ -152,8 +152,7 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
 
     @Override
     public QueryValidationException validate() {
-        // nothing to validate, clauses are optional
-        return null;
+        return validateInnerQueries(queries, null);
     }
 
     @Override

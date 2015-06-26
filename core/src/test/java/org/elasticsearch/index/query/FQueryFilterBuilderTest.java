@@ -42,7 +42,7 @@ public class FQueryFilterBuilderTest extends BaseQueryTestCase<FQueryFilterBuild
      */
     @Override
     protected FQueryFilterBuilder createTestQueryBuilder() {
-        QueryBuilder innerQuery = RandomQueryBuilder.create(random());
+        QueryBuilder innerQuery = RandomQueryBuilder.createQuery(random());
         FQueryFilterBuilder testQuery = new FQueryFilterBuilder(innerQuery);
         testQuery.queryName(randomAsciiOfLengthBetween(1, 10));
         return testQuery;
@@ -80,5 +80,19 @@ public class FQueryFilterBuilderTest extends BaseQueryTestCase<FQueryFilterBuild
         // check that when wrapping this filter, toQuery() returns null
         FQueryFilterBuilder queryFilterQuery = new FQueryFilterBuilder(innerQuery);
         assertNull(queryFilterQuery.toQuery(createContext()));
+    }
+
+    @Test
+    public void testValidate() {
+        QueryBuilder innerQuery;
+        int totalExpectedErrors = 0;
+        if (randomBoolean()) {
+            innerQuery = RandomQueryBuilder.createInvalidQuery(random());
+            totalExpectedErrors++;
+        } else {
+            innerQuery = RandomQueryBuilder.createQuery(random());
+        }
+        FQueryFilterBuilder fQueryFilter = new FQueryFilterBuilder(innerQuery);
+        assertValidate(fQueryFilter, totalExpectedErrors);
     }
 }

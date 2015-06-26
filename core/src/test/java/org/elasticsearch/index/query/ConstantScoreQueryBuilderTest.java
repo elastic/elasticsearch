@@ -41,7 +41,7 @@ public class ConstantScoreQueryBuilderTest extends BaseQueryTestCase<ConstantSco
      */
     @Override
     protected ConstantScoreQueryBuilder createTestQueryBuilder() {
-        ConstantScoreQueryBuilder query = new ConstantScoreQueryBuilder(RandomQueryBuilder.create(random()));
+        ConstantScoreQueryBuilder query = new ConstantScoreQueryBuilder(RandomQueryBuilder.createQuery(random()));
         if (randomBoolean()) {
             query.boost(2.0f / randomIntBetween(1, 20));
         }
@@ -78,5 +78,19 @@ public class ConstantScoreQueryBuilderTest extends BaseQueryTestCase<ConstantSco
                 .queryParser(queryId).fromXContent(context);
         assertNull(queryBuilder.query());
         assertNull(queryBuilder.toQuery(createContext()));
+    }
+
+    @Test
+    public void testValidate() {
+        QueryBuilder innerQuery;
+        int totalExpectedErrors = 0;
+        if (randomBoolean()) {
+            innerQuery = RandomQueryBuilder.createInvalidQuery(random());
+            totalExpectedErrors++;
+        } else {
+            innerQuery = RandomQueryBuilder.createQuery(random());
+        }
+        ConstantScoreQueryBuilder constantScoreQuery = new ConstantScoreQueryBuilder(innerQuery);
+        assertValidate(constantScoreQuery, totalExpectedErrors);
     }
 }

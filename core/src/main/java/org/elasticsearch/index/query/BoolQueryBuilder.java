@@ -315,8 +315,12 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> imp
 
     @Override
     public QueryValidationException validate() {
-        // nothing to validate, clauses are optional, see hasClauses(), other parameters have defaults
-        return null;
+        QueryValidationException validationException = null;
+        validationException = validateInnerQueries(mustClauses, validationException);
+        validationException = validateInnerQueries(shouldClauses, validationException);
+        validationException = validateInnerQueries(mustNotClauses, validationException);
+        validationException = validateInnerQueries(filterClauses, validationException);
+        return validationException;
     }
 
     private static void addBooleanClauses(QueryParseContext parseContext, BooleanQuery booleanQuery, List<QueryBuilder> clauses, Occur occurs)

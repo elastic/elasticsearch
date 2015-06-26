@@ -28,15 +28,13 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.is;
-
 public class BoostingQueryBuilderTest extends BaseQueryTestCase<BoostingQueryBuilder> {
 
     @Override
     protected BoostingQueryBuilder createTestQueryBuilder() {
         BoostingQueryBuilder query = new BoostingQueryBuilder();
-        query.positive(RandomQueryBuilder.create(random()));
-        query.negative(RandomQueryBuilder.create(random()));
+        query.positive(RandomQueryBuilder.createQuery(random()));
+        query.negative(RandomQueryBuilder.createQuery(random()));
         query.negativeBoost(2.0f / randomIntBetween(1, 20));
         if (randomBoolean()) {
             query.boost(2.0f / randomIntBetween(1, 20));
@@ -121,9 +119,26 @@ public class BoostingQueryBuilderTest extends BaseQueryTestCase<BoostingQueryBui
 
     @Test
     public void testValidate() {
-        BoostingQueryBuilder boostingQueryBuilder = new BoostingQueryBuilder();
-        // check for error with negative `negative boost` factor
-        boostingQueryBuilder.negativeBoost(-0.5f);
-        assertThat(boostingQueryBuilder.validate().validationErrors().size(), is(1));
+        BoostingQueryBuilder boostingQuery = new BoostingQueryBuilder();
+        int totalExpectedErrors = 0;
+        if (randomBoolean()) {
+            boostingQuery.negative(RandomQueryBuilder.createInvalidQuery(random()));
+            totalExpectedErrors++;
+        } else if(rarely()) {
+            boostingQuery.negative(RandomQueryBuilder.createQuery(random()));
+        }
+        if (randomBoolean()) {
+            boostingQuery.positive(RandomQueryBuilder.createInvalidQuery(random()));
+            totalExpectedErrors++;
+        } else if(rarely()) {
+            boostingQuery.positive(RandomQueryBuilder.createQuery(random()));
+        }
+        if (frequently()) {
+            boostingQuery.negativeBoost(0.5f);
+        } else {
+            boostingQuery.negativeBoost(-0.5f);
+            totalExpectedErrors++;
+        }
+        assertValidate(boostingQuery, totalExpectedErrors);
     }
 }

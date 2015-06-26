@@ -97,8 +97,7 @@ public class NotQueryBuilder extends AbstractQueryBuilder<NotQueryBuilder> {
 
     @Override
     public QueryValidationException validate() {
-        // nothing to validate.
-        return null;
+        return validateInnerQuery(filter, null);
     }
 
     @Override

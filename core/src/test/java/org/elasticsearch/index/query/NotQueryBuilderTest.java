@@ -44,7 +44,7 @@ public class NotQueryBuilderTest extends BaseQueryTestCase<NotQueryBuilder> {
      */
     @Override
     protected NotQueryBuilder createTestQueryBuilder() {
-        NotQueryBuilder query = new NotQueryBuilder(RandomQueryBuilder.create(random()));
+        NotQueryBuilder query = new NotQueryBuilder(RandomQueryBuilder.createQuery(random()));
         if (randomBoolean()) {
             query.queryName(randomAsciiOfLengthBetween(1, 10));
         }
@@ -91,5 +91,19 @@ public class NotQueryBuilderTest extends BaseQueryTestCase<NotQueryBuilder> {
         context.reset(parser);
         assertQueryHeader(parser, NotQueryBuilder.PROTOTYPE.getName());
         context.indexQueryParserService().queryParser(NotQueryBuilder.PROTOTYPE.getName()).fromXContent(context);
+    }
+
+    @Test
+    public void testValidate() {
+        QueryBuilder innerQuery;
+        int totalExpectedErrors = 0;
+        if (randomBoolean()) {
+            innerQuery = RandomQueryBuilder.createInvalidQuery(random());
+            totalExpectedErrors++;
+        } else {
+            innerQuery = RandomQueryBuilder.createQuery(random());
+        }
+        NotQueryBuilder notQuery = new NotQueryBuilder(innerQuery);
+        assertValidate(notQuery, totalExpectedErrors);
     }
 }

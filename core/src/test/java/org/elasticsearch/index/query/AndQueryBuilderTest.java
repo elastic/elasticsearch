@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.BooleanClause.Occur;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.junit.Test;
@@ -56,7 +56,7 @@ public class AndQueryBuilderTest extends BaseQueryTestCase<AndQueryBuilder> {
         AndQueryBuilder query = new AndQueryBuilder();
         int subQueries = randomIntBetween(1, 5);
         for (int i = 0; i < subQueries; i++ ) {
-            query.add(RandomQueryBuilder.create(random()));
+            query.add(RandomQueryBuilder.createQuery(random()));
         }
         if (randomBoolean()) {
             query.queryName(randomAsciiOfLengthBetween(1, 10));
@@ -89,5 +89,21 @@ public class AndQueryBuilderTest extends BaseQueryTestCase<AndQueryBuilder> {
         context.reset(parser);
         assertQueryHeader(parser, AndQueryBuilder.PROTOTYPE.getName());
         context.indexQueryParserService().queryParser(AndQueryBuilder.PROTOTYPE.getName()).fromXContent(context);
+    }
+
+    @Test
+    public void testValidate() {
+        AndQueryBuilder andQuery = new AndQueryBuilder();
+        int iters = randomIntBetween(0, 5);
+        int totalExpectedErrors = 0;
+        for (int i = 0; i < iters; i++) {
+            if (randomBoolean()) {
+                andQuery.add(RandomQueryBuilder.createInvalidQuery(random()));
+                totalExpectedErrors++;
+            } else {
+                andQuery.add(RandomQueryBuilder.createQuery(random()));
+            }
+        }
+        assertValidate(andQuery, totalExpectedErrors);
     }
 }

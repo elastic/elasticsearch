@@ -17,10 +17,11 @@ by the query.
 "function_score": {
     "query": {},
     "boost": "boost for the whole query",
-    "FUNCTION": {},
+    "FUNCTION": {}, <1>
     "boost_mode":"(multiply|replace|...)"
 }
 --------------------------------------------------
+<1> See <<score-functions>> for a list of supported functions.
 
 Furthermore, several functions can be combined. In this case one can
 optionally choose to apply the function only if a document matches a
@@ -34,11 +35,11 @@ given filtering query
     "functions": [
         {
             "filter": {},
-            "FUNCTION": {},
+            "FUNCTION": {}, <1>
             "weight": number
         },
         {
-            "FUNCTION": {}
+            "FUNCTION": {} <1>
         },
         {
             "filter": {},
@@ -51,6 +52,7 @@ given filtering query
     "min_score" : number
 }
 --------------------------------------------------
+<1> See <<score-functions>> for a list of supported functions.
 
 NOTE: The scores produced by the filtering query of each function do not matter.
 
@@ -89,8 +91,17 @@ query. The parameter `boost_mode` defines how:
 By default, modifying the score does not change which documents match. To exclude
 documents that do not meet a certain score threshold the `min_score` parameter can be set to the desired score threshold.
 
+[[score-functions]]
+
 The `function_score` query provides several types of score functions.
 
+* <<function-script-score,`script_score`>>
+* <<function-weight,`weight`>>
+* <<function-random,`random_score`>>
+* <<function-field-value-factor,`field_value_factor`>>
+* <<function-decay,decay functions>>: `gauss`, `linear`, `exp`
+
+[[function-script-score]]
 ==== Script score
 
 The `script_score` function allows you to wrap another query and customize
@@ -131,6 +142,7 @@ Note that unlike the `custom_score` query, the
 score of the query is multiplied with the result of the script scoring. If
 you wish to inhibit this, set `"boost_mode": "replace"`
 
+[[function-weight]]
 ==== Weight
 
 The `weight` score allows you to multiply the score by the provided
@@ -143,6 +155,7 @@ not.
 "weight" : number
 --------------------------------------------------
 
+[[function-random]]
 ==== Random
 
 The `random_score` generates scores using a hash of the `_uid` field,
@@ -159,6 +172,7 @@ be a memory intensive operation since the values are unique.
 }
 --------------------------------------------------
 
+[[function-field-value-factor]]
 ==== Field Value factor
 
 The `field_value_factor` function allows you to use a field from a document to
@@ -186,23 +200,33 @@ Which will translate into the following formula for scoring:
 
 There are a number of options for the `field_value_factor` function:
 
-[cols="<,<",options="header",]
-|=======================================================================
-| Parameter |Description
-|`field` |Field to be extracted from the document.
-|`factor` |Optional factor to multiply the field value with, defaults to 1.
-|`modifier` |Modifier to apply to the field value, can be one of: `none`, `log`,
- `log1p`, `log2p`, `ln`, `ln1p`, `ln2p`, `square`, `sqrt`, or `reciprocal`.
- Defaults to `none`.
-|`missing` |Value used if the document doesn't have that field. The modifier
-and factor are still applied to it as though it were read from the document.
-|=======================================================================
+[horizontal]
+`field`::
 
-Keep in mind that taking the log() of 0, or the square root of a negative number
-is an illegal operation, and an exception will be thrown. Be sure to limit the
-values of the field with a range filter to avoid this, or use `log1p` and
-`ln1p`.
+    Field to be extracted from the document.
 
+`factor`::
+
+    Optional factor to multiply the field value with, defaults to `1`.
+
+`modifier`::
+
+    Modifier to apply to the field value, can be one of: `none`, `log`,
+    `log1p`, `log2p`, `ln`, `ln1p`, `ln2p`, `square`, `sqrt`, or `reciprocal`.
+    Defaults to `none`.
+
+`missing`::
+
+    Value used if the document doesn't have that field. The modifier
+    and factor are still applied to it as though it were read from the document.
+
+
+ Keep in mind that taking the log() of 0, or the square root of a negative number
+ is an illegal operation, and an exception will be thrown. Be sure to limit the
+ values of the field with a range filter to avoid this, or use `log1p` and
+ `ln1p`.
+
+[[function-decay]]
 ==== Decay functions
 
 Decay functions score a document with a function that decays depending
@@ -218,8 +242,8 @@ decay function is specified as
 
 [source,js]
 --------------------------------------------------
-"DECAY_FUNCTION": {
-    "FIELD_NAME": {
+"DECAY_FUNCTION": { <1>
+    "FIELD_NAME": { <2>
           "origin": "11, 12",
           "scale": "2km",
           "offset": "0km",
@@ -227,26 +251,26 @@ decay function is specified as
     }
 }
 --------------------------------------------------
+<1> The `DECAY_FUNCTION` should be one of `linear`, `exp`, or `gauss`.
+<2> The specified field must be a numeric, date, or geo-point field.
 
-where `DECAY_FUNCTION` can be "linear", "exp" and "gauss" (see below). The specified field must be a numeric field. In the above example, the field is a <<mapping-geo-point-type>> and origin can be provided in geo format. `scale` and `offset` must be given with a unit in this case. If your field is a date field, you can set `scale` and `offset` as days, weeks, and so on. Example:
+In the above example, the field is a <<mapping-geo-point-type>> and origin can be provided in geo format. `scale` and `offset` must be given with a unit in this case. If your field is a date field, you can set `scale` and `offset` as days, weeks, and so on. Example:
+
 
 [source,js]
 --------------------------------------------------
-    "DECAY_FUNCTION": {
-        "FIELD_NAME": {
-              "origin": "2013-09-17",
+    "gauss": {
+        "date": {
+              "origin": "2013-09-17", <1>
               "scale": "10d",
-              "offset": "5d",
-              "decay" : 0.5
+              "offset": "5d", <2>
+              "decay" : 0.5 <2>
         }
     }
 --------------------------------------------------
-
-
-The format of the origin depends on the <<mapping-date-format>> defined in your mapping. If you do not define the origin, the current time is used.
-
-
-The `offset` and `decay` parameters are optional.
+<1> The date format of the origin depends on the <<mapping-date-format>> defined in
+    your mapping. If you do not define the origin, the current time is used.
+<2> The `offset` and `decay` parameters are optional.
 
 [horizontal]
 `origin`::
@@ -284,37 +308,45 @@ from the desired location.
 
 In the second example, documents with a field value between 2013-09-12 and 2013-09-22 would get a weight of 1.0 and documents which are 15 days from that date a weight of 0.5.
 
-
+===== Supported decay functions
 
 The `DECAY_FUNCTION` determines the shape of the decay:
 
-[horizontal]
 `gauss`::
-
-Normal decay, computed as:
 +
+--
+Normal decay, computed as:
+
 image:images/Gaussian.png[]
 
 where image:images/sigma.png[] is computed to assure that the score takes the value `decay` at distance `scale` from `origin`+-`offset`
 
 image:images/sigma_calc.png[]
 
-[horizontal]
-`exp`::
+See <<gauss-decay>> for graphs demonstrating the curve generated by the `gauss` function.
 
-Exponential decay, computed as:
+--
+
+`exp`::
 +
+--
+Exponential decay, computed as:
+
 image:images/Exponential.png[]
 
 where again the parameter image:images/lambda.png[] is computed to assure that the score takes the value `decay` at distance `scale` from `origin`+-`offset`
 
 image:images/lambda_calc.png[]
 
-[horizontal]
-`linear`::
+See <<exp-decay>> for graphs demonstrating the curve generated by the `exp` function.
 
-Linear decay, computed as:
+--
+
+`linear`::
 +
+--
+Linear decay, computed as:
+
 image:images/Linear.png[].
 
 
@@ -325,12 +357,13 @@ image:images/s_calc.png[]
 In contrast to the normal and exponential decay, this function actually
 sets the score to 0 if the field value exceeds twice the user given
 scale value.
+--
 
 For single functions the three decay functions together with their parameters can be visualized like this (the field in this example called "age"):
 
 image:images/decay_2d.png[width=600]
 
-===== Multiple values:
+===== Multi-values fields
 
 If a field used for computing the decay contains multiple values, per default the value closest to the origin is chosen for determining the distance.
 This can be changed by setting `multi_value_mode`.
@@ -355,8 +388,7 @@ Example:
 --------------------------------------------------
 
 
-
-===== Detailed example
+==== Detailed example
 
 Suppose you are searching for a hotel in a certain town. Your budget is
 limited. Also, you would like the hotel to be close to the town center,
@@ -383,69 +415,72 @@ The function for `price` in this case would be
 
 [source,js]
 --------------------------------------------------
-"DECAY_FUNCTION": {
+"gauss": { <1>
     "price": {
           "origin": "0",
           "scale": "20"
     }
 }
 --------------------------------------------------
+<1> This decay function could also be `linear` or `exp`.
 
 and for `location`:
 
 [source,js]
 --------------------------------------------------
 
-"DECAY_FUNCTION": {
+"gauss": { <1>
     "location": {
           "origin": "11, 12",
           "scale": "2km"
     }
 }
 --------------------------------------------------
-
-where `DECAY_FUNCTION` can be "linear", "exp" and "gauss".
+<1> This decay function could also be `linear` or `exp`.
 
 Suppose you want to multiply these two functions on the original score,
 the request would look like this:
 
 [source,js]
 --------------------------------------------------
-curl 'localhost:9200/hotels/_search/' -d '{
-"query": {
+GET /hotels/_search/
+{
+  "query": {
     "function_score": {
-        "functions": [
-            {
-                "DECAY_FUNCTION": {
-                    "price": {
-                        "origin": "0",
-                        "scale": "20"
-                    }
-                }
-            },
-            {
-                "DECAY_FUNCTION": {
-                    "location": {
-                        "origin": "11, 12",
-                        "scale": "2km"
-                    }
-                }
+      "functions": [
+        {
+          "gauss": {
+            "price": {
+              "origin": "0",
+              "scale": "20"
             }
-        ],
-        "query": {
-            "match": {
-                "properties": "balcony"
-            }
+          }
         },
-        "score_mode": "multiply"
+        {
+          "gauss": {
+            "location": {
+              "origin": "11, 12",
+              "scale": "2km"
+            }
+          }
+        }
+      ],
+      "query": {
+        "match": {
+          "properties": "balcony"
+        }
+      },
+      "score_mode": "multiply"
     }
+  }
 }
-}'
 --------------------------------------------------
+// AUTOSENSE
 
 Next, we show how the computed score looks like for each of the three
 possible decay functions.
 
+[[gauss-decay]]
 ===== Normal decay, keyword `gauss`
 
 When choosing `gauss` as the decay function in the above example, the
@@ -467,6 +502,7 @@ of 0.56. "BnB Bellevue" and "Backback Nap" are both pretty close to the
 defined location but "BnB Bellevue" is cheaper, so it gets a multiplier
 of 0.86 whereas "Backpack Nap" gets a value of 0.66.
 
+[[exp-decay]]
 ===== Exponential decay, keyword `exp`
 
 When choosing `exp` as the decay function in the above example, the
@@ -476,6 +512,7 @@ image::https://f.cloud.github.com/assets/4320215/768161/082975c0-e899-11e2-86f7-
 
 image::https://f.cloud.github.com/assets/4320215/768162/0b606884-e899-11e2-907b-aefc77eefef6.png[width="700px"]
 
+[[linear-decay]]
 ===== Linear decay, keyword `linear`
 
 When choosing `linear` as the decay function in the above example, the
@@ -487,8 +524,7 @@ image::https://f.cloud.github.com/assets/4320215/768165/19d8b1aa-e899-11e2-91bc-
 
 ==== Supported fields for decay functions
 
-Only single valued numeric fields, including time and geo locations,
-are supported.
+Only numeric, date, and geo-point fields are supported.
 
 ==== What if a field is missing?
 

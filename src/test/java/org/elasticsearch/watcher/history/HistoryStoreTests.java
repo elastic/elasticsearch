@@ -7,25 +7,21 @@ package org.elasticsearch.watcher.history;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.cluster.settings.DynamicSettings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.settings.NodeSettingsService;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.execution.ExecutionState;
 import org.elasticsearch.watcher.execution.Wid;
-import org.elasticsearch.watcher.support.TemplateUtils;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
+import org.joda.time.DateTime;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Matchers;
 
-import static org.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.watcher.test.WatcherMatchers.indexRequest;
 import static org.hamcrest.core.IsEqual.equalTo;
+import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Mockito.*;
 
 /**
@@ -38,11 +34,7 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
     @Before
     public void init() {
         clientProxy = mock(ClientProxy.class);
-        TemplateUtils templateUtils = mock(TemplateUtils.class);
-        NodeSettingsService nodeSettingsService = mock(NodeSettingsService.class);
-        DynamicSettings dynamicSettings = mock(DynamicSettings.class);
-        ThreadPool threadPool = mock(ThreadPool.class);
-        historyStore = new HistoryStore(Settings.EMPTY, clientProxy, templateUtils, nodeSettingsService, dynamicSettings, threadPool);
+        historyStore = new HistoryStore(Settings.EMPTY, clientProxy);
         historyStore.start();
     }
 

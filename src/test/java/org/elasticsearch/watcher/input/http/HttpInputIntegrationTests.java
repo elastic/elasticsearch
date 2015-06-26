@@ -53,7 +53,7 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTests {
         createIndex("index");
         client().prepareIndex("index", "type", "id").setSource("{}").setRefresh(true).get();
 
-        InetSocketAddress address = internalTestCluster().httpAddresses()[0];
+        InetSocketAddress address = internalCluster().httpAddresses()[0];
         watcherClient().preparePutWatch("_name")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
@@ -74,7 +74,7 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTests {
 
     @Test
     public void testHttpInput_clusterStats() throws Exception {
-        InetSocketAddress address = internalTestCluster().httpAddresses()[0];
+        InetSocketAddress address = internalCluster().httpAddresses()[0];
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_name")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("1s")))
@@ -102,7 +102,7 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTests {
         client().prepareIndex("idx", "type").setSource("field", "value").get();
         refresh();
 
-        InetSocketAddress address = internalTestCluster().httpAddresses()[0];
+        InetSocketAddress address = internalCluster().httpAddresses()[0];
         XContentBuilder body = jsonBuilder().prettyPrint().startObject()
                     .field("query").value(termQuery("field", "value"))
                 .endObject();

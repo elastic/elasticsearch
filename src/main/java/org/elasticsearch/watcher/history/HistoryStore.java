@@ -10,23 +10,17 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.settings.ClusterDynamicSettings;
-import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.node.settings.NodeSettingsService;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.support.TemplateUtils;
-import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -34,97 +28,29 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  */
-public class HistoryStore extends AbstractComponent implements NodeSettingsService.Listener {
+public class HistoryStore extends AbstractComponent {
 
     public static final String INDEX_PREFIX = ".watch_history-";
     public static final String DOC_TYPE = "watch_record";
-    public static final String INDEX_TEMPLATE_NAME = "watch_history";
 
     static final DateTimeFormatter indexTimeFormat = DateTimeFormat.forPattern("YYYY.MM.dd");
     private static final ImmutableSet<String> forbiddenIndexSettings = ImmutableSet.of("index.mapper.dynamic");
 
     private final ClientProxy client;
-    private final TemplateUtils templateUtils;
-    private final ThreadPool threadPool;
 
     private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
     private final Lock putUpdateLock = readWriteLock.readLock();
     private final Lock stopLock = readWriteLock.writeLock();
     private final AtomicBoolean started = new AtomicBoolean(false);
 
-    private volatile Settings customIndexSettings = Settings.EMPTY;
-
     @Inject
-    public HistoryStore(Settings settings, ClientProxy client, TemplateUtils templateUtils, NodeSettingsService nodeSettingsService,
-                        @ClusterDynamicSettings DynamicSettings dynamicSettings, ThreadPool threadPool) {
+    public HistoryStore(Settings settings, ClientProxy client) {
         super(settings);
         this.client = client;
-        this.templateUtils = templateUtils;
-        this.threadPool = threadPool;
-
-        updateHistorySettings(settings, false);
-        nodeSettingsService.addListener(this);
-        dynamicSettings.addDynamicSetting("watcher.history.index.*");
     }
-
-    @Override
-    public void onRefreshSettings(Settings settings) {
-        updateHistorySettings(settings, true);
-    }
-
-    private void updateHistorySettings(Settings settings, boolean updateIndexTemplate) {
-        Settings newSettings = Settings.builder()
-                .put(settings.getAsSettings("watcher.history.index"))
-                .build();
-        if (newSettings.names().isEmpty()) {
-            return;
-        }
-
-        boolean changed = false;
-        Settings.Builder builder = Settings.builder().put(customIndexSettings);
-
-        for (Map.Entry<String, String> entry : newSettings.getAsMap().entrySet()) {
-            String name = "index." + entry.getKey();
-            if (forbiddenIndexSettings.contains(name)) {
-                logger.warn("overriding the default [{}} setting is forbidden. ignoring...", name);
-                continue;
-            }
-
-            String newValue = entry.getValue();
-            String currentValue = customIndexSettings.get(name);
-            if (!newValue.equals(currentValue)) {
-                changed = true;
-                builder.put(name, newValue);
-                logger.info("changing setting [{}] from [{}] to [{}]", name, currentValue, newValue);
-            }
-        }
-
-        if (changed) {
-            customIndexSettings = builder.build();
-            if (updateIndexTemplate) {
-                // Need to fork to prevent dead lock. (We're on the cluster service update task, but the put index template
-                // needs to update the cluster state too, and because the update takes is a single threaded operation,
-                // we would then be stuck)
-                threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        templateUtils.putTemplate(INDEX_TEMPLATE_NAME, customIndexSettings);
-                    }
-                });
-            }
-        }
-    }
-
 
     public void start() {
-        if (started.compareAndSet(false, true)) {
-            try {
-                templateUtils.putTemplate(INDEX_TEMPLATE_NAME, customIndexSettings);
-            } catch (Exception e) {
-                started.set(false);
-                throw e;
-            }
-        }
+        started.set(true);
     }
 
     public boolean validate(ClusterState state) {

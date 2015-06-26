@@ -84,7 +84,7 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTests {
     @Test
     public void testSimpleFailure() throws Exception {
         config = new ClusterDiscoveryConfiguration.UnicastZen(2);
-        internalTestCluster().startNodesAsync(2).get();
+        internalCluster().startNodesAsync(2).get();
         createIndex("my-index");
         ensureWatcherStarted(false);
 
@@ -141,12 +141,12 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTests {
                 .put("node.data", false)
                 .put("node.master", true)
                 .build();
-        internalTestCluster().startNodesAsync(3, settings).get();
+        internalCluster().startNodesAsync(3, settings).get();
         settings = Settings.builder()
                 .put("node.data", true)
                 .put("node.master", false)
                 .build();
-        internalTestCluster().startNodesAsync(7, settings).get();
+        internalCluster().startNodesAsync(7, settings).get();
         ensureWatcherStarted(false);
         ensureLicenseEnabled();
 
@@ -162,7 +162,7 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTests {
         assertWatchWithMinimumPerformedActionsCount("_watch_id", 1, false);
 
         // We still have 2 master node, we should recover from this failure:
-        internalTestCluster().stopCurrentMasterNode();
+        internalCluster().stopCurrentMasterNode();
         ensureWatcherStarted(false);
         ensureWatcherOnlyRunningOnce();
         assertWatchWithMinimumPerformedActionsCount("_watch_id", 2, false);
@@ -192,7 +192,7 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTests {
         int numberOfWatches = scaledRandomIntBetween(numberOfFailures, 12);
         logger.info("number of failures [{}], number of watches [{}]", numberOfFailures, numberOfWatches);
         config = new ClusterDiscoveryConfiguration.UnicastZen(2 + numberOfFailures);
-        internalTestCluster().startNodesAsync(2).get();
+        internalCluster().startNodesAsync(2).get();
         createIndex("my-index");
         client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
 
@@ -233,14 +233,14 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTests {
         // will elect itself as master. This is bad and should be fixed in core. What I think that should happen is that
         // if a node detects that is has lost a node, a node should clear its unicast temporal responses or at least
         // remove the node that has been removed. This is a workaround:
-        for (ZenPingService pingService : internalTestCluster().getInstances(ZenPingService.class)) {
+        for (ZenPingService pingService : internalCluster().getInstances(ZenPingService.class)) {
             for (ZenPing zenPing : pingService.zenPings()) {
                 if (zenPing instanceof UnicastZenPing) {
                     ((UnicastZenPing) zenPing).clearTemporalResponses();
                 }
             }
         }
-        internalTestCluster().stopCurrentMasterNode();
+        internalCluster().stopCurrentMasterNode();
         // Can't use ensureWatcherStopped, b/c that relies on the watcher stats api which requires an elected master node
         assertBusy(new Runnable() {
             public void run () {
@@ -251,16 +251,16 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTests {
             }
         }, 30, TimeUnit.SECONDS);
         // Ensure that the watch manager doesn't run elsewhere
-        for (WatcherService watcherService : internalTestCluster().getInstances(WatcherService.class)) {
+        for (WatcherService watcherService : internalCluster().getInstances(WatcherService.class)) {
             assertThat(watcherService.state(), is(WatcherState.STOPPED));
         }
-        for (ExecutionService executionService : internalTestCluster().getInstances(ExecutionService.class)) {
+        for (ExecutionService executionService : internalCluster().getInstances(ExecutionService.class)) {
             assertThat(executionService.executionThreadPoolQueueSize(), equalTo(0l));
         }
     }
 
     private void startElectedMasterNodeAndWait() throws Exception {
-        internalTestCluster().startNode();
+        internalCluster().startNode();
         ensureWatcherStarted(false);
         ensureWatcherOnlyRunningOnce();
     }

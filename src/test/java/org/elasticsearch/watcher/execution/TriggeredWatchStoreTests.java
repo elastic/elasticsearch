@@ -28,7 +28,6 @@ import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.history.TriggeredWatchException;
-import org.elasticsearch.watcher.support.TemplateUtils;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.hamcrest.core.IsNull;
 import org.junit.Before;
@@ -41,7 +40,6 @@ import static org.hamcrest.core.IsEqual.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.*;
 
 public class TriggeredWatchStoreTests extends ElasticsearchTestCase {
@@ -53,11 +51,9 @@ public class TriggeredWatchStoreTests extends ElasticsearchTestCase {
     @Before
     public void init() {
         clientProxy = mock(ClientProxy.class);
-        TemplateUtils templateUtils = mock(TemplateUtils.class);
         parser = mock(TriggeredWatch.Parser.class);
-        triggeredWatchStore = new TriggeredWatchStore(Settings.EMPTY, clientProxy, templateUtils, parser);
+        triggeredWatchStore = new TriggeredWatchStore(Settings.EMPTY, clientProxy, parser);
         triggeredWatchStore.start();
-        verify(templateUtils, times(1)).putTemplate(same(TriggeredWatchStore.INDEX_TEMPLATE_NAME), any(Settings.class));
     }
 
     @Test

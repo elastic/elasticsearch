@@ -268,13 +268,13 @@ public class LicenseIntegrationTests extends AbstractWatcherIntegrationTests {
     }
 
     public static void disableLicensing() {
-        for (MockLicenseService service : internalTestCluster().getInstances(MockLicenseService.class)) {
+        for (MockLicenseService service : internalCluster().getInstances(MockLicenseService.class)) {
             service.disable();
         }
     }
 
     public static void enableLicensing() {
-        for (MockLicenseService service : internalTestCluster().getInstances(MockLicenseService.class)) {
+        for (MockLicenseService service : internalCluster().getInstances(MockLicenseService.class)) {
             service.enable();
         }
     }

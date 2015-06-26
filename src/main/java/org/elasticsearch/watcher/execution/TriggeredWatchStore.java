@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.execution;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -29,11 +28,13 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.watcher.history.HistoryException;
 import org.elasticsearch.watcher.history.TriggeredWatchException;
-import org.elasticsearch.watcher.support.TemplateUtils;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -43,14 +44,10 @@ public class TriggeredWatchStore extends AbstractComponent {
 
     public static final String INDEX_NAME = ".triggered_watches";
     public static final String DOC_TYPE = "triggered_watch";
-    public static final String INDEX_TEMPLATE_NAME = "triggered_watches";
-    private static final ImmutableSet<String> forbiddenIndexSettings = ImmutableSet.of("index.mapper.dynamic");
 
     private final int scrollSize;
     private final ClientProxy client;
     private final TimeValue scrollTimeout;
-    private final TemplateUtils templateUtils;
-    private final Settings customIndexSettings;
     private final TriggeredWatch.Parser triggeredWatchParser;
 
     private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
@@ -59,47 +56,16 @@ public class TriggeredWatchStore extends AbstractComponent {
     private final AtomicBoolean started = new AtomicBoolean(false);
 
     @Inject
-    public TriggeredWatchStore(Settings settings, ClientProxy client, TemplateUtils templateUtils, TriggeredWatch.Parser triggeredWatchParser) {
+    public TriggeredWatchStore(Settings settings, ClientProxy client, TriggeredWatch.Parser triggeredWatchParser) {
         super(settings);
         this.scrollSize = settings.getAsInt("watcher.execution.scroll.size", 100);
         this.client = client;
         this.scrollTimeout = settings.getAsTime("watcher.execution.scroll.timeout", TimeValue.timeValueSeconds(30));
-        this.templateUtils = templateUtils;
-        this.customIndexSettings = updateTriggerWatchesSettings(settings);
         this.triggeredWatchParser = triggeredWatchParser;
     }
 
-    private Settings updateTriggerWatchesSettings(Settings nodeSettings) {
-        Settings newSettings = Settings.builder()
-                .put(nodeSettings.getAsSettings("watcher.triggered_watches.index"))
-                .build();
-        if (newSettings.names().isEmpty()) {
-            return Settings.EMPTY;
-        }
-
-        // Filter out forbidden settings:
-        Settings.Builder builder = Settings.builder();
-        for (Map.Entry<String, String> entry : newSettings.getAsMap().entrySet()) {
-            String name = "index." + entry.getKey();
-            if (forbiddenIndexSettings.contains(name)) {
-                logger.warn("overriding the default [{}} setting is forbidden. ignoring...", name);
-                continue;
-            }
-            builder.put(name, entry.getValue());
-        }
-        return builder.build();
-    }
-
-
     public void start() {
-        if (started.compareAndSet(false, true)) {
-            try {
-                templateUtils.putTemplate(INDEX_TEMPLATE_NAME, customIndexSettings);
-            } catch (Exception e) {
-                started.set(false);
-                throw e;
-            }
-        }
+        started.set(true);
     }
 
     public boolean validate(ClusterState state) {

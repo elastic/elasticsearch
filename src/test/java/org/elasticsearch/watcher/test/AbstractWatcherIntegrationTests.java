@@ -5,15 +5,12 @@
  */
 package org.elasticsearch.watcher.test;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
@@ -32,7 +29,6 @@ import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.watcher.WatcherLifeCycleService;
 import org.elasticsearch.watcher.WatcherPlugin;
@@ -46,7 +42,6 @@ import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.execution.ExecutionService;
 import org.elasticsearch.watcher.execution.ExecutionState;
 import org.elasticsearch.watcher.history.HistoryStore;
-import org.elasticsearch.watcher.execution.TriggeredWatchStore;
 import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.support.clock.ClockMock;
 import org.elasticsearch.watcher.support.http.HttpClient;
@@ -56,7 +51,6 @@ import org.elasticsearch.watcher.trigger.ScheduleTriggerEngineMock;
 import org.elasticsearch.watcher.trigger.TriggerService;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleModule;
 import org.elasticsearch.watcher.watch.Watch;
-import org.elasticsearch.watcher.watch.WatchStore;
 import org.hamcrest.Matcher;
 import org.jboss.netty.util.internal.SystemPropertyUtil;
 import org.junit.After;
@@ -66,11 +60,13 @@ import org.junit.Before;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -91,6 +87,15 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
     private static Boolean shieldEnabled;
 
     private static ScheduleModule.Engine scheduleEngine;
+
+    @Override
+    protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
+        if (shieldEnabled == null) {
+            shieldEnabled = enableShield();
+            scheduleEngine = randomFrom(ScheduleModule.Engine.values());
+        }
+        return super.buildTestCluster(scope, seed);
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -208,7 +213,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
     }
 
     private void startWatcherIfNodesExist() throws Exception {
-        if (internalTestCluster().size() > 0) {
+        if (internalCluster().size() > 0) {
             ensureLicenseEnabled();
             WatcherState state = getInstanceFromMaster(WatcherService.class).state();
             if (state == WatcherState.STOPPED) {
@@ -232,14 +237,6 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
 
     public boolean randomizeNumberOfShardsAndReplicas() {
         return false;
-    }
-
-    @Override
-    protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
-        // This overwrites the wipe logic of the test cluster to not remove the watches and watch_history templates. By default all templates are removed
-        // TODO: We should have the notion of a hidden template (like hidden index / type) that only gets removed when specifically mentioned.
-        final TestCluster testCluster = super.buildTestCluster(scope, seed);
-        return new WatcherWrappingCluster(seed, testCluster);
     }
 
     protected long docCount(String index, String type, QueryBuilder query) {
@@ -266,7 +263,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
     }
 
     protected <T> T getInstanceFromMaster(Class<T> type) {
-        return internalTestCluster().getInstance(type, internalTestCluster().getMasterName());
+        return internalCluster().getInstance(type, internalCluster().getMasterName());
     }
 
     protected Watch.Parser watchParser() {
@@ -291,16 +288,16 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
 
     protected WatcherClient watcherClient() {
         return shieldEnabled ?
-                new WatcherClient(internalTestCluster().transportClient()) :
+                new WatcherClient(internalCluster().transportClient()) :
                 new WatcherClient(client());
     }
 
     protected ScriptServiceProxy scriptService() {
-        return internalTestCluster().getInstance(ScriptServiceProxy.class);
+        return internalCluster().getInstance(ScriptServiceProxy.class);
     }
 
     protected HttpClient watcherHttpClient() {
-        return internalTestCluster().getInstance(HttpClient.class);
+        return internalCluster().getInstance(HttpClient.class);
     }
 
     protected EmailService noopEmailService() {
@@ -442,7 +439,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                for (LicenseService service : internalTestCluster().getInstances(LicenseService.class)) {
+                for (LicenseService service : internalCluster().getInstances(LicenseService.class)) {
                     assertThat(service.enabled(), is(true));
                 }
             }
@@ -494,109 +491,12 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
 
     protected void ensureWatcherOnlyRunningOnce() {
         int running = 0;
-        for (WatcherService watcherService : internalTestCluster().getInstances(WatcherService.class)) {
+        for (WatcherService watcherService : internalCluster().getInstances(WatcherService.class)) {
             if (watcherService.state() == WatcherState.STARTED) {
                 running++;
             }
         }
         assertThat("watcher should only run on the elected master node, but it is running on [" + running + "] nodes", running, equalTo(1));
-    }
-
-    protected static InternalTestCluster internalTestCluster() {
-        return (InternalTestCluster) ((WatcherWrappingCluster) cluster()).testCluster;
-    }
-
-    // We need this custom impl, because we have custom wipe logic. We don't want the watcher index templates to get deleted between tests
-    private final class WatcherWrappingCluster extends TestCluster {
-
-        private final TestCluster testCluster;
-
-        private WatcherWrappingCluster(long seed, TestCluster testCluster) {
-            super(seed);
-            this.testCluster = testCluster;
-        }
-
-        @Override
-        public void beforeTest(Random random, double transportClientRatio) throws IOException {
-            if (scheduleEngine == null) {
-                scheduleEngine = randomFrom(ScheduleModule.Engine.values());
-            }
-            if (shieldEnabled == null) {
-                shieldEnabled = enableShield();
-            }
-            testCluster.beforeTest(random, transportClientRatio);
-        }
-
-        @Override
-        public void wipe() {
-            wipeIndices("_all");
-            wipeRepositories();
-
-            if (size() > 0) {
-                List<String> templatesToWipe = new ArrayList<>();
-                ClusterState state = client().admin().cluster().prepareState().get().getState();
-                for (ObjectObjectCursor<String, IndexTemplateMetaData> cursor : state.getMetaData().templates()) {
-                    if (cursor.key.equals(WatchStore.INDEX_TEMPLATE) || cursor.key.equals(HistoryStore.INDEX_TEMPLATE_NAME) || cursor.key.equals(TriggeredWatchStore.INDEX_TEMPLATE_NAME)) {
-                        continue;
-                    }
-                    templatesToWipe.add(cursor.key);
-                }
-                if (!templatesToWipe.isEmpty()) {
-                    wipeTemplates(templatesToWipe.toArray(new String[templatesToWipe.size()]));
-                }
-            }
-        }
-
-        @Override
-        public void afterTest() throws IOException {
-            testCluster.afterTest();
-        }
-
-        @Override
-        public Client client() {
-            return testCluster.client();
-        }
-
-        @Override
-        public int size() {
-            return testCluster.size();
-        }
-
-        @Override
-        public int numDataNodes() {
-            return testCluster.numDataNodes();
-        }
-
-        @Override
-        public int numDataAndMasterNodes() {
-            return testCluster.numDataAndMasterNodes();
-        }
-
-        @Override
-        public InetSocketAddress[] httpAddresses() {
-            return testCluster.httpAddresses();
-        }
-
-        @Override
-        public void close() throws IOException {
-            testCluster.close();
-        }
-
-        @Override
-        public void ensureEstimatedStats() {
-            testCluster.ensureEstimatedStats();
-        }
-
-        @Override
-        public String getClusterName() {
-            return testCluster.getClusterName();
-        }
-
-        @Override
-        public Iterator<Client> iterator() {
-            return testCluster.iterator();
-        }
-
     }
 
     private static class NoopEmailService implements EmailService {

@@ -9,6 +9,7 @@ package org.elasticsearch.watcher;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.SpawnModules;
+import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.watcher.actions.ActionModule;
 import org.elasticsearch.watcher.client.WatcherClientModule;
@@ -19,8 +20,8 @@ import org.elasticsearch.watcher.input.InputModule;
 import org.elasticsearch.watcher.license.LicenseModule;
 import org.elasticsearch.watcher.rest.WatcherRestModule;
 import org.elasticsearch.watcher.shield.WatcherShieldModule;
-import org.elasticsearch.watcher.support.DynamicIndexName;
-import org.elasticsearch.watcher.support.TemplateUtils;
+import org.elasticsearch.watcher.support.WatcherIndexTemplateRegistry;
+import org.elasticsearch.watcher.support.WatcherIndexTemplateRegistry.TemplateConfig;
 import org.elasticsearch.watcher.support.clock.ClockModule;
 import org.elasticsearch.watcher.support.http.HttpClientModule;
 import org.elasticsearch.watcher.support.init.InitializingModule;
@@ -36,6 +37,10 @@ import java.util.Arrays;
 
 
 public class WatcherModule extends AbstractModule implements SpawnModules {
+
+    public static final String HISTORY_TEMPLATE_NAME = "watch_history";
+    public static final String TRIGGERED_TEMPLATE_NAME = "triggered_watches";
+    public static final String WATCHES_TEMPLATE_NAME = "watches";
 
     protected final Settings settings;
 
@@ -69,8 +74,14 @@ public class WatcherModule extends AbstractModule implements SpawnModules {
     @Override
     protected void configure() {
         bind(WatcherLifeCycleService.class).asEagerSingleton();
-        bind(TemplateUtils.class).asEagerSingleton();
         bind(WatcherSettingsValidation.class).asEagerSingleton();
+
+        bind(WatcherIndexTemplateRegistry.class).asEagerSingleton();
+        Multibinder<TemplateConfig> multibinder
+                = Multibinder.newSetBinder(binder(), TemplateConfig.class);
+        multibinder.addBinding().toInstance(new TemplateConfig(TRIGGERED_TEMPLATE_NAME, "watcher.triggered_watches.index"));
+        multibinder.addBinding().toInstance(new TemplateConfig(HISTORY_TEMPLATE_NAME, "watcher.history.index"));
+        multibinder.addBinding().toInstance(new TemplateConfig(WATCHES_TEMPLATE_NAME, "watcher.watches.index"));
     }
 
 }

@@ -55,7 +55,7 @@ The zone value accepts either a numeric value for the hours offset, for
 example: `"time_zone" : -2`. It also accepts a format of hours and
 minutes, like `"time_zone" : "-02:30"`. Another option is to provide a
 time zone accepted as one of the values listed
-http://joda-time.sourceforge.net/timezones.html[here].
+http://www.joda.org/joda-time/timezones.html[here].
 
 Lets take an example. For `2012-04-01T04:15:30Z`, with a `pre_zone` of
 `-08:00`. For `day` interval, the actual time by applying the time zone

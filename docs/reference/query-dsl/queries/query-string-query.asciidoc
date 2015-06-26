@@ -80,7 +80,7 @@ providing text to a numeric field) to be ignored.
 Defaults to `ROOT`.
 
 |`time_zone` | Time Zone to be applied to any range query related to dates. See also
-http://joda-time.sourceforge.net/api-release/org/joda/time/DateTimeZone.html[JODA timezone].
+http://www.joda.org/joda-time/apidocs/org/joda/time/DateTimeZone.html[JODA timezone].
 |=======================================================================
 
 When a multi term query is being generated, one can control how it gets

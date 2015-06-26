@@ -24,13 +24,9 @@
           "type" : "list",
           "description" : "A comma-separated list of fields to clear when using the `field_data` parameter (default: all)"
         },
-        "filter": {
+        "query": {
           "type" : "boolean",
-          "description" : "Clear filter caches"
-        },
-        "filter_cache": {
-          "type" : "boolean",
-          "description" : "Clear filter caches"
+          "description" : "Clear query caches"
         },
         "ignore_unavailable": {
             "type" : "boolean",
@@ -54,9 +50,9 @@
           "type" : "boolean",
           "description" : "Clear the recycler cache"
         },
-        "query_cache": {
+        "request": {
           "type" : "boolean",
-          "description" : "Clear query cache"
+          "description" : "Clear request cache"
         }
       }
     },

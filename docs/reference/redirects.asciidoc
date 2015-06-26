@@ -370,11 +370,14 @@ or the <<search-aggregations-metrics-extendedstats-aggregation,`extended_stats` 
 
 Facets have been removed. Use <<search-aggregations>> instead.
 
+// CACHES
 
+[role="exclude",id="shard-query-cache"]
+=== Shard request cache
 
+The shard query cache has been renamed <<shard-request-cache>>.
 
+[role="exclude",id="filter-cache"]
+=== Query cache
 
-
-
-
-
+The filter cache has been renamed <<query-cache>>.

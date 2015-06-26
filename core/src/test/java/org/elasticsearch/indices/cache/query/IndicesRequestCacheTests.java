@@ -21,7 +21,7 @@ package org.elasticsearch.indices.cache.query;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.indices.cache.query.IndicesQueryCache;
+import org.elasticsearch.indices.cache.request.IndicesRequestCache;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
@@ -34,13 +34,13 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class IndicesQueryCacheTests extends ElasticsearchIntegrationTest {
+public class IndicesRequestCacheTests extends ElasticsearchIntegrationTest {
 
     // One of the primary purposes of the query cache is to cache aggs results
     public void testCacheAggs() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("index")
                 .addMapping("type", "f", "type=date")
-                .setSettings(IndicesQueryCache.INDEX_CACHE_QUERY_ENABLED, true).get());
+                .setSettings(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED, true).get());
         indexRandom(true,
                 client().prepareIndex("index", "type").setSource("f", "2014-03-10T00:00:00.000Z"),
                 client().prepareIndex("index", "type").setSource("f", "2014-05-13T00:00:00.000Z"));
@@ -54,7 +54,7 @@ public class IndicesQueryCacheTests extends ElasticsearchIntegrationTest {
         assertSearchResponse(r1);
 
         // The cached is actually used
-        assertThat(client().admin().indices().prepareStats("index").setQueryCache(true).get().getTotal().getQueryCache().getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMemorySizeInBytes(), greaterThan(0l));
 
         for (int i = 0; i < 10; ++i) {
             final SearchResponse r2 = client().prepareSearch("index").setSize(0).setSearchType(SearchType.QUERY_THEN_FETCH)

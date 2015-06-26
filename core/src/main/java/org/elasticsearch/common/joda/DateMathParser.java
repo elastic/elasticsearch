@@ -49,7 +49,7 @@ public class DateMathParser {
     }
 
     // Note: we take a callable here for the timestamp in order to be able to figure out
-    // if it has been used. For instance, the query cache does not cache queries that make
+    // if it has been used. For instance, the request cache does not cache requests that make
     // use of `now`.
     public long parse(String text, Callable<Long> now, boolean roundUp, DateTimeZone timeZone) {
         long time;

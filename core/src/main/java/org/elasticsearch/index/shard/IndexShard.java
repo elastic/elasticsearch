@@ -21,6 +21,7 @@ package org.elasticsearch.index.shard;
 
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
+
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -58,8 +59,8 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
-import org.elasticsearch.index.cache.filter.FilterCacheStats;
-import org.elasticsearch.index.cache.query.ShardQueryCache;
+import org.elasticsearch.index.cache.query.QueryCacheStats;
+import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
@@ -99,7 +100,7 @@ import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.InternalIndicesLifecycle;
-import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
+import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
@@ -134,7 +135,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final ShardSearchStats searchService;
     private final ShardGetService getService;
     private final ShardIndexWarmerService shardWarmerService;
-    private final ShardQueryCache shardQueryCache;
+    private final ShardRequestCache shardQueryCache;
     private final ShardFieldData shardFieldData;
     private final PercolatorQueriesRegistry percolatorQueriesRegistry;
     private final ShardPercolateService shardPercolateService;
@@ -154,7 +155,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final EngineConfig engineConfig;
     private final TranslogConfig translogConfig;
     private final MergePolicyConfig mergePolicyConfig;
-    private final IndicesFilterCache indicesFilterCache;
+    private final IndicesQueryCache indicesFilterCache;
     private final StoreRecoveryService storeRecoveryService;
 
     private TimeValue refreshInterval;
@@ -191,7 +192,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     @Inject
     public IndexShard(ShardId shardId, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, StoreRecoveryService storeRecoveryService,
                       ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService,
-                      IndicesFilterCache indicesFilterCache, ShardPercolateService shardPercolateService, CodecService codecService,
+                      IndicesQueryCache indicesFilterCache, ShardPercolateService shardPercolateService, CodecService codecService,
                       ShardTermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, IndexService indexService,
                       @Nullable IndicesWarmer warmer, SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService, EngineFactory factory,
                       ClusterService clusterService, ShardPath path, BigArrays bigArrays) {
@@ -219,7 +220,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.searchService = new ShardSearchStats(indexSettings);
         this.shardWarmerService = new ShardIndexWarmerService(shardId, indexSettings);
         this.indicesFilterCache = indicesFilterCache;
-        this.shardQueryCache = new ShardQueryCache(shardId, indexSettings);
+        this.shardQueryCache = new ShardRequestCache(shardId, indexSettings);
         this.shardFieldData = new ShardFieldData();
         this.percolatorQueriesRegistry = new PercolatorQueriesRegistry(shardId, indexSettings, queryParserService, indexingService, indicesLifecycle, mapperService, indexFieldDataService, shardPercolateService);
         this.shardPercolateService = shardPercolateService;
@@ -296,7 +297,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         return this.shardWarmerService;
     }
 
-    public ShardQueryCache queryCache() {
+    public ShardRequestCache requestCache() {
         return this.shardQueryCache;
     }
 
@@ -614,7 +615,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         return shardWarmerService.stats();
     }
 
-    public FilterCacheStats filterCacheStats() {
+    public QueryCacheStats queryCacheStats() {
         return indicesFilterCache.getStats(shardId);
     }
 
@@ -1345,7 +1346,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         };
         return new EngineConfig(shardId,
                 threadPool, indexingService, indexSettingsService.indexSettings(), warmer, store, deletionPolicy, mergePolicyConfig.getMergePolicy(), mergeSchedulerConfig,
-                mapperService.indexAnalyzer(), similarityService.similarity(), codecService, failedEngineListener, translogRecoveryPerformer, indexCache.filter(), indexCache.filterPolicy(), translogConfig);
+                mapperService.indexAnalyzer(), similarityService.similarity(), codecService, failedEngineListener, translogRecoveryPerformer, indexCache.query(), indexCache.queryPolicy(), translogConfig);
     }
 
     private static class IndexShardOperationCounter extends AbstractRefCounted {

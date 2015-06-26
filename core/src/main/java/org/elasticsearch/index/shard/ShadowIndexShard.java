@@ -42,7 +42,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.termvectors.ShardTermVectorsService;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesWarmer;
-import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
+import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -60,7 +60,7 @@ public final class ShadowIndexShard extends IndexShard {
                             IndicesLifecycle indicesLifecycle, Store store, StoreRecoveryService storeRecoveryService,
                             ThreadPool threadPool, MapperService mapperService,
                             IndexQueryParserService queryParserService, IndexCache indexCache,
-                            IndexAliasesService indexAliasesService, IndicesFilterCache indicesFilterCache,
+                            IndexAliasesService indexAliasesService, IndicesQueryCache indicesFilterCache,
                             ShardPercolateService shardPercolateService, CodecService codecService,
                             ShardTermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService,
                             IndexService indexService, @Nullable IndicesWarmer warmer,

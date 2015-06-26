@@ -21,9 +21,9 @@ package org.elasticsearch.search.scriptfilter;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.cache.filter.FilterCacheModule;
-import org.elasticsearch.index.cache.filter.FilterCacheModule.FilterCacheSettings;
-import org.elasticsearch.index.cache.filter.index.IndexFilterCache;
+import org.elasticsearch.index.cache.query.QueryCacheModule;
+import org.elasticsearch.index.cache.query.QueryCacheModule.FilterCacheSettings;
+import org.elasticsearch.index.cache.query.index.IndexQueryCache;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.sort.SortOrder;
@@ -51,7 +51,7 @@ public class ScriptQuerySearchTests extends ElasticsearchIntegrationTest {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
                 // aggressive filter caching so that we can assert on the number of iterations of the script filters
-                .put(FilterCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, IndexFilterCache.class)
+                .put(QueryCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, IndexQueryCache.class)
                 .put(FilterCacheSettings.FILTER_CACHE_EVERYTHING, true)
                 .build();
     }

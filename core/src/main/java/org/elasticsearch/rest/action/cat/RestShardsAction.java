@@ -101,8 +101,8 @@ public class RestShardsAction extends AbstractCatAction {
         table.addCell("fielddata.memory_size", "alias:fm,fielddataMemory;default:false;text-align:right;desc:used fielddata cache");
         table.addCell("fielddata.evictions", "alias:fe,fielddataEvictions;default:false;text-align:right;desc:fielddata evictions");
 
-        table.addCell("filter_cache.memory_size", "alias:fcm,filterCacheMemory;default:false;text-align:right;desc:used filter cache");
-        table.addCell("filter_cache.evictions", "alias:fce,filterCacheEvictions;default:false;text-align:right;desc:filter cache evictions");
+        table.addCell("query_cache.memory_size", "alias:fcm,queryCacheMemory;default:false;text-align:right;desc:used query cache");
+        table.addCell("query_cache.evictions", "alias:fce,queryCacheEvictions;default:false;text-align:right;desc:query cache evictions");
 
         table.addCell("flush.total", "alias:ft,flushTotal;default:false;text-align:right;desc:number of flushes");
         table.addCell("flush.total_time", "alias:ftt,flushTotalTime;default:false;text-align:right;desc:time spent in flush");
@@ -232,8 +232,8 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(shardStats == null ? null : shardStats.getFieldData().getMemorySize());
             table.addCell(shardStats == null ? null : shardStats.getFieldData().getEvictions());
 
-            table.addCell(shardStats == null ? null : shardStats.getFilterCache().getMemorySize());
-            table.addCell(shardStats == null ? null : shardStats.getFilterCache().getEvictions());
+            table.addCell(shardStats == null ? null : shardStats.getQueryCache().getMemorySize());
+            table.addCell(shardStats == null ? null : shardStats.getQueryCache().getEvictions());
 
             table.addCell(shardStats == null ? null : shardStats.getFlush().getTotal());
             table.addCell(shardStats == null ? null : shardStats.getFlush().getTotalTime());

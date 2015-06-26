@@ -61,7 +61,7 @@ public class FieldMaskingSpanQueryBuilderTest extends BaseQueryTestCase<FieldMas
         if (randomBoolean()) {
             fieldName = "fieldName";
         } else {
-            fieldName = randomBoolean() ? "" : null;
+            fieldName = "";
             totalExpectedErrors++;
         }
         if (randomBoolean()) {
@@ -72,5 +72,15 @@ public class FieldMaskingSpanQueryBuilderTest extends BaseQueryTestCase<FieldMas
         }
         FieldMaskingSpanQueryBuilder queryBuilder = new FieldMaskingSpanQueryBuilder(spanQueryBuilder, fieldName);
         assertValidate(queryBuilder, totalExpectedErrors);
+    }
+
+    @Test(expected=NullPointerException.class)
+    public void testNullFieldName() {
+        new FieldMaskingSpanQueryBuilder(new SpanTermQueryBuilder("name", "value"), null);
+    }
+
+    @Test(expected=NullPointerException.class)
+    public void testNullInnerQuery() {
+            new FieldMaskingSpanQueryBuilder(null, "");
     }
 }

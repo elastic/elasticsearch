@@ -98,6 +98,10 @@ public class AndQueryBuilder extends AbstractQueryBuilder<AndQueryBuilder> {
                 query.add(innerQuery, Occur.MUST);
             }
         }
+        if (query.clauses().isEmpty()) {
+            // no inner lucene query exists, ignore upstream
+            return null;
+        }
         return query;
     }
 

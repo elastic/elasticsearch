@@ -54,9 +54,7 @@ public class AndQueryParser extends BaseQueryParser {
             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                 queriesFound = true;
                 QueryBuilder filter = parseContext.parseInnerFilterToQueryBuilder();
-                if (filter != null) {
-                    queries.add(filter);
-                }
+                queries.add(filter);
             }
         } else {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -69,17 +67,13 @@ public class AndQueryParser extends BaseQueryParser {
                         queriesFound = true;
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             QueryBuilder filter = parseContext.parseInnerFilterToQueryBuilder();
-                            if (filter != null) {
-                                queries.add(filter);
-                            }
+                            queries.add(filter);
                         }
                     } else {
                         queriesFound = true;
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             QueryBuilder filter = parseContext.parseInnerFilterToQueryBuilder();
-                            if (filter != null) {
-                                queries.add(filter);
-                            }
+                            queries.add(filter);
                         }
                     }
                 } else if (token.isValue()) {

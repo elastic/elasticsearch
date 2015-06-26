@@ -44,23 +44,31 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
 
     public static final String NAME = "boosting";
 
-    private QueryBuilder positiveQuery;
+    private final QueryBuilder positiveQuery;
 
-    private QueryBuilder negativeQuery;
+    private final QueryBuilder negativeQuery;
 
     private float negativeBoost = -1;
 
     static final BoostingQueryBuilder PROTOTYPE = new BoostingQueryBuilder();
 
-    public BoostingQueryBuilder() {
+    /**
+     * this constructor only used for prototype
+     */
+    private BoostingQueryBuilder() {
+        this.positiveQuery = null;
+        this.negativeQuery = null;
     }
 
     /**
-     * Add the positive query for this boosting query.
+     * Create a new {@link BoostingQueryBuilder}
+     *
+     * @param positiveQuery the positive query for this boosting query.
+     * @param negativeQuery the negative query for this boosting query.
      */
-    public BoostingQueryBuilder positive(QueryBuilder positiveQuery) {
-        this.positiveQuery = positiveQuery;
-        return this;
+    public BoostingQueryBuilder(QueryBuilder positiveQuery, QueryBuilder negativeQuery) {
+        this.positiveQuery = Objects.requireNonNull(positiveQuery);
+        this.negativeQuery = Objects.requireNonNull(negativeQuery);
     }
 
     /**
@@ -68,14 +76,6 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
      */
     public QueryBuilder positive() {
         return this.positiveQuery;
-    }
-
-    /**
-     * Add the negative query for this boosting query.
-     */
-    public BoostingQueryBuilder negative(QueryBuilder negativeQuery) {
-        this.negativeQuery = negativeQuery;
-        return this;
     }
 
     /**
@@ -103,8 +103,10 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        doXContentInnerBuilder(builder, "positive", positiveQuery, params);
-        doXContentInnerBuilder(builder, "negative", negativeQuery, params);
+        builder.field("positive");
+        positiveQuery.toXContent(builder, params);
+        builder.field("negative");
+        negativeQuery.toXContent(builder, params);
         builder.field("negative_boost", negativeBoost);
         printBoostAndQueryName(builder);
         builder.endObject();
@@ -128,13 +130,10 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
 
     @Override
     protected Query doToQuery(QueryParseContext parseContext) throws IOException {
-        // make upstream queries ignore this query by returning `null`
-        // if either inner query builder is null or returns null-Query
-        if (positiveQuery == null || negativeQuery == null) {
-            return null;
-        }
         Query positive = positiveQuery.toQuery(parseContext);
         Query negative = negativeQuery.toQuery(parseContext);
+        // make upstream queries ignore this query by returning `null`
+        // if either inner query builder returns null
         if (positive == null || negative == null) {
             return null;
         }
@@ -158,9 +157,7 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     protected BoostingQueryBuilder doReadFrom(StreamInput in) throws IOException {
         QueryBuilder positiveQuery = in.readNamedWriteable();
         QueryBuilder negativeQuery = in.readNamedWriteable();
-        BoostingQueryBuilder boostingQuery = new BoostingQueryBuilder();
-        boostingQuery.positive(positiveQuery);
-        boostingQuery.negative(negativeQuery);
+        BoostingQueryBuilder boostingQuery = new BoostingQueryBuilder(positiveQuery, negativeQuery);
         boostingQuery.negativeBoost = in.readFloat();
         return boostingQuery;
     }

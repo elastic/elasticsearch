@@ -39,7 +39,7 @@ public class FQueryFilterBuilder extends AbstractQueryBuilder<FQueryFilterBuilde
 
     public static final String NAME = "fquery";
 
-    static final FQueryFilterBuilder PROTOTYPE = new FQueryFilterBuilder(null);
+    static final FQueryFilterBuilder PROTOTYPE = new FQueryFilterBuilder();
 
     private final QueryBuilder queryBuilder;
 
@@ -49,7 +49,11 @@ public class FQueryFilterBuilder extends AbstractQueryBuilder<FQueryFilterBuilde
      * @param queryBuilder The query to wrap as a filter
      */
     public FQueryFilterBuilder(QueryBuilder queryBuilder) {
-        this.queryBuilder = queryBuilder;
+        this.queryBuilder = Objects.requireNonNull(queryBuilder);
+    }
+
+    private FQueryFilterBuilder() {
+        this.queryBuilder = null;
     }
 
     /**
@@ -62,7 +66,8 @@ public class FQueryFilterBuilder extends AbstractQueryBuilder<FQueryFilterBuilde
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(FQueryFilterBuilder.NAME);
-        doXContentInnerBuilder(builder, "query", queryBuilder, params);
+        builder.field("query");
+        queryBuilder.toXContent(builder, params);
         printBoostAndQueryName(builder);
         builder.endObject();
     }
@@ -70,9 +75,6 @@ public class FQueryFilterBuilder extends AbstractQueryBuilder<FQueryFilterBuilde
     @Override
     protected Query doToQuery(QueryParseContext parseContext) throws IOException {
         // inner query builder can potentially be `null`, in that case we ignore it
-        if (this.queryBuilder == null) {
-            return null;
-        }
         Query innerQuery = this.queryBuilder.toQuery(parseContext);
         if (innerQuery == null) {
             return null;

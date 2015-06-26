@@ -71,14 +71,13 @@ public class BoolQueryParser extends BaseQueryParser {
                 switch (currentFieldName) {
                 case "must":
                     query = parseContext.parseInnerQueryBuilder();
-                    if (query != null) {
-                        mustClauses.add(query);
-                    }
+                    mustClauses.add(query);
                     break;
                 case "should":
                     query = parseContext.parseInnerQueryBuilder();
-                    if (query != null) {
-                        shouldClauses.add(query);
+                    shouldClauses.add(query);
+                    // EmptyQueryBuilder does not add lucene query later, skip setting minuminShouldMatch
+                    if (query != EmptyQueryBuilder.PROTOTYPE) {
                         if (parseContext.isFilter() && minimumShouldMatch == null) {
                             minimumShouldMatch = "1";
                         }
@@ -86,16 +85,12 @@ public class BoolQueryParser extends BaseQueryParser {
                     break;
                 case "filter":
                     query = parseContext.parseInnerFilterToQueryBuilder();
-                    if (query != null) {
-                        filterClauses.add(query);
-                    }
+                    filterClauses.add(query);
                     break;
                 case "must_not":
                 case "mustNot":
                     query = parseContext.parseInnerFilterToQueryBuilder();
-                    if (query != null) {
-                        mustNotClauses.add(query);
-                    }
+                    mustNotClauses.add(query);
                     break;
                 default:
                     throw new QueryParsingException(parseContext, "[bool] query does not support [" + currentFieldName + "]");
@@ -105,14 +100,13 @@ public class BoolQueryParser extends BaseQueryParser {
                     switch (currentFieldName) {
                     case "must":
                         query = parseContext.parseInnerQueryBuilder();
-                        if (query != null) {
-                            mustClauses.add(query);
-                        }
+                        mustClauses.add(query);
                         break;
                     case "should":
                         query = parseContext.parseInnerQueryBuilder();
-                        if (query != null) {
-                            shouldClauses.add(query);
+                        shouldClauses.add(query);
+                        // EmptyQueryBuilder does not add lucene query later, skip setting minuminShouldMatch
+                        if (query != EmptyQueryBuilder.PROTOTYPE) {
                             if (parseContext.isFilter() && minimumShouldMatch == null) {
                                 minimumShouldMatch = "1";
                             }
@@ -120,16 +114,12 @@ public class BoolQueryParser extends BaseQueryParser {
                         break;
                     case "filter":
                         query = parseContext.parseInnerFilterToQueryBuilder();
-                        if (query != null) {
-                            filterClauses.add(query);
-                        }
+                        filterClauses.add(query);
                         break;
                     case "must_not":
                     case "mustNot":
                         query = parseContext.parseInnerFilterToQueryBuilder();
-                        if (query != null) {
-                            mustNotClauses.add(query);
-                        }
+                        mustNotClauses.add(query);
                         break;
                     default:
                         throw new QueryParsingException(parseContext, "bool query does not support [" + currentFieldName + "]");

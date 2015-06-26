@@ -232,7 +232,7 @@ public class QueryParseContext {
         token = parser.nextToken();
         if (token == XContentParser.Token.END_OBJECT) {
             // empty query
-            return null;
+            return EmptyQueryBuilder.PROTOTYPE;
         }
         if (token != XContentParser.Token.FIELD_NAME) {
             throw new QueryParsingException(this, "[_na] query malformed, no field after start_object");

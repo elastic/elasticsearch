@@ -37,10 +37,14 @@ public class NotQueryBuilder extends AbstractQueryBuilder<NotQueryBuilder> {
 
     private final QueryBuilder filter;
 
-    static final NotQueryBuilder PROTOTYPE = new NotQueryBuilder(null);
+    static final NotQueryBuilder PROTOTYPE = new NotQueryBuilder();
 
     public NotQueryBuilder(QueryBuilder filter) {
-        this.filter = filter;
+        this.filter = Objects.requireNonNull(filter);
+    }
+
+    private NotQueryBuilder() {
+        this.filter = null;
     }
 
     /**
@@ -53,16 +57,14 @@ public class NotQueryBuilder extends AbstractQueryBuilder<NotQueryBuilder> {
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        doXContentInnerBuilder(builder, "query", filter, params);
+        builder.field("query");
+        filter.toXContent(builder, params);
         printBoostAndQueryName(builder);
         builder.endObject();
     }
 
     @Override
     protected Query doToQuery(QueryParseContext parseContext) throws IOException {
-        if (filter == null) {
-            return null;
-        }
         Query luceneQuery = filter.toQuery(parseContext);
         if (luceneQuery == null) {
             return null;

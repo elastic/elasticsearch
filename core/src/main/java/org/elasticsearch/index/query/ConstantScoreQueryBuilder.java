@@ -38,7 +38,12 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
 
     private final QueryBuilder filterBuilder;
 
-    static final ConstantScoreQueryBuilder PROTOTYPE = new ConstantScoreQueryBuilder(null);
+    static final ConstantScoreQueryBuilder PROTOTYPE = new ConstantScoreQueryBuilder();
+
+    // only used for prototype
+    private ConstantScoreQueryBuilder() {
+        this.filterBuilder = null;
+    }
 
     /**
      * A query that wraps another query and simply returns a constant score equal to the
@@ -47,7 +52,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
      * @param filterBuilder The query to wrap in a constant score query
      */
     public ConstantScoreQueryBuilder(QueryBuilder filterBuilder) {
-        this.filterBuilder = filterBuilder;
+        this.filterBuilder = Objects.requireNonNull(filterBuilder);
     }
 
     /**
@@ -60,24 +65,19 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        doXContentInnerBuilder(builder, "filter", filterBuilder, params);
+        builder.field("filter");
+        filterBuilder.toXContent(builder, params);
         printBoostAndQueryName(builder);
         builder.endObject();
     }
 
     @Override
     protected Query doToQuery(QueryParseContext parseContext) throws IOException {
-        // current DSL allows empty inner filter clauses, we ignore them
-        if (filterBuilder == null) {
-            return null;
-        }
-
         Query innerFilter = filterBuilder.toQuery(parseContext);
         if (innerFilter == null ) {
             // return null so that parent queries (e.g. bool) also ignore this
             return null;
         }
-
         return new ConstantScoreQuery(filterBuilder.toQuery(parseContext));
     }
 

@@ -964,7 +964,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     @Test
     public void testBoostingQueryBuilder() throws IOException {
         IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(boostingQuery().positive(termQuery("field1", "value1")).negative(termQuery("field1", "value2")).negativeBoost(0.2f)).query();
+        Query parsedQuery = queryParser.parse(boostingQuery(termQuery("field1", "value1"), termQuery("field1", "value2")).negativeBoost(0.2f)).query();
         assertThat(parsedQuery, instanceOf(BoostingQuery.class));
     }
 

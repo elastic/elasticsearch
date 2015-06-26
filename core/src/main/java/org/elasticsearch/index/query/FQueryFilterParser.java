@@ -76,9 +76,6 @@ public class FQueryFilterParser extends BaseQueryParser {
         if (!queryFound) {
             throw new QueryParsingException(parseContext, "[fquery] requires 'query' element");
         }
-        if (wrappedQuery == null) {
-            return null;
-        }
         FQueryFilterBuilder queryBuilder = new FQueryFilterBuilder(wrappedQuery);
         queryBuilder.queryName(queryName);
         queryBuilder.boost(boost);

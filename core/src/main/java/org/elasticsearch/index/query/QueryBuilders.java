@@ -277,8 +277,8 @@ public abstract class QueryBuilders {
      * Unlike the "NOT" clause, this still selects documents that contain undesirable terms,
      * but reduces their overall score:
      */
-    public static BoostingQueryBuilder boostingQuery() {
-        return new BoostingQueryBuilder();
+    public static BoostingQueryBuilder boostingQuery(QueryBuilder positiveQuery, QueryBuilder negativeQuery) {
+        return new BoostingQueryBuilder(positiveQuery, negativeQuery);
     }
 
     /**

@@ -21,9 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.queries.BoostingQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -32,9 +29,7 @@ public class BoostingQueryBuilderTest extends BaseQueryTestCase<BoostingQueryBui
 
     @Override
     protected BoostingQueryBuilder doCreateTestQueryBuilder() {
-        BoostingQueryBuilder query = new BoostingQueryBuilder();
-        query.positive(RandomQueryBuilder.createQuery(random()));
-        query.negative(RandomQueryBuilder.createQuery(random()));
+        BoostingQueryBuilder query = new BoostingQueryBuilder(RandomQueryBuilder.createQuery(random()), RandomQueryBuilder.createQuery(random()));
         query.negativeBoost(2.0f / randomIntBetween(1, 20));
         return query;
     }
@@ -43,89 +38,30 @@ public class BoostingQueryBuilderTest extends BaseQueryTestCase<BoostingQueryBui
     protected Query doCreateExpectedQuery(BoostingQueryBuilder queryBuilder, QueryParseContext context) throws IOException {
         Query positive = queryBuilder.positive().toQuery(context);
         Query negative = queryBuilder.negative().toQuery(context);
+        if (positive == null || negative == null) {
+            return null;
+        }
         return new BoostingQuery(positive, negative, queryBuilder.negativeBoost());
-    }
-
-    /**
-     * test that setting a null negative/positive clause renders a parseable query
-     */
-    @Test
-    public void testInnerClauseNull() throws IOException {
-        BoostingQueryBuilder boostingQueryBuilder = new BoostingQueryBuilder().negativeBoost(0.1f);
-        if (randomBoolean()) {
-            boostingQueryBuilder.positive(new MatchAllQueryBuilder());
-        } else {
-            boostingQueryBuilder.negative(new MatchAllQueryBuilder());
-        }
-        String contentString = boostingQueryBuilder.toString();
-        XContentParser parser = XContentFactory.xContent(contentString).createParser(contentString);
-        QueryParseContext context = createContext();
-        context.reset(parser);
-        assertQueryHeader(parser, boostingQueryBuilder.getName());
-        QueryBuilder parsedBuilder = context.indexQueryParserService().queryParser(boostingQueryBuilder.getName()).fromXContent(context);
-        assertNotNull(parsedBuilder);
-        assertNotSame(parsedBuilder, boostingQueryBuilder);
-        assertEquals(parsedBuilder, boostingQueryBuilder);
-    }
-
-    /**
-     * tests that we signal upstream queries to ignore this query by returning <tt>null</tt>
-     * if any of the inner query builder is not set
-     */
-    @Test
-    public void testInnerQueryBuilderNull() throws IOException {
-        BoostingQueryBuilder boostingQueryBuilder = new BoostingQueryBuilder();
-        if (randomBoolean()) {
-            boostingQueryBuilder.positive(new MatchAllQueryBuilder()).negative(null);
-        } else {
-            boostingQueryBuilder.positive(null).negative(new MatchAllQueryBuilder());
-        }
-        assertNull(boostingQueryBuilder.toQuery(createContext()));
-    }
-
-    @Test
-    public void testInnerQueryBuilderReturnsNull() throws IOException {
-        QueryBuilder noOpBuilder = new AbstractQueryBuilder() {
-
-            @Override
-            public String getName() {
-                return "dummy";
-            }
-
-            @Override
-            protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-            }
-
-            @Override
-            protected Query doToQuery(QueryParseContext parseContext) throws IOException {
-                return null;
-            }
-        };
-        BoostingQueryBuilder boostingQueryBuilder;
-        if (randomBoolean()) {
-            boostingQueryBuilder = new BoostingQueryBuilder().positive(new MatchAllQueryBuilder()).negative(noOpBuilder);
-        } else {
-            boostingQueryBuilder = new BoostingQueryBuilder().positive(noOpBuilder).negative(new MatchAllQueryBuilder());
-        }
-        assertNull(boostingQueryBuilder.toQuery(createContext()));
     }
 
     @Test
     public void testValidate() {
-        BoostingQueryBuilder boostingQuery = new BoostingQueryBuilder();
         int totalExpectedErrors = 0;
-        if (randomBoolean()) {
-            boostingQuery.negative(RandomQueryBuilder.createInvalidQuery(random()));
+        QueryBuilder positive;
+        QueryBuilder negative;
+        if (frequently()) {
+            negative = RandomQueryBuilder.createInvalidQuery(random());
             totalExpectedErrors++;
-        } else if(rarely()) {
-            boostingQuery.negative(RandomQueryBuilder.createQuery(random()));
+        } else {
+            negative = RandomQueryBuilder.createQuery(random());
         }
-        if (randomBoolean()) {
-            boostingQuery.positive(RandomQueryBuilder.createInvalidQuery(random()));
+        if (frequently()) {
+            positive = RandomQueryBuilder.createInvalidQuery(random());
             totalExpectedErrors++;
-        } else if(rarely()) {
-            boostingQuery.positive(RandomQueryBuilder.createQuery(random()));
+        } else {
+            positive = RandomQueryBuilder.createQuery(random());
         }
+        BoostingQueryBuilder boostingQuery = new BoostingQueryBuilder(positive, negative);
         if (frequently()) {
             boostingQuery.negativeBoost(0.5f);
         } else {
@@ -133,5 +69,14 @@ public class BoostingQueryBuilderTest extends BaseQueryTestCase<BoostingQueryBui
             totalExpectedErrors++;
         }
         assertValidate(boostingQuery, totalExpectedErrors);
+    }
+
+    @Test(expected=NullPointerException.class)
+    public void testNullConstructorArgument() {
+        if (randomBoolean()) {
+            new BoostingQueryBuilder(null, RandomQueryBuilder.createQuery(random()));
+        } else {
+            new BoostingQueryBuilder(RandomQueryBuilder.createQuery(random()), null);
+        }
     }
 }

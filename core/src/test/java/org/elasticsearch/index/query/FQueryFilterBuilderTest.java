@@ -32,11 +32,15 @@ public class FQueryFilterBuilderTest extends BaseQueryTestCase<FQueryFilterBuild
 
     @Override
     protected Query doCreateExpectedQuery(FQueryFilterBuilder queryBuilder, QueryParseContext context) throws QueryParsingException, IOException {
-        return new ConstantScoreQuery(queryBuilder.innerQuery().toQuery(context));
+        Query query = queryBuilder.innerQuery().toQuery(context);
+        if (query != null) {
+            return new ConstantScoreQuery(query);
+        }
+        return null;
     }
 
     /**
-     * @return a AndQueryBuilder with random limit between 0 and 20
+     * @return a FQueryFilterBuilder with random inner query
      */
     @Override
     protected FQueryFilterBuilder doCreateTestQueryBuilder() {
@@ -49,7 +53,7 @@ public class FQueryFilterBuilderTest extends BaseQueryTestCase<FQueryFilterBuild
      */
     @Test
     public void testNoInnerQuery() throws QueryParsingException, IOException {
-        FQueryFilterBuilder queryFilterQuery = new FQueryFilterBuilder(null);
+        FQueryFilterBuilder queryFilterQuery = new FQueryFilterBuilder(EmptyQueryBuilder.PROTOTYPE);
         assertNull(queryFilterQuery.toQuery(createContext()));
     }
 
@@ -84,5 +88,10 @@ public class FQueryFilterBuilderTest extends BaseQueryTestCase<FQueryFilterBuild
         }
         FQueryFilterBuilder fQueryFilter = new FQueryFilterBuilder(innerQuery);
         assertValidate(fQueryFilter, totalExpectedErrors);
+    }
+
+    @Test(expected=NullPointerException.class)
+    public void testNullConstructo() {
+        new FQueryFilterBuilder(null);
     }
 }

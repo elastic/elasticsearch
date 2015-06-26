@@ -26,12 +26,17 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Collection;
 
 public class DisMaxQueryBuilderTest extends BaseQueryTestCase<DisMaxQueryBuilder> {
 
     @Override
     protected Query doCreateExpectedQuery(DisMaxQueryBuilder testBuilder, QueryParseContext context) throws QueryParsingException, IOException {
-        return new DisjunctionMaxQuery(AbstractQueryBuilder.toQueries(testBuilder.queries(), context), testBuilder.tieBreaker());
+        Collection<Query> queries = AbstractQueryBuilder.toQueries(testBuilder.queries(), context);
+        if (queries.isEmpty()) {
+            return null;
+        }
+        return new DisjunctionMaxQuery(queries, testBuilder.tieBreaker());
     }
 
     /**
@@ -80,6 +85,11 @@ public class DisMaxQueryBuilderTest extends BaseQueryTestCase<DisMaxQueryBuilder
 
         DisMaxQueryBuilder disMaxBuilder = new DisMaxQueryBuilder().add(innerQueryBuilder);
         assertNull(disMaxBuilder.toQuery(context));
+    }
+
+    @Test(expected=NullPointerException.class)
+    public void testAddNull() {
+        new DisMaxQueryBuilder().add(null);
     }
 
     @Test

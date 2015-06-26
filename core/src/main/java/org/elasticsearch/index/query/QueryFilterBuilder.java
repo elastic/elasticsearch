@@ -40,7 +40,7 @@ public class QueryFilterBuilder extends AbstractQueryBuilder<QueryFilterBuilder>
 
     private final QueryBuilder queryBuilder;
 
-    static final QueryFilterBuilder PROTOTYPE = new QueryFilterBuilder(null);
+    static final QueryFilterBuilder PROTOTYPE = new QueryFilterBuilder();
 
     /**
      * A filter that simply wraps a query.
@@ -48,7 +48,11 @@ public class QueryFilterBuilder extends AbstractQueryBuilder<QueryFilterBuilder>
      * @param queryBuilder The query to wrap as a filter
      */
     public QueryFilterBuilder(QueryBuilder queryBuilder) {
-        this.queryBuilder = queryBuilder;
+        this.queryBuilder = Objects.requireNonNull(queryBuilder);
+    }
+
+    private QueryFilterBuilder() {
+        this.queryBuilder = null;
     }
 
     /**
@@ -72,15 +76,13 @@ public class QueryFilterBuilder extends AbstractQueryBuilder<QueryFilterBuilder>
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        doXContentInnerBuilder(builder, NAME, queryBuilder, params);
+        builder.field(NAME);
+        queryBuilder.toXContent(builder, params);
     }
 
     @Override
     protected Query doToQuery(QueryParseContext parseContext) throws IOException {
         // inner query builder can potentially be `null`, in that case we ignore it
-        if (this.queryBuilder == null) {
-            return null;
-        }
         Query innerQuery = this.queryBuilder.toQuery(parseContext);
         if (innerQuery == null) {
             return null;

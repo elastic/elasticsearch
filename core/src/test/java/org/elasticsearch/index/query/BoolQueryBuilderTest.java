@@ -72,12 +72,14 @@ public class BoolQueryBuilderTest extends BaseQueryTestCase<BoolQueryBuilder> {
         }
 
         BooleanQuery boolQuery = new BooleanQuery(queryBuilder.disableCoord());
-        boolQuery.setBoost(queryBuilder.boost());
         addBooleanClauses(context, boolQuery, queryBuilder.must(), BooleanClause.Occur.MUST);
         addBooleanClauses(context, boolQuery, queryBuilder.mustNot(), BooleanClause.Occur.MUST_NOT);
         addBooleanClauses(context, boolQuery, queryBuilder.should(), BooleanClause.Occur.SHOULD);
         addBooleanClauses(context, boolQuery, queryBuilder.filter(), BooleanClause.Occur.FILTER);
 
+        if (boolQuery.clauses().isEmpty()) {
+            return new MatchAllDocsQuery();
+        }
         Queries.applyMinimumShouldMatch(boolQuery, queryBuilder.minimumNumberShouldMatch());
         return queryBuilder.adjustPureNegative() ? fixNegativeQueryIfNeeded(boolQuery) : boolQuery;
     }
@@ -85,7 +87,10 @@ public class BoolQueryBuilderTest extends BaseQueryTestCase<BoolQueryBuilder> {
     private static void addBooleanClauses(QueryParseContext parseContext, BooleanQuery booleanQuery, List<QueryBuilder> clauses, Occur occurs)
             throws IOException {
         for (QueryBuilder query : clauses) {
-            booleanQuery.add(new BooleanClause(query.toQuery(parseContext), occurs));
+            Query innerQuery = query.toQuery(parseContext);
+            if (innerQuery != null) {
+                booleanQuery.add(new BooleanClause(innerQuery, occurs));
+            }
         }
     }
 
@@ -128,5 +133,25 @@ public class BoolQueryBuilderTest extends BaseQueryTestCase<BoolQueryBuilder> {
             }
         }
         assertValidate(booleanQuery, totalExpectedErrors);
+    }
+
+    @Test(expected=NullPointerException.class)
+    public void testAddNullMust() {
+        new BoolQueryBuilder().must(null);
+    }
+
+    @Test(expected=NullPointerException.class)
+    public void testAddNullMustNot() {
+        new BoolQueryBuilder().mustNot(null);
+    }
+
+    @Test(expected=NullPointerException.class)
+    public void testAddNullShould() {
+        new BoolQueryBuilder().should(null);
+    }
+
+    @Test(expected=NullPointerException.class)
+    public void testAddNullFilter() {
+        new BoolQueryBuilder().filter(null);
     }
 }

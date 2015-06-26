@@ -36,13 +36,15 @@ public class RandomQueryBuilder {
      * @return a random {@link QueryBuilder}
      */
     public static QueryBuilder createQuery(Random r) {
-        switch (RandomInts.randomIntBetween(r, 0, 2)) {
+        switch (RandomInts.randomIntBetween(r, 0, 3)) {
             case 0:
                 return new MatchAllQueryBuilderTest().createTestQueryBuilder();
             case 1:
                 return new TermQueryBuilderTest().createTestQueryBuilder();
             case 2:
                 return new IdsQueryBuilderTest().createTestQueryBuilder();
+            case 3:
+                return EmptyQueryBuilder.PROTOTYPE;
             default:
                 throw new UnsupportedOperationException();
         }
@@ -59,7 +61,7 @@ public class RandomQueryBuilder {
             case 0:
                 return new TermQueryBuilder("", "test");
             case 1:
-                return new BoostingQueryBuilder().negativeBoost(-1f);
+                return new BoostingQueryBuilder(new MatchAllQueryBuilder(), new MatchAllQueryBuilder()).negativeBoost(-1f);
             case 2:
                 return new CommonTermsQueryBuilder("", "text");
             case 3:

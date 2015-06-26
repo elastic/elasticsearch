@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.cache.query;
 
-import org.apache.lucene.search.QueryCachingPolicy;
-import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Scopes;
 import org.elasticsearch.common.settings.Settings;
@@ -48,13 +46,5 @@ public class QueryCacheModule extends AbstractModule {
         bind(QueryCache.class)
                 .to(settings.getAsClass(QueryCacheSettings.QUERY_CACHE_TYPE, IndexQueryCache.class, "org.elasticsearch.index.cache.query.", "QueryCache"))
                 .in(Scopes.SINGLETON);
-        // the query cache is a node-level thing, however we want the most popular queries
-        // to be computed on a per-index basis, that is why we don't use the SINGLETON
-        // scope below
-        if (settings.getAsBoolean(QueryCacheSettings.QUERY_CACHE_EVERYTHING, false)) {
-            bind(QueryCachingPolicy.class).toInstance(QueryCachingPolicy.ALWAYS_CACHE);
-        } else {
-            bind(QueryCachingPolicy.class).toInstance(new UsageTrackingQueryCachingPolicy());
-        }
     }
 }

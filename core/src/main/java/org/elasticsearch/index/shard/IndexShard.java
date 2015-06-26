@@ -24,6 +24,8 @@ import com.google.common.base.Preconditions;
 
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.CheckIndex;
+import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.ThreadInterruptedException;
@@ -59,6 +61,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
+import org.elasticsearch.index.cache.query.QueryCacheModule.QueryCacheSettings;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.codec.CodecService;
@@ -242,7 +245,15 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.checkIndexOnStartup = indexSettings.get("index.shard.check_on_startup", "false");
         this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, getFromSettings(logger, indexSettings, Translog.Durabilty.REQUEST),
                 bigArrays, threadPool);
-        this.engineConfig = newEngineConfig(translogConfig);
+        final QueryCachingPolicy cachingPolicy;
+        // the query cache is a node-level thing, however we want the most popular filters
+        // to be computed on a per-shard basis
+        if (indexSettings.getAsBoolean(QueryCacheSettings.QUERY_CACHE_EVERYTHING, false)) {
+            cachingPolicy = QueryCachingPolicy.ALWAYS_CACHE;
+        } else {
+            cachingPolicy = new UsageTrackingQueryCachingPolicy();
+        }
+        this.engineConfig = newEngineConfig(translogConfig, cachingPolicy);
 
         this.indexShardOperationCounter = new IndexShardOperationCounter(logger, shardId);
 
@@ -1336,7 +1347,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         return mapperService.documentMapperWithAutoCreate(type);
     }
 
-    private final EngineConfig newEngineConfig(TranslogConfig translogConfig) {
+    private final EngineConfig newEngineConfig(TranslogConfig translogConfig, QueryCachingPolicy cachingPolicy) {
         final TranslogRecoveryPerformer translogRecoveryPerformer = new TranslogRecoveryPerformer(shardId, mapperService, queryParserService, indexAliasesService, indexCache) {
             @Override
             protected void operationProcessed() {
@@ -1346,7 +1357,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         };
         return new EngineConfig(shardId,
                 threadPool, indexingService, indexSettingsService.indexSettings(), warmer, store, deletionPolicy, mergePolicyConfig.getMergePolicy(), mergeSchedulerConfig,
-                mapperService.indexAnalyzer(), similarityService.similarity(), codecService, failedEngineListener, translogRecoveryPerformer, indexCache.query(), indexCache.queryPolicy(), translogConfig);
+                mapperService.indexAnalyzer(), similarityService.similarity(), codecService, failedEngineListener, translogRecoveryPerformer, indexCache.query(), cachingPolicy, translogConfig);
     }
 
     private static class IndexShardOperationCounter extends AbstractRefCounted {

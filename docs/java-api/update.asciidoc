@@ -71,7 +71,7 @@ client.update(updateRequest).get();
 [[java-update-api-upsert]]
 === Upsert
 
-There is also support for `upsert`. If the document does not already exists, the content of the `upsert`
+There is also support for `upsert`. If the document already exists, the content of the `upsert`
 element will be used to index the fresh doc:
 
 [source,java]

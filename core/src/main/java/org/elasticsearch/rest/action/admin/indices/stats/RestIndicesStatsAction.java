@@ -72,13 +72,13 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             indicesStatsRequest.refresh(metrics.contains("refresh"));
             indicesStatsRequest.flush(metrics.contains("flush"));
             indicesStatsRequest.warmer(metrics.contains("warmer"));
-            indicesStatsRequest.filterCache(metrics.contains("filter_cache"));
+            indicesStatsRequest.queryCache(metrics.contains("query_cache"));
             indicesStatsRequest.percolate(metrics.contains("percolate"));
             indicesStatsRequest.segments(metrics.contains("segments"));
             indicesStatsRequest.fieldData(metrics.contains("fielddata"));
             indicesStatsRequest.completion(metrics.contains("completion"));
             indicesStatsRequest.suggest(metrics.contains("suggest"));
-            indicesStatsRequest.queryCache(metrics.contains("query_cache"));
+            indicesStatsRequest.requestCache(metrics.contains("request_cache"));
             indicesStatsRequest.recovery(metrics.contains("recovery"));
             indicesStatsRequest.translog(metrics.contains("translog"));
         }

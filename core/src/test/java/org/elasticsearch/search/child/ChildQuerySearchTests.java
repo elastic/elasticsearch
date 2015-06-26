@@ -30,9 +30,9 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.cache.filter.FilterCacheModule;
-import org.elasticsearch.index.cache.filter.FilterCacheModule.FilterCacheSettings;
-import org.elasticsearch.index.cache.filter.index.IndexFilterCache;
+import org.elasticsearch.index.cache.query.QueryCacheModule;
+import org.elasticsearch.index.cache.query.QueryCacheModule.FilterCacheSettings;
+import org.elasticsearch.index.cache.query.index.IndexQueryCache;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.query.HasChildQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -75,7 +75,7 @@ public class ChildQuerySearchTests extends ElasticsearchIntegrationTest {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
                 // aggressive filter caching so that we can assert on the filter cache size
-                .put(FilterCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, IndexFilterCache.class)
+                .put(QueryCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, IndexQueryCache.class)
                 .put(FilterCacheSettings.FILTER_CACHE_EVERYTHING, true)
                 .build();
     }

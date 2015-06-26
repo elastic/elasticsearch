@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.cache.filter.terms;
+package org.elasticsearch.indices.cache.query.terms;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.query.QueryParseContext;

@@ -7,7 +7,7 @@ can be cached for faster responses. These cached results are the same results
 that would be returned by an uncached aggregation -- you will never get stale
 results.
 
-See <<shard-query-cache>> for more details.
+See <<shard-request-cache>> for more details.
 
 [[returning-only-agg-results]]
 == Returning only aggregation results

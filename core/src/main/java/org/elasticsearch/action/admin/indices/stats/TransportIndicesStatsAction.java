@@ -157,8 +157,8 @@ public class TransportIndicesStatsAction extends TransportBroadcastAction<Indice
         if (request.request.warmer()) {
             flags.set(CommonStatsFlags.Flag.Warmer);
         }
-        if (request.request.filterCache()) {
-            flags.set(CommonStatsFlags.Flag.FilterCache);
+        if (request.request.queryCache()) {
+            flags.set(CommonStatsFlags.Flag.QueryCache);
         }
         if (request.request.fieldData()) {
             flags.set(CommonStatsFlags.Flag.FieldData);
@@ -180,8 +180,8 @@ public class TransportIndicesStatsAction extends TransportBroadcastAction<Indice
         if (request.request.suggest()) {
             flags.set(CommonStatsFlags.Flag.Suggest);
         }
-        if (request.request.queryCache()) {
-            flags.set(CommonStatsFlags.Flag.QueryCache);
+        if (request.request.requestCache()) {
+            flags.set(CommonStatsFlags.Flag.RequestCache);
         }
         if (request.request.recovery()) {
             flags.set(CommonStatsFlags.Flag.Recovery);

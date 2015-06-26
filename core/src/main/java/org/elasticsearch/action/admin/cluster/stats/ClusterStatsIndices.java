@@ -29,7 +29,7 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.index.cache.filter.FilterCacheStats;
+import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.percolator.stats.PercolateStats;
@@ -46,7 +46,7 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
     private DocsStats docs;
     private StoreStats store;
     private FieldDataStats fieldData;
-    private FilterCacheStats filterCache;
+    private QueryCacheStats queryCache;
     private CompletionStats completion;
     private SegmentsStats segments;
     private PercolateStats percolate;
@@ -60,7 +60,7 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
         this.docs = new DocsStats();
         this.store = new StoreStats();
         this.fieldData = new FieldDataStats();
-        this.filterCache = new FilterCacheStats();
+        this.queryCache = new QueryCacheStats();
         this.completion = new CompletionStats();
         this.segments = new SegmentsStats();
         this.percolate = new PercolateStats();
@@ -83,7 +83,7 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
                 }
                 store.add(shardCommonStats.store);
                 fieldData.add(shardCommonStats.fieldData);
-                filterCache.add(shardCommonStats.filterCache);
+                queryCache.add(shardCommonStats.queryCache);
                 completion.add(shardCommonStats.completion);
                 segments.add(shardCommonStats.segments);
                 percolate.add(shardCommonStats.percolate);
@@ -117,8 +117,8 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
         return fieldData;
     }
 
-    public FilterCacheStats getFilterCache() {
-        return filterCache;
+    public QueryCacheStats getQueryCache() {
+        return queryCache;
     }
 
     public CompletionStats getCompletion() {
@@ -140,7 +140,7 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
         docs = DocsStats.readDocStats(in);
         store = StoreStats.readStoreStats(in);
         fieldData = FieldDataStats.readFieldDataStats(in);
-        filterCache = FilterCacheStats.readFilterCacheStats(in);
+        queryCache = QueryCacheStats.readFilterCacheStats(in);
         completion = CompletionStats.readCompletionStats(in);
         segments = SegmentsStats.readSegmentsStats(in);
         percolate = PercolateStats.readPercolateStats(in);
@@ -153,7 +153,7 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
         docs.writeTo(out);
         store.writeTo(out);
         fieldData.writeTo(out);
-        filterCache.writeTo(out);
+        queryCache.writeTo(out);
         completion.writeTo(out);
         segments.writeTo(out);
         percolate.writeTo(out);
@@ -176,7 +176,7 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
         docs.toXContent(builder, params);
         store.toXContent(builder, params);
         fieldData.toXContent(builder, params);
-        filterCache.toXContent(builder, params);
+        queryCache.toXContent(builder, params);
         completion.toXContent(builder, params);
         segments.toXContent(builder, params);
         percolate.toXContent(builder, params);

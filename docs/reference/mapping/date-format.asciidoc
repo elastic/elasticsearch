@@ -10,7 +10,7 @@ formats supported, as well as complete custom one.
 
 The parsing of dates uses http://www.joda.org/joda-time/[Joda]. The
 default date parsing used if no format is specified is
-http://www.joda.org/joda-time/apidocs/org/joda/time/format/ISODateTimeFormat.html#dateOptionalTimeParser[ISODateTimeFormat.dateOptionalTimeParser].
+http://www.joda.org/joda-time/apidocs/org/joda/time/format/ISODateTimeFormat.html#dateOptionalTimeParser--[ISODateTimeFormat.dateOptionalTimeParser].
 
 An extension to the format allow to define several formats using `||`
 separator. This allows to define less strict formats that can be used,
@@ -203,4 +203,4 @@ year, and two digit day of month.
 === Custom Format
 
 Allows for a completely customizable date format explained
-http://joda-time.sourceforge.net/api-release/org/joda/time/format/DateTimeFormat.html[here].
+http://www.joda.org/joda-time/apidocs/org/joda/time/format/DateTimeFormat.html[here].

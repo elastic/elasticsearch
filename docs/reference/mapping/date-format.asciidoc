@@ -215,4 +215,4 @@ date formatter in that case.
 === Custom Format
 
 Allows for a completely customizable date format explained
-http://joda-time.sourceforge.net/api-release/org/joda/time/format/DateTimeFormat.html[here].
+http://www.joda.org/joda-time/apidocs/org/joda/time/format/DateTimeFormat.html[here].

@@ -1,4 +1,4 @@
-Elasticsearch Shield
+Elasticsearch Watcher
 Copyright 2009-2015 Elastic
 
 ---

@@ -8,9 +8,9 @@ specifying `dynamic_date_formats` in the `root object` mapping (which will
 be used unless explicitly overridden by a `date` type). There are built in
 formats supported, as well as complete custom one.
 
-The parsing of dates uses http://joda-time.sourceforge.net/[Joda]. The
+The parsing of dates uses http://www.joda.org/joda-time/[Joda]. The
 default date parsing used if no format is specified is
-http://joda-time.sourceforge.net/api-release/org/joda/time/format/ISODateTimeFormat.html#dateOptionalTimeParser()[ISODateTimeFormat.dateOptionalTimeParser].
+http://www.joda.org/joda-time/apidocs/org/joda/time/format/ISODateTimeFormat.html#dateOptionalTimeParser--[ISODateTimeFormat.dateOptionalTimeParser].
 
 An extension to the format allow to define several formats using `||`
 separator. This allows to define less strict formats that can be used,
@@ -215,4 +215,4 @@ date formatter in that case.
 === Custom Format
 
 Allows for a completely customizable date format explained
-http://joda-time.sourceforge.net/api-release/org/joda/time/format/DateTimeFormat.html[here].
+http://www.joda.org/joda-time/apidocs/org/joda/time/format/DateTimeFormat.html[here].

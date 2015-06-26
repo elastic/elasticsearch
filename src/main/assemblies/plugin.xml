@@ -31,4 +31,14 @@
             </includes>
         </dependencySet>
     </dependencySets>
+    <files>
+        <file>
+            <source>LICENSE.txt</source>
+            <outputDirectory>/</outputDirectory>
+        </file>
+        <file>
+            <source>NOTICE.txt</source>
+            <outputDirectory>/</outputDirectory>
+        </file>
+    </files>
 </assembly>

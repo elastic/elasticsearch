@@ -27,7 +27,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -143,5 +142,21 @@ public abstract class AbstractQueryBuilder<QB extends QueryBuilder> extends ToXC
             }
         }
         return queries;
+    }
+
+    /**
+     * Utility method that converts inner query builders to xContent and
+     * checks for null values, rendering out empty object in this case.
+     */
+    protected static void doXContentInnerBuilder(XContentBuilder xContentBuilder, String fieldName,
+            QueryBuilder queryBuilder, Params params) throws IOException {
+        xContentBuilder.field(fieldName);
+        if (queryBuilder != null) {
+            queryBuilder.toXContent(xContentBuilder, params);
+        } else {
+            // we output an empty object, QueryParseContext#parseInnerQueryBuilder will parse this back to `null` value
+            xContentBuilder.startObject();
+            xContentBuilder.endObject();
+        }
     }
 }

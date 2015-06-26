@@ -99,8 +99,7 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field("query");
-        queryBuilder.toXContent(builder, params);
+        doXContentInnerBuilder(builder, "query", queryBuilder, params);
         builder.field("field", fieldName);
         builder.field("boost", boost);
         if (queryName != null) {
@@ -111,12 +110,12 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
 
     @Override
     public SpanQuery toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
-        String fieldInQuery = this.fieldName;
+        String fieldInQuery = fieldName;
         MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
         if (fieldType != null) {
             fieldInQuery = fieldType.names().indexName();
         }
-        SpanQuery innerQuery = this.queryBuilder.toQuery(parseContext);
+        SpanQuery innerQuery = queryBuilder.toQuery(parseContext);
 
         FieldMaskingSpanQuery query = new FieldMaskingSpanQuery(innerQuery, fieldInQuery);
         query.setBoost(boost);
@@ -149,8 +148,8 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(this.queryBuilder);
-        out.writeString(this.fieldName);
+        out.writeNamedWriteable(queryBuilder);
+        out.writeString(fieldName);
         out.writeOptionalString(queryName);
         out.writeFloat(boost);
     }

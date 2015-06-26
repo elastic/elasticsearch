@@ -53,10 +53,10 @@ public class BoolQueryParser extends BaseQueryParser {
         float boost = 1.0f;
         String minimumShouldMatch = null;
 
-        List<QueryBuilder> mustClauses = newArrayList();
-        List<QueryBuilder> mustNotClauses = newArrayList();
-        List<QueryBuilder> shouldClauses = newArrayList();
-        List<QueryBuilder> filterClauses = newArrayList();
+        final List<QueryBuilder> mustClauses = newArrayList();
+        final List<QueryBuilder> mustNotClauses = newArrayList();
+        final List<QueryBuilder> shouldClauses = newArrayList();
+        final List<QueryBuilder> filterClauses = newArrayList();
         String queryName = null;
 
         String currentFieldName = null;

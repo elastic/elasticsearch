@@ -104,7 +104,6 @@ public class IdsQueryParser extends BaseQueryParser {
         IdsQueryBuilder query = new IdsQueryBuilder(types.toArray(new String[types.size()]));
         query.addIds(ids.toArray(new String[ids.size()]));
         query.boost(boost).queryName(queryName);
-        query.validate();
         return query;
     }
 

@@ -164,9 +164,7 @@ public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> 
         } else {
             builder.startObject(fieldName);
             builder.field("value", convertToStringIfBytesRef(this.value));
-            if (boost != 1.0f) {
-                builder.field("boost", boost);
-            }
+            builder.field("boost", boost);
             if (queryName != null) {
                 builder.field("_name", queryName);
             }

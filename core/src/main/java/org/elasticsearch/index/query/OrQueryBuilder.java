@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -43,21 +42,24 @@ public class OrQueryBuilder extends AbstractQueryBuilder<OrQueryBuilder> {
 
     public static final String NAME = "or";
 
-    private ArrayList<QueryBuilder> filters = Lists.newArrayList();
+    private final ArrayList<QueryBuilder> filters = Lists.newArrayList();
 
     private String queryName;
 
     static final OrQueryBuilder PROTOTYPE = new OrQueryBuilder();
 
     public OrQueryBuilder(QueryBuilder... filters) {
-        Collections.addAll(this.filters, filters);
+        for (QueryBuilder filter : filters) {
+            this.filters.add(Objects.requireNonNull(filter));
+        }
     }
 
     /**
      * Adds a filter to the list of filters to "or".
+     * No <tt>null</tt> value allowed.
      */
     public OrQueryBuilder add(QueryBuilder filterBuilder) {
-        filters.add(filterBuilder);
+        filters.add(Objects.requireNonNull(filterBuilder));
         return this;
     }
 
@@ -120,7 +122,7 @@ public class OrQueryBuilder extends AbstractQueryBuilder<OrQueryBuilder> {
 
     @Override
     public QueryValidationException validate() {
-        // nothing to validate.
+        // nothing to validate
         return null;
     }
 
@@ -154,7 +156,7 @@ public class OrQueryBuilder extends AbstractQueryBuilder<OrQueryBuilder> {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteableList(this.filters);
+        out.writeNamedWriteableList(filters);
         out.writeOptionalString(queryName);
     }
 }

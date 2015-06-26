@@ -80,14 +80,14 @@ public class SimpleQueryStringParser extends BaseQueryParser {
 
         String currentFieldName = null;
         String queryBody = null;
-        float boost = 1.0f; 
+        float boost = 1.0f;
         String queryName = null;
         String field = null;
         String minimumShouldMatch = null;
         Map<String, Float> fieldsAndWeights = new HashMap<>();
         Operator defaultOperator = null;
         String analyzerName = null;
-        int flags = -1;
+        int flags = SimpleQueryStringFlag.ALL.value();
         boolean lenient = SimpleQueryStringBuilder.DEFAULT_LENIENT;
         boolean lowercaseExpandedTerms = SimpleQueryStringBuilder.DEFAULT_LOWERCASE_EXPANDED_TERMS;
         boolean analyzeWildcard = SimpleQueryStringBuilder.DEFAULT_ANALYZE_WILDCARD;

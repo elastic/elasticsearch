@@ -56,6 +56,12 @@ public class LimitQueryBuilder extends AbstractQueryBuilder<LimitQueryBuilder> {
     }
 
     @Override
+    public QueryValidationException validate() {
+        // nothing to validate
+        return null;
+    }
+
+    @Override
     public boolean doEquals(LimitQueryBuilder other) {
         return Integer.compare(other.limit, limit) == 0;
     }
@@ -73,7 +79,7 @@ public class LimitQueryBuilder extends AbstractQueryBuilder<LimitQueryBuilder> {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeInt(this.limit);
+        out.writeInt(limit);
     }
 
     @Override

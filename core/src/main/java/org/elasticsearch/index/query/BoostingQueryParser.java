@@ -75,10 +75,10 @@ public class BoostingQueryParser extends BaseQueryParser {
             }
         }
 
-        if (positiveQuery == null && !positiveQueryFound) {
+        if (!positiveQueryFound) {
             throw new QueryParsingException(parseContext, "[boosting] query requires 'positive' query to be set'");
         }
-        if (negativeQuery == null && !negativeQueryFound) {
+        if (!negativeQueryFound) {
             throw new QueryParsingException(parseContext, "[boosting] query requires 'negative' query to be set'");
         }
         if (negativeBoost < 0) {

@@ -87,6 +87,12 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
         return newFilter(parseContext, name, queryName);
     }
 
+    @Override
+    public QueryValidationException validate() {
+        // nothing to validate
+        return null;
+    }
+
     public static Query newFilter(QueryParseContext parseContext, String fieldPattern, String queryName) {
         final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType)parseContext.mapperService().fullName(FieldNamesFieldMapper.NAME);
         if (fieldNamesFieldType == null) {

@@ -60,8 +60,7 @@ public class QueryFilterBuilder extends AbstractQueryBuilder<QueryFilterBuilder>
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(NAME);
-        queryBuilder.toXContent(builder, params);
+        doXContentInnerBuilder(builder, NAME, queryBuilder, params);
     }
 
     @Override
@@ -75,6 +74,12 @@ public class QueryFilterBuilder extends AbstractQueryBuilder<QueryFilterBuilder>
             return null;
         }
         return new ConstantScoreQuery(innerQuery);
+    }
+
+    @Override
+    public QueryValidationException validate() {
+        // nothing to validate
+        return null;
     }
 
     @Override
@@ -95,7 +100,7 @@ public class QueryFilterBuilder extends AbstractQueryBuilder<QueryFilterBuilder>
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(this.queryBuilder);
+        out.writeNamedWriteable(queryBuilder);
     }
 
     @Override

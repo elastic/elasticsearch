@@ -21,9 +21,9 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.queries.BoostingQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -55,25 +55,26 @@ public class BoostingQueryBuilderTest extends BaseQueryTestCase<BoostingQueryBui
         return boostingQuery;
     }
 
+    /**
+     * test that setting a null negative/positive clause renders a parseable query
+     */
     @Test
-    public void testToXContentIllegalArgumentExceptions() throws IOException {
-        BoostingQueryBuilder boostingQueryBuilder = new BoostingQueryBuilder();
-        boostingQueryBuilder.positive(new MatchAllQueryBuilder());
-        try {
-            boostingQueryBuilder.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS);
-            fail("Expected IllegalArgumentException because of missing negative query.");
-        } catch (IllegalArgumentException e) {
-            // expected
+    public void testInnerClauseNull() throws IOException {
+        BoostingQueryBuilder boostingQueryBuilder = new BoostingQueryBuilder().negativeBoost(0.1f);
+        if (randomBoolean()) {
+            boostingQueryBuilder.positive(new MatchAllQueryBuilder());
+        } else {
+            boostingQueryBuilder.negative(new MatchAllQueryBuilder());
         }
-
-        boostingQueryBuilder = new BoostingQueryBuilder();
-        boostingQueryBuilder.negative(new MatchAllQueryBuilder());
-        try {
-            boostingQueryBuilder.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS);
-            fail("Expected IllegalArgumentException because of missing positive query.");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        String contentString = boostingQueryBuilder.toString();
+        XContentParser parser = XContentFactory.xContent(contentString).createParser(contentString);
+        QueryParseContext context = createContext();
+        context.reset(parser);
+        assertQueryHeader(parser, boostingQueryBuilder.getName());
+        QueryBuilder parsedBuilder = context.indexQueryParserService().queryParser(boostingQueryBuilder.getName()).fromXContent(context);
+        assertNotNull(parsedBuilder);
+        assertNotSame(parsedBuilder, boostingQueryBuilder);
+        assertEquals(parsedBuilder, boostingQueryBuilder);
     }
 
     /**

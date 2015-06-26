@@ -76,6 +76,12 @@ public class MatchAllQueryBuilder extends AbstractQueryBuilder<MatchAllQueryBuil
     }
 
     @Override
+    public QueryValidationException validate() {
+        // nothing to validate
+        return null;
+    }
+
+    @Override
     public boolean doEquals(MatchAllQueryBuilder other) {
         return Float.compare(other.boost, boost) == 0;
     }

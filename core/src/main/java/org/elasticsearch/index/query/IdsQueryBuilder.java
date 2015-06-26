@@ -150,9 +150,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> imple
             builder.value(value);
         }
         builder.endArray();
-        if (boost != 1.0f) {
-            builder.field("boost", boost);
-        }
+        builder.field("boost", boost);
         if (queryName != null) {
             builder.field("_name", queryName);
         }
@@ -205,8 +203,8 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> imple
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeStringArray(this.types);
-        out.writeStringArray(this.ids.toArray(new String[this.ids.size()]));
+        out.writeStringArray(types);
+        out.writeStringArray(ids.toArray(new String[ids.size()]));
         out.writeOptionalString(queryName);
         out.writeFloat(boost);
     }

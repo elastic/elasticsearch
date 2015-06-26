@@ -43,9 +43,9 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> imp
 
     public static final String NAME = "bool";
 
-    static final boolean ADJUST_PURE_NEGATIVE_DEFAULT = true;
+    public static final boolean ADJUST_PURE_NEGATIVE_DEFAULT = true;
 
-    static final boolean DISABLE_COORD_DEFAULT = false;
+    public static final boolean DISABLE_COORD_DEFAULT = false;
 
     static final BoolQueryBuilder PROTOTYPE = new BoolQueryBuilder();
 
@@ -69,10 +69,10 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> imp
 
     /**
      * Adds a query that <b>must</b> appear in the matching documents and will
-     * contribute to scoring.
+     * contribute to scoring. No <tt>null</tt> value allowed.
      */
     public BoolQueryBuilder must(QueryBuilder queryBuilder) {
-        mustClauses.add(queryBuilder);
+        mustClauses.add(Objects.requireNonNull(queryBuilder));
         return this;
     }
 
@@ -85,10 +85,10 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> imp
 
     /**
      * Adds a query that <b>must</b> appear in the matching documents but will
-     * not contribute to scoring.
+     * not contribute to scoring. No <tt>null</tt> value allowed.
      */
     public BoolQueryBuilder filter(QueryBuilder queryBuilder) {
-        filterClauses.add(queryBuilder);
+        filterClauses.add(Objects.requireNonNull(queryBuilder));
         return this;
     }
 
@@ -101,9 +101,10 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> imp
 
     /**
      * Adds a query that <b>must not</b> appear in the matching documents.
+     * No <tt>null</tt> value allowed.
      */
     public BoolQueryBuilder mustNot(QueryBuilder queryBuilder) {
-        mustNotClauses.add(queryBuilder);
+        mustNotClauses.add(Objects.requireNonNull(queryBuilder));
         return this;
     }
 
@@ -117,12 +118,12 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> imp
     /**
      * Adds a clause that <i>should</i> be matched by the returned documents. For a boolean query with no
      * <tt>MUST</tt> clauses one or more <code>SHOULD</code> clauses must match a document
-     * for the BooleanQuery to match.
+     * for the BooleanQuery to match. No <tt>null</tt> value allowed.
      *
      * @see #minimumNumberShouldMatch(int)
      */
     public BoolQueryBuilder should(QueryBuilder queryBuilder) {
-        shouldClauses.add(queryBuilder);
+        shouldClauses.add(Objects.requireNonNull(queryBuilder));
         return this;
     }
 
@@ -297,17 +298,17 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> imp
             return new MatchAllDocsQuery();
         }
 
-        BooleanQuery booleanQuery = new BooleanQuery(this.disableCoord);
-        addBooleanClauses(parseContext, booleanQuery, this.mustClauses, BooleanClause.Occur.MUST);
-        addBooleanClauses(parseContext, booleanQuery, this.mustNotClauses, BooleanClause.Occur.MUST_NOT);
-        addBooleanClauses(parseContext, booleanQuery, this.shouldClauses, BooleanClause.Occur.SHOULD);
-        addBooleanClauses(parseContext, booleanQuery, this.filterClauses, BooleanClause.Occur.FILTER);
+        BooleanQuery booleanQuery = new BooleanQuery(disableCoord);
+        addBooleanClauses(parseContext, booleanQuery, mustClauses, BooleanClause.Occur.MUST);
+        addBooleanClauses(parseContext, booleanQuery, mustNotClauses, BooleanClause.Occur.MUST_NOT);
+        addBooleanClauses(parseContext, booleanQuery, shouldClauses, BooleanClause.Occur.SHOULD);
+        addBooleanClauses(parseContext, booleanQuery, filterClauses, BooleanClause.Occur.FILTER);
 
-        booleanQuery.setBoost(this.boost);
-        Queries.applyMinimumShouldMatch(booleanQuery, this.minimumShouldMatch);
-        Query query = this.adjustPureNegative ? fixNegativeQueryIfNeeded(booleanQuery) : booleanQuery;
-        if (this.queryName != null) {
-            parseContext.addNamedQuery(this.queryName, query);
+        booleanQuery.setBoost(boost);
+        Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
+        Query query = adjustPureNegative ? fixNegativeQueryIfNeeded(booleanQuery) : booleanQuery;
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
         }
         return query;
     }
@@ -369,14 +370,14 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> imp
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteableList(this.mustClauses);
-        out.writeNamedWriteableList(this.mustNotClauses);
-        out.writeNamedWriteableList(this.shouldClauses);
-        out.writeNamedWriteableList(this.filterClauses);
-        out.writeFloat(this.boost);
-        out.writeBoolean(this.adjustPureNegative);
-        out.writeBoolean(this.disableCoord);
+        out.writeNamedWriteableList(mustClauses);
+        out.writeNamedWriteableList(mustNotClauses);
+        out.writeNamedWriteableList(shouldClauses);
+        out.writeNamedWriteableList(filterClauses);
+        out.writeFloat(boost);
+        out.writeBoolean(adjustPureNegative);
+        out.writeBoolean(disableCoord);
         out.writeOptionalString(queryName);
-        out.writeOptionalString(this.minimumShouldMatch);
+        out.writeOptionalString(minimumShouldMatch);
     }
 }

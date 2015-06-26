@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.filter.index;
+package org.elasticsearch.index.cache.query.index;
 
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Weight;
@@ -26,20 +26,20 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.cache.filter.FilterCache;
+import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
+import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 
 /**
- * The index-level filter cache. This class mostly delegates to the node-level
- * filter cache: {@link IndicesFilterCache}.
+ * The index-level query cache. This class mostly delegates to the node-level
+ * query cache: {@link IndicesQueryCache}.
  */
-public class IndexFilterCache extends AbstractIndexComponent implements FilterCache {
+public class IndexQueryCache extends AbstractIndexComponent implements QueryCache {
 
-    final IndicesFilterCache indicesFilterCache;
+    final IndicesQueryCache indicesFilterCache;
 
     @Inject
-    public IndexFilterCache(Index index, @IndexSettings Settings indexSettings, IndicesFilterCache indicesFilterCache) {
+    public IndexQueryCache(Index index, @IndexSettings Settings indexSettings, IndicesQueryCache indicesFilterCache) {
         super(index, indexSettings);
         this.indicesFilterCache = indicesFilterCache;
     }

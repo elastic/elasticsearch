@@ -132,8 +132,8 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     }
 
     @Override
-    public Boolean queryCache() {
-        return shardSearchLocalRequest.queryCache();
+    public Boolean requestCache() {
+        return shardSearchLocalRequest.requestCache();
     }
 
     @Override

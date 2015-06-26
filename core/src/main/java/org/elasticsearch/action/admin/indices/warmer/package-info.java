@@ -22,7 +22,7 @@
  * <p>
  *     Index warming allows to run registered search requests to warm up the index before it is available for search.
  *     With the near real time aspect of search, cold data (segments) will be warmed up before they become available for
- *     search. This includes things such as the filter cache, filesystem cache, and loading field data for fields.
+ *     search. This includes things such as the query cache, filesystem cache, and loading field data for fields.
  * </p>
  *
  * @see the reference guide for more detailed information about the Indices / Search Warmer

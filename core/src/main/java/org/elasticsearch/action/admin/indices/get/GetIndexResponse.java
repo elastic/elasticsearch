@@ -170,7 +170,7 @@ public class GetIndexResponse extends ActionResponse {
             for (IndexWarmersMetaData.Entry warmerEntry : indexEntry.value) {
                 out.writeString(warmerEntry.name());
                 out.writeStringArray(warmerEntry.types());
-                out.writeOptionalBoolean(warmerEntry.queryCache());
+                out.writeOptionalBoolean(warmerEntry.requestCache());
                 out.writeBytesReference(warmerEntry.source());
             }
         }

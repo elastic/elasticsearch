@@ -14,17 +14,17 @@ Available settings include:
 
     Set limits on the amount of heap used by the in-memory fielddata cache.
 
-<<filter-cache,Node filter cache>>::
+<<query-cache,Node query cache>>::
 
-    Configure the amount heap used to cache filter results.
+    Configure the amount heap used to cache queries results.
 
 <<indexing-buffer,Indexing buffer>>::
 
     Control the size of the buffer allocated to the indexing process.
 
-<<shard-query-cache,Shard query cache>>::
+<<shard-request-cache,Shard request cache>>::
 
-    Control the behaviour of the shard-level query cache.
+    Control the behaviour of the shard-level request cache.
 
 <<recovery,Recovery>>::
 
@@ -38,11 +38,11 @@ include::indices/circuit_breaker.asciidoc[]
 
 include::indices/fielddata.asciidoc[]
 
-include::indices/filter_cache.asciidoc[]
+include::indices/query_cache.asciidoc[]
 
 include::indices/indexing_buffer.asciidoc[]
 
-include::indices/query-cache.asciidoc[]
+include::indices/request_cache.asciidoc[]
 
 include::indices/recovery.asciidoc[]
 

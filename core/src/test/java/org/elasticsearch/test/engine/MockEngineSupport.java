@@ -82,8 +82,8 @@ public final class MockEngineSupport {
     public MockEngineSupport(EngineConfig config) {
         Settings indexSettings = config.getIndexSettings();
         shardId = config.getShardId();
-        filterCache = config.getFilterCache();
-        filterCachingPolicy = config.getFilterCachingPolicy();
+        filterCache = config.getQueryCache();
+        filterCachingPolicy = config.getQueryCachingPolicy();
         final long seed = indexSettings.getAsLong(ElasticsearchIntegrationTest.SETTING_INDEX_SEED, 0l);
         Random random = new Random(seed);
         final double ratio = indexSettings.getAsDouble(WRAP_READER_RATIO, 0.0d); // DISABLED by default - AssertingDR is crazy slow

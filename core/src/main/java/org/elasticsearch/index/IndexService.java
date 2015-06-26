@@ -52,7 +52,7 @@ import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InternalIndicesLifecycle;
-import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
+import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ShardsPluginsModule;
 
@@ -309,7 +309,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                     new StoreCloseListener(shardId, canDeleteShardContent,  new Closeable() {
                         @Override
                         public void close() throws IOException {
-                            injector.getInstance(IndicesFilterCache.class).onClose(shardId);
+                            injector.getInstance(IndicesQueryCache.class).onClose(shardId);
                         }
                     }), path));
             modules.add(new DeletionPolicyModule(indexSettings));

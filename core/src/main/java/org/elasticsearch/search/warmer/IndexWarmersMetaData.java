@@ -19,12 +19,12 @@
 
 package org.elasticsearch.search.warmer;
 
+import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-import org.elasticsearch.Version;
+
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -67,13 +67,13 @@ public class IndexWarmersMetaData extends AbstractDiffable<IndexMetaData.Custom>
         private final String name;
         private final String[] types;
         private final BytesReference source;
-        private final Boolean queryCache;
+        private final Boolean requestCache;
 
-        public Entry(String name, String[] types, Boolean queryCache, BytesReference source) {
+        public Entry(String name, String[] types, Boolean requestCache, BytesReference source) {
             this.name = name;
             this.types = types == null ? Strings.EMPTY_ARRAY : types;
             this.source = source;
-            this.queryCache = queryCache;
+            this.requestCache = requestCache;
         }
 
         public String name() {
@@ -90,8 +90,8 @@ public class IndexWarmersMetaData extends AbstractDiffable<IndexMetaData.Custom>
         }
 
         @Nullable
-        public Boolean queryCache() {
-            return this.queryCache;
+        public Boolean requestCache() {
+            return this.requestCache;
         }
 
         @Override
@@ -104,7 +104,7 @@ public class IndexWarmersMetaData extends AbstractDiffable<IndexMetaData.Custom>
             if (!name.equals(entry.name)) return false;
             if (!Arrays.equals(types, entry.types)) return false;
             if (!source.equals(entry.source)) return false;
-            return !(queryCache != null ? !queryCache.equals(entry.queryCache) : entry.queryCache != null);
+            return Objects.equal(requestCache, entry.requestCache);
 
         }
 
@@ -113,7 +113,7 @@ public class IndexWarmersMetaData extends AbstractDiffable<IndexMetaData.Custom>
             int result = name.hashCode();
             result = 31 * result + Arrays.hashCode(types);
             result = 31 * result + source.hashCode();
-            result = 31 * result + (queryCache != null ? queryCache.hashCode() : 0);
+            result = 31 * result + (requestCache != null ? requestCache.hashCode() : 0);
             return result;
         }
     }
@@ -163,7 +163,7 @@ public class IndexWarmersMetaData extends AbstractDiffable<IndexMetaData.Custom>
                 out.writeBoolean(true);
                 out.writeBytesReference(entry.source());
             }
-            out.writeOptionalBoolean(entry.queryCache());
+            out.writeOptionalBoolean(entry.requestCache());
         }
     }
 
@@ -241,8 +241,8 @@ public class IndexWarmersMetaData extends AbstractDiffable<IndexMetaData.Custom>
         boolean binary = params.paramAsBoolean("binary", false);
         builder.startObject(entry.name(), XContentBuilder.FieldCaseConversion.NONE);
         builder.field("types", entry.types());
-        if (entry.queryCache() != null) {
-            builder.field("queryCache", entry.queryCache());
+        if (entry.requestCache() != null) {
+            builder.field("queryCache", entry.requestCache());
         }
         builder.field("source");
         if (binary) {

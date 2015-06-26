@@ -28,23 +28,42 @@ import org.elasticsearch.common.logging.slf4j.Slf4jESLoggerFactory;
  */
 public abstract class ESLoggerFactory {
 
+    public static final String LOGGER_IMPL_PROPERTY_NAME = "es.logger.impl";
     private static volatile ESLoggerFactory defaultFactory = new JdkESLoggerFactory();
 
     static {
-        try {
-            Class<?> loggerClazz = Class.forName("org.apache.log4j.Logger");
-            // below will throw a NoSuchMethod failure with using slf4j log4j bridge
-            loggerClazz.getMethod("setLevel", Class.forName("org.apache.log4j.Level"));
-            defaultFactory = new Log4jESLoggerFactory();
-        } catch (Throwable e) {
-            // no log4j
+        ESLoggerFactory configuredEsLoggerFactory = getConfiguredEsLoggerFactory();
+        if (configuredEsLoggerFactory == null) {
             try {
-                Class.forName("org.slf4j.Logger");
-                defaultFactory = new Slf4jESLoggerFactory();
-            } catch (Throwable e1) {
-                // no slf4j
+                Class<?> loggerClazz = Class.forName("org.apache.log4j.Logger");
+                // below will throw a NoSuchMethod failure with using slf4j log4j bridge
+                loggerClazz.getMethod("setLevel", Class.forName("org.apache.log4j.Level"));
+                defaultFactory = new Log4jESLoggerFactory();
+            } catch (Throwable e) {
+                // no log4j
+                try {
+                    Class.forName("org.slf4j.Logger");
+                    defaultFactory = new Slf4jESLoggerFactory();
+                } catch (Throwable e1) {
+                    // no slf4j
+                }
             }
+        } else {
+            defaultFactory = configuredEsLoggerFactory;
         }
+    }
+
+    static ESLoggerFactory getConfiguredEsLoggerFactory() {
+        String loggingType = System.getProperty(LOGGER_IMPL_PROPERTY_NAME);
+        if ("log4j".equals(loggingType)) {
+            return new Log4jESLoggerFactory();
+        } else if ("slf4j".equals(loggingType)) {
+            return new Slf4jESLoggerFactory();
+        } else if ("jdk".equals(loggingType)) {
+            return new JdkESLoggerFactory();
+        }
+
+        return null;
     }
 
     /**

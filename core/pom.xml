@@ -220,6 +220,14 @@
             <optional>true</optional>
         </dependency>
 
+        <!-- remove this for java 8 -->
+        <dependency>
+            <groupId>com.twitter</groupId>
+            <artifactId>jsr166e</artifactId>
+            <version>1.1.0</version>
+        </dependency>
+
+
         <!-- We don't use this since the publish pom is then messed up -->
         <!--
         <dependency>
@@ -409,7 +417,7 @@
                             <shadedPattern>org.elasticsearch.common.hppc</shadedPattern>
                         </relocation>
                         <relocation>
-                            <pattern>jsr166e</pattern>
+                            <pattern>com.twitter.jsr166e</pattern>
                             <shadedPattern>org.elasticsearch.common.util.concurrent.jsr166e</shadedPattern>
                         </relocation>
                         <relocation>
@@ -1058,7 +1066,6 @@
                <artifactId>jacoco-maven-plugin</artifactId>
                <configuration>
                  <excludes>
-                   <exclude>jsr166e/**</exclude>
                    <exclude>org/apache/lucene/**</exclude>
                  </excludes>
                </configuration>

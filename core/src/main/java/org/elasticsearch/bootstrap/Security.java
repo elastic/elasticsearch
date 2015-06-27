@@ -23,6 +23,8 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 
 import java.io.*;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.file.AccessMode;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
@@ -30,6 +32,10 @@ import java.nio.file.NotDirectoryException;
 import java.nio.file.Path;
 import java.security.Permissions;
 import java.security.Policy;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Map;
+import java.util.regex.Pattern;
 
 /** 
  * Initializes securitymanager with necessary permissions.
@@ -44,6 +50,9 @@ final class Security {
      * Can only happen once!
      */
     static void configure(Environment environment) throws Exception {
+        // set properties for jar locations
+        setCodebaseProperties();
+
         // enable security policy: union of template and environment-based paths.
         Policy.setPolicy(new ESPolicy(createPermissions(environment)));
 
@@ -52,6 +61,47 @@ final class Security {
 
         // do some basic tests
         selfTest();
+    }
+
+    // mapping of jars to codebase properties
+    // note that this is only read once, when policy is parsed.
+    private static final Map<Pattern,String> SPECIAL_JARS;
+    static {
+        Map<Pattern,String> m = new IdentityHashMap<>();
+        m.put(Pattern.compile(".*lucene-core-.*\\.jar$"), "es.security.lucene.core.jar");
+        m.put(Pattern.compile(".*jsr166e-.*\\.jar$"),     "es.security.twitter.jsr166e.jar");
+        SPECIAL_JARS = Collections.unmodifiableMap(m);
+    }
+
+    /**
+     * Sets properties (codebase URLs) for policy files.
+     * JAR locations are not fixed so we have to find the locations of
+     * the ones we want.
+     */
+    @SuppressForbidden(reason = "proper use of URL")
+    static void setCodebaseProperties() {
+        ClassLoader loader = ClassLoader.getSystemClassLoader();
+        if (loader instanceof URLClassLoader) {
+            for (URL url : ((URLClassLoader)loader).getURLs()) {
+                for (Map.Entry<Pattern,String> e : SPECIAL_JARS.entrySet()) {
+                    if (e.getKey().matcher(url.getPath()).matches()) {
+                        String prop = e.getValue();
+                        if (System.getProperty(prop) != null) {
+                            throw new IllegalStateException("property: " + prop + " is unexpectedly set");
+                        }
+                        System.setProperty(prop, url.toString());
+                    }
+                }
+            }
+            for (String prop : SPECIAL_JARS.values()) {
+                if (System.getProperty(prop) == null) {
+                    throw new IllegalStateException("property: " + prop + " was never set");
+                }
+            }
+        } else {
+            // we could try to parse the classpath or something, but screw it for now.
+            throw new UnsupportedOperationException("Unsupported system classloader type: " + loader.getClass());
+        }
     }
 
     /** returns dynamic Permissions to configured paths */

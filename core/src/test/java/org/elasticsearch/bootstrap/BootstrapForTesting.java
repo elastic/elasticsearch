@@ -63,6 +63,7 @@ public class BootstrapForTesting {
         // install security manager if requested
         if (systemPropertyAsBoolean("tests.security.manager", false)) {
             try {
+                Security.setCodebaseProperties();
                 // initialize paths the same exact way as bootstrap.
                 Permissions perms = new Permissions();
                 Path basedir = PathUtils.get(Objects.requireNonNull(System.getProperty("project.basedir"), 

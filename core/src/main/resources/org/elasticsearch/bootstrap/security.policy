@@ -25,7 +25,21 @@
 //// These permissions apply to the JDK itself:
 
 grant codeBase "file:${{java.ext.dirs}}/*" {
-        permission java.security.AllPermission;
+  permission java.security.AllPermission;
+};
+
+//// Very special jar permissions:
+//// These are dangerous permissions that we don't want to grant to everything.
+
+grant codeBase "${es.security.lucene.core.jar}" {
+  // needed to allow MMapDirectory's "unmap hack"
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
+};
+
+grant codeBase "${es.security.twitter.jsr166e.jar}" {
+  // needed for LongAdder etc
+  // TODO: remove this in java 8!
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
 };
 
 //// Everything else:
@@ -67,7 +81,7 @@ grant {
   permission java.lang.RuntimePermission "getProtectionDomain";
 
   // reflection hacks:
-  // needed for Striped64 (what is this doing), also enables unmap hack
+  // needed by pluginmanager to CHANGE THE CLASSLOADER (!)
   permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
   // needed for mock filesystems in tests (to capture implCloseChannel)
   permission java.lang.RuntimePermission "accessClassInPackage.sun.nio.ch";
@@ -75,7 +89,7 @@ grant {
   permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
   // needed by aws core sdk (TODO: look into this)
   permission java.lang.RuntimePermission "accessClassInPackage.sun.security.ssl";
-
+  
   // needed by RandomizedRunner
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   // needed by RandomizedRunner

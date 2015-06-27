@@ -96,7 +96,7 @@ final class Security {
             }
             for (String prop : SPECIAL_JARS.values()) {
                 if (System.getProperty(prop) == null) {
-                    System.setProperty(prop, "/dev/null"); // no chance to be interpreted as "all"
+                    System.setProperty(prop, "file:/dev/null"); // no chance to be interpreted as "all"
                 }
             }
         } else {

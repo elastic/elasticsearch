@@ -68,8 +68,8 @@ final class Security {
     private static final Map<Pattern,String> SPECIAL_JARS;
     static {
         Map<Pattern,String> m = new IdentityHashMap<>();
-        m.put(Pattern.compile(".*lucene-core-.*\\.jar$"), "es.security.lucene.core.jar");
-        m.put(Pattern.compile(".*jsr166e-.*\\.jar$"),     "es.security.twitter.jsr166e.jar");
+        m.put(Pattern.compile(".*lucene-core-.*\\.jar$"),  "es.security.jar.lucene.core");
+        m.put(Pattern.compile(".*jsr166e-.*\\.jar$"),      "es.security.jar.twitter.jsr166e");
         SPECIAL_JARS = Collections.unmodifiableMap(m);
     }
 
@@ -95,7 +95,7 @@ final class Security {
             }
             for (String prop : SPECIAL_JARS.values()) {
                 if (System.getProperty(prop) == null) {
-                    throw new IllegalStateException("property: " + prop + " was never set");
+                    System.setProperty(prop, "/dev/null"); // no chance to be interpreted as "all"
                 }
             }
         } else {

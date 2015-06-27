@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent;
 
 import com.google.common.base.Charsets;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -41,6 +42,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.file.Path;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
@@ -649,6 +651,13 @@ public final class XContentBuilder implements BytesStream, Releasable {
         value(value);
         return this;
     }
+    
+    public XContentBuilder field(String name, Path value) throws IOException {
+        //treat as single value, even though Path implements Iterable
+        field(name);
+        value(value);
+        return this;
+    }
 
     public XContentBuilder field(String name, Iterable value) throws IOException {
         startArray(name);
@@ -656,6 +665,13 @@ public final class XContentBuilder implements BytesStream, Releasable {
             value(o);
         }
         endArray();
+        return this;
+    }
+
+    public XContentBuilder field(XContentBuilderString name, Path value) throws IOException {
+        //treat as single value, even though Path implements Iterable
+        field(name);
+        value(value);
         return this;
     }
 
@@ -1140,6 +1156,12 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
+    public XContentBuilder value(Path value) throws IOException {
+        //treat as single value
+        writeValue(value);
+        return this;
+    }
+
     public XContentBuilder value(Iterable value) throws IOException {
         if (value == null) {
             return nullValue();
@@ -1255,6 +1277,9 @@ public final class XContentBuilder implements BytesStream, Releasable {
             generator.writeEndObject();
         } else if (value instanceof Map) {
             writeMap((Map) value);
+        } else if (value instanceof Path) {
+            //Path implements Iterable<Path> and causes endless recursion and a StackOverFlow if treated as an Iterable here
+            generator.writeString(value.toString());            
         } else if (value instanceof Iterable) {
             generator.writeStartArray();
             for (Object v : (Iterable) value) {

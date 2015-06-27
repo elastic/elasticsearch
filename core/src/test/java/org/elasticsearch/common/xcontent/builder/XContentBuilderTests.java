@@ -20,14 +20,17 @@
 package org.elasticsearch.common.xcontent.builder;
 
 import com.google.common.collect.Lists;
+
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.FastCharArrayWriter;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.*;
 
 import static org.elasticsearch.common.xcontent.XContentBuilder.FieldCaseConversion.CAMELCASE;
@@ -260,4 +263,36 @@ public class XContentBuilderTests extends ElasticsearchTestCase {
 
         assertThat(i, equalTo(terms.size()));
     }
+
+    @Test
+    public void testHandlingOfPath() throws IOException {
+        Path path = PathUtils.get("path");
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);        
+        builder.startObject().field("file", path).endObject();
+
+        assertThat(builder.string(), equalTo("{\"file\":\"path\"}"));
+    }
+
+    @Test
+    public void testHandlingOfPath_XContentBuilderStringName() throws IOException {
+        Path path = PathUtils.get("path");        
+        XContentBuilderString name = new XContentBuilderString("file");
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        builder.startObject().field(name, path).endObject();
+
+        assertThat(builder.string(), equalTo("{\"file\":\"path\"}"));
+    }
+
+    @Test
+    public void testHandlingOfCollectionOfPaths() throws IOException {
+        Path path = PathUtils.get("path");
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+
+        builder.startObject().field("file", Arrays.asList(path)).endObject();
+
+        assertThat(builder.string(), equalTo("{\"file\":[\"path\"]}"));
+    }
+    
 }

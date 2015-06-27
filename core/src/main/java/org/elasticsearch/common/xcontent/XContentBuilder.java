@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent;
 
 import com.google.common.base.Charsets;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -41,6 +42,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.file.Path;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
@@ -650,21 +652,33 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
-    public XContentBuilder field(String name, Iterable value) throws IOException {
-        startArray(name);
-        for (Object o : value) {
-            value(o);
+    public XContentBuilder field(String name, Iterable<?> value) throws IOException {
+        if (value instanceof Path) {
+            //treat Paths as single value
+            field(name);
+            value(value);
+        } else {
+            startArray(name);
+            for (Object o : value) {
+                value(o);
+            }
+            endArray();
         }
-        endArray();
         return this;
     }
 
-    public XContentBuilder field(XContentBuilderString name, Iterable value) throws IOException {
-        startArray(name);
-        for (Object o : value) {
-            value(o);
+    public XContentBuilder field(XContentBuilderString name, Iterable<?> value) throws IOException {
+        if (value instanceof Path) {
+            //treat Paths as single value
+            field(name);
+            value(value);
+        } else {
+            startArray(name);
+            for (Object o : value) {
+                value(o);
+            }
+            endArray();
         }
-        endArray();
         return this;
     }
 
@@ -1140,26 +1154,31 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
-    public XContentBuilder value(Iterable value) throws IOException {
+    public XContentBuilder value(Iterable<?> value) throws IOException {
         if (value == null) {
             return nullValue();
         }
-        startArray();
-        for (Object o : value) {
-            value(o);
+        if (value instanceof Path) {
+            //treat as single value
+            writeValue(value);
+        } else {
+            startArray();
+            for (Object o : value) {
+                value(o);
+            }
+            endArray();
         }
-        endArray();
         return this;
     }
 
     public XContentBuilder latlon(String name, double lat, double lon) throws IOException {
         return startObject(name).field("lat", lat).field("lon", lon).endObject();
     }
-    
+
     public XContentBuilder latlon(double lat, double lon) throws IOException {
         return startObject().field("lat", lat).field("lon", lon).endObject();
     }
-        
+
     public XContentBuilder copyCurrentStructure(XContentParser parser) throws IOException {
         generator.copyCurrentStructure(parser);
         return this;
@@ -1231,7 +1250,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
             generator.writeNull();
             return;
         }
-        Class type = value.getClass();
+        Class<?> type = value.getClass();
         if (type == String.class) {
             generator.writeString((String) value);
         } else if (type == Integer.class) {
@@ -1255,9 +1274,12 @@ public final class XContentBuilder implements BytesStream, Releasable {
             generator.writeEndObject();
         } else if (value instanceof Map) {
             writeMap((Map) value);
+        } else if (value instanceof Path) {
+            //Path implements Iterable<Path> and causes endless recursion and a StackOverFlow if treated as an Iterable here
+            generator.writeString(value.toString());
         } else if (value instanceof Iterable) {
             generator.writeStartArray();
-            for (Object v : (Iterable) value) {
+            for (Object v : (Iterable<?>) value) {
                 writeValue(v);
             }
             generator.writeEndArray();

@@ -42,14 +42,8 @@ grant codeBase "${es.security.jar.twitter.jsr166e}" {
   permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
 };
 
-// the following three jars all conspire to support creation of mocks
 grant codeBase "${es.security.jar.elasticsearch.securemock}" {
-  permission java.lang.RuntimePermission "reflectionFactoryAccess";
-};
-grant codeBase "${es.security.jar.mockito.core}" {
-  permission java.lang.RuntimePermission "reflectionFactoryAccess";
-};
-grant codeBase "${es.security.jar.objenesis}" {
+  // needed to support creation of mocks
   permission java.lang.RuntimePermission "reflectionFactoryAccess";
 };
 

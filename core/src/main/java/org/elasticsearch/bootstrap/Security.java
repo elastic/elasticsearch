@@ -71,8 +71,6 @@ final class Security {
         m.put(Pattern.compile(".*lucene-core-.*\\.jar$"),    "es.security.jar.lucene.core");
         m.put(Pattern.compile(".*jsr166e-.*\\.jar$"),        "es.security.jar.twitter.jsr166e");
         m.put(Pattern.compile(".*securemock-.*\\.jar$"),     "es.security.jar.elasticsearch.securemock");
-        m.put(Pattern.compile(".*mockito-core-.*\\.jar$"),   "es.security.jar.mockito.core");
-        m.put(Pattern.compile(".*objenesis-.*\\.jar$"),      "es.security.jar.objenesis");
         SPECIAL_JARS = Collections.unmodifiableMap(m);
     }
 

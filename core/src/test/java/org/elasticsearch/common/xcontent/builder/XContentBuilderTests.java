@@ -268,22 +268,27 @@ public class XContentBuilderTests extends ElasticsearchTestCase {
     @Test
     public void testHandlingOfPath() throws IOException {
         Path path = PathUtils.get("path");
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);        
-        builder.startObject().field("file", path).endObject();
-
-        assertThat(builder.string(), equalTo("{\"file\":\""+escapeJson(path.toString())+"\"}"));
-    }   
+        checkPathSerialization(path);
+    }
 
     @Test
     public void testHandlingOfPath_relative() throws IOException {
         Path path = PathUtils.get("..", "..", "path");
+        checkPathSerialization(path);
+    }
 
+    @Test
+    public void testHandlingOfPath_absolute() throws IOException {
+        Path path = createTempDir().toAbsolutePath();
+        checkPathSerialization(path);
+    }     
+
+    private void checkPathSerialization(Path path) throws IOException {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);        
         builder.startObject().field("file", path).endObject();
 
         assertThat(builder.string(), equalTo("{\"file\":\""+escapeJson(path.toString())+"\"}"));
-    }        
+    }
 
     @Test
     public void testHandlingOfPath_XContentBuilderStringName() throws IOException {

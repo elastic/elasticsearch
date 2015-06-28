@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.*;
 
+import static org.apache.commons.lang3.StringEscapeUtils.escapeJson;
 import static org.elasticsearch.common.xcontent.XContentBuilder.FieldCaseConversion.CAMELCASE;
 import static org.elasticsearch.common.xcontent.XContentBuilder.FieldCaseConversion.UNDERSCORE;
 import static org.hamcrest.Matchers.equalTo;
@@ -271,8 +272,18 @@ public class XContentBuilderTests extends ElasticsearchTestCase {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);        
         builder.startObject().field("file", path).endObject();
 
-        assertThat(builder.string(), equalTo("{\"file\":\"path\"}"));
-    }
+        assertThat(builder.string(), equalTo("{\"file\":\""+escapeJson(path.toString())+"\"}"));
+    }   
+
+    @Test
+    public void testHandlingOfPath_relative() throws IOException {
+        Path path = PathUtils.get("..", "..", "path");
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);        
+        builder.startObject().field("file", path).endObject();
+
+        assertThat(builder.string(), equalTo("{\"file\":\""+escapeJson(path.toString())+"\"}"));
+    }        
 
     @Test
     public void testHandlingOfPath_XContentBuilderStringName() throws IOException {
@@ -282,7 +293,7 @@ public class XContentBuilderTests extends ElasticsearchTestCase {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         builder.startObject().field(name, path).endObject();
 
-        assertThat(builder.string(), equalTo("{\"file\":\"path\"}"));
+        assertThat(builder.string(), equalTo("{\"file\":\""+escapeJson(path.toString())+"\"}"));
     }
 
     @Test
@@ -292,7 +303,7 @@ public class XContentBuilderTests extends ElasticsearchTestCase {
 
         builder.startObject().field("file", Arrays.asList(path)).endObject();
 
-        assertThat(builder.string(), equalTo("{\"file\":[\"path\"]}"));
+        assertThat(builder.string(), equalTo("{\"file\":[\""+escapeJson(path.toString())+"\"]}"));
     }
     
 }

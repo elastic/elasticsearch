@@ -251,7 +251,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
     }
 
     public String indexUUID() {
-        return indexSettings.get(IndexMetaData.SETTING_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
+        return indexSettings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
     }
 
     // NOTE: O(numShards) cost, but numShards should be smallish?

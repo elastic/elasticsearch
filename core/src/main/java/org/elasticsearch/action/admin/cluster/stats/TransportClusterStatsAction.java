@@ -84,7 +84,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
             }
         }
         return new ClusterStatsResponse(System.currentTimeMillis(), clusterName,
-                clusterService.state().metaData().uuid(), nodeStats.toArray(new ClusterStatsNodeResponse[nodeStats.size()]));
+                clusterService.state().metaData().clusterUUID(), nodeStats.toArray(new ClusterStatsNodeResponse[nodeStats.size()]));
     }
 
     @Override

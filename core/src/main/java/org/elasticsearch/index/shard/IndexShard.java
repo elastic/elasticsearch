@@ -1337,10 +1337,10 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     private String getIndexUUID() {
-        assert indexSettings.get(IndexMetaData.SETTING_UUID) != null
+        assert indexSettings.get(IndexMetaData.SETTING_INDEX_UUID) != null
                 || indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).before(Version.V_0_90_6) :
-                "version: " + indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null) + " uuid: " + indexSettings.get(IndexMetaData.SETTING_UUID);
-        return indexSettings.get(IndexMetaData.SETTING_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
+                "version: " + indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null) + " uuid: " + indexSettings.get(IndexMetaData.SETTING_INDEX_UUID);
+        return indexSettings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
     }
 
     private Tuple<DocumentMapper, Mapping> docMapper(String type) {

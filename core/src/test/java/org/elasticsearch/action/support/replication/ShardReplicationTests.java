@@ -247,7 +247,7 @@ public class ShardReplicationTests extends ElasticsearchTestCase {
 
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         state.nodes(discoBuilder);
-        state.metaData(MetaData.builder().put(indexMetaData, false).generateUuidIfNeeded());
+        state.metaData(MetaData.builder().put(indexMetaData, false).generateClusterUuidIfNeeded());
         state.routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(index).addIndexShard(indexShardRoutingBuilder.build())));
         return state.build();
     }

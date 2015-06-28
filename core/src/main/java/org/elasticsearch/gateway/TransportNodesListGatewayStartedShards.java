@@ -69,7 +69,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
 
     @Override
     public void list(ShardId shardId, IndexMetaData indexMetaData, String[] nodesIds, ActionListener<NodesGatewayStartedShards> listener) {
-        execute(new Request(shardId, indexMetaData.getUUID(), nodesIds), listener);
+        execute(new Request(shardId, indexMetaData.getIndexUUID(), nodesIds), listener);
     }
 
     @Override

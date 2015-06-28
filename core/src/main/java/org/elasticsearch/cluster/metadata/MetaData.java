@@ -132,7 +132,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
 
     public static final String CONTEXT_MODE_GATEWAY = XContentContext.GATEWAY.toString();
 
-    private final String uuid;
+    private final String clusterUUID;
     private final long version;
 
     private final Settings transientSettings;
@@ -154,8 +154,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
     private final ImmutableOpenMap<String, String[]> aliasAndIndexToIndexMap;
 
     @SuppressWarnings("unchecked")
-    MetaData(String uuid, long version, Settings transientSettings, Settings persistentSettings, ImmutableOpenMap<String, IndexMetaData> indices, ImmutableOpenMap<String, IndexTemplateMetaData> templates, ImmutableOpenMap<String, Custom> customs) {
-        this.uuid = uuid;
+    MetaData(String clusterUUID, long version, Settings transientSettings, Settings persistentSettings, ImmutableOpenMap<String, IndexMetaData> indices, ImmutableOpenMap<String, IndexTemplateMetaData> templates, ImmutableOpenMap<String, Custom> customs) {
+        this.clusterUUID = clusterUUID;
         this.version = version;
         this.transientSettings = transientSettings;
         this.persistentSettings = persistentSettings;
@@ -252,8 +252,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
         return this.version;
     }
 
-    public String uuid() {
-        return this.uuid;
+    public String clusterUUID() {
+        return this.clusterUUID;
     }
 
     /**
@@ -639,7 +639,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
 
         private long version;
 
-        private String uuid;
+        private String clusterUUID;
 
         private Settings transientSettings;
         private Settings persistentSettings;
@@ -649,7 +649,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
 
 
         public MetaDataDiff(MetaData before, MetaData after) {
-            uuid = after.uuid;
+            clusterUUID = after.clusterUUID;
             version = after.version;
             transientSettings = after.transientSettings;
             persistentSettings = after.persistentSettings;
@@ -659,7 +659,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
         }
 
         public MetaDataDiff(StreamInput in) throws IOException {
-            uuid = in.readString();
+            clusterUUID = in.readString();
             version = in.readLong();
             transientSettings = Settings.readSettingsFromStream(in);
             persistentSettings = Settings.readSettingsFromStream(in);
@@ -680,7 +680,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(uuid);
+            out.writeString(clusterUUID);
             out.writeLong(version);
             Settings.writeSettingsToStream(transientSettings, out);
             Settings.writeSettingsToStream(persistentSettings, out);
@@ -692,7 +692,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
         @Override
         public MetaData apply(MetaData part) {
             Builder builder = builder();
-            builder.uuid(uuid);
+            builder.clusterUUID(clusterUUID);
             builder.version(version);
             builder.transientSettings(transientSettings);
             builder.persistentSettings(persistentSettings);
@@ -707,7 +707,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
     public MetaData readFrom(StreamInput in) throws IOException {
         Builder builder = new Builder();
         builder.version = in.readLong();
-        builder.uuid = in.readString();
+        builder.clusterUUID = in.readString();
         builder.transientSettings(readSettingsFromStream(in));
         builder.persistentSettings(readSettingsFromStream(in));
         int size = in.readVInt();
@@ -730,7 +730,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(version);
-        out.writeString(uuid);
+        out.writeString(clusterUUID);
         writeSettingsToStream(transientSettings, out);
         writeSettingsToStream(persistentSettings, out);
         out.writeVInt(indices.size());
@@ -817,7 +817,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
         }
 
         if (newPersistentSettings != null) {
-            return new MetaData(metaData.uuid(),
+            return new MetaData(metaData.clusterUUID(),
                                 metaData.version(),
                                 metaData.transientSettings(),
                                 newPersistentSettings.build(),
@@ -832,7 +832,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
 
     public static class Builder {
 
-        private String uuid;
+        private String clusterUUID;
         private long version;
 
         private Settings transientSettings = Settings.Builder.EMPTY_SETTINGS;
@@ -843,14 +843,14 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
         private final ImmutableOpenMap.Builder<String, Custom> customs;
 
         public Builder() {
-            uuid = "_na_";
+            clusterUUID = "_na_";
             indices = ImmutableOpenMap.builder();
             templates = ImmutableOpenMap.builder();
             customs = ImmutableOpenMap.builder();
         }
 
         public Builder(MetaData metaData) {
-            this.uuid = metaData.uuid;
+            this.clusterUUID = metaData.clusterUUID;
             this.transientSettings = metaData.transientSettings;
             this.persistentSettings = metaData.persistentSettings;
             this.version = metaData.version;
@@ -988,20 +988,20 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
             return this;
         }
 
-        public Builder uuid(String uuid) {
-            this.uuid = uuid;
+        public Builder clusterUUID(String clusterUUID) {
+            this.clusterUUID = clusterUUID;
             return this;
         }
 
-        public Builder generateUuidIfNeeded() {
-            if (uuid.equals("_na_")) {
-                uuid = Strings.randomBase64UUID();
+        public Builder generateClusterUuidIfNeeded() {
+            if (clusterUUID.equals("_na_")) {
+                clusterUUID = Strings.randomBase64UUID();
             }
             return this;
         }
 
         public MetaData build() {
-            return new MetaData(uuid, version, transientSettings, persistentSettings, indices.build(), templates.build(), customs.build());
+            return new MetaData(clusterUUID, version, transientSettings, persistentSettings, indices.build(), templates.build(), customs.build());
         }
 
         public static String toXContent(MetaData metaData) throws IOException {
@@ -1018,7 +1018,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
             builder.startObject("meta-data");
 
             builder.field("version", metaData.version());
-            builder.field("uuid", metaData.uuid);
+            builder.field("cluster_uuid", metaData.clusterUUID);
 
             if (!metaData.persistentSettings().getAsMap().isEmpty()) {
                 builder.startObject("settings");
@@ -1110,8 +1110,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
                 } else if (token.isValue()) {
                     if ("version".equals(currentFieldName)) {
                         builder.version = parser.longValue();
-                    } else if ("uuid".equals(currentFieldName)) {
-                        builder.uuid = parser.text();
+                    } else if ("cluster_uuid".equals(currentFieldName) || "uuid".equals(currentFieldName)) {
+                        builder.clusterUUID = parser.text();
                     }
                 }
             }

@@ -332,7 +332,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         indexSettingsBuilder.put(SETTING_CREATION_DATE, new DateTime(DateTimeZone.UTC).getMillis());
                     }
 
-                    indexSettingsBuilder.put(SETTING_UUID, Strings.randomBase64UUID());
+                    indexSettingsBuilder.put(SETTING_INDEX_UUID, Strings.randomBase64UUID());
 
                     Settings actualIndexSettings = indexSettingsBuilder.build();
 

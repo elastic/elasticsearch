@@ -798,7 +798,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                             MetaData.Builder metaDataBuilder = MetaData.builder(updatedState.metaData()).removeAllIndices();
                             for (IndexMetaData indexMetaData : updatedState.metaData()) {
                                 IndexMetaData currentIndexMetaData = currentState.metaData().index(indexMetaData.index());
-                                if (currentIndexMetaData != null && currentIndexMetaData.isSameUUID(indexMetaData.uuid()) &&
+                                if (currentIndexMetaData != null && currentIndexMetaData.isSameUUID(indexMetaData.indexUUID()) &&
                                         currentIndexMetaData.version() == indexMetaData.version()) {
                                     // safe to reuse
                                     metaDataBuilder.put(currentIndexMetaData, false);

@@ -472,7 +472,7 @@ public class Version {
     public static Version indexCreated(Settings indexSettings) {
         final Version indexVersion = indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null);
         if (indexVersion == null) {
-            throw new IllegalStateException("[" + IndexMetaData.SETTING_VERSION_CREATED + "] is not present in the index settings for index with uuid: [" + indexSettings.get(IndexMetaData.SETTING_UUID) + "]");
+            throw new IllegalStateException("[" + IndexMetaData.SETTING_VERSION_CREATED + "] is not present in the index settings for index with uuid: [" + indexSettings.get(IndexMetaData.SETTING_INDEX_UUID) + "]");
         }
         return indexVersion;
     }

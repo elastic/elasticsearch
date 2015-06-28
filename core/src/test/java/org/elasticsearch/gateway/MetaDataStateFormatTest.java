@@ -94,7 +94,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
         Files.copy(resource, dst);
         MetaData read = format.read(dst);
         assertThat(read, notNullValue());
-        assertThat(read.uuid(), equalTo("3O1tDF1IRB6fSJ-GrTMUtg"));
+        assertThat(read.clusterUUID(), equalTo("3O1tDF1IRB6fSJ-GrTMUtg"));
         // indices are empty since they are serialized separately
     }
 
@@ -274,7 +274,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
         final MetaData meta = randomMeta();
         format.write(meta, v1, dirs);
         final MetaData metaData = format.loadLatestState(logger, dirs);
-        assertEquals(meta.uuid(), metaData.uuid());
+        assertEquals(meta.clusterUUID(), metaData.clusterUUID());
         final Path path = randomFrom(dirs);
         final Path[] files = FileSystemUtils.files(path.resolve("_state"));
         assertEquals(1, files.length);
@@ -295,12 +295,12 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
         final long v = randomInt(10);
 
         MetaData meta = randomMeta();
-        String uuid = meta.uuid();
+        String uuid = meta.clusterUUID();
 
         // write a first state file in the old format
         final Path dir2 = randomFrom(dirs);
         MetaData meta2 = randomMeta();
-        assertFalse(meta2.uuid().equals(uuid));
+        assertFalse(meta2.clusterUUID().equals(uuid));
         try (XContentBuilder xcontentBuilder = XContentFactory.contentBuilder(format.format(), Files.newOutputStream(dir2.resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve(MetaStateService.GLOBAL_STATE_FILE_PREFIX + v)))) {
             xcontentBuilder.startObject();
             MetaData.Builder.toXContent(randomMeta(), xcontentBuilder, params);
@@ -313,7 +313,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
         MetaData state = format.loadLatestState(logger, dirs);
         final Path path = randomFrom(dirs);
         assertTrue(Files.exists(path.resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve("global-" + (v+1) + ".st")));
-        assertEquals(state.uuid(), uuid);
+        assertEquals(state.clusterUUID(), uuid);
     }
 
     @Test
@@ -358,8 +358,8 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
         Collections.shuffle(dirList, getRandom());
         MetaData loadedMetaData = format.loadLatestState(logger, dirList.toArray(new Path[0]));
         MetaData latestMetaData = meta.get(numStates-1);
-        assertThat(loadedMetaData.uuid(), not(equalTo("_na_")));
-        assertThat(loadedMetaData.uuid(), equalTo(latestMetaData.uuid()));
+        assertThat(loadedMetaData.clusterUUID(), not(equalTo("_na_")));
+        assertThat(loadedMetaData.clusterUUID(), equalTo(latestMetaData.clusterUUID()));
         ImmutableOpenMap<String,IndexMetaData> indices = loadedMetaData.indices();
         assertThat(indices.size(), equalTo(latestMetaData.indices().size()));
         for (IndexMetaData original : latestMetaData) {
@@ -392,7 +392,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
     private MetaData randomMeta() throws IOException {
         int numIndices = randomIntBetween(1, 10);
         MetaData.Builder mdBuilder = MetaData.builder();
-        mdBuilder.generateUuidIfNeeded();
+        mdBuilder.generateClusterUuidIfNeeded();
         for (int i = 0; i < numIndices; i++) {
             mdBuilder.put(indexBuilder(randomAsciiOfLength(10) + "idx-"+i));
         }

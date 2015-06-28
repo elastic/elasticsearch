@@ -116,7 +116,7 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
             try {
                 // Check non-diffable elements
                 assertThat(clusterStateFromDiffs.version(), equalTo(clusterState.version()));
-                assertThat(clusterStateFromDiffs.uuid(), equalTo(clusterState.uuid()));
+                assertThat(clusterStateFromDiffs.stateUUID(), equalTo(clusterState.stateUUID()));
 
                 // Check nodes
                 assertThat(clusterStateFromDiffs.nodes().nodes(), equalTo(clusterState.nodes().nodes()));
@@ -141,7 +141,7 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
 
                 // Check metadata
                 assertThat(clusterStateFromDiffs.metaData().version(), equalTo(clusterState.metaData().version()));
-                assertThat(clusterStateFromDiffs.metaData().uuid(), equalTo(clusterState.metaData().uuid()));
+                assertThat(clusterStateFromDiffs.metaData().clusterUUID(), equalTo(clusterState.metaData().clusterUUID()));
                 assertThat(clusterStateFromDiffs.metaData().transientSettings(), equalTo(clusterState.metaData().transientSettings()));
                 assertThat(clusterStateFromDiffs.metaData().persistentSettings(), equalTo(clusterState.metaData().persistentSettings()));
                 assertThat(clusterStateFromDiffs.metaData().indices(), equalTo(clusterState.metaData().indices()));
@@ -485,7 +485,7 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
                         }
                         break;
                     case 2:
-                        builder.settings(Settings.builder().put(part.settings()).put(IndexMetaData.SETTING_UUID, Strings.randomBase64UUID()));
+                        builder.settings(Settings.builder().put(part.settings()).put(IndexMetaData.SETTING_INDEX_UUID, Strings.randomBase64UUID()));
                         break;
                     case 3:
                         builder.putCustom(IndexWarmersMetaData.TYPE, randomWarmers());

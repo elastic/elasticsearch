@@ -169,7 +169,7 @@ public class IndexMetaData implements Diffable<IndexMetaData> {
     public static final String SETTING_CREATION_DATE = "index.creation_date";
     public static final String SETTING_PRIORITY = "index.priority";
     public static final String SETTING_CREATION_DATE_STRING = "index.creation_date_string";
-    public static final String SETTING_UUID = "index.uuid";
+    public static final String SETTING_INDEX_UUID = "index.uuid";
     public static final String SETTING_LEGACY_ROUTING_HASH_FUNCTION = "index.legacy.routing.hash.type";
     public static final String SETTING_LEGACY_ROUTING_USE_TYPE = "index.legacy.routing.use_type";
     public static final String SETTING_DATA_PATH = "index.data_path";
@@ -268,12 +268,12 @@ public class IndexMetaData implements Diffable<IndexMetaData> {
         return index();
     }
 
-    public String uuid() {
-        return settings.get(SETTING_UUID, INDEX_UUID_NA_VALUE);
+    public String indexUUID() {
+        return settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
     }
 
-    public String getUUID() {
-        return uuid();
+    public String getIndexUUID() {
+        return indexUUID();
     }
 
     /**
@@ -281,11 +281,11 @@ public class IndexMetaData implements Diffable<IndexMetaData> {
      */
     public boolean isSameUUID(String otherUUID) {
         assert otherUUID != null;
-        assert uuid() != null;
-        if (INDEX_UUID_NA_VALUE.equals(otherUUID) || INDEX_UUID_NA_VALUE.equals(uuid())) {
+        assert indexUUID() != null;
+        if (INDEX_UUID_NA_VALUE.equals(otherUUID) || INDEX_UUID_NA_VALUE.equals(indexUUID())) {
             return true;
         }
-        return otherUUID.equals(getUUID());
+        return otherUUID.equals(getIndexUUID());
     }
 
     public long version() {

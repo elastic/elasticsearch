@@ -35,7 +35,7 @@ public class ShardPathTests extends ElasticsearchTestCase {
 
     public void testLoadShardPath() throws IOException {
         try (final NodeEnvironment env = newNodeEnvironment(settingsBuilder().build())) {
-            Settings.Builder builder = settingsBuilder().put(IndexMetaData.SETTING_UUID, "0xDEADBEEF");
+            Settings.Builder builder = settingsBuilder().put(IndexMetaData.SETTING_INDEX_UUID, "0xDEADBEEF");
             Settings settings = builder.build();
             ShardId shardId = new ShardId("foo", 0);
             Path[] paths = env.availableShardPaths(shardId);
@@ -53,7 +53,7 @@ public class ShardPathTests extends ElasticsearchTestCase {
     @Test(expected = IllegalStateException.class)
     public void testFailLoadShardPathOnMultiState() throws IOException {
         try (final NodeEnvironment env = newNodeEnvironment(settingsBuilder().build())) {
-            Settings.Builder builder = settingsBuilder().put(IndexMetaData.SETTING_UUID, "0xDEADBEEF");
+            Settings.Builder builder = settingsBuilder().put(IndexMetaData.SETTING_INDEX_UUID, "0xDEADBEEF");
             Settings settings = builder.build();
             ShardId shardId = new ShardId("foo", 0);
             Path[] paths = env.availableShardPaths(shardId);
@@ -67,7 +67,7 @@ public class ShardPathTests extends ElasticsearchTestCase {
     @Test(expected = IllegalStateException.class)
     public void testFailLoadShardPathIndexUUIDMissmatch() throws IOException {
         try (final NodeEnvironment env = newNodeEnvironment(settingsBuilder().build())) {
-            Settings.Builder builder = settingsBuilder().put(IndexMetaData.SETTING_UUID, "foobar");
+            Settings.Builder builder = settingsBuilder().put(IndexMetaData.SETTING_INDEX_UUID, "foobar");
             Settings settings = builder.build();
             ShardId shardId = new ShardId("foo", 0);
             Path[] paths = env.availableShardPaths(shardId);

@@ -87,7 +87,7 @@ public class ClusterStateDiffPublishingTests extends ElasticsearchTestCase {
         return createMockNode(name, settings, version, new PublishClusterStateAction.NewClusterStateListener() {
             @Override
             public void onNewClusterState(ClusterState clusterState, NewStateProcessed newStateProcessed) {
-                logger.debug("Node [{}] onNewClusterState version [{}], uuid [{}]", name, clusterState.version(), clusterState.uuid());
+                logger.debug("Node [{}] onNewClusterState version [{}], uuid [{}]", name, clusterState.version(), clusterState.stateUUID());
                 newStateProcessed.onNewClusterStateProcessed();
             }
         });
@@ -392,7 +392,7 @@ public class ClusterStateDiffPublishingTests extends ElasticsearchTestCase {
         MockNode nodeB = createMockNode("nodeB", noDiffPublishingSettings, Version.CURRENT, new PublishClusterStateAction.NewClusterStateListener() {
             @Override
             public void onNewClusterState(ClusterState clusterState, NewStateProcessed newStateProcessed) {
-                logger.debug("Got cluster state update, version [{}], guid [{}], from diff [{}]", clusterState.version(), clusterState.uuid(), clusterState.wasReadFromDiff());
+                logger.debug("Got cluster state update, version [{}], guid [{}], from diff [{}]", clusterState.version(), clusterState.stateUUID(), clusterState.wasReadFromDiff());
                 assertFalse(clusterState.wasReadFromDiff());
                 newStateProcessed.onNewClusterStateProcessed();
             }
@@ -496,7 +496,7 @@ public class ClusterStateDiffPublishingTests extends ElasticsearchTestCase {
             }
         });
 
-        ClusterState unserializableClusterState = new ClusterState(clusterState.version(), clusterState.uuid(), clusterState) {
+        ClusterState unserializableClusterState = new ClusterState(clusterState.version(), clusterState.stateUUID(), clusterState) {
             @Override
             public Diff<ClusterState> diff(ClusterState previousState) {
                 return new Diff<ClusterState>() {
@@ -615,7 +615,7 @@ public class ClusterStateDiffPublishingTests extends ElasticsearchTestCase {
     public static class DelegatingClusterState extends ClusterState {
 
         public DelegatingClusterState(ClusterState clusterState) {
-            super(clusterState.version(), clusterState.uuid(), clusterState);
+            super(clusterState.version(), clusterState.stateUUID(), clusterState);
         }
 
 

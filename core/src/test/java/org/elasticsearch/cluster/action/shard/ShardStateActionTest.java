@@ -43,7 +43,7 @@ public class ShardStateActionTest extends ElasticsearchTestCase {
         final IndexMetaData indexMetaData = IndexMetaData.builder("test")
                 .settings(Settings.builder()
                         .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put(IndexMetaData.SETTING_UUID, "test_uuid"))
+                        .put(IndexMetaData.SETTING_INDEX_UUID, "test_uuid"))
                 .numberOfShards(2).numberOfReplicas(0)
                 .build();
         ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT)
@@ -66,16 +66,16 @@ public class ShardStateActionTest extends ElasticsearchTestCase {
         ArrayList<ShardStateAction.ShardRoutingEntry> listToFilter = new ArrayList<>();
         ArrayList<ShardStateAction.ShardRoutingEntry> expectedToBeApplied = new ArrayList<>();
 
-        listToFilter.add(new ShardStateAction.ShardRoutingEntry(initShard, indexMetaData.uuid() + "_suffix", "wrong_uuid"));
+        listToFilter.add(new ShardStateAction.ShardRoutingEntry(initShard, indexMetaData.indexUUID() + "_suffix", "wrong_uuid"));
 
-        listToFilter.add(new ShardStateAction.ShardRoutingEntry(relocatingShard.buildTargetRelocatingShard(), indexMetaData.uuid(), "relocating_to_node"));
+        listToFilter.add(new ShardStateAction.ShardRoutingEntry(relocatingShard.buildTargetRelocatingShard(), indexMetaData.indexUUID(), "relocating_to_node"));
         expectedToBeApplied.add(listToFilter.get(listToFilter.size() - 1));
 
-        listToFilter.add(new ShardStateAction.ShardRoutingEntry(startedShard, indexMetaData.uuid(), "started shard"));
+        listToFilter.add(new ShardStateAction.ShardRoutingEntry(startedShard, indexMetaData.indexUUID(), "started shard"));
         expectedToBeApplied.add(listToFilter.get(listToFilter.size() - 1));
 
         listToFilter.add(new ShardStateAction.ShardRoutingEntry(TestShardRouting.newShardRouting(initShard.index() + "_NA", initShard.id(),
-                initShard.currentNodeId(), initShard.primary(), initShard.state(), initShard.version()), indexMetaData.uuid(), "wrong_uuid"));
+                initShard.currentNodeId(), initShard.primary(), initShard.state(), initShard.version()), indexMetaData.indexUUID(), "wrong_uuid"));
 
         List<ShardStateAction.ShardRoutingEntry> toBeApplied = ShardStateAction.extractShardsToBeApplied(listToFilter, "for testing", state.metaData(), logger);
         if (toBeApplied.size() != expectedToBeApplied.size()) {

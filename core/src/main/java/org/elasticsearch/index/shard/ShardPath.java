@@ -19,7 +19,6 @@
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
@@ -29,9 +28,7 @@ import java.io.IOException;
 import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 public final class ShardPath {
@@ -85,7 +82,7 @@ public final class ShardPath {
      * <b>Note:</b> this method resolves custom data locations for the shard.
      */
     public static ShardPath loadShardPath(ESLogger logger, NodeEnvironment env, ShardId shardId, @IndexSettings Settings indexSettings) throws IOException {
-        final String indexUUID = indexSettings.get(IndexMetaData.SETTING_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
+        final String indexUUID = indexSettings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
         final Path[] paths = env.availableShardPaths(shardId);
         Path loadedPath = null;
         for (Path path : paths) {
@@ -151,8 +148,8 @@ public final class ShardPath {
 
         final Path dataPath;
         final Path statePath;
-        
-        final String indexUUID = indexSettings.get(IndexMetaData.SETTING_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
+
+        final String indexUUID = indexSettings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
 
         if (NodeEnvironment.hasCustomDataPath(indexSettings)) {
             dataPath = env.resolveCustomLocation(indexSettings, shardId);

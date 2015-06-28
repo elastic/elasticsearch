@@ -194,7 +194,7 @@ public class ShardStateAction extends AbstractComponent {
                 continue;
             }
             if (!indexMetaData.isSameUUID(shardRoutingEntry.indexUUID)) {
-                logger.debug("{} ignoring shard {}, different index uuid, current {}, got {}", shardRouting.shardId(), type, indexMetaData.getUUID(), shardRoutingEntry);
+                logger.debug("{} ignoring shard {}, different index uuid, current {}, got {}", shardRouting.shardId(), type, indexMetaData.getIndexUUID(), shardRoutingEntry);
                 continue;
             }
 

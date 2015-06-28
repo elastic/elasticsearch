@@ -123,9 +123,9 @@ public class VersionTests extends ElasticsearchTestCase {
     }
 
     public void testIndexCreatedVersion() {
-        // an actual index has a IndexMetaData.SETTING_UUID
+        // an actual index has a IndexMetaData.SETTING_INDEX_UUID
         final Version version = randomFrom(Version.V_0_18_0, Version.V_0_90_13, Version.V_1_3_0);
-        assertEquals(version, Version.indexCreated(Settings.builder().put(IndexMetaData.SETTING_UUID, "foo").put(IndexMetaData.SETTING_VERSION_CREATED, version).build()));
+        assertEquals(version, Version.indexCreated(Settings.builder().put(IndexMetaData.SETTING_INDEX_UUID, "foo").put(IndexMetaData.SETTING_VERSION_CREATED, version).build()));
     }
     
     public void testMinCompatVersion() {

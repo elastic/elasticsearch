@@ -159,7 +159,7 @@ public class ShardStateAction extends AbstractComponent {
                         continue;
                     }
                     if (!indexMetaData.isSameUUID(shardRoutingEntry.indexUUID)) {
-                        logger.debug("{} ignoring shard failed, different index uuid, current {}, got {}", shardRouting.shardId(), indexMetaData.getUUID(), shardRoutingEntry);
+                        logger.debug("{} ignoring shard failed, different index uuid, current {}, got {}", shardRouting.shardId(), indexMetaData.getIndexUUID(), shardRoutingEntry);
                         continue;
                     }
 
@@ -236,7 +236,7 @@ public class ShardStateAction extends AbstractComponent {
                                 }
 
                                 if (!indexMetaData.isSameUUID(shardRoutingEntry.indexUUID)) {
-                                    logger.debug("{} ignoring shard started, different index uuid, current {}, got {}", shardRouting.shardId(), indexMetaData.getUUID(), shardRoutingEntry);
+                                    logger.debug("{} ignoring shard started, different index uuid, current {}, got {}", shardRouting.shardId(), indexMetaData.getIndexUUID(), shardRoutingEntry);
                                     continue;
                                 }
 

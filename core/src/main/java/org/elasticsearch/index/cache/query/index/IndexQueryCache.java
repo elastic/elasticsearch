@@ -36,12 +36,12 @@ import org.elasticsearch.indices.cache.query.IndicesQueryCache;
  */
 public class IndexQueryCache extends AbstractIndexComponent implements QueryCache {
 
-    final IndicesQueryCache indicesFilterCache;
+    final IndicesQueryCache indicesQueryCache;
 
     @Inject
-    public IndexQueryCache(Index index, @IndexSettings Settings indexSettings, IndicesQueryCache indicesFilterCache) {
+    public IndexQueryCache(Index index, @IndexSettings Settings indexSettings, IndicesQueryCache indicesQueryCache) {
         super(index, indexSettings);
-        this.indicesFilterCache = indicesFilterCache;
+        this.indicesQueryCache = indicesQueryCache;
     }
 
     @Override
@@ -52,12 +52,12 @@ public class IndexQueryCache extends AbstractIndexComponent implements QueryCach
     @Override
     public void clear(String reason) {
         logger.debug("full cache clear, reason [{}]", reason);
-        indicesFilterCache.clearIndex(index.getName());
+        indicesQueryCache.clearIndex(index.getName());
     }
 
     @Override
     public Weight doCache(Weight weight, QueryCachingPolicy policy) {
-        return indicesFilterCache.doCache(weight, policy);
+        return indicesQueryCache.doCache(weight, policy);
     }
 
 }

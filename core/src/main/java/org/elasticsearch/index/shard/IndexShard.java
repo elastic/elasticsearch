@@ -155,7 +155,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final EngineConfig engineConfig;
     private final TranslogConfig translogConfig;
     private final MergePolicyConfig mergePolicyConfig;
-    private final IndicesQueryCache indicesFilterCache;
+    private final IndicesQueryCache indicesQueryCache;
     private final StoreRecoveryService storeRecoveryService;
 
     private TimeValue refreshInterval;
@@ -192,7 +192,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     @Inject
     public IndexShard(ShardId shardId, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, StoreRecoveryService storeRecoveryService,
                       ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService,
-                      IndicesQueryCache indicesFilterCache, ShardPercolateService shardPercolateService, CodecService codecService,
+                      IndicesQueryCache indicesQueryCache, ShardPercolateService shardPercolateService, CodecService codecService,
                       ShardTermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, IndexService indexService,
                       @Nullable IndicesWarmer warmer, SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService, EngineFactory factory,
                       ClusterService clusterService, ShardPath path, BigArrays bigArrays) {
@@ -219,7 +219,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.termVectorsService = termVectorsService.setIndexShard(this);
         this.searchService = new ShardSearchStats(indexSettings);
         this.shardWarmerService = new ShardIndexWarmerService(shardId, indexSettings);
-        this.indicesFilterCache = indicesFilterCache;
+        this.indicesQueryCache = indicesQueryCache;
         this.shardQueryCache = new ShardRequestCache(shardId, indexSettings);
         this.shardFieldData = new ShardFieldData();
         this.percolatorQueriesRegistry = new PercolatorQueriesRegistry(shardId, indexSettings, queryParserService, indexingService, indicesLifecycle, mapperService, indexFieldDataService, shardPercolateService);
@@ -616,7 +616,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public QueryCacheStats queryCacheStats() {
-        return indicesFilterCache.getStats(shardId);
+        return indicesQueryCache.getStats(shardId);
     }
 
     public FieldDataStats fieldDataStats(String... fields) {

@@ -108,7 +108,7 @@ public class QueryCacheStats implements Streamable, ToXContent {
         return cacheCount - cacheSize;
     }
 
-    public static QueryCacheStats readFilterCacheStats(StreamInput in) throws IOException {
+    public static QueryCacheStats readQueryCacheStats(StreamInput in) throws IOException {
         QueryCacheStats stats = new QueryCacheStats();
         stats.readFrom(in);
         return stats;

@@ -41,7 +41,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.cache.query.QueryCacheModule;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
-import org.elasticsearch.index.cache.query.QueryCacheModule.FilterCacheSettings;
+import org.elasticsearch.index.cache.query.QueryCacheModule.QueryCacheSettings;
 import org.elasticsearch.index.cache.query.index.IndexQueryCache;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.MergePolicyConfig;
@@ -79,8 +79,8 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
         //Filter/Query cache is cleaned periodically, default is 60s, so make sure it runs often. Thread.sleep for 60s is bad
         return Settings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
                 .put(IndicesRequestCache.INDICES_CACHE_REQUEST_CLEAN_INTERVAL, "1ms")
-                .put(FilterCacheSettings.FILTER_CACHE_EVERYTHING, true)
-                .put(QueryCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, IndexQueryCache.class)
+                .put(QueryCacheSettings.QUERY_CACHE_EVERYTHING, true)
+                .put(QueryCacheModule.QueryCacheSettings.QUERY_CACHE_TYPE, IndexQueryCache.class)
                 .build();
     }
 
@@ -143,7 +143,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
         NodesStatsResponse nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true)
                 .execute().actionGet();
         assertThat(nodesStats.getNodes()[0].getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes()[1].getIndices().getFieldData().getMemorySizeInBytes(), equalTo(0l));
-        assertThat(nodesStats.getNodes()[0].getIndices().getFilterCache().getMemorySizeInBytes() + nodesStats.getNodes()[1].getIndices().getFilterCache().getMemorySizeInBytes(), equalTo(0l));
+        assertThat(nodesStats.getNodes()[0].getIndices().getQueryCache().getMemorySizeInBytes() + nodesStats.getNodes()[1].getIndices().getQueryCache().getMemorySizeInBytes(), equalTo(0l));
 
         IndicesStatsResponse indicesStats = client().admin().indices().prepareStats("test")
                 .clear().setFieldData(true).setQueryCache(true)
@@ -164,7 +164,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
         nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true)
                 .execute().actionGet();
         assertThat(nodesStats.getNodes()[0].getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes()[1].getIndices().getFieldData().getMemorySizeInBytes(), greaterThan(0l));
-        assertThat(nodesStats.getNodes()[0].getIndices().getFilterCache().getMemorySizeInBytes() + nodesStats.getNodes()[1].getIndices().getFilterCache().getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(nodesStats.getNodes()[0].getIndices().getQueryCache().getMemorySizeInBytes() + nodesStats.getNodes()[1].getIndices().getQueryCache().getMemorySizeInBytes(), greaterThan(0l));
 
         indicesStats = client().admin().indices().prepareStats("test")
                 .clear().setFieldData(true).setQueryCache(true)
@@ -177,7 +177,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
         nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true)
                 .execute().actionGet();
         assertThat(nodesStats.getNodes()[0].getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes()[1].getIndices().getFieldData().getMemorySizeInBytes(), equalTo(0l));
-        assertThat(nodesStats.getNodes()[0].getIndices().getFilterCache().getMemorySizeInBytes() + nodesStats.getNodes()[1].getIndices().getFilterCache().getMemorySizeInBytes(), equalTo(0l));
+        assertThat(nodesStats.getNodes()[0].getIndices().getQueryCache().getMemorySizeInBytes() + nodesStats.getNodes()[1].getIndices().getQueryCache().getMemorySizeInBytes(), equalTo(0l));
 
         indicesStats = client().admin().indices().prepareStats("test")
                 .clear().setFieldData(true).setQueryCache(true)
@@ -970,7 +970,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
         assertEquals(stats1.getTotalCount(), stats2.getTotalCount());
     }
 
-    private void assertCumulativeFilterCacheStats(IndicesStatsResponse response) {
+    private void assertCumulativeQueryCacheStats(IndicesStatsResponse response) {
         assertAllSuccessful(response);
         QueryCacheStats total = response.getTotal().queryCache;
         QueryCacheStats indexTotal = new QueryCacheStats();
@@ -993,13 +993,13 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
         ensureGreen();
 
         IndicesStatsResponse response = client().admin().indices().prepareStats("index").setQueryCache(true).get();
-        assertCumulativeFilterCacheStats(response);
+        assertCumulativeQueryCacheStats(response);
         assertEquals(0, response.getTotal().queryCache.getCacheSize());
 
         SearchResponse r;
         assertSearchResponse(r = client().prepareSearch("index").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("foo", "baz"))).get());
         response = client().admin().indices().prepareStats("index").setQueryCache(true).get();
-        assertCumulativeFilterCacheStats(response);
+        assertCumulativeQueryCacheStats(response);
         assertThat(response.getTotal().queryCache.getHitCount(), equalTo(0L));
         assertThat(response.getTotal().queryCache.getEvictions(), equalTo(0L));
         assertThat(response.getTotal().queryCache.getMissCount(), greaterThan(0L));
@@ -1007,7 +1007,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
 
         assertSearchResponse(client().prepareSearch("index").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("foo", "baz"))).get());
         response = client().admin().indices().prepareStats("index").setQueryCache(true).get();
-        assertCumulativeFilterCacheStats(response);
+        assertCumulativeQueryCacheStats(response);
         assertThat(response.getTotal().queryCache.getHitCount(), greaterThan(0L));
         assertThat(response.getTotal().queryCache.getEvictions(), equalTo(0L));
         assertThat(response.getTotal().queryCache.getMissCount(), greaterThan(0L));
@@ -1017,7 +1017,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
         assertTrue(client().prepareDelete("index", "type", "2").get().isFound());
         refresh();
         response = client().admin().indices().prepareStats("index").setQueryCache(true).get();
-        assertCumulativeFilterCacheStats(response);
+        assertCumulativeQueryCacheStats(response);
         assertThat(response.getTotal().queryCache.getHitCount(), greaterThan(0L));
         assertThat(response.getTotal().queryCache.getEvictions(), greaterThan(0L));
         assertThat(response.getTotal().queryCache.getCacheSize(), equalTo(0L));
@@ -1029,7 +1029,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
         assertSearchResponse(client().prepareSearch("index").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("foo", "baz"))).get());
 
         response = client().admin().indices().prepareStats("index").setQueryCache(true).get();
-        assertCumulativeFilterCacheStats(response);
+        assertCumulativeQueryCacheStats(response);
         assertThat(response.getTotal().queryCache.getHitCount(), greaterThan(0L));
         assertThat(response.getTotal().queryCache.getEvictions(), greaterThan(0L));
         assertThat(response.getTotal().queryCache.getMissCount(), greaterThan(0L));
@@ -1038,7 +1038,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
 
         assertAllSuccessful(client().admin().indices().prepareClearCache("index").setQueryCache(true).get());
         response = client().admin().indices().prepareStats("index").setQueryCache(true).get();
-        assertCumulativeFilterCacheStats(response);
+        assertCumulativeQueryCacheStats(response);
         assertThat(response.getTotal().queryCache.getHitCount(), greaterThan(0L));
         assertThat(response.getTotal().queryCache.getEvictions(), greaterThan(0L));
         assertThat(response.getTotal().queryCache.getMissCount(), greaterThan(0L));

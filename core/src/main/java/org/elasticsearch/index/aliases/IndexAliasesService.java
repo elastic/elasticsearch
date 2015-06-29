@@ -22,11 +22,12 @@ package org.elasticsearch.index.aliases;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -38,41 +39,19 @@ import org.elasticsearch.indices.AliasFilterParsingException;
 import org.elasticsearch.indices.InvalidAliasNameException;
 
 import java.io.IOException;
-import java.util.Iterator;
-import java.util.Map;
 
 /**
  *
  */
-public class IndexAliasesService extends AbstractIndexComponent implements Iterable<IndexAlias> {
+public class IndexAliasesService extends AbstractIndexComponent {
 
     private final IndexQueryParserService indexQueryParser;
-    private final Map<String, IndexAlias> aliases = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    private volatile ImmutableOpenMap<String, AliasMetaData> aliases = ImmutableOpenMap.of();
 
     @Inject
     public IndexAliasesService(Index index, @IndexSettings Settings indexSettings, IndexQueryParserService indexQueryParser) {
         super(index, indexSettings);
         this.indexQueryParser = indexQueryParser;
-    }
-
-    public boolean hasAlias(String alias) {
-        return aliases.containsKey(alias);
-    }
-
-    public IndexAlias alias(String alias) {
-        return aliases.get(alias);
-    }
-
-    public IndexAlias create(String alias, @Nullable CompressedXContent filter) {
-        return new IndexAlias(alias, filter, parse(alias, filter));
-    }
-
-    public void add(String alias, @Nullable CompressedXContent filter) {
-        add(new IndexAlias(alias, filter, parse(alias, filter)));
-    }
-
-    public void addAll(Map<String, IndexAlias> aliases) {
-        this.aliases.putAll(aliases);
     }
 
     /**
@@ -81,28 +60,29 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
      * <p>The list of filtering aliases should be obtained by calling MetaData.filteringAliases.
      * Returns <tt>null</tt> if no filtering is required.</p>
      */
-    public Query aliasFilter(String... aliases) {
-        if (aliases == null || aliases.length == 0) {
+    public Query aliasFilter(String... aliasNames) {
+        if (aliasNames == null || aliasNames.length == 0) {
             return null;
         }
-        if (aliases.length == 1) {
-            IndexAlias indexAlias = alias(aliases[0]);
-            if (indexAlias == null) {
+        if (aliasNames.length == 1) {
+            AliasMetaData alias = this.aliases.get(aliasNames[0]);
+            if (alias == null) {
                 // This shouldn't happen unless alias disappeared after filteringAliases was called.
-                throw new InvalidAliasNameException(index, aliases[0], "Unknown alias name was passed to alias Filter");
+                throw new InvalidAliasNameException(index, aliasNames[0], "Unknown alias name was passed to alias Filter");
             }
-            return indexAlias.parsedFilter();
+            return parse(alias);
         } else {
             // we need to bench here a bit, to see maybe it makes sense to use OrFilter
             BooleanQuery combined = new BooleanQuery();
-            for (String alias : aliases) {
-                IndexAlias indexAlias = alias(alias);
-                if (indexAlias == null) {
+            for (String aliasName : aliasNames) {
+                AliasMetaData alias = this.aliases.get(aliasName);
+                if (alias == null) {
                     // This shouldn't happen unless alias disappeared after filteringAliases was called.
-                    throw new InvalidAliasNameException(index, aliases[0], "Unknown alias name was passed to alias Filter");
+                    throw new InvalidAliasNameException(index, aliasNames[0], "Unknown alias name was passed to alias Filter");
                 }
-                if (indexAlias.parsedFilter() != null) {
-                    combined.add(indexAlias.parsedFilter(), BooleanClause.Occur.SHOULD);
+                Query parsedFilter = parse(alias);
+                if (parsedFilter != null) {
+                    combined.add(parsedFilter, BooleanClause.Occur.SHOULD);
                 } else {
                     // The filter might be null only if filter was removed after filteringAliases was called
                     return null;
@@ -112,31 +92,36 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
         }
     }
 
-    private void add(IndexAlias indexAlias) {
-        aliases.put(indexAlias.alias(), indexAlias);
+    public void setAliases(ImmutableOpenMap<String, AliasMetaData> aliases) {
+        this.aliases = aliases;
     }
 
-    public void remove(String alias) {
-        aliases.remove(alias);
-    }
-
-    private Query parse(String alias, CompressedXContent filter) {
-        if (filter == null) {
+    Query parse(AliasMetaData alias) {
+        if (alias.filter() == null) {
             return null;
         }
         try {
-            byte[] filterSource = filter.uncompressed();
+            byte[] filterSource = alias.filter().uncompressed();
             try (XContentParser parser = XContentFactory.xContent(filterSource).createParser(filterSource)) {
                 ParsedQuery parsedFilter = indexQueryParser.parseInnerFilter(parser);
                 return parsedFilter == null ? null : parsedFilter.query();
             }
         } catch (IOException ex) {
-            throw new AliasFilterParsingException(index, alias, "Invalid alias filter", ex);
+            throw new AliasFilterParsingException(index, alias.getAlias(), "Invalid alias filter", ex);
         }
     }
 
-    @Override
-    public Iterator<IndexAlias> iterator() {
-        return aliases.values().iterator();
+    // Used by tests:
+    void add(String alias, @Nullable CompressedXContent filter) {
+        AliasMetaData aliasMetaData = AliasMetaData.builder(alias).filter(filter).build();
+        aliases = ImmutableOpenMap.builder(aliases).fPut(alias, aliasMetaData).build();
+    }
+
+    boolean hasAlias(String alias) {
+        return aliases.containsKey(alias);
+    }
+
+   void remove(String alias) {
+       aliases = ImmutableOpenMap.builder(aliases).fRemove(alias).build();
     }
 }

@@ -155,11 +155,7 @@ public class DefaultSearchContext extends SearchContext {
         this.fetchResult = new FetchSearchResult(id, shardTarget);
         this.indexShard = indexShard;
         this.indexService = indexService;
-
         this.searcher = new ContextIndexSearcher(this, engineSearcher);
-
-        // initialize the filtering alias based on the provided filters
-        aliasFilter = indexService.aliasesService().aliasFilter(request.filteringAliases());
         this.timeEstimateCounter = timeEstimateCounter;
     }
 
@@ -183,6 +179,9 @@ public class DefaultSearchContext extends SearchContext {
                 throw new QueryPhaseExecutionException(this, msg);
             }
         }
+
+        // initialize the filtering alias based on the provided filters
+        aliasFilter = indexService.aliasesService().aliasFilter(request.filteringAliases());
 
         if (query() == null) {
             parsedQuery(ParsedQuery.parsedMatchAllQuery());

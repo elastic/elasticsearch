@@ -269,11 +269,11 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(fdStats == null ? null : fdStats.getMemorySize());
             table.addCell(fdStats == null ? null : fdStats.getEvictions());
 
-            QueryCacheStats fcStats = indicesStats == null ? null : indicesStats.getFilterCache();
+            QueryCacheStats fcStats = indicesStats == null ? null : indicesStats.getQueryCache();
             table.addCell(fcStats == null ? null : fcStats.getMemorySize());
             table.addCell(fcStats == null ? null : fcStats.getEvictions());
 
-            RequestCacheStats qcStats = indicesStats == null ? null : indicesStats.getQueryCache();
+            RequestCacheStats qcStats = indicesStats == null ? null : indicesStats.getRequestCache();
             table.addCell(qcStats == null ? null : qcStats.getMemorySize());
             table.addCell(qcStats == null ? null : qcStats.getEvictions());
             table.addCell(qcStats == null ? null : qcStats.getHitCount());

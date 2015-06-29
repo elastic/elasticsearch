@@ -132,12 +132,12 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
     }
 
     @Nullable
-    public QueryCacheStats getFilterCache() {
+    public QueryCacheStats getQueryCache() {
         return stats.getQueryCache();
     }
 
     @Nullable
-    public RequestCacheStats getQueryCache() {
+    public RequestCacheStats getRequestCache() {
         return stats.getRequestCache();
     }
 

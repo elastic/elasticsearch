@@ -31,10 +31,10 @@ import org.elasticsearch.index.cache.query.index.IndexQueryCache;
  */
 public class QueryCacheModule extends AbstractModule {
 
-    public static final class FilterCacheSettings {
-        public static final String FILTER_CACHE_TYPE = "index.queries.cache.type";
+    public static final class QueryCacheSettings {
+        public static final String QUERY_CACHE_TYPE = "index.queries.cache.type";
         // for test purposes only
-        public static final String FILTER_CACHE_EVERYTHING = "index.queries.cache.everything";
+        public static final String QUERY_CACHE_EVERYTHING = "index.queries.cache.everything";
     }
 
     private final Settings settings;
@@ -46,12 +46,12 @@ public class QueryCacheModule extends AbstractModule {
     @Override
     protected void configure() {
         bind(QueryCache.class)
-                .to(settings.getAsClass(FilterCacheSettings.FILTER_CACHE_TYPE, IndexQueryCache.class, "org.elasticsearch.index.cache.query.", "FilterCache"))
+                .to(settings.getAsClass(QueryCacheSettings.QUERY_CACHE_TYPE, IndexQueryCache.class, "org.elasticsearch.index.cache.query.", "QueryCache"))
                 .in(Scopes.SINGLETON);
         // the query cache is a node-level thing, however we want the most popular queries
         // to be computed on a per-index basis, that is why we don't use the SINGLETON
         // scope below
-        if (settings.getAsBoolean(FilterCacheSettings.FILTER_CACHE_EVERYTHING, false)) {
+        if (settings.getAsBoolean(QueryCacheSettings.QUERY_CACHE_EVERYTHING, false)) {
             bind(QueryCachingPolicy.class).toInstance(QueryCachingPolicy.ALWAYS_CACHE);
         } else {
             bind(QueryCachingPolicy.class).toInstance(new UsageTrackingQueryCachingPolicy());

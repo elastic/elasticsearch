@@ -31,13 +31,13 @@ public class ClearIndicesCacheRequestBuilder extends BroadcastOperationRequestBu
         super(client, action, new ClearIndicesCacheRequest());
     }
 
-    public ClearIndicesCacheRequestBuilder setFilterCache(boolean filterCache) {
-        request.filterCache(filterCache);
+    public ClearIndicesCacheRequestBuilder setQueryCache(boolean queryCache) {
+        request.queryCache(queryCache);
         return this;
     }
 
-    public ClearIndicesCacheRequestBuilder setQueryCache(boolean queryCache) {
-        request.queryCache(queryCache);
+    public ClearIndicesCacheRequestBuilder setRequestCache(boolean requestCache) {
+        request.requestCache(requestCache);
         return this;
     }
 

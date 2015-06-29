@@ -55,7 +55,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
         TransportClusterStatsAction.ClusterStatsNodeRequest, ClusterStatsNodeResponse> {
 
     private static final CommonStatsFlags SHARD_STATS_FLAGS = new CommonStatsFlags(CommonStatsFlags.Flag.Docs, CommonStatsFlags.Flag.Store,
-            CommonStatsFlags.Flag.FieldData, CommonStatsFlags.Flag.FilterCache, CommonStatsFlags.Flag.Completion, CommonStatsFlags.Flag.Segments,
+            CommonStatsFlags.Flag.FieldData, CommonStatsFlags.Flag.QueryCache, CommonStatsFlags.Flag.Completion, CommonStatsFlags.Flag.Segments,
             CommonStatsFlags.Flag.Percolate);
 
     private final NodeService nodeService;

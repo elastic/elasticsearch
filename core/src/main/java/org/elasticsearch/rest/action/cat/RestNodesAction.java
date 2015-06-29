@@ -35,8 +35,8 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.index.cache.filter.FilterCacheStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
+import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.flush.FlushStats;
@@ -142,13 +142,13 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("fielddata.memory_size", "alias:fm,fielddataMemory;default:false;text-align:right;desc:used fielddata cache");
         table.addCell("fielddata.evictions", "alias:fe,fielddataEvictions;default:false;text-align:right;desc:fielddata evictions");
 
-        table.addCell("filter_cache.memory_size", "alias:fcm,filterCacheMemory;default:false;text-align:right;desc:used filter cache");
-        table.addCell("filter_cache.evictions", "alias:fce,filterCacheEvictions;default:false;text-align:right;desc:filter cache evictions");
+        table.addCell("query_cache.memory_size", "alias:fcm,queryCacheMemory;default:false;text-align:right;desc:used query cache");
+        table.addCell("query_cache.evictions", "alias:fce,queryCacheEvictions;default:false;text-align:right;desc:query cache evictions");
 
-        table.addCell("query_cache.memory_size", "alias:qcm,queryCacheMemory;default:false;text-align:right;desc:used query cache");
-        table.addCell("query_cache.evictions", "alias:qce,queryCacheEvictions;default:false;text-align:right;desc:query cache evictions");
-        table.addCell("query_cache.hit_count", "alias:qchc,queryCacheHitCount;default:false;text-align:right;desc:query cache hit counts");
-        table.addCell("query_cache.miss_count", "alias:qcmc,queryCacheMissCount;default:false;text-align:right;desc:query cache miss counts");
+        table.addCell("request_cache.memory_size", "alias:qcm,requestCacheMemory;default:false;text-align:right;desc:used request cache");
+        table.addCell("request_cache.evictions", "alias:qce,requestCacheEvictions;default:false;text-align:right;desc:request cache evictions");
+        table.addCell("request_cache.hit_count", "alias:qchc,requestCacheHitCount;default:false;text-align:right;desc:request cache hit counts");
+        table.addCell("request_cache.miss_count", "alias:qcmc,requestCacheMissCount;default:false;text-align:right;desc:request cache miss counts");
 
         table.addCell("flush.total", "alias:ft,flushTotal;default:false;text-align:right;desc:number of flushes");
         table.addCell("flush.total_time", "alias:ftt,flushTotalTime;default:false;text-align:right;desc:time spent in flush");
@@ -269,11 +269,11 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(fdStats == null ? null : fdStats.getMemorySize());
             table.addCell(fdStats == null ? null : fdStats.getEvictions());
 
-            FilterCacheStats fcStats = indicesStats == null ? null : indicesStats.getFilterCache();
+            QueryCacheStats fcStats = indicesStats == null ? null : indicesStats.getFilterCache();
             table.addCell(fcStats == null ? null : fcStats.getMemorySize());
             table.addCell(fcStats == null ? null : fcStats.getEvictions());
 
-            QueryCacheStats qcStats = indicesStats == null ? null : indicesStats.getQueryCache();
+            RequestCacheStats qcStats = indicesStats == null ? null : indicesStats.getQueryCache();
             table.addCell(qcStats == null ? null : qcStats.getMemorySize());
             table.addCell(qcStats == null ? null : qcStats.getEvictions());
             table.addCell(qcStats == null ? null : qcStats.getHitCount());

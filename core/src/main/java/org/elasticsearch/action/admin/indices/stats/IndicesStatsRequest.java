@@ -166,13 +166,13 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
         return flags.isSet(Flag.Warmer);
     }
 
-    public IndicesStatsRequest filterCache(boolean filterCache) {
-        flags.set(Flag.FilterCache, filterCache);
+    public IndicesStatsRequest queryCache(boolean queryCache) {
+        flags.set(Flag.QueryCache, queryCache);
         return this;
     }
 
-    public boolean filterCache() {
-        return flags.isSet(Flag.FilterCache);
+    public boolean queryCache() {
+        return flags.isSet(Flag.QueryCache);
     }
 
     public IndicesStatsRequest fieldData(boolean fieldData) {
@@ -247,13 +247,13 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
         return flags.isSet(Flag.Suggest);
     }
 
-    public IndicesStatsRequest queryCache(boolean queryCache) {
-        flags.set(Flag.QueryCache, queryCache);
+    public IndicesStatsRequest requestCache(boolean requestCache) {
+        flags.set(Flag.RequestCache, requestCache);
         return this;
     }
 
-    public boolean queryCache() {
-        return flags.isSet(Flag.QueryCache);
+    public boolean requestCache() {
+        return flags.isSet(Flag.RequestCache);
     }
 
     public IndicesStatsRequest recovery(boolean recovery) {

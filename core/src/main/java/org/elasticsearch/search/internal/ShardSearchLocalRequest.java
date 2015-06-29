@@ -70,7 +70,7 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
     private BytesReference extraSource;
     private BytesReference templateSource;
     private Template template;
-    private Boolean queryCache;
+    private Boolean requestCache;
     private long nowInMillis;
 
     ShardSearchLocalRequest() {
@@ -79,7 +79,7 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
     ShardSearchLocalRequest(SearchRequest searchRequest, ShardRouting shardRouting, int numberOfShards,
                             String[] filteringAliases, long nowInMillis) {
         this(shardRouting.shardId(), numberOfShards, searchRequest.searchType(),
-                searchRequest.source(), searchRequest.types(), searchRequest.queryCache());
+                searchRequest.source(), searchRequest.types(), searchRequest.requestCache());
         this.extraSource = searchRequest.extraSource();
         this.templateSource = searchRequest.templateSource();
         this.template = searchRequest.template();
@@ -100,14 +100,14 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
     }
 
     public ShardSearchLocalRequest(ShardId shardId, int numberOfShards, SearchType searchType,
-                                   BytesReference source, String[] types, Boolean queryCache) {
+                                   BytesReference source, String[] types, Boolean requestCache) {
         this.index = shardId.getIndex();
         this.shardId = shardId.id();
         this.numberOfShards = numberOfShards;
         this.searchType = searchType;
         this.source = source;
         this.types = types;
-        this.queryCache = queryCache;
+        this.requestCache = requestCache;
     }
 
     @Override
@@ -171,8 +171,8 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
     }
 
     @Override
-    public Boolean queryCache() {
-        return queryCache;
+    public Boolean requestCache() {
+        return requestCache;
     }
 
     @Override
@@ -201,7 +201,7 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
         if (in.readBoolean()) {
             template = Template.readTemplate(in);
         }
-        queryCache = in.readOptionalBoolean();
+        requestCache = in.readOptionalBoolean();
     }
 
     protected void innerWriteTo(StreamOutput out, boolean asKey) throws IOException {
@@ -231,7 +231,7 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
         if (hasTemplate) {
             template.writeTo(out);
         }
-        out.writeOptionalBoolean(queryCache);
+        out.writeOptionalBoolean(requestCache);
     }
 
     @Override

@@ -20,6 +20,7 @@
 package org.elasticsearch.indices;
 
 import com.google.common.collect.ImmutableList;
+
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -27,8 +28,8 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
-import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
+import org.elasticsearch.indices.cache.request.IndicesRequestCache;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCacheListener;
@@ -71,8 +72,8 @@ public class IndicesModule extends AbstractModule implements SpawnModules {
         bind(IndicesClusterStateService.class).asEagerSingleton();
         bind(IndexingMemoryController.class).asEagerSingleton();
         bind(SyncedFlushService.class).asEagerSingleton();
-        bind(IndicesFilterCache.class).asEagerSingleton();
         bind(IndicesQueryCache.class).asEagerSingleton();
+        bind(IndicesRequestCache.class).asEagerSingleton();
         bind(IndicesFieldDataCache.class).asEagerSingleton();
         bind(TransportNodesListShardStoreMetaData.class).asEagerSingleton();
         bind(IndicesTTLService.class).asEagerSingleton();

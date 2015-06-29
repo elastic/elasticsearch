@@ -35,7 +35,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.indexing.ShardIndexingService;
-import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.store.Store;
@@ -76,8 +75,8 @@ public final class EngineConfig {
     private final CodecService codecService;
     private final Engine.FailedEngineListener failedEngineListener;
     private final boolean forceNewTranslog;
-    private final QueryCache filterCache;
-    private final QueryCachingPolicy filterCachingPolicy;
+    private final QueryCache queryCache;
+    private final QueryCachingPolicy queryCachingPolicy;
 
     /**
      * Index setting for index concurrency / number of threadstates in the indexwriter.
@@ -144,7 +143,7 @@ public final class EngineConfig {
                         Settings indexSettings, IndicesWarmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy,
                         MergePolicy mergePolicy, MergeSchedulerConfig mergeSchedulerConfig, Analyzer analyzer,
                         Similarity similarity, CodecService codecService, Engine.FailedEngineListener failedEngineListener,
-                        TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache filterCache, QueryCachingPolicy filterCachingPolicy, TranslogConfig translogConfig) {
+                        TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy, TranslogConfig translogConfig) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
         this.threadPool = threadPool;
@@ -168,8 +167,8 @@ public final class EngineConfig {
         updateVersionMapSize();
         this.translogRecoveryPerformer = translogRecoveryPerformer;
         this.forceNewTranslog = indexSettings.getAsBoolean(INDEX_FORCE_NEW_TRANSLOG, false);
-        this.filterCache = filterCache;
-        this.filterCachingPolicy = filterCachingPolicy;
+        this.queryCache = queryCache;
+        this.queryCachingPolicy = queryCachingPolicy;
         this.translogConfig = translogConfig;
     }
 
@@ -409,17 +408,17 @@ public final class EngineConfig {
     }
 
     /**
-     * Return the cache to use for filters.
+     * Return the cache to use for queries.
      */
-    public QueryCache getFilterCache() {
-        return filterCache;
+    public QueryCache getQueryCache() {
+        return queryCache;
     }
 
     /**
-     * Return the policy to use when caching filters.
+     * Return the policy to use when caching queries.
      */
-    public QueryCachingPolicy getFilterCachingPolicy() {
-        return filterCachingPolicy;
+    public QueryCachingPolicy getQueryCachingPolicy() {
+        return queryCachingPolicy;
     }
 
     /**

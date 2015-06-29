@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.filter;
+package org.elasticsearch.index.cache.query;
 
 import org.elasticsearch.index.IndexComponent;
 
@@ -26,7 +26,7 @@ import java.io.Closeable;
 /**
  *
  */
-public interface FilterCache extends IndexComponent, Closeable, org.apache.lucene.search.QueryCache {
+public interface QueryCache extends IndexComponent, Closeable, org.apache.lucene.search.QueryCache {
 
     static class EntriesStats {
         public final long sizeInBytes;

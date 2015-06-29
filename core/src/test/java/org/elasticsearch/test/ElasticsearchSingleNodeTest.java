@@ -222,7 +222,7 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
         BigArrays bigArrays = indexService.injector().getInstance(BigArrays.class);
         ThreadPool threadPool = indexService.injector().getInstance(ThreadPool.class);
         PageCacheRecycler pageCacheRecycler = indexService.injector().getInstance(PageCacheRecycler.class);
-        return new TestSearchContext(threadPool, pageCacheRecycler, bigArrays, indexService, indexService.cache().filter(), indexService.fieldData());
+        return new TestSearchContext(threadPool, pageCacheRecycler, bigArrays, indexService, indexService.cache().query(), indexService.fieldData());
     }
 
     /**

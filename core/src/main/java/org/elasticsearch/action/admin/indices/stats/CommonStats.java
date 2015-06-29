@@ -26,8 +26,8 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.cache.filter.FilterCacheStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
+import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.flush.FlushStats;
@@ -88,8 +88,8 @@ public class CommonStats implements Streamable, ToXContent {
                 case Warmer:
                     warmer = new WarmerStats();
                     break;
-                case FilterCache:
-                    filterCache = new FilterCacheStats();
+                case QueryCache:
+                    queryCache = new QueryCacheStats();
                     break;
                 case FieldData:
                     fieldData = new FieldDataStats();
@@ -109,8 +109,8 @@ public class CommonStats implements Streamable, ToXContent {
                 case Suggest:
                     suggest = new SuggestStats();
                     break;
-                case QueryCache:
-                    queryCache = new QueryCacheStats();
+                case RequestCache:
+                    requestCache = new RequestCacheStats();
                     break;
                 case Recovery:
                     recoveryStats = new RecoveryStats();
@@ -154,8 +154,8 @@ public class CommonStats implements Streamable, ToXContent {
                 case Warmer:
                     warmer = indexShard.warmerStats();
                     break;
-                case FilterCache:
-                    filterCache = indexShard.filterCacheStats();
+                case QueryCache:
+                    queryCache = indexShard.queryCacheStats();
                     break;
                 case FieldData:
                     fieldData = indexShard.fieldDataStats(flags.fieldDataFields());
@@ -175,8 +175,8 @@ public class CommonStats implements Streamable, ToXContent {
                 case Suggest:
                     suggest = indexShard.suggestStats();
                     break;
-                case QueryCache:
-                    queryCache = indexShard.queryCache().stats();
+                case RequestCache:
+                    requestCache = indexShard.requestCache().stats();
                     break;
                 case Recovery:
                     recoveryStats = indexShard.recoveryStats();
@@ -215,7 +215,7 @@ public class CommonStats implements Streamable, ToXContent {
     public WarmerStats warmer;
 
     @Nullable
-    public FilterCacheStats filterCache;
+    public QueryCacheStats queryCache;
 
     @Nullable
     public FieldDataStats fieldData;
@@ -236,7 +236,7 @@ public class CommonStats implements Streamable, ToXContent {
     public SuggestStats suggest;
 
     @Nullable
-    public QueryCacheStats queryCache;
+    public RequestCacheStats requestCache;
 
     @Nullable
     public RecoveryStats recoveryStats;
@@ -314,13 +314,13 @@ public class CommonStats implements Streamable, ToXContent {
         } else {
             warmer.add(stats.getWarmer());
         }
-        if (filterCache == null) {
-            if (stats.getFilterCache() != null) {
-                filterCache = new FilterCacheStats();
-                filterCache.add(stats.getFilterCache());
+        if (queryCache == null) {
+            if (stats.getQueryCache() != null) {
+                queryCache = new QueryCacheStats();
+                queryCache.add(stats.getQueryCache());
             }
         } else {
-            filterCache.add(stats.getFilterCache());
+            queryCache.add(stats.getQueryCache());
         }
 
         if (fieldData == null) {
@@ -371,13 +371,13 @@ public class CommonStats implements Streamable, ToXContent {
         } else {
             suggest.add(stats.getSuggest());
         }
-        if (queryCache == null) {
-            if (stats.getQueryCache() != null) {
-                queryCache = new QueryCacheStats();
-                queryCache.add(stats.getQueryCache());
+        if (requestCache == null) {
+            if (stats.getRequestCache() != null) {
+                requestCache = new RequestCacheStats();
+                requestCache.add(stats.getRequestCache());
             }
         } else {
-            queryCache.add(stats.getQueryCache());
+            requestCache.add(stats.getRequestCache());
         }
         if (recoveryStats == null) {
             if (stats.getRecoveryStats() != null) {
@@ -435,8 +435,8 @@ public class CommonStats implements Streamable, ToXContent {
     }
 
     @Nullable
-    public FilterCacheStats getFilterCache() {
-        return this.filterCache;
+    public QueryCacheStats getQueryCache() {
+        return this.queryCache;
     }
 
     @Nullable
@@ -470,8 +470,8 @@ public class CommonStats implements Streamable, ToXContent {
     }
 
     @Nullable
-    public QueryCacheStats getQueryCache() {
-        return queryCache;
+    public RequestCacheStats getRequestCache() {
+        return requestCache;
     }
 
     @Nullable
@@ -494,8 +494,8 @@ public class CommonStats implements Streamable, ToXContent {
         if (this.getFieldData() != null) {
             size += this.getFieldData().getMemorySizeInBytes();
         }
-        if (this.getFilterCache() != null) {
-            size += this.getFilterCache().getMemorySizeInBytes();
+        if (this.getQueryCache() != null) {
+            size += this.getQueryCache().getMemorySizeInBytes();
         }
         if (this.getPercolate() != null) {
             size += this.getPercolate().getMemorySizeInBytes();
@@ -539,7 +539,7 @@ public class CommonStats implements Streamable, ToXContent {
             warmer = WarmerStats.readWarmerStats(in);
         }
         if (in.readBoolean()) {
-            filterCache = FilterCacheStats.readFilterCacheStats(in);
+            queryCache = QueryCacheStats.readFilterCacheStats(in);
         }
         if (in.readBoolean()) {
             fieldData = FieldDataStats.readFieldDataStats(in);
@@ -555,7 +555,7 @@ public class CommonStats implements Streamable, ToXContent {
         }
         translog = in.readOptionalStreamable(new TranslogStats());
         suggest = in.readOptionalStreamable(new SuggestStats());
-        queryCache = in.readOptionalStreamable(new QueryCacheStats());
+        requestCache = in.readOptionalStreamable(new RequestCacheStats());
         recoveryStats = in.readOptionalStreamable(new RecoveryStats());
     }
 
@@ -615,11 +615,11 @@ public class CommonStats implements Streamable, ToXContent {
             out.writeBoolean(true);
             warmer.writeTo(out);
         }
-        if (filterCache == null) {
+        if (queryCache == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            filterCache.writeTo(out);
+            queryCache.writeTo(out);
         }
         if (fieldData == null) {
             out.writeBoolean(false);
@@ -647,7 +647,7 @@ public class CommonStats implements Streamable, ToXContent {
         }
         out.writeOptionalStreamable(translog);
         out.writeOptionalStreamable(suggest);
-        out.writeOptionalStreamable(queryCache);
+        out.writeOptionalStreamable(requestCache);
         out.writeOptionalStreamable(recoveryStats);
     }
 
@@ -681,8 +681,8 @@ public class CommonStats implements Streamable, ToXContent {
         if (warmer != null) {
             warmer.toXContent(builder, params);
         }
-        if (filterCache != null) {
-            filterCache.toXContent(builder, params);
+        if (queryCache != null) {
+            queryCache.toXContent(builder, params);
         }
         if (fieldData != null) {
             fieldData.toXContent(builder, params);
@@ -702,8 +702,8 @@ public class CommonStats implements Streamable, ToXContent {
         if (suggest != null) {
             suggest.toXContent(builder, params);
         }
-        if (queryCache != null) {
-            queryCache.toXContent(builder, params);
+        if (requestCache != null) {
+            requestCache.toXContent(builder, params);
         }
         if (recoveryStats != null) {
             recoveryStats.toXContent(builder, params);

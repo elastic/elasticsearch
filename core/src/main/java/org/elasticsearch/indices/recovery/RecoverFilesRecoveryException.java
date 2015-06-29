@@ -27,6 +27,7 @@ import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  *
@@ -39,6 +40,7 @@ public class RecoverFilesRecoveryException extends IndexShardException implement
 
     public RecoverFilesRecoveryException(ShardId shardId, int numberOfFiles, ByteSizeValue totalFilesSize, Throwable cause) {
         super(shardId, "Failed to transfer [" + numberOfFiles + "] files with total size of [" + totalFilesSize + "]", cause);
+        Objects.requireNonNull(totalFilesSize, "totalFilesSize must not be null");
         this.numberOfFiles = numberOfFiles;
         this.totalFilesSize = totalFilesSize;
     }

@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  *
@@ -34,10 +35,12 @@ public class IndexFailedEngineException extends EngineException {
 
     private final String id;
 
-    public IndexFailedEngineException(ShardId shardId, Engine.Index index, Throwable cause) {
-        super(shardId, "Index failed for [" + index.type() + "#" + index.id() + "]", cause);
-        this.type = index.type();
-        this.id = index.id();
+    public IndexFailedEngineException(ShardId shardId, String type, String id, Throwable cause) {
+        super(shardId, "Index failed for [" + type + "#" + id + "]", cause);
+        Objects.requireNonNull(type, "type must not be null");
+        Objects.requireNonNull(id, "id must not be null");
+        this.type = type;
+        this.id = id;
     }
 
     public IndexFailedEngineException(StreamInput in) throws IOException{

@@ -30,18 +30,15 @@ import java.io.IOException;
 public class SearchContextException extends SearchException {
 
     public SearchContextException(SearchContext context, String msg) {
-        super(context.shardTarget(), buildMessage(context, msg));
+        super(context.shardTarget(), msg);
     }
 
     public SearchContextException(SearchContext context, String msg, Throwable t) {
-        super(context.shardTarget(), buildMessage(context, msg), t);
+        super(context.shardTarget(), msg, t);
     }
 
     public SearchContextException(StreamInput in) throws IOException {
         super(in);
     }
 
-    private static String buildMessage(SearchContext context, String msg) {
-       return msg;
-    }
 }

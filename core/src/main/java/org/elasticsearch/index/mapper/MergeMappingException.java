@@ -25,16 +25,18 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Objects;
 
 /**
  *
  */
-public class MergeMappingException extends MapperException {
+public final class MergeMappingException extends MapperException {
 
     private final String[] failures;
 
     public MergeMappingException(String[] failures) {
         super("Merge failed with failures {" + Arrays.toString(failures) + "}");
+        Objects.requireNonNull(failures, "failures must be non-null");
         this.failures = failures;
     }
 

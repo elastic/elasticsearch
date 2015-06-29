@@ -455,9 +455,7 @@ public abstract class StreamOutput extends OutputStream {
             writeBoolean(false);
         } else {
             writeBoolean(true);
-            if (throwable instanceof ElasticsearchException) {
-
-            } else if (throwable instanceof CorruptIndexException) {
+            if (throwable instanceof CorruptIndexException) {
                 writeVInt(1);
             } else if (throwable instanceof IndexFormatTooNewException) {
                 writeVInt(2);

@@ -21,6 +21,7 @@ package org.elasticsearch.common.breaker;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -63,5 +64,12 @@ public class CircuitBreakingException extends ElasticsearchException {
 
     public long getByteLimit() {
         return this.byteLimit;
+    }
+
+    @Override
+    protected void innerToXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("bytes_wanted", bytesWanted);
+        builder.field("bytes_limit", byteLimit);
+        super.innerToXContent(builder, params);
     }
 }

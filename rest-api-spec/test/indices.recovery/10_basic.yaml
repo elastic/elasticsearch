@@ -16,10 +16,13 @@
   - do:
       indices.recovery:
         index: [test_1]
+        human: true
 
   - match: { test_1.shards.0.type:                                 "GATEWAY"               }
   - match: { test_1.shards.0.stage:                                "DONE"                  }
   - match: { test_1.shards.0.primary:                              true                    }
+  - match: { test_1.shards.0.primary:                              true                    }
+  - match: { test_1.shards.0.start_time:                           /^2\d\d\d-.+/           }
   - match: { test_1.shards.0.target.ip:                            /^\d+\.\d+\.\d+\.\d+$/  }
   - gte:   { test_1.shards.0.index.files.total:                    0                       }
   - gte:   { test_1.shards.0.index.files.reused:                   0                       }

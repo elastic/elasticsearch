@@ -34,7 +34,7 @@ public class AliasesMissingException extends ElasticsearchException {
     private final String[] names;
 
     public AliasesMissingException(String... names) {
-        super("aliases [" +  Arrays.toString(names) + "] missing");
+        super("aliases " +  Arrays.toString(names) + " missing");
         this.names = names;
     }
 

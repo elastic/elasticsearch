@@ -34,7 +34,7 @@ public class IndexWarmerMissingException extends ElasticsearchException {
     private final String[] names;
 
     public IndexWarmerMissingException(String... names) {
-        super("index_warmer [" +  Arrays.toString(names) + "] missing");
+        super("index_warmer " +  Arrays.toString(names) + " missing");
         this.names = names;
     }
 

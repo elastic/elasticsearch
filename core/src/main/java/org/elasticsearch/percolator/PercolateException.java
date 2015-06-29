@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Exception during percolating document(s) at runtime.
@@ -36,6 +37,7 @@ public class PercolateException extends ElasticsearchException implements Elasti
 
     public PercolateException(ShardId shardId, String msg, Throwable cause) {
         super(msg, cause);
+        Objects.requireNonNull(shardId, "shardId must not be null");
         this.shardId = shardId;
     }
 

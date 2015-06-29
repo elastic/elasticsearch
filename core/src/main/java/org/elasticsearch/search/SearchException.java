@@ -33,8 +33,7 @@ public class SearchException extends ElasticsearchException {
     private final SearchShardTarget shardTarget;
 
     public SearchException(SearchShardTarget shardTarget, String msg) {
-        super(msg);
-        this.shardTarget = shardTarget;
+        this(shardTarget, msg, null);
     }
 
     public SearchException(SearchShardTarget shardTarget, String msg, Throwable cause) {

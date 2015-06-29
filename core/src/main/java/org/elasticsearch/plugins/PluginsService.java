@@ -61,7 +61,6 @@ public class PluginsService extends AbstractComponent {
     public static final String ES_PLUGIN_PROPERTIES = "es-plugin.properties";
     public static final String LOAD_PLUGIN_FROM_CLASSPATH = "plugins.load_classpath_plugins";
 
-    static final String PLUGIN_LIB_PATTERN = "glob:**.{jar,zip}";
     public static final String PLUGINS_CHECK_LUCENE_KEY = "plugins.check_lucene";
     public static final String PLUGINS_INFO_REFRESH_INTERVAL_KEY = "plugins.info_refresh_interval";
 
@@ -118,11 +117,6 @@ public class PluginsService extends AbstractComponent {
         }
 
         // now, find all the ones that are in the classpath
-        try {
-            loadPluginsIntoClassLoader();
-        } catch (IOException ex) {
-            throw new IllegalStateException("Can't load plugins into classloader", ex);
-        }
         if (loadClasspathPlugins) {
             tupleBuilder.addAll(loadPluginsFromClasspath(settings));
         }
@@ -349,71 +343,7 @@ public class PluginsService extends AbstractComponent {
         return cachedPluginsInfo;
     }
 
-    private void loadPluginsIntoClassLoader() throws IOException {
-        Path pluginsDirectory = environment.pluginsFile();
-        if (!isAccessibleDirectory(pluginsDirectory, logger)) {
-            return;
-        }
 
-        ClassLoader classLoader = settings.getClassLoader();
-        Class classLoaderClass = classLoader.getClass();
-        Method addURL = null;
-        while (!classLoaderClass.equals(Object.class)) {
-            try {
-                addURL = classLoaderClass.getDeclaredMethod("addURL", URL.class);
-                addURL.setAccessible(true);
-                break;
-            } catch (NoSuchMethodException e) {
-                // no method, try the parent
-                classLoaderClass = classLoaderClass.getSuperclass();
-            }
-        }
-        if (addURL == null) {
-            logger.debug("failed to find addURL method on classLoader [" + classLoader + "] to add methods");
-            return;
-        }
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginsDirectory)) {
-
-            for (Path plugin : stream) {
-                // We check that subdirs are directories and readable
-                if (!isAccessibleDirectory(plugin, logger)) {
-                    continue;
-                }
-
-                logger.trace("--- adding plugin [{}]", plugin.toAbsolutePath());
-
-                try {
-                    // add the root
-                    addURL.invoke(classLoader, plugin.toUri().toURL());
-                    // gather files to add
-                    List<Path> libFiles = Lists.newArrayList();
-                    libFiles.addAll(Arrays.asList(files(plugin)));
-                    Path libLocation = plugin.resolve("lib");
-                    if (Files.isDirectory(libLocation)) {
-                        libFiles.addAll(Arrays.asList(files(libLocation)));
-                    }
-
-                    PathMatcher matcher = PathUtils.getDefaultFileSystem().getPathMatcher(PLUGIN_LIB_PATTERN);
-
-                    // if there are jars in it, add it as well
-                    for (Path libFile : libFiles) {
-                        if (!matcher.matches(libFile)) {
-                            continue;
-                        }
-                        addURL.invoke(classLoader, libFile.toUri().toURL());
-                    }
-                } catch (Throwable e) {
-                    logger.warn("failed to add plugin [" + plugin + "]", e);
-                }
-            }
-        }
-    }
-
-    private Path[] files(Path from) throws IOException {
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(from)) {
-            return Iterators.toArray(stream.iterator(), Path.class);
-        }
-    }
 
     private List<Tuple<PluginInfo,Plugin>> loadPluginsFromClasspath(Settings settings) {
         ImmutableList.Builder<Tuple<PluginInfo, Plugin>> plugins = ImmutableList.builder();

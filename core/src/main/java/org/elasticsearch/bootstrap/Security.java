@@ -87,9 +87,11 @@ final class Security {
                 for (Map.Entry<Pattern,String> e : SPECIAL_JARS.entrySet()) {
                     if (e.getKey().matcher(url.getPath()).matches()) {
                         String prop = e.getValue();
-                        if (System.getProperty(prop) != null) {
-                            throw new IllegalStateException("property: " + prop + " is unexpectedly set");
-                        }
+                        // TODO: we need to fix plugins to not include duplicate e.g. lucene-core jars,
+                        // to add back this safety check! see https://github.com/elastic/elasticsearch/issues/11647
+                        // if (System.getProperty(prop) != null) {
+                        //    throw new IllegalStateException("property: " + prop + " is unexpectedly set: " + System.getProperty(prop));
+                        //}
                         System.setProperty(prop, url.toString());
                     }
                 }

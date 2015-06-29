@@ -100,7 +100,7 @@ curl -XGET localhost:9200/shirts/_search -d '
     }
   },
   "post_filter": { <4>
-    "term": { "color": "red" },
+    "term": { "color": "red" }
   }
 }
 '

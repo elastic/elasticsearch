@@ -53,7 +53,7 @@ import java.util.Map;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.seriesArithmetic;
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.bucketScript;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -533,7 +533,7 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
                                 .subAggregation(sum("threeSum").field("three"))
                                 .subAggregation(sum("fourSum").field("four"))
                                 .subAggregation(
-                                        seriesArithmetic("totalSum").setBucketsPaths("twoSum", "threeSum", "fourSum").script(
+                                        bucketScript("totalSum").setBucketsPaths("twoSum", "threeSum", "fourSum").script(
                                                 new Script("_value0 + _value1 + _value2", ScriptType.INLINE, ExpressionScriptEngineService.NAME, null)))).execute().actionGet();
 
         InternalHistogram<Bucket> histogram = response.getAggregations().get("histogram");

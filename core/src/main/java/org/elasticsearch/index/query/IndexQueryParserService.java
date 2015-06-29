@@ -80,7 +80,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
 
     final IndexCache indexCache;
 
-    final IndexFieldDataService fieldDataService;
+    protected IndexFieldDataService fieldDataService;
 
     final ClusterService clusterService;
 

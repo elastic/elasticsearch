@@ -212,7 +212,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
     @Test
     public void filtered() throws Exception {
         GeoBoundingBoxQueryBuilder bbox = new GeoBoundingBoxQueryBuilder("location");
-        bbox.topLeft(smallestGeoHash).bottomRight(smallestGeoHash).queryName("bbox");
+        bbox.setCorners(smallestGeoHash, smallestGeoHash).queryName("bbox");
         for (int precision = 1; precision <= XGeoHashUtils.PRECISION; precision++) {
             SearchResponse response = client().prepareSearch("idx")
                     .addAggregation(

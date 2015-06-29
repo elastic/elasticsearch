@@ -179,4 +179,26 @@ public class SecurityTests extends ElasticsearchTestCase {
             fail("didn't get expected exception");
         } catch (IOException expected) {}
     }
+
+    /** We only grant this to special jars */
+    public void testUnsafeAccess() throws Exception {
+        assumeTrue("test requires security manager", System.getSecurityManager() != null);
+        try {
+            Class.forName("sun.misc.Unsafe");
+            fail("didn't get expected exception");
+        } catch (SecurityException expected) {
+            // ok
+        } catch (Exception somethingElse) {
+            assumeNoException("perhaps JVM doesn't have Unsafe?", somethingElse);
+        }
+    }
+
+    /** can't execute processes */
+    public void testProcessExecution() throws Exception {
+        assumeTrue("test requires security manager", System.getSecurityManager() != null);
+        try {
+            Runtime.getRuntime().exec("ls");
+            fail("didn't get expected exception");
+        } catch (SecurityException expected) {}
+    }
 }

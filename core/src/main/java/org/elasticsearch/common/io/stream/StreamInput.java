@@ -488,7 +488,7 @@ public abstract class StreamInput extends InputStream {
                 case 0:
                     return (T) ElasticsearchException.readException(this);
                 case 1:
-                    // nocommit - this sucks it would be nice to have a better way to construct those?
+                    // this sucks it would be nice to have a better way to construct those?
                     String msg = readOptionalString();
                     final int idx = msg.indexOf(" (resource=");
                     String resource = msg.substring(idx + " (resource=".length(), msg.length()-1);
@@ -520,7 +520,7 @@ public abstract class StreamInput extends InputStream {
                     return (T) ElasticsearchException.readStackTrace(new EOFException(eofMessage), this);
                 case 9:
                     return (T) ElasticsearchException.readStackTrace(new SecurityException(readOptionalString(), readThrowable()), this);
-                case 10: // unknown -- // nocommit - should we use a dedicated exception
+                case 10: // unknown -- // C - should we use a dedicated exception
                     return (T) ElasticsearchException.readStackTrace(new ElasticsearchException(readOptionalString(), readThrowable()), this);
                 default:
                     assert false : "no such exception for id: " + key;

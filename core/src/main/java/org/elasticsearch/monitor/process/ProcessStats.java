@@ -29,12 +29,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
-import java.io.Serializable;
 
 /**
  *
  */
-public class ProcessStats implements Streamable, Serializable, ToXContent {
+public class ProcessStats implements Streamable, ToXContent {
 
     long timestamp = -1;
 
@@ -162,7 +161,7 @@ public class ProcessStats implements Streamable, Serializable, ToXContent {
         }
     }
 
-    public static class Mem implements Streamable, Serializable {
+    public static class Mem implements Streamable {
 
         long totalVirtual = -1;
         long resident = -1;
@@ -216,7 +215,7 @@ public class ProcessStats implements Streamable, Serializable, ToXContent {
         }
     }
 
-    public static class Cpu implements Streamable, Serializable {
+    public static class Cpu implements Streamable {
 
         short percent = -1;
         long sys = -1;

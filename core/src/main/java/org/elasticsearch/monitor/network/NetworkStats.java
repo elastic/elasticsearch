@@ -27,12 +27,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
-import java.io.Serializable;
 
 /**
  *
  */
-public class NetworkStats implements Streamable, Serializable, ToXContent {
+public class NetworkStats implements Streamable, ToXContent {
 
     long timestamp;
 
@@ -119,7 +118,7 @@ public class NetworkStats implements Streamable, Serializable, ToXContent {
         return tcp();
     }
 
-    public static class Tcp implements Serializable, Streamable {
+    public static class Tcp implements Streamable {
 
         long activeOpens;
         long passiveOpens;

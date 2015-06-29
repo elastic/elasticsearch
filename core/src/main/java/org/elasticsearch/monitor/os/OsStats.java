@@ -29,13 +29,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
-import java.io.Serializable;
 import java.util.concurrent.TimeUnit;
 
 /**
  *
  */
-public class OsStats implements Streamable, Serializable, ToXContent {
+public class OsStats implements Streamable, ToXContent {
 
     public static final double[] EMPTY_LOAD = new double[0];
 
@@ -249,7 +248,7 @@ public class OsStats implements Streamable, Serializable, ToXContent {
         }
     }
 
-    public static class Swap implements Streamable, Serializable {
+    public static class Swap implements Streamable {
 
         long free = -1;
         long used = -1;
@@ -289,7 +288,7 @@ public class OsStats implements Streamable, Serializable, ToXContent {
         }
     }
 
-    public static class Mem implements Streamable, Serializable {
+    public static class Mem implements Streamable {
 
         long free = -1;
         short freePercent = -1;
@@ -373,7 +372,7 @@ public class OsStats implements Streamable, Serializable, ToXContent {
         }
     }
 
-    public static class Cpu implements Streamable, Serializable {
+    public static class Cpu implements Streamable {
 
         short sys = -1;
         short user = -1;

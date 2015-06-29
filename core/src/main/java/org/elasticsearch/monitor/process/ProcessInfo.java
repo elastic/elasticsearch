@@ -28,12 +28,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
-import java.io.Serializable;
 
 /**
  *
  */
-public class ProcessInfo implements Streamable, Serializable, ToXContent {
+public class ProcessInfo implements Streamable, ToXContent {
 
     long refreshInterval;
 

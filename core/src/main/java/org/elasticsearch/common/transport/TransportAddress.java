@@ -21,7 +21,6 @@ package org.elasticsearch.common.transport;
 
 import org.elasticsearch.common.io.stream.Streamable;
 
-import java.io.Serializable;
 
 /**
  *

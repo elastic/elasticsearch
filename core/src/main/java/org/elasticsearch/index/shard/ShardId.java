@@ -25,12 +25,11 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
-import java.io.Serializable;
 
 /**
  * Allows for shard level components to be injected with the shard id.
  */
-public class ShardId implements Serializable, Streamable, Comparable<ShardId> {
+public class ShardId implements Streamable, Comparable<ShardId> {
 
     private Index index;
 

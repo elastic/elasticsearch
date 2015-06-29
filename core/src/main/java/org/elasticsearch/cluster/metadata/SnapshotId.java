@@ -24,12 +24,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 
 import java.io.IOException;
-import java.io.Serializable;
 
 /**
  * Snapshot ID - repository name + snapshot name
  */
-public class SnapshotId implements Serializable, Streamable {
+public class SnapshotId implements Streamable {
 
     private String repository;
 

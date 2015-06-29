@@ -27,12 +27,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 
 import java.io.IOException;
-import java.io.Serializable;
 
 /**
  *
  */
-public class SizeValue implements Serializable, Streamable {
+public class SizeValue implements Streamable {
 
     private long size;
 

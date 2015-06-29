@@ -27,12 +27,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
-import java.io.Serializable;
 
 /**
  *
  */
-public class NetworkInfo implements Streamable, Serializable, ToXContent {
+public class NetworkInfo implements Streamable, ToXContent {
 
     public static final Interface NA_INTERFACE = new Interface();
 
@@ -99,7 +98,7 @@ public class NetworkInfo implements Streamable, Serializable, ToXContent {
         primary.writeTo(out);
     }
 
-    public static class Interface implements Streamable, Serializable {
+    public static class Interface implements Streamable {
 
         private String name = "";
         private String address = "";

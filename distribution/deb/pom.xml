@@ -10,6 +10,7 @@
     </parent>
 
     <artifactId>elasticsearch-deb</artifactId>
+    <packaging>deb</packaging>
     <name>Elasticsearch DEB Distribution</name>
 
     <properties>
@@ -18,6 +19,14 @@
     </properties>
 
     <build>
+
+        <extensions>
+            <!-- Add support for the "deb" packaging -->
+            <extension>
+                <groupId>org.vafer</groupId>
+                <artifactId>jdeb</artifactId>
+            </extension>
+        </extensions>
 
         <filters>
             <filter>${project.basedir}/src/packaging/packaging.properties</filter>

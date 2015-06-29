@@ -65,9 +65,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     public ElasticsearchException(StreamInput in) throws IOException {
-        super(in.readOptionalString(), in.readThrowable()); //TODO readOptionalThrowable
+        super(in.readOptionalString(), in.readThrowable());
         readStackTrace(this, in);
-
     }
 
     /**
@@ -166,8 +165,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         writeStackTraces(this, out);
     }
 
-    public static ElasticsearchException readException(StreamInput input) throws IOException {
-        final String name = input.readString();
+    public static ElasticsearchException readException(StreamInput input, String name) throws IOException {
         Constructor<? extends ElasticsearchException> elasticsearchException = MAPPING.get(name);
         if (elasticsearchException == null) {
             throw new IllegalStateException("unknown exception with name: " + name);
@@ -179,18 +177,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         }
     }
 
-    public static void writeException(ElasticsearchException ex, StreamOutput output) throws IOException {
-        output.writeString(ex.getClass().getName());
-        ex.writeTo(output);
-    }
-
     /**
      * A base class for exceptions that should carry rest headers
      */
     @SuppressWarnings("unchecked")
     public static class WithRestHeadersException extends ElasticsearchException implements HasRestHeaders {
 
-        private final ImmutableMap<String, List<String>> headers;
+        private final Map<String, List<String>> headers;
 
         public WithRestHeadersException(String msg, Tuple<String, String[]>... headers) {
             super(msg);
@@ -202,9 +195,9 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             int numKeys = in.readVInt();
             ImmutableMap.Builder<String, List<String>> builder = ImmutableMap.builder();
             for (int i = 0; i < numKeys; i++) {
-                String key = in.readString();
-                int numValues = in.readVInt();
-                ArrayList<String> headers = new ArrayList<>(numValues);
+                final String key = in.readString();
+                final int numValues = in.readVInt();
+                final ArrayList<String> headers = new ArrayList<>(numValues);
                 for (int j = 0; j < numValues; j++) {
                     headers.add(in.readString());
                 }
@@ -223,12 +216,11 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 for (String v : entry.getValue()) {
                     out.writeString(v);
                 }
-
             }
         }
 
         @Override
-        public ImmutableMap<String, List<String>> getHeaders() {
+        public Map<String, List<String>> getHeaders() {
             return headers;
         }
 
@@ -236,7 +228,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             return Tuple.tuple(name, values);
         }
 
-        private static ImmutableMap<String, List<String>> headers(Tuple<String, String[]>... headers) {
+        private static Map<String, List<String>> headers(Tuple<String, String[]>... headers) {
             Map<String, List<String>> map = Maps.newHashMap();
             for (Tuple<String, String[]> header : headers) {
                 List<String> list = map.get(header.v1());
@@ -353,15 +345,19 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         return ExceptionsHelper.detailedMessage(this).trim();
     }
 
+    /**
+     * Deserializes stacktrace elements as well as suppressed exceptions from the given output stream and
+     * adds it to the given exception.
+     */
     public static <T extends Throwable> T readStackTrace(T throwable, StreamInput in) throws IOException {
-        int stackTraceElements = in.readVInt();
+        final int stackTraceElements = in.readVInt();
         StackTraceElement[] stackTrace = new StackTraceElement[stackTraceElements];
         for (int i = 0; i < stackTraceElements; i++) {
-            String declaringClasss = in.readString();
-            String fielName = in.readString();
-            String methodName = in.readString();
-            int lineNumber = in.readVInt();
-            stackTrace[i] = new StackTraceElement(declaringClasss,methodName, fielName, lineNumber);
+            final String declaringClasss = in.readString();
+            final String fileName = in.readString();
+            final String methodName = in.readString();
+            final int lineNumber = in.readVInt();
+            stackTrace[i] = new StackTraceElement(declaringClasss,methodName, fileName, lineNumber);
         }
         throwable.setStackTrace(stackTrace);
 
@@ -372,6 +368,9 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         return throwable;
     }
 
+    /**
+     * Serializes the given exceptions stacktrace elements as well as it's suppressed exceptions to the given output stream.
+     */
     public static <T extends Throwable> T writeStackTraces(T throwable, StreamOutput out) throws IOException {
         StackTraceElement[] stackTrace = throwable.getStackTrace();
         out.writeVInt(stackTrace.length);
@@ -533,7 +532,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.ElasticsearchParseException.class,
                 org.elasticsearch.action.PrimaryMissingActionException.class,
                 org.elasticsearch.index.engine.CreateFailedEngineException.class,
-                org.elasticsearch.index.shard.IllegalIndexShardStateException.class
+                org.elasticsearch.index.shard.IllegalIndexShardStateException.class,
+                org.elasticsearch.common.io.stream.StreamInput.NamedException.class
         };
         Map<String, Constructor<? extends ElasticsearchException>> mapping = new HashMap<>();
 

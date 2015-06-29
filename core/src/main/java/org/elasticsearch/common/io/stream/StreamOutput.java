@@ -456,9 +456,7 @@ public abstract class StreamOutput extends OutputStream {
         } else {
             writeBoolean(true);
             if (throwable instanceof ElasticsearchException) {
-                writeVInt(0);
-                ElasticsearchException.writeException((ElasticsearchException) throwable, this);
-                return;
+
             } else if (throwable instanceof CorruptIndexException) {
                 writeVInt(1);
             } else if (throwable instanceof IndexFormatTooNewException) {
@@ -478,7 +476,17 @@ public abstract class StreamOutput extends OutputStream {
             } else if (throwable instanceof SecurityException) {
                 writeVInt(9);
             } else {
-                writeVInt(10); // unknown
+                ElasticsearchException ex;
+                if (throwable instanceof ElasticsearchException) {
+                    ex = (ElasticsearchException) throwable;
+                } else {
+                    ex = new StreamInput.NamedException(ElasticsearchException.getExceptionName(throwable), throwable.getMessage(), throwable.getCause());
+                }
+                writeVInt(0);
+                writeString(ex.getClass().getName());
+                ex.writeTo(this);
+                return;
+
             }
             writeOptionalString(throwable.getMessage());
             writeThrowable(throwable.getCause());

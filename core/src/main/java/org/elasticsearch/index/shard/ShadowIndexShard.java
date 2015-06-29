@@ -60,7 +60,7 @@ public final class ShadowIndexShard extends IndexShard {
                             IndicesLifecycle indicesLifecycle, Store store, StoreRecoveryService storeRecoveryService,
                             ThreadPool threadPool, MapperService mapperService,
                             IndexQueryParserService queryParserService, IndexCache indexCache,
-                            IndexAliasesService indexAliasesService, IndicesQueryCache indicesFilterCache,
+                            IndexAliasesService indexAliasesService, IndicesQueryCache indicesQueryCache,
                             ShardPercolateService shardPercolateService, CodecService codecService,
                             ShardTermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService,
                             IndexService indexService, @Nullable IndicesWarmer warmer,
@@ -69,7 +69,7 @@ public final class ShadowIndexShard extends IndexShard {
                             ShardPath path, BigArrays bigArrays) throws IOException {
         super(shardId, indexSettingsService, indicesLifecycle, store, storeRecoveryService,
                 threadPool, mapperService, queryParserService, indexCache, indexAliasesService,
-                indicesFilterCache, shardPercolateService, codecService,
+                indicesQueryCache, shardPercolateService, codecService,
                 termVectorsService, indexFieldDataService, indexService,
                 warmer, deletionPolicy, similarityService,
                 factory, clusterService, path, bigArrays);

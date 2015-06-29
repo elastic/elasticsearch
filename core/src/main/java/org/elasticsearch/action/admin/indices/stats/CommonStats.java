@@ -539,7 +539,7 @@ public class CommonStats implements Streamable, ToXContent {
             warmer = WarmerStats.readWarmerStats(in);
         }
         if (in.readBoolean()) {
-            queryCache = QueryCacheStats.readFilterCacheStats(in);
+            queryCache = QueryCacheStats.readQueryCacheStats(in);
         }
         if (in.readBoolean()) {
             fieldData = FieldDataStats.readFieldDataStats(in);

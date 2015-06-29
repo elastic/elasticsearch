@@ -73,7 +73,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.query.QueryCacheModule;
-import org.elasticsearch.index.cache.query.QueryCacheModule.FilterCacheSettings;
+import org.elasticsearch.index.cache.query.QueryCacheModule.QueryCacheSettings;
 import org.elasticsearch.index.cache.query.index.IndexQueryCache;
 import org.elasticsearch.index.cache.query.none.NoneQueryCache;
 import org.elasticsearch.index.engine.CommitStats;
@@ -438,11 +438,11 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         if (random.nextBoolean()) {
-            builder.put(QueryCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, random.nextBoolean() ? IndexQueryCache.class : NoneQueryCache.class);
+            builder.put(QueryCacheModule.QueryCacheSettings.QUERY_CACHE_TYPE, random.nextBoolean() ? IndexQueryCache.class : NoneQueryCache.class);
         }
 
         if (random.nextBoolean()) {
-            builder.put(FilterCacheSettings.FILTER_CACHE_EVERYTHING, random.nextBoolean());
+            builder.put(QueryCacheSettings.QUERY_CACHE_EVERYTHING, random.nextBoolean());
         }
 
         if (random.nextBoolean()) {
@@ -1807,7 +1807,7 @@ public final class InternalTestCluster extends TestCluster {
                 NodeService nodeService = getInstanceFromNode(NodeService.class, nodeAndClient.node);
                 NodeStats stats = nodeService.stats(CommonStatsFlags.ALL, false, false, false, false, false, false, false, false, false);
                 assertThat("Fielddata size must be 0 on node: " + stats.getNode(), stats.getIndices().getFieldData().getMemorySizeInBytes(), equalTo(0l));
-                assertThat("Filter cache size must be 0 on node: " + stats.getNode(), stats.getIndices().getFilterCache().getMemorySizeInBytes(), equalTo(0l));
+                assertThat("Query cache size must be 0 on node: " + stats.getNode(), stats.getIndices().getQueryCache().getMemorySizeInBytes(), equalTo(0l));
                 assertThat("FixedBitSet cache size must be 0 on node: " + stats.getNode(), stats.getIndices().getSegments().getBitsetMemoryInBytes(), equalTo(0l));
             }
         }

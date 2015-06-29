@@ -29,7 +29,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -397,12 +396,14 @@ public class RecoveryState implements ToXContent, Streamable {
 
     public static class Timer implements Streamable {
         protected long startTime = 0;
+        protected long startNanoTime = 0;
         protected long time = -1;
         protected long stopTime = 0;
 
         public synchronized void start() {
             assert startTime == 0 : "already started";
-            startTime = TimeValue.nsecToMSec(System.nanoTime());
+            startTime = System.currentTimeMillis();
+            startNanoTime = System.nanoTime();
         }
 
         /** Returns start time in millis */
@@ -418,7 +419,7 @@ public class RecoveryState implements ToXContent, Streamable {
             if (time >= 0) {
                 return time;
             }
-            return Math.max(0, TimeValue.nsecToMSec(System.nanoTime()) - startTime);
+            return Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - startNanoTime));
         }
 
         /** Returns stop time in millis */
@@ -428,8 +429,8 @@ public class RecoveryState implements ToXContent, Streamable {
 
         public synchronized void stop() {
             assert stopTime == 0 : "already stopped";
-            stopTime = Math.max(TimeValue.nsecToMSec(System.nanoTime()), startTime);
-            time = stopTime - startTime;
+            stopTime = Math.max(System.currentTimeMillis(), startTime);
+            time = TimeValue.nsecToMSec(System.nanoTime() - startNanoTime);
             assert time >= 0;
         }
 
@@ -445,6 +446,9 @@ public class RecoveryState implements ToXContent, Streamable {
             startTime = in.readVLong();
             stopTime = in.readVLong();
             time = in.readVLong();
+            if (in.getVersion().onOrAfter(Version.V_1_6_1)) {
+                startNanoTime = in.readVLong();
+            }
         }
 
         @Override
@@ -453,8 +457,13 @@ public class RecoveryState implements ToXContent, Streamable {
             out.writeVLong(stopTime);
             // write a snapshot of current time, which is not per se the time field
             out.writeVLong(time());
+            if (out.getVersion().onOrAfter(Version.V_1_6_1)) {
+                // This field is used when time field isn't set. Since time field
+                // will be set to the value of time() above, this value isn't really used.
+                // Therefore it's safe to not serialize/deserialize it on versions < 1.6.1.
+                out.writeVLong(startNanoTime);
+            }
         }
-
     }
 
     public static class Start extends Timer implements ToXContent, Streamable {

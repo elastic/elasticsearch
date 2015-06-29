@@ -19,8 +19,11 @@
 
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.index.shard.ShardId;
+
+import java.io.IOException;
 
 /**
  *
@@ -28,5 +31,9 @@ import org.elasticsearch.index.shard.ShardId;
 public class IndexShardRecoveryException extends IndexShardException {
     public IndexShardRecoveryException(ShardId shardId, String msg, Throwable cause) {
         super(shardId, msg, cause);
+    }
+
+    public IndexShardRecoveryException(StreamInput in) throws IOException{
+        super(in);
     }
 }

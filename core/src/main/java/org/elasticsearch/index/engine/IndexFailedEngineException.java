@@ -19,7 +19,11 @@
 
 package org.elasticsearch.index.engine;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
+
+import java.io.IOException;
 
 /**
  *
@@ -34,6 +38,19 @@ public class IndexFailedEngineException extends EngineException {
         super(shardId, "Index failed for [" + index.type() + "#" + index.id() + "]", cause);
         this.type = index.type();
         this.id = index.id();
+    }
+
+    public IndexFailedEngineException(StreamInput in) throws IOException{
+        super(in);
+        type = in.readString();
+        id = in.readString();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(type);
+        out.writeString(id);
     }
 
     public String type() {

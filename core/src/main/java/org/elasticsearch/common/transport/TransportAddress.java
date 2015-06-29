@@ -26,7 +26,7 @@ import java.io.Serializable;
 /**
  *
  */
-public interface TransportAddress extends Streamable, Serializable {
+public interface TransportAddress extends Streamable {
 
     short uniqueAddressTypeId();
 

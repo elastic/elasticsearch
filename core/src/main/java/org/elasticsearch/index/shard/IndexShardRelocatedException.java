@@ -19,6 +19,10 @@
 
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
+
 /**
  *
  */
@@ -26,5 +30,9 @@ public class IndexShardRelocatedException extends IllegalIndexShardStateExceptio
 
     public IndexShardRelocatedException(ShardId shardId) {
         super(shardId, IndexShardState.RELOCATED, "Already relocated");
+    }
+
+    public IndexShardRelocatedException(StreamInput in) throws IOException{
+        super(in);
     }
 }

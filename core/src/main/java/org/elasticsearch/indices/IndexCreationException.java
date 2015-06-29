@@ -20,8 +20,11 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.ElasticsearchWrapperException;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexException;
+
+import java.io.IOException;
 
 /**
  */
@@ -29,5 +32,9 @@ public class IndexCreationException extends IndexException implements Elasticsea
 
     public IndexCreationException(Index index, Throwable cause) {
         super(index, "failed to create index", cause);
+    }
+
+    public IndexCreationException(StreamInput in) throws IOException{
+        super(in);
     }
 }

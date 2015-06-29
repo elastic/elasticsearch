@@ -19,8 +19,11 @@
 
 package org.elasticsearch.index.engine;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+
+import java.io.IOException;
 
 /**
  *
@@ -29,6 +32,10 @@ public class FlushNotAllowedEngineException extends EngineException {
 
     public FlushNotAllowedEngineException(ShardId shardId, String msg) {
         super(shardId, msg);
+    }
+
+    public FlushNotAllowedEngineException(StreamInput in) throws IOException{
+        super(in);
     }
 
     @Override

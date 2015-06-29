@@ -293,8 +293,8 @@ public class Script implements ToXContent, Streamable {
             super(LoggerMessageFormat.format(msg, args));
         }
 
-        public ScriptParseException(String msg, Throwable cause, Object... args) {
-            super(LoggerMessageFormat.format(msg, args), cause);
+        public ScriptParseException(StreamInput in) throws IOException{
+            super(in);
         }
     }
 }

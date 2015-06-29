@@ -22,6 +22,8 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexException;
@@ -36,7 +38,7 @@ import java.util.*;
 public class SearchPhaseExecutionException extends ElasticsearchException {
     private final String phaseName;
 
-    private ShardSearchFailure[] shardFailures;
+    private final ShardSearchFailure[] shardFailures;
 
     public SearchPhaseExecutionException(String phaseName, String msg, ShardSearchFailure[] shardFailures) {
         super(msg);
@@ -48,6 +50,28 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
         super(msg, cause);
         this.phaseName = phaseName;
         this.shardFailures = shardFailures;
+    }
+
+    public SearchPhaseExecutionException(StreamInput in) throws IOException {
+        super(in);
+        phaseName = in.readOptionalString();
+        int numFailures = in.readVInt();
+        shardFailures = new ShardSearchFailure[numFailures];
+        for (int i = 0; i < numFailures; i++) {
+            shardFailures[i] = ShardSearchFailure.readShardSearchFailure(in);
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeOptionalString(phaseName);
+        out.writeVInt(shardFailures == null ? 0 : shardFailures.length);
+        if (shardFailures != null) {
+            for (ShardSearchFailure failure : shardFailures) {
+                failure.writeTo(out);
+            }
+        }
     }
 
     @Override

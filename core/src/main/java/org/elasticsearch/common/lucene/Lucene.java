@@ -604,6 +604,10 @@ public class Lucene {
         public EarlyTerminationException(String msg) {
             super(msg);
         }
+
+        public EarlyTerminationException(StreamInput in) throws IOException{
+            super(in);
+        }
     }
 
     /**

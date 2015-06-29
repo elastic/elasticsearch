@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexException;
 
@@ -55,5 +57,20 @@ public class IndexShardException extends IndexException {
             builder.field("shard", shardId.getId());
         }
         super.innerToXContent(builder, params);
+    }
+
+    public IndexShardException(StreamInput in) throws IOException{
+        super(in);
+        if (in.readBoolean()) {
+            shardId = ShardId.readShardId(in);
+        } else {
+            shardId = null;
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeOptionalStreamable(shardId);
     }
 }

@@ -20,13 +20,11 @@
 package org.elasticsearch.transport.local;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.io.ThrowableObjectOutputStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.transport.support.TransportStatus;
 
 import java.io.IOException;
-import java.io.NotSerializableException;
 
 /**
  *
@@ -90,20 +88,10 @@ public class LocalTransportChannel implements TransportChannel {
     @Override
     public void sendResponse(Throwable error) throws IOException {
         BytesStreamOutput stream = new BytesStreamOutput();
-        try {
-            writeResponseExceptionHeader(stream);
-            RemoteTransportException tx = new RemoteTransportException(targetTransport.nodeName(), targetTransport.boundAddress().boundAddress(), action, error);
-            ThrowableObjectOutputStream too = new ThrowableObjectOutputStream(stream);
-            too.writeObject(tx);
-            too.close();
-        } catch (NotSerializableException e) {
-            stream.reset();
-            writeResponseExceptionHeader(stream);
-            RemoteTransportException tx = new RemoteTransportException(targetTransport.nodeName(), targetTransport.boundAddress().boundAddress(), action, new NotSerializableTransportException(error));
-            ThrowableObjectOutputStream too = new ThrowableObjectOutputStream(stream);
-            too.writeObject(tx);
-            too.close();
-        }
+        writeResponseExceptionHeader(stream);
+        RemoteTransportException tx = new RemoteTransportException(targetTransport.nodeName(), targetTransport.boundAddress().boundAddress(), action, error);
+        stream.writeThrowable(tx);
+
         final byte[] data = stream.bytes().toBytes();
         targetTransport.workers().execute(new Runnable() {
             @Override

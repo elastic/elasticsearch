@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.snapshots;
 
-import com.google.common.collect.ImmutableList;
-
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;

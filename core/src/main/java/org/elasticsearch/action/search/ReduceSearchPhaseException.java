@@ -19,6 +19,10 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
+
 /**
  * A failure during a reduce phase (when receiving results from several shards, and reducing them
  * into one or more results and possible actions).
@@ -27,11 +31,11 @@ package org.elasticsearch.action.search;
  */
 public class ReduceSearchPhaseException extends SearchPhaseExecutionException {
 
-    public ReduceSearchPhaseException(String phaseName, String msg, ShardSearchFailure[] shardFailures) {
-        super(phaseName, "[reduce] " + msg, shardFailures);
-    }
-
     public ReduceSearchPhaseException(String phaseName, String msg, Throwable cause, ShardSearchFailure[] shardFailures) {
         super(phaseName, "[reduce] " + msg, cause, shardFailures);
+    }
+
+    public ReduceSearchPhaseException(StreamInput in) throws IOException {
+        super(in);
     }
 }

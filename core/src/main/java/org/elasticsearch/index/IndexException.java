@@ -20,6 +20,8 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -55,5 +57,17 @@ public class IndexException extends ElasticsearchException {
     @Override
     public String toString() {
         return "[" + (index == null ? "_na" : index.name()) + "] " + getMessage();
+    }
+
+
+    public IndexException(StreamInput in) throws IOException{
+        super(in);
+        index = in.readBoolean() ? Index.readIndexName(in) : null;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeOptionalStreamable(index);
     }
 }

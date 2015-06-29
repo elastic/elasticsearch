@@ -20,8 +20,11 @@
 package org.elasticsearch.search;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -33,8 +36,8 @@ import java.io.IOException;
 public class SearchParseException extends SearchContextException {
 
     public static final int UNKNOWN_POSITION = -1;
-    private int lineNumber = UNKNOWN_POSITION;
-    private int columnNumber = UNKNOWN_POSITION;
+    private final int lineNumber;
+    private final int columnNumber;
 
     public SearchParseException(SearchContext context, String msg, @Nullable XContentLocation location) {
         this(context, msg, location, null);
@@ -42,10 +45,29 @@ public class SearchParseException extends SearchContextException {
 
     public SearchParseException(SearchContext context, String msg, @Nullable XContentLocation location, Throwable cause) {
         super(context, msg, cause);
+        int lineNumber = UNKNOWN_POSITION;
+        int columnNumber = UNKNOWN_POSITION;
         if (location != null) {
-            lineNumber = location.lineNumber;
-            columnNumber = location.columnNumber;
+            if (location != null) {
+                lineNumber = location.lineNumber;
+                columnNumber = location.columnNumber;
+            }
         }
+        this.columnNumber = columnNumber;
+        this.lineNumber = lineNumber;
+    }
+
+    public SearchParseException(StreamInput in) throws IOException {
+        super(in);
+        lineNumber = in.readInt();
+        columnNumber = in.readInt();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeInt(lineNumber);
+        out.writeInt(columnNumber);
     }
 
     @Override

@@ -19,6 +19,11 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
+
 /**
  * This class defines {@link RoutingException}s related to
  * the validation of routing
@@ -30,6 +35,17 @@ public class RoutingValidationException extends RoutingException {
     public RoutingValidationException(RoutingTableValidation validation) {
         super(validation.toString());
         this.validation = validation;
+    }
+
+    public RoutingValidationException(StreamInput in) throws IOException {
+        super(in);
+        validation = in.readOptionalStreamable(new RoutingTableValidation());
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeOptionalStreamable(validation);
     }
 
     public RoutingTableValidation validation() {

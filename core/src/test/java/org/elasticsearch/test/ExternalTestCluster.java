@@ -37,6 +37,7 @@ import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -64,12 +65,13 @@ public final class ExternalTestCluster extends TestCluster {
     private final int numDataNodes;
     private final int numMasterAndDataNodes;
 
-    public ExternalTestCluster(TransportAddress... transportAddresses) {
+    public ExternalTestCluster(Path tempDir, TransportAddress... transportAddresses) {
         super(0);
         Settings clientSettings = Settings.settingsBuilder()
                 .put("name", InternalTestCluster.TRANSPORT_CLIENT_PREFIX + EXTERNAL_CLUSTER_PREFIX + counter.getAndIncrement())
                 .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true) // prevents any settings to be replaced by system properties.
                 .put("client.transport.ignore_cluster_name", true)
+                .put("path.home", tempDir)
                 .put("node.mode", "network").build(); // we require network here!
 
         this.client = TransportClient.builder().settings(clientSettings).build().addTransportAddresses(transportAddresses);

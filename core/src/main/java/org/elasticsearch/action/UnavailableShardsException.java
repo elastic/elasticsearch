@@ -21,8 +21,11 @@ package org.elasticsearch.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+
+import java.io.IOException;
 
 /**
  *
@@ -38,6 +41,10 @@ public class UnavailableShardsException extends ElasticsearchException {
             return message;
         }
         return "[" + shardId.index().name() + "][" + shardId.id() + "] " + message;
+    }
+
+    public UnavailableShardsException(StreamInput in) throws IOException {
+        super(in);
     }
 
     @Override

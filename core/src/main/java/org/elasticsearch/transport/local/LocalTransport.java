@@ -26,7 +26,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.ThrowableObjectInputStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -337,8 +336,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     private void handlerResponseError(StreamInput buffer, final TransportResponseHandler handler) {
         Throwable error;
         try {
-            ThrowableObjectInputStream ois = new ThrowableObjectInputStream(buffer, settings.getClassLoader());
-            error = (Throwable) ois.readObject();
+            error = buffer.readThrowable();
         } catch (Throwable e) {
             error = new TransportSerializationException("Failed to deserialize exception response from stream", e);
         }
@@ -347,7 +345,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
 
     private void handleException(final TransportResponseHandler handler, Throwable error) {
         if (!(error instanceof RemoteTransportException)) {
-            error = new RemoteTransportException("None remote transport exception", error);
+            error = new RemoteTransportException("None remote transport exception", null, null, error);
         }
         final RemoteTransportException rtx = (RemoteTransportException) error;
         try {

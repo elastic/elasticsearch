@@ -20,9 +20,13 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.ElasticsearchWrapperException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.index.shard.ShardId;
+
+import java.io.IOException;
 
 /**
  *
@@ -45,5 +49,18 @@ public class RecoverFilesRecoveryException extends IndexShardException implement
 
     public ByteSizeValue totalFilesSize() {
         return totalFilesSize;
+    }
+
+    public RecoverFilesRecoveryException(StreamInput in) throws IOException{
+        super(in);
+        numberOfFiles = in.readInt();
+        totalFilesSize = ByteSizeValue.readBytesSizeValue(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeInt(numberOfFiles);
+        totalFilesSize.writeTo(out);
     }
 }

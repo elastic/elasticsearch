@@ -20,6 +20,9 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
 
 /**
  * An exception indicating that a message is sent to a node that is not connected.
@@ -29,10 +32,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 public class NodeNotConnectedException extends ConnectTransportException {
 
     public NodeNotConnectedException(DiscoveryNode node, String msg) {
-        super(node, msg);
+        super(node, msg, (String)null);
     }
 
-    public NodeNotConnectedException(DiscoveryNode node, String msg, Throwable cause) {
-        super(node, msg, cause);
+    public NodeNotConnectedException(StreamInput in) throws IOException {
+        super(in);
     }
 }

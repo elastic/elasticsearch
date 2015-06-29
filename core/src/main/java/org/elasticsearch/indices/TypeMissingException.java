@@ -19,10 +19,12 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexException;
 import org.elasticsearch.rest.RestStatus;
 
+import java.io.IOException;
 import java.util.Arrays;
 
 /**
@@ -32,6 +34,10 @@ public class TypeMissingException extends IndexException {
 
     public TypeMissingException(Index index, String... types) {
         super(index, "type[" + Arrays.toString(types) + "] missing");
+    }
+
+    public TypeMissingException(StreamInput in) throws IOException{
+        super(in);
     }
 
     @Override

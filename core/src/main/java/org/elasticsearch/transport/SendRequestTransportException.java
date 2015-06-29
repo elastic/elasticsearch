@@ -21,6 +21,9 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
 
 /**
  *
@@ -29,5 +32,9 @@ public class SendRequestTransportException extends ActionTransportException impl
 
     public SendRequestTransportException(DiscoveryNode node, String action, Throwable cause) {
         super(node == null ? null : node.name(), node == null ? null : node.address(), action, cause);
+    }
+
+    public SendRequestTransportException(StreamInput in) throws IOException {
+        super(in);
     }
 }

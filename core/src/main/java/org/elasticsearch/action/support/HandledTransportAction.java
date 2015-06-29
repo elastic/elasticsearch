@@ -56,8 +56,8 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
                     try {
                         channel.sendResponse(e);
                     } catch (Exception e1) {
-                        logger.warn("Failed to send error response for action [{}] and request [{}]",
-                                actionName, request, e1);
+                        logger.warn("Failed to send error response for action [{}] and request [{}]", e1,
+                                actionName, request);
                     }
                 }
             });

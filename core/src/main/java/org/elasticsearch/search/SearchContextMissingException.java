@@ -20,7 +20,11 @@
 package org.elasticsearch.search;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
+
+import java.io.IOException;
 
 /**
  *
@@ -41,5 +45,16 @@ public class SearchContextMissingException extends ElasticsearchException {
     @Override
     public RestStatus status() {
         return RestStatus.NOT_FOUND;
+    }
+
+    public SearchContextMissingException(StreamInput in) throws IOException{
+        super(in);
+        id = in.readLong();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeLong(id);
     }
 }

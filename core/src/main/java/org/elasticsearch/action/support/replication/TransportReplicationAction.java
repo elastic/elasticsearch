@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
@@ -239,14 +240,14 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         }
     }
 
-    protected static class RetryOnReplicaException extends IndexShardException {
+    public static class RetryOnReplicaException extends IndexShardException {
 
         public RetryOnReplicaException(ShardId shardId, String msg) {
             super(shardId, msg);
         }
 
-        public RetryOnReplicaException(ShardId shardId, String msg, Throwable cause) {
-            super(shardId, msg, cause);
+        public RetryOnReplicaException(StreamInput in) throws IOException{
+            super(in);
         }
     }
 
@@ -322,14 +323,13 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         }
     }
 
-    protected static class RetryOnPrimaryException extends IndexShardException {
-
+    public static class RetryOnPrimaryException extends IndexShardException {
         public RetryOnPrimaryException(ShardId shardId, String msg) {
             super(shardId, msg);
         }
 
-        public RetryOnPrimaryException(ShardId shardId, String msg, Throwable cause) {
-            super(shardId, msg, cause);
+        public RetryOnPrimaryException(StreamInput in) throws IOException{
+            super(in);
         }
     }
 

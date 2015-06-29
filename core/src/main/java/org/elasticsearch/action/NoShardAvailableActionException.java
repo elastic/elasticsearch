@@ -19,9 +19,12 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+
+import java.io.IOException;
 
 /**
  *
@@ -43,5 +46,9 @@ public class NoShardAvailableActionException extends IndexShardException {
     @Override
     public RestStatus status() {
         return RestStatus.SERVICE_UNAVAILABLE;
+    }
+
+    public NoShardAvailableActionException(StreamInput in) throws IOException{
+        super(in);
     }
 }

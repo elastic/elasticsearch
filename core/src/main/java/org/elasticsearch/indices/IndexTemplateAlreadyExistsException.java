@@ -19,7 +19,11 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
+
+import java.io.IOException;
 
 /**
  *
@@ -33,6 +37,11 @@ public class IndexTemplateAlreadyExistsException extends ElasticsearchException 
         this.name = name;
     }
 
+    public IndexTemplateAlreadyExistsException(StreamInput in) throws IOException {
+        super(in);
+        name = in.readOptionalString();
+    }
+
     public String name() {
         return this.name;
     }
@@ -40,5 +49,11 @@ public class IndexTemplateAlreadyExistsException extends ElasticsearchException 
     @Override
     public RestStatus status() {
         return RestStatus.BAD_REQUEST;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeOptionalString(name);
     }
 }

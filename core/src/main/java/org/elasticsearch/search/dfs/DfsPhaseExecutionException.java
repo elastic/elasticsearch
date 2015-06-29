@@ -19,8 +19,11 @@
 
 package org.elasticsearch.search.dfs;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.SearchContextException;
 import org.elasticsearch.search.internal.SearchContext;
+
+import java.io.IOException;
 
 /**
  *
@@ -29,5 +32,9 @@ public class DfsPhaseExecutionException extends SearchContextException {
 
     public DfsPhaseExecutionException(SearchContext context, String msg, Throwable t) {
         super(context, "Dfs Failed [" + msg + "]", t);
+    }
+
+    public DfsPhaseExecutionException(StreamInput in) throws IOException {
+        super(in);
     }
 }

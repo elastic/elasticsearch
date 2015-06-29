@@ -20,6 +20,9 @@
 package org.elasticsearch.search.builder;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
 
 /**
  *
@@ -32,5 +35,9 @@ public class SearchSourceBuilderException extends ElasticsearchException {
 
     public SearchSourceBuilderException(String msg, Throwable cause) {
         super(msg, cause);
+    }
+
+    public SearchSourceBuilderException(StreamInput in) throws IOException {
+        super(in);
     }
 }

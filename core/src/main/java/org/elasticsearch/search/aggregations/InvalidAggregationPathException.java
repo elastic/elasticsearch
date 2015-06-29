@@ -20,6 +20,9 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
 
 public class InvalidAggregationPathException extends ElasticsearchException {
 
@@ -29,5 +32,9 @@ public class InvalidAggregationPathException extends ElasticsearchException {
 
     public InvalidAggregationPathException(String msg, Throwable cause) {
         super(msg, cause);
+    }
+
+    public InvalidAggregationPathException(StreamInput in) throws IOException {
+        super(in);
     }
 }

@@ -174,7 +174,7 @@ public abstract class AbstractClientHeadersTests extends ElasticsearchTestCase {
         }
     }
 
-    protected static class InternalException extends Exception {
+    public static class InternalException extends Exception {
 
         private final String action;
         private final Map<String, Object> headers;

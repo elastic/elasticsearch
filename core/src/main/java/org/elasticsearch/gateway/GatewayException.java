@@ -20,6 +20,9 @@
 package org.elasticsearch.gateway;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
 
 /**
  *
@@ -32,5 +35,9 @@ public class GatewayException extends ElasticsearchException {
 
     public GatewayException(String msg, Throwable cause) {
         super(msg, cause);
+    }
+
+    public GatewayException(StreamInput in) throws IOException {
+        super(in);
     }
 }

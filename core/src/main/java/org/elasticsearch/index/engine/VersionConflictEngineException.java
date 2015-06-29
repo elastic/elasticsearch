@@ -18,22 +18,19 @@
  */
 package org.elasticsearch.index.engine;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+
+import java.io.IOException;
 
 /**
  *
  */
 public class VersionConflictEngineException extends EngineException {
 
-    private final long current;
-
-    private final long provided;
-
     public VersionConflictEngineException(ShardId shardId, String type, String id, long current, long provided) {
         super(shardId, "[" + type + "][" + id + "]: version conflict, current [" + current + "], provided [" + provided + "]");
-        this.current = current;
-        this.provided = provided;
     }
 
     @Override
@@ -41,11 +38,7 @@ public class VersionConflictEngineException extends EngineException {
         return RestStatus.CONFLICT;
     }
 
-    public long getCurrentVersion() {
-        return this.current;
-    }
-
-    public long getProvidedVersion() {
-        return this.provided;
+    public VersionConflictEngineException(StreamInput in) throws IOException {
+        super(in);
     }
 }

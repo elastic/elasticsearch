@@ -60,12 +60,6 @@ public class InetSocketTransportAddress implements TransportAddress {
         this.address = address;
     }
 
-    public static InetSocketTransportAddress readInetSocketTransportAddress(StreamInput in) throws IOException {
-        InetSocketTransportAddress address = new InetSocketTransportAddress();
-        address.readFrom(in);
-        return address;
-    }
-
     @Override
     public short uniqueAddressTypeId() {
         return 1;

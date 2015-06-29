@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -34,8 +36,8 @@ import java.io.IOException;
 public class QueryParsingException extends IndexException {
 
     static final int UNKNOWN_POSITION = -1;
-    private int lineNumber = UNKNOWN_POSITION;
-    private int columnNumber = UNKNOWN_POSITION;
+    private final int lineNumber;
+    private final int columnNumber;
 
     public QueryParsingException(QueryParseContext parseContext, String msg) {
         this(parseContext, msg, null);
@@ -43,7 +45,8 @@ public class QueryParsingException extends IndexException {
 
     public QueryParsingException(QueryParseContext parseContext, String msg, Throwable cause) {
         super(parseContext.index(), msg, cause);
-
+        int lineNumber = UNKNOWN_POSITION;
+        int columnNumber = UNKNOWN_POSITION;
         XContentParser parser = parseContext.parser();
         if (parser != null) {
             XContentLocation location = parser.getTokenLocation();
@@ -52,13 +55,15 @@ public class QueryParsingException extends IndexException {
                 columnNumber = location.columnNumber;
             }
         }
+        this.columnNumber = columnNumber;
+        this.lineNumber = lineNumber;
     }
 
     /**
      * This constructor is provided for use in unit tests where a
      * {@link QueryParseContext} may not be available
      */
-    QueryParsingException(Index index, int line, int col, String msg, Throwable cause) {
+    public QueryParsingException(Index index, int line, int col, String msg, Throwable cause) {
         super(index, msg, cause);
         this.lineNumber = line;
         this.columnNumber = col;
@@ -94,6 +99,19 @@ public class QueryParsingException extends IndexException {
             builder.field("col", columnNumber);
         }
         super.innerToXContent(builder, params);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeInt(lineNumber);
+        out.writeInt(columnNumber);
+    }
+
+    public QueryParsingException(StreamInput in) throws IOException{
+        super(in);
+        lineNumber = in.readInt();
+        columnNumber = in.readInt();
     }
 
 }

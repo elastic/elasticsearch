@@ -19,8 +19,11 @@
 package org.elasticsearch.rest.action.admin.indices.alias.delete;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
 
+import java.io.IOException;
 import java.util.Arrays;
 
 /**
@@ -42,5 +45,16 @@ public class AliasesMissingException extends ElasticsearchException {
     @Override
     public RestStatus status() {
         return RestStatus.NOT_FOUND;
+    }
+
+    public AliasesMissingException(StreamInput in) throws IOException{
+        super(in);
+        names = in.readStringArray();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeStringArray(names);
     }
 }

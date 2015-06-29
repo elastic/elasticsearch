@@ -19,14 +19,20 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.bootstrap.Elasticsearch;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
 import org.joda.time.ReadableInstant;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.io.OutputStream;
@@ -445,8 +451,38 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     public void writeThrowable(Throwable throwable) throws IOException {
-        ObjectOutputStream out = new ObjectOutputStream(this);
-        out.writeObject(throwable);
-        out.flush();
+        if (throwable == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            if (throwable instanceof ElasticsearchException) {
+                writeVInt(0);
+                ElasticsearchException.writeException((ElasticsearchException) throwable, this);
+                return;
+            } else if (throwable instanceof CorruptIndexException) {
+                writeVInt(1);
+            } else if (throwable instanceof IndexFormatTooNewException) {
+                writeVInt(2);
+            } else if (throwable instanceof IndexFormatTooOldException) {
+                writeVInt(3);
+            } else if (throwable instanceof NullPointerException) {
+                writeVInt(4);
+            } else if (throwable instanceof NumberFormatException) {
+                writeVInt(5);
+            } else if (throwable instanceof IllegalArgumentException) {
+                writeVInt(6);
+            } else if (throwable instanceof IllegalStateException) {
+                writeVInt(7);
+            } else if (throwable instanceof EOFException) {
+                writeVInt(8);
+            } else if (throwable instanceof SecurityException) {
+                writeVInt(9);
+            } else {
+                writeVInt(10); // unknown
+            }
+            writeOptionalString(throwable.getMessage());
+            writeThrowable(throwable.getCause());
+            ElasticsearchException.writeStackTraces(throwable, this);
+        }
     }
 }

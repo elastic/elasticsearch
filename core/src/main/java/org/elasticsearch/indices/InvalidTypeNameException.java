@@ -19,13 +19,20 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.rest.RestStatus;
+
+import java.io.IOException;
 
 /**
  *
  */
 public class InvalidTypeNameException extends MapperException {
+
+    public InvalidTypeNameException(StreamInput in) throws IOException {
+        super(in);
+    }
 
     public InvalidTypeNameException(String message) {
         super(message);

@@ -20,7 +20,10 @@
 package org.elasticsearch.script.groovy;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
+
+import java.io.IOException;
 
 /**
  * Exception used to wrap groovy script execution exceptions so they are
@@ -30,12 +33,13 @@ public class GroovyScriptExecutionException extends ElasticsearchException {
     public GroovyScriptExecutionException(String message) {
         super(message);
     }
-    public GroovyScriptExecutionException(String message, Throwable t) {
-        super(message, t);
-    }
 
     @Override
     public RestStatus status() {
         return RestStatus.BAD_REQUEST;
+    }
+
+    public GroovyScriptExecutionException(StreamInput in) throws IOException{
+        super(in);
     }
 }

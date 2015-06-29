@@ -20,11 +20,17 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
 
 /**
  *
  */
 public class MapperException extends ElasticsearchException {
+    public MapperException(StreamInput in) throws IOException {
+        super(in);
+    }
 
     public MapperException(String message) {
         super(message);

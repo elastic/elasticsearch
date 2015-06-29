@@ -19,8 +19,12 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -31,11 +35,9 @@ import org.elasticsearch.common.text.Text;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.ObjectInputStream;
+import java.io.*;
 import java.util.*;
+import java.util.regex.Pattern;
 
 /**
  *
@@ -480,12 +482,51 @@ public abstract class StreamInput extends InputStream {
     }
 
     public <T extends Throwable> T readThrowable() throws IOException {
-        try {
-            ObjectInputStream oin = new ObjectInputStream(this);
-            return (T) oin.readObject();
-        } catch (ClassNotFoundException e) {
-            throw new IOException("failed to deserialize exception", e);
+        if (readBoolean()) {
+            int key = readVInt();
+            switch (key) {
+                case 0:
+                    return (T) ElasticsearchException.readException(this);
+                case 1:
+                    // nocommit - this sucks it would be nice to have a better way to construct those?
+                    String msg = readOptionalString();
+                    final int idx = msg.indexOf(" (resource=");
+                    String resource = msg.substring(idx + " (resource=".length(), msg.length()-1);
+                    msg = msg.substring(0, idx);
+                    return (T) ElasticsearchException.readStackTrace(new CorruptIndexException(msg, resource, readThrowable()), this); // TODO add a string throwable ctor to this?
+                case 2:
+                    String itnMessage = readOptionalString();
+                    readThrowable();
+                    return (T) ElasticsearchException.readStackTrace(new IndexFormatTooNewException(itnMessage, -1, -1, -1), this);
+                case 3:
+                    String itoMessage = readOptionalString();
+                    readThrowable();
+                    return (T) ElasticsearchException.readStackTrace(new IndexFormatTooOldException(itoMessage, -1, -1, -1), this);
+                case 4:
+                    String npeMessage = readOptionalString();
+                    readThrowable();
+                    return (T) ElasticsearchException.readStackTrace(new NullPointerException(npeMessage), this);
+                case 5:
+                    String nfeMessage = readOptionalString();
+                    readThrowable();
+                    return (T) ElasticsearchException.readStackTrace(new NumberFormatException(nfeMessage), this);
+                case 6:
+                    return (T) ElasticsearchException.readStackTrace(new IllegalArgumentException(readOptionalString(), readThrowable()), this);
+                case 7:
+                    return (T) ElasticsearchException.readStackTrace(new IllegalStateException(readOptionalString(), readThrowable()), this);
+                case 8:
+                    String eofMessage = readOptionalString();
+                    readThrowable();
+                    return (T) ElasticsearchException.readStackTrace(new EOFException(eofMessage), this);
+                case 9:
+                    return (T) ElasticsearchException.readStackTrace(new SecurityException(readOptionalString(), readThrowable()), this);
+                case 10: // unknown -- // nocommit - should we use a dedicated exception
+                    return (T) ElasticsearchException.readStackTrace(new ElasticsearchException(readOptionalString(), readThrowable()), this);
+                default:
+                    assert false : "no such exception for id: " + key;
+            }
         }
+        return null;
     }
 
     public static StreamInput wrap(BytesReference reference) {
@@ -502,4 +543,5 @@ public abstract class StreamInput extends InputStream {
     public static StreamInput wrap(byte[] bytes, int offset, int length) {
         return new InputStreamStreamInput(new ByteArrayInputStream(bytes, offset, length));
     }
+
 }

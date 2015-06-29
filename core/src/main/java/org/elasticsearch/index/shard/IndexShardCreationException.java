@@ -19,11 +19,19 @@
 
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
+
 /**
  */
 public class IndexShardCreationException extends IndexShardException {
 
     public IndexShardCreationException(ShardId shardId, Throwable cause) {
         super(shardId, "failed to create shard", cause);
+    }
+
+    public IndexShardCreationException(StreamInput in) throws IOException{
+        super(in);
     }
 }

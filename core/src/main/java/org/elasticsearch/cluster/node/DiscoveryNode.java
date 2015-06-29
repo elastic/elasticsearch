@@ -39,7 +39,7 @@ import static org.elasticsearch.common.transport.TransportAddressSerializers.add
 /**
  * A discovery node represents a node that is part of the cluster.
  */
-public class DiscoveryNode implements Streamable, Serializable {
+public class DiscoveryNode implements Streamable {
 
     /**
      * Minimum version of a node to communicate with. This version corresponds to the minimum compatibility version
@@ -372,20 +372,5 @@ public class DiscoveryNode implements Streamable, Serializable {
             sb.append(attributes);
         }
         return sb.toString();
-    }
-
-    // we need this custom serialization logic because Version is not serializable (because org.apache.lucene.util.Version is not serializable)
-    private void writeObject(java.io.ObjectOutputStream out)
-            throws IOException {
-        StreamOutput streamOutput = new OutputStreamStreamOutput(out);
-        streamOutput.setVersion(Version.CURRENT.minimumCompatibilityVersion());
-        this.writeTo(streamOutput);
-    }
-
-    private void readObject(java.io.ObjectInputStream in)
-            throws IOException, ClassNotFoundException {
-        StreamInput streamInput = new InputStreamStreamInput(in);
-        streamInput.setVersion(Version.CURRENT.minimumCompatibilityVersion());
-        this.readFrom(streamInput);
     }
 }

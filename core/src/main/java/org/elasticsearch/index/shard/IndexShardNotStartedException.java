@@ -19,6 +19,10 @@
 
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
+
 /**
  *
  */
@@ -26,5 +30,9 @@ public class IndexShardNotStartedException extends IllegalIndexShardStateExcepti
 
     public IndexShardNotStartedException(ShardId shardId, IndexShardState currentState) {
         super(shardId, currentState, "Shard not started");
+    }
+
+    public IndexShardNotStartedException(StreamInput in) throws IOException{
+        super(in);
     }
 }

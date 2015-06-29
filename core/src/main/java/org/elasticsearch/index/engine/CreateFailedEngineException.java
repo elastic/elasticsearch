@@ -19,7 +19,11 @@
 
 package org.elasticsearch.index.engine;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
+
+import java.io.IOException;
 
 /**
  *
@@ -36,11 +40,24 @@ public class CreateFailedEngineException extends EngineException {
         this.id = create.id();
     }
 
+    public CreateFailedEngineException(StreamInput in) throws IOException{
+        super(in);
+        type = in.readString();
+        id = in.readString();
+    }
+
     public String type() {
         return this.type;
     }
 
     public String id() {
         return this.id;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(type);
+        out.writeString(id);
     }
 }

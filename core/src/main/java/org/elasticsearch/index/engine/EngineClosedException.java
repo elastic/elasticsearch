@@ -19,8 +19,11 @@
 
 package org.elasticsearch.index.engine;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
+
+import java.io.IOException;
 
 /**
  * An engine is already closed.
@@ -38,5 +41,9 @@ public class EngineClosedException extends IndexShardClosedException {
 
     public EngineClosedException(ShardId shardId, Throwable t) {
         super(shardId, t);
+    }
+
+    public EngineClosedException(StreamInput in) throws IOException{
+        super(in);
     }
 }

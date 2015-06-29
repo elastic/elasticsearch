@@ -254,7 +254,6 @@ public class IndexShard extends AbstractIndexShardComponent {
             cachingPolicy = new UsageTrackingQueryCachingPolicy();
         }
         this.engineConfig = newEngineConfig(translogConfig, cachingPolicy);
-
         this.indexShardOperationCounter = new IndexShardOperationCounter(logger, shardId);
 
     }
@@ -322,6 +321,10 @@ public class IndexShard extends AbstractIndexShardComponent {
      */
     public ShardRouting routingEntry() {
         return this.shardRouting;
+    }
+
+    public QueryCachingPolicy getQueryCachingPolicy() {
+        return this.engineConfig.getQueryCachingPolicy();
     }
 
     /**

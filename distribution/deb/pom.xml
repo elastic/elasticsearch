@@ -9,7 +9,6 @@
         <version>2.0.0-SNAPSHOT</version>
     </parent>
 
-    <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch-deb</artifactId>
     <name>Elasticsearch DEB Distribution</name>
 

@@ -26,7 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.cache.filter.FilterCache;
+import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.Closeable;
@@ -37,24 +37,24 @@ import java.io.IOException;
  */
 public class IndexCache extends AbstractIndexComponent implements Closeable {
 
-    private final FilterCache filterCache;
-    private final QueryCachingPolicy filterCachingPolicy;
+    private final QueryCache queryCache;
+    private final QueryCachingPolicy queryCachingPolicy;
     private final BitsetFilterCache bitsetFilterCache;
 
     @Inject
-    public IndexCache(Index index, @IndexSettings Settings indexSettings, FilterCache filterCache, QueryCachingPolicy filterCachingPolicy, BitsetFilterCache bitsetFilterCache) {
+    public IndexCache(Index index, @IndexSettings Settings indexSettings, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy, BitsetFilterCache bitsetFilterCache) {
         super(index, indexSettings);
-        this.filterCache = filterCache;
-        this.filterCachingPolicy = filterCachingPolicy;
+        this.queryCache = queryCache;
+        this.queryCachingPolicy = queryCachingPolicy;
         this.bitsetFilterCache = bitsetFilterCache;
     }
 
-    public FilterCache filter() {
-        return filterCache;
+    public QueryCache query() {
+        return queryCache;
     }
 
-    public QueryCachingPolicy filterPolicy() {
-        return filterCachingPolicy;
+    public QueryCachingPolicy queryPolicy() {
+        return queryCachingPolicy;
     }
 
     /**
@@ -66,11 +66,11 @@ public class IndexCache extends AbstractIndexComponent implements Closeable {
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(filterCache, bitsetFilterCache);
+        IOUtils.close(queryCache, bitsetFilterCache);
     }
 
     public void clear(String reason) {
-        filterCache.clear(reason);
+        queryCache.clear(reason);
         bitsetFilterCache.clear(reason);
     }
 

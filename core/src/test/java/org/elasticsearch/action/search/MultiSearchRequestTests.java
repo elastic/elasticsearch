@@ -106,12 +106,12 @@ public class MultiSearchRequestTests extends ElasticsearchTestCase {
         assertThat(request.requests().size(), equalTo(3));
         assertThat(request.requests().get(0).indices()[0], equalTo("test0"));
         assertThat(request.requests().get(0).indices()[1], equalTo("test1"));
-        assertThat(request.requests().get(0).queryCache(), equalTo(true));
+        assertThat(request.requests().get(0).requestCache(), equalTo(true));
         assertThat(request.requests().get(0).preference(), nullValue());
         assertThat(request.requests().get(1).indices()[0], equalTo("test2"));
         assertThat(request.requests().get(1).indices()[1], equalTo("test3"));
         assertThat(request.requests().get(1).types()[0], equalTo("type1"));
-        assertThat(request.requests().get(1).queryCache(), nullValue());
+        assertThat(request.requests().get(1).requestCache(), nullValue());
         assertThat(request.requests().get(1).preference(), equalTo("_local"));
         assertThat(request.requests().get(2).indices()[0], equalTo("test4"));
         assertThat(request.requests().get(2).indices()[1], equalTo("test1"));

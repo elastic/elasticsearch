@@ -93,7 +93,7 @@ public class GetWarmersResponse extends ActionResponse {
                 out.writeString(warmerEntry.name());
                 out.writeStringArray(warmerEntry.types());
                 out.writeBytesReference(warmerEntry.source());
-                out.writeOptionalBoolean(warmerEntry.queryCache());
+                out.writeOptionalBoolean(warmerEntry.requestCache());
             }
         }
     }

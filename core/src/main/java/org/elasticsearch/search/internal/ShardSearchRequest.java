@@ -60,7 +60,7 @@ public interface ShardSearchRequest extends HasContextAndHeaders {
 
     BytesReference templateSource();
 
-    Boolean queryCache();
+    Boolean requestCache();
 
     Scroll scroll();
 

@@ -31,10 +31,10 @@ import java.io.IOException;
  */
 class ShardClearIndicesCacheRequest extends BroadcastShardRequest {
 
-    private boolean filterCache = false;
+    private boolean queryCache = false;
     private boolean fieldDataCache = false;
     private boolean recycler;
-    private boolean queryCache = false;
+    private boolean requestCache = false;
 
     private String[] fields = null;
 
@@ -43,19 +43,19 @@ class ShardClearIndicesCacheRequest extends BroadcastShardRequest {
 
     ShardClearIndicesCacheRequest(ShardId shardId, ClearIndicesCacheRequest request) {
         super(shardId, request);
-        filterCache = request.filterCache();
+        queryCache = request.queryCache();
         fieldDataCache = request.fieldDataCache();
         fields = request.fields();
         recycler = request.recycler();
-        queryCache = request.queryCache();
-    }
-
-    public boolean filterCache() {
-        return filterCache;
+        requestCache = request.requestCache();
     }
 
     public boolean queryCache() {
         return queryCache;
+    }
+
+    public boolean requestCache() {
+        return requestCache;
     }
 
     public boolean fieldDataCache() {
@@ -73,20 +73,20 @@ class ShardClearIndicesCacheRequest extends BroadcastShardRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        filterCache = in.readBoolean();
+        queryCache = in.readBoolean();
         fieldDataCache = in.readBoolean();
         recycler = in.readBoolean();
         fields = in.readStringArray();
-        queryCache = in.readBoolean();
+        requestCache = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(filterCache);
+        out.writeBoolean(queryCache);
         out.writeBoolean(fieldDataCache);
         out.writeBoolean(recycler);
         out.writeStringArrayNullable(fields);
-        out.writeBoolean(queryCache);
+        out.writeBoolean(requestCache);
     }
 }

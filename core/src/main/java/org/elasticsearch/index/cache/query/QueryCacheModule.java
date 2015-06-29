@@ -17,38 +17,38 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.filter;
+package org.elasticsearch.index.cache.query;
 
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Scopes;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.cache.filter.index.IndexFilterCache;
+import org.elasticsearch.index.cache.query.index.IndexQueryCache;
 
 /**
  *
  */
-public class FilterCacheModule extends AbstractModule {
+public class QueryCacheModule extends AbstractModule {
 
     public static final class FilterCacheSettings {
-        public static final String FILTER_CACHE_TYPE = "index.cache.filter.type";
+        public static final String FILTER_CACHE_TYPE = "index.queries.cache.type";
         // for test purposes only
-        public static final String FILTER_CACHE_EVERYTHING = "index.cache.filter.everything";
+        public static final String FILTER_CACHE_EVERYTHING = "index.queries.cache.everything";
     }
 
     private final Settings settings;
 
-    public FilterCacheModule(Settings settings) {
+    public QueryCacheModule(Settings settings) {
         this.settings = settings;
     }
 
     @Override
     protected void configure() {
-        bind(FilterCache.class)
-                .to(settings.getAsClass(FilterCacheSettings.FILTER_CACHE_TYPE, IndexFilterCache.class, "org.elasticsearch.index.cache.filter.", "FilterCache"))
+        bind(QueryCache.class)
+                .to(settings.getAsClass(FilterCacheSettings.FILTER_CACHE_TYPE, IndexQueryCache.class, "org.elasticsearch.index.cache.query.", "FilterCache"))
                 .in(Scopes.SINGLETON);
-        // the filter cache is a node-level thing, however we want the most popular filters
+        // the query cache is a node-level thing, however we want the most popular queries
         // to be computed on a per-index basis, that is why we don't use the SINGLETON
         // scope below
         if (settings.getAsBoolean(FilterCacheSettings.FILTER_CACHE_EVERYTHING, false)) {

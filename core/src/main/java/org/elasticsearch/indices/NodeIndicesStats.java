@@ -33,8 +33,8 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.cache.filter.FilterCacheStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
+import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.flush.FlushStats;
@@ -132,13 +132,13 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
     }
 
     @Nullable
-    public FilterCacheStats getFilterCache() {
-        return stats.getFilterCache();
+    public QueryCacheStats getFilterCache() {
+        return stats.getQueryCache();
     }
 
     @Nullable
-    public QueryCacheStats getQueryCache() {
-        return stats.getQueryCache();
+    public RequestCacheStats getQueryCache() {
+        return stats.getRequestCache();
     }
 
     @Nullable

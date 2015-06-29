@@ -29,7 +29,7 @@ setup:
   - is_true:  _all.total.refresh
   - is_true:  _all.total.flush
   - is_true:  _all.total.warmer
-  - is_true:  _all.total.filter_cache
+  - is_true:  _all.total.query_cache
   - is_true:  _all.total.fielddata
   - is_true:  _all.total.percolate
   - is_true:  _all.total.completion
@@ -52,7 +52,7 @@ setup:
   - is_true:  _all.total.refresh
   - is_true:  _all.total.flush
   - is_true:  _all.total.warmer
-  - is_true:  _all.total.filter_cache
+  - is_true:  _all.total.query_cache
   - is_true:  _all.total.fielddata
   - is_true:  _all.total.percolate
   - is_true:  _all.total.completion
@@ -75,7 +75,7 @@ setup:
   - is_false:  _all.total.refresh
   - is_false:  _all.total.flush
   - is_false:  _all.total.warmer
-  - is_false:  _all.total.filter_cache
+  - is_false:  _all.total.query_cache
   - is_false:  _all.total.fielddata
   - is_false:  _all.total.percolate
   - is_false:  _all.total.completion
@@ -98,7 +98,7 @@ setup:
   - is_false:  _all.total.refresh
   - is_false:  _all.total.flush
   - is_false:  _all.total.warmer
-  - is_false:  _all.total.filter_cache
+  - is_false:  _all.total.query_cache
   - is_false:  _all.total.fielddata
   - is_false:  _all.total.percolate
   - is_false:  _all.total.completion
@@ -122,7 +122,7 @@ setup:
   - is_false:  _all.total.refresh
   - is_false:  _all.total.flush
   - is_false:  _all.total.warmer
-  - is_false:  _all.total.filter_cache
+  - is_false:  _all.total.query_cache
   - is_false:  _all.total.fielddata
   - is_false:  _all.total.percolate
   - is_false:  _all.total.completion

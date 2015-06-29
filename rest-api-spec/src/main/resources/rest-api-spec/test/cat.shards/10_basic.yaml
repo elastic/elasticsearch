@@ -22,8 +22,8 @@
                     completion.size                  .+   \n
                     fielddata.memory_size            .+   \n
                     fielddata.evictions              .+   \n
-                    filter_cache.memory_size         .+   \n
-                    filter_cache.evictions           .+   \n
+                    query_cache.memory_size          .+   \n
+                    query_cache.evictions            .+   \n
                     flush.total                      .+   \n
                     flush.total_time                 .+   \n
                     get.current                      .+   \n

@@ -372,9 +372,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     public QuerySearchResult executeQueryPhase(QuerySearchRequest request) {
         final SearchContext context = findContext(request.id());
         contextProcessing(context);
+        IndexShard indexShard = context.indexShard();
         try {
-            final IndexCache indexCache = context.indexShard().indexService().cache();
-            final QueryCachingPolicy cachingPolicy = context.indexShard().engine().config().getQueryCachingPolicy();
+            final IndexCache indexCache = indexShard.indexService().cache();
+            final QueryCachingPolicy cachingPolicy = indexShard.getQueryCachingPolicy();
             context.searcher().dfSource(new CachedDfSource(context.searcher().getIndexReader(), request.dfs(), context.similarityService().similarity(),
                     indexCache.query(), cachingPolicy));
         } catch (Throwable e) {
@@ -382,7 +383,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             cleanContext(context);
             throw new QueryPhaseExecutionException(context, "Failed to set aggregated df", e);
         }
-        ShardSearchStats shardSearchStats = context.indexShard().searchService();
+        ShardSearchStats shardSearchStats = indexShard.searchService();
         try {
             shardSearchStats.onPreQueryPhase(context);
             long time = System.nanoTime();
@@ -448,8 +449,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         final SearchContext context = findContext(request.id());
         contextProcessing(context);
         try {
-            final IndexCache indexCache = context.indexShard().indexService().cache();
-            final QueryCachingPolicy cachingPolicy = context.indexShard().engine().config().getQueryCachingPolicy();
+            final IndexShard indexShard = context.indexShard();
+            final IndexCache indexCache = indexShard.indexService().cache();
+            final QueryCachingPolicy cachingPolicy = indexShard.getQueryCachingPolicy();
             context.searcher().dfSource(new CachedDfSource(context.searcher().getIndexReader(), request.dfs(), context.similarityService().similarity(),
                     indexCache.query(), cachingPolicy));
         } catch (Throwable e) {

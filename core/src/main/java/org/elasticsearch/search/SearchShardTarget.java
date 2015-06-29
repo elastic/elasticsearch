@@ -27,12 +27,11 @@ import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
 
 import java.io.IOException;
-import java.io.Serializable;
 
 /**
  * The target that the search request was executed on.
  */
-public class SearchShardTarget implements Streamable, Serializable, Comparable<SearchShardTarget> {
+public class SearchShardTarget implements Streamable, Comparable<SearchShardTarget> {
 
     private Text nodeId;
     private Text index;

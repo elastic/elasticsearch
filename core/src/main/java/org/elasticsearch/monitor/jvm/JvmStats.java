@@ -20,7 +20,6 @@
 package org.elasticsearch.monitor.jvm;
 
 import com.google.common.collect.Iterators;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -31,19 +30,16 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
-import java.io.Serializable;
 import java.lang.management.*;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
  *
  */
-public class JvmStats implements Streamable, Serializable, ToXContent {
+public class JvmStats implements Streamable, ToXContent {
 
     private final static RuntimeMXBean runtimeMXBean;
     private final static MemoryMXBean memoryMXBean;
@@ -318,7 +314,7 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         }
     }
 
-    public static class GarbageCollectors implements Streamable, Serializable, Iterable<GarbageCollector> {
+    public static class GarbageCollectors implements Streamable, Iterable<GarbageCollector> {
 
         GarbageCollector[] collectors;
 
@@ -357,7 +353,7 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         }
     }
 
-    public static class GarbageCollector implements Streamable, Serializable {
+    public static class GarbageCollector implements Streamable {
 
         String name;
         long collectionCount;
@@ -399,7 +395,7 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         }
     }
 
-    public static class Threads implements Streamable, Serializable {
+    public static class Threads implements Streamable {
 
         int count;
         int peakCount;
@@ -434,7 +430,7 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         }
     }
 
-    public static class MemoryPool implements Streamable, Serializable {
+    public static class MemoryPool implements Streamable {
 
         String name;
         long used;
@@ -500,7 +496,7 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         }
     }
 
-    public static class Mem implements Streamable, Serializable, Iterable<MemoryPool> {
+    public static class Mem implements Streamable, Iterable<MemoryPool> {
 
         long heapCommitted;
         long heapUsed;

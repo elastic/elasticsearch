@@ -28,11 +28,10 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
-import java.io.Serializable;
 import java.util.Locale;
 import java.util.Objects;
 
-public class ByteSizeValue implements Serializable, Streamable {
+public class ByteSizeValue implements Streamable {
 
     private long size;
 

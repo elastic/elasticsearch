@@ -51,14 +51,13 @@ import org.elasticsearch.index.suggest.stats.SuggestStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.io.IOException;
-import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 
 /**
  * Global information on indices stats running on a specific node.
  */
-public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
+public class NodeIndicesStats implements Streamable, ToXContent {
 
     private CommonStats stats;
     private Map<Index, List<IndexShardStats>> statsByShard;

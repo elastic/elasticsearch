@@ -37,8 +37,10 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.ShieldException;
+import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationService;
@@ -80,6 +82,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
     public static final String ROLLOVER_SETTING = "shield.audit.index.rollover";
     public static final String QUEUE_SIZE_SETTING = "shield.audit.index.queue_max_size";
     public static final String INDEX_TEMPLATE_NAME = "shield_audit_log";
+    public static final String DEFAULT_CLIENT_NAME = "shield-audit-client";
 
     static final String[] DEFAULT_EVENT_INCLUDES = new String[] {
             ACCESS_DENIED.toString(),
@@ -579,7 +582,13 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
             }
 
             final TransportClient transportClient = TransportClient.builder()
-                    .settings(Settings.builder().put(clientSettings).put("path.home", environment.homeFile()).build()).build();
+                    .settings(Settings.builder()
+                            .put("name", DEFAULT_CLIENT_NAME)
+                            .put("path.home", environment.homeFile())
+                            .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
+                            .putArray("plugin.types", ShieldPlugin.class.getName())
+                            .put(clientSettings))
+                    .build();
             for (Tuple<String, Integer> pair : hostPortPairs) {
                 transportClient.addTransportAddress(new InetSocketTransportAddress(pair.v1(), pair.v2()));
             }

@@ -39,6 +39,9 @@ import java.io.*;
 import java.util.*;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.ElasticsearchException.readException;
+import static org.elasticsearch.ElasticsearchException.readStackTrace;
+
 /**
  *
  */
@@ -486,42 +489,41 @@ public abstract class StreamInput extends InputStream {
             int key = readVInt();
             switch (key) {
                 case 0:
-                    return (T) ElasticsearchException.readException(this);
+                    final String name = readString();
+                    return (T) readException(this, name);
                 case 1:
                     // this sucks it would be nice to have a better way to construct those?
                     String msg = readOptionalString();
                     final int idx = msg.indexOf(" (resource=");
-                    String resource = msg.substring(idx + " (resource=".length(), msg.length()-1);
+                    final String resource = msg.substring(idx + " (resource=".length(), msg.length()-1);
                     msg = msg.substring(0, idx);
-                    return (T) ElasticsearchException.readStackTrace(new CorruptIndexException(msg, resource, readThrowable()), this); // TODO add a string throwable ctor to this?
+                    return (T) readStackTrace(new CorruptIndexException(msg, resource, readThrowable()), this); // Lucene 5.3 will have getters for all these
                 case 2:
-                    String itnMessage = readOptionalString();
+                    final String itnMessage = readOptionalString();
                     readThrowable();
-                    return (T) ElasticsearchException.readStackTrace(new IndexFormatTooNewException(itnMessage, -1, -1, -1), this);
+                    return (T) readStackTrace(new IndexFormatTooNewException(itnMessage, -1, -1, -1), this);
                 case 3:
-                    String itoMessage = readOptionalString();
+                    final String itoMessage = readOptionalString();
                     readThrowable();
-                    return (T) ElasticsearchException.readStackTrace(new IndexFormatTooOldException(itoMessage, -1, -1, -1), this);
+                    return (T) readStackTrace(new IndexFormatTooOldException(itoMessage, -1, -1, -1), this);
                 case 4:
-                    String npeMessage = readOptionalString();
+                    final String npeMessage = readOptionalString();
                     readThrowable();
-                    return (T) ElasticsearchException.readStackTrace(new NullPointerException(npeMessage), this);
+                    return (T) readStackTrace(new NullPointerException(npeMessage), this);
                 case 5:
-                    String nfeMessage = readOptionalString();
+                    final String nfeMessage = readOptionalString();
                     readThrowable();
-                    return (T) ElasticsearchException.readStackTrace(new NumberFormatException(nfeMessage), this);
+                    return (T) readStackTrace(new NumberFormatException(nfeMessage), this);
                 case 6:
-                    return (T) ElasticsearchException.readStackTrace(new IllegalArgumentException(readOptionalString(), readThrowable()), this);
+                    return (T) readStackTrace(new IllegalArgumentException(readOptionalString(), readThrowable()), this);
                 case 7:
-                    return (T) ElasticsearchException.readStackTrace(new IllegalStateException(readOptionalString(), readThrowable()), this);
+                    return (T) readStackTrace(new IllegalStateException(readOptionalString(), readThrowable()), this);
                 case 8:
-                    String eofMessage = readOptionalString();
+                    final String eofMessage = readOptionalString();
                     readThrowable();
-                    return (T) ElasticsearchException.readStackTrace(new EOFException(eofMessage), this);
+                    return (T) readStackTrace(new EOFException(eofMessage), this);
                 case 9:
-                    return (T) ElasticsearchException.readStackTrace(new SecurityException(readOptionalString(), readThrowable()), this);
-                case 10: // unknown -- // C - should we use a dedicated exception
-                    return (T) ElasticsearchException.readStackTrace(new ElasticsearchException(readOptionalString(), readThrowable()), this);
+                    return (T) readStackTrace(new SecurityException(readOptionalString(), readThrowable()), this);
                 default:
                     assert false : "no such exception for id: " + key;
             }
@@ -542,6 +544,35 @@ public abstract class StreamInput extends InputStream {
 
     public static StreamInput wrap(byte[] bytes, int offset, int length) {
         return new InputStreamStreamInput(new ByteArrayInputStream(bytes, offset, length));
+    }
+
+    public static class NamedException extends ElasticsearchException {
+
+        private final String name;
+
+        public NamedException(String name, String msg, Throwable cause) {
+            super(msg, cause);
+            if (name == null) {
+                throw new IllegalArgumentException("name must not be null");
+            }
+            this.name = name;
+        }
+
+        public NamedException(StreamInput in) throws IOException {
+            super(in);
+            name = in.readString();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(name);
+        }
+
+        @Override
+        protected String getExceptionName() {
+            return Strings.toUnderscoreCase(name);
+        }
     }
 
 }

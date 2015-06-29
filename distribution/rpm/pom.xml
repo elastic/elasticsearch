@@ -149,16 +149,14 @@
                             <sources>
                                 <source>
                                     <location>target/lib/</location>
-                                    <includes>
-                                        <include>lucene*</include>
-                                        <include>*log4j*</include>
-                                        <include>jna*</include>
-                                        <include>spatial4j*</include>
-                                        <include>jts*</include>
-                                        <include>groovy*</include>
-                                        <include>antlr-runtime*</include>
-                                        <include>asm*</include>
-                                    </includes>
+                                    <excludes>
+                                        <exclude>${project.build.finalName}-shaded.jar</exclude>
+                                        <exclude>${project.build.finalName}-sources.jar</exclude>
+                                        <exclude>${project.build.finalName}-tests.jar</exclude>
+                                        <exclude>${project.build.finalName}-test-sources.jar</exclude>
+                                        <exclude>slf4j-api-*.jar</exclude>
+                                        <exclude>sigar-*.jar</exclude>
+                                    </excludes>
                                 </source>
                                 <source>
                                     <location>${project.build.directory}/</location>

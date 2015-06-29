@@ -28,6 +28,7 @@
                     <outputDirectory>${project.build.directory}/releases/</outputDirectory>
                     <descriptors>
                         <descriptor>${project.basedir}/src/main/assemblies/targz-bin.xml</descriptor>
+                        <descriptor>${project.basedir}/src/main/assemblies/zip-bin.xml</descriptor>
                     </descriptors>
                 </configuration>
                 <executions>

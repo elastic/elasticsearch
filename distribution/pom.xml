@@ -143,7 +143,6 @@
     </build>
 
     <modules>
-        <module>zip</module>
         <module>tar</module>
         <module>deb</module>
         <module>rpm</module>

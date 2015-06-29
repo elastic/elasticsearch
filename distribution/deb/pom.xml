@@ -162,8 +162,7 @@
                                 </data>
                                 <data>
                                     <src>${project.build.directory}/../target/lib</src>
-                                    <includes>lucene*, *log4j*, jna*, spatial4j*, jts*, groovy*, antlr-runtime*, asm*</includes>
-                                    <type>directory</type>
+                                    <excludes>${project.build.finalName}-shaded.jar,${project.build.finalName}-sources.jar,${project.build.finalName}-tests.jar,${project.build.finalName}-test-sources.jar,slf4j-api-*.jar,sigar-*.jar</excludes>                                    <type>directory</type>
                                     <mapper>
                                         <type>perm</type>
                                         <prefix>${packaging.elasticsearch.home.dir}/lib</prefix>

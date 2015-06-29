@@ -154,6 +154,12 @@
             </dependency>
 
             <dependency>
+                <groupId>com.twitter</groupId>
+                <artifactId>jsr166e</artifactId>
+                <version>1.1.0</version>
+            </dependency>
+
+            <dependency>
                 <groupId>org.apache.lucene</groupId>
                 <artifactId>lucene-test-framework</artifactId>
                 <version>${lucene.maven.version}</version>
@@ -737,9 +743,6 @@
                                      <internalRuntimeForbidden>true</internalRuntimeForbidden>
                                      <!-- if the used Java version is too new, don't fail, just do nothing: -->
                                      <failOnUnsupportedJava>false</failOnUnsupportedJava>
-                                     <excludes>
-                                         <exclude>jsr166e/**</exclude>
-                                     </excludes>
                                      <bundledSignatures>
                                          <!-- This will automatically choose the right signatures based on 'targetVersion': -->
                                          <bundledSignature>jdk-unsafe</bundledSignature>

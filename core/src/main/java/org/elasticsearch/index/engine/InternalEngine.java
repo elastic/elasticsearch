@@ -335,7 +335,7 @@ public class InternalEngine extends Engine {
             }
         } catch (OutOfMemoryError | IllegalStateException | IOException t) {
             maybeFailEngine("create", t);
-            throw new CreateFailedEngineException(shardId, create, t);
+            throw new CreateFailedEngineException(shardId, create.type(), create.id(), t);
         }
         checkVersionMapRefresh();
     }
@@ -441,7 +441,7 @@ public class InternalEngine extends Engine {
             }
         } catch (OutOfMemoryError | IllegalStateException | IOException t) {
             maybeFailEngine("index", t);
-            throw new IndexFailedEngineException(shardId, index, t);
+            throw new IndexFailedEngineException(shardId, index.type(), index.id(), t);
         }
         checkVersionMapRefresh();
         return created;

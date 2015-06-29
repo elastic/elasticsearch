@@ -37,7 +37,6 @@ import java.util.*;
  */
 public class SearchPhaseExecutionException extends ElasticsearchException {
     private final String phaseName;
-
     private final ShardSearchFailure[] shardFailures;
 
     public SearchPhaseExecutionException(String phaseName, String msg, ShardSearchFailure[] shardFailures) {
@@ -143,5 +142,9 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
     @Override
     public String toString() {
         return buildMessage(phaseName, getMessage(), shardFailures);
+    }
+
+    public String getPhaseName() {
+        return phaseName;
     }
 }

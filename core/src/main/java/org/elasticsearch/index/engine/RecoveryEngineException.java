@@ -39,7 +39,7 @@ public class RecoveryEngineException extends EngineException {
 
     public RecoveryEngineException(StreamInput in) throws IOException{
         super(in);
-        phase = in.readByte();
+        phase = in.readInt();
     }
 
     @Override

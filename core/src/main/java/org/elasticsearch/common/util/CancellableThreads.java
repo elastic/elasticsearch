@@ -20,7 +20,9 @@ package org.elasticsearch.common.util;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.stream.StreamInput;
 
+import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -132,14 +134,14 @@ public class CancellableThreads {
         public void run() throws InterruptedException;
     }
 
-    public class ExecutionCancelledException extends ElasticsearchException {
+    public static class ExecutionCancelledException extends ElasticsearchException {
 
         public ExecutionCancelledException(String msg) {
             super(msg);
         }
 
-        public ExecutionCancelledException(String msg, Throwable cause) {
-            super(msg, cause);
+        public ExecutionCancelledException(StreamInput in) throws IOException {
+            super(in);
         }
     }
 }

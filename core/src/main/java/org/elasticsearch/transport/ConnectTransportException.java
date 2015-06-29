@@ -20,6 +20,10 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
 
 /**
  *
@@ -43,6 +47,21 @@ public class ConnectTransportException extends ActionTransportException {
     public ConnectTransportException(DiscoveryNode node, String msg, String action, Throwable cause) {
         super(node == null ? null : node.name(), node == null ? null : node.address(), action, msg, cause);
         this.node = node;
+    }
+
+    public ConnectTransportException(StreamInput in) throws IOException {
+        super(in);
+        if (in.readBoolean()) {
+            node = DiscoveryNode.readNode(in);
+        } else {
+            node = null;
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeOptionalStreamable(node);
     }
 
     public DiscoveryNode node() {

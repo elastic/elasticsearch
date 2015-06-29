@@ -20,6 +20,10 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
 
 /**
  * Generic repository exception
@@ -43,5 +47,16 @@ public class RepositoryException extends ElasticsearchException {
      */
     public String repository() {
         return repository;
+    }
+
+    public RepositoryException(StreamInput in) throws IOException{
+        super(in);
+        repository = in.readOptionalString();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeOptionalString(repository);
     }
 }

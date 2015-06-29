@@ -19,8 +19,11 @@
 
 package org.elasticsearch.index.snapshots;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.index.shard.ShardId;
+
+import java.io.IOException;
 
 /**
  * Generic shard restore exception
@@ -32,5 +35,9 @@ public class IndexShardRestoreException extends IndexShardException {
 
     public IndexShardRestoreException(ShardId shardId, String msg, Throwable cause) {
         super(shardId, msg, cause);
+    }
+
+    public IndexShardRestoreException(StreamInput in) throws IOException{
+        super(in);
     }
 }

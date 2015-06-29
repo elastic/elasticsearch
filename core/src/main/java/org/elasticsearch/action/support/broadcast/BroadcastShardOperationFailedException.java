@@ -20,8 +20,11 @@
 package org.elasticsearch.action.support.broadcast;
 
 import org.elasticsearch.ElasticsearchWrapperException;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.index.shard.ShardId;
+
+import java.io.IOException;
 
 /**
  * An exception indicating that a failure occurred performing an operation on the shard.
@@ -40,5 +43,9 @@ public class BroadcastShardOperationFailedException extends IndexShardException 
 
     public BroadcastShardOperationFailedException(ShardId shardId, String msg, Throwable cause) {
         super(shardId, msg, cause);
+    }
+
+    public BroadcastShardOperationFailedException(StreamInput in) throws IOException{
+        super(in);
     }
 }

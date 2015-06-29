@@ -19,6 +19,8 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.ElasticsearchException;
+
 import java.util.List;
 import java.util.Map;
 
@@ -27,7 +29,7 @@ import java.util.Map;
  * get translated to a rest response, can implement this interface and the headers will be added
  * the the response.
  *
- * @see org.elasticsearch.ElasticsearchException.WithRestHeaders
+ * @see ElasticsearchException.WithRestHeadersException
  */
 public interface HasRestHeaders {
 

@@ -19,7 +19,12 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.transport.TransportAddressSerializers;
+
+import java.io.IOException;
 
 /**
  * An action invocation failure.
@@ -28,12 +33,18 @@ import org.elasticsearch.common.transport.TransportAddress;
  */
 public class ActionTransportException extends TransportException {
 
-    private TransportAddress address;
+    private final TransportAddress address;
 
-    private String action;
+    private final String action;
 
-    public ActionTransportException(String msg, Throwable cause) {
-        super(msg, cause);
+    public ActionTransportException(StreamInput in) throws IOException {
+        super(in);
+        if (in.readBoolean()) {
+            address = TransportAddressSerializers.addressFromStream(in);
+        } else {
+            address = null;
+        }
+        action = in.readOptionalString();
     }
 
     public ActionTransportException(String name, TransportAddress address, String action, Throwable cause) {
@@ -46,6 +57,18 @@ public class ActionTransportException extends TransportException {
         super(buildMessage(name, address, action, msg), cause);
         this.address = address;
         this.action = action;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        if (address != null) {
+            out.writeBoolean(true);
+            TransportAddressSerializers.addressToStream(out, address);
+        } else {
+            out.writeBoolean(false);
+        }
+        out.writeOptionalString(action);
     }
 
     /**

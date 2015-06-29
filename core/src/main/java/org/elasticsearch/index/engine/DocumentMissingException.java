@@ -18,8 +18,11 @@
  */
 package org.elasticsearch.index.engine;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+
+import java.io.IOException;
 
 /**
  *
@@ -28,6 +31,10 @@ public class DocumentMissingException extends EngineException {
 
     public DocumentMissingException(ShardId shardId, String type, String id) {
         super(shardId, "[" + type + "][" + id + "]: document missing");
+    }
+
+    public DocumentMissingException(StreamInput in) throws IOException{
+        super(in);
     }
 
     @Override

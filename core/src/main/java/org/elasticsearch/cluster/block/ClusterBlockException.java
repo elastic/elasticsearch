@@ -21,7 +21,12 @@ package org.elasticsearch.cluster.block;
 
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
+
+import java.io.IOException;
+import java.util.Set;
 
 /**
  *
@@ -33,6 +38,29 @@ public class ClusterBlockException extends ElasticsearchException {
     public ClusterBlockException(ImmutableSet<ClusterBlock> blocks) {
         super(buildMessage(blocks));
         this.blocks = blocks;
+    }
+
+    public ClusterBlockException(StreamInput in) throws IOException {
+        super(in);
+        int num = in.readVInt();
+        ImmutableSet.Builder<ClusterBlock> builder = ImmutableSet.builder();
+        for (int i = 0; i < num; i++) {
+            builder.add(ClusterBlock.readClusterBlock(in));
+        }
+        blocks = builder.build();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        if (blocks != null) {
+            out.writeVInt(blocks.size());
+            for (ClusterBlock block : blocks) {
+                block.writeTo(out);
+            }
+        } else {
+            out.writeVInt(0);
+        }
     }
 
     public boolean retryable() {

@@ -21,14 +21,17 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
 
 /**
  * Thrown when snapshot creation fails completely
  */
 public class SnapshotCreationException extends SnapshotException {
 
-    public SnapshotCreationException(SnapshotId snapshot, String message) {
-        super(snapshot, message);
+    public SnapshotCreationException(StreamInput in) throws IOException {
+        super(in);
     }
 
     public SnapshotCreationException(SnapshotId snapshot, Throwable cause) {

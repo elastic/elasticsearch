@@ -18,7 +18,10 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
+
+import java.io.IOException;
 
 /**
  */
@@ -26,6 +29,10 @@ public class StrictDynamicMappingException extends MapperParsingException {
 
     public StrictDynamicMappingException(String path, String fieldName) {
         super("mapping set to strict, dynamic introduction of [" + fieldName + "] within [" + path + "] is not allowed");
+    }
+
+    public StrictDynamicMappingException(StreamInput in) throws IOException {
+        super(in);
     }
 
     @Override

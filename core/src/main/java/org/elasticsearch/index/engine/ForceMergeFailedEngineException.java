@@ -19,7 +19,10 @@
 
 package org.elasticsearch.index.engine;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
+
+import java.io.IOException;
 
 /**
  *
@@ -28,5 +31,9 @@ public class ForceMergeFailedEngineException extends EngineException {
 
     public ForceMergeFailedEngineException(ShardId shardId, Throwable t) {
         super(shardId, "force merge failed", t);
+    }
+
+    public ForceMergeFailedEngineException(StreamInput in) throws IOException{
+        super(in);
     }
 }

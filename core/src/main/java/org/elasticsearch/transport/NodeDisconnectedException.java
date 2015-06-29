@@ -20,6 +20,9 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
 
 /**
  *
@@ -28,6 +31,10 @@ public class NodeDisconnectedException extends ConnectTransportException {
 
     public NodeDisconnectedException(DiscoveryNode node, String action) {
         super(node, "disconnected", action, null);
+    }
+
+    public NodeDisconnectedException(StreamInput in) throws IOException {
+        super(in);
     }
 
     // stack trace is meaningless...

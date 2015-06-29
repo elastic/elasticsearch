@@ -26,6 +26,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -39,6 +41,7 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.translog.Translog;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -96,6 +99,16 @@ public class TranslogRecoveryPerformer {
             this.completedOperations = completedOperations;
         }
 
+        public BatchOperationException(StreamInput in) throws IOException{
+            super(in);
+            completedOperations = in.readInt();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeInt(completedOperations);
+        }
 
         /** the number of succesful operations performed before the exception was thrown */
         public int completedOperations() {

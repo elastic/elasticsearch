@@ -23,7 +23,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.io.ThrowableObjectOutputStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -116,21 +115,9 @@ public class NettyTransportChannel implements TransportChannel {
     @Override
     public void sendResponse(Throwable error) throws IOException {
         BytesStreamOutput stream = new BytesStreamOutput();
-        try {
-            stream.skip(NettyHeader.HEADER_SIZE);
-            RemoteTransportException tx = new RemoteTransportException(transport.nodeName(), transport.wrapAddress(channel.getLocalAddress()), action, error);
-            ThrowableObjectOutputStream too = new ThrowableObjectOutputStream(stream);
-            too.writeObject(tx);
-            too.close();
-        } catch (NotSerializableException e) {
-            stream.reset();
-            stream.skip(NettyHeader.HEADER_SIZE);
-            RemoteTransportException tx = new RemoteTransportException(transport.nodeName(), transport.wrapAddress(channel.getLocalAddress()), action, new NotSerializableTransportException(error));
-            ThrowableObjectOutputStream too = new ThrowableObjectOutputStream(stream);
-            too.writeObject(tx);
-            too.close();
-        }
-
+        stream.skip(NettyHeader.HEADER_SIZE);
+        RemoteTransportException tx = new RemoteTransportException(transport.nodeName(), transport.wrapAddress(channel.getLocalAddress()), action, error);
+        stream.writeThrowable(tx);
         byte status = 0;
         status = TransportStatus.setResponse(status);
         status = TransportStatus.setError(status);

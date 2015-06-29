@@ -19,19 +19,22 @@
 
 package org.elasticsearch.index.store;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.index.shard.ShardId;
+
+import java.io.IOException;
 
 /**
  *
  */
 public class StoreException extends IndexShardException {
 
-    public StoreException(ShardId shardId, String msg) {
-        super(shardId, msg);
-    }
-
     public StoreException(ShardId shardId, String msg, Throwable cause) {
         super(shardId, msg, cause);
+    }
+
+    public StoreException(StreamInput in) throws IOException{
+        super(in);
     }
 }

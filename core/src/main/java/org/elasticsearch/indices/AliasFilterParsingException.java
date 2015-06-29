@@ -19,8 +19,11 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexException;
+
+import java.io.IOException;
 
 /**
  *
@@ -32,4 +35,7 @@ public class AliasFilterParsingException extends IndexException {
     }
 
 
+    public AliasFilterParsingException(StreamInput in) throws IOException{
+        super(in);
+    }
 }

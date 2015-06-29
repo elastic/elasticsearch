@@ -19,8 +19,11 @@
 package org.elasticsearch.search.warmer;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
 
+import java.io.IOException;
 import java.util.Arrays;
 
 /**
@@ -40,8 +43,19 @@ public class IndexWarmerMissingException extends ElasticsearchException {
     }
 
 
+    public IndexWarmerMissingException(StreamInput in) throws IOException{
+        super(in);
+        names = in.readStringArray();
+    }
+
     @Override
     public RestStatus status() {
         return RestStatus.NOT_FOUND;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeStringArray(names);
     }
 }

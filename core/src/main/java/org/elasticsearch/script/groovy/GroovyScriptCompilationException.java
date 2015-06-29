@@ -20,7 +20,10 @@
 package org.elasticsearch.script.groovy;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
+
+import java.io.IOException;
 
 /**
  * Exception used to wrap groovy script compilation exceptions so they are
@@ -29,6 +32,10 @@ import org.elasticsearch.rest.RestStatus;
 public class GroovyScriptCompilationException extends ElasticsearchException {
     public GroovyScriptCompilationException(String message) {
         super(message);
+    }
+
+    public GroovyScriptCompilationException(StreamInput in) throws IOException{
+        super(in);
     }
 
     @Override

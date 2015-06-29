@@ -20,6 +20,9 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
 
 /**
  */
@@ -27,5 +30,9 @@ public class NodeShouldNotConnectException extends NodeNotConnectedException {
 
     public NodeShouldNotConnectException(DiscoveryNode fromNode, DiscoveryNode node) {
         super(node, "node should not connect from [" + fromNode + "]");
+    }
+
+    public NodeShouldNotConnectException(StreamInput in) throws IOException {
+        super(in);
     }
 }

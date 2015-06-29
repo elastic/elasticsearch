@@ -19,6 +19,10 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
+
 /**
  * A failure to handle the response of a transaction action.
  *
@@ -30,8 +34,12 @@ public class ResponseHandlerFailureTransportException extends TransportException
         super(cause.getMessage(), cause);
     }
 
+    public ResponseHandlerFailureTransportException(StreamInput in) throws IOException {
+        super(in);
+    }
+
     @Override
     public Throwable fillInStackTrace() {
         return null;
-    }
+    } // why is this?
 }

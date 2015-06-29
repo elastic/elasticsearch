@@ -1457,6 +1457,7 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
         </profile>
     </profiles>
     <modules>
+        <module>securemock</module>
         <module>dev-tools</module>
         <module>rest-api-spec</module>
         <module>plugins</module>

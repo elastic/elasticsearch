@@ -27,6 +27,7 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
@@ -373,8 +374,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         contextProcessing(context);
         try {
             final IndexCache indexCache = context.indexShard().indexService().cache();
+            final QueryCachingPolicy cachingPolicy = context.indexShard().engine().config().getQueryCachingPolicy();
             context.searcher().dfSource(new CachedDfSource(context.searcher().getIndexReader(), request.dfs(), context.similarityService().similarity(),
-                    indexCache.query(), indexCache.queryPolicy()));
+                    indexCache.query(), cachingPolicy));
         } catch (Throwable e) {
             processFailure(context, e);
             cleanContext(context);
@@ -447,8 +449,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         contextProcessing(context);
         try {
             final IndexCache indexCache = context.indexShard().indexService().cache();
+            final QueryCachingPolicy cachingPolicy = context.indexShard().engine().config().getQueryCachingPolicy();
             context.searcher().dfSource(new CachedDfSource(context.searcher().getIndexReader(), request.dfs(), context.similarityService().similarity(),
-                    indexCache.query(), indexCache.queryPolicy()));
+                    indexCache.query(), cachingPolicy));
         } catch (Throwable e) {
             freeContext(context.id());
             cleanContext(context);

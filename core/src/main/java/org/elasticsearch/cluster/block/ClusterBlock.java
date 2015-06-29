@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.Locale;
@@ -35,7 +34,7 @@ import java.util.Locale;
 /**
  *
  */
-public class ClusterBlock implements Serializable, Streamable, ToXContent {
+public class ClusterBlock implements Streamable, ToXContent {
 
     private int id;
 

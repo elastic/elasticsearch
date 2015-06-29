@@ -29,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
 
@@ -37,7 +36,7 @@ import java.util.List;
  * {@link ShardRouting} immutably encapsulates information about shard
  * routings like id, state, version, etc.
  */
-public final class ShardRouting implements Streamable, Serializable, ToXContent {
+public final class ShardRouting implements Streamable, ToXContent {
 
     protected String index;
 

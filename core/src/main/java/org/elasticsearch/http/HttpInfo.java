@@ -29,12 +29,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
-import java.io.Serializable;
 
 /**
  *
  */
-public class HttpInfo implements Streamable, Serializable, ToXContent {
+public class HttpInfo implements Streamable, ToXContent {
 
     private BoundTransportAddress address;
     private long maxContentLength;

@@ -31,7 +31,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.transport.TransportAddressSerializers;
 
 import java.io.IOException;
-import java.io.Serializable;
 import java.util.Map;
 
 import static org.elasticsearch.common.transport.TransportAddressSerializers.addressToStream;

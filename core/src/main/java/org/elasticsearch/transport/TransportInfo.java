@@ -30,13 +30,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
-import java.io.Serializable;
 import java.util.Map;
 
 /**
  *
  */
-public class TransportInfo implements Streamable, Serializable, ToXContent {
+public class TransportInfo implements Streamable, ToXContent {
 
     private BoundTransportAddress address;
     private Map<String, BoundTransportAddress> profileAddresses;

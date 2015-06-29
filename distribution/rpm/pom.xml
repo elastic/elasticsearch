@@ -74,12 +74,10 @@
                     </execution>
                 </executions>
             </plugin>
-
             <!-- Rpm Packaging -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>rpm-maven-plugin</artifactId>
-                <version>2.1.2</version>
                 <configuration>
                     <distribution>Elasticsearch</distribution>
                     <group>Application/Internet</group>
@@ -280,4 +278,36 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>rpm</id>
+            <activation>
+                <file>
+                    <!--
+                        Folks having /usr/bin/rpmbuild available will be able to build automatically rpm artifact
+                        without needing to run explicitly cd distribution/rpm; mvn rpm:rpm
+                    -->
+                    <exists>/usr/bin/rpmbuild</exists>
+                </file>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>rpm-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>build-artifacts</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>rpm</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

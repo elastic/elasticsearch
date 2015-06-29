@@ -19,6 +19,9 @@
 
 package org.elasticsearch.bootstrap;
 
+import com.google.common.collect.Iterators;
+import com.google.common.collect.Lists;
+
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ExceptionsHelper;
@@ -29,6 +32,7 @@ import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.inject.spi.Message;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -42,10 +46,20 @@ import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.hyperic.sigar.Sigar;
 
+import java.io.IOException;
+import java.lang.reflect.Method;
+import java.net.URL;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.PathMatcher;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
+import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
@@ -161,6 +175,9 @@ public class Bootstrap {
                 }
             });
         }
+        
+        // install any plugins into classpath
+        setupPlugins(environment);
         
         // install SM after natives, shutdown hooks, etc.
         setupSecurity(settings, environment);
@@ -347,5 +364,82 @@ public class Bootstrap {
             errorMessage.append("\n").append(ExceptionsHelper.stackTrace(e));
         }
         return errorMessage.toString();
+    }
+    
+    static final String PLUGIN_LIB_PATTERN = "glob:**.{jar,zip}";
+    private static void setupPlugins(Environment environment) throws IOException {
+        ESLogger logger = Loggers.getLogger(Bootstrap.class);
+
+        Path pluginsDirectory = environment.pluginsFile();
+        if (!isAccessibleDirectory(pluginsDirectory, logger)) {
+            return;
+        }
+
+        ClassLoader classLoader = ClassLoader.getSystemClassLoader();
+        Class<?> classLoaderClass = classLoader.getClass();
+        Method addURL = null;
+        try {
+            while (!classLoaderClass.equals(Object.class)) {
+                try {
+                    addURL = classLoaderClass.getDeclaredMethod("addURL", URL.class);
+                    addURL.setAccessible(true);
+                    break;
+                } catch (NoSuchMethodException e) {
+                    // no method, try the parent
+                    classLoaderClass = classLoaderClass.getSuperclass();
+                }
+            }
+
+            if (addURL == null) {
+                logger.debug("failed to find addURL method on classLoader [" + classLoader + "] to add methods");
+                return;
+            }
+
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginsDirectory)) {
+
+                for (Path plugin : stream) {
+                    // We check that subdirs are directories and readable
+                    if (!isAccessibleDirectory(plugin, logger)) {
+                        continue;
+                    }
+
+                    logger.trace("--- adding plugin [{}]", plugin.toAbsolutePath());
+
+                    try {
+                        // add the root
+                        addURL.invoke(classLoader, plugin.toUri().toURL());
+                        // gather files to add
+                        List<Path> libFiles = Lists.newArrayList();
+                        libFiles.addAll(Arrays.asList(files(plugin)));
+                        Path libLocation = plugin.resolve("lib");
+                        if (Files.isDirectory(libLocation)) {
+                            libFiles.addAll(Arrays.asList(files(libLocation)));
+                        }
+
+                        PathMatcher matcher = PathUtils.getDefaultFileSystem().getPathMatcher(PLUGIN_LIB_PATTERN);
+
+                        // if there are jars in it, add it as well
+                        for (Path libFile : libFiles) {
+                            if (!matcher.matches(libFile)) {
+                                continue;
+                            }
+                            addURL.invoke(classLoader, libFile.toUri().toURL());
+                        }
+                    } catch (Throwable e) {
+                        logger.warn("failed to add plugin [" + plugin + "]", e);
+                    }
+                }
+            }
+        } finally {
+            if (addURL != null) {
+                addURL.setAccessible(false);
+            }
+        }
+    }
+
+    private static Path[] files(Path from) throws IOException {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(from)) {
+            return Iterators.toArray(stream.iterator(), Path.class);
+        }
     }
 }

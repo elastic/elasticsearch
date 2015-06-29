@@ -86,8 +86,6 @@ grant {
   permission java.lang.RuntimePermission "getProtectionDomain";
 
   // reflection hacks:
-  // needed by pluginmanager to CHANGE THE CLASSLOADER (!)
-  permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
   // needed for mock filesystems in tests (to capture implCloseChannel)
   permission java.lang.RuntimePermission "accessClassInPackage.sun.nio.ch";
   // needed by groovy engine

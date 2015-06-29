@@ -87,9 +87,6 @@ final class Security {
                 for (Map.Entry<Pattern,String> e : SPECIAL_JARS.entrySet()) {
                     if (e.getKey().matcher(url.getPath()).matches()) {
                         String prop = e.getValue();
-                        if (System.getProperty(prop) != null) {
-                            throw new IllegalStateException("property: " + prop + " is unexpectedly set");
-                        }
                         System.setProperty(prop, url.toString());
                     }
                 }

@@ -21,12 +21,11 @@ package org.elasticsearch.index.aliases;
 
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;

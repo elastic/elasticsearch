@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Injector;
@@ -80,9 +81,10 @@ public class IndexQueryParserFilterDateRangeFormatTests extends ElasticsearchSin
         query = copyToStringFromClasspath("/org/elasticsearch/index/query/date_range_filter_format_invalid.json");
         try {
             SearchContext.setCurrent(new TestSearchContext());
-            queryParser.parse(query).query();
+            // We need to rewrite, because range on date field initially returns LateParsingQuery
+            queryParser.parse(query).query().rewrite(null);
             fail("A Range Filter with a specific format but with an unexpected date should raise a QueryParsingException");
-        } catch (QueryParsingException e) {
+        } catch (ElasticsearchParseException e) {
             // We expect it
         } finally {
             SearchContext.removeCurrent();
@@ -97,7 +99,8 @@ public class IndexQueryParserFilterDateRangeFormatTests extends ElasticsearchSin
         Query parsedQuery;
         try {
             SearchContext.setCurrent(new TestSearchContext());
-            parsedQuery = queryParser.parse(query).query();
+            // We need to rewrite, because range on date field initially returns LateParsingQuery
+            parsedQuery = queryParser.parse(query).query().rewrite(null);
         } finally {
             SearchContext.removeCurrent();;
         }
@@ -115,9 +118,9 @@ public class IndexQueryParserFilterDateRangeFormatTests extends ElasticsearchSin
         query = copyToStringFromClasspath("/org/elasticsearch/index/query/date_range_query_format_invalid.json");
         try {
             SearchContext.setCurrent(new TestSearchContext());
-            queryParser.parse(query).query();
+            queryParser.parse(query).query().rewrite(null);
             fail("A Range Query with a specific format but with an unexpected date should raise a QueryParsingException");
-        } catch (QueryParsingException e) {
+        } catch (ElasticsearchParseException e) {
             // We expect it
         } finally {
             SearchContext.removeCurrent();
@@ -131,7 +134,8 @@ public class IndexQueryParserFilterDateRangeFormatTests extends ElasticsearchSin
         Query parsedQuery;
         try {
             SearchContext.setCurrent(new TestSearchContext());
-            parsedQuery = queryParser.parse(query).query();
+            // We need to rewrite, because range on date field initially returns LateParsingQuery
+            parsedQuery = queryParser.parse(query).query().rewrite(null);
         } finally {
             SearchContext.removeCurrent();
         }
@@ -149,7 +153,8 @@ public class IndexQueryParserFilterDateRangeFormatTests extends ElasticsearchSin
         query = copyToStringFromClasspath("/org/elasticsearch/index/query/date_range_query_boundaries_exclusive.json");
         try {
             SearchContext.setCurrent(new TestSearchContext());
-            parsedQuery = queryParser.parse(query).query();
+            // We need to rewrite, because range on date field initially returns LateParsingQuery
+            parsedQuery = queryParser.parse(query).query().rewrite(null);
         } finally {
             SearchContext.removeCurrent();
         }

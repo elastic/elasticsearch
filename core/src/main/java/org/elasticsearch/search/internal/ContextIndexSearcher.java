@@ -29,6 +29,7 @@ import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TimeLimitingCollector;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
@@ -129,7 +130,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             return in.createNormalizedWeight(query, needsScores);
         } catch (Throwable t) {
             searchContext.clearReleasables(Lifetime.COLLECTION);
-            throw new RuntimeException(t);
+            throw ExceptionsHelper.convertToElastic(t);
         }
     }
 

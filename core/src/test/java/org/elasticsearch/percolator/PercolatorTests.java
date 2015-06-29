@@ -2052,5 +2052,17 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
             assertThat(e.getCause().getMessage(), containsString("inner_hits unsupported"));
         }
     }
+
+    @Test
+    public void testParentChild() throws Exception {
+        // We don't fail p/c queries, but those queries are unsuable because only one document can be provided in
+        // the percolate api
+
+        assertAcked(prepareCreate("index").addMapping("child", "_parent", "type=parent").addMapping("parent"));
+        client().prepareIndex("index", PercolatorService.TYPE_NAME, "1")
+                .setSource(jsonBuilder().startObject().field("query", hasChildQuery("child", matchAllQuery())).endObject())
+                .execute().actionGet();
+    }
+
 }
 

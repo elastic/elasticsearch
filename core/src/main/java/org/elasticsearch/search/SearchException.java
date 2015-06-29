@@ -20,6 +20,7 @@
 package org.elasticsearch.search;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -28,7 +29,7 @@ import java.io.IOException;
 /**
  *
  */
-public class SearchException extends ElasticsearchException {
+public class SearchException extends ElasticsearchException implements ElasticsearchWrapperException {
 
     private final SearchShardTarget shardTarget;
 

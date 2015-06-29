@@ -31,8 +31,6 @@ This means that a type can't become a parent type after is has been created.
 The `parent.type` setting can't point to itself. This means self referential
 parent/child isn't supported.
 
-Parent/child queries (`has_child` & `has_parent`) can't be used in index aliases.
-
 ==== Global ordinals
 
 Parent-child uses <<global-ordinals,global ordinals>> to speed up joins and global ordinals need to be rebuilt after any change to a shard.

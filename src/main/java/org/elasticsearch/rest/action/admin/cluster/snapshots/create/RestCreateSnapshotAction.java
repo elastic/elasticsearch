@@ -24,7 +24,10 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 
 import static org.elasticsearch.client.Requests.createSnapshotRequest;
@@ -40,6 +43,8 @@ public class RestCreateSnapshotAction extends BaseRestHandler {
     public RestCreateSnapshotAction(Settings settings, RestController controller, Client client) {
         super(settings, controller, client);
         controller.registerHandler(PUT, "/_snapshot/{repository}/{snapshot}", this);
+        controller.registerHandler(POST, "/_snapshot/{repository}/{snapshot}", this);
+        controller.registerHandler(PUT, "/_snapshot/{repository}/{snapshot}/_create", this);
         controller.registerHandler(POST, "/_snapshot/{repository}/{snapshot}/_create", this);
     }
 

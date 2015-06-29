@@ -52,8 +52,8 @@ fields referenced inside the query must use the complete path (fully
 qualified).
 
 The `score_mode` allows to set how inner children matching affects
-scoring of parent. It defaults to `avg`, but can be `sum`, `max` and
-`none`.
+scoring of parent. It defaults to `avg`, but can be `sum`, `min`,
+`max` and `none`.
 
 Multi level nesting is automatically supported, and detected, resulting
 in an inner nested query to automatically match the relevant nesting

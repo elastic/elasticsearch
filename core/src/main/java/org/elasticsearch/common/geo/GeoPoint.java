@@ -19,11 +19,17 @@
 
 package org.elasticsearch.common.geo;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+
+import java.io.IOException;
+
 
 /**
  *
  */
-public final class GeoPoint {
+public final class GeoPoint implements Writeable<GeoPoint> {
 
     private double lat;
     private double lon;
@@ -44,6 +50,10 @@ public final class GeoPoint {
     public GeoPoint(double lat, double lon) {
         this.lat = lat;
         this.lon = lon;
+    }
+
+    public GeoPoint(GeoPoint template) {
+        this(template.getLat(), template.getLon());
     }
 
     public GeoPoint reset(double lat, double lon) {
@@ -135,5 +145,18 @@ public final class GeoPoint {
         GeoPoint point = new GeoPoint();
         point.resetFromString(latLon);
         return point;
+    }
+
+    @Override
+    public GeoPoint readFrom(StreamInput in) throws IOException {
+        double lat = in.readDouble();
+        double lon = in.readDouble();
+        return new GeoPoint(lat, lon);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeDouble(lat);
+        out.writeDouble(lon);
     }
 }

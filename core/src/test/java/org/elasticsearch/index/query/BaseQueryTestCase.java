@@ -32,6 +32,7 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
@@ -53,6 +54,11 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.cache.IndexCacheModule;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
+import org.elasticsearch.index.fielddata.plain.GeoPointDoubleArrayIndexFieldData;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.index.query.support.QueryParsers;
@@ -141,6 +147,7 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
         final TestClusterService clusterService = new TestClusterService();
         clusterService.setState(new ClusterState.Builder(clusterService.state()).metaData(new MetaData.Builder().put(
                 new IndexMetaData.Builder(index.name()).settings(indexSettings).numberOfShards(1).numberOfReplicas(0))));
+
         injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
                 new SettingsModule(settings),
@@ -165,10 +172,12 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
                         bind(ClusterService.class).toProvider(Providers.of(clusterService));
                         bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
                         bind(NamedWriteableRegistry.class).asEagerSingleton();
+                        bind(IndexFieldDataService.class).to(MockIndexFieldDataService.class);
                     }
                 }
         ).createInjector();
         queryParserService = injector.getInstance(IndexQueryParserService.class);
+
         MapperService mapperService = queryParserService.mapperService;
         //create some random type with some default field, those types will stick around for all of the subclasses
         currentTypes = new String[randomIntBetween(0, 5)];
@@ -176,6 +185,7 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
             String type = randomAsciiOfLengthBetween(1, 10);
             mapperService.merge(type, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(type,
                     STRING_FIELD_NAME, "type=string",
+                    GEO_FIELD_NAME, "type=geo_point,lat_lon=true,geohash=true",
                     INT_FIELD_NAME, "type=integer",
                     DOUBLE_FIELD_NAME, "type=double",
                     BOOLEAN_FIELD_NAME, "type=boolean",
@@ -293,7 +303,10 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
     public void testToQuery() throws IOException {
         QueryShardContext context = createShardContext();
         context.setAllowUnmappedFields(true);
-
+        doTestToQuery(context);
+    }
+    
+    protected void doTestToQuery(QueryShardContext context) throws IOException {
         QB firstQuery = createTestQueryBuilder();
         Query firstLuceneQuery = firstQuery.toQuery(context);
         assertLuceneQuery(firstQuery, firstLuceneQuery, context);
@@ -426,6 +439,7 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
     protected static QueryShardContext createShardContext() {
         QueryShardContext queryCreationContext = new QueryShardContext(index, queryParserService);
         queryCreationContext.parseFieldMatcher(ParseFieldMatcher.EMPTY);
+
         return queryCreationContext;
     }
 
@@ -567,4 +581,21 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
     protected static boolean isNumericFieldName(String fieldName) {
         return INT_FIELD_NAME.equals(fieldName) || DOUBLE_FIELD_NAME.equals(fieldName);
     }
+    
+    /** Mocks IndexFieldDataService to enable checking the "MEMORY"*/
+    public static class MockIndexFieldDataService extends IndexFieldDataService {
+
+        @Inject
+        public MockIndexFieldDataService(Index index, Settings settings) {
+            super(index, settings, null, null);
+        }
+
+        public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType ignored) {
+            MappedFieldType.Names names = new MappedFieldType.Names(index.getName());
+            IndexFieldData fieldData = new GeoPointDoubleArrayIndexFieldData(index, indexSettings(), names, null, null, null);
+            return (IFD) fieldData;
+        }
+    }
+
+
 }

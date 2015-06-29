@@ -112,8 +112,8 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
         return this;
     }
 
-    public IndicesStatsRequestBuilder setFilterCache(boolean filterCache) {
-        request.filterCache(filterCache);
+    public IndicesStatsRequestBuilder setQueryCache(boolean queryCache) {
+        request.queryCache(queryCache);
         return this;
     }
 
@@ -157,8 +157,8 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
         return this;
     }
 
-    public IndicesStatsRequestBuilder setQueryCache(boolean queryCache) {
-        request.queryCache(queryCache);
+    public IndicesStatsRequestBuilder setRequestCache(boolean requestCache) {
+        request.requestCache(requestCache);
         return this;
     }
 

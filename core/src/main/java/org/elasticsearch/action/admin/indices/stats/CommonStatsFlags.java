@@ -215,7 +215,7 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         Merge("merge"),
         Flush("flush"),
         Refresh("refresh"),
-        FilterCache("filter_cache"),
+        QueryCache("query_cache"),
         FieldData("fielddata"),
         Docs("docs"),
         Warmer("warmer"),
@@ -224,7 +224,7 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         Segments("segments"),
         Translog("translog"),
         Suggest("suggest"),
-        QueryCache("query_cache"),
+        RequestCache("request_cache"),
         Recovery("recovery");
 
 

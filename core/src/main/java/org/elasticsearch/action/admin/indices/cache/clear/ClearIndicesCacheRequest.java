@@ -30,10 +30,10 @@ import java.io.IOException;
  */
 public class ClearIndicesCacheRequest extends BroadcastRequest<ClearIndicesCacheRequest> {
 
-    private boolean filterCache = false;
+    private boolean queryCache = false;
     private boolean fieldDataCache = false;
     private boolean recycler = false;
-    private boolean queryCache = false;
+    private boolean requestCache = false;
     private String[] fields = null;
     
 
@@ -44,21 +44,21 @@ public class ClearIndicesCacheRequest extends BroadcastRequest<ClearIndicesCache
         super(indices);
     }
 
-    public boolean filterCache() {
-        return filterCache;
-    }
-
-    public ClearIndicesCacheRequest filterCache(boolean filterCache) {
-        this.filterCache = filterCache;
-        return this;
-    }
-
     public boolean queryCache() {
-        return this.queryCache;
+        return queryCache;
     }
 
     public ClearIndicesCacheRequest queryCache(boolean queryCache) {
         this.queryCache = queryCache;
+        return this;
+    }
+
+    public boolean requestCache() {
+        return this.requestCache;
+    }
+
+    public ClearIndicesCacheRequest requestCache(boolean requestCache) {
+        this.requestCache = requestCache;
         return this;
     }
 
@@ -92,20 +92,20 @@ public class ClearIndicesCacheRequest extends BroadcastRequest<ClearIndicesCache
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        filterCache = in.readBoolean();
+        queryCache = in.readBoolean();
         fieldDataCache = in.readBoolean();
         recycler = in.readBoolean();
         fields = in.readStringArray();
-        queryCache = in.readBoolean();
+        requestCache = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(filterCache);
+        out.writeBoolean(queryCache);
         out.writeBoolean(fieldDataCache);
         out.writeBoolean(recycler);
         out.writeStringArrayNullable(fields);
-        out.writeBoolean(queryCache);
+        out.writeBoolean(requestCache);
     }
 }

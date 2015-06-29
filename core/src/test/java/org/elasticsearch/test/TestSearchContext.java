@@ -19,6 +19,7 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
+
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
@@ -34,7 +35,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.cache.filter.FilterCache;
+import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -83,7 +84,7 @@ public class TestSearchContext extends SearchContext {
     private String[] types;
     private SearchContextAggregations aggregations;
 
-    public TestSearchContext(ThreadPool threadPool,PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, IndexService indexService, FilterCache filterCache, IndexFieldDataService indexFieldDataService) {
+    public TestSearchContext(ThreadPool threadPool,PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, IndexService indexService, QueryCache filterCache, IndexFieldDataService indexFieldDataService) {
         this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.indexService = indexService;

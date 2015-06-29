@@ -378,61 +378,55 @@ public class Bootstrap {
         ClassLoader classLoader = ClassLoader.getSystemClassLoader();
         Class<?> classLoaderClass = classLoader.getClass();
         Method addURL = null;
-        try {
-            while (!classLoaderClass.equals(Object.class)) {
+        while (!classLoaderClass.equals(Object.class)) {
+            try {
+                addURL = classLoaderClass.getDeclaredMethod("addURL", URL.class);
+                addURL.setAccessible(true);
+                break;
+            } catch (NoSuchMethodException e) {
+                // no method, try the parent
+                classLoaderClass = classLoaderClass.getSuperclass();
+            }
+        }
+
+        if (addURL == null) {
+            logger.debug("failed to find addURL method on classLoader [" + classLoader + "] to add methods");
+            return;
+        }
+
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginsDirectory)) {
+
+            for (Path plugin : stream) {
+                // We check that subdirs are directories and readable
+                if (!isAccessibleDirectory(plugin, logger)) {
+                    continue;
+                }
+
+                logger.trace("--- adding plugin [{}]", plugin.toAbsolutePath());
+
                 try {
-                    addURL = classLoaderClass.getDeclaredMethod("addURL", URL.class);
-                    addURL.setAccessible(true);
-                    break;
-                } catch (NoSuchMethodException e) {
-                    // no method, try the parent
-                    classLoaderClass = classLoaderClass.getSuperclass();
-                }
-            }
-
-            if (addURL == null) {
-                logger.debug("failed to find addURL method on classLoader [" + classLoader + "] to add methods");
-                return;
-            }
-
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginsDirectory)) {
-
-                for (Path plugin : stream) {
-                    // We check that subdirs are directories and readable
-                    if (!isAccessibleDirectory(plugin, logger)) {
-                        continue;
+                    // add the root
+                    addURL.invoke(classLoader, plugin.toUri().toURL());
+                    // gather files to add
+                    List<Path> libFiles = Lists.newArrayList();
+                    libFiles.addAll(Arrays.asList(files(plugin)));
+                    Path libLocation = plugin.resolve("lib");
+                    if (Files.isDirectory(libLocation)) {
+                        libFiles.addAll(Arrays.asList(files(libLocation)));
                     }
 
-                    logger.trace("--- adding plugin [{}]", plugin.toAbsolutePath());
+                    PathMatcher matcher = PathUtils.getDefaultFileSystem().getPathMatcher(PLUGIN_LIB_PATTERN);
 
-                    try {
-                        // add the root
-                        addURL.invoke(classLoader, plugin.toUri().toURL());
-                        // gather files to add
-                        List<Path> libFiles = Lists.newArrayList();
-                        libFiles.addAll(Arrays.asList(files(plugin)));
-                        Path libLocation = plugin.resolve("lib");
-                        if (Files.isDirectory(libLocation)) {
-                            libFiles.addAll(Arrays.asList(files(libLocation)));
+                    // if there are jars in it, add it as well
+                    for (Path libFile : libFiles) {
+                        if (!matcher.matches(libFile)) {
+                            continue;
                         }
-
-                        PathMatcher matcher = PathUtils.getDefaultFileSystem().getPathMatcher(PLUGIN_LIB_PATTERN);
-
-                        // if there are jars in it, add it as well
-                        for (Path libFile : libFiles) {
-                            if (!matcher.matches(libFile)) {
-                                continue;
-                            }
-                            addURL.invoke(classLoader, libFile.toUri().toURL());
-                        }
-                    } catch (Throwable e) {
-                        logger.warn("failed to add plugin [" + plugin + "]", e);
+                        addURL.invoke(classLoader, libFile.toUri().toURL());
                     }
+                } catch (Throwable e) {
+                    logger.warn("failed to add plugin [" + plugin + "]", e);
                 }
-            }
-        } finally {
-            if (addURL != null) {
-                addURL.setAccessible(false);
             }
         }
     }

@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.PathUtils;
 import java.io.IOException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.net.URLDecoder;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -55,12 +56,12 @@ class JarHell {
         final Map<String,URL> clazzes = new HashMap<>(32768);
         Set<String> seenJars = new HashSet<>();
         for (final URL url : ((URLClassLoader)loader).getURLs()) {
-            String path = url.getPath();
+            String path = URLDecoder.decode(url.getPath(), "UTF-8");
             if (path.endsWith(".jar")) {
                 if (!seenJars.add(path)) {
                     continue; // we can't fail because of sheistiness with joda-time
                 }
-                try (JarFile file = new JarFile(url.getPath())) {
+                try (JarFile file = new JarFile(path)) {
                     Manifest manifest = file.getManifest();
                     if (manifest != null) {
                         // inspect Manifest: give a nice error if jar requires a newer java version

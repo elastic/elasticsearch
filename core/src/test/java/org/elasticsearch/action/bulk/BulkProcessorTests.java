@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
-import com.carrotsearch.ant.tasks.junit4.dependencies.com.carrotsearch.randomizedtesting.generators.RandomPicks;
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequestBuilder;

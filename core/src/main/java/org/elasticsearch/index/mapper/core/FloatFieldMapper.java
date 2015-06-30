@@ -309,7 +309,7 @@ public class FloatFieldMapper extends NumberFieldMapper {
         }
 
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            CustomFloatNumericField field = new CustomFloatNumericField(this, value, fieldType());
+            CustomFloatNumericField field = new CustomFloatNumericField(value, fieldType());
             field.setBoost(boost);
             fields.add(field);
         }
@@ -355,18 +355,15 @@ public class FloatFieldMapper extends NumberFieldMapper {
 
         private final float number;
 
-        private final NumberFieldMapper mapper;
-
-        public CustomFloatNumericField(NumberFieldMapper mapper, float number, NumberFieldType fieldType) {
-            super(mapper, number, fieldType);
-            this.mapper = mapper;
+        public CustomFloatNumericField(float number, NumberFieldType fieldType) {
+            super(number, fieldType);
             this.number = number;
         }
 
         @Override
         public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) throws IOException {
             if (fieldType().indexOptions() != IndexOptions.NONE) {
-                return mapper.popCachedStream().setFloatValue(number);
+                return getCachedStream().setFloatValue(number);
             }
             return null;
         }

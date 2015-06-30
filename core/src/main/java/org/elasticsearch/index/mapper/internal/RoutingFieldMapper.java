@@ -23,7 +23,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -35,7 +34,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.RootMapper;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
@@ -49,7 +48,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 /**
  *
  */
-public class RoutingFieldMapper extends AbstractFieldMapper implements RootMapper {
+public class RoutingFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_routing";
     public static final String CONTENT_TYPE = "_routing";
@@ -74,7 +73,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper implements RootMappe
         public static final String PATH = null;
     }
 
-    public static class Builder extends AbstractFieldMapper.Builder<Builder, RoutingFieldMapper> {
+    public static class Builder extends MetadataFieldMapper.Builder<Builder, RoutingFieldMapper> {
 
         private boolean required = Defaults.REQUIRED;
 

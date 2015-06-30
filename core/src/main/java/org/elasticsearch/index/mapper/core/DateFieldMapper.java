@@ -502,7 +502,7 @@ public class DateFieldMapper extends NumberFieldMapper {
 
         if (value != null) {
             if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-                CustomLongNumericField field = new CustomLongNumericField(this, value, fieldType());
+                CustomLongNumericField field = new CustomLongNumericField(value, fieldType());
                 field.setBoost(boost);
                 fields.add(field);
             }

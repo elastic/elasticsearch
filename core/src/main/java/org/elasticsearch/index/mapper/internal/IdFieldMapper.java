@@ -47,7 +47,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.RootMapper;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -63,7 +63,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 /**
  * 
  */
-public class IdFieldMapper extends AbstractFieldMapper implements RootMapper {
+public class IdFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_id";
 
@@ -87,7 +87,7 @@ public class IdFieldMapper extends AbstractFieldMapper implements RootMapper {
         public static final String PATH = null;
     }
 
-    public static class Builder extends AbstractFieldMapper.Builder<Builder, IdFieldMapper> {
+    public static class Builder extends MetadataFieldMapper.Builder<Builder, IdFieldMapper> {
 
         private String path = Defaults.PATH;
 

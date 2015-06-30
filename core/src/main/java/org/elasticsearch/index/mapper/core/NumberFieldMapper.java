@@ -184,41 +184,6 @@ public abstract class NumberFieldMapper extends AbstractFieldMapper implements A
      * otherwise for older indexes we must continue to write BINARY (for now)
      */
     protected final boolean useSortedNumericDocValues;
-    
-    private ThreadLocal<NumericTokenStream> tokenStream = new ThreadLocal<NumericTokenStream>() {
-        @Override
-        protected NumericTokenStream initialValue() {
-            return new NumericTokenStream(fieldType().numericPrecisionStep());
-        }
-    };
-
-    private static ThreadLocal<NumericTokenStream> tokenStream4 = new ThreadLocal<NumericTokenStream>() {
-        @Override
-        protected NumericTokenStream initialValue() {
-            return new NumericTokenStream(4);
-        }
-    };
-
-    private static ThreadLocal<NumericTokenStream> tokenStream8 = new ThreadLocal<NumericTokenStream>() {
-        @Override
-        protected NumericTokenStream initialValue() {
-            return new NumericTokenStream(8);
-        }
-    };
-    
-    private static ThreadLocal<NumericTokenStream> tokenStream16 = new ThreadLocal<NumericTokenStream>() {
-        @Override
-        protected NumericTokenStream initialValue() {
-            return new NumericTokenStream(16);
-        }
-    };
-
-    private static ThreadLocal<NumericTokenStream> tokenStreamMax = new ThreadLocal<NumericTokenStream>() {
-        @Override
-        protected NumericTokenStream initialValue() {
-            return new NumericTokenStream(Integer.MAX_VALUE);
-        }
-    };
 
     protected NumberFieldMapper(MappedFieldType fieldType, Boolean docValues,
                                 Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, @Nullable Settings fieldDataSettings, Settings indexSettings,
@@ -335,30 +300,62 @@ public abstract class NumberFieldMapper extends AbstractFieldMapper implements A
         }
     }
 
-    protected NumericTokenStream popCachedStream() {
-        if (fieldType().numericPrecisionStep() == 4) {
-            return tokenStream4.get();
-        } else if (fieldType().numericPrecisionStep() == 8) {
-            return tokenStream8.get();
-        } else if (fieldType().numericPrecisionStep() == 16) {
-            return tokenStream16.get();
-        } else if (fieldType().numericPrecisionStep() == Integer.MAX_VALUE) {
-            return tokenStreamMax.get();
-        }
-        return tokenStream.get();
-    }
-
     // used to we can use a numeric field in a document that is then parsed twice!
     public abstract static class CustomNumericField extends Field {
 
-        protected final NumberFieldMapper mapper;
+        private ThreadLocal<NumericTokenStream> tokenStream = new ThreadLocal<NumericTokenStream>() {
+            @Override
+            protected NumericTokenStream initialValue() {
+                return new NumericTokenStream(fieldType().numericPrecisionStep());
+            }
+        };
 
-        public CustomNumericField(NumberFieldMapper mapper, Number value, MappedFieldType fieldType) {
-            super(mapper.fieldType().names().indexName(), fieldType);
-            this.mapper = mapper;
+        private static ThreadLocal<NumericTokenStream> tokenStream4 = new ThreadLocal<NumericTokenStream>() {
+            @Override
+            protected NumericTokenStream initialValue() {
+                return new NumericTokenStream(4);
+            }
+        };
+
+        private static ThreadLocal<NumericTokenStream> tokenStream8 = new ThreadLocal<NumericTokenStream>() {
+            @Override
+            protected NumericTokenStream initialValue() {
+                return new NumericTokenStream(8);
+            }
+        };
+
+        private static ThreadLocal<NumericTokenStream> tokenStream16 = new ThreadLocal<NumericTokenStream>() {
+            @Override
+            protected NumericTokenStream initialValue() {
+                return new NumericTokenStream(16);
+            }
+        };
+
+        private static ThreadLocal<NumericTokenStream> tokenStreamMax = new ThreadLocal<NumericTokenStream>() {
+            @Override
+            protected NumericTokenStream initialValue() {
+                return new NumericTokenStream(Integer.MAX_VALUE);
+            }
+        };
+
+        public CustomNumericField(Number value, MappedFieldType fieldType) {
+            super(fieldType.names().indexName(), fieldType);
             if (value != null) {
                 this.fieldsData = value;
             }
+        }
+
+        protected NumericTokenStream getCachedStream() {
+            if (fieldType().numericPrecisionStep() == 4) {
+                return tokenStream4.get();
+            } else if (fieldType().numericPrecisionStep() == 8) {
+                return tokenStream8.get();
+            } else if (fieldType().numericPrecisionStep() == 16) {
+                return tokenStream16.get();
+            } else if (fieldType().numericPrecisionStep() == Integer.MAX_VALUE) {
+                return tokenStreamMax.get();
+            }
+            return tokenStream.get();
         }
 
         @Override

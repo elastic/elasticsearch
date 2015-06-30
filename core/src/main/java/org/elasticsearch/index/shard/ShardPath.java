@@ -18,10 +18,12 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
@@ -88,7 +90,7 @@ public final class ShardPath {
         for (Path path : paths) {
             ShardStateMetaData load = ShardStateMetaData.FORMAT.loadLatestState(logger, path);
             if (load != null) {
-                if ((load.indexUUID.equals(indexUUID) || IndexMetaData.INDEX_UUID_NA_VALUE.equals(load.indexUUID)) == false) {
+                if (load.indexUUID.equals(indexUUID) == false && IndexMetaData.INDEX_UUID_NA_VALUE.equals(load.indexUUID) == false) {
                     logger.warn("{} found shard on path: [{}] with a different index UUID - this shard seems to be leftover from a different index with the same name. Remove the leftover shard in order to reuse the path with the current index", shardId, path);
                     throw new IllegalStateException(shardId + " index UUID in shard state was: " + load.indexUUID + " expected: " + indexUUID + " on shard path: " + path);
                 }
@@ -112,6 +114,26 @@ public final class ShardPath {
             }
             logger.debug("{} loaded data path [{}], state path [{}]", shardId, dataPath, statePath);
             return new ShardPath(dataPath, statePath, indexUUID, shardId);
+        }
+    }
+
+    /**
+     * This method tries to delete left-over shards where the index name has been reused but the UUID is different
+     * to allow the new shard to be allocated.
+     */
+    public static void deleteLeftoverShardDirectory(ESLogger logger, NodeEnvironment env, ShardLock lock, @IndexSettings Settings indexSettings) throws IOException {
+        final String indexUUID = indexSettings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
+        final Path[] paths = env.availableShardPaths(lock.getShardId());
+        for (Path path : paths) {
+            ShardStateMetaData load = ShardStateMetaData.FORMAT.loadLatestState(logger, path);
+            if (load != null) {
+                if (load.indexUUID.equals(indexUUID) == false && IndexMetaData.INDEX_UUID_NA_VALUE.equals(load.indexUUID) == false) {
+                    logger.warn("{} deleting leftover shard on path: [{}] with a different index UUID", lock.getShardId(), path);
+                    assert Files.isDirectory(path) : path + " is not a directory";
+                    NodeEnvironment.acquireFSLockForPaths(indexSettings, paths);
+                    IOUtils.rm(path);
+                }
+            }
         }
     }
 

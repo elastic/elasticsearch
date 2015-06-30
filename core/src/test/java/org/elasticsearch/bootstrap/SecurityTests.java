@@ -184,7 +184,10 @@ public class SecurityTests extends ElasticsearchTestCase {
     public void testUnsafeAccess() throws Exception {
         assumeTrue("test requires security manager", System.getSecurityManager() != null);
         try {
-            Class.forName("sun.misc.Unsafe");
+            // class could be legitimately loaded, so we might not fail until setAccessible
+            Class.forName("sun.misc.Unsafe")
+                 .getDeclaredField("theUnsafe")
+                 .setAccessible(true);
             fail("didn't get expected exception");
         } catch (SecurityException expected) {
             // ok

@@ -15,7 +15,7 @@ and more.
 
 Installing plugins can either be done manually by placing them under the
 `plugins` directory, or using the `plugin` script. Several plugins can
-be found under the https://github.com/elasticsearch[elasticsearch]
+be found under the https://github.com/elastic/elasticsearch[elasticsearch]
 organization in GitHub, starting with `elasticsearch-`.
 
 Installing plugins typically take the following form:

@@ -83,6 +83,10 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
         clusterService.remove(this);
     }
 
+    public AllocationService getAllocationService() {
+        return this.allocationService;
+    }
+
     /**
      * Initiates a reroute.
      */

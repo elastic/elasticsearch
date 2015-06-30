@@ -20,7 +20,6 @@
 package org.elasticsearch.node.internal;
 
 import org.apache.lucene.codecs.Codec;
-
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -39,7 +38,6 @@ import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.routing.RoutingService;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.Lifecycle;
@@ -243,7 +241,7 @@ public final class InternalNode implements Node {
         logger.info("starting ...");
 
         // hack around dependency injection problem (for now...)
-        injector.getInstance(Discovery.class).setAllocationService(injector.getInstance(AllocationService.class));
+        injector.getInstance(Discovery.class).setRoutingService(injector.getInstance(RoutingService.class));
 
         for (Class<? extends LifecycleComponent> plugin : pluginsService.services()) {
             injector.getInstance(plugin).start();

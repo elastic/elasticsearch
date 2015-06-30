@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.cluster.settings.ClusterDynamicSettings;
@@ -98,7 +98,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     private final TransportService transportService;
     private final ClusterService clusterService;
-    private AllocationService allocationService;
+    private RoutingService routingService;
     private final ClusterName clusterName;
     private final DiscoveryNodeService discoveryNodeService;
     private final DiscoverySettings discoverySettings;
@@ -224,8 +224,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     @Override
-    public void setAllocationService(AllocationService allocationService) {
-        this.allocationService = allocationService;
+    public void setRoutingService(RoutingService routingService) {
+        this.routingService = routingService;
     }
 
     @Override
@@ -384,7 +384,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     currentState = ClusterState.builder(currentState).nodes(builder).blocks(clusterBlocks).build();
 
                     // eagerly run reroute to remove dead nodes from routing table
-                    RoutingAllocation.Result result = allocationService.reroute(currentState);
+                    RoutingAllocation.Result result = routingService.getAllocationService().reroute(currentState);
                     return ClusterState.builder(currentState).routingResult(result).build();
                 }
 
@@ -517,7 +517,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         return rejoin(currentState, "not enough master nodes");
                     }
                     // eagerly run reroute to remove dead nodes from routing table
-                    RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(currentState).build());
+                    RoutingAllocation.Result routingResult = routingService.getAllocationService().reroute(ClusterState.builder(currentState).build());
                     return ClusterState.builder(currentState).routingResult(routingResult).build();
                 }
 
@@ -560,7 +560,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     return rejoin(currentState, "not enough master nodes");
                 }
                 // eagerly run reroute to remove dead nodes from routing table
-                RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(currentState).build());
+                RoutingAllocation.Result routingResult = routingService.getAllocationService().reroute(ClusterState.builder(currentState).build());
                 return ClusterState.builder(currentState).routingResult(routingResult).build();
             }
 
@@ -920,6 +920,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             clusterService.submitStateUpdateTask("zen-disco-receive(join from node[" + node + "])", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
 
                 private final List<Tuple<DiscoveryNode, MembershipAction.JoinCallback>> drainedJoinRequests = new ArrayList<>();
+                private boolean nodeAdded = false;
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -928,14 +929,13 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         return currentState;
                     }
 
-                    boolean modified = false;
                     DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentState.nodes());
                     for (Tuple<DiscoveryNode, MembershipAction.JoinCallback> task : drainedJoinRequests) {
                         DiscoveryNode node = task.v1();
                         if (currentState.nodes().nodeExists(node.id())) {
                             logger.debug("received a join request for an existing node [{}]", node);
                         } else {
-                            modified = true;
+                            nodeAdded = true;
                             nodesBuilder.put(node);
                             for (DiscoveryNode existingNode : currentState.nodes()) {
                                 if (node.address().equals(existingNode.address())) {
@@ -947,12 +947,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     }
 
                     ClusterState.Builder stateBuilder = ClusterState.builder(currentState);
-                    if (modified) {
+                    if (nodeAdded) {
                         stateBuilder.nodes(nodesBuilder);
                     }
                     currentState = stateBuilder.build();
                     // eagerly run reroute to apply the node addition
-                    RoutingAllocation.Result result = allocationService.reroute(currentState);
+                    RoutingAllocation.Result result = routingService.getAllocationService().reroute(currentState);
                     return ClusterState.builder(currentState).routingResult(result).build();
                 }
 
@@ -982,6 +982,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    if (nodeAdded) {
+                        // we reroute not in the same cluster state update since in certain areas we rely on
+                        // the node to be in the cluster state (sampled from ClusterService#state) to be there, also
+                        // shard transitions need to better be handled in such cases
+                        routingService.reroute("post_node_add");
+                    }
                     for (Tuple<DiscoveryNode, MembershipAction.JoinCallback> drainedTask : drainedJoinRequests) {
                         try {
                             drainedTask.v2().onSuccess();

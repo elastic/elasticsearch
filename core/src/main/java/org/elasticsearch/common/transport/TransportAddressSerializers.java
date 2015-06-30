@@ -42,41 +42,32 @@ public abstract class TransportAddressSerializers {
 
     private static final ESLogger logger = Loggers.getLogger(TransportAddressSerializers.class);
 
-    private static ImmutableMap<Short, Constructor<? extends TransportAddress>> addressConstructors = ImmutableMap.of();
+    private static ImmutableMap<Short, TransportAddress> ADDRESS_REGISTRY = ImmutableMap.of();
 
     static {
         try {
             addAddressType(DummyTransportAddress.INSTANCE);
-            addAddressType(new InetSocketTransportAddress());
-            addAddressType(new LocalTransportAddress());
+            addAddressType(InetSocketTransportAddress.PROTO);
+            addAddressType(LocalTransportAddress.PROTO);
         } catch (Exception e) {
             logger.warn("Failed to add InetSocketTransportAddress", e);
         }
     }
 
     public static synchronized void addAddressType(TransportAddress address) throws Exception {
-        if (addressConstructors.containsKey(address.uniqueAddressTypeId())) {
+        if (ADDRESS_REGISTRY.containsKey(address.uniqueAddressTypeId())) {
             throw new IllegalStateException("Address [" + address.uniqueAddressTypeId() + "] already bound");
         }
-        Constructor<? extends TransportAddress> constructor = address.getClass().getDeclaredConstructor();
-        constructor.setAccessible(true);
-        addressConstructors = newMapBuilder(addressConstructors).put(address.uniqueAddressTypeId(), constructor).immutableMap();
+        ADDRESS_REGISTRY = newMapBuilder(ADDRESS_REGISTRY).put(address.uniqueAddressTypeId(), address).immutableMap();
     }
 
     public static TransportAddress addressFromStream(StreamInput input) throws IOException {
         short addressUniqueId = input.readShort();
-        Constructor<? extends TransportAddress> constructor = addressConstructors.get(addressUniqueId);
-        if (constructor == null) {
+        TransportAddress addressType = ADDRESS_REGISTRY.get(addressUniqueId);
+        if (addressType == null) {
             throw new IOException("No transport address mapped to [" + addressUniqueId + "]");
         }
-        TransportAddress address;
-        try {
-            address = constructor.newInstance();
-        } catch (Exception e) {
-            throw new IOException("Failed to create class with constructor [" + constructor + "]", e);
-        }
-        address.readFrom(input);
-        return address;
+        return addressType.readFrom(input);
     }
 
     public static void addressToStream(StreamOutput out, TransportAddress address) throws IOException {

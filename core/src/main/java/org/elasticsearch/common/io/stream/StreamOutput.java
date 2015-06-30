@@ -26,7 +26,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.bootstrap.Elasticsearch;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
@@ -34,7 +33,6 @@ import org.joda.time.ReadableInstant;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.util.Date;
 import java.util.LinkedHashMap;
@@ -478,7 +476,7 @@ public abstract class StreamOutput extends OutputStream {
                 if (throwable instanceof ElasticsearchException) {
                     ex = (ElasticsearchException) throwable;
                 } else {
-                    ex = new StreamInput.NamedException(ElasticsearchException.getExceptionName(throwable), throwable.getMessage(), throwable.getCause());
+                    ex = new NotSerializableExceptionWrapper(throwable);
                 }
                 writeVInt(0);
                 writeString(ex.getClass().getName());

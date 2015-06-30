@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.watcher.transform.script;
 
-import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.ImmutableList;
-import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.settings.Settings;

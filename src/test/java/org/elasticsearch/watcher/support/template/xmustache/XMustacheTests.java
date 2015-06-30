@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.watcher.support.template.xmustache;
 
-import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableList;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import org.elasticsearch.common.bytes.BytesReference;

@@ -179,6 +179,9 @@ public class Bootstrap {
         // install any plugins into classpath
         setupPlugins(environment);
         
+        // look for jar hell
+        JarHell.checkJarHell();
+        
         // install SM after natives, shutdown hooks, etc.
         setupSecurity(settings, environment);
 
@@ -375,7 +378,8 @@ public class Bootstrap {
             return;
         }
 
-        ClassLoader classLoader = ClassLoader.getSystemClassLoader();
+        // note: there's only one classloader here, but Uwe gets upset otherwise.
+        ClassLoader classLoader = Bootstrap.class.getClassLoader();
         Class<?> classLoaderClass = classLoader.getClass();
         Method addURL = null;
         while (!classLoaderClass.equals(Object.class)) {

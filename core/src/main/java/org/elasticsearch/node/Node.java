@@ -234,7 +234,7 @@ public class Node implements Releasable {
         logger.info("starting ...");
 
         // hack around dependency injection problem (for now...)
-        injector.getInstance(Discovery.class).setAllocationService(injector.getInstance(AllocationService.class));
+        injector.getInstance(Discovery.class).setRoutingService(injector.getInstance(RoutingService.class));
 
         for (Class<? extends LifecycleComponent> plugin : pluginsService.services()) {
             injector.getInstance(plugin).start();

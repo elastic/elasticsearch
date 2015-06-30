@@ -27,6 +27,7 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -292,7 +293,11 @@ public class ElasticsearchExceptionTests extends ElasticsearchTestCase {
             } else {
                 assertEquals(ex.getCause().getClass().getName(), e.getCause().getMessage(), ex.getCause().getMessage());
             }
-            assertEquals(e.getCause().getClass(), e.getCause().getClass());
+            if (ex.getCause().getClass() != Throwable.class) { // throwable is not directly mapped
+                assertEquals(e.getCause().getClass(), ex.getCause().getClass());
+            } else {
+                assertEquals(e.getCause().getClass(), NotSerializableExceptionWrapper.class);
+            }
             assertArrayEquals(e.getStackTrace(), ex.getStackTrace());
             assertTrue(e.getStackTrace().length > 1);
             ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersion(getRandom()), t);
@@ -300,5 +305,4 @@ public class ElasticsearchExceptionTests extends ElasticsearchTestCase {
             ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersion(getRandom()), e);
         }
     }
-
 }

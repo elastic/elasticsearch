@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.authz.indicesresolver;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.search.MultiSearchResponse;
@@ -16,7 +17,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.shield.authz.AuthorizationException;
 import org.elasticsearch.test.ShieldIntegrationTest;
 import org.elasticsearch.test.ShieldSettingsSource;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -24,7 +24,7 @@ import java.util.List;
 
 import static org.hamcrest.CoreMatchers.*;
 
-@TestLogging("cluster.routing.allocation:TRACE")
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-shield/issues/947")
 public class IndicesResolverIntegrationTests extends ShieldIntegrationTest {
 
     @Override

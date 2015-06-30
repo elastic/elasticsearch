@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.authz;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
@@ -21,6 +22,7 @@ import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basic
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.*;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-shield/issues/947")
 public class IndexAliasesTests extends ShieldIntegrationTest {
 
     protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString("test123".toCharArray())));

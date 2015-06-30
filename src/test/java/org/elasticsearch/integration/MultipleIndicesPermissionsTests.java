@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.integration;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -26,6 +27,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.is;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-shield/issues/947")
 public class MultipleIndicesPermissionsTests extends ShieldIntegrationTest {
 
     protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString("passwd".toCharArray())));

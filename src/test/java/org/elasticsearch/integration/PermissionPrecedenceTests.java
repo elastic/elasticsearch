@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.integration;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.client.Client;
@@ -30,6 +31,7 @@ import static org.hamcrest.Matchers.hasSize;
  * actions that are normally categorized as index actions as cluster actions - for example,
  * index template actions.
  */
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-shield/issues/947")
 public class PermissionPrecedenceTests extends ShieldIntegrationTest {
 
     protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString("test123".toCharArray())));

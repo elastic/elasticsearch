@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.integration;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.ClearScrollResponse;
@@ -27,6 +28,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThro
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-shield/issues/947")
 public class ShieldClearScrollTests extends ShieldIntegrationTest {
 
     protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString("change_me".toCharArray())));

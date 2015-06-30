@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.authz;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.ShieldIntegrationTest;
@@ -14,6 +15,7 @@ import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.BASIC
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.CoreMatchers.containsString;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-shield/issues/947")
 public class AnalyzeTests extends ShieldIntegrationTest {
 
     protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString("test123".toCharArray())));

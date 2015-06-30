@@ -4,7 +4,7 @@
     "methods": ["PUT", "POST"],
     "url": {
       "path": "/_snapshot/{repository}/{snapshot}",
-      "paths": ["/_snapshot/{repository}/{snapshot}", "/_snapshot/{repository}/{snapshot}/_create"],
+      "paths": ["/_snapshot/{repository}/{snapshot}"],
       "parts": {
         "repository": {
           "type": "string",

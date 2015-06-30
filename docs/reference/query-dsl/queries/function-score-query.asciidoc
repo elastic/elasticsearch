@@ -103,7 +103,7 @@ The `function_score` query provides several types of score functions:
 
 * <<function-script-score,`script_score`>>
 * <<function-weight,`weight`>>
-* <<function-random,`random_score>>
+* <<function-random,`random_score`>>
 * <<function-field-value-factor,`field_value_factor`>>
 * <<function-decay,decay functions>>: `gauss`, `linear`, `exp`
 

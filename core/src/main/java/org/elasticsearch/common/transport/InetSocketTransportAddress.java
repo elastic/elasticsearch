@@ -42,10 +42,31 @@ public class InetSocketTransportAddress implements TransportAddress {
         return resolveAddress;
     }
 
-    private InetSocketAddress address;
+    public static final InetSocketTransportAddress PROTO = new InetSocketTransportAddress();
 
-    InetSocketTransportAddress() {
+    private final InetSocketAddress address;
 
+    public InetSocketTransportAddress(StreamInput in) throws IOException {
+        if (in.readByte() == 0) {
+            int len = in.readByte();
+            byte[] a = new byte[len]; // 4 bytes (IPv4) or 16 bytes (IPv6)
+            in.readFully(a);
+            InetAddress inetAddress;
+            if (len == 16) {
+                int scope_id = in.readInt();
+                inetAddress = Inet6Address.getByAddress(null, a, scope_id);
+            } else {
+                inetAddress = InetAddress.getByAddress(a);
+            }
+            int port = in.readInt();
+            this.address = new InetSocketAddress(inetAddress, port);
+        } else {
+            this.address = new InetSocketAddress(in.readString(), in.readInt());
+        }
+    }
+
+    private InetSocketTransportAddress() {
+        address = null;
     }
 
     public InetSocketTransportAddress(String hostname, int port) {
@@ -76,23 +97,8 @@ public class InetSocketTransportAddress implements TransportAddress {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        if (in.readByte() == 0) {
-            int len = in.readByte();
-            byte[] a = new byte[len]; // 4 bytes (IPv4) or 16 bytes (IPv6)
-            in.readFully(a);
-            InetAddress inetAddress;
-            if (len == 16) {
-                int scope_id = in.readInt();
-                inetAddress = Inet6Address.getByAddress(null, a, scope_id);
-            } else {
-                inetAddress = InetAddress.getByAddress(a);
-            }
-            int port = in.readInt();
-            this.address = new InetSocketAddress(inetAddress, port);
-        } else {
-            this.address = new InetSocketAddress(in.readString(), in.readInt());
-        }
+    public TransportAddress readFrom(StreamInput in) throws IOException {
+        return new InetSocketTransportAddress(in);
     }
 
     @Override

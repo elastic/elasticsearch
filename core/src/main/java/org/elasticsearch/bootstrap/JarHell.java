@@ -37,6 +37,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
+import java.util.jar.Manifest;
 
 /** Simple check for duplicate class files across the classpath */
 class JarHell {
@@ -60,6 +61,27 @@ class JarHell {
                     continue; // we can't fail because of sheistiness with joda-time
                 }
                 try (JarFile file = new JarFile(url.getPath())) {
+                    Manifest manifest = file.getManifest();
+                    if (manifest != null) {
+                        // inspect Manifest: give a nice error if jar requires a newer java version
+                        String systemVersion = System.getProperty("java.specification.version");
+                        String targetVersion = manifest.getMainAttributes().getValue("X-Compile-Target-JDK");
+                        if (targetVersion != null) {
+                            float current = Float.POSITIVE_INFINITY;
+                            float target = Float.NEGATIVE_INFINITY;
+                            try {
+                                current = Float.parseFloat(systemVersion);
+                                target = Float.parseFloat(targetVersion);
+                            } catch (NumberFormatException e) {
+                                // some spec changed, time for a more complex parser
+                            }
+                            if (current < target) {
+                                throw new IllegalStateException(path + " requires Java " + targetVersion
+                                        + ", your system: " + systemVersion);
+                            }
+                        }
+                    }
+                    // inspect entries
                     Enumeration<JarEntry> elements = file.entries();
                     while (elements.hasMoreElements()) {
                         String entry = elements.nextElement().getName();

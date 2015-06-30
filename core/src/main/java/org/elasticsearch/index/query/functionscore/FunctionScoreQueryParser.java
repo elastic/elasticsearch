@@ -37,11 +37,7 @@ import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryParser;
-import org.elasticsearch.index.query.QueryParsingException;
-import org.elasticsearch.index.query.QueryWrappingQueryBuilder;
+import org.elasticsearch.index.query.*;
 import org.elasticsearch.index.query.functionscore.factor.FactorParser;
 
 import java.io.IOException;
@@ -89,7 +85,8 @@ public class FunctionScoreQueryParser implements QueryParser {
 
         Query query = null;
         Query filter = null;
-        float boost = 1.0f;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+        String queryName = null;
 
         FiltersFunctionScoreQuery.ScoreMode scoreMode = FiltersFunctionScoreQuery.ScoreMode.Multiply;
         ArrayList<FiltersFunctionScoreQuery.FilterFunction> filterFunctions = new ArrayList<>();
@@ -119,6 +116,8 @@ public class FunctionScoreQueryParser implements QueryParser {
                 maxBoost = parser.floatValue();
             } else if ("boost".equals(currentFieldName)) {
                 boost = parser.floatValue();
+            } else if ("_name".equals(currentFieldName)) {
+                queryName = parser.text();
             } else if ("min_score".equals(currentFieldName) || "minScore".equals(currentFieldName)) {
                 minScore = parser.floatValue();
             } else if ("functions".equals(currentFieldName)) {
@@ -169,6 +168,7 @@ public class FunctionScoreQueryParser implements QueryParser {
         if (maxBoost == null) {
             maxBoost = Float.MAX_VALUE;
         }
+        Query result;
         // handle cases where only one score function and no filter was
         // provided. In this case we create a FunctionScoreQuery.
         if (filterFunctions.size() == 0 || filterFunctions.size() == 1 && (filterFunctions.get(0).filter == null || Queries.isConstantMatchAllQuery(filterFunctions.get(0).filter))) {
@@ -177,9 +177,8 @@ public class FunctionScoreQueryParser implements QueryParser {
             if (combineFunction != null) {
                 theQuery.setCombineFunction(combineFunction);
             }
-            theQuery.setBoost(boost);
             theQuery.setMaxBoost(maxBoost);
-            return theQuery;
+            result = theQuery;
             // in all other cases we create a FiltersFunctionScoreQuery.
         } else {
             FiltersFunctionScoreQuery functionScoreQuery = new FiltersFunctionScoreQuery(query, scoreMode,
@@ -187,9 +186,13 @@ public class FunctionScoreQueryParser implements QueryParser {
             if (combineFunction != null) {
                 functionScoreQuery.setCombineFunction(combineFunction);
             }
-            functionScoreQuery.setBoost(boost);
-            return functionScoreQuery;
+            result = functionScoreQuery;
         }
+        result.setBoost(boost);
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
+        }
+        return result;
     }
 
     private void handleMisplacedFunctionsDeclaration(String errorString, String functionName) {

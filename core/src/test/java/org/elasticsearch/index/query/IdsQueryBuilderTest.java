@@ -34,8 +34,6 @@ import org.junit.Test;
 import java.io.IOException;
 import java.util.Collection;
 
-import static org.hamcrest.Matchers.equalTo;
-
 public class IdsQueryBuilderTest extends BaseQueryTestCase<IdsQueryBuilder> {
 
     /**
@@ -53,7 +51,7 @@ public class IdsQueryBuilderTest extends BaseQueryTestCase<IdsQueryBuilder> {
     }
 
     @Override
-    protected Query createExpectedQuery(IdsQueryBuilder queryBuilder, QueryParseContext context) throws IOException {
+    protected Query doCreateExpectedQuery(IdsQueryBuilder queryBuilder, QueryParseContext context) throws IOException {
         Query expectedQuery;
         if (queryBuilder.ids().size() == 0) {
             expectedQuery = Queries.newMatchNoDocsQuery();
@@ -69,20 +67,11 @@ public class IdsQueryBuilderTest extends BaseQueryTestCase<IdsQueryBuilder> {
             }
             expectedQuery = new TermsQuery(UidFieldMapper.NAME, Uid.createUidsForTypesAndIds(Sets.newHashSet(typesForQuery), queryBuilder.ids()));
         }
-        expectedQuery.setBoost(queryBuilder.boost());
         return expectedQuery;
     }
 
     @Override
-    protected void assertLuceneQuery(IdsQueryBuilder queryBuilder, Query query, QueryParseContext context) {
-        if (queryBuilder.queryName() != null) {
-            Query namedQuery = context.copyNamedFilters().get(queryBuilder.queryName());
-            assertThat(namedQuery, equalTo(query));
-        }
-    }
-
-    @Override
-    protected IdsQueryBuilder createTestQueryBuilder() {
+    protected IdsQueryBuilder doCreateTestQueryBuilder() {
         String[] types;
         if (getCurrentTypes().length > 0 && randomBoolean()) {
             int numberOfTypes = randomIntBetween(1, getCurrentTypes().length);
@@ -113,12 +102,6 @@ public class IdsQueryBuilderTest extends BaseQueryTestCase<IdsQueryBuilder> {
         } else {
             query = new IdsQueryBuilder();
             query.addIds(ids);
-        }
-        if (randomBoolean()) {
-            query.boost(2.0f / randomIntBetween(1, 20));
-        }
-        if (randomBoolean()) {
-            query.queryName(randomAsciiOfLengthBetween(1, 10));
         }
         return query;
     }

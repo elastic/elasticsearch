@@ -51,7 +51,7 @@ public class RangeQueryParser extends BaseQueryParser {
         boolean includeLower = RangeQueryBuilder.DEFAULT_INCLUDE_LOWER;
         boolean includeUpper = RangeQueryBuilder.DEFAULT_INCLUDE_UPPER;
         String timeZone = null;
-        float boost = 1.0f;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
         String format = null;
 
@@ -94,6 +94,8 @@ public class RangeQueryParser extends BaseQueryParser {
                             timeZone = parser.text();
                         } else if ("format".equals(currentFieldName)) {
                             format = parser.text();
+                        } else if ("_name".equals(currentFieldName)) {
+                            queryName = parser.text();
                         } else {
                             throw new QueryParsingException(parseContext, "[range] query does not support [" + currentFieldName + "]");
                         }

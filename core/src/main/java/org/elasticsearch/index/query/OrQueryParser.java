@@ -46,6 +46,7 @@ public class OrQueryParser extends BaseQueryParser {
         final ArrayList<QueryBuilder> queries = newArrayList();
         boolean queriesFound = false;
 
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
         String currentFieldName = null;
         XContentParser.Token token = parser.currentToken();
@@ -82,6 +83,8 @@ public class OrQueryParser extends BaseQueryParser {
                 } else if (token.isValue()) {
                     if ("_name".equals(currentFieldName)) {
                         queryName = parser.text();
+                    } else if ("boost".equals(currentFieldName)) {
+                        boost = parser.floatValue();
                     } else {
                         throw new QueryParsingException(parseContext, "[or] query does not support [" + currentFieldName + "]");
                     }
@@ -98,6 +101,7 @@ public class OrQueryParser extends BaseQueryParser {
             orQuery.add(query);
         }
         orQuery.queryName(queryName);
+        orQuery.boost(boost);
         return orQuery;
     }
 

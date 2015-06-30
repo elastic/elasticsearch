@@ -27,15 +27,13 @@ import java.io.IOException;
 /**
  * A Query that does fuzzy matching for a specific value.
  */
-public class FuzzyQueryBuilder extends MultiTermQueryBuilder implements BoostableQueryBuilder<FuzzyQueryBuilder> {
+public class FuzzyQueryBuilder extends MultiTermQueryBuilder {
 
     public static final String NAME = "fuzzy";
 
     private final String name;
 
     private final Object value;
-
-    private float boost = -1;
 
     private Fuzziness fuzziness;
 
@@ -48,8 +46,6 @@ public class FuzzyQueryBuilder extends MultiTermQueryBuilder implements Boostabl
 
     private String rewrite;
 
-    private String queryName;
-
     static final FuzzyQueryBuilder PROTOTYPE = new FuzzyQueryBuilder(null, null);
 
     /**
@@ -61,16 +57,6 @@ public class FuzzyQueryBuilder extends MultiTermQueryBuilder implements Boostabl
     public FuzzyQueryBuilder(String name, Object value) {
         this.name = name;
         this.value = value;
-    }
-
-    /**
-     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
-     * weightings) have their score multiplied by the boost provided.
-     */
-    @Override
-    public FuzzyQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
     }
 
     public FuzzyQueryBuilder fuzziness(Fuzziness fuzziness) {
@@ -98,22 +84,11 @@ public class FuzzyQueryBuilder extends MultiTermQueryBuilder implements Boostabl
         return this;
     }
 
-    /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public FuzzyQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
-    }
-
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.startObject(name);
         builder.field("value", value);
-        if (boost != -1) {
-            builder.field("boost", boost);
-        }
         if (transpositions != null) {
             builder.field("transpositions", transpositions);
         }
@@ -129,9 +104,7 @@ public class FuzzyQueryBuilder extends MultiTermQueryBuilder implements Boostabl
         if (rewrite != null) {
             builder.field("rewrite", rewrite);
         }
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        printBoostAndQueryName(builder);
         builder.endObject();
         builder.endObject();
     }

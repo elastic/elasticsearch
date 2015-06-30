@@ -41,8 +41,6 @@ public class FQueryFilterBuilder extends AbstractQueryBuilder<FQueryFilterBuilde
 
     static final FQueryFilterBuilder PROTOTYPE = new FQueryFilterBuilder(null);
 
-    private String queryName;
-
     private final QueryBuilder queryBuilder;
 
     /**
@@ -61,33 +59,16 @@ public class FQueryFilterBuilder extends AbstractQueryBuilder<FQueryFilterBuilde
         return this.queryBuilder;
     }
 
-    /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public FQueryFilterBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
-    }
-
-    /**
-     * @return the query name for the filter that can be used when searching for matched_filters per hit
-     */
-    public String queryName() {
-        return this.queryName;
-    }
-
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(FQueryFilterBuilder.NAME);
         doXContentInnerBuilder(builder, "query", queryBuilder, params);
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        printBoostAndQueryName(builder);
         builder.endObject();
     }
 
     @Override
-    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
         // inner query builder can potentially be `null`, in that case we ignore it
         if (this.queryBuilder == null) {
             return null;
@@ -96,11 +77,7 @@ public class FQueryFilterBuilder extends AbstractQueryBuilder<FQueryFilterBuilde
         if (innerQuery == null) {
             return null;
         }
-        Query query = new ConstantScoreQuery(innerQuery);
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
-        }
-        return query;
+        return new ConstantScoreQuery(innerQuery);
     }
 
     @Override
@@ -109,28 +86,25 @@ public class FQueryFilterBuilder extends AbstractQueryBuilder<FQueryFilterBuilde
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(queryBuilder, queryName);
+    protected int doHashCode() {
+        return Objects.hash(queryBuilder);
     }
 
     @Override
-    public boolean doEquals(FQueryFilterBuilder other) {
-        return Objects.equals(queryBuilder, other.queryBuilder) &&
-                Objects.equals(queryName, other.queryName);
+    protected boolean doEquals(FQueryFilterBuilder other) {
+        return Objects.equals(queryBuilder, other.queryBuilder);
     }
 
     @Override
-    public FQueryFilterBuilder readFrom(StreamInput in) throws IOException {
+    protected FQueryFilterBuilder doReadFrom(StreamInput in) throws IOException {
         QueryBuilder innerQueryBuilder = in.readNamedWriteable();
         FQueryFilterBuilder fquery = new FQueryFilterBuilder(innerQueryBuilder);
-        fquery.queryName = in.readOptionalString();
         return fquery;
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(queryBuilder);
-        out.writeOptionalString(queryName);
     }
 
     @Override

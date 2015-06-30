@@ -26,14 +26,12 @@ import java.io.IOException;
 /**
  * Builder for the 'has_parent' query.
  */
-public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBuilder> implements BoostableQueryBuilder<HasParentQueryBuilder> {
+public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBuilder> {
 
     public static final String NAME = "has_parent";
     private final QueryBuilder queryBuilder;
     private final String parentType;
     private String scoreType;
-    private float boost = 1.0f;
-    private String queryName;
     private QueryInnerHitBuilder innerHit = null;
     static final HasParentQueryBuilder PROTOTYPE = new HasParentQueryBuilder(null, null);
 
@@ -46,25 +44,11 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         this.queryBuilder = parentQuery;
     }
 
-    @Override
-    public HasParentQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
-    }
-
     /**
      * Defines how the parent score is mapped into the child documents.
      */
     public HasParentQueryBuilder scoreType(String scoreType) {
         this.scoreType = scoreType;
-        return this;
-    }
-
-    /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public HasParentQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
         return this;
     }
 
@@ -85,12 +69,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         if (scoreType != null) {
             builder.field("score_type", scoreType);
         }
-        if (boost != 1.0f) {
-            builder.field("boost", boost);
-        }
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        printBoostAndQueryName(builder);
         if (innerHit != null) {
             builder.startObject("inner_hits");
             builder.value(innerHit);

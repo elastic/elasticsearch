@@ -33,7 +33,10 @@ public class MissingFieldQueryExtension implements FieldQueryExtension {
 
     @Override
     public Query query(QueryParseContext parseContext, String queryText) {
-        return new ConstantScoreQuery(MissingQueryParser.newFilter(parseContext, queryText,
-                MissingQueryParser.DEFAULT_EXISTENCE_VALUE, MissingQueryParser.DEFAULT_NULL_VALUE, null));
+        Query query = MissingQueryParser.newFilter(parseContext, queryText, MissingQueryParser.DEFAULT_EXISTENCE_VALUE, MissingQueryParser.DEFAULT_NULL_VALUE);
+        if (query != null) {
+            return new ConstantScoreQuery(query);
+        }
+        return null;
     }
 }

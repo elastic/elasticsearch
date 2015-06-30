@@ -49,7 +49,7 @@ public class IdsQueryParser extends BaseQueryParser {
         XContentParser parser = parseContext.parser();
         List<String> ids = new ArrayList<>();
         List<String> types = new ArrayList<>();
-        float boost = 1.0f;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
 
         String currentFieldName = null;

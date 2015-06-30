@@ -35,7 +35,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> {
@@ -43,7 +42,7 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
     private static final List<String> TIMEZONE_IDS = new ArrayList<>(DateTimeZone.getAvailableIDs());
 
     @Override
-    protected RangeQueryBuilder createTestQueryBuilder() {
+    protected RangeQueryBuilder doCreateTestQueryBuilder() {
         RangeQueryBuilder query;
         // switch between numeric and date ranges
         if (randomBoolean()) {
@@ -75,13 +74,6 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
         }
         query.includeLower(randomBoolean()).includeUpper(randomBoolean());
         if (randomBoolean()) {
-            query.boost(2.0f / randomIntBetween(1, 20));
-        }
-        if (randomBoolean()) {
-            query.queryName(randomAsciiOfLengthBetween(1, 10));
-        }
-
-        if (randomBoolean()) {
             query.from(null);
         }
         if (randomBoolean()) {
@@ -91,7 +83,7 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
     }
 
     @Override
-    protected Query createExpectedQuery(RangeQueryBuilder queryBuilder, QueryParseContext context) throws IOException {
+    protected Query doCreateExpectedQuery(RangeQueryBuilder queryBuilder, QueryParseContext context) throws IOException {
         Query expectedQuery;
         String fieldName = queryBuilder.fieldName();
         if (getCurrentTypes().length == 0 || (fieldName.equals(DATE_FIELD_NAME) == false && fieldName.equals(INT_FIELD_NAME) == false)) {
@@ -116,16 +108,7 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
         } else {
             throw new UnsupportedOperationException();
         }
-        expectedQuery.setBoost(queryBuilder.boost());
         return expectedQuery;
-    }
-
-    @Override
-    protected void assertLuceneQuery(RangeQueryBuilder queryBuilder, Query query, QueryParseContext context) {
-        if (queryBuilder.queryName() != null) {
-            Query namedQuery = context.copyNamedFilters().get(queryBuilder.queryName());
-            assertThat(namedQuery, equalTo(query));
-        }
     }
 
     @Test

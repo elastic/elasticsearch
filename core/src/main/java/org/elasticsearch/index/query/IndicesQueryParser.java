@@ -63,6 +63,7 @@ public class IndicesQueryParser extends BaseQueryParserTemp {
         boolean indicesFound = false;
         boolean currentIndexMatchesIndices = false;
         String queryName = null;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -114,6 +115,8 @@ public class IndicesQueryParser extends BaseQueryParserTemp {
                     }
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
+                } else if ("boost".equals(currentFieldName)) {
+                    boost = parser.floatValue();
                 } else {
                     throw new QueryParsingException(parseContext, "[indices] query does not support [" + currentFieldName + "]");
                 }
@@ -145,6 +148,7 @@ public class IndicesQueryParser extends BaseQueryParserTemp {
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, chosenQuery);
         }
+        chosenQuery.setBoost(boost);
         return chosenQuery;
     }
 

@@ -32,8 +32,6 @@ public class MissingQueryBuilder extends AbstractQueryBuilder<MissingQueryBuilde
 
     private String name;
 
-    private String queryName;
-
     private Boolean nullValue;
 
     private Boolean existence;
@@ -62,14 +60,6 @@ public class MissingQueryBuilder extends AbstractQueryBuilder<MissingQueryBuilde
         return this;
     }
 
-    /**
-     * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public MissingQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
-    }
-
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
@@ -80,9 +70,7 @@ public class MissingQueryBuilder extends AbstractQueryBuilder<MissingQueryBuilde
         if (existence != null) {
             builder.field("existence", existence);
         }
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        printBoostAndQueryName(builder);
         builder.endObject();
     }
 

@@ -37,6 +37,7 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.field("value", type);
+        printBoostAndQueryName(builder);
         builder.endObject();
     }
 

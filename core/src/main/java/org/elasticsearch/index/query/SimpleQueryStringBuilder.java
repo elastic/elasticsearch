@@ -45,7 +45,7 @@ import java.util.TreeMap;
  * "https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-simple-query-string-query.html"
  * > online documentation</a>.
  */
-public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQueryStringBuilder> implements BoostableQueryBuilder<SimpleQueryStringBuilder> {
+public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQueryStringBuilder> {
     /** Default locale used for parsing.*/
     public static final Locale DEFAULT_LOCALE = Locale.ROOT;
     /** Default for lowercasing parsed terms.*/
@@ -54,18 +54,15 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     public static final boolean DEFAULT_LENIENT = false;
     /** Default for wildcard analysis.*/
     public static final boolean DEFAULT_ANALYZE_WILDCARD = false;
-    /** Default for boost to apply to resulting Lucene query. Defaults to 1.0*/
-    public static final float DEFAULT_BOOST = 1.0f;
     /** Default for default operator to use for linking boolean clauses.*/
     public static final Operator DEFAULT_OPERATOR = Operator.OR;
     /** Default for search flags to use. */
     public static final int DEFAULT_FLAGS = SimpleQueryStringFlag.ALL.value;
     /** Name for (de-)serialization. */
     public static final String NAME = "simple_query_string";
+
     /** Query text to parse. */
     private final String queryText;
-    /** Boost to apply to resulting Lucene query. Defaults to 1.0*/
-    private float boost = DEFAULT_BOOST;
     /**
      * Fields to query against. If left empty will query default field,
      * currently _ALL. Uses a TreeMap to hold the fields so boolean clauses are
@@ -77,8 +74,6 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     private final Map<String, Float> fieldsAndWeights = new TreeMap<>();
     /** If specified, analyzer to use to parse the query text, defaults to registered default in toQuery. */
     private String analyzer;
-    /** Name of the query. Optional.*/
-    private String queryName;
     /** Default operator to use for linking boolean clauses. Defaults to OR according to docs. */
     private Operator defaultOperator = DEFAULT_OPERATOR;
     /** If result is a boolean query, minimumShouldMatch parameter to apply. Ignored otherwise. */
@@ -96,16 +91,6 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         this.queryText = queryText;
     }
 
-    @Override
-    public SimpleQueryStringBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
-    }
-
-    /** Returns the boost to apply to resulting Lucene query.*/
-    public float boost() {
-        return this.boost;
-    }
     /** Returns the text to parse the query from. */
     public String text() {
         return this.queryText;
@@ -116,7 +101,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         if (Strings.isEmpty(field)) {
             throw new IllegalArgumentException("supplied field is null or empty.");
         }
-        this.fieldsAndWeights.put(field, 1.0f);
+        this.fieldsAndWeights.put(field, AbstractQueryBuilder.DEFAULT_BOOST);
         return this;
     }
 
@@ -192,17 +177,6 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     /** For testing only: Return the flags set for this query. */
     int flags() {
         return this.flags;
-    }
-
-    /** Set the name for this query. */
-    public SimpleQueryStringBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
-    }
-
-    /** Returns the name for this query. */
-    public String queryName() {
-        return queryName;
     }
 
     /**
@@ -286,7 +260,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     }
 
     @Override
-    public Query toQuery(QueryParseContext parseContext) {
+    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
         // Use the default field (_all) if no fields specified
         if (fieldsAndWeights.isEmpty()) {
             String field = parseContext.defaultField();
@@ -309,23 +283,14 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         sqp.setDefaultOperator(defaultOperator.toBooleanClauseOccur());
 
         Query query = sqp.parse(queryText);
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
-        }
-
         if (minimumShouldMatch != null && query instanceof BooleanQuery) {
             Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
-        }
-
-        // safety check - https://github.com/elastic/elasticsearch/pull/11696#discussion-diff-32532468
-        if (query != null) {
-            query.setBoost(boost);
         }
         return query;
     }
 
     @Override
-    public void doXContent(XContentBuilder builder, Params params) throws IOException {
+    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
 
         builder.field("query", queryText);
@@ -355,15 +320,11 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         builder.field("analyze_wildcard", settings.analyzeWildcard());
         builder.field("locale", (settings.locale().toLanguageTag()));
 
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
-
         if (minimumShouldMatch != null) {
             builder.field("minimum_should_match", minimumShouldMatch);
         }
 
-        builder.field("boost", boost);
+        printBoostAndQueryName(builder);
         builder.endObject();
     }
 
@@ -373,9 +334,8 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     }
 
     @Override
-    public SimpleQueryStringBuilder readFrom(StreamInput in) throws IOException {
+    protected SimpleQueryStringBuilder doReadFrom(StreamInput in) throws IOException {
         SimpleQueryStringBuilder result = new SimpleQueryStringBuilder(in.readString());
-        result.boost = in.readFloat();
         int size = in.readInt();
         Map<String, Float> fields = new HashMap<>();
         for (int i = 0; i < size; i++) {
@@ -384,28 +344,21 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
             fields.put(field, weight);
         }
         result.fieldsAndWeights.putAll(fields);
-
         result.flags = in.readInt();
         result.analyzer = in.readOptionalString();
-
         result.defaultOperator = Operator.readOperatorFrom(in);
         result.settings.lowercaseExpandedTerms(in.readBoolean());
         result.settings.lenient(in.readBoolean());
         result.settings.analyzeWildcard(in.readBoolean());
-
         String localeStr = in.readString();
         result.settings.locale(Locale.forLanguageTag(localeStr));
-
-        result.queryName = in.readOptionalString();
         result.minimumShouldMatch = in.readOptionalString();
-
         return result;
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(queryText);
-        out.writeFloat(boost);
         out.writeInt(fieldsAndWeights.size());
         for (Map.Entry<String, Float> entry : fieldsAndWeights.entrySet()) {
             out.writeString(entry.getKey());
@@ -418,21 +371,19 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         out.writeBoolean(settings.lenient());
         out.writeBoolean(settings.analyzeWildcard());
         out.writeString(settings.locale().toLanguageTag());
-
-        out.writeOptionalString(queryName);
         out.writeOptionalString(minimumShouldMatch);
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(fieldsAndWeights, analyzer, defaultOperator, queryText, queryName, minimumShouldMatch, settings, flags);
+    protected int doHashCode() {
+        return Objects.hash(fieldsAndWeights, analyzer, defaultOperator, queryText, minimumShouldMatch, settings, flags);
     }
 
     @Override
-    public boolean doEquals(SimpleQueryStringBuilder other) {
+    protected boolean doEquals(SimpleQueryStringBuilder other) {
         return Objects.equals(fieldsAndWeights, other.fieldsAndWeights) && Objects.equals(analyzer, other.analyzer)
                 && Objects.equals(defaultOperator, other.defaultOperator) && Objects.equals(queryText, other.queryText)
-                && Objects.equals(queryName, other.queryName) && Objects.equals(minimumShouldMatch, other.minimumShouldMatch)
+                && Objects.equals(minimumShouldMatch, other.minimumShouldMatch)
                 && Objects.equals(settings, other.settings) && (flags == other.flags);
     }
 }

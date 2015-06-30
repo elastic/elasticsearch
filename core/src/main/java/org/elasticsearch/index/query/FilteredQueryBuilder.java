@@ -29,17 +29,13 @@ import java.io.IOException;
  * @deprecated Use {@link BoolQueryBuilder} instead.
  */
 @Deprecated
-public class FilteredQueryBuilder extends AbstractQueryBuilder<FilteredQueryBuilder> implements BoostableQueryBuilder<FilteredQueryBuilder> {
+public class FilteredQueryBuilder extends AbstractQueryBuilder<FilteredQueryBuilder> {
 
     public static final String NAME = "filtered";
 
     private final QueryBuilder queryBuilder;
 
     private final QueryBuilder filterBuilder;
-
-    private float boost = -1;
-
-    private String queryName;
 
     static final FilteredQueryBuilder PROTOTYPE = new FilteredQueryBuilder(null, null);
 
@@ -54,24 +50,6 @@ public class FilteredQueryBuilder extends AbstractQueryBuilder<FilteredQueryBuil
         this.filterBuilder = filterBuilder;
     }
 
-    /**
-     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
-     * weightings) have their score multiplied by the boost provided.
-     */
-    @Override
-    public FilteredQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
-    }
-
-    /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public FilteredQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
-    }
-
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
@@ -83,12 +61,7 @@ public class FilteredQueryBuilder extends AbstractQueryBuilder<FilteredQueryBuil
             builder.field("filter");
             filterBuilder.toXContent(builder, params);
         }
-        if (boost != -1) {
-            builder.field("boost", boost);
-        }
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        printBoostAndQueryName(builder);
         builder.endObject();
     }
 

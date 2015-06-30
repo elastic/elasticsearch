@@ -31,28 +31,12 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
-import static org.hamcrest.Matchers.equalTo;
 
 public class BoolQueryBuilderTest extends BaseQueryTestCase<BoolQueryBuilder> {
 
     @Override
-    protected void assertLuceneQuery(BoolQueryBuilder queryBuilder, Query query, QueryParseContext context) {
-        if (queryBuilder.queryName() != null) {
-            Query namedQuery = context.copyNamedFilters().get(queryBuilder.queryName());
-            if (queryBuilder.hasClauses()) {
-                assertThat(namedQuery, equalTo(query));
-            } else {
-                assertNull(namedQuery);
-            }
-        }
-    }
-
-    @Override
-    protected BoolQueryBuilder createTestQueryBuilder() {
+    protected BoolQueryBuilder doCreateTestQueryBuilder() {
         BoolQueryBuilder query = new BoolQueryBuilder();
-        if (randomBoolean()) {
-            query.boost(2.0f / randomIntBetween(1, 20));
-        }
         if (randomBoolean()) {
             query.adjustPureNegative(randomBoolean());
         }
@@ -78,14 +62,11 @@ public class BoolQueryBuilderTest extends BaseQueryTestCase<BoolQueryBuilder> {
         for (int i = 0; i < filterClauses; i++) {
             query.filter(RandomQueryBuilder.createQuery(random()));
         }
-        if (randomBoolean()) {
-            query.queryName(randomUnicodeOfLengthBetween(3, 15));
-        }
         return query;
     }
 
     @Override
-    protected Query createExpectedQuery(BoolQueryBuilder queryBuilder, QueryParseContext context) throws IOException {
+    protected Query doCreateExpectedQuery(BoolQueryBuilder queryBuilder, QueryParseContext context) throws IOException {
         if (!queryBuilder.hasClauses()) {
             return new MatchAllDocsQuery();
         }
@@ -98,8 +79,7 @@ public class BoolQueryBuilderTest extends BaseQueryTestCase<BoolQueryBuilder> {
         addBooleanClauses(context, boolQuery, queryBuilder.filter(), BooleanClause.Occur.FILTER);
 
         Queries.applyMinimumShouldMatch(boolQuery, queryBuilder.minimumNumberShouldMatch());
-        Query returnedQuery = queryBuilder.adjustPureNegative() ? fixNegativeQueryIfNeeded(boolQuery) : boolQuery;
-        return returnedQuery;
+        return queryBuilder.adjustPureNegative() ? fixNegativeQueryIfNeeded(boolQuery) : boolQuery;
     }
 
     private static void addBooleanClauses(QueryParseContext parseContext, BooleanQuery booleanQuery, List<QueryBuilder> clauses, Occur occurs)

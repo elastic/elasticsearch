@@ -27,12 +27,10 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.equalTo;
-
 public class NotQueryBuilderTest extends BaseQueryTestCase<NotQueryBuilder> {
 
     @Override
-    protected Query createExpectedQuery(NotQueryBuilder queryBuilder, QueryParseContext context) throws QueryParsingException, IOException {
+    protected Query doCreateExpectedQuery(NotQueryBuilder queryBuilder, QueryParseContext context) throws QueryParsingException, IOException {
         if (queryBuilder.filter() == null) {
             return null;
         }
@@ -43,20 +41,8 @@ public class NotQueryBuilderTest extends BaseQueryTestCase<NotQueryBuilder> {
      * @return a NotQueryBuilder with random limit between 0 and 20
      */
     @Override
-    protected NotQueryBuilder createTestQueryBuilder() {
-        NotQueryBuilder query = new NotQueryBuilder(RandomQueryBuilder.createQuery(random()));
-        if (randomBoolean()) {
-            query.queryName(randomAsciiOfLengthBetween(1, 10));
-        }
-        return query;
-    }
-
-    @Override
-    protected void assertLuceneQuery(NotQueryBuilder queryBuilder, Query query, QueryParseContext context) {
-        if (queryBuilder.queryName() != null) {
-            Query namedQuery = context.copyNamedFilters().get(queryBuilder.queryName());
-            assertThat(namedQuery, equalTo(query));
-        }
+    protected NotQueryBuilder doCreateTestQueryBuilder() {
+        return new NotQueryBuilder(RandomQueryBuilder.createQuery(random()));
     }
 
     /**

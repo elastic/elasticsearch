@@ -27,13 +27,12 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 @Ignore
 public abstract class BaseTermQueryTestCase<QB extends BaseTermQueryBuilder<QB>> extends BaseQueryTestCase<QB> {
     
-    protected final QB createTestQueryBuilder() {
+    protected final QB doCreateTestQueryBuilder() {
         String fieldName = null;
         Object value;
         switch (randomIntBetween(0, 3)) {
@@ -73,14 +72,7 @@ public abstract class BaseTermQueryTestCase<QB extends BaseTermQueryBuilder<QB>>
         if (fieldName == null) {
             fieldName = randomAsciiOfLengthBetween(1, 10);
         }
-        QB query = createQueryBuilder(fieldName, value);
-        if (randomBoolean()) {
-            query.boost(2.0f / randomIntBetween(1, 20));
-        }
-        if (randomBoolean()) {
-            query.queryName(randomAsciiOfLengthBetween(1, 10));
-        }
-        return query;
+        return createQueryBuilder(fieldName, value);
     }
 
     protected abstract QB createQueryBuilder(String fieldName, Object value);
@@ -105,7 +97,7 @@ public abstract class BaseTermQueryTestCase<QB extends BaseTermQueryBuilder<QB>>
     }
 
     @Override
-    protected Query createExpectedQuery(QB queryBuilder, QueryParseContext context) {
+    protected Query doCreateExpectedQuery(QB queryBuilder, QueryParseContext context) {
         BytesRef value = null;
         if (getCurrentTypes().length > 0) {
             if (queryBuilder.fieldName().equals(BOOLEAN_FIELD_NAME) || queryBuilder.fieldName().equals(INT_FIELD_NAME) || queryBuilder.fieldName().equals(DOUBLE_FIELD_NAME)) {
@@ -116,18 +108,8 @@ public abstract class BaseTermQueryTestCase<QB extends BaseTermQueryBuilder<QB>>
         if (value == null) {
             value = BytesRefs.toBytesRef(queryBuilder.value);
         }
-        Query termQuery = createLuceneTermQuery(new Term(queryBuilder.fieldName(), value));
-        termQuery.setBoost(queryBuilder.boost());
-        return termQuery;
+        return createLuceneTermQuery(new Term(queryBuilder.fieldName(), value));
     }
 
     protected abstract Query createLuceneTermQuery(Term term);
-
-    @Override
-    protected void assertLuceneQuery(QB queryBuilder, Query query, QueryParseContext context) {
-        if (queryBuilder.queryName() != null) {
-            Query namedQuery = context.copyNamedFilters().get(queryBuilder.queryName());
-            assertThat(namedQuery, equalTo(query));
-        }
-    }
 }

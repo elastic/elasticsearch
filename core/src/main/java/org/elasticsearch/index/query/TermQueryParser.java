@@ -45,7 +45,7 @@ public class TermQueryParser extends BaseQueryParser {
         String queryName = null;
         String fieldName = null;
         Object value = null;
-        float boost = 1.0f;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

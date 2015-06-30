@@ -27,37 +27,22 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.*;
-
 public class FieldMaskingSpanQueryBuilderTest extends BaseQueryTestCase<FieldMaskingSpanQueryBuilder> {
 
     @Override
-    protected Query createExpectedQuery(FieldMaskingSpanQueryBuilder testQueryBuilder, QueryParseContext context) throws IOException {
+    protected Query doCreateExpectedQuery(FieldMaskingSpanQueryBuilder testQueryBuilder, QueryParseContext context) throws IOException {
         String fieldInQuery = testQueryBuilder.fieldName();
         MappedFieldType fieldType = context.fieldMapper(fieldInQuery);
         if (fieldType != null) {
             fieldInQuery = fieldType.names().indexName();
         }
-        SpanQuery innerQuery = testQueryBuilder.innerQuery().toQuery(context);
+        SpanQuery innerQuery = (SpanQuery) testQueryBuilder.innerQuery().toQuery(context);
 
-        Query expectedQuery = new FieldMaskingSpanQuery(innerQuery, fieldInQuery);
-        expectedQuery.setBoost(testQueryBuilder.boost());
-        if (testQueryBuilder.queryName() != null) {
-            context.addNamedQuery(testQueryBuilder.queryName(), expectedQuery);
-        }
-        return expectedQuery;
+        return new FieldMaskingSpanQuery(innerQuery, fieldInQuery);
     }
 
     @Override
-    protected void assertLuceneQuery(FieldMaskingSpanQueryBuilder queryBuilder, Query query, QueryParseContext context) {
-        if (queryBuilder.queryName() != null) {
-            Query namedQuery = context.copyNamedFilters().get(queryBuilder.queryName());
-            assertThat(namedQuery, equalTo(query));
-        }
-    }
-
-    @Override
-    protected FieldMaskingSpanQueryBuilder createTestQueryBuilder() {
+    protected FieldMaskingSpanQueryBuilder doCreateTestQueryBuilder() {
         String fieldName;
         if (randomBoolean()) {
             fieldName = randomFrom(mappedFieldNames);
@@ -65,14 +50,7 @@ public class FieldMaskingSpanQueryBuilderTest extends BaseQueryTestCase<FieldMas
             fieldName = randomAsciiOfLengthBetween(1, 10);
         }
         SpanTermQueryBuilder innerQuery = new SpanTermQueryBuilderTest().createTestQueryBuilder();
-        FieldMaskingSpanQueryBuilder query = new FieldMaskingSpanQueryBuilder(innerQuery, fieldName);
-        if (randomBoolean()) {
-            query.boost(2.0f / randomIntBetween(1, 20));
-        }
-        if (randomBoolean()) {
-            query.queryName(randomAsciiOfLengthBetween(1, 10));
-        }
-        return query;
+        return new FieldMaskingSpanQueryBuilder(innerQuery, fieldName);
     }
 
     @Test

@@ -54,7 +54,7 @@ public class SpanTermQueryParser extends BaseQueryParser {
 
 
         Object value = null;
-        float boost = 1.0f;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
         token = parser.nextToken();
         if (token == XContentParser.Token.START_OBJECT) {

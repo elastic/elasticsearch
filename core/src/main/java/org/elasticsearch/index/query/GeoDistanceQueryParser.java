@@ -28,7 +28,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
@@ -60,6 +59,7 @@ public class GeoDistanceQueryParser extends BaseQueryParserTemp {
 
         XContentParser.Token token;
 
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
         String currentFieldName = null;
         GeoPoint point = new GeoPoint();
@@ -121,6 +121,8 @@ public class GeoDistanceQueryParser extends BaseQueryParserTemp {
                     fieldName = currentFieldName.substring(0, currentFieldName.length() - GeoPointFieldMapper.Names.GEOHASH_SUFFIX.length());
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
+                } else if ("boost".equals(currentFieldName)) {
+                    boost = parser.floatValue();
                 } else if ("optimize_bbox".equals(currentFieldName) || "optimizeBbox".equals(currentFieldName)) {
                     optimizeBbox = parser.textOrNull();
                 } else if ("normalize".equals(currentFieldName)) {
@@ -161,6 +163,7 @@ public class GeoDistanceQueryParser extends BaseQueryParserTemp {
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);
         }
+        query.setBoost(boost);
         return query;
     }
 

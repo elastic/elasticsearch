@@ -27,7 +27,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.support.QueryParsers;
 
@@ -62,7 +61,7 @@ public class FuzzyQueryParser extends BaseQueryParserTemp {
         String fieldName = parser.currentName();
 
         String value = null;
-        float boost = 1.0f;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         Fuzziness fuzziness = DEFAULT_FUZZINESS;
         int prefixLength = FuzzyQuery.defaultPrefixLength;
         int maxExpansions = FuzzyQuery.defaultMaxExpansions;

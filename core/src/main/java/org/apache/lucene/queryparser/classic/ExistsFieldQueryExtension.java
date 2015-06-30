@@ -33,6 +33,6 @@ public class ExistsFieldQueryExtension implements FieldQueryExtension {
 
     @Override
     public Query query(QueryParseContext parseContext, String queryText) {
-        return new ConstantScoreQuery(ExistsQueryBuilder.newFilter(parseContext, queryText, null));
+        return new ConstantScoreQuery(ExistsQueryBuilder.newFilter(parseContext, queryText));
     }
 }

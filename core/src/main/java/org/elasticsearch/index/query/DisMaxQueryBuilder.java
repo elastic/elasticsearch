@@ -36,19 +36,15 @@ import java.util.Objects;
  * with the maximum score for that document as produced by any sub-query, plus a tie breaking increment for any
  * additional matching sub-queries.
  */
-public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder> implements BoostableQueryBuilder<DisMaxQueryBuilder> {
+public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder> {
 
     public static final String NAME = "dis_max";
 
     private final ArrayList<QueryBuilder> queries = new ArrayList<>();
 
-    private float boost = 1.0f;
-
     /** Default multiplication factor for breaking ties in document scores.*/
     public static float DEFAULT_TIE_BREAKER = 0.0f;
     private float tieBreaker = DEFAULT_TIE_BREAKER;
-
-    private String queryName;
 
     static final DisMaxQueryBuilder PROTOTYPE = new DisMaxQueryBuilder();
 
@@ -65,23 +61,6 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
      */
     public List<QueryBuilder> queries() {
         return this.queries;
-    }
-
-    /**
-     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
-     * weightings) have their score multiplied by the boost provided.
-     */
-    @Override
-    public DisMaxQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
-    }
-
-    /**
-     * @return the boost for this query
-     */
-    public float boost() {
-        return this.boost;
     }
 
     /**
@@ -103,51 +82,28 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
         return this.tieBreaker;
     }
 
-    /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public DisMaxQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
-    }
-
-    /**
-     * @return the query name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public String queryName() {
-        return this.queryName;
-    }
-
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.field("tie_breaker", tieBreaker);
-        builder.field("boost", boost);
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
         builder.startArray("queries");
         for (QueryBuilder queryBuilder : queries) {
             queryBuilder.toXContent(builder, params);
         }
         builder.endArray();
+        printBoostAndQueryName(builder);
         builder.endObject();
     }
 
     @Override
-    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
         // return null if there are no queries at all
         Collection<Query> luceneQueries = toQueries(queries, parseContext);
         if (luceneQueries.isEmpty()) {
             return null;
         }
 
-        DisjunctionMaxQuery query = new DisjunctionMaxQuery(luceneQueries, tieBreaker);
-        query.setBoost(boost);
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
-        }
-        return query;
+        return new DisjunctionMaxQuery(luceneQueries, tieBreaker);
     }
 
     @Override
@@ -156,35 +112,29 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
     }
 
     @Override
-    public DisMaxQueryBuilder readFrom(StreamInput in) throws IOException {
+    protected DisMaxQueryBuilder doReadFrom(StreamInput in) throws IOException {
         DisMaxQueryBuilder disMax = new DisMaxQueryBuilder();
         List<QueryBuilder> queryBuilders = in.readNamedWriteableList();
         disMax.queries.addAll(queryBuilders);
         disMax.tieBreaker = in.readFloat();
-        disMax.queryName = in.readOptionalString();
-        disMax.boost = in.readFloat();
         return disMax;
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteableList(queries);
         out.writeFloat(tieBreaker);
-        out.writeOptionalString(queryName);
-        out.writeFloat(boost);
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(queries, tieBreaker, boost, queryName);
+    protected int doHashCode() {
+        return Objects.hash(queries, tieBreaker);
     }
 
     @Override
-    public boolean doEquals(DisMaxQueryBuilder other) {
+    protected boolean doEquals(DisMaxQueryBuilder other) {
         return Objects.equals(queries, other.queries) &&
-               Objects.equals(tieBreaker, other.tieBreaker) &&
-               Objects.equals(boost, other.boost) &&
-               Objects.equals(queryName, other.queryName);
+               Objects.equals(tieBreaker, other.tieBreaker);
     }
 
     @Override

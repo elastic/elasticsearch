@@ -19,15 +19,9 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.spans.SpanQuery;
-
-import java.io.IOException;
-
 /**
- * Interface for a specific type of {@link QueryBuilder} that allows to build span queries
+ * Marker interface for a specific type of {@link QueryBuilder} that allows to build span queries
  */
 public interface SpanQueryBuilder<QB extends SpanQueryBuilder> extends QueryBuilder<QB> {
 
-    @Override
-    SpanQuery toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException;
 }

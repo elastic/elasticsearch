@@ -28,13 +28,12 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class CommonTermsQueryBuilderTest extends BaseQueryTestCase<CommonTermsQueryBuilder> {
 
     @Override
-    protected CommonTermsQueryBuilder createTestQueryBuilder() {
+    protected CommonTermsQueryBuilder doCreateTestQueryBuilder() {
         CommonTermsQueryBuilder query;
         
         // mapped or unmapped field
@@ -74,19 +73,11 @@ public class CommonTermsQueryBuilderTest extends BaseQueryTestCase<CommonTermsQu
         if (randomBoolean()) {
             query.disableCoord(randomBoolean());
         }
-        
-        if (randomBoolean()) {
-            query.boost(2.0f / randomIntBetween(1, 20));
-        }
-        if (randomBoolean()) {
-            query.queryName(randomAsciiOfLengthBetween(1, 10));
-        }
-        
         return query;
     }
 
     @Override
-    protected Query createExpectedQuery(CommonTermsQueryBuilder queryBuilder, QueryParseContext context) throws IOException {
+    protected Query doCreateExpectedQuery(CommonTermsQueryBuilder queryBuilder, QueryParseContext context) throws IOException {
         String fieldName = queryBuilder.fieldName();
         Analyzer analyzer = context.mapperService().searchAnalyzer();
 
@@ -109,17 +100,7 @@ public class CommonTermsQueryBuilderTest extends BaseQueryTestCase<CommonTermsQu
                 queryBuilder.disableCoord(), fieldType);
         CommonTermsQueryBuilder.parseQueryString(expectedQuery, queryBuilder.text(), fieldName, analyzer, 
                 queryBuilder.lowFreqMinimumShouldMatch(), queryBuilder.highFreqMinimumShouldMatch());
-
-        expectedQuery.setBoost(queryBuilder.boost());
         return expectedQuery;
-    }
-
-    @Override
-    protected void assertLuceneQuery(CommonTermsQueryBuilder queryBuilder, Query query, QueryParseContext context) {
-        if (queryBuilder.queryName() != null) {
-            Query namedQuery = context.copyNamedFilters().get(queryBuilder.queryName());
-            assertThat(namedQuery, equalTo(query));
-        }
     }
 
     @Test

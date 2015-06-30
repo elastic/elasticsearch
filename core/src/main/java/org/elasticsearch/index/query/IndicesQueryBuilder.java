@@ -38,8 +38,6 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
     private String sNoMatchQuery;
     private QueryBuilder noMatchQuery;
 
-    private String queryName;
-
     static final IndicesQueryBuilder PROTOTYPE = new IndicesQueryBuilder(null);
 
     public IndicesQueryBuilder(QueryBuilder queryBuilder, String... indices) {
@@ -63,14 +61,6 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
         return this;
     }
 
-    /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public IndicesQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
-    }
-
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
@@ -83,9 +73,7 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
         } else if (sNoMatchQuery != null) {
             builder.field("no_match_query", sNoMatchQuery);
         }
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        printBoostAndQueryName(builder);
         builder.endObject();
     }
 

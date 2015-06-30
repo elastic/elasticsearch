@@ -26,7 +26,7 @@ import java.io.IOException;
 /**
  * A Query that matches documents containing terms with a specified prefix.
  */
-public class PrefixQueryBuilder extends MultiTermQueryBuilder implements BoostableQueryBuilder<PrefixQueryBuilder> {
+public class PrefixQueryBuilder extends MultiTermQueryBuilder {
 
     public static final String NAME = "prefix";
 
@@ -34,11 +34,7 @@ public class PrefixQueryBuilder extends MultiTermQueryBuilder implements Boostab
 
     private final String prefix;
 
-    private float boost = -1;
-
     private String rewrite;
-
-    private String queryName;
 
     static final PrefixQueryBuilder PROTOTYPE = new PrefixQueryBuilder(null, null);
 
@@ -53,48 +49,21 @@ public class PrefixQueryBuilder extends MultiTermQueryBuilder implements Boostab
         this.prefix = prefix;
     }
 
-    /**
-     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
-     * weightings) have their score multiplied by the boost provided.
-     */
-    @Override
-    public PrefixQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
-    }
-
     public PrefixQueryBuilder rewrite(String rewrite) {
         this.rewrite = rewrite;
-        return this;
-    }
-
-    /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public PrefixQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
         return this;
     }
 
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        if (boost == -1 && rewrite == null && queryName == null) {
-            builder.field(name, prefix);
-        } else {
-            builder.startObject(name);
-            builder.field("prefix", prefix);
-            if (boost != -1) {
-                builder.field("boost", boost);
-            }
-            if (rewrite != null) {
-                builder.field("rewrite", rewrite);
-            }
-            if (queryName != null) {
-                builder.field("_name", queryName);
-            }
-            builder.endObject();
+        builder.startObject(name);
+        builder.field("prefix", prefix);
+        if (rewrite != null) {
+            builder.field("rewrite", rewrite);
         }
+        printBoostAndQueryName(builder);
+        builder.endObject();
         builder.endObject();
     }
 

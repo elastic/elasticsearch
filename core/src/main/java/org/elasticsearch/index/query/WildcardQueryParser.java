@@ -25,7 +25,6 @@ import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.support.QueryParsers;
 
@@ -57,7 +56,7 @@ public class WildcardQueryParser extends BaseQueryParserTemp {
         String rewriteMethod = null;
 
         String value = null;
-        float boost = 1.0f;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
         token = parser.nextToken();
         if (token == XContentParser.Token.START_OBJECT) {

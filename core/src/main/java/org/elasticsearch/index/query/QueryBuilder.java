@@ -47,7 +47,7 @@ public interface QueryBuilder<QB extends QueryBuilder> extends NamedWriteable<QB
      * @throws QueryParsingException
      * @throws IOException
      */
-    Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException;
+    Query toQuery(QueryParseContext parseContext) throws IOException;
 
     /**
      * Returns a {@link org.elasticsearch.common.bytes.BytesReference}

@@ -55,7 +55,7 @@ import java.util.Objects;
  * execution times significantly if applicable.
  * <p>
  */
-public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQueryBuilder> implements BoostableQueryBuilder<CommonTermsQueryBuilder> {
+public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQueryBuilder> {
 
     public static final String NAME = "common";
 
@@ -77,8 +77,6 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
 
     private String analyzer = null;
 
-    private float boost = 1.0f;
-
     private String lowFreqMinimumShouldMatch = null;
 
     private String highFreqMinimumShouldMatch = null;
@@ -86,8 +84,6 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
     private boolean disableCoord = DEFAULT_DISABLE_COORD;
 
     private float cutoffFrequency = DEFAULT_CUTOFF_FREQ;
-
-    private String queryName;
 
     static final CommonTermsQueryBuilder PROTOTYPE = new CommonTermsQueryBuilder(null, null);
 
@@ -148,19 +144,6 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
     }
 
     /**
-     * Set the boost to apply to the query.
-     */
-    @Override
-    public CommonTermsQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
-    }
-
-    public float boost() {
-        return boost;
-    }
-
-    /**
      * Sets the cutoff document frequency for high / low frequent terms. A value
      * in [0..1] (or absolute number >=1) representing the maximum threshold of
      * a terms document frequency to be considered a low frequency term.
@@ -211,20 +194,8 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         return this.disableCoord;
     }
 
-    /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public CommonTermsQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
-    }
-
-    public String queryName() {
-        return this.queryName;
-    }
-
     @Override
-    public void doXContent(XContentBuilder builder, Params params) throws IOException {
+    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.startObject(fieldName);
 
@@ -235,7 +206,6 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         if (analyzer != null) {
             builder.field("analyzer", analyzer);
         }
-        builder.field("boost", boost);
         builder.field("cutoff_frequency", cutoffFrequency);
         if (lowFreqMinimumShouldMatch != null || highFreqMinimumShouldMatch != null) {
             builder.startObject("minimum_should_match");
@@ -247,9 +217,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
             }
             builder.endObject();
         }
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        printBoostAndQueryName(builder);
         builder.endObject();
         builder.endObject();
     }
@@ -260,7 +228,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
     }
 
     @Override
-    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
         String field;
         MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
         if (fieldType != null) {
@@ -287,12 +255,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         Occur lowFreqOccur = lowFreqOperator.toBooleanClauseOccur();
 
         ExtendedCommonTermsQuery commonsQuery = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, cutoffFrequency, disableCoord, fieldType);
-        commonsQuery.setBoost(boost);
-        Query query = parseQueryString(commonsQuery, text, field, analyzerObj, lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch);
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
-        }
-        return query;
+        return parseQueryString(commonsQuery, text, field, analyzerObj, lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch);
     }
     
     static Query parseQueryString(ExtendedCommonTermsQuery query, Object queryString, String field, Analyzer analyzer, 
@@ -332,53 +295,47 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
     }
 
     @Override
-    public CommonTermsQueryBuilder readFrom(StreamInput in) throws IOException {
+    protected CommonTermsQueryBuilder doReadFrom(StreamInput in) throws IOException {
         CommonTermsQueryBuilder commonTermsQueryBuilder = new CommonTermsQueryBuilder(in.readString(), in.readGenericValue());
         commonTermsQueryBuilder.highFreqOperator = Operator.readOperatorFrom(in);
         commonTermsQueryBuilder.lowFreqOperator = Operator.readOperatorFrom(in);
         commonTermsQueryBuilder.analyzer = in.readOptionalString();
-        commonTermsQueryBuilder.boost = in.readFloat();
         commonTermsQueryBuilder.lowFreqMinimumShouldMatch = in.readOptionalString();
         commonTermsQueryBuilder.highFreqMinimumShouldMatch = in.readOptionalString();
         commonTermsQueryBuilder.disableCoord = in.readBoolean();
         commonTermsQueryBuilder.cutoffFrequency = in.readFloat();
-        commonTermsQueryBuilder.queryName = in.readOptionalString();
         return commonTermsQueryBuilder;
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(this.fieldName);
         out.writeGenericValue(this.text);
         highFreqOperator.writeTo(out);
         lowFreqOperator.writeTo(out);
         out.writeOptionalString(analyzer);
-        out.writeFloat(boost);
         out.writeOptionalString(lowFreqMinimumShouldMatch);
         out.writeOptionalString(highFreqMinimumShouldMatch);
         out.writeBoolean(disableCoord);
         out.writeFloat(cutoffFrequency);
-        out.writeOptionalString(queryName);
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(fieldName, text, highFreqOperator, lowFreqOperator, analyzer, boost, 
-                lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch, disableCoord, cutoffFrequency, queryName);
+    protected int doHashCode() {
+        return Objects.hash(fieldName, text, highFreqOperator, lowFreqOperator, analyzer,
+                lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch, disableCoord, cutoffFrequency);
     }
 
     @Override
-    public boolean doEquals(CommonTermsQueryBuilder other) {
+    protected boolean doEquals(CommonTermsQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName) &&
                 Objects.equals(text, other.text) &&
                 Objects.equals(highFreqOperator, other.highFreqOperator) &&
                 Objects.equals(lowFreqOperator, other.lowFreqOperator) &&
                 Objects.equals(analyzer, other.analyzer) &&
-                Objects.equals(boost, other.boost) &&
                 Objects.equals(lowFreqMinimumShouldMatch, other.lowFreqMinimumShouldMatch) &&
                 Objects.equals(highFreqMinimumShouldMatch, other.highFreqMinimumShouldMatch) &&
                 Objects.equals(disableCoord, other.disableCoord) &&
-                Objects.equals(cutoffFrequency, other.cutoffFrequency) &&
-                Objects.equals(queryName, other.queryName);
+                Objects.equals(cutoffFrequency, other.cutoffFrequency);
     }
 }

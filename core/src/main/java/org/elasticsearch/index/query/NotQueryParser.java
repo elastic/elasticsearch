@@ -50,6 +50,7 @@ public class NotQueryParser extends BaseQueryParser {
 
         String queryName = null;
         String currentFieldName = null;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -72,6 +73,8 @@ public class NotQueryParser extends BaseQueryParser {
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
+                } else if ("boost".equals(currentFieldName)) {
+                    boost = parser.floatValue();
                 } else {
                     throw new QueryParsingException(parseContext, "[not] query does not support [" + currentFieldName + "]");
                 }
@@ -84,6 +87,7 @@ public class NotQueryParser extends BaseQueryParser {
 
         NotQueryBuilder notQueryBuilder = new NotQueryBuilder(query);
         notQueryBuilder.queryName(queryName);
+        notQueryBuilder.boost(boost);
         return notQueryBuilder;
     }
 

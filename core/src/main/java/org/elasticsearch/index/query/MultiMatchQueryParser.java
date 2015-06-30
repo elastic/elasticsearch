@@ -54,7 +54,7 @@ public class MultiMatchQueryParser extends BaseQueryParserTemp {
         XContentParser parser = parseContext.parser();
 
         Object value = null;
-        float boost = 1.0f;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         Float tieBreaker = null;
         MultiMatchQueryBuilder.Type type = null;
         MultiMatchQuery multiMatchQuery = new MultiMatchQuery(parseContext);

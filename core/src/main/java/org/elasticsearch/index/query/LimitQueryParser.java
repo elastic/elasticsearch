@@ -41,6 +41,8 @@ public class LimitQueryParser extends BaseQueryParser {
         XContentParser parser = parseContext.parser();
 
         int limit = -1;
+        String queryName = null;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -49,6 +51,10 @@ public class LimitQueryParser extends BaseQueryParser {
             } else if (token.isValue()) {
                 if ("value".equals(currentFieldName)) {
                     limit = parser.intValue();
+                } else if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
+                } else if ("boost".equals(currentFieldName)) {
+                    boost = parser.floatValue();
                 } else {
                     throw new QueryParsingException(parseContext, "[limit] query does not support [" + currentFieldName + "]");
                 }
@@ -59,7 +65,7 @@ public class LimitQueryParser extends BaseQueryParser {
             throw new QueryParsingException(parseContext, "No value specified for limit query");
         }
 
-        return new LimitQueryBuilder(limit);
+        return new LimitQueryBuilder(limit).boost(boost).queryName(queryName);
     }
 
     @Override

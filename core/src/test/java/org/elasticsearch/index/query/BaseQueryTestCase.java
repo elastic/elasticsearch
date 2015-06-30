@@ -65,7 +65,7 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.*;
 
 @Ignore
-public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends ElasticsearchTestCase {
+public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ElasticsearchTestCase {
 
     protected static final String OBJECT_FIELD_NAME = "mapped_object";
     protected static final String DATE_FIELD_NAME = "mapped_date";
@@ -187,10 +187,21 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends Ela
         SearchContext.removeCurrent();
     }
 
+    protected final QB createTestQueryBuilder() {
+        QB query = doCreateTestQueryBuilder();
+        if (randomBoolean()) {
+            query.boost(2.0f / randomIntBetween(1, 20));
+        }
+        if (randomBoolean()) {
+            query.queryName(randomAsciiOfLengthBetween(1, 10));
+        }
+        return query;
+    }
+
     /**
      * Create the query that is being tested
      */
-    protected abstract QB createTestQueryBuilder();
+    protected abstract QB doCreateTestQueryBuilder();
 
     /**
      * Generic test that creates new query from the test query and checks both for equality
@@ -207,8 +218,8 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends Ela
 
         QueryBuilder newQuery = queryParserService.queryParser(testQuery.getName()).fromXContent(context);
         assertNotSame(newQuery, testQuery);
-        assertEquals("Queries should be equal: " + newQuery + " vs. " + testQuery, newQuery, testQuery);
-        assertEquals("Queries should have equal hashcodes: " + newQuery + " vs. " + testQuery, newQuery.hashCode(), testQuery.hashCode());
+        assertEquals("Queries should be equal", testQuery, newQuery);
+        assertEquals("Queries should have equal hashcodes", testQuery.hashCode(), newQuery.hashCode());
     }
 
     /**
@@ -228,18 +239,27 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends Ela
         assertLuceneQuery(testQuery, actualQuery, context);
     }
 
+    protected final Query createExpectedQuery(QB queryBuilder, QueryParseContext context) throws IOException {
+        Query expectedQuery = doCreateExpectedQuery(queryBuilder, context);
+        expectedQuery.setBoost(queryBuilder.boost());
+        return expectedQuery;
+    }
+
     /**
      * Creates the expected lucene query given the current {@link QueryBuilder} and {@link QueryParseContext}.
      * The returned query will be compared with the result of {@link QueryBuilder#toQuery(QueryParseContext)} to test its behaviour.
      */
-    protected abstract Query createExpectedQuery(QB queryBuilder, QueryParseContext context) throws IOException;
+    protected abstract Query doCreateExpectedQuery(QB queryBuilder, QueryParseContext context) throws IOException;
 
     /**
      * Run after default equality comparison between lucene expected query and result of {@link QueryBuilder#toQuery(QueryParseContext)}.
-     * Can contain additional assertions that are query specific. Empty default implementation.
+     * Can contain additional assertions that are query specific. Default implementation verifies that names queries are properly handled.
      */
-    protected void assertLuceneQuery(QB queryBuilder, Query query, QueryParseContext context) {
-
+    protected final void assertLuceneQuery(QB queryBuilder, Query query, QueryParseContext context) {
+        if (queryBuilder.queryName() != null) {
+            Query namedQuery = context.copyNamedFilters().get(queryBuilder.queryName());
+            assertThat(namedQuery, equalTo(query));
+        }
     }
 
     /**

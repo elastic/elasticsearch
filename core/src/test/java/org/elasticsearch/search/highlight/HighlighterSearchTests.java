@@ -2589,7 +2589,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
                 queryStringQuery("\"highlight words together\"").field("field1^100").autoGeneratePhraseQueries(true));
     }
 
-    private <P extends QueryBuilder & BoostableQueryBuilder<P>> void
+    private <P extends AbstractQueryBuilder<P>> void
             phraseBoostTestCaseForClauses(String highlighterType, float boost, QueryBuilder terms, P phrase) {
         Matcher<String> highlightedMatcher = Matchers.either(containsString("<em>highlight words together</em>")).or(
                 containsString("<em>highlight</em> <em>words</em> <em>together</em>"));

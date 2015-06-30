@@ -57,6 +57,7 @@ public class MissingQueryParser extends BaseQueryParserTemp {
 
         String fieldPattern = null;
         String queryName = null;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         boolean nullValue = DEFAULT_NULL_VALUE;
         boolean existence = DEFAULT_EXISTENCE_VALUE;
 
@@ -74,6 +75,8 @@ public class MissingQueryParser extends BaseQueryParserTemp {
                     existence = parser.booleanValue();
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
+                } else if ("boost".equals(currentFieldName)) {
+                    boost = parser.floatValue();
                 } else {
                     throw new QueryParsingException(parseContext, "[missing] query does not support [" + currentFieldName + "]");
                 }
@@ -83,11 +86,17 @@ public class MissingQueryParser extends BaseQueryParserTemp {
         if (fieldPattern == null) {
             throw new QueryParsingException(parseContext, "missing must be provided with a [field]");
         }
-
-        return newFilter(parseContext, fieldPattern, existence, nullValue, queryName);
+        Query query = newFilter(parseContext, fieldPattern, existence, nullValue);
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
+        }
+        if (query != null) {
+            query.setBoost(boost);
+        }
+        return query;
     }
 
-    public static Query newFilter(QueryParseContext parseContext, String fieldPattern, boolean existence, boolean nullValue, String queryName) {
+    public static Query newFilter(QueryParseContext parseContext, String fieldPattern, boolean existence, boolean nullValue) {
         if (!existence && !nullValue) {
             throw new QueryParsingException(parseContext, "missing must have either existence, or null_value, or both set to true");
         }
@@ -172,9 +181,6 @@ public class MissingQueryParser extends BaseQueryParserTemp {
             return null;
         }
 
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, existenceFilter);
-        }
         return new ConstantScoreQuery(filter);
     }
 

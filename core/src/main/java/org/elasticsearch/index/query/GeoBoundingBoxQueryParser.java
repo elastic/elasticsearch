@@ -26,7 +26,6 @@ import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.search.geo.InMemoryGeoBoundingBoxQuery;
@@ -76,6 +75,7 @@ public class GeoBoundingBoxQueryParser extends BaseQueryParserTemp {
         double left = Double.NaN;
         double right = Double.NaN;
 
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
         String currentFieldName = null;
         XContentParser.Token token;
@@ -135,6 +135,8 @@ public class GeoBoundingBoxQueryParser extends BaseQueryParserTemp {
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
+                } else if ("boost".equals(currentFieldName)) {
+                    boost = parser.floatValue();
                 } else if ("normalize".equals(currentFieldName)) {
                     normalize = parser.booleanValue();
                 } else if ("type".equals(currentFieldName)) {
@@ -179,7 +181,9 @@ public class GeoBoundingBoxQueryParser extends BaseQueryParserTemp {
             throw new QueryParsingException(parseContext, "geo bounding box type [" + type
                     + "] not supported, either 'indexed' or 'memory' are allowed");
         }
-
+        if (filter != null) {
+            filter.setBoost(boost);
+        }
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, filter);
         }

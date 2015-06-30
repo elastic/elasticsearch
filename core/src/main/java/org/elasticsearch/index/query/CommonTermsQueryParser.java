@@ -47,7 +47,7 @@ public class CommonTermsQueryParser extends BaseQueryParser {
         }
         String fieldName = parser.currentName();
         Object text = null;
-        float boost = 1.0f;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String analyzer = null;
         String lowFreqMinimumShouldMatch = null;
         String highFreqMinimumShouldMatch = null;
@@ -124,7 +124,7 @@ public class CommonTermsQueryParser extends BaseQueryParser {
         if (text == null) {
             throw new QueryParsingException(parseContext, "No text specified for text query");
         }
-        CommonTermsQueryBuilder commonTermsQuery = new CommonTermsQueryBuilder(fieldName, text)
+        return new CommonTermsQueryBuilder(fieldName, text)
                 .lowFreqMinimumShouldMatch(lowFreqMinimumShouldMatch)
                 .highFreqMinimumShouldMatch(highFreqMinimumShouldMatch)
                 .analyzer(analyzer)
@@ -134,7 +134,6 @@ public class CommonTermsQueryParser extends BaseQueryParser {
                 .cutoffFrequency(cutoffFrequency)
                 .boost(boost)
                 .queryName(queryName);
-        return commonTermsQuery;
     }
 
     @Override

@@ -47,6 +47,7 @@ public class FQueryFilterParser extends BaseQueryParser {
         QueryBuilder wrappedQuery = null;
         boolean queryFound = false;
 
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
         String currentFieldName = null;
         XContentParser.Token token;
@@ -65,6 +66,8 @@ public class FQueryFilterParser extends BaseQueryParser {
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
+                } else if ("boost".equals(currentFieldName)) {
+                    boost = parser.floatValue();
                 } else {
                     throw new QueryParsingException(parseContext, "[fquery] query does not support [" + currentFieldName + "]");
                 }
@@ -78,6 +81,7 @@ public class FQueryFilterParser extends BaseQueryParser {
         }
         FQueryFilterBuilder queryBuilder = new FQueryFilterBuilder(wrappedQuery);
         queryBuilder.queryName(queryName);
+        queryBuilder.boost(boost);
         return queryBuilder;
     }
 

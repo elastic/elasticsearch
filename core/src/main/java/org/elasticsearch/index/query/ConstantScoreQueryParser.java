@@ -48,7 +48,8 @@ public class ConstantScoreQueryParser extends BaseQueryParser {
 
         QueryBuilder query = null;
         boolean queryFound = false;
-        float boost = 1.0f;
+        String queryName = null;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -65,7 +66,9 @@ public class ConstantScoreQueryParser extends BaseQueryParser {
                     throw new QueryParsingException(parseContext, "[constant_score] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if ("boost".equals(currentFieldName)) {
+                if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
+                } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else {
                     throw new QueryParsingException(parseContext, "[constant_score] query does not support [" + currentFieldName + "]");
@@ -78,6 +81,7 @@ public class ConstantScoreQueryParser extends BaseQueryParser {
 
         ConstantScoreQueryBuilder constantScoreBuilder = new ConstantScoreQueryBuilder(query);
         constantScoreBuilder.boost(boost);
+        constantScoreBuilder.queryName(queryName);
         return constantScoreBuilder;
     }
 

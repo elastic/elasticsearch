@@ -33,27 +33,15 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
     private Script script;
 
-    private String queryName;
-
     public ScriptQueryBuilder(Script script) {
         this.script = script;
-    }
-
-    /**
-     * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public ScriptQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params builderParams) throws IOException {
         builder.startObject(NAME);
         builder.field(ScriptField.SCRIPT.getPreferredName(), script);
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        printBoostAndQueryName(builder);
         builder.endObject();
     }
 

@@ -45,12 +45,15 @@ public class MatchAllQueryParser extends BaseQueryParser {
 
         String currentFieldName = null;
         XContentParser.Token token;
-        float boost = 1.0f;
+        String queryName = null;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         while (((token = parser.nextToken()) != XContentParser.Token.END_OBJECT && token != XContentParser.Token.END_ARRAY)) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if ("boost".equals(currentFieldName)) {
+                if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
+                } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else {
                     throw new QueryParsingException(parseContext, "[match_all] query does not support [" + currentFieldName + "]");
@@ -59,6 +62,7 @@ public class MatchAllQueryParser extends BaseQueryParser {
         }
         MatchAllQueryBuilder queryBuilder = new MatchAllQueryBuilder();
         queryBuilder.boost(boost);
+        queryBuilder.queryName(queryName);
         return queryBuilder;
     }
 

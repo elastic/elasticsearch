@@ -41,8 +41,6 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
 
     private final String name;
 
-    private String queryName;
-
     static final ExistsQueryBuilder PROTOTYPE = new ExistsQueryBuilder(null);
 
     public ExistsQueryBuilder(String name) {
@@ -56,35 +54,17 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
         return this.name;
     }
 
-    /**
-     * Sets the query name for the query that can be used when searching for matched_queries per hit.
-     */
-    public ExistsQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
-    }
-
-    /**
-     * @return the query name for the query that can be used when searching for matched_queries per hit.
-     */
-    public String queryName() {
-        return this.queryName;
-    }
-
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.field("field", name);
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        printBoostAndQueryName(builder);
         builder.endObject();
     }
 
-
     @Override
-    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
-        return newFilter(parseContext, name, queryName);
+    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
+        return newFilter(parseContext, name);
     }
 
     @Override
@@ -93,7 +73,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
         return null;
     }
 
-    public static Query newFilter(QueryParseContext parseContext, String fieldPattern, String queryName) {
+    public static Query newFilter(QueryParseContext parseContext, String fieldPattern) {
         final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType)parseContext.mapperService().fullName(FieldNamesFieldMapper.NAME);
         if (fieldNamesFieldType == null) {
             // can only happen when no types exist, so no docs exist either
@@ -134,35 +114,27 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
             }
             boolFilter.add(filter, BooleanClause.Occur.SHOULD);
         }
-
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, boolFilter);
-        }
         return new ConstantScoreQuery(boolFilter);
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(name, queryName);
+    protected int doHashCode() {
+        return Objects.hash(name);
     }
 
     @Override
-    public boolean doEquals(ExistsQueryBuilder other) {
-        return Objects.equals(name, other.name) &&
-               Objects.equals(queryName, other.queryName);
+    protected boolean doEquals(ExistsQueryBuilder other) {
+        return Objects.equals(name, other.name);
     }
 
     @Override
-    public ExistsQueryBuilder readFrom(StreamInput in) throws IOException {
-        ExistsQueryBuilder newQuery = new ExistsQueryBuilder(in.readString());
-        newQuery.queryName = in.readOptionalString();
-        return newQuery;
+    protected ExistsQueryBuilder doReadFrom(StreamInput in) throws IOException {
+        return new ExistsQueryBuilder(in.readString());
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeOptionalString(queryName);
     }
 
     @Override

@@ -27,16 +27,24 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Base class for all classes producing lucene queries.
  * Supports conversion to BytesReference and creation of lucene Query objects.
  */
-public abstract class AbstractQueryBuilder<QB extends QueryBuilder> extends ToXContentToBytes implements QueryBuilder<QB> {
+public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> extends ToXContentToBytes implements QueryBuilder<QB> {
+
+    /** Default for boost to apply to resulting Lucene query. Defaults to 1.0*/
+    public static final float DEFAULT_BOOST = 1.0f;
+
+    protected String queryName;
+    protected float boost = DEFAULT_BOOST;
 
     protected AbstractQueryBuilder() {
         super(XContentType.JSON);
@@ -52,9 +60,27 @@ public abstract class AbstractQueryBuilder<QB extends QueryBuilder> extends ToXC
 
     protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;
 
+    protected void printBoostAndQueryName(XContentBuilder builder) throws IOException {
+        builder.field("boost", boost);
+        if (queryName != null) {
+            builder.field("_name", queryName);
+        }
+    }
+
     @Override
-    //norelease to be made abstract once all query builders override toQuery providing their own specific implementation.
-    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+    public final Query toQuery(QueryParseContext parseContext) throws IOException {
+        Query query = doToQuery(parseContext);
+        if (query != null) {
+            query.setBoost(boost);
+            if (queryName != null) {
+                parseContext.addNamedQuery(queryName, query);
+            }
+        }
+        return query;
+    }
+
+    //norelease to be made abstract once all query builders override doToQuery providing their own specific implementation.
+    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
         return parseContext.indexQueryParserService().queryParser(getName()).parse(parseContext);
     }
 
@@ -65,15 +91,62 @@ public abstract class AbstractQueryBuilder<QB extends QueryBuilder> extends ToXC
         return null;
     }
 
-    //norelease remove this once all builders implement readFrom themselves
-    @Override
-    public QB readFrom(StreamInput in) throws IOException {
-        return null;
+    /**
+     * Returns the query name for the query.
+     */
+    @SuppressWarnings("unchecked")
+    public QB queryName(String queryName) {
+        this.queryName = queryName;
+        return (QB) this;
     }
 
-    //norelease remove this once all builders implement writeTo themselves
+    /**
+     * Sets the query name for the query.
+     */
+    public final String queryName() {
+        return queryName;
+    }
+
+    /**
+     * Returns the boost for this query.
+     */
+    public final float boost() {
+        return this.boost;
+    }
+
+    /**
+     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
+     * weightings) have their score multiplied by the boost provided.
+     */
+    @SuppressWarnings("unchecked")
+    public QB boost(float boost) {
+        this.boost = boost;
+        return (QB) this;
+    }
+
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    public final QB readFrom(StreamInput in) throws IOException {
+        QB queryBuilder = doReadFrom(in);
+        queryBuilder.boost = in.readFloat();
+        queryBuilder.queryName = in.readOptionalString();
+        return queryBuilder;
+    }
+
+    //norelease make this abstract once all builders implement doReadFrom themselves
+    protected QB doReadFrom(StreamInput in) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public final void writeTo(StreamOutput out) throws IOException {
+        doWriteTo(out);
+        out.writeFloat(boost);
+        out.writeOptionalString(queryName);
+    }
+
+    //norelease make this abstract once all builders implement doWriteTo themselves
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        throw new UnsupportedOperationException();
     }
 
     protected final QueryValidationException addValidationError(String validationError, QueryValidationException validationException) {
@@ -90,7 +163,9 @@ public abstract class AbstractQueryBuilder<QB extends QueryBuilder> extends ToXC
         }
         @SuppressWarnings("unchecked")
         QB other = (QB) obj;
-        return doEquals(other);
+        return Objects.equals(queryName, other.queryName) &&
+                Objects.equals(boost, other.boost) &&
+                doEquals(other);
     }
 
     /**
@@ -98,7 +173,17 @@ public abstract class AbstractQueryBuilder<QB extends QueryBuilder> extends ToXC
      */
     //norelease to be made abstract once all queries are refactored
     protected boolean doEquals(QB other) {
-        throw new UnsupportedOperationException();
+        return super.equals(other);
+    }
+
+    @Override
+    public final int hashCode() {
+        return 31 * Objects.hash(getClass(), queryName, boost) + doHashCode();
+    }
+
+    //norelease to be made abstract once all queries are refactored
+    protected int doHashCode() {
+        return super.hashCode();
     }
 
     /**

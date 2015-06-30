@@ -50,7 +50,7 @@ public class BoolQueryParser extends BaseQueryParser {
 
         boolean disableCoord = BoolQueryBuilder.DISABLE_COORD_DEFAULT;
         boolean adjustPureNegative = BoolQueryBuilder.ADJUST_PURE_NEGATIVE_DEFAULT;
-        float boost = 1.0f;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String minimumShouldMatch = null;
 
         final List<QueryBuilder> mustClauses = newArrayList();

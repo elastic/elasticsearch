@@ -28,13 +28,11 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.equalTo;
-
 @SuppressWarnings("deprecation")
 public class OrQueryBuilderTest extends BaseQueryTestCase<OrQueryBuilder> {
 
     @Override
-    protected Query createExpectedQuery(OrQueryBuilder queryBuilder, QueryParseContext context) throws QueryParsingException, IOException {
+    protected Query doCreateExpectedQuery(OrQueryBuilder queryBuilder, QueryParseContext context) throws QueryParsingException, IOException {
         if (queryBuilder.filters().isEmpty()) {
             return null;
         }
@@ -53,24 +51,13 @@ public class OrQueryBuilderTest extends BaseQueryTestCase<OrQueryBuilder> {
      * @return an OrQueryBuilder with random limit between 0 and 20
      */
     @Override
-    protected OrQueryBuilder createTestQueryBuilder() {
+    protected OrQueryBuilder doCreateTestQueryBuilder() {
         OrQueryBuilder query = new OrQueryBuilder();
         int subQueries = randomIntBetween(1, 5);
         for (int i = 0; i < subQueries; i++ ) {
             query.add(RandomQueryBuilder.createQuery(random()));
         }
-        if (randomBoolean()) {
-            query.queryName(randomAsciiOfLengthBetween(1, 10));
-        }
         return query;
-    }
-
-    @Override
-    protected void assertLuceneQuery(OrQueryBuilder queryBuilder, Query query, QueryParseContext context) {
-        if (queryBuilder.queryName() != null) {
-            Query namedQuery = context.copyNamedFilters().get(queryBuilder.queryName());
-            assertThat(namedQuery, equalTo(query));
-        }
     }
 
     /**

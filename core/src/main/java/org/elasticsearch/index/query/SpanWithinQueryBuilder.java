@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -27,13 +26,11 @@ import java.io.IOException;
 /**
  * Builder for {@link org.apache.lucene.search.spans.SpanWithinQuery}.
  */
-public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQueryBuilder> implements SpanQueryBuilder<SpanWithinQueryBuilder>, BoostableQueryBuilder<SpanWithinQueryBuilder> {
+public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQueryBuilder> implements SpanQueryBuilder<SpanWithinQueryBuilder> {
 
     public static final String NAME = "span_within";
     private SpanQueryBuilder big;
     private SpanQueryBuilder little;
-    private float boost = -1;
-    private String queryName;
     static final SpanWithinQueryBuilder PROTOTYPE = new SpanWithinQueryBuilder();
 
     /**
@@ -53,20 +50,6 @@ public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQuery
     }
 
     @Override
-    public SpanWithinQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
-    }
-
-    /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public SpanWithinQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
-    }
-
-    @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         if (big == null) {
             throw new IllegalArgumentException("Must specify big clause when building a span_within query");
@@ -82,13 +65,7 @@ public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQuery
         builder.field("little");
         little.toXContent(builder, params);
 
-        if (boost != -1) {
-            builder.field("boost", boost);
-        }
-
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        printBoostAndQueryName(builder);
 
         builder.endObject();
     }
@@ -96,11 +73,5 @@ public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQuery
     @Override
     public String getName() {
         return NAME;
-    }
-
-    @Override
-    public SpanQuery toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
-        //norelease just a temporary implementation, will go away once this query is refactored and properly overrides toQuery
-        return (SpanQuery)super.toQuery(parseContext);
     }
 }

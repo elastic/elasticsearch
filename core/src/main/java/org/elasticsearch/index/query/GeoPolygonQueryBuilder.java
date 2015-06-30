@@ -38,8 +38,6 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
 
     private final List<GeoPoint> shell = Lists.newArrayList();
 
-    private String queryName;
-
     static final GeoPolygonQueryBuilder PROTOTYPE = new GeoPolygonQueryBuilder(null);
 
     public GeoPolygonQueryBuilder(String name) {
@@ -51,7 +49,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
      *
      * @param lat The latitude
      * @param lon The longitude
-     * @return
+     * @return the current builder
      */
     public GeoPolygonQueryBuilder addPoint(double lat, double lon) {
         return addPoint(new GeoPoint(lat, lon));
@@ -63,14 +61,6 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
 
     public GeoPolygonQueryBuilder addPoint(GeoPoint point) {
         shell.add(point);
-        return this;
-    }
-
-    /**
-     * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public GeoPolygonQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
         return this;
     }
 
@@ -86,9 +76,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         builder.endArray();
         builder.endObject();
 
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        printBoostAndQueryName(builder);
 
         builder.endObject();
     }

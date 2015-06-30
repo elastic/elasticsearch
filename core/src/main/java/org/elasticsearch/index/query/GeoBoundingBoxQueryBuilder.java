@@ -41,7 +41,6 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
 
     private double[] box = {Double.NaN, Double.NaN, Double.NaN, Double.NaN};
 
-    private String queryName;
     private String type;
 
     static final GeoBoundingBoxQueryBuilder PROTOTYPE = new GeoBoundingBoxQueryBuilder(null);
@@ -131,14 +130,6 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     }
 
     /**
-     * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public GeoBoundingBoxQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
-    }
-
-    /**
      * Sets the type of executing of the geo bounding box. Can be either `memory` or `indexed`. Defaults
      * to `memory`.
      */
@@ -167,12 +158,11 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         builder.array(BOTTOM_RIGHT, box[RIGHT], box[BOTTOM]);
         builder.endObject();
 
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
         if (type != null) {
             builder.field("type", type);
         }
+
+        printBoostAndQueryName(builder);
 
         builder.endObject();
     }

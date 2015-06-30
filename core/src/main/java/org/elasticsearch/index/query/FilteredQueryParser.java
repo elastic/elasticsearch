@@ -50,7 +50,7 @@ public class FilteredQueryParser extends BaseQueryParserTemp {
         Query query = Queries.newMatchAllQuery();
         Query filter = null;
         boolean filterFound = false;
-        float boost = 1.0f;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
 
         String currentFieldName = null;

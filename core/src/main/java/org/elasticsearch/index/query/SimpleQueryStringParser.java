@@ -80,7 +80,7 @@ public class SimpleQueryStringParser extends BaseQueryParser {
 
         String currentFieldName = null;
         String queryBody = null;
-        float boost = 1.0f;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
         String field = null;
         String minimumShouldMatch = null;

@@ -27,19 +27,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> extends AbstractQueryBuilder<QB> implements BoostableQueryBuilder<QB> {
+public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> extends AbstractQueryBuilder<QB> {
 
     /** Name of field to match against. */
     protected final String fieldName;
 
     /** Value to find matches for. */
     protected final Object value;
-
-    /** Query boost. */
-    protected float boost = 1.0f;
-
-    /** Name of the query. */
-    protected String queryName;
 
     /**
      * Constructs a new base term query.
@@ -128,48 +122,13 @@ public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> 
         return convertToStringIfBytesRef(this.value);
     }
 
-    /** Returns the query name for the query. */
-    public String queryName() {
-        return this.queryName;
-    }
-    /**
-     * Sets the query name for the query.
-     */
-    @SuppressWarnings("unchecked")
-    public QB queryName(String queryName) {
-        this.queryName = queryName;
-        return (QB) this;
-    }
-
-    /** Returns the boost for this query. */
-    public float boost() {
-        return this.boost;
-    }
-    /**
-     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
-     * weightings) have their score multiplied by the boost provided.
-     */
-    @SuppressWarnings("unchecked")
-    @Override
-    public QB boost(float boost) {
-        this.boost = boost;
-        return (QB) this;
-    }
-
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
-        if (boost == 1.0f && queryName == null) {
-            builder.field(fieldName, convertToStringIfBytesRef(this.value));
-        } else {
-            builder.startObject(fieldName);
-            builder.field("value", convertToStringIfBytesRef(this.value));
-            builder.field("boost", boost);
-            if (queryName != null) {
-                builder.field("_name", queryName);
-            }
-            builder.endObject();
-        }
+        builder.startObject(fieldName);
+        builder.field("value", convertToStringIfBytesRef(this.value));
+        printBoostAndQueryName(builder);
+        builder.endObject();
         builder.endObject();
     }
 
@@ -187,33 +146,26 @@ public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> 
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(getClass(), fieldName, value, boost, queryName);
+    protected final int doHashCode() {
+        return Objects.hash(getClass(), fieldName, value);
     }
 
     @Override
-    public final boolean doEquals(BaseTermQueryBuilder other) {
+    protected final boolean doEquals(BaseTermQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName) &&
-               Objects.equals(value, other.value) &&
-               Objects.equals(boost, other.boost) &&
-               Objects.equals(queryName, other.queryName);
+               Objects.equals(value, other.value);
     }
 
     @Override
-    public QB readFrom(StreamInput in) throws IOException {
-        QB emptyBuilder = createBuilder(in.readString(), in.readGenericValue());
-        emptyBuilder.boost = in.readFloat();
-        emptyBuilder.queryName = in.readOptionalString();
-        return emptyBuilder;
+    protected final QB doReadFrom(StreamInput in) throws IOException {
+        return createBuilder(in.readString(), in.readGenericValue());
     }
 
     protected abstract QB createBuilder(String fieldName, Object value);
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
         out.writeGenericValue(value);
-        out.writeFloat(boost);
-        out.writeOptionalString(queryName);
     }
 }

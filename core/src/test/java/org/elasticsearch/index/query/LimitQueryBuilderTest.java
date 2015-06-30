@@ -25,7 +25,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 public class LimitQueryBuilderTest extends BaseQueryTestCase<LimitQueryBuilder> {
 
     @Override
-    protected Query createExpectedQuery(LimitQueryBuilder queryBuilder, QueryParseContext context) {
+    protected Query doCreateExpectedQuery(LimitQueryBuilder queryBuilder, QueryParseContext context) {
         // this filter is deprecated and parses to a filter that matches everything
         return Queries.newMatchAllQuery();
     }
@@ -34,9 +34,7 @@ public class LimitQueryBuilderTest extends BaseQueryTestCase<LimitQueryBuilder> 
      * @return a LimitQueryBuilder with random limit between 0 and 20
      */
     @Override
-    protected LimitQueryBuilder createTestQueryBuilder() {
-        LimitQueryBuilder query = new LimitQueryBuilder(randomIntBetween(0, 20));
-        return query;
+    protected LimitQueryBuilder doCreateTestQueryBuilder() {
+        return new LimitQueryBuilder(randomIntBetween(0, 20));
     }
-
 }

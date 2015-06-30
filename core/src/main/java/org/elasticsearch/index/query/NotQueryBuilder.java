@@ -37,8 +37,6 @@ public class NotQueryBuilder extends AbstractQueryBuilder<NotQueryBuilder> {
 
     private final QueryBuilder filter;
 
-    private String queryName;
-
     static final NotQueryBuilder PROTOTYPE = new NotQueryBuilder(null);
 
     public NotQueryBuilder(QueryBuilder filter) {
@@ -52,47 +50,24 @@ public class NotQueryBuilder extends AbstractQueryBuilder<NotQueryBuilder> {
         return this.filter;
     }
 
-    /**
-     * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public NotQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
-    }
-
-    /**
-     * @return the query name.
-     */
-    public String queryName() {
-        return this.queryName;
-    }
-
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         doXContentInnerBuilder(builder, "query", filter, params);
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        printBoostAndQueryName(builder);
         builder.endObject();
     }
 
     @Override
-    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
         if (filter == null) {
             return null;
         }
-
         Query luceneQuery = filter.toQuery(parseContext);
         if (luceneQuery == null) {
             return null;
         }
-
-        Query notQuery = Queries.not(luceneQuery);
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, notQuery);
-        }
-        return notQuery;
+        return Queries.not(luceneQuery);
     }
 
     @Override
@@ -101,28 +76,24 @@ public class NotQueryBuilder extends AbstractQueryBuilder<NotQueryBuilder> {
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(filter, queryName);
+    protected int doHashCode() {
+        return Objects.hash(filter);
     }
 
     @Override
-    public boolean doEquals(NotQueryBuilder other) {
-        return Objects.equals(filter, other.filter) &&
-               Objects.equals(queryName, other.queryName);
+    protected boolean doEquals(NotQueryBuilder other) {
+        return Objects.equals(filter, other.filter);
     }
 
     @Override
-    public NotQueryBuilder readFrom(StreamInput in) throws IOException {
+    protected NotQueryBuilder doReadFrom(StreamInput in) throws IOException {
         QueryBuilder queryBuilder = in.readNamedWriteable();
-        NotQueryBuilder notQueryBuilder = new NotQueryBuilder(queryBuilder);
-        notQueryBuilder.queryName = in.readOptionalString();
-        return notQueryBuilder;
+        return new NotQueryBuilder(queryBuilder);
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(filter);
-        out.writeOptionalString(queryName);
     }
 
     @Override

@@ -44,22 +44,30 @@ public class TypeQueryParser extends BaseQueryParserTemp {
     @Override
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
+        String queryName = null;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+        BytesRef type = null;
+        String currentFieldName = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
+                } else if ("boost".equals(currentFieldName)) {
+                    boost = parser.floatValue();
+                } else if ("value".equals(currentFieldName)) {
+                    type = parser.utf8Bytes();
+                }
+            } else {
+                throw new QueryParsingException(parseContext, "[type] filter doesn't support [" + currentFieldName + "]");
+            }
+        }
 
-        XContentParser.Token token = parser.nextToken();
-        if (token != XContentParser.Token.FIELD_NAME) {
-            throw new QueryParsingException(parseContext, "[type] filter should have a value field, and the type name");
+        if (type == null) {
+            throw new QueryParsingException(parseContext, "[type] filter needs to be provided with a value for the type");
         }
-        String fieldName = parser.currentName();
-        if (!fieldName.equals("value")) {
-            throw new QueryParsingException(parseContext, "[type] filter should have a value field, and the type name");
-        }
-        token = parser.nextToken();
-        if (token != XContentParser.Token.VALUE_STRING) {
-            throw new QueryParsingException(parseContext, "[type] filter should have a value field, and the type name");
-        }
-        BytesRef type = parser.utf8Bytes();
-        // move to the next token
-        parser.nextToken();
 
         Query filter;
         //LUCENE 4 UPGRADE document mapper should use bytesref as well?
@@ -68,6 +76,12 @@ public class TypeQueryParser extends BaseQueryParserTemp {
             filter = new TermQuery(new Term(TypeFieldMapper.NAME, type));
         } else {
             filter = documentMapper.typeFilter();
+        }
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, filter);
+        }
+        if (filter != null) {
+            filter.setBoost(boost);
         }
         return filter;
     }

@@ -30,33 +30,22 @@ import java.io.IOException;
 public class DisMaxQueryBuilderTest extends BaseQueryTestCase<DisMaxQueryBuilder> {
 
     @Override
-    protected Query createExpectedQuery(DisMaxQueryBuilder testBuilder, QueryParseContext context) throws QueryParsingException, IOException {
-        Query query = new DisjunctionMaxQuery(AbstractQueryBuilder.toQueries(testBuilder.queries(), context), testBuilder.tieBreaker());
-        query.setBoost(testBuilder.boost());
-        if (testBuilder.queryName() != null) {
-            context.addNamedQuery(testBuilder.queryName(), query);
-        }
-        return query;
+    protected Query doCreateExpectedQuery(DisMaxQueryBuilder testBuilder, QueryParseContext context) throws QueryParsingException, IOException {
+        return new DisjunctionMaxQuery(AbstractQueryBuilder.toQueries(testBuilder.queries(), context), testBuilder.tieBreaker());
     }
 
     /**
      * @return a {@link DisMaxQueryBuilder} with random inner queries
      */
     @Override
-    protected DisMaxQueryBuilder createTestQueryBuilder() {
+    protected DisMaxQueryBuilder doCreateTestQueryBuilder() {
         DisMaxQueryBuilder dismax = new DisMaxQueryBuilder();
         int clauses = randomIntBetween(1, 5);
         for (int i = 0; i < clauses; i++) {
             dismax.add(RandomQueryBuilder.createQuery(random()));
         }
         if (randomBoolean()) {
-            dismax.boost(2.0f / randomIntBetween(1, 20));
-        }
-        if (randomBoolean()) {
             dismax.tieBreaker(2.0f / randomIntBetween(1, 20));
-        }
-        if (randomBoolean()) {
-            dismax.queryName(randomUnicodeOfLengthBetween(3, 15));
         }
         return dismax;
     }

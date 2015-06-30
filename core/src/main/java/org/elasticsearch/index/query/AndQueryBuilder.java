@@ -44,8 +44,6 @@ public class AndQueryBuilder extends AbstractQueryBuilder<AndQueryBuilder> {
 
     private final ArrayList<QueryBuilder> filters = Lists.newArrayList();
 
-    private String queryName;
-
     static final AndQueryBuilder PROTOTYPE = new AndQueryBuilder();
 
     /**
@@ -73,21 +71,6 @@ public class AndQueryBuilder extends AbstractQueryBuilder<AndQueryBuilder> {
         return this.filters;
     }
 
-    /**
-     * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public AndQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
-    }
-
-    /**
-     * @return the query name.
-     */
-    public String queryName() {
-        return this.queryName;
-    }
-
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
@@ -96,14 +79,12 @@ public class AndQueryBuilder extends AbstractQueryBuilder<AndQueryBuilder> {
             filter.toXContent(builder, params);
         }
         builder.endArray();
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        printBoostAndQueryName(builder);
         builder.endObject();
     }
 
     @Override
-    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
         if (filters.isEmpty()) {
             // no filters provided, this should be ignored upstream
             return null;
@@ -116,9 +97,6 @@ public class AndQueryBuilder extends AbstractQueryBuilder<AndQueryBuilder> {
             if (innerQuery != null) {
                 query.add(innerQuery, Occur.MUST);
             }
-        }
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
         }
         return query;
     }
@@ -134,31 +112,28 @@ public class AndQueryBuilder extends AbstractQueryBuilder<AndQueryBuilder> {
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(filters, queryName);
+    protected int doHashCode() {
+        return Objects.hash(filters);
     }
 
     @Override
-    public boolean doEquals(AndQueryBuilder other) {
-        return Objects.equals(filters, other.filters) &&
-               Objects.equals(queryName, other.queryName);
+    protected boolean doEquals(AndQueryBuilder other) {
+        return Objects.equals(filters, other.filters);
     }
 
     @Override
-    public AndQueryBuilder readFrom(StreamInput in) throws IOException {
+    protected AndQueryBuilder doReadFrom(StreamInput in) throws IOException {
         AndQueryBuilder andQueryBuilder = new AndQueryBuilder();
         List<QueryBuilder> queryBuilders = in.readNamedWriteableList();
         for (QueryBuilder queryBuilder : queryBuilders) {
             andQueryBuilder.add(queryBuilder);
         }
-        andQueryBuilder.queryName = in.readOptionalString();
         return andQueryBuilder;
 
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteableList(filters);
-        out.writeOptionalString(queryName);
     }
 }

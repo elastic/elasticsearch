@@ -27,9 +27,6 @@ import java.util.ArrayList;
 
 import static com.google.common.collect.Lists.newArrayList;
 
-/**
- *
- */
 @Deprecated
 public class AndQueryParser extends BaseQueryParser {
 
@@ -51,6 +48,7 @@ public class AndQueryParser extends BaseQueryParser {
 
         String queryName = null;
         String currentFieldName = null;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.START_ARRAY) {
             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -87,6 +85,8 @@ public class AndQueryParser extends BaseQueryParser {
                 } else if (token.isValue()) {
                     if ("_name".equals(currentFieldName)) {
                         queryName = parser.text();
+                    } else if ("boost".equals(currentFieldName)) {
+                        boost = parser.floatValue();
                     } else {
                         throw new QueryParsingException(parseContext, "[and] query does not support [" + currentFieldName + "]");
                     }
@@ -103,6 +103,7 @@ public class AndQueryParser extends BaseQueryParser {
             andQuery.add(query);
         }
         andQuery.queryName(queryName);
+        andQuery.boost(boost);
         return andQuery;
     }
 

@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 import com.google.common.collect.Lists;
-
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -28,7 +27,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.search.geo.GeoPolygonQuery;
@@ -72,6 +70,7 @@ public class GeoPolygonQueryParser extends BaseQueryParserTemp {
         boolean normalizeLon = true;
         boolean normalizeLat = true;
 
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
         String currentFieldName = null;
         XContentParser.Token token;
@@ -104,6 +103,8 @@ public class GeoPolygonQueryParser extends BaseQueryParserTemp {
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
+                } else if ("boost".equals(currentFieldName)) {
+                    boost = parser.floatValue();
                 } else if ("normalize".equals(currentFieldName)) {
                     normalizeLat = parser.booleanValue();
                     normalizeLon = parser.booleanValue();
@@ -149,6 +150,7 @@ public class GeoPolygonQueryParser extends BaseQueryParserTemp {
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);
         }
+        query.setBoost(boost);
         return query;
     }
 

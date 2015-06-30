@@ -38,17 +38,13 @@ import java.util.*;
 /**
  * A query that will return only documents matching specific ids (and a type).
  */
-public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> implements BoostableQueryBuilder<IdsQueryBuilder> {
+public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
 
     public static final String NAME = "ids";
 
     private final Set<String> ids = Sets.newHashSet();
 
     private final String[] types;
-
-    private float boost = 1.0f;
-
-    private String queryName;
 
     static final IdsQueryBuilder PROTOTYPE = new IdsQueryBuilder();
 
@@ -103,38 +99,6 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> imple
         return this.ids;
     }
 
-    /**
-     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
-     * weightings) have their score multiplied by the boost provided.
-     */
-    @Override
-    public IdsQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
-    }
-
-    /**
-     * Gets the boost for this query.
-     */
-    public float boost() {
-        return this.boost;
-    }
-
-    /**
-     * Sets the query name for the query that can be used when searching for matched_filters per hit.
-     */
-    public IdsQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
-    }
-
-    /**
-     * Gets the query name for the query.
-     */
-    public String queryName() {
-        return this.queryName;
-    }
-
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
@@ -150,10 +114,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> imple
             builder.value(value);
         }
         builder.endArray();
-        builder.field("boost", boost);
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        printBoostAndQueryName(builder);
         builder.endObject();
     }
 
@@ -163,7 +124,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> imple
     }
 
     @Override
-    public Query toQuery(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
         Query query;
         if (this.ids.isEmpty()) {
              query = Queries.newMatchNoDocsQuery();
@@ -179,10 +140,6 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> imple
 
             query = new TermsQuery(UidFieldMapper.NAME, Uid.createUidsForTypesAndIds(typesForQuery, ids));
         }
-        query.setBoost(boost);
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
-        }
         return query;
     }
 
@@ -193,32 +150,26 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> imple
     }
 
     @Override
-    public IdsQueryBuilder readFrom(StreamInput in) throws IOException {
+    protected IdsQueryBuilder doReadFrom(StreamInput in) throws IOException {
         IdsQueryBuilder idsQueryBuilder = new IdsQueryBuilder(in.readStringArray());
         idsQueryBuilder.addIds(in.readStringArray());
-        idsQueryBuilder.queryName = in.readOptionalString();
-        idsQueryBuilder.boost = in.readFloat();
         return idsQueryBuilder;
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeStringArray(types);
         out.writeStringArray(ids.toArray(new String[ids.size()]));
-        out.writeOptionalString(queryName);
-        out.writeFloat(boost);
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(ids, Arrays.hashCode(types), boost, queryName);
+    protected int doHashCode() {
+        return Objects.hash(ids, Arrays.hashCode(types));
     }
 
     @Override
-    public boolean doEquals(IdsQueryBuilder other) {
+    protected boolean doEquals(IdsQueryBuilder other) {
         return Objects.equals(ids, other.ids) &&
-               Arrays.equals(types, other.types) &&
-               Objects.equals(boost, other.boost) &&
-               Objects.equals(queryName, other.queryName);
+               Arrays.equals(types, other.types);
     }
 }

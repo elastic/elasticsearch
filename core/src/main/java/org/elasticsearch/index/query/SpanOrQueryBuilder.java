@@ -19,40 +19,21 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 
-public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder> implements SpanQueryBuilder<SpanOrQueryBuilder>, BoostableQueryBuilder<SpanOrQueryBuilder> {
+public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder> implements SpanQueryBuilder<SpanOrQueryBuilder> {
 
     public static final String NAME = "span_or";
 
     private ArrayList<SpanQueryBuilder> clauses = new ArrayList<>();
 
-    private float boost = -1;
-
-    private String queryName;
-
     static final SpanOrQueryBuilder PROTOTYPE = new SpanOrQueryBuilder();
 
     public SpanOrQueryBuilder clause(SpanQueryBuilder clause) {
         clauses.add(clause);
-        return this;
-    }
-
-    @Override
-    public SpanOrQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
-    }
-
-    /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public SpanOrQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
         return this;
     }
 
@@ -67,23 +48,12 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
             clause.toXContent(builder, params);
         }
         builder.endArray();
-        if (boost != -1) {
-            builder.field("boost", boost);
-        }
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        printBoostAndQueryName(builder);
         builder.endObject();
     }
 
     @Override
     public String getName() {
         return NAME;
-    }
-
-    @Override
-    public SpanQuery toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
-        //norelease just a temporary implementation, will go away once this query is refactored and properly overrides toQuery
-        return (SpanQuery)super.toQuery(parseContext);
     }
 }

@@ -40,7 +40,7 @@ import java.util.Objects;
  * multiplied by the supplied "boost" parameter, so this should be less than 1 to achieve a
  * demoting effect
  */
-public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuilder> implements BoostableQueryBuilder<BoostingQueryBuilder> {
+public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuilder> {
 
     public static final String NAME = "boosting";
 
@@ -49,8 +49,6 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     private QueryBuilder negativeQuery;
 
     private float negativeBoost = -1;
-
-    private float boost = 1.0f;
 
     static final BoostingQueryBuilder PROTOTYPE = new BoostingQueryBuilder();
 
@@ -102,29 +100,13 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
         return this.negativeBoost;
     }
 
-    /**
-     * Set the boost factor.
-     */
-    @Override
-    public BoostingQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
-    }
-
-    /**
-     * Get the boost factor.
-     */
-    public float boost() {
-        return this.boost;
-    }
-
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         doXContentInnerBuilder(builder, "positive", positiveQuery, params);
         doXContentInnerBuilder(builder, "negative", negativeQuery, params);
         builder.field("negative_boost", negativeBoost);
-        builder.field("boost", boost);
+        printBoostAndQueryName(builder);
         builder.endObject();
     }
 
@@ -137,7 +119,7 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
         validationException = validateInnerQuery(negativeQuery, validationException);
         validationException = validateInnerQuery(positiveQuery, validationException);
         return validationException;
-    };
+    }
 
     @Override
     public String getName() {
@@ -145,7 +127,7 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     }
 
     @Override
-    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
         // make upstream queries ignore this query by returning `null`
         // if either inner query builder is null or returns null-Query
         if (positiveQuery == null || negativeQuery == null) {
@@ -157,41 +139,36 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
             return null;
         }
 
-        BoostingQuery boostingQuery = new BoostingQuery(positive, negative, negativeBoost);
-        boostingQuery.setBoost(boost);
-        return boostingQuery;
+        return new BoostingQuery(positive, negative, negativeBoost);
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(boost, negativeBoost, positiveQuery, negativeQuery);
+    protected int doHashCode() {
+        return Objects.hash(negativeBoost, positiveQuery, negativeQuery);
     }
 
     @Override
-    public boolean doEquals(BoostingQueryBuilder other) {
-        return Objects.equals(boost, other.boost) &&
-                Objects.equals(negativeBoost, other.negativeBoost) &&
+    protected boolean doEquals(BoostingQueryBuilder other) {
+        return Objects.equals(negativeBoost, other.negativeBoost) &&
                 Objects.equals(positiveQuery, other.positiveQuery) &&
                 Objects.equals(negativeQuery, other.negativeQuery);
     }
 
     @Override
-    public BoostingQueryBuilder readFrom(StreamInput in) throws IOException {
+    protected BoostingQueryBuilder doReadFrom(StreamInput in) throws IOException {
         QueryBuilder positiveQuery = in.readNamedWriteable();
         QueryBuilder negativeQuery = in.readNamedWriteable();
         BoostingQueryBuilder boostingQuery = new BoostingQueryBuilder();
         boostingQuery.positive(positiveQuery);
         boostingQuery.negative(negativeQuery);
-        boostingQuery.boost = in.readFloat();
         boostingQuery.negativeBoost = in.readFloat();
         return boostingQuery;
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(positiveQuery);
         out.writeNamedWriteable(negativeQuery);
-        out.writeFloat(boost);
         out.writeFloat(negativeBoost);
     }
 }

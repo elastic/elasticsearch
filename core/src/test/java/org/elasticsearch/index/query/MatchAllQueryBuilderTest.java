@@ -25,22 +25,13 @@ import org.apache.lucene.search.Query;
 public class MatchAllQueryBuilderTest extends BaseQueryTestCase<MatchAllQueryBuilder> {
 
     @Override
-    protected Query createExpectedQuery(MatchAllQueryBuilder queryBuilder, QueryParseContext context) {
-        MatchAllDocsQuery matchAllDocsQuery = new MatchAllDocsQuery();
-        matchAllDocsQuery.setBoost(queryBuilder.boost());
-        return matchAllDocsQuery;
+    protected Query doCreateExpectedQuery(MatchAllQueryBuilder queryBuilder, QueryParseContext context) {
+        return new MatchAllDocsQuery();
     }
 
-    /**
-     * @return a MatchAllQuery with random boost between 0.1f and 2.0f
-     */
     @Override
-    protected MatchAllQueryBuilder createTestQueryBuilder() {
-        MatchAllQueryBuilder query = new MatchAllQueryBuilder();
-        if (randomBoolean()) {
-            query.boost(2.0f / randomIntBetween(1, 20));
-        }
-        return query;
+    protected MatchAllQueryBuilder doCreateTestQueryBuilder() {
+        return new MatchAllQueryBuilder();
     }
 
 }

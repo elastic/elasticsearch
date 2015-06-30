@@ -27,16 +27,14 @@ import java.io.IOException;
 /**
  * A Query that does fuzzy matching for a specific value.
  */
-public class RegexpQueryBuilder extends MultiTermQueryBuilder implements BoostableQueryBuilder<RegexpQueryBuilder> {
+public class RegexpQueryBuilder extends MultiTermQueryBuilder {
 
     public static final String NAME = "regexp";
     private final String name;
     private final String regexp;
 
     private int flags = -1;
-    private float boost = -1;
     private String rewrite;
-    private String queryName;
     private int maxDeterminizedStates = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
     private boolean maxDetermizedStatesSet;
     static final RegexpQueryBuilder PROTOTYPE = new RegexpQueryBuilder(null, null);
@@ -50,16 +48,6 @@ public class RegexpQueryBuilder extends MultiTermQueryBuilder implements Boostab
     public RegexpQueryBuilder(String name, String regexp) {
         this.name = name;
         this.regexp = regexp;
-    }
-
-    /**
-     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
-     * weightings) have their score multiplied by the boost provided.
-     */
-    @Override
-    public RegexpQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
     }
 
     public RegexpQueryBuilder flags(RegexpFlag... flags) {
@@ -89,14 +77,6 @@ public class RegexpQueryBuilder extends MultiTermQueryBuilder implements Boostab
         return this;
     }
 
-    /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public RegexpQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
-    }
-
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
@@ -108,15 +88,10 @@ public class RegexpQueryBuilder extends MultiTermQueryBuilder implements Boostab
         if (maxDetermizedStatesSet) {
             builder.field("max_determinized_states", maxDeterminizedStates);
         }
-        if (boost != -1) {
-            builder.field("boost", boost);
-        }
         if (rewrite != null) {
             builder.field("rewrite", rewrite);
         }
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        printBoostAndQueryName(builder);
         builder.endObject();
         builder.endObject();
     }

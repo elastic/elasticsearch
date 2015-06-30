@@ -46,8 +46,9 @@ public class BoostingQueryParser extends BaseQueryParser {
         boolean positiveQueryFound = false;
         QueryBuilder negativeQuery = null;
         boolean negativeQueryFound = false;
-        float boost = 1.0f;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         float negativeBoost = -1;
+        String queryName = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -67,6 +68,8 @@ public class BoostingQueryParser extends BaseQueryParser {
             } else if (token.isValue()) {
                 if ("negative_boost".equals(currentFieldName) || "negativeBoost".equals(currentFieldName)) {
                     negativeBoost = parser.floatValue();
+                } else if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else {
@@ -90,7 +93,7 @@ public class BoostingQueryParser extends BaseQueryParser {
         boostingQuery.negative(negativeQuery);
         boostingQuery.negativeBoost(negativeBoost);
         boostingQuery.boost(boost);
-        boostingQuery.validate();
+        boostingQuery.queryName(queryName);
         return boostingQuery;
     }
 

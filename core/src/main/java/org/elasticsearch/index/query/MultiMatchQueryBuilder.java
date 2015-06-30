@@ -37,7 +37,7 @@ import java.util.Locale;
 /**
  * Same as {@link MatchQueryBuilder} but supports multiple fields.
  */
-public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQueryBuilder> implements BoostableQueryBuilder<MultiMatchQueryBuilder> {
+public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQueryBuilder> {
 
     public static final String NAME = "multi_match";
 
@@ -51,8 +51,6 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     private Operator operator;
 
     private String analyzer;
-
-    private Float boost;
 
     private Integer slop;
 
@@ -77,8 +75,6 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     private Float cutoffFrequency = null;
 
     private MatchQueryBuilder.ZeroTermsQuery zeroTermsQuery = null;
-
-    private String queryName;
 
     static final MultiMatchQueryBuilder PROTOTYPE = new MultiMatchQueryBuilder(null);
 
@@ -220,15 +216,6 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     }
 
     /**
-     * Set the boost to apply to the query.
-     */
-    @Override
-    public MultiMatchQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
-    }
-
-    /**
      * Set the phrase slop if evaluated to a phrase query type.
      */
     public MultiMatchQueryBuilder slop(int slop) {
@@ -325,14 +312,6 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         return this;
     }
 
-    /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public MultiMatchQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
-    }
-
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
@@ -356,9 +335,6 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         }
         if (analyzer != null) {
             builder.field("analyzer", analyzer);
-        }
-        if (boost != null) {
-            builder.field("boost", boost);
         }
         if (slop != null) {
             builder.field("slop", slop);
@@ -402,9 +378,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
             builder.field("zero_terms_query", zeroTermsQuery.toString());
         }
 
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        printBoostAndQueryName(builder);
 
         builder.endObject();
     }

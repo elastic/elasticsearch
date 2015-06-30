@@ -59,12 +59,24 @@ public class QueryFilterBuilder extends AbstractQueryBuilder<QueryFilterBuilder>
     }
 
     @Override
+    public QueryFilterBuilder boost(float boost) {
+        //no-op: QueryFilterParser doesn't support boost, we should be consistent and ignore it here too.
+        return this;
+    }
+
+    @Override
+    public QueryFilterBuilder queryName(String queryName) {
+        //no-op: QueryFilterParser doesn't support _name, we should be consistent and ignore it here too.
+        return this;
+    }
+
+    @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         doXContentInnerBuilder(builder, NAME, queryBuilder, params);
     }
 
     @Override
-    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
         // inner query builder can potentially be `null`, in that case we ignore it
         if (this.queryBuilder == null) {
             return null;
@@ -82,23 +94,23 @@ public class QueryFilterBuilder extends AbstractQueryBuilder<QueryFilterBuilder>
     }
 
     @Override
-    public int hashCode() {
+    protected int doHashCode() {
         return Objects.hash(queryBuilder);
     }
 
     @Override
-    public boolean doEquals(QueryFilterBuilder other) {
+    protected boolean doEquals(QueryFilterBuilder other) {
         return Objects.equals(queryBuilder, other.queryBuilder);
     }
 
     @Override
-    public QueryFilterBuilder readFrom(StreamInput in) throws IOException {
+    protected QueryFilterBuilder doReadFrom(StreamInput in) throws IOException {
         QueryBuilder innerQueryBuilder = in.readNamedWriteable();
         return new QueryFilterBuilder(innerQueryBuilder);
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(queryBuilder);
     }
 

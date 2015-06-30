@@ -29,13 +29,8 @@ import org.elasticsearch.index.query.SimpleQueryParser.Settings;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeMap;
+import java.util.*;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -44,12 +39,8 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
     private static final String[] MINIMUM_SHOULD_MATCH = new String[] { "1", "-1", "75%", "-25%", "2<75%", "2<-25%" };
 
     @Override
-    protected SimpleQueryStringBuilder createTestQueryBuilder() {
+    protected SimpleQueryStringBuilder doCreateTestQueryBuilder() {
         SimpleQueryStringBuilder result = new SimpleQueryStringBuilder(randomAsciiOfLengthBetween(1, 10));
-
-        if (randomBoolean()) {
-            result.queryName(randomAsciiOfLengthBetween(1, 10));
-        }
         if (randomBoolean()) {
             result.analyzeWildcard(randomBoolean());
         }
@@ -72,10 +63,6 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
             result.defaultOperator(randomFrom(Operator.AND, Operator.OR));
         }
         if (randomBoolean()) {
-            result.boost(2.0f / randomIntBetween(1, 20));
-        }
-
-        if (randomBoolean()) {
             Set<SimpleQueryStringFlag> flagSet = new HashSet<>();
             int size = randomIntBetween(0, SimpleQueryStringFlag.values().length);
             for (int i = 0; i < size; i++) {
@@ -90,7 +77,7 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
         Map<String, Float> fields = new TreeMap<>();
         for (int i = 0; i < fieldCount; i++) {
             if (randomBoolean()) {
-                fields.put(randomAsciiOfLengthBetween(1, 10), 1.0f);
+                fields.put(randomAsciiOfLengthBetween(1, 10), AbstractQueryBuilder.DEFAULT_BOOST);
             } else {
                 fields.put(randomAsciiOfLengthBetween(1, 10), 2.0f / randomIntBetween(1, 20));
             }
@@ -104,8 +91,8 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
     public void testDefaults() {
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.");
 
-        assertEquals("Wrong default default boost.", 1.0f, qb.boost(), 0.001);
-        assertEquals("Wrong default default boost field.", 1.0f, SimpleQueryStringBuilder.DEFAULT_BOOST, 0.001);
+        assertEquals("Wrong default default boost.", AbstractQueryBuilder.DEFAULT_BOOST, qb.boost(), 0.001);
+        assertEquals("Wrong default default boost field.", AbstractQueryBuilder.DEFAULT_BOOST, SimpleQueryStringBuilder.DEFAULT_BOOST, 0.001);
 
         assertEquals("Wrong default flags.", SimpleQueryStringFlag.ALL.value, qb.flags());
         assertEquals("Wrong default flags field.", SimpleQueryStringFlag.ALL.value(), SimpleQueryStringBuilder.DEFAULT_FLAGS);
@@ -163,7 +150,7 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
 
     // Check operator handling, and default field handling.
     @Test
-    public void testDefaultOperatorHandling() {
+    public void testDefaultOperatorHandling() throws IOException {
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.");
         BooleanQuery boolQuery = (BooleanQuery) qb.toQuery(createContext());
         assertThat(shouldClauses(boolQuery), is(4));
@@ -208,7 +195,7 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
     @Test(expected = IllegalArgumentException.class)
     public void testFieldCannotBeNullAndWeighted() {
         SimpleQueryStringBuilder qb = createTestQueryBuilder();
-        qb.field(null, 1.0f);
+        qb.field(null, AbstractQueryBuilder.DEFAULT_BOOST);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -220,7 +207,7 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
     @Test(expected = IllegalArgumentException.class)
     public void testFieldCannotBeEmptyAndWeighted() {
         SimpleQueryStringBuilder qb = createTestQueryBuilder();
-        qb.field("", 1.0f);
+        qb.field("", AbstractQueryBuilder.DEFAULT_BOOST);
     }
 
     /**
@@ -231,14 +218,6 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
     public void testFieldsCannotBeSetToNull() {
         SimpleQueryStringBuilder qb = createTestQueryBuilder();
         qb.fields(null);
-    }
-
-    @Override
-    protected void assertLuceneQuery(SimpleQueryStringBuilder queryBuilder, Query query, QueryParseContext context) {
-        if (queryBuilder.queryName() != null) {
-            Query namedQuery = context.copyNamedFilters().get(queryBuilder.queryName());
-            assertThat(namedQuery, equalTo(query));
-        }
     }
 
     private int shouldClauses(BooleanQuery query) {
@@ -252,12 +231,12 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
     }
 
     @Override
-    protected Query createExpectedQuery(SimpleQueryStringBuilder queryBuilder, QueryParseContext context) throws IOException {
+    protected Query doCreateExpectedQuery(SimpleQueryStringBuilder queryBuilder, QueryParseContext context) throws IOException {
         Map<String, Float> fields = new TreeMap<>();
         // Use the default field (_all) if no fields specified
         if (queryBuilder.fields().isEmpty()) {
             String field = context.defaultField();
-            fields.put(field, 1.0F);
+            fields.put(field, AbstractQueryBuilder.DEFAULT_BOOST);
         } else {
             fields.putAll(queryBuilder.fields());
         }
@@ -284,11 +263,9 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
         }
 
         Query query = sqp.parse(queryBuilder.text());
-
         if (queryBuilder.minimumShouldMatch() != null && query instanceof BooleanQuery) {
             Queries.applyMinimumShouldMatch((BooleanQuery) query, queryBuilder.minimumShouldMatch());
         }
-        query.setBoost(queryBuilder.boost());
         return query;
     }
 

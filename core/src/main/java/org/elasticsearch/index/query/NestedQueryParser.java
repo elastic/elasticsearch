@@ -58,7 +58,7 @@ public class NestedQueryParser extends BaseQueryParserTemp {
         XContentParser parser = parseContext.parser();
         final ToBlockJoinQueryBuilder builder = new ToBlockJoinQueryBuilder(parseContext);
 
-        float boost = 1.0f;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         ScoreMode scoreMode = ScoreMode.Avg;
         String queryName = null;
 

@@ -23,15 +23,13 @@ import org.elasticsearch.index.query.support.QueryInnerHitBuilder;
 
 import java.io.IOException;
 
-public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuilder> implements BoostableQueryBuilder<HasChildQueryBuilder> {
+public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuilder> {
 
     public static final String NAME = "has_child";
 
     private final QueryBuilder queryBuilder;
 
     private String childType;
-
-    private float boost = 1.0f;
 
     private String scoreType;
 
@@ -41,8 +39,6 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
     private Integer shortCircuitCutoff;
 
-    private String queryName;
-
     private QueryInnerHitBuilder innerHit = null;
 
     static final HasChildQueryBuilder PROTOTYPE = new HasChildQueryBuilder(null, null);
@@ -50,16 +46,6 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     public HasChildQueryBuilder(String type, QueryBuilder queryBuilder) {
         this.childType = type;
         this.queryBuilder = queryBuilder;
-    }
-
-    /**
-     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
-     * weightings) have their score multiplied by the boost provided.
-     */
-    @Override
-    public HasChildQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
     }
 
     /**
@@ -96,14 +82,6 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     }
 
     /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public HasChildQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
-    }
-
-    /**
      * Sets inner hit definition in the scope of this query and reusing the defined type and query.
      */
     public HasChildQueryBuilder innerHit(QueryInnerHitBuilder innerHit) {
@@ -117,9 +95,6 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         builder.field("query");
         queryBuilder.toXContent(builder, params);
         builder.field("child_type", childType);
-        if (boost != 1.0f) {
-            builder.field("boost", boost);
-        }
         if (scoreType != null) {
             builder.field("score_type", scoreType);
         }
@@ -132,9 +107,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         if (shortCircuitCutoff != null) {
             builder.field("short_circuit_cutoff", shortCircuitCutoff);
         }
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        printBoostAndQueryName(builder);
         if (innerHit != null) {
             builder.startObject("inner_hits");
             builder.value(innerHit);

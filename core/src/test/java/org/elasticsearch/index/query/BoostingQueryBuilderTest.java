@@ -31,26 +31,19 @@ import java.io.IOException;
 public class BoostingQueryBuilderTest extends BaseQueryTestCase<BoostingQueryBuilder> {
 
     @Override
-    protected BoostingQueryBuilder createTestQueryBuilder() {
+    protected BoostingQueryBuilder doCreateTestQueryBuilder() {
         BoostingQueryBuilder query = new BoostingQueryBuilder();
         query.positive(RandomQueryBuilder.createQuery(random()));
         query.negative(RandomQueryBuilder.createQuery(random()));
         query.negativeBoost(2.0f / randomIntBetween(1, 20));
-        if (randomBoolean()) {
-            query.boost(2.0f / randomIntBetween(1, 20));
-        }
         return query;
     }
 
     @Override
-    protected Query createExpectedQuery(BoostingQueryBuilder queryBuilder, QueryParseContext context) throws IOException {
+    protected Query doCreateExpectedQuery(BoostingQueryBuilder queryBuilder, QueryParseContext context) throws IOException {
         Query positive = queryBuilder.positive().toQuery(context);
         Query negative = queryBuilder.negative().toQuery(context);
-        BoostingQuery boostingQuery = new BoostingQuery(positive, negative, queryBuilder.negativeBoost());
-        if (queryBuilder.boost() != 1.0f) {
-            boostingQuery.setBoost(queryBuilder.boost());
-        }
-        return boostingQuery;
+        return new BoostingQuery(positive, negative, queryBuilder.negativeBoost());
     }
 
     /**
@@ -92,7 +85,7 @@ public class BoostingQueryBuilderTest extends BaseQueryTestCase<BoostingQueryBui
 
     @Test
     public void testInnerQueryBuilderReturnsNull() throws IOException {
-        QueryBuilder noOpBuilder = new AbstractQueryBuilder<QueryBuilder>() {
+        QueryBuilder noOpBuilder = new AbstractQueryBuilder() {
 
             @Override
             public String getName() {
@@ -104,7 +97,7 @@ public class BoostingQueryBuilderTest extends BaseQueryTestCase<BoostingQueryBui
             }
 
             @Override
-            public Query toQuery(QueryParseContext context) {
+            protected Query doToQuery(QueryParseContext parseContext) throws IOException {
                 return null;
             }
         };

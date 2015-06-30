@@ -38,7 +38,7 @@ import java.util.Objects;
 /**
  * A Query that matches documents within an range of terms.
  */
-public class RangeQueryBuilder extends MultiTermQueryBuilder<RangeQueryBuilder> implements BoostableQueryBuilder<RangeQueryBuilder> {
+public class RangeQueryBuilder extends MultiTermQueryBuilder<RangeQueryBuilder> {
 
     public static final boolean DEFAULT_INCLUDE_UPPER = true;
 
@@ -57,10 +57,6 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder<RangeQueryBuilder> 
     private boolean includeLower = DEFAULT_INCLUDE_LOWER;
 
     private boolean includeUpper = DEFAULT_INCLUDE_UPPER;
-
-    private float boost = 1.0f;
-
-    private String queryName;
 
     private String format;
 
@@ -193,38 +189,6 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder<RangeQueryBuilder> 
     }
 
     /**
-     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
-     * weightings) have their score multiplied by the boost provided.
-     */
-    @Override
-    public RangeQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
-    }
-
-    /**
-     * Gets the boost factor for the query.
-     */
-    public float boost() {
-        return this.boost;
-    }
-
-    /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public RangeQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
-    }
-
-    /**
-     * Gets the query name for the query.
-     */
-    public String queryName() {
-        return this.queryName;
-    }
-
-    /**
      * In case of date field, we can adjust the from/to fields using a timezone
      */
     public RangeQueryBuilder timeZone(String timezone) {
@@ -262,17 +226,14 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder<RangeQueryBuilder> 
         builder.field("to", convertToStringIfBytesRef(this.to));
         builder.field("include_lower", includeLower);
         builder.field("include_upper", includeUpper);
-        builder.field("boost", boost);
         if (timeZone != null) {
             builder.field("time_zone", timeZone);
         }
         if (format != null) {
             builder.field("format", format);
         }
+        printBoostAndQueryName(builder);
         builder.endObject();
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
         builder.endObject();
     }
 
@@ -282,7 +243,7 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder<RangeQueryBuilder> 
     }
 
     @Override
-    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
         Query query = null;
         MappedFieldType mapper = parseContext.fieldMapper(this.fieldName);
         if (mapper != null) {
@@ -314,11 +275,6 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder<RangeQueryBuilder> 
         if (query == null) {
             query = new TermRangeQuery(this.fieldName, BytesRefs.toBytesRef(from), BytesRefs.toBytesRef(to), includeLower, includeUpper);
         }
-
-        query.setBoost(boost);
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
-        }
         return query;
     }
 
@@ -348,7 +304,7 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder<RangeQueryBuilder> 
     }
 
     @Override
-    public RangeQueryBuilder readFrom(StreamInput in) throws IOException {
+    protected RangeQueryBuilder doReadFrom(StreamInput in) throws IOException {
         RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(in.readString());
         rangeQueryBuilder.from = in.readGenericValue();
         rangeQueryBuilder.to = in.readGenericValue();
@@ -356,13 +312,11 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder<RangeQueryBuilder> 
         rangeQueryBuilder.includeUpper = in.readBoolean();
         rangeQueryBuilder.timeZone = in.readOptionalString();
         rangeQueryBuilder.format = in.readOptionalString();
-        rangeQueryBuilder.boost = in.readFloat();
-        rangeQueryBuilder.queryName = in.readOptionalString();
         return rangeQueryBuilder;
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(this.fieldName);
         out.writeGenericValue(this.from);
         out.writeGenericValue(this.to);
@@ -370,26 +324,21 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder<RangeQueryBuilder> 
         out.writeBoolean(this.includeUpper);
         out.writeOptionalString(this.timeZone);
         out.writeOptionalString(this.format);
-        out.writeFloat(this.boost);
-        out.writeOptionalString(this.queryName);
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(fieldName, from, to, timeZone, includeLower, includeUpper,
-                boost, queryName, format);
+    protected int doHashCode() {
+        return Objects.hash(fieldName, from, to, timeZone, includeLower, includeUpper, format);
     }
 
     @Override
-    public boolean doEquals(RangeQueryBuilder other) {
+    protected boolean doEquals(RangeQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName) &&
                Objects.equals(from, other.from) &&
                Objects.equals(to, other.to) &&
                Objects.equals(timeZone, other.timeZone) &&
                Objects.equals(includeLower, other.includeLower) &&
                Objects.equals(includeUpper, other.includeUpper) &&
-               Objects.equals(boost, other.boost) &&
-               Objects.equals(queryName, other.queryName) &&
                Objects.equals(format, other.format);
     }
 }

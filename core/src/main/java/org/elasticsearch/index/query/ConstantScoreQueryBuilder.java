@@ -32,13 +32,11 @@ import java.util.Objects;
  * A query that wraps a filter and simply returns a constant score equal to the
  * query boost for every document in the filter.
  */
-public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScoreQueryBuilder> implements BoostableQueryBuilder<ConstantScoreQueryBuilder> {
+public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScoreQueryBuilder> {
 
     public static final String NAME = "constant_score";
 
     private final QueryBuilder filterBuilder;
-
-    private float boost = 1.0f;
 
     static final ConstantScoreQueryBuilder PROTOTYPE = new ConstantScoreQueryBuilder(null);
 
@@ -59,33 +57,16 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
         return this.filterBuilder;
     }
 
-    /**
-     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
-     * weightings) have their score multiplied by the boost provided.
-     */
-    @Override
-    public ConstantScoreQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
-    }
-
-    /**
-     * @return the boost factor
-     */
-    public float boost() {
-        return this.boost;
-    }
-
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         doXContentInnerBuilder(builder, "filter", filterBuilder, params);
-        builder.field("boost", boost);
+        printBoostAndQueryName(builder);
         builder.endObject();
     }
 
     @Override
-    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
         // current DSL allows empty inner filter clauses, we ignore them
         if (filterBuilder == null) {
             return null;
@@ -97,9 +78,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
             return null;
         }
 
-        Query filter = new ConstantScoreQuery(filterBuilder.toQuery(parseContext));
-        filter.setBoost(boost);
-        return filter;
+        return new ConstantScoreQuery(filterBuilder.toQuery(parseContext));
     }
 
     @Override
@@ -113,27 +92,23 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(boost, filterBuilder);
+    protected int doHashCode() {
+        return Objects.hash(filterBuilder);
     }
 
     @Override
-    public boolean doEquals(ConstantScoreQueryBuilder other) {
-        return Objects.equals(boost, other.boost) &&
-               Objects.equals(filterBuilder, other.filterBuilder);
+    protected boolean doEquals(ConstantScoreQueryBuilder other) {
+        return Objects.equals(filterBuilder, other.filterBuilder);
     }
 
     @Override
-    public ConstantScoreQueryBuilder readFrom(StreamInput in) throws IOException {
+    protected ConstantScoreQueryBuilder doReadFrom(StreamInput in) throws IOException {
         QueryBuilder innerFilterBuilder = in.readNamedWriteable();
-        ConstantScoreQueryBuilder constantScoreQueryBuilder = new ConstantScoreQueryBuilder(innerFilterBuilder);
-        constantScoreQueryBuilder.boost = in.readFloat();
-        return constantScoreQueryBuilder;
+        return new ConstantScoreQueryBuilder(innerFilterBuilder);
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(filterBuilder);
-        out.writeFloat(boost);
     }
 }

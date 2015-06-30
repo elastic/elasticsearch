@@ -41,7 +41,7 @@ import java.util.Locale;
  * A more like this query that finds documents that are "like" the provided {@link #likeText(String)}
  * which is checked against the fields the query is constructed with.
  */
-public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQueryBuilder> implements BoostableQueryBuilder<MoreLikeThisQueryBuilder> {
+public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQueryBuilder> {
 
     /**
      * A single get item. Pure delegate to multi get.
@@ -147,10 +147,8 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     private int minWordLength = -1;
     private int maxWordLength = -1;
     private float boostTerms = -1;
-    private float boost = -1;
     private String analyzer;
     private Boolean failOnUnsupportedField;
-    private String queryName;
 
     static final MoreLikeThisQueryBuilder PROTOTYPE = new MoreLikeThisQueryBuilder();
 
@@ -348,25 +346,11 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         return this;
     }
 
-    @Override
-    public MoreLikeThisQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
-    }
-
     /**
      * Whether to fail or return no result when this query is run against a field which is not supported such as binary/numeric fields.
      */
     public MoreLikeThisQueryBuilder failOnUnsupportedField(boolean fail) {
         failOnUnsupportedField = fail;
-        return this;
-    }
-
-    /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public MoreLikeThisQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
         return this;
     }
 
@@ -420,21 +404,16 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         if (boostTerms != -1) {
             builder.field(MoreLikeThisQueryParser.Fields.BOOST_TERMS.getPreferredName(), boostTerms);
         }
-        if (boost != -1) {
-            builder.field("boost", boost);
-        }
         if (analyzer != null) {
             builder.field("analyzer", analyzer);
         }
         if (failOnUnsupportedField != null) {
             builder.field(MoreLikeThisQueryParser.Fields.FAIL_ON_UNSUPPORTED_FIELD.getPreferredName(), failOnUnsupportedField);
         }
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
         if (include != null) {
             builder.field("include", include);
         }
+        printBoostAndQueryName(builder);
         builder.endObject();
     }
 

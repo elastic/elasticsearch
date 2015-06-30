@@ -139,7 +139,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         logger.info("--> making sure that filter was stored with alias [alias1] and filter [user:kimchy]");
         ClusterState clusterState = admin().cluster().prepareState().get().getState();
         IndexMetaData indexMd = clusterState.metaData().index("test");
-        assertThat(indexMd.aliases().get("alias1").filter().string(), equalTo("{\"term\":{\"user\":\"kimchy\"}}"));
+        assertThat(indexMd.aliases().get("alias1").filter().string(), equalTo("{\"term\":{\"user\":{\"value\":\"kimchy\",\"boost\":1.0}}}"));
 
     }
 
@@ -520,7 +520,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> verify that filter was updated");
         AliasMetaData aliasMetaData = internalCluster().clusterService().state().metaData().aliases().get("alias1").get("test");
-        assertThat(aliasMetaData.getFilter().toString(), equalTo("{\"term\":{\"name\":\"bar\"}}"));
+        assertThat(aliasMetaData.getFilter().toString(), equalTo("{\"term\":{\"name\":{\"value\":\"bar\",\"boost\":1.0}}}"));
 
         logger.info("--> deleting alias1");
         stopWatch.start();

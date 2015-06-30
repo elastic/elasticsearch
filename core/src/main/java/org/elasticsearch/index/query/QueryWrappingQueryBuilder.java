@@ -25,16 +25,20 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 
 /**
- * QueryBuilder implementation that  holds a lucene query, which can be returned by {@link #toQuery(QueryParseContext)}.
+ * QueryBuilder implementation that  holds a lucene query, which can be returned by {@link QueryBuilder#toQuery(QueryParseContext)}.
  * Doesn't support conversion to {@link org.elasticsearch.common.xcontent.XContent} via {@link #doXContent(XContentBuilder, Params)}.
  */
-//norelease to be removed once all queries support separate fromXContent and toQuery methods
+//norelease to be removed once all queries support separate fromXContent and toQuery methods. Make AbstractQueryBuilder#toQuery final as well then.
 public class QueryWrappingQueryBuilder extends AbstractQueryBuilder<QueryWrappingQueryBuilder> {
 
     private Query query;
 
     public QueryWrappingQueryBuilder(Query query) {
         this.query = query;
+        //hack to make sure that the boost from the wrapped query is used, otherwise it gets overwritten.
+        if (query != null) {
+            this.boost = query.getBoost();
+        }
     }
 
     @Override
@@ -43,8 +47,8 @@ public class QueryWrappingQueryBuilder extends AbstractQueryBuilder<QueryWrappin
     }
 
     @Override
-    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
-        return this.query;
+    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
+        return query;
     }
 
     @Override

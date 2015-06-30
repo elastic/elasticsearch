@@ -44,6 +44,7 @@ public class ExistsQueryParser extends BaseQueryParser {
 
         String fieldPattern = null;
         String queryName = null;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -55,6 +56,8 @@ public class ExistsQueryParser extends BaseQueryParser {
                     fieldPattern = parser.text();
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
+                } else if ("boost".equals(currentFieldName)) {
+                    boost = parser.floatValue();
                 } else {
                     throw new QueryParsingException(parseContext, "[exists] query does not support [" + currentFieldName + "]");
                 }
@@ -67,6 +70,7 @@ public class ExistsQueryParser extends BaseQueryParser {
 
         ExistsQueryBuilder builder = new ExistsQueryBuilder(fieldPattern);
         builder.queryName(queryName);
+        builder.boost(boost);
         return builder;
     }
 

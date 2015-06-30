@@ -19,22 +19,17 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBuilder> implements SpanQueryBuilder<SpanFirstQueryBuilder>, BoostableQueryBuilder<SpanFirstQueryBuilder> {
+public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBuilder> implements SpanQueryBuilder<SpanFirstQueryBuilder>{
 
     public static final String NAME = "span_first";
 
     private final SpanQueryBuilder matchBuilder;
 
     private final int end;
-
-    private float boost = -1;
-
-    private String queryName;
 
     static final SpanFirstQueryBuilder SPAN_FIRST_QUERY_BUILDER = new SpanFirstQueryBuilder(null, -1);
 
@@ -44,42 +39,17 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
     }
 
     @Override
-    public SpanFirstQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
-    }
-
-    /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public SpanFirstQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
-    }
-
-    @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.field("match");
         matchBuilder.toXContent(builder, params);
         builder.field("end", end);
-        if (boost != -1) {
-            builder.field("boost", boost);
-        }
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        printBoostAndQueryName(builder);
         builder.endObject();
     }
 
     @Override
     public String getName() {
         return NAME;
-    }
-
-    @Override
-    public SpanQuery toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
-        //norelease just a temporary implementation, will go away once this query is refactored and properly overrides toQuery
-        return (SpanQuery)super.toQuery(parseContext);
     }
 }

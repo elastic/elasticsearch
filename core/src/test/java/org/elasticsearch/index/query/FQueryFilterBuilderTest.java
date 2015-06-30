@@ -27,13 +27,11 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.equalTo;
-
 @SuppressWarnings("deprecation")
 public class FQueryFilterBuilderTest extends BaseQueryTestCase<FQueryFilterBuilder> {
 
     @Override
-    protected Query createExpectedQuery(FQueryFilterBuilder queryBuilder, QueryParseContext context) throws QueryParsingException, IOException {
+    protected Query doCreateExpectedQuery(FQueryFilterBuilder queryBuilder, QueryParseContext context) throws QueryParsingException, IOException {
         return new ConstantScoreQuery(queryBuilder.innerQuery().toQuery(context));
     }
 
@@ -41,17 +39,9 @@ public class FQueryFilterBuilderTest extends BaseQueryTestCase<FQueryFilterBuild
      * @return a AndQueryBuilder with random limit between 0 and 20
      */
     @Override
-    protected FQueryFilterBuilder createTestQueryBuilder() {
+    protected FQueryFilterBuilder doCreateTestQueryBuilder() {
         QueryBuilder innerQuery = RandomQueryBuilder.createQuery(random());
-        FQueryFilterBuilder testQuery = new FQueryFilterBuilder(innerQuery);
-        testQuery.queryName(randomAsciiOfLengthBetween(1, 10));
-        return testQuery;
-    }
-
-    @Override
-    protected void assertLuceneQuery(FQueryFilterBuilder queryBuilder, Query query, QueryParseContext context) {
-        Query namedQuery = context.copyNamedFilters().get(queryBuilder.queryName());
-        assertThat(namedQuery, equalTo(query));
+        return new FQueryFilterBuilder(innerQuery);
     }
 
     /**

@@ -46,7 +46,7 @@ public class SpanNotQueryParser extends BaseQueryParserTemp {
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        float boost = 1.0f;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
 
         SpanQuery include = null;
         SpanQuery exclude = null;

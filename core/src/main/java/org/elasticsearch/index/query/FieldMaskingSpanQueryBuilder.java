@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,17 +30,13 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import java.io.IOException;
 import java.util.Objects;
 
-public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMaskingSpanQueryBuilder> implements SpanQueryBuilder<FieldMaskingSpanQueryBuilder>, BoostableQueryBuilder<FieldMaskingSpanQueryBuilder> {
+public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMaskingSpanQueryBuilder> implements SpanQueryBuilder<FieldMaskingSpanQueryBuilder>{
 
     public static final String NAME = "field_masking_span";
 
     private final SpanQueryBuilder queryBuilder;
 
     private final String fieldName;
-
-    private float boost = 1.0f;
-
-    private String queryName;
 
     static final FieldMaskingSpanQueryBuilder PROTOTYPE = new FieldMaskingSpanQueryBuilder();
 
@@ -74,60 +71,24 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
     }
 
     @Override
-    public FieldMaskingSpanQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
-    }
-
-    /**
-     * @return the boost factor for this query
-     */
-    public float boost() {
-        return this.boost;
-    }
-
-    /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public FieldMaskingSpanQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
-    }
-
-    /**
-     * @return the query name for this query
-     */
-    public String queryName() {
-        return this.queryName;
-    }
-
-    @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         doXContentInnerBuilder(builder, "query", queryBuilder, params);
         builder.field("field", fieldName);
-        builder.field("boost", boost);
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        printBoostAndQueryName(builder);
         builder.endObject();
     }
 
     @Override
-    public SpanQuery toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+    protected SpanQuery doToQuery(QueryParseContext parseContext) throws IOException {
         String fieldInQuery = fieldName;
         MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
         if (fieldType != null) {
             fieldInQuery = fieldType.names().indexName();
         }
-        SpanQuery innerQuery = queryBuilder.toQuery(parseContext);
-
-        FieldMaskingSpanQuery query = new FieldMaskingSpanQuery(innerQuery, fieldInQuery);
-        query.setBoost(boost);
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
-        }
-        return query;
+        Query innerQuery = queryBuilder.toQuery(parseContext);
+        assert innerQuery instanceof SpanQuery;
+        return new FieldMaskingSpanQuery((SpanQuery)innerQuery, fieldInQuery);
     }
 
     @Override
@@ -140,33 +101,26 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
     }
 
     @Override
-    public FieldMaskingSpanQueryBuilder readFrom(StreamInput in) throws IOException {
+    protected FieldMaskingSpanQueryBuilder doReadFrom(StreamInput in) throws IOException {
         QueryBuilder innerQueryBuilder = in.readNamedWriteable();
-        FieldMaskingSpanQueryBuilder queryBuilder = new FieldMaskingSpanQueryBuilder((SpanQueryBuilder) innerQueryBuilder, in.readString());
-        queryBuilder.queryName = in.readOptionalString();
-        queryBuilder.boost = in.readFloat();
-        return queryBuilder;
+        return new FieldMaskingSpanQueryBuilder((SpanQueryBuilder) innerQueryBuilder, in.readString());
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(queryBuilder);
         out.writeString(fieldName);
-        out.writeOptionalString(queryName);
-        out.writeFloat(boost);
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(queryBuilder, fieldName, boost, queryName);
+    protected int doHashCode() {
+        return Objects.hash(queryBuilder, fieldName);
     }
 
     @Override
-    public boolean doEquals(FieldMaskingSpanQueryBuilder other) {
+    protected boolean doEquals(FieldMaskingSpanQueryBuilder other) {
         return Objects.equals(queryBuilder, other.queryBuilder) &&
-               Objects.equals(fieldName, other.fieldName) &&
-               Objects.equals(boost, other.boost) &&
-               Objects.equals(queryName, other.queryName);
+               Objects.equals(fieldName, other.fieldName);
     }
 
     @Override

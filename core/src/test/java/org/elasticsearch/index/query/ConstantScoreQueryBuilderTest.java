@@ -30,22 +30,16 @@ import java.io.IOException;
 public class ConstantScoreQueryBuilderTest extends BaseQueryTestCase<ConstantScoreQueryBuilder> {
 
     @Override
-    protected Query createExpectedQuery(ConstantScoreQueryBuilder testBuilder, QueryParseContext context) throws QueryParsingException, IOException {
-        Query expectedQuery = new ConstantScoreQuery(testBuilder.query().toQuery(context));
-        expectedQuery.setBoost(testBuilder.boost());
-        return expectedQuery;
+    protected Query doCreateExpectedQuery(ConstantScoreQueryBuilder testBuilder, QueryParseContext context) throws QueryParsingException, IOException {
+        return new ConstantScoreQuery(testBuilder.query().toQuery(context));
     }
 
     /**
      * @return a {@link ConstantScoreQueryBuilder} with random boost between 0.1f and 2.0f
      */
     @Override
-    protected ConstantScoreQueryBuilder createTestQueryBuilder() {
-        ConstantScoreQueryBuilder query = new ConstantScoreQueryBuilder(RandomQueryBuilder.createQuery(random()));
-        if (randomBoolean()) {
-            query.boost(2.0f / randomIntBetween(1, 20));
-        }
-        return query;
+    protected ConstantScoreQueryBuilder doCreateTestQueryBuilder() {
+        return new ConstantScoreQueryBuilder(RandomQueryBuilder.createQuery(random()));
     }
 
     /**

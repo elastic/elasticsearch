@@ -19,13 +19,12 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 
-public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuilder> implements SpanQueryBuilder<SpanNearQueryBuilder>, BoostableQueryBuilder<SpanNearQueryBuilder> {
+public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuilder> implements SpanQueryBuilder<SpanNearQueryBuilder> {
 
     public static final String NAME = "span_near";
 
@@ -36,10 +35,6 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
     private Boolean inOrder;
 
     private Boolean collectPayloads;
-
-    private float boost = -1;
-
-    private String queryName;
 
     static final SpanNearQueryBuilder PROTOTYPE = new SpanNearQueryBuilder();
 
@@ -64,20 +59,6 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
     }
 
     @Override
-    public SpanNearQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
-    }
-
-    /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public SpanNearQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
-    }
-
-    @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         if (clauses.isEmpty()) {
             throw new IllegalArgumentException("Must have at least one clause when building a spanNear query");
@@ -98,23 +79,12 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         if (collectPayloads != null) {
             builder.field("collect_payloads", collectPayloads);
         }
-        if (boost != -1) {
-            builder.field("boost", boost);
-        }
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        printBoostAndQueryName(builder);
         builder.endObject();
     }
 
     @Override
     public String getName() {
         return NAME;
-    }
-
-    @Override
-    public SpanQuery toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
-        //norelease just a temporary implementation, will go away once this query is refactored and properly overrides toQuery
-        return (SpanQuery)super.toQuery(parseContext);
     }
 }

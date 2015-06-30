@@ -31,7 +31,7 @@ import java.io.IOException;
 public class QueryFilterBuilderTest extends BaseQueryTestCase<QueryFilterBuilder> {
 
     @Override
-    protected Query createExpectedQuery(QueryFilterBuilder queryBuilder, QueryParseContext context) throws QueryParsingException, IOException {
+    protected Query doCreateExpectedQuery(QueryFilterBuilder queryBuilder, QueryParseContext context) throws QueryParsingException, IOException {
         return new ConstantScoreQuery(queryBuilder.innerQuery().toQuery(context));
     }
 
@@ -39,10 +39,9 @@ public class QueryFilterBuilderTest extends BaseQueryTestCase<QueryFilterBuilder
      * @return a AndQueryBuilder with random limit between 0 and 20
      */
     @Override
-    protected QueryFilterBuilder createTestQueryBuilder() {
+    protected QueryFilterBuilder doCreateTestQueryBuilder() {
         QueryBuilder innerQuery = RandomQueryBuilder.createQuery(random());
-        QueryFilterBuilder testQuery = new QueryFilterBuilder(innerQuery);
-        return testQuery;
+        return new QueryFilterBuilder(innerQuery);
     }
 
     /**

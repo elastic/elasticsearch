@@ -49,7 +49,7 @@ public class SpanNearQueryParser extends BaseQueryParserTemp {
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        float boost = 1.0f;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         Integer slop = null;
         boolean inOrder = true;
         boolean collectPayloads = true;

@@ -12,7 +12,16 @@ Removed the setter `queryName(String queryName)` since this field is not support
 in this type of query. Use `FQueryFilterBuilder.queryName(String queryName)` instead 
 when in need to wrap a named query as a filter.
 
-Removed the enums called "Operator" from MatchQueryBuilder, QueryStringQueryBuilder,
-SimpleQueryStringBuilder, and CommonTermsQueryBuilder in favour of using the enum
-defined in org.elasticsearch.index.query.Operator in an effort to consolidate the
+==== Operator
+
+Removed the enums called `Operator` from `MatchQueryBuilder`, `QueryStringQueryBuilder`,
+`SimpleQueryStringBuilder`, and `CommonTermsQueryBuilder` in favour of using the enum
+defined in `org.elasticsearch.index.query.Operator` in an effort to consolidate the
 codebase and avoid duplication.
+
+==== queryName and boost support
+
+Support for `queryName` and `boost` has been streamlined to all of the queries. That is
+a breaking change till queries get sent over the network as serialized json rather
+than in `Streamable` format. In fact whenever additional fields are added to the json
+representation of the query, older nodes might throw error when they find unknown fields.pd

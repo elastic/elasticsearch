@@ -25,10 +25,12 @@ import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
+import java.io.IOException;
+
 /**
  * A Query that matches documents containing a term.
  */
-public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> implements BoostableQueryBuilder<TermQueryBuilder> {
+public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
 
     public static final String NAME = "term";
     static final TermQueryBuilder PROTOTYPE = new TermQueryBuilder(null, null);
@@ -69,7 +71,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> imp
     }
 
     @Override
-    public Query toQuery(QueryParseContext parseContext) {
+    public Query doToQuery(QueryParseContext parseContext) throws IOException {
         Query query = null;
         MappedFieldType mapper = parseContext.fieldMapper(this.fieldName);
         if (mapper != null) {
@@ -77,10 +79,6 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> imp
         }
         if (query == null) {
             query = new TermQuery(new Term(this.fieldName, BytesRefs.toBytesRef(this.value)));
-        }
-        query.setBoost(this.boost);
-        if (this.queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
         }
         return query;
     }

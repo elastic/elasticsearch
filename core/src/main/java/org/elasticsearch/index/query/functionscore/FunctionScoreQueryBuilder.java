@@ -21,7 +21,6 @@ package org.elasticsearch.index.query.functionscore;
 
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.BoostableQueryBuilder;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 
@@ -32,13 +31,11 @@ import java.util.ArrayList;
  * A query that uses a filters with a script associated with them to compute the
  * score.
  */
-public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScoreQueryBuilder> implements BoostableQueryBuilder<FunctionScoreQueryBuilder> {
+public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScoreQueryBuilder> {
 
     private final QueryBuilder queryBuilder;
 
     private final QueryBuilder filterBuilder;
-
-    private Float boost;
 
     private Float maxBoost;
 
@@ -146,17 +143,6 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         return this;
     }
 
-    /**
-     * Sets the boost for this query. Documents matching this query will (in
-     * addition to the normal weightings) have their score multiplied by the
-     * boost provided.
-     */
-    @Override
-    public FunctionScoreQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
-    }
-
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(FunctionScoreQueryParser.NAME);
@@ -189,13 +175,10 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         if (maxBoost != null) {
             builder.field("max_boost", maxBoost);
         }
-        if (boost != null) {
-            builder.field("boost", boost);
-        }
         if (minScore != null) {
             builder.field("min_score", minScore);
         }
-
+        printBoostAndQueryName(builder);
         builder.endObject();
     }
 

@@ -69,6 +69,7 @@ public class ScriptQueryParser extends BaseQueryParserTemp {
         Script script = null;
         Map<String, Object> params = null;
 
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
         String currentFieldName = null;
 
@@ -88,6 +89,8 @@ public class ScriptQueryParser extends BaseQueryParserTemp {
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
+                } else if ("boost".equals(currentFieldName)) {
+                    boost = parser.floatValue();
                 } else if (!scriptParameterParser.token(currentFieldName, token, parser)) {
                     throw new QueryParsingException(parseContext, "[script] query does not support [" + currentFieldName + "]");
                 }
@@ -114,6 +117,7 @@ public class ScriptQueryParser extends BaseQueryParserTemp {
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);
         }
+        query.setBoost(boost);
         return query;
     }
 

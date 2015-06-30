@@ -29,7 +29,7 @@ import java.util.Locale;
  * Match query is a query that analyzes the text and constructs a query as the result of the analysis. It
  * can construct different queries based on the type provided.
  */
-public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> implements BoostableQueryBuilder<MatchQueryBuilder> {
+public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 
     public static final String NAME = "match";
 
@@ -63,8 +63,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> i
 
     private String analyzer;
 
-    private Float boost;
-
     private Integer slop;
 
     private Fuzziness fuzziness;
@@ -86,8 +84,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> i
     private ZeroTermsQuery zeroTermsQuery;
 
     private Float cutoff_Frequency = null;
-
-    private String queryName;
 
     static final MatchQueryBuilder PROTOTYPE = new MatchQueryBuilder(null, null);
 
@@ -121,15 +117,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> i
      */
     public MatchQueryBuilder analyzer(String analyzer) {
         this.analyzer = analyzer;
-        return this;
-    }
-
-    /**
-     * Set the boost to apply to the query.
-     */
-    @Override
-    public MatchQueryBuilder boost(float boost) {
-        this.boost = boost;
         return this;
     }
 
@@ -207,14 +194,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> i
         return this;
     }
 
-    /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public MatchQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
-    }
-
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
@@ -229,9 +208,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> i
         }
         if (analyzer != null) {
             builder.field("analyzer", analyzer);
-        }
-        if (boost != null) {
-            builder.field("boost", boost);
         }
         if (slop != null) {
             builder.field("slop", slop);
@@ -267,11 +243,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> i
         if (cutoff_Frequency != null) {
             builder.field("cutoff_frequency", cutoff_Frequency);
         }
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
-
-
+        printBoostAndQueryName(builder);
         builder.endObject();
         builder.endObject();
     }

@@ -26,7 +26,7 @@ import java.io.IOException;
 /**
  * A filter for a field based on several terms matching on any of them.
  */
-public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> implements BoostableQueryBuilder<TermsQueryBuilder> {
+public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
     public static final String NAME = "terms";
 
@@ -36,8 +36,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
 
     private final Object values;
 
-    private String queryName;
-
     private String execution;
 
     private String lookupIndex;
@@ -46,8 +44,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
     private String lookupRouting;
     private String lookupPath;
     private Boolean lookupCache;
-
-    private float boost = -1;
 
     /**
      * A filter for a field based on several terms matching on any of them.
@@ -137,14 +133,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
     }
 
     /**
-     * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public TermsQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
-    }
-
-    /**
      * Sets the index name to lookup the terms from.
      */
     public TermsQueryBuilder lookupIndex(String lookupIndex) {
@@ -187,12 +175,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
     }
 
     @Override
-    public TermsQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
-    }
-
-    @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         if (values == null) {
@@ -217,13 +199,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
             builder.field("execution", execution);
         }
 
-        if (boost != -1) {
-            builder.field("boost", boost);
-        }
-
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        printBoostAndQueryName(builder);
         builder.endObject();
     }
 

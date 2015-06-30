@@ -74,7 +74,7 @@ public class HasChildQueryParser extends BaseQueryParserTemp {
         XContentParser parser = parseContext.parser();
 
         boolean queryFound = false;
-        float boost = 1.0f;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String childType = null;
         ScoreType scoreType = ScoreType.NONE;
         int minChildren = 0;

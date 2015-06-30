@@ -46,11 +46,12 @@ public class LimitQueryBuilder extends AbstractQueryBuilder<LimitQueryBuilder> {
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.field("value", limit);
+        printBoostAndQueryName(builder);
         builder.endObject();
     }
 
     @Override
-    public Query toQuery(QueryParseContext parseContext) {
+    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
         // this filter is deprecated and parses to a filter that matches everything
         return Queries.newMatchAllQuery();
     }
@@ -62,23 +63,22 @@ public class LimitQueryBuilder extends AbstractQueryBuilder<LimitQueryBuilder> {
     }
 
     @Override
-    public boolean doEquals(LimitQueryBuilder other) {
+    protected boolean doEquals(LimitQueryBuilder other) {
         return Integer.compare(other.limit, limit) == 0;
     }
 
     @Override
-    public int hashCode() {
+    protected int doHashCode() {
         return this.limit;
     }
 
     @Override
-    public LimitQueryBuilder readFrom(StreamInput in) throws IOException {
-        LimitQueryBuilder limitQueryBuilder = new LimitQueryBuilder(in.readInt());
-        return limitQueryBuilder;
+    protected LimitQueryBuilder doReadFrom(StreamInput in) throws IOException {
+        return new LimitQueryBuilder(in.readInt());
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeInt(limit);
     }
 

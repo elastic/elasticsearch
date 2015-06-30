@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -48,8 +47,14 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
     }
 
     @Override
-    public SpanQuery toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
-        //norelease just a temporary implementation, will go away once this query is refactored and properly overrides toQuery
-        return (SpanQuery)super.toQuery(parseContext);
+    public SpanMultiTermQueryBuilder boost(float boost) {
+        //no-op: SpanMultiTermQueryParser doesn't support boost, we should be consistent and ignore it here too.
+        return this;
+    }
+
+    @Override
+    public SpanMultiTermQueryBuilder queryName(String queryName) {
+        //no-op: SpanMultiTermQueryParser doesn't support _name, we should be consistent and ignore it here too.
+        return this;
     }
 }

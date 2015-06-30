@@ -26,6 +26,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
+import java.io.IOException;
+
 /**
  * A Span Query that matches documents containing a term.
  * @see SpanTermQuery
@@ -66,7 +68,7 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
     }
 
     @Override
-    public SpanQuery toQuery(QueryParseContext context) {
+    public SpanQuery doToQuery(QueryParseContext context) throws IOException {
         BytesRef valueBytes = null;
         String fieldName = this.fieldName;
         MappedFieldType mapper = context.fieldMapper(fieldName);
@@ -77,13 +79,7 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
         if (valueBytes == null) {
             valueBytes = BytesRefs.toBytesRef(this.value);
         }
-
-        SpanTermQuery query = new SpanTermQuery(new Term(fieldName, valueBytes));
-        query.setBoost(boost);
-        if (queryName != null) {
-            context.addNamedQuery(queryName, query);
-        }
-        return query;
+        return new SpanTermQuery(new Term(fieldName, valueBytes));
     }
 
     @Override

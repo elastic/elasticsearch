@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,48 +30,22 @@ import java.io.IOException;
 /**
  * A query that matches on all documents.
  */
-public class MatchAllQueryBuilder extends AbstractQueryBuilder<MatchAllQueryBuilder> implements BoostableQueryBuilder<MatchAllQueryBuilder> {
+public class MatchAllQueryBuilder extends AbstractQueryBuilder<MatchAllQueryBuilder> {
 
     public static final String NAME = "match_all";
 
-    private float boost = 1.0f;
-
     static final MatchAllQueryBuilder PROTOTYPE = new MatchAllQueryBuilder();
 
-    /**
-     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
-     * weightings) have their score multiplied by the boost provided.
-     */
     @Override
-    public MatchAllQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
-    }
-
-    /**
-     * Gets the boost for this query.
-     */
-    public float boost() {
-        return this.boost;
-    }
-
-    @Override
-    public void doXContent(XContentBuilder builder, Params params) throws IOException {
+    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        if (boost != 1.0f) {
-            builder.field("boost", boost);
-        }
+        printBoostAndQueryName(builder);
         builder.endObject();
     }
 
     @Override
-    public Query toQuery(QueryParseContext parseContext) {
-        if (this.boost == 1.0f) {
-            return Queries.newMatchAllQuery();
-        }
-        MatchAllDocsQuery query = new MatchAllDocsQuery();
-        query.setBoost(boost);
-        return query;
+    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
+        return Queries.newMatchAllQuery();
     }
 
     @Override
@@ -82,25 +55,23 @@ public class MatchAllQueryBuilder extends AbstractQueryBuilder<MatchAllQueryBuil
     }
 
     @Override
-    public boolean doEquals(MatchAllQueryBuilder other) {
-        return Float.compare(other.boost, boost) == 0;
+    protected boolean doEquals(MatchAllQueryBuilder other) {
+        return true;
     }
 
     @Override
-    public int hashCode() {
-        return boost != +0.0f ? Float.floatToIntBits(boost) : 0;
+    protected int doHashCode() {
+        return 0;
     }
 
     @Override
-    public MatchAllQueryBuilder readFrom(StreamInput in) throws IOException {
-        MatchAllQueryBuilder matchAllQueryBuilder = new MatchAllQueryBuilder();
-        matchAllQueryBuilder.boost = in.readFloat();
-        return matchAllQueryBuilder;
+    protected MatchAllQueryBuilder doReadFrom(StreamInput in) throws IOException {
+        return new MatchAllQueryBuilder();
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeFloat(this.boost);
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        //nothing to write really
     }
 
     @Override

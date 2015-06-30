@@ -54,7 +54,7 @@ public class RegexpQueryParser extends BaseQueryParserTemp {
         String rewriteMethod = null;
 
         Object value = null;
-        float boost = 1.0f;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         int flagsValue = -1;
         int maxDeterminizedStates = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
         String queryName = null;

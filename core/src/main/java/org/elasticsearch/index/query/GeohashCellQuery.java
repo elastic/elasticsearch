@@ -164,7 +164,7 @@ public class GeohashCellQuery {
                 builder.field(PRECISION, levels);
             }
             builder.field(field, geohash);
-
+            printBoostAndQueryName(builder);
             builder.endObject();
         }
 
@@ -193,7 +193,8 @@ public class GeohashCellQuery {
             String geohash = null;
             int levels = -1;
             boolean neighbors = false;
-
+            String queryName = null;
+            float boost = AbstractQueryBuilder.DEFAULT_BOOST;
 
             XContentParser.Token token;
             if ((token = parser.currentToken()) != Token.START_OBJECT) {
@@ -217,11 +218,17 @@ public class GeohashCellQuery {
                     } else if (NEIGHBORS.equals(field)) {
                         parser.nextToken();
                         neighbors = parser.booleanValue();
+                    } else if ("_name".equals(field)) {
+                        parser.nextToken();
+                        queryName = parser.text();
+                    } else if ("boost".equals(field)) {
+                        parser.nextToken();
+                        boost = parser.floatValue();
                     } else {
                         fieldName = field;
                         token = parser.nextToken();
                         if(token == Token.VALUE_STRING) {
-                            // A string indicates either a gehash or a lat/lon string
+                            // A string indicates either a geohash or a lat/lon string
                             String location = parser.text();
                             if(location.indexOf(",")>0) {
                                 geohash = GeoUtils.parseGeoPoint(parser).geohash();
@@ -267,7 +274,12 @@ public class GeohashCellQuery {
             } else {
                 filter = create(parseContext, geoFieldType, geohash, null);
             }
-
+            if (queryName != null) {
+                parseContext.addNamedQuery(queryName, filter);
+            }
+            if (filter != null) {
+                filter.setBoost(boost);
+            }
             return filter;
         }
 

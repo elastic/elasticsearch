@@ -25,7 +25,7 @@ import org.elasticsearch.index.query.support.QueryInnerHitBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder> implements BoostableQueryBuilder<NestedQueryBuilder> {
+public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder> {
 
     public static final String NAME = "nested";
 
@@ -34,10 +34,6 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     private final String path;
 
     private String scoreMode;
-
-    private float boost = 1.0f;
-
-    private String queryName;
 
     private QueryInnerHitBuilder innerHit;
 
@@ -65,24 +61,6 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     }
 
     /**
-     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
-     * weightings) have their score multiplied by the boost provided.
-     */
-    @Override
-    public NestedQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
-    }
-
-    /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public NestedQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
-    }
-
-    /**
      * Sets inner hit definition in the scope of this nested query and reusing the defined path and query.
      */
     public NestedQueryBuilder innerHit(QueryInnerHitBuilder innerHit) {
@@ -99,12 +77,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         if (scoreMode != null) {
             builder.field("score_mode", scoreMode);
         }
-        if (boost != 1.0f) {
-            builder.field("boost", boost);
-        }
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        printBoostAndQueryName(builder);
         if (innerHit != null) {
             builder.startObject("inner_hits");
             builder.value(innerHit);

@@ -44,8 +44,6 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
 
     private String optimizeBbox;
 
-    private String queryName;
-
     static final GeoDistanceQueryBuilder PROTOTYPE = new GeoDistanceQueryBuilder(null);
 
     public GeoDistanceQueryBuilder(String name) {
@@ -93,14 +91,6 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         return this;
     }
 
-    /**
-     * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public GeoDistanceQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
-    }
-
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
@@ -116,9 +106,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         if (optimizeBbox != null) {
             builder.field("optimize_bbox", optimizeBbox);
         }
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        printBoostAndQueryName(builder);
         builder.endObject();
     }
 

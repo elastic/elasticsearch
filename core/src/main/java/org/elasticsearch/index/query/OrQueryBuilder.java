@@ -44,8 +44,6 @@ public class OrQueryBuilder extends AbstractQueryBuilder<OrQueryBuilder> {
 
     private final ArrayList<QueryBuilder> filters = Lists.newArrayList();
 
-    private String queryName;
-
     static final OrQueryBuilder PROTOTYPE = new OrQueryBuilder();
 
     public OrQueryBuilder(QueryBuilder... filters) {
@@ -70,21 +68,6 @@ public class OrQueryBuilder extends AbstractQueryBuilder<OrQueryBuilder> {
         return this.filters;
     }
 
-    /**
-     * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public OrQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
-    }
-
-    /**
-     * @return the query name.
-     */
-    public String queryName() {
-        return this.queryName;
-    }
-
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
@@ -93,14 +76,12 @@ public class OrQueryBuilder extends AbstractQueryBuilder<OrQueryBuilder> {
             filter.toXContent(builder, params);
         }
         builder.endArray();
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        printBoostAndQueryName(builder);
         builder.endObject();
     }
 
     @Override
-    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
         if (filters.isEmpty()) {
             // no filters provided, this should be ignored upstream
             return null;
@@ -113,9 +94,6 @@ public class OrQueryBuilder extends AbstractQueryBuilder<OrQueryBuilder> {
             if (innerQuery != null) {
                 query.add(innerQuery, Occur.SHOULD);
             }
-        }
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
         }
         return query;
     }
@@ -131,31 +109,28 @@ public class OrQueryBuilder extends AbstractQueryBuilder<OrQueryBuilder> {
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(filters, queryName);
+    protected int doHashCode() {
+        return Objects.hash(filters);
     }
 
     @Override
-    public boolean doEquals(OrQueryBuilder other) {
-        return Objects.equals(filters, other.filters) &&
-               Objects.equals(queryName, other.queryName);
+    protected boolean doEquals(OrQueryBuilder other) {
+        return Objects.equals(filters, other.filters);
     }
 
     @Override
-    public OrQueryBuilder readFrom(StreamInput in) throws IOException {
+    protected OrQueryBuilder doReadFrom(StreamInput in) throws IOException {
         OrQueryBuilder orQueryBuilder = new OrQueryBuilder();
         List<QueryBuilder> queryBuilders = in.readNamedWriteableList();
         for (QueryBuilder queryBuilder : queryBuilders) {
             orQueryBuilder.add(queryBuilder);
         }
-        orQueryBuilder.queryName = in.readOptionalString();
         return orQueryBuilder;
 
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteableList(filters);
-        out.writeOptionalString(queryName);
     }
 }

@@ -38,7 +38,7 @@ import static com.google.common.collect.Lists.newArrayList;
  * them either using DisMax or a plain boolean query (see {@link #useDisMax(boolean)}).
  * <p/>
  */
-public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQueryBuilder> implements BoostableQueryBuilder<QueryStringQueryBuilder> {
+public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQueryBuilder> {
 
     public static final String NAME = "query_string";
 
@@ -65,9 +65,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
     private Locale locale;
 
-
-    private float boost = -1;
-
     private Fuzziness fuzziness;
     private int fuzzyPrefixLength = -1;
     private int fuzzyMaxExpansions = -1;
@@ -88,8 +85,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     private String minimumShouldMatch;
 
     private Boolean lenient;
-
-    private String queryName;
 
     private String timeZone;
 
@@ -294,16 +289,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     }
 
     /**
-     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
-     * weightings) have their score multiplied by the boost provided.
-     */
-    @Override
-    public QueryStringQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
-    }
-
-    /**
      * An optional field name suffix to automatically try and add to the field searched when using quoted text.
      */
     public QueryStringQueryBuilder quoteFieldSuffix(String quoteFieldSuffix) {
@@ -317,14 +302,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
      */
     public QueryStringQueryBuilder lenient(Boolean lenient) {
         this.lenient = lenient;
-        return this;
-    }
-
-    /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public QueryStringQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
         return this;
     }
 
@@ -391,9 +368,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         if (fuzziness != null) {
             fuzziness.toXContent(builder, params);
         }
-        if (boost != -1) {
-            builder.field("boost", boost);
-        }
         if (fuzzyPrefixLength != -1) {
             builder.field("fuzzy_prefix_length", fuzzyPrefixLength);
         }
@@ -421,15 +395,13 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         if (lenient != null) {
             builder.field("lenient", lenient);
         }
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
         if (locale != null) {
             builder.field("locale", locale.toString());
         }
         if (timeZone != null) {
             builder.field("time_zone", timeZone);
         }
+        printBoostAndQueryName(builder);
         builder.endObject();
     }
 

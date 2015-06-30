@@ -31,7 +31,7 @@ import java.io.IOException;
  * a Wildcard term should not start with one of the wildcards <tt>*</tt> or
  * <tt>?</tt>.
  */
-public class WildcardQueryBuilder extends MultiTermQueryBuilder implements BoostableQueryBuilder<WildcardQueryBuilder> {
+public class WildcardQueryBuilder extends MultiTermQueryBuilder {
 
     public static final String NAME = "wildcard";
 
@@ -39,11 +39,7 @@ public class WildcardQueryBuilder extends MultiTermQueryBuilder implements Boost
 
     private final String wildcard;
 
-    private float boost = -1;
-
     private String rewrite;
-
-    private String queryName;
 
     static final WildcardQueryBuilder PROTOTYPE = new WildcardQueryBuilder(null, null);
 
@@ -68,43 +64,16 @@ public class WildcardQueryBuilder extends MultiTermQueryBuilder implements Boost
         return this;
     }
 
-    /**
-     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
-     * weightings) have their score multiplied by the boost provided.
-     */
-    @Override
-    public WildcardQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
-    }
-
-    /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public WildcardQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
-    }
-
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        if (boost == -1 && rewrite == null && queryName == null) {
-            builder.field(name, wildcard);
-        } else {
-            builder.startObject(name);
-            builder.field("wildcard", wildcard);
-            if (boost != -1) {
-                builder.field("boost", boost);
-            }
-            if (rewrite != null) {
-                builder.field("rewrite", rewrite);
-            }
-            if (queryName != null) {
-                builder.field("_name", queryName);
-            }
-            builder.endObject();
+        builder.startObject(name);
+        builder.field("wildcard", wildcard);
+        if (rewrite != null) {
+            builder.field("rewrite", rewrite);
         }
+        printBoostAndQueryName(builder);
+        builder.endObject();
         builder.endObject();
     }
 

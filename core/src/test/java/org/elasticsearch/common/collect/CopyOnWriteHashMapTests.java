@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.collect;
 
-import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
 import java.util.HashMap;

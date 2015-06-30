@@ -19,10 +19,12 @@
 
 package org.elasticsearch.client.node;
 
-import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableSet;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.GenericAction;
+import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.AbstractClientHeadersTests;
@@ -31,6 +33,7 @@ import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Collections;
 import java.util.HashMap;
 
 /**
@@ -38,7 +41,7 @@ import java.util.HashMap;
  */
 public class NodeClientHeadersTests extends AbstractClientHeadersTests {
 
-    private static final ActionFilters EMPTY_FILTERS = new ActionFilters(ImmutableSet.of());
+    private static final ActionFilters EMPTY_FILTERS = new ActionFilters(Collections.<ActionFilter>emptySet());
 
     @Override
     protected Client buildClient(Settings headersSettings, GenericAction[] testedActions) {

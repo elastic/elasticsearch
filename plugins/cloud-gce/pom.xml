@@ -43,6 +43,12 @@ governing permissions and limitations under the License. -->
           <groupId>com.google.apis</groupId>
           <artifactId>google-api-services-compute</artifactId>
           <version>${google.gce.version}</version>
+          <exclusions>
+              <exclusion>
+                 <groupId>com.google.guava</groupId>
+                 <artifactId>guava-jdk5</artifactId>
+              </exclusion>
+          </exclusions>
         </dependency>
     </dependencies>
 

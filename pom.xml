@@ -154,9 +154,22 @@
             </dependency>
 
             <dependency>
+                <groupId>com.twitter</groupId>
+                <artifactId>jsr166e</artifactId>
+                <version>1.1.0</version>
+            </dependency>
+
+            <dependency>
                 <groupId>org.apache.lucene</groupId>
                 <artifactId>lucene-test-framework</artifactId>
                 <version>${lucene.maven.version}</version>
+                <!-- we specify our own junit4 version -->
+                <exclusions>
+                    <exclusion>
+                        <groupId>com.carrotsearch.randomizedtesting</groupId>
+                        <artifactId>junit4-ant</artifactId>
+                    </exclusion>
+                </exclusions>
             </dependency>
 
             <dependency>
@@ -737,9 +750,6 @@
                                      <internalRuntimeForbidden>true</internalRuntimeForbidden>
                                      <!-- if the used Java version is too new, don't fail, just do nothing: -->
                                      <failOnUnsupportedJava>false</failOnUnsupportedJava>
-                                     <excludes>
-                                         <exclude>jsr166e/**</exclude>
-                                     </excludes>
                                      <bundledSignatures>
                                          <!-- This will automatically choose the right signatures based on 'targetVersion': -->
                                          <bundledSignature>jdk-unsafe</bundledSignature>
@@ -1457,6 +1467,7 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
         </profile>
     </profiles>
     <modules>
+        <module>securemock</module>
         <module>dev-tools</module>
         <module>rest-api-spec</module>
         <module>plugins</module>

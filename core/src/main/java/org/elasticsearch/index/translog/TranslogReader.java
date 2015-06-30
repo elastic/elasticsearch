@@ -233,8 +233,9 @@ public abstract class TranslogReader implements Closeable, Comparable<TranslogRe
                         BytesRef ref = new BytesRef(len);
                         ref.length = len;
                         headerStream.read(ref.bytes, ref.offset, ref.length);
-                        if (ref.utf8ToString().equals(translogUUID) == false) {
-                            throw new TranslogCorruptedException("expected shard UUID [" + translogUUID + "] but got: [" + ref.utf8ToString() + "] this translog file belongs to a different translog");
+                        BytesRef uuidBytes = new BytesRef(translogUUID);
+                        if (uuidBytes.bytesEquals(ref) == false) {
+                            throw new TranslogCorruptedException("expected shard UUID [" + uuidBytes + "] but got: [" + ref + "] this translog file belongs to a different translog");
                         }
                         return new ImmutableTranslogReader(channelReference.getGeneration(), channelReference, ref.length + CodecUtil.headerLength(TranslogWriter.TRANSLOG_CODEC) + RamUsageEstimator.NUM_BYTES_INT, checkpoint.offset, checkpoint.numOps);
                     default:

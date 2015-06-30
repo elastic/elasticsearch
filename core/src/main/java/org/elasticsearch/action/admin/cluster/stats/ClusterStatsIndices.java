@@ -140,7 +140,7 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
         docs = DocsStats.readDocStats(in);
         store = StoreStats.readStoreStats(in);
         fieldData = FieldDataStats.readFieldDataStats(in);
-        queryCache = QueryCacheStats.readFilterCacheStats(in);
+        queryCache = QueryCacheStats.readQueryCacheStats(in);
         completion = CompletionStats.readCompletionStats(in);
         segments = SegmentsStats.readSegmentsStats(in);
         percolate = PercolateStats.readPercolateStats(in);

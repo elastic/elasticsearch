@@ -42,7 +42,7 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.seriesArithmetic;
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.bucketScript;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -105,7 +105,7 @@ public class BucketScriptTests extends ElasticsearchIntegrationTest {
                                 .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
                                 .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
                                 .subAggregation(
-                                        seriesArithmetic("seriesArithmetic").setBucketsPaths("field2Sum", "field3Sum", "field4Sum").script(
+                                        bucketScript("seriesArithmetic").setBucketsPaths("field2Sum", "field3Sum", "field4Sum").script(
                                                 new Script("_value0 + _value1 + _value2", ScriptType.INLINE, null, null)))).execute().actionGet();
 
         assertSearchResponse(response);
@@ -153,7 +153,7 @@ public class BucketScriptTests extends ElasticsearchIntegrationTest {
                                 .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
                                 .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
                                 .subAggregation(
-                                        seriesArithmetic("seriesArithmetic").setBucketsPaths("field2Sum", "field3Sum", "field4Sum").script(
+                                        bucketScript("seriesArithmetic").setBucketsPaths("field2Sum", "field3Sum", "field4Sum").script(
                                                 new Script("_value0 + _value1 / _value2", ScriptType.INLINE, null, null)))).execute().actionGet();
 
         assertSearchResponse(response);
@@ -199,7 +199,7 @@ public class BucketScriptTests extends ElasticsearchIntegrationTest {
                                 .interval(interval)
                                 .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
                                 .subAggregation(
-                                        seriesArithmetic("seriesArithmetic").setBucketsPaths("field2Sum").script(
+                                        bucketScript("seriesArithmetic").setBucketsPaths("field2Sum").script(
                                                 new Script("_value0", ScriptType.INLINE, null, null)))).execute().actionGet();
 
         assertSearchResponse(response);
@@ -245,7 +245,7 @@ public class BucketScriptTests extends ElasticsearchIntegrationTest {
                                 .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
                                 .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
                                 .subAggregation(
-                                        seriesArithmetic("seriesArithmetic").setBucketsPathsMap(bucketsPathsMap ).script(
+                                        bucketScript("seriesArithmetic").setBucketsPathsMap(bucketsPathsMap ).script(
                                                 new Script("foo + bar + baz", ScriptType.INLINE, null, null)))).execute().actionGet();
 
         assertSearchResponse(response);
@@ -295,7 +295,7 @@ public class BucketScriptTests extends ElasticsearchIntegrationTest {
                                 .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
                                 .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
                                 .subAggregation(
-                                        seriesArithmetic("seriesArithmetic").setBucketsPaths("field2Sum", "field3Sum", "field4Sum").script(
+                                        bucketScript("seriesArithmetic").setBucketsPaths("field2Sum", "field3Sum", "field4Sum").script(
                                                 new Script("(_value0 + _value1 + _value2) * factor", ScriptType.INLINE, null, params)))).execute().actionGet();
 
         assertSearchResponse(response);
@@ -343,7 +343,7 @@ public class BucketScriptTests extends ElasticsearchIntegrationTest {
                                 .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
                                 .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
                                 .subAggregation(
-                                        seriesArithmetic("seriesArithmetic").setBucketsPaths("field2Sum", "field3Sum", "field4Sum").script(
+                                        bucketScript("seriesArithmetic").setBucketsPaths("field2Sum", "field3Sum", "field4Sum").script(
                                                 new Script("_value0 + _value1 + _value2", ScriptType.INLINE, null, null)).gapPolicy(GapPolicy.INSERT_ZEROS))).execute().actionGet();
 
         assertSearchResponse(response);
@@ -391,7 +391,7 @@ public class BucketScriptTests extends ElasticsearchIntegrationTest {
                                 .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
                                 .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
                                 .subAggregation(
-                                        seriesArithmetic("seriesArithmetic").setBucketsPaths("field2Sum", "field3Sum", "field4Sum").script(
+                                        bucketScript("seriesArithmetic").setBucketsPaths("field2Sum", "field3Sum", "field4Sum").script(
                                                 new Script("my_script", ScriptType.INDEXED, null, null)).gapPolicy(GapPolicy.INSERT_ZEROS))).execute().actionGet();
 
         assertSearchResponse(response);
@@ -438,7 +438,7 @@ public class BucketScriptTests extends ElasticsearchIntegrationTest {
                                 .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
                                 .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
                                 .subAggregation(
-                                        seriesArithmetic("seriesArithmetic").setBucketsPaths("field2Sum", "field3Sum", "field4Sum").script(
+                                        bucketScript("seriesArithmetic").setBucketsPaths("field2Sum", "field3Sum", "field4Sum").script(
                                                 new Script("_value0 + _value1 + _value2", ScriptType.INLINE, null, null))))
                                 .execute().actionGet();
 
@@ -462,7 +462,7 @@ public class BucketScriptTests extends ElasticsearchIntegrationTest {
                                 .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
                                 .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
                                 .subAggregation(
-                                        seriesArithmetic("seriesArithmetic").setBucketsPaths("field2Sum", "field3Sum", "field4Sum").script(
+                                        bucketScript("seriesArithmetic").setBucketsPaths("field2Sum", "field3Sum", "field4Sum").script(
                                                 new Script("_value0 + _value1 + _value2", ScriptType.INLINE, null, null)))).execute().actionGet();
 
         assertSearchResponse(response);

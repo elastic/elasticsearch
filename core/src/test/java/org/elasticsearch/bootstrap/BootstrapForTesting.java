@@ -50,6 +50,13 @@ public class BootstrapForTesting {
     static {
         // just like bootstrap, initialize natives, then SM
         Bootstrap.initializeNatives(true, true, true);
+        
+        // check for jar hell
+        try {
+            JarHell.checkJarHell();
+        } catch (Exception e) {
+            throw new RuntimeException("found jar hell in test classpath", e);
+        }
 
         // make sure java.io.tmpdir exists always (in case code uses it in a static initializer)
         Path javaTmpDir = PathUtils.get(Objects.requireNonNull(System.getProperty("java.io.tmpdir"),
@@ -63,6 +70,7 @@ public class BootstrapForTesting {
         // install security manager if requested
         if (systemPropertyAsBoolean("tests.security.manager", false)) {
             try {
+                Security.setCodebaseProperties();
                 // initialize paths the same exact way as bootstrap.
                 Permissions perms = new Permissions();
                 Path basedir = PathUtils.get(Objects.requireNonNull(System.getProperty("project.basedir"), 

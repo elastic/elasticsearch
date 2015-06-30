@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.metrics;
 
-import jsr166e.LongAdder;
+import com.twitter.jsr166e.LongAdder;
 
 import java.util.concurrent.TimeUnit;
 

@@ -86,6 +86,8 @@ public class NestedQueryParser extends BaseQueryParserTemp {
                     String sScoreMode = parser.text();
                     if ("avg".equals(sScoreMode)) {
                         scoreMode = ScoreMode.Avg;
+                    } else if ("min".equals(sScoreMode)) {
+                        scoreMode = ScoreMode.Min;
                     } else if ("max".equals(sScoreMode)) {
                         scoreMode = ScoreMode.Max;
                     } else if ("total".equals(sScoreMode) || "sum".equals(sScoreMode)) {

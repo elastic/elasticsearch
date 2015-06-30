@@ -25,7 +25,26 @@
 //// These permissions apply to the JDK itself:
 
 grant codeBase "file:${{java.ext.dirs}}/*" {
-        permission java.security.AllPermission;
+  permission java.security.AllPermission;
+};
+
+//// Very special jar permissions:
+//// These are dangerous permissions that we don't want to grant to everything.
+
+grant codeBase "${es.security.jar.lucene.core}" {
+  // needed to allow MMapDirectory's "unmap hack"
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
+};
+
+grant codeBase "${es.security.jar.twitter.jsr166e}" {
+  // needed for LongAdder etc
+  // TODO: remove this in java 8!
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
+};
+
+grant codeBase "${es.security.jar.elasticsearch.securemock}" {
+  // needed to support creation of mocks
+  permission java.lang.RuntimePermission "reflectionFactoryAccess";
 };
 
 //// Everything else:
@@ -67,15 +86,13 @@ grant {
   permission java.lang.RuntimePermission "getProtectionDomain";
 
   // reflection hacks:
-  // needed for Striped64 (what is this doing), also enables unmap hack
-  permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
   // needed for mock filesystems in tests (to capture implCloseChannel)
   permission java.lang.RuntimePermission "accessClassInPackage.sun.nio.ch";
   // needed by groovy engine
   permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
   // needed by aws core sdk (TODO: look into this)
   permission java.lang.RuntimePermission "accessClassInPackage.sun.security.ssl";
-
+  
   // needed by RandomizedRunner
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   // needed by RandomizedRunner
@@ -98,9 +115,6 @@ grant {
 
   // needed by JDKESLoggerTests
   permission java.util.logging.LoggingPermission "control";
-
-  // needed by Mockito
-  permission java.lang.RuntimePermission "reflectionFactoryAccess";
 
   // needed to install SSLFactories, advanced SSL configuration, etc.
   permission java.lang.RuntimePermission "setFactory";

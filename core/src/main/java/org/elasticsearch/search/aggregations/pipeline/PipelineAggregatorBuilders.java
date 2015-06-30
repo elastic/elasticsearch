@@ -57,7 +57,7 @@ public final class PipelineAggregatorBuilders {
         return new MovAvgBuilder(name);
     }
 
-    public static final BucketScriptBuilder seriesArithmetic(String name) {
+    public static final BucketScriptBuilder bucketScript(String name) {
         return new BucketScriptBuilder(name);
     }
 

@@ -34,9 +34,11 @@ import java.util.Map;
  * Builder for the {@link Filters} aggregation.
  */
 public class FiltersAggregationBuilder extends AggregationBuilder<FiltersAggregationBuilder> {
-    
+
     private Map<String, QueryBuilder> keyedFilters = null;
     private List<QueryBuilder> nonKeyedFilters = null;
+    private Boolean otherBucket;
+    private String otherBucketKey;
 
     /**
      * Sole constructor.
@@ -70,6 +72,22 @@ public class FiltersAggregationBuilder extends AggregationBuilder<FiltersAggrega
         return this;
     }
 
+    /**
+     * Include a bucket for documents not matching any filter
+     */
+    public FiltersAggregationBuilder otherBucket(boolean otherBucket) {
+        this.otherBucket = otherBucket;
+        return this;
+    }
+
+    /**
+     * The key to use for the bucket for documents not matching any filter. Will
+     * implicitly enable the other bucket if set.
+     */
+    public FiltersAggregationBuilder otherBucketKey(String otherBucketKey) {
+        this.otherBucketKey = otherBucketKey;
+        return this;
+    }
 
     @Override
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
@@ -80,9 +98,9 @@ public class FiltersAggregationBuilder extends AggregationBuilder<FiltersAggrega
         if (keyedFilters != null && nonKeyedFilters != null) {
             throw new SearchSourceBuilderException("Cannot add both keyed and non-keyed filters to filters aggregation");
         }
-        
+
         if (keyedFilters != null) {
-            builder.startObject("filters");
+            builder.startObject(FiltersParser.FILTERS_FIELD.getPreferredName());
             for (Map.Entry<String, QueryBuilder> entry : keyedFilters.entrySet()) {
                 builder.field(entry.getKey());
                 entry.getValue().toXContent(builder, params);
@@ -90,12 +108,18 @@ public class FiltersAggregationBuilder extends AggregationBuilder<FiltersAggrega
             builder.endObject();
         }
         if (nonKeyedFilters != null) {
-            builder.startArray("filters");
+            builder.startArray(FiltersParser.FILTERS_FIELD.getPreferredName());
             for (QueryBuilder filterBuilder : nonKeyedFilters) {
                 filterBuilder.toXContent(builder, params);
             }
             builder.endArray();
 
+        }
+        if (otherBucketKey != null) {
+            builder.field(FiltersParser.OTHER_BUCKET_KEY_FIELD.getPreferredName(), otherBucketKey);
+        }
+        if (otherBucket != null) {
+            builder.field(FiltersParser.OTHER_BUCKET_FIELD.getPreferredName(), otherBucket);
         }
         return builder.endObject();
     }

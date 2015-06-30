@@ -741,7 +741,11 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
-    public void failShard(String reason, Throwable e) {
+    /**
+     * Fails the shard and marks the shard store as corrupted if
+     * <code>e</code> is caused by index corruption
+     */
+    public void failShard(String reason, @Nullable Throwable e) {
         // fail the engine. This will cause this shard to also be removed from the node's index service.
         engine().failEngine(reason, e);
     }
@@ -1271,18 +1275,11 @@ public class IndexShard extends AbstractIndexShardComponent {
         // called by the current engine
         @Override
         public void onFailedEngine(ShardId shardId, String reason, @Nullable Throwable failure) {
-            try {
-                // mark as corrupted, so opening the store will fail
-                store.markStoreCorrupted(new IOException("failed engine (reason: [" + reason + "])", failure));
-            } catch (IOException e) {
-                logger.warn("failed to mark shard store as corrupted", e);
-            } finally {
-                for (Engine.FailedEngineListener listener : delegates) {
-                    try {
-                        listener.onFailedEngine(shardId, reason, failure);
-                    } catch (Exception e) {
-                        logger.warn("exception while notifying engine failure", e);
-                    }
+            for (Engine.FailedEngineListener listener : delegates) {
+                try {
+                    listener.onFailedEngine(shardId, reason, failure);
+                } catch (Exception e) {
+                    logger.warn("exception while notifying engine failure", e);
                 }
             }
         }

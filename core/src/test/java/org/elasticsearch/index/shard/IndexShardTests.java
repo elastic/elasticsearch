@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
@@ -215,7 +216,7 @@ public class IndexShardTests extends ElasticsearchSingleNodeTest {
         IndexService test = indicesService.indexService("test");
         IndexShard shard = test.shard(0);
         // fail shard
-        shard.failShard("test shard fail", new IOException("corrupted"));
+        shard.failShard("test shard fail", new CorruptIndexException("", ""));
         // check state file still exists
         ShardStateMetaData shardStateMetaData = load(logger, env.availableShardPaths(shard.shardId));
         assertEquals(shardStateMetaData, getShardStateMetadata(shard));

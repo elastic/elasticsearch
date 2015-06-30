@@ -5,7 +5,8 @@
  */
 package org.elasticsearch.integration;
 
-import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.Maps;
+import com.google.common.collect.Maps;
+
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.http.HttpServerTransport;
@@ -44,19 +45,19 @@ public abstract class AbstractPrivilegeTests extends ShieldIntegrationTest {
     }
 
     protected void assertAccessIsAllowed(String user, String method, String uri, String body) throws IOException {
-        assertAccessIsAllowed(user, method, uri, body, Maps.newHashMap());
+        assertAccessIsAllowed(user, method, uri, body, Maps.<String,String>newHashMap());
     }
 
     protected void assertAccessIsAllowed(String user, String method, String uri) throws IOException {
-        assertAccessIsAllowed(user, method, uri, null, Maps.newHashMap());
+        assertAccessIsAllowed(user, method, uri, null, Maps.<String,String>newHashMap());
     }
 
     protected void assertAccessIsDenied(String user, String method, String uri, String body) throws IOException {
-        assertAccessIsDenied(user, method, uri, body, Maps.newHashMap());
+        assertAccessIsDenied(user, method, uri, body, Maps.<String,String>newHashMap());
     }
 
     protected void assertAccessIsDenied(String user, String method, String uri) throws IOException {
-        assertAccessIsDenied(user, method, uri, null, Maps.newHashMap());
+        assertAccessIsDenied(user, method, uri, null, Maps.<String,String>newHashMap());
     }
 
     protected void assertAccessIsDenied(String user, String method, String uri, String body, Map<String, String> params) throws IOException {

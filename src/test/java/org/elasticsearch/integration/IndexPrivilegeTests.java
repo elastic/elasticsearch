@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.integration;
 
-import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.Maps;
+import com.google.common.collect.Maps;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
@@ -320,7 +320,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTests {
 
     @Test
     public void testThatUnknownUserIsRejectedProperly() throws Exception {
-        HttpResponse response = executeRequest("idonotexist", "GET", "/", null, Maps.newHashMap());
+        HttpResponse response = executeRequest("idonotexist", "GET", "/", null, Maps.<String,String>newHashMap());
         assertThat(response.getStatusCode(), is(401));
     }
 

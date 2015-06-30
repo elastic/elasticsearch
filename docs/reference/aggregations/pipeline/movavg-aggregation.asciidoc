@@ -1,6 +1,10 @@
 [[search-aggregations-pipeline-movavg-aggregation]]
 === Moving Average Aggregation
 
+coming[2.0.0]
+
+experimental[]
+
 Given an ordered series of data, the Moving Average aggregation will slide a window across the data and emit the average
 value of that window.  For example, given the data `[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]`, we can calculate a simple moving
 average with windows size of `5` as follows:

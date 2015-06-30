@@ -81,7 +81,7 @@ final class Security {
      */
     @SuppressForbidden(reason = "proper use of URL")
     static void setCodebaseProperties() {
-        ClassLoader loader = ClassLoader.getSystemClassLoader();
+        ClassLoader loader = Security.class.getClassLoader();
         if (loader instanceof URLClassLoader) {
             for (URL url : ((URLClassLoader)loader).getURLs()) {
                 for (Map.Entry<Pattern,String> e : SPECIAL_JARS.entrySet()) {

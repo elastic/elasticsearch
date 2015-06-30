@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.store;
 
-import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.Lists;
+import com.google.common.collect.Lists;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;

@@ -471,6 +471,10 @@ public abstract class StreamOutput extends OutputStream {
                 writeVInt(8);
             } else if (throwable instanceof SecurityException) {
                 writeVInt(9);
+            } else if (throwable instanceof StringIndexOutOfBoundsException) {
+                writeVInt(10);
+            } else if (throwable instanceof ArrayIndexOutOfBoundsException) {
+                writeVInt(11);
             } else {
                 ElasticsearchException ex;
                 final String name = throwable.getClass().getName();

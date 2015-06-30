@@ -524,6 +524,14 @@ public abstract class StreamInput extends InputStream {
                     return (T) readStackTrace(new EOFException(eofMessage), this);
                 case 9:
                     return (T) readStackTrace(new SecurityException(readOptionalString(), readThrowable()), this);
+                case 10:
+                    final String sidxMessage = readOptionalString();
+                    readThrowable();
+                    return (T) readStackTrace(new StringIndexOutOfBoundsException(sidxMessage), this);
+                case 11:
+                    final String aidxMessage = readOptionalString();
+                    readThrowable();
+                    return (T) readStackTrace(new ArrayIndexOutOfBoundsException(aidxMessage), this);
                 default:
                     assert false : "no such exception for id: " + key;
             }

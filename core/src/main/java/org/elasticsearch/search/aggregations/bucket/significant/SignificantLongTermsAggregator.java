@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -45,9 +44,9 @@ import java.util.Map;
  */
 public class SignificantLongTermsAggregator extends LongTermsAggregator {
 
-    public SignificantLongTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, @Nullable ValueFormat format,
-              BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext,
-              Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory, IncludeExclude.LongFilter includeExclude,
+    public SignificantLongTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource,
+            ValueFormat format, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent,
+            SignificantTermsAggregatorFactory termsAggFactory, IncludeExclude.LongFilter includeExclude,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 
         super(name, factories, valuesSource, format, null, bucketCountThresholds, aggregationContext, parent,

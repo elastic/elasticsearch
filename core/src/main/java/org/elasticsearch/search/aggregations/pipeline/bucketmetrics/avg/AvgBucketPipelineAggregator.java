@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.avg;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -59,7 +58,7 @@ public class AvgBucketPipelineAggregator extends BucketMetricsPipelineAggregator
     private AvgBucketPipelineAggregator() {
     }
 
-    protected AvgBucketPipelineAggregator(String name, String[] bucketsPaths, GapPolicy gapPolicy, @Nullable ValueFormatter formatter,
+    protected AvgBucketPipelineAggregator(String name, String[] bucketsPaths, GapPolicy gapPolicy, ValueFormatter formatter,
             Map<String, Object> metaData) {
         super(name, bucketsPaths, gapPolicy, formatter, metaData);
     }
@@ -92,7 +91,7 @@ public class AvgBucketPipelineAggregator extends BucketMetricsPipelineAggregator
         private final ValueFormatter formatter;
         private final GapPolicy gapPolicy;
 
-        public Factory(String name, String[] bucketsPaths, GapPolicy gapPolicy, @Nullable ValueFormatter formatter) {
+        public Factory(String name, String[] bucketsPaths, GapPolicy gapPolicy, ValueFormatter formatter) {
             super(name, TYPE.name(), bucketsPaths);
             this.gapPolicy = gapPolicy;
             this.formatter = formatter;

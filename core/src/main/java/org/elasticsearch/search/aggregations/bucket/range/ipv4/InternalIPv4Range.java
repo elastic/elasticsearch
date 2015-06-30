@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range.ipv4;
 
-import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -118,7 +117,7 @@ public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket, I
         }
 
         @Override
-        public InternalIPv4Range create(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed,
+        public InternalIPv4Range create(String name, List<Bucket> ranges, ValueFormatter formatter, boolean keyed,
                 List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
             return new InternalIPv4Range(name, ranges, keyed, pipelineAggregators, metaData);
         }
@@ -129,7 +128,8 @@ public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket, I
         }
 
         @Override
-        public Bucket createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed, @Nullable ValueFormatter formatter) {
+        public Bucket createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed,
+                ValueFormatter formatter) {
             return new Bucket(key, from, to, docCount, aggregations, keyed);
         }
 

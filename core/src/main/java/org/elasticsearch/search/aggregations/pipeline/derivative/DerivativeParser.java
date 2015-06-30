@@ -25,9 +25,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramParser;
+import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.internal.SearchContext;
@@ -98,6 +98,8 @@ public class DerivativeParser implements PipelineAggregator.Parser {
         ValueFormatter formatter = null;
         if (format != null) {
             formatter = ValueFormat.Patternable.Number.format(format).formatter();
+        } else {
+            formatter = ValueFormatter.RAW;
         }
 
         Long xAxisUnits = null;

@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.BigArrays;
@@ -54,7 +53,7 @@ public abstract class AbstractPercentilesAggregator extends NumericMetricsAggreg
     protected final boolean keyed;
 
     public AbstractPercentilesAggregator(String name, ValuesSource.Numeric valuesSource, AggregationContext context, Aggregator parent,
-            double[] keys, double compression, boolean keyed, @Nullable ValueFormatter formatter,
+            double[] keys, double compression, boolean keyed, ValueFormatter formatter,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;

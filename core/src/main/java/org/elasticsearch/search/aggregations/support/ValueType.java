@@ -29,8 +29,9 @@ import org.elasticsearch.search.aggregations.support.format.ValueFormat;
  */
 public enum ValueType {
 
-    @Deprecated ANY("any", ValuesSource.class, IndexFieldData.class, null),
-    STRING("string", ValuesSource.Bytes.class, IndexFieldData.class, null),
+    @Deprecated
+    ANY("any", ValuesSource.class, IndexFieldData.class, ValueFormat.RAW), STRING("string", ValuesSource.Bytes.class, IndexFieldData.class,
+            ValueFormat.RAW),
     LONG("byte|short|integer|long", ValuesSource.Numeric.class, IndexNumericFieldData.class, ValueFormat.RAW) {
         @Override
         public boolean isNumeric() {
@@ -72,7 +73,7 @@ public enum ValueType {
             return true;
         }
     },
-    GEOPOINT("geo_point", ValuesSource.GeoPoint.class, IndexGeoPointFieldData.class, null) {
+    GEOPOINT("geo_point", ValuesSource.GeoPoint.class, IndexGeoPointFieldData.class, ValueFormat.RAW) {
         @Override
         public boolean isGeoPoint() {
             return true;

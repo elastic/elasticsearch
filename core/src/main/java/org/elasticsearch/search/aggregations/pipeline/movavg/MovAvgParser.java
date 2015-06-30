@@ -138,6 +138,8 @@ public class MovAvgParser implements PipelineAggregator.Parser {
         ValueFormatter formatter = null;
         if (format != null) {
             formatter = ValueFormat.Patternable.Number.format(format).formatter();
+        } else {
+            formatter = ValueFormatter.RAW;
         }
 
         MovAvgModel.AbstractModelParser modelParser = movAvgModelParserMapper.get(model);

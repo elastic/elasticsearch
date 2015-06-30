@@ -19,14 +19,13 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.search.SearchParseException;
+import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.internal.SearchContext;
@@ -53,7 +52,7 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
         String[] bucketsPaths = null;
         String format = null;
         GapPolicy gapPolicy = GapPolicy.SKIP;
-    
+
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -87,22 +86,24 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
                         parser.getTokenLocation());
             }
         }
-    
+
         if (bucketsPaths == null) {
             throw new SearchParseException(context, "Missing required field [" + BUCKETS_PATH.getPreferredName()
                     + "] for derivative aggregation [" + pipelineAggregatorName + "]", parser.getTokenLocation());
         }
-    
+
         ValueFormatter formatter = null;
         if (format != null) {
             formatter = ValueFormat.Patternable.Number.format(format).formatter();
+        } else {
+            formatter = ValueFormatter.RAW;
         }
-    
+
         return buildFactory(pipelineAggregatorName, bucketsPaths, gapPolicy, formatter);
     }
 
     protected abstract PipelineAggregatorFactory buildFactory(String pipelineAggregatorName, String[] bucketsPaths, GapPolicy gapPolicy,
-            @Nullable ValueFormatter formatter);
+            ValueFormatter formatter);
 
     protected boolean doParse(String pipelineAggregatorName, String currentFieldName, Token token, XContentParser parser, SearchContext context) {
         return false;

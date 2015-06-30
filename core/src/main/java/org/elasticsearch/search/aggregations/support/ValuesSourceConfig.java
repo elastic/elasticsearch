@@ -34,7 +34,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
     ValueType scriptValueType;
     boolean unmapped = false;
     String formatPattern;
-    ValueFormat format;
+    ValueFormat format = ValueFormat.RAW;
     Object missing;
 
     public ValuesSourceConfig(Class<VS> valueSourceType) {
@@ -81,10 +81,10 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
     }
 
     public ValueFormatter formatter() {
-        return format != null ? format.formatter() : null;
+        return format.formatter();
     }
 
     public ValueParser parser() {
-        return format != null ? format.parser() : null;
+        return format.parser();
     }
 }

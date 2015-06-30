@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.pipeline.bucketscript;
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.CompiledScript;
@@ -87,7 +86,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
     public BucketScriptPipelineAggregator() {
     }
 
-    public BucketScriptPipelineAggregator(String name, Map<String, String> bucketsPathsMap, Script script, @Nullable ValueFormatter formatter,
+    public BucketScriptPipelineAggregator(String name, Map<String, String> bucketsPathsMap, Script script, ValueFormatter formatter,
             GapPolicy gapPolicy, Map<String, Object> metadata) {
         super(name, bucketsPathsMap.values().toArray(new String[bucketsPathsMap.size()]), metadata);
         this.bucketsPathsMap = bucketsPathsMap;
@@ -162,7 +161,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
         private GapPolicy gapPolicy;
         private Map<String, String> bucketsPathsMap;
 
-        public Factory(String name, Map<String, String> bucketsPathsMap, Script script, @Nullable ValueFormatter formatter, GapPolicy gapPolicy) {
+        public Factory(String name, Map<String, String> bucketsPathsMap, Script script, ValueFormatter formatter, GapPolicy gapPolicy) {
             super(name, TYPE.name(), bucketsPathsMap.values().toArray(new String[bucketsPathsMap.size()]));
             this.bucketsPathsMap = bucketsPathsMap;
             this.script = script;

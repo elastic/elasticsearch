@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.pipeline.derivative;
 
 import com.google.common.collect.Lists;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -71,7 +70,7 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
     public DerivativePipelineAggregator() {
     }
 
-    public DerivativePipelineAggregator(String name, String[] bucketsPaths, @Nullable ValueFormatter formatter, GapPolicy gapPolicy, Long xAxisUnits,
+    public DerivativePipelineAggregator(String name, String[] bucketsPaths, ValueFormatter formatter, GapPolicy gapPolicy, Long xAxisUnits,
             Map<String, Object> metadata) {
         super(name, bucketsPaths, metadata);
         this.formatter = formatter;
@@ -158,7 +157,7 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
         private GapPolicy gapPolicy;
         private Long xAxisUnits;
 
-        public Factory(String name, String[] bucketsPaths, @Nullable ValueFormatter formatter, GapPolicy gapPolicy, Long xAxisUnits) {
+        public Factory(String name, String[] bucketsPaths, ValueFormatter formatter, GapPolicy gapPolicy, Long xAxisUnits) {
             super(name, TYPE.name(), bucketsPaths);
             this.formatter = formatter;
             this.gapPolicy = gapPolicy;

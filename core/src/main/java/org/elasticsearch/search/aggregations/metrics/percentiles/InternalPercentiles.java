@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.metrics.percentiles;
 
 import com.google.common.collect.UnmodifiableIterator;
 
-import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestState;
@@ -55,7 +54,7 @@ public class InternalPercentiles extends AbstractInternalPercentiles implements 
     InternalPercentiles() {
     } // for serialization
 
-    public InternalPercentiles(String name, double[] percents, TDigestState state, boolean keyed, @Nullable ValueFormatter formatter,
+    public InternalPercentiles(String name, double[] percents, TDigestState state, boolean keyed, ValueFormatter formatter,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, percents, state, keyed, formatter, pipelineAggregators, metaData);
     }

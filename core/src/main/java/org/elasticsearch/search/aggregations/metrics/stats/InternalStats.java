@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.metrics.stats;
 
-import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -70,7 +69,7 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
 
     protected InternalStats() {} // for serialization
 
-    public InternalStats(String name, long count, double sum, double min, double max, @Nullable ValueFormatter formatter,
+    public InternalStats(String name, long count, double sum, double min, double max, ValueFormatter formatter,
             List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
@@ -211,7 +210,7 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
         builder.field(Fields.MAX, count != 0 ? max : null);
         builder.field(Fields.AVG, count != 0 ? getAvg() : null);
         builder.field(Fields.SUM, count != 0 ? sum : null);
-        if (count != 0 && valueFormatter != null && !(valueFormatter instanceof ValueFormatter.Raw)) {
+        if (count != 0 && !(valueFormatter instanceof ValueFormatter.Raw)) {
             builder.field(Fields.MIN_AS_STRING, valueFormatter.format(min));
             builder.field(Fields.MAX_AS_STRING, valueFormatter.format(max));
             builder.field(Fields.AVG_AS_STRING, valueFormatter.format(getAvg()));

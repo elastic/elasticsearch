@@ -19,8 +19,16 @@
 
 package org.elasticsearch.common.io.stream;
 
+import com.fasterxml.jackson.core.JsonLocation;
+import com.fasterxml.jackson.core.JsonParseException;
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -31,11 +39,13 @@ import org.elasticsearch.common.text.Text;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.ObjectInputStream;
+import java.io.*;
+import java.nio.file.NoSuchFileException;
 import java.util.*;
+import java.util.regex.Pattern;
+
+import static org.elasticsearch.ElasticsearchException.readException;
+import static org.elasticsearch.ElasticsearchException.readStackTrace;
 
 /**
  *
@@ -491,14 +501,60 @@ public abstract class StreamInput extends InputStream {
     }
 
     public <T extends Throwable> T readThrowable() throws IOException {
-        try {
-            ObjectInputStream oin = new ObjectInputStream(this);
-            @SuppressWarnings("unchecked")
-            T object = (T) oin.readObject();
-            return object;
-        } catch (ClassNotFoundException e) {
-            throw new IOException("failed to deserialize exception", e);
+        if (readBoolean()) {
+            int key = readVInt();
+            switch (key) {
+                case 0:
+                    final String name = readString();
+                    return (T) readException(this, name);
+                case 1:
+                    // this sucks it would be nice to have a better way to construct those?
+                    String msg = readOptionalString();
+                    final int idx = msg.indexOf(" (resource=");
+                    final String resource = msg.substring(idx + " (resource=".length(), msg.length()-1);
+                    msg = msg.substring(0, idx);
+                    return (T) readStackTrace(new CorruptIndexException(msg, resource, readThrowable()), this); // Lucene 5.3 will have getters for all these
+                case 2:
+                    return (T) readStackTrace(new IndexFormatTooNewException(readOptionalString(), -1, -1, -1), this);  // Lucene 5.3 will have getters for all these
+                case 3:
+                    return (T) readStackTrace(new IndexFormatTooOldException(readOptionalString(), -1, -1, -1), this);  // Lucene 5.3 will have getters for all these
+                case 4:
+                    return (T) readStackTrace(new NullPointerException(readOptionalString()), this);
+                case 5:
+                    return (T) readStackTrace(new NumberFormatException(readOptionalString()), this);
+                case 6:
+                    return (T) readStackTrace(new IllegalArgumentException(readOptionalString(), readThrowable()), this);
+                case 7:
+                    return (T) readStackTrace(new IllegalStateException(readOptionalString(), readThrowable()), this);
+                case 8:
+                    return (T) readStackTrace(new EOFException(readOptionalString()), this);
+                case 9:
+                    return (T) readStackTrace(new SecurityException(readOptionalString(), readThrowable()), this);
+                case 10:
+                    return (T) readStackTrace(new StringIndexOutOfBoundsException(readOptionalString()), this);
+                case 11:
+                    return (T) readStackTrace(new ArrayIndexOutOfBoundsException(readOptionalString()), this);
+                case 12:
+                    return (T) readStackTrace(new AssertionError(readOptionalString(), readThrowable()), this);
+                case 13:
+                    return (T) readStackTrace(new FileNotFoundException(readOptionalString()), this);
+                case 14:
+                    final String file = readOptionalString();
+                    final String other = readOptionalString();
+                    final String reason = readOptionalString();
+                    readOptionalString(); // skip the msg - it's composed from file, other and reason
+                    return (T) readStackTrace(new NoSuchFileException(file, other, reason), this);
+                case 15:
+                    return (T) readStackTrace(new OutOfMemoryError(readOptionalString()), this);
+                case 16:
+                    return (T) readStackTrace(new AlreadyClosedException(readOptionalString(), readThrowable()), this);
+                case 17:
+                    return (T) readStackTrace(new LockObtainFailedException(readOptionalString(), readThrowable()), this);
+                default:
+                    assert false : "no such exception for id: " + key;
+            }
         }
+        return null;
     }
 
     /**
@@ -539,4 +595,5 @@ public abstract class StreamInput extends InputStream {
     public static StreamInput wrap(byte[] bytes, int offset, int length) {
         return new InputStreamStreamInput(new ByteArrayInputStream(bytes, offset, length));
     }
+
 }

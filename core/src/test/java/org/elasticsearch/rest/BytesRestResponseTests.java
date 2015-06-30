@@ -48,7 +48,7 @@ public class BytesRestResponseTests extends ElasticsearchTestCase {
         RestRequest request = new FakeRestRequest();
         RestChannel channel = randomBoolean() ? new DetailedExceptionRestChannel(request) : new SimpleExceptionRestChannel(request);
 
-        BytesRestResponse response = new BytesRestResponse(channel, new ExceptionWithHeaders());
+        BytesRestResponse response = new BytesRestResponse(channel, new WithHeadersException());
         assertThat(response.getHeaders().get("n1"), notNullValue());
         assertThat(response.getHeaders().get("n1"), contains("v11", "v12"));
         assertThat(response.getHeaders().get("n2"), notNullValue());
@@ -152,9 +152,9 @@ public class BytesRestResponseTests extends ElasticsearchTestCase {
         assertEquals(expected.trim(), text.trim());
     }
 
-    private static class ExceptionWithHeaders extends ElasticsearchException.WithRestHeaders {
+    public static class WithHeadersException extends ElasticsearchException.WithRestHeadersException {
 
-        ExceptionWithHeaders() {
+        WithHeadersException() {
             super("", header("n1", "v11", "v12"), header("n2", "v21", "v22"));
         }
     }

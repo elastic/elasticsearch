@@ -22,7 +22,10 @@ package org.elasticsearch.indices.recovery;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
+
+import java.io.IOException;
 
 /**
  *
@@ -47,5 +50,9 @@ public class RecoveryFailedException extends ElasticsearchException {
 
     public RecoveryFailedException(ShardId shardId, DiscoveryNode sourceNode, DiscoveryNode targetNode, @Nullable String extraInfo, Throwable cause) {
         super(shardId + ": Recovery failed from " + sourceNode + " into " + targetNode + (extraInfo == null ? "" : " (" + extraInfo + ")"), cause);
+    }
+
+    public RecoveryFailedException(StreamInput in) throws IOException {
+        super(in);
     }
 }

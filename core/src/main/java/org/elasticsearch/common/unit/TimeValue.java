@@ -37,7 +37,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
-public class TimeValue implements Serializable, Streamable {
+public class TimeValue implements Streamable {
 
     /** How many nano-seconds in one milli-second */
     public static final long NSEC_PER_MSEC = 1000000;

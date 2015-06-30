@@ -20,6 +20,9 @@
 package org.elasticsearch.script.expression;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
 
 /**
  * Exception used to wrap exceptions occuring while running expressions.
@@ -28,6 +31,11 @@ public class ExpressionScriptExecutionException extends ElasticsearchException {
     public ExpressionScriptExecutionException(String msg, Throwable cause) {
         super(msg, cause);
     }
+
+    public ExpressionScriptExecutionException(StreamInput in) throws IOException {
+        super(in);
+    }
+
     public ExpressionScriptExecutionException(String msg) {
         super(msg);
     }

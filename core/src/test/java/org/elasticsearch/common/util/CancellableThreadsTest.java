@@ -27,7 +27,7 @@ import java.util.concurrent.CountDownLatch;
 
 public class CancellableThreadsTest extends ElasticsearchTestCase {
 
-    private static class CustomException extends RuntimeException {
+    public static class CustomException extends RuntimeException {
 
         public CustomException(String msg) {
             super(msg);

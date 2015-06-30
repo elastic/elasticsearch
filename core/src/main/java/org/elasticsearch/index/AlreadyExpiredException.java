@@ -20,7 +20,11 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.engine.IgnoreOnRecoveryEngineException;
+
+import java.io.IOException;
 
 public class AlreadyExpiredException extends ElasticsearchException implements IgnoreOnRecoveryEngineException {
     private String index;
@@ -62,5 +66,26 @@ public class AlreadyExpiredException extends ElasticsearchException implements I
 
     public long now() {
         return now;
+    }
+
+    public AlreadyExpiredException(StreamInput in) throws IOException{
+        super(in);
+        index = in.readOptionalString();
+        type = in.readOptionalString();
+        id = in.readOptionalString();
+        timestamp = in.readLong();
+        ttl = in.readLong();
+        now = in.readLong();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeOptionalString(index);
+        out.writeOptionalString(type);
+        out.writeOptionalString(id);
+        out.writeLong(timestamp);
+        out.writeLong(ttl);
+        out.writeLong(now);
     }
 }

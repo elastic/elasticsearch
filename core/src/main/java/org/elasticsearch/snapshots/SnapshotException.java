@@ -21,6 +21,10 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
 
 /**
  * Generic snapshot exception
@@ -35,6 +39,21 @@ public class SnapshotException extends ElasticsearchException {
     public SnapshotException(SnapshotId snapshot, String msg, Throwable cause) {
         super("[" + (snapshot == null ? "_na" : snapshot) + "] " + msg, cause);
         this.snapshot = snapshot;
+    }
+
+    public SnapshotException(StreamInput in) throws IOException {
+        super(in);
+        if (in.readBoolean()) {
+            snapshot = SnapshotId.readSnapshotId(in);
+        } else {
+            snapshot = null;
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeOptionalStreamable(snapshot);
     }
 
     public SnapshotId snapshot() {

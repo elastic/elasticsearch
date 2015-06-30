@@ -20,6 +20,10 @@
 package org.elasticsearch.search;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
 
 /**
  *
@@ -29,13 +33,27 @@ public class SearchException extends ElasticsearchException {
     private final SearchShardTarget shardTarget;
 
     public SearchException(SearchShardTarget shardTarget, String msg) {
-        super(msg);
-        this.shardTarget = shardTarget;
+        this(shardTarget, msg, null);
     }
 
     public SearchException(SearchShardTarget shardTarget, String msg, Throwable cause) {
         super(msg, cause);
         this.shardTarget = shardTarget;
+    }
+
+    public SearchException(StreamInput in) throws IOException {
+        super(in);
+        if (in.readBoolean()) {
+            shardTarget = SearchShardTarget.readSearchShardTarget(in);
+        } else {
+            shardTarget = null;
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeOptionalStreamable(shardTarget);
     }
 
     public SearchShardTarget shard() {

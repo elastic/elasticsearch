@@ -21,7 +21,12 @@ package org.elasticsearch.percolator;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchWrapperException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
+
+import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Exception during percolating document(s) at runtime.
@@ -30,17 +35,24 @@ public class PercolateException extends ElasticsearchException implements Elasti
 
     private final ShardId shardId;
 
-    public PercolateException(String msg, ShardId shardId) {
-        super(msg);
-        this.shardId = shardId;
-    }
-
     public PercolateException(ShardId shardId, String msg, Throwable cause) {
         super(msg, cause);
+        Objects.requireNonNull(shardId, "shardId must not be null");
         this.shardId = shardId;
     }
 
     public ShardId getShardId() {
         return shardId;
+    }
+
+    public PercolateException(StreamInput in) throws IOException{
+        super(in);
+        shardId = ShardId.readShardId(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        shardId.writeTo(out);
     }
 }

@@ -24,12 +24,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 
 import java.io.IOException;
-import java.io.Serializable;
 
 /**
  *
  */
-public class Index implements Serializable, Streamable {
+public class Index implements Streamable {
 
     private String name;
 

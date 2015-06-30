@@ -27,7 +27,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 
 import java.io.IOException;
-import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 
@@ -39,7 +38,7 @@ import static com.google.common.collect.Maps.newHashMap;
  * Encapsulates the result of a routing table validation and provides access to
  * validation failures.
  */
-public class RoutingTableValidation implements Serializable, Streamable {
+public class RoutingTableValidation implements Streamable {
 
     private boolean valid = true;
 

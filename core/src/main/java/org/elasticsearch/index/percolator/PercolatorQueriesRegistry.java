@@ -23,7 +23,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -84,13 +83,6 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
     private final AtomicBoolean realTimePercolatorEnabled = new AtomicBoolean(false);
 
     private boolean mapUnmappedFieldsAsString;
-
-    private CloseableThreadLocal<QueryParseContext> cache = new CloseableThreadLocal<QueryParseContext>() {
-        @Override
-        protected QueryParseContext initialValue() {
-            return new QueryParseContext(shardId.index(), queryParserService);
-        }
-    };
 
     public PercolatorQueriesRegistry(ShardId shardId, @IndexSettings Settings indexSettings, IndexQueryParserService queryParserService,
                                      ShardIndexingService indexingService, IndicesLifecycle indicesLifecycle, MapperService mapperService,
@@ -197,7 +189,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
         if (type != null) {
             QueryParseContext.setTypesWithPrevious(new String[]{type});
         }
-        QueryParseContext context = cache.get();
+        QueryParseContext context = queryParserService.getParseContext();
         try {
             context.reset(parser);
             // This means that fields in the query need to exist in the mapping prior to registering this query

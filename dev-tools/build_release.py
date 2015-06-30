@@ -239,7 +239,7 @@ def run_mvn(*cmd):
   for c in cmd:
     run('%s; %s %s' % (java_exe(), MVN, c))
 
-def build_release(run_tests=False, dry_run=True, cpus=1, bwc_version=None):
+def build_release(release_version, run_tests=False, dry_run=True, cpus=1, bwc_version=None):
   target = 'deploy'
   if dry_run:
     target = 'package'
@@ -251,12 +251,25 @@ def build_release(run_tests=False, dry_run=True, cpus=1, bwc_version=None):
       print('Running Backwards compatibility tests against version [%s]' % (bwc_version))
       run_mvn('clean', 'test -Dtests.filter=@backwards -Dtests.bwc.version=%s -Dtests.bwc=true -Dtests.jvms=1' % bwc_version)
   run_mvn('clean test-compile -Dforbidden.test.signatures="org.apache.lucene.util.LuceneTestCase\$AwaitsFix @ Please fix all bugs before release"')
-  gpg_args = '-Dgpg.key="%s" -Dgpg.passphrase="%s" -Ddeb.sign=true' % (env.get('GPG_KEY_ID'), env.get('GPG_PASSPHRASE'))
+  gpg_args = '-Dgpg.key="%s" -Dgpg.passphrase="%s" -Ddeb.sign=true -Drpm.sign=true' % (env.get('GPG_KEY_ID'), env.get('GPG_PASSPHRASE'))
   if env.get('GPG_KEYRING'):
     gpg_args += ' -Dgpg.keyring="%s"' % env.get('GPG_KEYRING')
   run_mvn('clean %s -DskipTests %s' % (target, gpg_args))
   success = False
   try:
+    # create unsigned RPM first for downloads.elasticsearch.org
+    run_mvn('-DskipTests rpm:rpm')
+    # move unsigned RPM to target/releases
+    # this is an oddness of RPM that is attaches -1 so we have to rename it
+    rpm = os.path.join('target/rpm/elasticsearch/RPMS/noarch/', 'elasticsearch-%s-1.noarch.rpm' % release_version)
+    if os.path.isfile(rpm):
+      log('RPM [%s] contains: ' % rpm)
+      run('rpm -pqli %s' % rpm)
+      renamed_rpm = os.path.join('target/releases/', 'elasticsearch-%s.noarch.rpm' % release_version)
+      shutil.move(rpm, renamed_rpm)
+    else:
+      raise RuntimeError('Could not find required RPM at %s' % rpm)
+    # now create signed RPM for repositories
     run_mvn('-DskipTests rpm:rpm %s' % (gpg_args))
     success = True
   finally:
@@ -346,23 +359,15 @@ def find_release_version(src_branch):
     raise RuntimeError('Could not find release version in branch %s' % src_branch)
 
 def artifact_names(release, path = ''):
-  return [os.path.join(path, 'elasticsearch-%s.%s' % (release, t)) for t in ['deb', 'tar.gz', 'zip']]
+  artifacts = [os.path.join(path, 'elasticsearch-%s.%s' % (release, t)) for t in ['deb', 'tar.gz', 'zip']]
+  artifacts.append(os.path.join(path, 'elasticsearch-%s.noarch.rpm' % (release)))
+  return artifacts
 
 def get_artifacts(release):
   common_artifacts = artifact_names(release, 'target/releases/')
   for f in common_artifacts:
     if not os.path.isfile(f):
       raise RuntimeError('Could not find required artifact at %s' % f)
-  rpm = os.path.join('target/rpm/elasticsearch/RPMS/noarch/', 'elasticsearch-%s-1.noarch.rpm' % release)
-  if os.path.isfile(rpm):
-    log('RPM [%s] contains: ' % rpm)
-    run('rpm -pqli %s' % rpm)
-    # this is an oddness of RPM that is attches -1 so we have to rename it
-    renamed_rpm = os.path.join('target/rpm/elasticsearch/RPMS/noarch/', 'elasticsearch-%s.noarch.rpm' % release)
-    shutil.move(rpm, renamed_rpm)
-    common_artifacts.append(renamed_rpm)
-  else:
-    raise RuntimeError('Could not find required artifact at %s' % rpm)
   return common_artifacts
 
 # Checks the jar files in each package
@@ -754,7 +759,7 @@ if __name__ == '__main__':
         print('  Running maven builds now and publish to Sonatype - run-tests [%s]' % run_tests)
       else:
         print('  Running maven builds now run-tests [%s]' % run_tests)
-      build_release(run_tests=run_tests, dry_run=dry_run, cpus=cpus, bwc_version=find_bwc_version(release_version, bwc_path))
+      build_release(release_version, run_tests=run_tests, dry_run=dry_run, cpus=cpus, bwc_version=find_bwc_version(release_version, bwc_path))
       artifacts = get_artifacts(release_version)
       print('Checking if all artifacts contain the same jars')
       check_artifacts_for_same_jars(artifacts)

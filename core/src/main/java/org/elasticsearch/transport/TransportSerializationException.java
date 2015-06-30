@@ -19,13 +19,17 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
+
 /**
  *
  */
 public class TransportSerializationException extends TransportException {
 
-    public TransportSerializationException(String msg) {
-        super(msg);
+    public TransportSerializationException(StreamInput in) throws IOException {
+        super(in);
     }
 
     public TransportSerializationException(String msg, Throwable cause) {

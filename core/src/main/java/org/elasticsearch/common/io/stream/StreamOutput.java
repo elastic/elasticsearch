@@ -19,17 +19,26 @@
 
 package org.elasticsearch.common.io.stream;
 
+import com.vividsolutions.jts.util.Assert;
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
 import org.joda.time.ReadableInstant;
 
+import java.io.EOFException;
+import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.ObjectOutputStream;
 import java.io.OutputStream;
+import java.nio.file.NoSuchFileException;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -446,9 +455,78 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     public void writeThrowable(Throwable throwable) throws IOException {
-        ObjectOutputStream out = new ObjectOutputStream(this);
-        out.writeObject(throwable);
-        out.flush();
+        if (throwable == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            boolean writeCause = true;
+            if (throwable instanceof CorruptIndexException) {
+                writeVInt(1);
+            } else if (throwable instanceof IndexFormatTooNewException) {
+                writeVInt(2);
+                writeCause = false;
+            } else if (throwable instanceof IndexFormatTooOldException) {
+                writeVInt(3);
+                writeCause = false;
+            } else if (throwable instanceof NullPointerException) {
+                writeVInt(4);
+                writeCause = false;
+            } else if (throwable instanceof NumberFormatException) {
+                writeVInt(5);
+                writeCause = false;
+            } else if (throwable instanceof IllegalArgumentException) {
+                writeVInt(6);
+            } else if (throwable instanceof IllegalStateException) {
+                writeVInt(7);
+            } else if (throwable instanceof EOFException) {
+                writeVInt(8);
+                writeCause = false;
+            } else if (throwable instanceof SecurityException) {
+                writeVInt(9);
+            } else if (throwable instanceof StringIndexOutOfBoundsException) {
+                writeVInt(10);
+                writeCause = false;
+            } else if (throwable instanceof ArrayIndexOutOfBoundsException) {
+                writeVInt(11);
+                writeCause = false;
+            } else if (throwable instanceof AssertionError) {
+                writeVInt(12);
+            } else if (throwable instanceof FileNotFoundException) {
+                writeVInt(13);
+                writeCause = false;
+            } else if (throwable instanceof NoSuchFileException) {
+                writeVInt(14);
+                writeOptionalString(((NoSuchFileException) throwable).getFile());
+                writeOptionalString(((NoSuchFileException) throwable).getOtherFile());
+                writeOptionalString(((NoSuchFileException) throwable).getReason());
+                writeCause = false;
+            } else if (throwable instanceof OutOfMemoryError) {
+                writeVInt(15);
+                writeCause = false;
+            } else if (throwable instanceof AlreadyClosedException) {
+                writeVInt(16);
+            } else if (throwable instanceof LockObtainFailedException) {
+                writeVInt(17);
+            } else {
+                ElasticsearchException ex;
+                final String name = throwable.getClass().getName();
+                if (throwable instanceof ElasticsearchException && ElasticsearchException.isRegistered(name)) {
+                    ex = (ElasticsearchException) throwable;
+                } else {
+                    ex = new NotSerializableExceptionWrapper(throwable);
+                }
+                writeVInt(0);
+                writeString(ex.getClass().getName());
+                ex.writeTo(this);
+                return;
+
+            }
+            writeOptionalString(throwable.getMessage());
+            if (writeCause) {
+                writeThrowable(throwable.getCause());
+            }
+            ElasticsearchException.writeStackTraces(throwable, this);
+        }
     }
 
     /**

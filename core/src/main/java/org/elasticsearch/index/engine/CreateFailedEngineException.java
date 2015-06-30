@@ -19,7 +19,12 @@
 
 package org.elasticsearch.index.engine;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
+
+import java.io.IOException;
+import java.util.Objects;
 
 /**
  *
@@ -30,10 +35,18 @@ public class CreateFailedEngineException extends EngineException {
 
     private final String id;
 
-    public CreateFailedEngineException(ShardId shardId, Engine.Create create, Throwable cause) {
-        super(shardId, "Create failed for [" + create.type() + "#" + create.id() + "]", cause);
-        this.type = create.type();
-        this.id = create.id();
+    public CreateFailedEngineException(ShardId shardId, String type, String id, Throwable cause) {
+        super(shardId, "Create failed for [" + type + "#" + id + "]", cause);
+        Objects.requireNonNull(type, "type must not be null");
+        Objects.requireNonNull(id, "id must not be null");
+        this.type = type;
+        this.id = id;
+    }
+
+    public CreateFailedEngineException(StreamInput in) throws IOException{
+        super(in);
+        type = in.readString();
+        id = in.readString();
     }
 
     public String type() {
@@ -42,5 +55,12 @@ public class CreateFailedEngineException extends EngineException {
 
     public String id() {
         return this.id;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(type);
+        out.writeString(id);
     }
 }

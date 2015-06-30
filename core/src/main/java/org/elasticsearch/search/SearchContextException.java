@@ -19,7 +19,10 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.internal.SearchContext;
+
+import java.io.IOException;
 
 /**
  *
@@ -27,14 +30,15 @@ import org.elasticsearch.search.internal.SearchContext;
 public class SearchContextException extends SearchException {
 
     public SearchContextException(SearchContext context, String msg) {
-        super(context.shardTarget(), buildMessage(context, msg));
+        super(context.shardTarget(), msg);
     }
 
     public SearchContextException(SearchContext context, String msg, Throwable t) {
-        super(context.shardTarget(), buildMessage(context, msg), t);
+        super(context.shardTarget(), msg, t);
     }
 
-    private static String buildMessage(SearchContext context, String msg) {
-       return msg;
+    public SearchContextException(StreamInput in) throws IOException {
+        super(in);
     }
+
 }

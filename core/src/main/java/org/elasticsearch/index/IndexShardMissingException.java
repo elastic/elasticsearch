@@ -19,9 +19,12 @@
 
 package org.elasticsearch.index;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+
+import java.io.IOException;
 
 /**
  *
@@ -30,6 +33,10 @@ public class IndexShardMissingException extends IndexShardException {
 
     public IndexShardMissingException(ShardId shardId) {
         super(shardId, "missing");
+    }
+
+    public IndexShardMissingException(StreamInput in) throws IOException{
+        super(in);
     }
 
     @Override

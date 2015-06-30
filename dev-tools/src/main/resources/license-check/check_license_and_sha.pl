@@ -28,18 +28,22 @@ sub check_shas_and_licenses {
     my %licenses = get_files_with('LICENSE');
     my %notices  = get_files_with('NOTICE');
 
-    my $error = 0;
+    my $error     = 0;
+    my $sha_error = 0;
+
     for my $jar ( sort keys %new ) {
         my $old_sha = delete $old{$jar};
         unless ($old_sha) {
             say STDERR "$jar: SHA is missing";
             $error++;
+            $sha_error++;
             next;
         }
 
         unless ( $old_sha eq $new{$jar} ) {
             say STDERR "$jar: SHA has changed";
             $error++;
+            $sha_error++;
             next;
         }
 
@@ -67,6 +71,7 @@ sub check_shas_and_licenses {
         unless ($license_found) {
             say STDERR "$jar: LICENSE is missing";
             $error++;
+            $sha_error++;
         }
         unless ($notice_found) {
             say STDERR "$jar: NOTICE is missing";
@@ -89,6 +94,16 @@ sub check_shas_and_licenses {
     if (@unused_notices) {
         say STDERR "Extra NOTICE file present: " . join ", ",
             sort @unused_notices;
+    }
+
+    if ($sha_error) {
+        say STDERR <<"SHAS"
+
+You can update the SHA files by running:
+
+    $0 --update core
+
+SHAS
     }
 
     exit $error;

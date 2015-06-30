@@ -29,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
-import java.io.Serializable;
 import java.lang.management.*;
 import java.util.HashMap;
 import java.util.List;
@@ -38,7 +37,7 @@ import java.util.Map;
 /**
  *
  */
-public class JvmInfo implements Streamable, Serializable, ToXContent {
+public class JvmInfo implements Streamable, ToXContent {
 
     private static JvmInfo INSTANCE;
 
@@ -349,7 +348,7 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
         out.writeStringArray(memoryPools);
     }
 
-    public static class Mem implements Streamable, Serializable {
+    public static class Mem implements Streamable {
 
         long heapInit = 0;
         long heapMax = 0;

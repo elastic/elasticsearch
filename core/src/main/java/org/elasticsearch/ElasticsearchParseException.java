@@ -19,7 +19,10 @@
 
 package org.elasticsearch;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
+
+import java.io.IOException;
 
 /**
  *
@@ -34,6 +37,9 @@ public class ElasticsearchParseException extends ElasticsearchException {
         super(msg, cause);
     }
 
+    public ElasticsearchParseException(StreamInput in) throws IOException {
+        super(in);
+    }
     @Override
     public RestStatus status() {
         return RestStatus.BAD_REQUEST;

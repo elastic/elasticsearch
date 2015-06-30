@@ -19,6 +19,11 @@
 package org.elasticsearch.common.breaker;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+
+import java.io.IOException;
 
 /**
  * Exception thrown when the circuit breaker trips
@@ -34,10 +39,23 @@ public class CircuitBreakingException extends ElasticsearchException {
         this.byteLimit = 0;
     }
 
+    public CircuitBreakingException(StreamInput in) throws IOException {
+        super(in);
+        byteLimit = in.readLong();
+        bytesWanted = in.readLong();
+    }
+
     public CircuitBreakingException(String message, long bytesWanted, long byteLimit) {
         super(message);
         this.bytesWanted = bytesWanted;
         this.byteLimit = byteLimit;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeLong(byteLimit);
+        out.writeLong(bytesWanted);
     }
 
     public long getBytesWanted() {
@@ -46,5 +64,12 @@ public class CircuitBreakingException extends ElasticsearchException {
 
     public long getByteLimit() {
         return this.byteLimit;
+    }
+
+    @Override
+    protected void innerToXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("bytes_wanted", bytesWanted);
+        builder.field("bytes_limit", byteLimit);
+        super.innerToXContent(builder, params);
     }
 }

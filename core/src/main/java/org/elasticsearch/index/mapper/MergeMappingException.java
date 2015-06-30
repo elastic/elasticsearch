@@ -19,20 +19,36 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
 
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.Objects;
 
 /**
  *
  */
-public class MergeMappingException extends MapperException {
+public final class MergeMappingException extends MapperException {
 
     private final String[] failures;
 
     public MergeMappingException(String[] failures) {
         super("Merge failed with failures {" + Arrays.toString(failures) + "}");
+        Objects.requireNonNull(failures, "failures must be non-null");
         this.failures = failures;
+    }
+
+    public MergeMappingException(StreamInput in) throws IOException {
+        super(in);
+        failures = in.readStringArray();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeStringArray(failures);
     }
 
     public String[] failures() {

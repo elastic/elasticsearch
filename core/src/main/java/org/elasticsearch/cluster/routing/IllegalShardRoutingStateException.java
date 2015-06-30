@@ -19,6 +19,11 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
+
 /**
  * This exception defines illegal states of shard routing
  */
@@ -33,6 +38,17 @@ public class IllegalShardRoutingStateException extends RoutingException {
     public IllegalShardRoutingStateException(ShardRouting shard, String message, Throwable cause) {
         super(shard.shortSummary() + ": " + message, cause);
         this.shard = shard;
+    }
+
+    public IllegalShardRoutingStateException(StreamInput in) throws IOException {
+        super(in);
+        shard = ShardRouting.readShardRoutingEntry(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        shard.writeTo(out);
     }
 
     /**

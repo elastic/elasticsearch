@@ -27,11 +27,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
-import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
-public class PluginsInfo implements Streamable, Serializable, ToXContent {
+public class PluginsInfo implements Streamable, ToXContent {
     static final class Fields {
         static final XContentBuilderString PLUGINS = new XContentBuilderString("plugins");
     }

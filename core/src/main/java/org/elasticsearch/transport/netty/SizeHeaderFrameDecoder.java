@@ -19,8 +19,8 @@
 
 package org.elasticsearch.transport.netty;
 
-import com.google.common.base.Charsets;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.rest.RestStatus;
@@ -30,6 +30,7 @@ import org.jboss.netty.channel.ChannelHandlerContext;
 import org.jboss.netty.handler.codec.frame.FrameDecoder;
 import org.jboss.netty.handler.codec.frame.TooLongFrameException;
 
+import java.io.IOException;
 import java.io.StreamCorruptedException;
 
 /**
@@ -105,7 +106,7 @@ public class SizeHeaderFrameDecoder extends FrameDecoder {
      * A helper exception to mark an incoming connection as potentially being HTTP
      * so an appropriate error code can be returned
      */
-    public class HttpOnTransportException extends ElasticsearchException {
+    public static class HttpOnTransportException extends ElasticsearchException {
 
         public HttpOnTransportException(String msg) {
             super(msg);
@@ -114,6 +115,10 @@ public class SizeHeaderFrameDecoder extends FrameDecoder {
         @Override
         public RestStatus status() {
             return RestStatus.BAD_REQUEST;
+        }
+
+        public HttpOnTransportException(StreamInput in) throws IOException{
+            super(in);
         }
     }
 }

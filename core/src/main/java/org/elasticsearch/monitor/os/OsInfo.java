@@ -28,12 +28,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
-import java.io.Serializable;
 
 /**
  *
  */
-public class OsInfo implements Streamable, Serializable, ToXContent {
+public class OsInfo implements Streamable, ToXContent {
 
     long refreshInterval;
 
@@ -188,7 +187,7 @@ public class OsInfo implements Streamable, Serializable, ToXContent {
         }
     }
 
-    public static class Swap implements Streamable, Serializable {
+    public static class Swap implements Streamable {
 
         long total = -1;
 
@@ -222,7 +221,7 @@ public class OsInfo implements Streamable, Serializable, ToXContent {
 
     }
 
-    public static class Mem implements Streamable, Serializable {
+    public static class Mem implements Streamable {
 
         long total = -1;
 
@@ -256,7 +255,7 @@ public class OsInfo implements Streamable, Serializable, ToXContent {
 
     }
 
-    public static class Cpu implements Streamable, Serializable, ToXContent {
+    public static class Cpu implements Streamable, ToXContent {
 
         String vendor = "";
         String model = "";

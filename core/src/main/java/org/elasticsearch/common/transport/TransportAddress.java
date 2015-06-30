@@ -21,12 +21,11 @@ package org.elasticsearch.common.transport;
 
 import org.elasticsearch.common.io.stream.Streamable;
 
-import java.io.Serializable;
 
 /**
  *
  */
-public interface TransportAddress extends Streamable, Serializable {
+public interface TransportAddress extends Streamable {
 
     short uniqueAddressTypeId();
 

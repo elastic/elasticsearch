@@ -19,7 +19,11 @@
 
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
+
+import java.io.IOException;
 
 /**
  *
@@ -45,5 +49,16 @@ public class IllegalIndexShardStateException extends IndexShardException {
     @Override
     public RestStatus status() {
         return RestStatus.NOT_FOUND;
+    }
+
+    public IllegalIndexShardStateException(StreamInput in) throws IOException{
+        super(in);
+        currentState = IndexShardState.fromId(in.readByte());
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeByte(currentState.id());
     }
 }

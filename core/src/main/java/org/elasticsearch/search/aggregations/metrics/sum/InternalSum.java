@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.metrics.sum;
 
-import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -57,7 +56,7 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
 
     InternalSum() {} // for serialization
 
-    InternalSum(String name, double sum, @Nullable ValueFormatter formatter, List<PipelineAggregator> pipelineAggregators,
+    InternalSum(String name, double sum, ValueFormatter formatter, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.sum = sum;
@@ -103,7 +102,7 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(CommonFields.VALUE, sum);
-        if (valueFormatter != null && !(valueFormatter instanceof ValueFormatter.Raw)) {
+        if (!(valueFormatter instanceof ValueFormatter.Raw)) {
             builder.field(CommonFields.VALUE_AS_STRING, valueFormatter.format(sum));
         }
         return builder;

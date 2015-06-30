@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -35,11 +34,11 @@ public class InternalDateHistogram {
 
     static class Bucket extends InternalHistogram.Bucket {
 
-        Bucket(boolean keyed, @Nullable ValueFormatter formatter, InternalHistogram.Factory<Bucket> factory) {
+        Bucket(boolean keyed, ValueFormatter formatter, InternalHistogram.Factory<Bucket> factory) {
             super(keyed, formatter, factory);
         }
 
-        Bucket(long key, long docCount, InternalAggregations aggregations, boolean keyed, @Nullable ValueFormatter formatter,
+        Bucket(long key, long docCount, InternalAggregations aggregations, boolean keyed, ValueFormatter formatter,
                 InternalHistogram.Factory<Bucket> factory) {
             super(key, docCount, keyed, formatter, factory, aggregations);
         }
@@ -77,7 +76,7 @@ public class InternalDateHistogram {
 
         @Override
         public InternalDateHistogram.Bucket createBucket(Object key, long docCount, InternalAggregations aggregations, boolean keyed,
-                @Nullable ValueFormatter formatter) {
+                ValueFormatter formatter) {
             if (key instanceof Number) {
                 return new Bucket(((Number) key).longValue(), docCount, aggregations, keyed, formatter, this);
             } else if (key instanceof DateTime) {
@@ -88,7 +87,7 @@ public class InternalDateHistogram {
         }
 
         @Override
-        protected InternalDateHistogram.Bucket createEmptyBucket(boolean keyed, @Nullable ValueFormatter formatter) {
+        protected InternalDateHistogram.Bucket createEmptyBucket(boolean keyed, ValueFormatter formatter) {
             return new Bucket(keyed, formatter, this);
         }
     }

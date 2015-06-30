@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.metrics.sum;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
@@ -50,10 +49,8 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
 
     DoubleArray sums;
 
-    public SumAggregator(String name, ValuesSource.Numeric valuesSource, @Nullable ValueFormatter formatter,
- AggregationContext context,
-            Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) throws IOException {
+    public SumAggregator(String name, ValuesSource.Numeric valuesSource, ValueFormatter formatter, AggregationContext context,
+            Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         this.formatter = formatter;

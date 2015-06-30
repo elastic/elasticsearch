@@ -22,15 +22,13 @@ import com.google.common.collect.Lists;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.InPlaceMergeSorter;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorBase;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -90,28 +88,21 @@ public class RangeAggregator extends BucketsAggregator {
     }
 
     final ValuesSource.Numeric valuesSource;
-    final @Nullable ValueFormatter formatter;
+    final ValueFormatter formatter;
     final Range[] ranges;
     final boolean keyed;
     final InternalRange.Factory rangeFactory;
 
     final double[] maxTo;
 
-    public RangeAggregator(String name,
-                           AggregatorFactories factories,
-                           ValuesSource.Numeric valuesSource,
-                           @Nullable ValueFormat format,
-                           InternalRange.Factory rangeFactory,
-                           List<Range> ranges,
-                           boolean keyed,
-                           AggregationContext aggregationContext,
-                           Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                           Map<String, Object> metaData) throws IOException {
+    public RangeAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, ValueFormat format,
+            InternalRange.Factory rangeFactory, List<Range> ranges, boolean keyed, AggregationContext aggregationContext,
+            Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 
         super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
         assert valuesSource != null;
         this.valuesSource = valuesSource;
-        this.formatter = format != null ? format.formatter() : null;
+        this.formatter = format.formatter();
         this.keyed = keyed;
         this.rangeFactory = rangeFactory;
         this.ranges = ranges.toArray(new Range[ranges.size()]);
@@ -261,14 +252,9 @@ public class RangeAggregator extends BucketsAggregator {
         private final InternalRange.Factory factory;
         private final ValueFormatter formatter;
 
-        public Unmapped(String name,
-                        List<RangeAggregator.Range> ranges,
-                        boolean keyed,
-                        ValueFormat format,
-                        AggregationContext context,
-                        Aggregator parent,
-                        InternalRange.Factory factory, List<PipelineAggregator> pipelineAggregators,
-                        Map<String, Object> metaData) throws IOException {
+        public Unmapped(String name, List<RangeAggregator.Range> ranges, boolean keyed, ValueFormat format, AggregationContext context,
+                Aggregator parent, InternalRange.Factory factory, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+                throws IOException {
 
             super(name, context, parent, pipelineAggregators, metaData);
             this.ranges = ranges;
@@ -277,7 +263,7 @@ public class RangeAggregator extends BucketsAggregator {
                 range.process(parser, context.searchContext());
             }
             this.keyed = keyed;
-            this.formatter = format != null ? format.formatter() : null;
+            this.formatter = format.formatter();
             this.factory = factory;
         }
 

@@ -121,6 +121,8 @@ public class BucketScriptParser implements PipelineAggregator.Parser {
         ValueFormatter formatter = null;
         if (format != null) {
             formatter = ValueFormat.Patternable.Number.format(format).formatter();
+        } else {
+            formatter = ValueFormatter.RAW;
         }
 
         return new BucketScriptPipelineAggregator.Factory(reducerName, bucketsPathsMap, script, formatter, gapPolicy);

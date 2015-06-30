@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.metrics.avg;
 
-import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -58,7 +57,7 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
 
     InternalAvg() {} // for serialization
 
-    public InternalAvg(String name, double sum, long count, @Nullable ValueFormatter formatter, List<PipelineAggregator> pipelineAggregators,
+    public InternalAvg(String name, double sum, long count, ValueFormatter formatter, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.sum = sum;
@@ -109,7 +108,7 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(CommonFields.VALUE, count != 0 ? getValue() : null);
-        if (count != 0 && valueFormatter != null && !(valueFormatter instanceof ValueFormatter.Raw)) {
+        if (count != 0 && !(valueFormatter instanceof ValueFormatter.Raw)) {
             builder.field(CommonFields.VALUE_AS_STRING, valueFormatter.format(getValue()));
         }
         return builder;

@@ -41,11 +41,7 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
 
         @Override
         public String getValueAsString() {
-            if (valueFormatter == null) {
-                return ValueFormatter.RAW.format(value());
-            } else {
-                return valueFormatter.format(value());
-            }
+            return valueFormatter.format(value());
         }
 
         @Override
@@ -72,11 +68,7 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
         public abstract double value(String name);
 
         public String valueAsString(String name) {
-            if (valueFormatter == null) {
-                return ValueFormatter.RAW.format(value(name));
-            } else {
-                return valueFormatter.format(value(name));
-            }
+            return valueFormatter.format(value(name));
         }
 
         @Override

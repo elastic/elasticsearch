@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.metrics.stats.extended;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
@@ -56,7 +55,7 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
     DoubleArray maxes;
     DoubleArray sumOfSqrs;
 
-    public ExtendedStatsAggregator(String name, ValuesSource.Numeric valuesSource, @Nullable ValueFormatter formatter,
+    public ExtendedStatsAggregator(String name, ValuesSource.Numeric valuesSource, ValueFormatter formatter,
             AggregationContext context, Aggregator parent, double sigma, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData)
             throws IOException {

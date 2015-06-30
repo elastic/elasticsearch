@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics.cardinality;
 
-import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
@@ -54,7 +53,7 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
 
     private HyperLogLogPlusPlus counts;
 
-    InternalCardinality(String name, HyperLogLogPlusPlus counts, @Nullable ValueFormatter formatter, List<PipelineAggregator> pipelineAggregators,
+    InternalCardinality(String name, HyperLogLogPlusPlus counts, ValueFormatter formatter, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.counts = counts;
@@ -130,7 +129,7 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         final long cardinality = getValue();
         builder.field(CommonFields.VALUE, cardinality);
-        if (valueFormatter != null && !(valueFormatter instanceof ValueFormatter.Raw)) {
+        if (!(valueFormatter instanceof ValueFormatter.Raw)) {
             builder.field(CommonFields.VALUE_AS_STRING, valueFormatter.format(cardinality));
         }
         return builder;

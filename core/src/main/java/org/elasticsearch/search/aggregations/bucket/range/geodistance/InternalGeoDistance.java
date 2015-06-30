@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range.geodistance;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -75,15 +74,16 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
 
     static class Bucket extends InternalRange.Bucket {
 
-        Bucket(boolean keyed, @Nullable ValueFormatter formatter) {
+        Bucket(boolean keyed, ValueFormatter formatter) {
             super(keyed, formatter);
         }
 
-        Bucket(String key, double from, double to, long docCount, List<InternalAggregation> aggregations, boolean keyed, @Nullable ValueFormatter formatter) {
+        Bucket(String key, double from, double to, long docCount, List<InternalAggregation> aggregations, boolean keyed,
+                ValueFormatter formatter) {
             this(key, from, to, docCount, new InternalAggregations(aggregations), keyed, formatter);
         }
 
-        Bucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed, @Nullable ValueFormatter formatter) {
+        Bucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed, ValueFormatter formatter) {
             super(key, from, to, docCount, aggregations, keyed, formatter);
         }
 
@@ -109,7 +109,7 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
         }
 
         @Override
-        public InternalGeoDistance create(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed,
+        public InternalGeoDistance create(String name, List<Bucket> ranges, ValueFormatter formatter, boolean keyed,
                 List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
             return new InternalGeoDistance(name, ranges, formatter, keyed, pipelineAggregators, metaData);
         }
@@ -121,7 +121,8 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
         }
 
         @Override
-        public Bucket createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed, @Nullable ValueFormatter formatter) {
+        public Bucket createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed,
+                ValueFormatter formatter) {
             return new Bucket(key, from, to, docCount, aggregations, keyed, formatter);
         }
 
@@ -134,7 +135,8 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
 
     InternalGeoDistance() {} // for serialization
 
-    public InternalGeoDistance(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed, List<PipelineAggregator> pipelineAggregators,
+    public InternalGeoDistance(String name, List<Bucket> ranges, ValueFormatter formatter, boolean keyed,
+            List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
         super(name, ranges, formatter, keyed, pipelineAggregators, metaData);
     }

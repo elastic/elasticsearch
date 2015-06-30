@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
-import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -42,7 +41,7 @@ abstract class AbstractInternalPercentiles extends InternalNumericMetricsAggrega
 
     AbstractInternalPercentiles() {} // for serialization
 
-    public AbstractInternalPercentiles(String name, double[] keys, TDigestState state, boolean keyed, @Nullable ValueFormatter formatter,
+    public AbstractInternalPercentiles(String name, double[] keys, TDigestState state, boolean keyed, ValueFormatter formatter,
             List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
@@ -56,7 +55,7 @@ abstract class AbstractInternalPercentiles extends InternalNumericMetricsAggrega
     public double value(String name) {
         return value(Double.parseDouble(name));
     }
-    
+
     public abstract double value(double key);
 
     @Override
@@ -105,7 +104,7 @@ abstract class AbstractInternalPercentiles extends InternalNumericMetricsAggrega
                 String key = String.valueOf(keys[i]);
                 double value = value(keys[i]);
                 builder.field(key, value);
-                if (valueFormatter != null && !(valueFormatter instanceof ValueFormatter.Raw)) {
+                if (!(valueFormatter instanceof ValueFormatter.Raw)) {
                     builder.field(key + "_as_string", valueFormatter.format(value));
                 }
             }
@@ -117,7 +116,7 @@ abstract class AbstractInternalPercentiles extends InternalNumericMetricsAggrega
                 builder.startObject();
                 builder.field(CommonFields.KEY, keys[i]);
                 builder.field(CommonFields.VALUE, value);
-                if (valueFormatter != null && !(valueFormatter instanceof ValueFormatter.Raw)) {
+                if (!(valueFormatter instanceof ValueFormatter.Raw)) {
                     builder.field(CommonFields.VALUE_AS_STRING, valueFormatter.format(value));
                 }
                 builder.endObject();

@@ -22,7 +22,6 @@ import com.google.common.collect.Lists;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.rounding.Rounding;
@@ -98,16 +97,16 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         long docCount;
         InternalAggregations aggregations;
         private transient final boolean keyed;
-        protected transient final @Nullable ValueFormatter formatter;
+        protected transient final ValueFormatter formatter;
         private Factory<?> factory;
 
-        public Bucket(boolean keyed, @Nullable ValueFormatter formatter, Factory<?> factory) {
+        public Bucket(boolean keyed, ValueFormatter formatter, Factory<?> factory) {
             this.formatter = formatter;
             this.keyed = keyed;
             this.factory = factory;
         }
 
-        public Bucket(long key, long docCount, boolean keyed, @Nullable ValueFormatter formatter, Factory factory,
+        public Bucket(long key, long docCount, boolean keyed, ValueFormatter formatter, Factory factory,
                 InternalAggregations aggregations) {
             this(keyed, formatter, factory);
             this.key = key;
@@ -152,7 +151,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            if (formatter != null && formatter != ValueFormatter.RAW) {
+            if (formatter != ValueFormatter.RAW) {
                 Text keyTxt = new StringText(formatter.format(key));
                 if (keyed) {
                     builder.startObject(keyTxt.string());
@@ -243,7 +242,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         }
 
         public InternalHistogram<B> create(String name, List<B> buckets, InternalOrder order, long minDocCount,
-                EmptyBucketInfo emptyBucketInfo, @Nullable ValueFormatter formatter, boolean keyed,
+                EmptyBucketInfo emptyBucketInfo, ValueFormatter formatter, boolean keyed,
                 List<PipelineAggregator> pipelineAggregators,
                 Map<String, Object> metaData) {
             return new InternalHistogram<>(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, this, pipelineAggregators,
@@ -259,8 +258,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
             return (B) new Bucket(prototype.key, prototype.docCount, prototype.getKeyed(), prototype.formatter, this, aggregations);
         }
 
-        public B createBucket(Object key, long docCount, InternalAggregations aggregations, boolean keyed,
-                @Nullable ValueFormatter formatter) {
+        public B createBucket(Object key, long docCount, InternalAggregations aggregations, boolean keyed, ValueFormatter formatter) {
             if (key instanceof Number) {
                 return (B) new Bucket(((Number) key).longValue(), docCount, keyed, formatter, this, aggregations);
             } else {
@@ -268,7 +266,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
             }
         }
 
-        protected B createEmptyBucket(boolean keyed, @Nullable ValueFormatter formatter) {
+        protected B createEmptyBucket(boolean keyed, ValueFormatter formatter) {
             return (B) new Bucket(keyed, formatter, this);
         }
 
@@ -276,7 +274,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
 
     protected List<B> buckets;
     private InternalOrder order;
-    private @Nullable ValueFormatter formatter;
+    private ValueFormatter formatter;
     private boolean keyed;
     private long minDocCount;
     private EmptyBucketInfo emptyBucketInfo;
@@ -284,9 +282,8 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
 
     InternalHistogram() {} // for serialization
 
-    InternalHistogram(String name, List<B> buckets, InternalOrder order, long minDocCount,
- EmptyBucketInfo emptyBucketInfo,
-            @Nullable ValueFormatter formatter, boolean keyed, Factory<B> factory, List<PipelineAggregator> pipelineAggregators,
+    InternalHistogram(String name, List<B> buckets, InternalOrder order, long minDocCount, EmptyBucketInfo emptyBucketInfo,
+            ValueFormatter formatter, boolean keyed, Factory<B> factory, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.buckets = buckets;

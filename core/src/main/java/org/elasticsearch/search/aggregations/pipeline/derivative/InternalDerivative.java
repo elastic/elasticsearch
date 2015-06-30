@@ -101,7 +101,7 @@ public class InternalDerivative extends InternalSimpleValue implements Derivativ
         if (normalizationFactor > 0) {
             boolean hasValue = !(Double.isInfinite(normalizedValue()) || Double.isNaN(normalizedValue()));
             builder.field("normalized_value", hasValue ? normalizedValue() : null);
-            if (hasValue && valueFormatter != null) {
+            if (hasValue && !(valueFormatter instanceof ValueFormatter.Raw)) {
                 builder.field("normalized_value_as_string", valueFormatter.format(normalizedValue()));
             }
         }

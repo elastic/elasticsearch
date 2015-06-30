@@ -22,7 +22,6 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -58,13 +57,14 @@ public abstract class InternalTerms<A extends InternalTerms, B extends InternalT
         protected boolean showDocCountError;
         transient final ValueFormatter formatter;
 
-        protected Bucket(@Nullable ValueFormatter formatter, boolean showDocCountError) {
+        protected Bucket(ValueFormatter formatter, boolean showDocCountError) {
             // for serialization
             this.showDocCountError = showDocCountError;
             this.formatter = formatter;
         }
 
-        protected Bucket(long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError, @Nullable ValueFormatter formatter) {
+        protected Bucket(long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError,
+                ValueFormatter formatter) {
             this(formatter, showDocCountError);
             this.docCount = docCount;
             this.aggregations = aggregations;

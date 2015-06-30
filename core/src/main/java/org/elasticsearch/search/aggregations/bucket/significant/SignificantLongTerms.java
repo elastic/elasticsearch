@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.significant;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -85,13 +84,14 @@ public class SignificantLongTerms extends InternalSignificantTerms<SignificantLo
         long term;
         private transient final ValueFormatter formatter;
 
-        public Bucket(long subsetSize, long supersetSize, @Nullable ValueFormatter formatter) {
+        public Bucket(long subsetSize, long supersetSize, ValueFormatter formatter) {
             super(subsetSize, supersetSize);
             this.formatter = formatter;
             // for serialization
         }
 
-        public Bucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize, long term, InternalAggregations aggregations, @Nullable ValueFormatter formatter) {
+        public Bucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize, long term, InternalAggregations aggregations,
+                ValueFormatter formatter) {
             super(subsetDf, subsetSize, supersetDf, supersetSize, aggregations);
             this.formatter = formatter;
             this.term = term;
@@ -166,7 +166,7 @@ public class SignificantLongTerms extends InternalSignificantTerms<SignificantLo
     SignificantLongTerms() {
     } // for serialization
 
-    public SignificantLongTerms(long subsetSize, long supersetSize, String name, @Nullable ValueFormatter formatter, int requiredSize,
+    public SignificantLongTerms(long subsetSize, long supersetSize, String name, ValueFormatter formatter, int requiredSize,
             long minDocCount, SignificanceHeuristic significanceHeuristic, List<? extends InternalSignificantTerms.Bucket> buckets,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
 

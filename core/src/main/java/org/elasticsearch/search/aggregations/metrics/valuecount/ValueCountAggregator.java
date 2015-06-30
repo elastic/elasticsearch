@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.metrics.valuecount;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
@@ -54,7 +53,7 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
     // a count per bucket
     LongArray counts;
 
-    public ValueCountAggregator(String name, ValuesSource valuesSource, @Nullable ValueFormatter formatter,
+    public ValueCountAggregator(String name, ValuesSource valuesSource, ValueFormatter formatter,
             AggregationContext aggregationContext, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData)
             throws IOException {

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -54,13 +53,14 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
         super();
     }
 
-    protected BucketMetricsPipelineAggregator(String name, String[] bucketsPaths, GapPolicy gapPolicy, @Nullable ValueFormatter formatter,
+    protected BucketMetricsPipelineAggregator(String name, String[] bucketsPaths, GapPolicy gapPolicy, ValueFormatter formatter,
             Map<String, Object> metaData) {
         super(name, bucketsPaths, metaData);
         this.gapPolicy = gapPolicy;
         this.formatter = formatter;
     }
 
+    @Override
     public final InternalAggregation doReduce(Aggregations aggregations, ReduceContext context) {
         preCollection();
         List<String> bucketsPath = AggregationPath.parse(bucketsPaths()[0]).getPathElementsAsStringList();
@@ -91,7 +91,7 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
     /**
      * Called after a collection run is finished to build the aggregation for
      * the collected state.
-     * 
+     *
      * @param pipelineAggregators
      *            the pipeline aggregators to add to the resulting aggregation
      * @param metadata
@@ -103,7 +103,7 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
     /**
      * Called for each bucket with a value so the state can be modified based on
      * the key and metric value for this bucket
-     * 
+     *
      * @param bucketKey
      *            the key for this bucket as a String
      * @param bucketValue

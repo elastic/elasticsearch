@@ -475,7 +475,7 @@ public abstract class StreamOutput extends OutputStream {
                 writeCause = false;
             } else if (throwable instanceof IllegalArgumentException) {
                 writeVInt(6);
-            } else if (throwable instanceof IllegalStateException) {
+            } else if (throwable instanceof AlreadyClosedException) {
                 writeVInt(7);
             } else if (throwable instanceof EOFException) {
                 writeVInt(8);
@@ -502,7 +502,7 @@ public abstract class StreamOutput extends OutputStream {
             } else if (throwable instanceof OutOfMemoryError) {
                 writeVInt(15);
                 writeCause = false;
-            } else if (throwable instanceof AlreadyClosedException) {
+            } else if (throwable instanceof IllegalStateException) {
                 writeVInt(16);
             } else if (throwable instanceof LockObtainFailedException) {
                 writeVInt(17);

@@ -366,7 +366,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         StackTraceElement[] stackTrace = new StackTraceElement[stackTraceElements];
         for (int i = 0; i < stackTraceElements; i++) {
             final String declaringClasss = in.readString();
-            final String fileName = in.readString();
+            final String fileName = in.readOptionalString();
             final String methodName = in.readString();
             final int lineNumber = in.readVInt();
             stackTrace[i] = new StackTraceElement(declaringClasss,methodName, fileName, lineNumber);
@@ -388,7 +388,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         out.writeVInt(stackTrace.length);
         for (StackTraceElement element : stackTrace) {
             out.writeString(element.getClassName());
-            out.writeString(element.getFileName());
+            out.writeOptionalString(element.getFileName());
             out.writeString(element.getMethodName());
             out.writeVInt(element.getLineNumber());
         }

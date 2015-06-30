@@ -195,6 +195,21 @@ public final class ExceptionsHelper {
     }
 
     /**
+     * Returns <code>true</code> iff the given throwable is an IOException
+     * for running out of disk, otherwise <code>false</code>
+     */
+    public static boolean isOutOfDisk(Throwable t) {
+        if (t != null && t instanceof IOException && t.getMessage() != null) {
+            if (t.getMessage().equalsIgnoreCase("There is not enough space on the disk") // Windows
+                || t.getMessage().equalsIgnoreCase("Not enough space") // POSIX
+                || t.getMessage().equalsIgnoreCase("No space left on device")) { // GNU compiler
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Returns <code>true</code> iff the given throwable is and OutOfMemoryException, otherwise <code>false</code>
      */
     public static boolean isOOM(Throwable t) {

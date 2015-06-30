@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport;
 
-import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.ImmutableList;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.action.*;
@@ -380,7 +379,9 @@ public class ContextAndHeaderTransportTests extends ElasticsearchIntegrationTest
 
         @Override
         public Collection<Class<? extends Module>> modules() {
-            return ImmutableList.of(ActionLoggingModule.class);
+            Collection<Class<? extends Module>> classes = new ArrayList<>();
+            classes.add(ActionLoggingModule.class);
+            return classes;
         }
     }
 

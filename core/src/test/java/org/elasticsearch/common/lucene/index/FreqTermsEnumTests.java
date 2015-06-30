@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.lucene.index;
 
-import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.Lists;
-import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.Maps;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import org.apache.lucene.analysis.core.KeywordAnalyzer;

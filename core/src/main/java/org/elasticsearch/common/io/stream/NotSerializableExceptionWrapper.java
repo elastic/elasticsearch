@@ -25,7 +25,10 @@ import java.io.IOException;
 
 /**
  * This exception can be used to wrap a given, not serializable exception
- * to serialize via {@link StreamOutput#writeThrowable(Throwable)}
+ * to serialize via {@link StreamOutput#writeThrowable(Throwable)}.
+ * This class will perserve the stacktrace as well as the suppressed exceptions of
+ * the throwable it was created with instead of it's own. The stacktrace has no indication
+ * of where this exception was created.
  */
 public final class NotSerializableExceptionWrapper extends ElasticsearchException {
 
@@ -34,6 +37,10 @@ public final class NotSerializableExceptionWrapper extends ElasticsearchExceptio
     public NotSerializableExceptionWrapper(Throwable other) {
         super(other.getMessage(), other.getCause());
         this.name = ElasticsearchException.getExceptionName(other);
+        setStackTrace(other.getStackTrace());
+        for (Throwable otherSuppressed : other.getSuppressed()) {
+            addSuppressed(otherSuppressed);
+        }
     }
 
     public NotSerializableExceptionWrapper(StreamInput in) throws IOException {

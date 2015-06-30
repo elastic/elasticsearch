@@ -299,7 +299,7 @@ public class ByteFieldMapper extends NumberFieldMapper {
             }
         }
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            CustomByteNumericField field = new CustomByteNumericField(this, value, fieldType());
+            CustomByteNumericField field = new CustomByteNumericField(value, fieldType());
             field.setBoost(boost);
             fields.add(field);
         }
@@ -334,18 +334,15 @@ public class ByteFieldMapper extends NumberFieldMapper {
 
         private final byte number;
 
-        private final NumberFieldMapper mapper;
-
-        public CustomByteNumericField(NumberFieldMapper mapper, byte number, MappedFieldType fieldType) {
-            super(mapper, number, fieldType);
-            this.mapper = mapper;
+        public CustomByteNumericField(byte number, MappedFieldType fieldType) {
+            super(number, fieldType);
             this.number = number;
         }
 
         @Override
         public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) {
             if (fieldType().indexOptions() != IndexOptions.NONE) {
-                return mapper.popCachedStream().setIntValue(number);
+                return getCachedStream().setIntValue(number);
             }
             return null;
         }

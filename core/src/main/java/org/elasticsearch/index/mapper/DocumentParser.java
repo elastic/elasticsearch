@@ -33,12 +33,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.index.mapper.core.AbstractFieldMapper.Builder;
 import org.elasticsearch.index.mapper.core.DateFieldMapper.DateFieldType;
-import org.elasticsearch.index.mapper.core.LongFieldMapper.LongFieldType;
 import org.elasticsearch.index.mapper.core.StringFieldMapper.StringFieldType;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -117,8 +114,8 @@ class DocumentParser implements Closeable {
                 throw new MapperParsingException("Malformed content, after first object, either the type field or the actual properties should exist");
             }
 
-            for (RootMapper rootMapper : mapping.rootMappers) {
-                rootMapper.preParse(context);
+            for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
+                metadataMapper.preParse(context);
             }
 
             if (!emptyDoc) {
@@ -132,8 +129,8 @@ class DocumentParser implements Closeable {
                 parser.nextToken();
             }
 
-            for (RootMapper rootMapper : mapping.rootMappers) {
-                rootMapper.postParse(context);
+            for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
+                metadataMapper.postParse(context);
             }
         } catch (Throwable e) {
             // if its already a mapper parsing exception, no need to wrap it...

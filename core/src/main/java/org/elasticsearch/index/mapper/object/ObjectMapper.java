@@ -42,7 +42,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperUtils;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
-import org.elasticsearch.index.mapper.RootMapper;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -523,7 +523,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll, Clonea
                     mappersToPut.add(mergeWithMapper);
                     MapperUtils.collect(mergeWithMapper, newObjectMappers, newFieldMappers);
                 }
-            } else if (mergeIntoMapper instanceof RootMapper == false) {
+            } else if (mergeIntoMapper instanceof MetadataFieldMapper == false) {
                 // root mappers can only exist here for backcompat, and are merged in Mapping
                 mergeIntoMapper.merge(mergeWithMapper, mergeResult);
             }
@@ -593,7 +593,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll, Clonea
 
         int count = 0;
         for (Mapper mapper : sortedMappers) {
-            if (!(mapper instanceof RootMapper)) {
+            if (!(mapper instanceof MetadataFieldMapper)) {
                 if (count++ == 0) {
                     builder.startObject("properties");
                 }

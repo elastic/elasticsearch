@@ -41,7 +41,6 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.Mapping.SourceTransform;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
@@ -81,7 +80,7 @@ public class DocumentMapper implements ToXContent {
 
     public static class Builder {
 
-        private Map<Class<? extends RootMapper>, RootMapper> rootMappers = new LinkedHashMap<>();
+        private Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> rootMappers = new LinkedHashMap<>();
 
         private List<SourceTransform> sourceTransforms = new ArrayList<>(1);
 
@@ -128,9 +127,9 @@ public class DocumentMapper implements ToXContent {
             return this;
         }
 
-        public Builder put(RootMapper.Builder mapper) {
-            RootMapper rootMapper = (RootMapper) mapper.build(builderContext);
-            rootMappers.put(rootMapper.getClass(), rootMapper);
+        public Builder put(MetadataFieldMapper.Builder<?, ?> mapper) {
+            MetadataFieldMapper metadataMapper = mapper.build(builderContext);
+            rootMappers.put(metadataMapper.getClass(), metadataMapper);
             return this;
         }
 
@@ -180,7 +179,7 @@ public class DocumentMapper implements ToXContent {
     public DocumentMapper(MapperService mapperService, String index, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser,
                           RootObjectMapper rootObjectMapper,
                           ImmutableMap<String, Object> meta,
-                          Map<Class<? extends RootMapper>, RootMapper> rootMappers,
+                          Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> rootMappers,
                           List<SourceTransform> sourceTransforms,
                           ReentrantReadWriteLock mappingLock) {
         this.mapperService = mapperService;
@@ -189,7 +188,7 @@ public class DocumentMapper implements ToXContent {
         this.mapping = new Mapping(
                 Version.indexCreated(indexSettings),
                 rootObjectMapper,
-                rootMappers.values().toArray(new RootMapper[rootMappers.values().size()]),
+                rootMappers.values().toArray(new MetadataFieldMapper[rootMappers.values().size()]),
                 sourceTransforms.toArray(new SourceTransform[sourceTransforms.size()]),
                 meta);
         this.documentParser = new DocumentParser(index, indexSettings, docMapperParser, this, new ReleasableLock(mappingLock.readLock()));
@@ -206,9 +205,9 @@ public class DocumentMapper implements ToXContent {
         // collect all the mappers for this type
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
         List<FieldMapper> newFieldMappers = new ArrayList<>();
-        for (RootMapper rootMapper : this.mapping.rootMappers) {
-            if (rootMapper instanceof FieldMapper) {
-                newFieldMappers.add((FieldMapper) rootMapper);
+        for (MetadataFieldMapper metadataMapper : this.mapping.metadataMappers) {
+            if (metadataMapper instanceof FieldMapper) {
+                newFieldMappers.add((FieldMapper) metadataMapper);
             }
         }
         MapperUtils.collect(this.mapping.root, newObjectMappers, newFieldMappers);
@@ -258,7 +257,7 @@ public class DocumentMapper implements ToXContent {
     }
 
     @SuppressWarnings({"unchecked"})
-    public <T extends RootMapper> T rootMapper(Class<T> type) {
+    public <T extends MetadataFieldMapper> T rootMapper(Class<T> type) {
         return mapping.rootMapper(type);
     }
 

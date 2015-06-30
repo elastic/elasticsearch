@@ -1717,7 +1717,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     private Mapping dynamicUpdate() {
         BuilderContext context = new BuilderContext(Settings.EMPTY, new ContentPath());
         final RootObjectMapper root = MapperBuilders.rootObject("some_type").build(context);
-        return new Mapping(Version.CURRENT, root, new RootMapper[0], new Mapping.SourceTransform[0], ImmutableMap.<String, Object>of());
+        return new Mapping(Version.CURRENT, root, new MetadataFieldMapper[0], new Mapping.SourceTransform[0], ImmutableMap.<String, Object>of());
     }
 
     public void testUpgradeOldIndex() throws IOException {

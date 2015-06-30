@@ -36,7 +36,7 @@ import org.elasticsearch.common.io.stream.*;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.XContentLocation;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.AlreadyExpiredException;
 import org.elasticsearch.index.Index;
@@ -115,9 +115,9 @@ public class ExceptionSerializationTests extends ElasticsearchTestCase {
                         Class<?> clazz = loadClass(filename);
                         if (ignore.contains(clazz) == false) {
                             if (Modifier.isAbstract(clazz.getModifiers()) == false && Modifier.isInterface(clazz.getModifiers()) == false && isEsException(clazz)) {
-                                if (ElasticsearchException.MAPPING.containsKey(clazz.getName()) == false && ElasticsearchException.class.equals(clazz.getEnclosingClass()) == false) {
+                                if (ElasticsearchException.isRegistered(clazz.getName()) == false && ElasticsearchException.class.equals(clazz.getEnclosingClass()) == false) {
                                     notRegistered.add(clazz);
-                                } else if (ElasticsearchException.MAPPING.containsKey(clazz.getName())) {
+                                } else if (ElasticsearchException.isRegistered(clazz.getName())) {
                                     registered.add(clazz.getName());
                                     try {
                                         if (clazz.getDeclaredMethod("writeTo", StreamOutput.class) != null) {
@@ -169,7 +169,7 @@ public class ExceptionSerializationTests extends ElasticsearchTestCase {
         assertTrue(notRegistered.remove(TestException.class));
         assertTrue("Classes subclassing ElasticsearchException must be registered \n" + notRegistered.toString(),
                 notRegistered.isEmpty());
-        assertTrue(registered.removeAll(ElasticsearchException.MAPPING.keySet())); // check
+        assertTrue(registered.removeAll(ElasticsearchException.getRegisteredKeys())); // check
         assertEquals(registered.toString(), 0, registered.size());
     }
 
@@ -534,5 +534,23 @@ public class ExceptionSerializationTests extends ElasticsearchTestCase {
         assertEquals("boom", ex.getMessage());
         assertNull(ex.index());
         assertNull(ex.shardId());
+    }
+    private String toXContent(ToXContent x) {
+        try {
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            builder.startObject();
+            x.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
+            return builder.string();
+        } catch (IOException e) {
+            return "{ \"error\" : \"" + e.getMessage() + "\"}";
+        }
+    }
+
+    public void testNotSerializableExceptionWrapper() throws IOException {
+        NotSerializableExceptionWrapper ex = serialize(new NotSerializableExceptionWrapper(new NullPointerException()));
+        assertEquals("{\"type\":\"null_pointer_exception\",\"reason\":null}", toXContent(ex));
+        ex = serialize(new NotSerializableExceptionWrapper(new IllegalArgumentException("nono!")));
+        assertEquals("{\"type\":\"illegal_argument_exception\",\"reason\":\"nono!\"}", toXContent(ex));
     }
 }

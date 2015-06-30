@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.filters;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -36,6 +37,10 @@ import java.util.List;
  */
 public class FiltersParser implements Aggregator.Parser {
 
+    public static final ParseField FILTERS_FIELD = new ParseField("filters");
+    public static final ParseField OTHER_BUCKET_FIELD = new ParseField("other_bucket");
+    public static final ParseField OTHER_BUCKET_KEY_FIELD = new ParseField("other_bucket_key");
+
     @Override
     public String type() {
         return InternalFilters.TYPE.name();
@@ -49,11 +54,28 @@ public class FiltersParser implements Aggregator.Parser {
         XContentParser.Token token = null;
         String currentFieldName = null;
         Boolean keyed = null;
+        String otherBucketKey = null;
+        boolean otherBucket = false;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+                if (OTHER_BUCKET_FIELD.match(currentFieldName)) {
+                    otherBucket = parser.booleanValue();
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
+                            + currentFieldName + "].", parser.getTokenLocation());
+                }
+            } else if (token == XContentParser.Token.VALUE_STRING) {
+                if (OTHER_BUCKET_KEY_FIELD.match(currentFieldName)) {
+                    otherBucketKey = parser.text();
+                    otherBucket = true;
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
+                            + currentFieldName + "].", parser.getTokenLocation());
+                }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if ("filters".equals(currentFieldName)) {
+                if (FILTERS_FIELD.match(currentFieldName)) {
                     keyed = true;
                     String key = null;
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -69,7 +91,7 @@ public class FiltersParser implements Aggregator.Parser {
                             + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if ("filters".equals(currentFieldName)) {
+                if (FILTERS_FIELD.match(currentFieldName)) {
                     keyed = false;
                     int idx = 0;
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -88,7 +110,11 @@ public class FiltersParser implements Aggregator.Parser {
             }
         }
 
-        return new FiltersAggregator.Factory(aggregationName, filters, keyed);
+        if (otherBucket && otherBucketKey == null) {
+            otherBucketKey = "_other_";
+        }
+
+        return new FiltersAggregator.Factory(aggregationName, filters, keyed, otherBucketKey);
     }
 
 }

@@ -126,3 +126,81 @@ request.  The response for this example would be:
   }
 ...
 --------------------------------------------------
+
+==== `Other` Bucket
+
+The `other_bucket` parameter can be set to add a bucket to the response which will contain all documents that do 
+not match any of the given filters. The value of this parameter can be as follows:
+
+`false`::         Does not compute the `other` bucket
+`true`::          Returns the `other` bucket bucket either in a bucket (named `_other_` by default) if named filters are being used, 
+                  or as the last bucket if anonymous filters are being used
+
+The `other_bucket_key` parameter can be used to set the key for the `other` bucket to a value other than the default `_other_`. Seting 
+this parameter will implicitly set the `other_bucket` parameter to `true`.
+
+The following snippet shows a response where the `other` bucket is requested to be named `other_messages`.
+
+[source,js]
+--------------------------------------------------
+{
+  "aggs" : {
+    "messages" : {
+      "filters" : {
+        "other_bucket": "other_messages",
+        "filters" : {
+          "errors" :   { "term" : { "body" : "error"   }},
+          "warnings" : { "term" : { "body" : "warning" }}
+        }
+      },
+      "aggs" : {
+        "monthly" : {
+          "histogram" : {
+            "field" : "timestamp",
+            "interval" : "1M"
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+The response would be something like the following:
+
+[source,js]
+--------------------------------------------------
+...
+  "aggs" : {
+    "messages" : {
+      "buckets" : {
+        "errors" : {
+          "doc_count" : 34,
+            "monthly" : {
+              "buckets" : [
+                ... // the histogram monthly breakdown
+              ]
+            }
+          },
+          "warnings" : {
+            "doc_count" : 439,
+            "monthly" : {
+              "buckets" : [
+                 ... // the histogram monthly breakdown
+              ]
+            }
+          },
+          "other_messages" : {
+            "doc_count" : 237,
+            "monthly" : {
+              "buckets" : [
+                 ... // the histogram monthly breakdown
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+...
+--------------------------------------------------

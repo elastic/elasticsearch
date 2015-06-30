@@ -7,18 +7,22 @@ of the cluster.
 [source,js]
 --------------------------------------------------
 $ curl -XGET 'http://localhost:9200/_cluster/health?pretty=true'
-{                                                                                            
-  "cluster_name" : "testcluster",                                                              
-  "status" : "green",                                                                        
-  "timed_out" : false,                                                                       
-  "number_of_nodes" : 2,                                                                     
-  "number_of_data_nodes" : 2,                                                                
-  "active_primary_shards" : 5,                                                               
-  "active_shards" : 10,                                                                      
-  "relocating_shards" : 0,                                                                   
-  "initializing_shards" : 0,                                                                 
+{
+  "cluster_name" : "testcluster",
+  "status" : "green",
+  "timed_out" : false,
+  "number_of_nodes" : 2,
+  "number_of_data_nodes" : 2,
+  "active_primary_shards" : 5,
+  "active_shards" : 10,
+  "relocating_shards" : 0,
+  "initializing_shards" : 0,
   "unassigned_shards" : 0,
-  "number_of_pending_tasks" : 0
+  "delayed_unassigned_shards": 0,
+  "number_of_pending_tasks" : 0,
+  "number_of_in_flight_fetch": 0,
+  "task_max_waiting_in_queue_millis": 0,
+  "active_shards_percent_as_number": 100
 }
 --------------------------------------------------
 
@@ -61,14 +65,14 @@ The cluster health API accepts the following request parameters:
 `wait_for_status`::
     One of `green`, `yellow` or `red`. Will wait (until
     the timeout provided) until the status of the cluster changes to the one
-    provided or better, i.e. `green` > `yellow` > `red`. By default, will not 
+    provided or better, i.e. `green` > `yellow` > `red`. By default, will not
     wait for any status.
 
 `wait_for_relocating_shards`::
     A number controlling to how many relocating
     shards to wait for. Usually will be `0` to indicate to wait till all
     relocations have happened. Defaults to not wait.
-    
+
 `wait_for_active_shards`::
     A number controlling to how many active
     shards to wait for. Defaults to not wait.

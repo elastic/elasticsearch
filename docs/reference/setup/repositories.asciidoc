@@ -25,11 +25,11 @@ Download and install the Public Signing Key:
 wget -qO - https://packages.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
 --------------------------------------------------
 
-Add the repository definition to your `/etc/apt/sources.list` file:
+Save the repository definition to  `/etc/apt/sources.list.d/elasticsearch-{branch}.list`:
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-echo "deb http://packages.elastic.co/elasticsearch/{branch}/debian stable main" | sudo tee -a /etc/apt/sources.list
+echo "deb http://packages.elastic.co/elasticsearch/{branch}/debian stable main" | sudo tee -a /etc/apt/sources.list.d/elasticsearch-{branch}.list
 --------------------------------------------------
 
 [WARNING]

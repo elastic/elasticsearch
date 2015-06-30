@@ -284,7 +284,19 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         Injector shardInjector = null;
         try {
 
-            ShardPath path = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
+            ShardPath path;
+            try {
+                path = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
+            } catch (IllegalStateException ex) {
+                logger.warn("{} failed to load shard path, trying to archive leftover", shardId);
+                try {
+                    ShardPath.archiveShardDirectory(logger, nodeEnv, shardId, indexSettings);
+                    path = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
+                } catch (Throwable t) {
+                    t.addSuppressed(ex);
+                    throw t;
+                }
+            }
             if (path == null) {
                 path = ShardPath.selectNewPathForShard(nodeEnv, shardId, indexSettings, getAvgShardSizeInBytes(), this);
                 logger.debug("{} creating using a new path [{}]", shardId, path);

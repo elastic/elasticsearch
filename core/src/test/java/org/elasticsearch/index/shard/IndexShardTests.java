@@ -21,10 +21,12 @@ package org.elasticsearch.index.shard;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
@@ -42,7 +44,9 @@ import org.elasticsearch.test.VersionUtils;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -50,6 +54,7 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -393,5 +398,30 @@ public class IndexShardTests extends ElasticsearchSingleNodeTest {
         assertEquals(versionCreated.luceneVersion, test.minimumCompatibleVersion());
         test.engine().flush();
         assertEquals(Version.CURRENT.luceneVersion, test.minimumCompatibleVersion());
+    }
+
+    public void testRecoverIntoLeftover() throws IOException {
+        createIndex("test");
+        ensureGreen("test");
+        client().prepareIndex("test", "bar", "1").setSource("{}").setRefresh(true).get();
+        client().admin().indices().prepareFlush("test").get();
+        SearchResponse response = client().prepareSearch("test").get();
+        assertHitCount(response, 1l);
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService("test");
+        IndexShard shard = test.shard(0);
+        ShardPath shardPath = shard.shardPath();
+        Path dataPath = shardPath.getDataPath();
+        client().admin().indices().prepareClose("test").get();
+        Path tempDir = createTempDir();
+        Files.move(dataPath, tempDir.resolve("test"));
+        client().admin().indices().prepareDelete("test").get();
+        Files.createDirectories(dataPath.getParent());
+        Files.move(tempDir.resolve("test"), dataPath);
+        createIndex("test");
+        ensureGreen("test");
+        response = client().prepareSearch("test").get();
+        assertHitCount(response, 0l);
+        assertTrue(Files.exists(dataPath.getParent().resolve("archived_0_" + shardPath.getIndexUUID())));
     }
 }

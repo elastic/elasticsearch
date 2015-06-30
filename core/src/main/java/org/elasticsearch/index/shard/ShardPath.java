@@ -118,6 +118,32 @@ public final class ShardPath {
         }
     }
 
+    /**
+     * This method tries to archive left-over shards where the index name has been reused but the UUID is different into
+     * an <tt>archive_${shard.id}_${index.uuid}</tt> directory to allow the new shard to be allocated.
+     */
+    public static void archiveShardDirectory(ESLogger logger, NodeEnvironment env, ShardId shardId, @IndexSettings Settings indexSettings) throws IOException {
+        final String indexUUID = indexSettings.get(IndexMetaData.SETTING_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
+        final Path[] paths = env.availableShardPaths(shardId);
+        for (Path path : paths) {
+            ShardStateMetaData load = ShardStateMetaData.FORMAT.loadLatestState(logger, path);
+            if (load != null) {
+                if ((load.indexUUID.equals(indexUUID) || IndexMetaData.INDEX_UUID_NA_VALUE.equals(load.indexUUID)) == false) {
+                    logger.warn("{} found shard on path: [{}] with a different index UUID - this shard seems to be leftover from a different index with the same name.", shardId, path);
+                    assert Files.isDirectory(path) : path + " is not a directory";
+                    final Path target = path.resolveSibling("archived_" + path.getFileName().toString() + "_" + load.indexUUID);
+                    try {
+                        Files.move(path, target); // rename directory
+                    } catch (IOException ex) {
+                        logger.warn("{} failed to archive shard from an index with a different UUID into {}", ex, shardId, target);
+                        throw ex;
+                    }
+                    logger.warn("{} archived shard from an index with a different UUID into {}, Remove the leftover shard if it's not needed anymore", shardId, target);
+                }
+            }
+        }
+    }
+
     /** Maps each path.data path to a "guess" of how many bytes the shards allocated to that path might additionally use over their
      *  lifetime; we do this so a bunch of newly allocated shards won't just all go the path with the most free space at this moment. */
     private static Map<Path,Long> getEstimatedReservedBytes(NodeEnvironment env, long avgShardSizeInBytes, Iterable<IndexShard> shards) throws IOException {

@@ -473,7 +473,8 @@ public abstract class StreamOutput extends OutputStream {
                 writeVInt(9);
             } else {
                 ElasticsearchException ex;
-                if (throwable instanceof ElasticsearchException) {
+                final String name = throwable.getClass().getName();
+                if (throwable instanceof ElasticsearchException && ElasticsearchException.isRegistered(name)) {
                     ex = (ElasticsearchException) throwable;
                 } else {
                     ex = new NotSerializableExceptionWrapper(throwable);

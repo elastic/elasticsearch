@@ -181,7 +181,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     /**
      * Retruns <code>true</code> iff the given name is a registered for an exception to be read.
      */
-    static boolean isRegistered(String name) {
+    public static boolean isRegistered(String name) {
         return MAPPING.containsKey(name);
     }
 

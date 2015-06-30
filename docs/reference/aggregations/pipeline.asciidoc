@@ -145,11 +145,16 @@ the current bucket and the next bucket. In the derivative pipeline aggregation h
 should be when a gap in the data is found. There are currently two options for controlling the gap policy:
 
 _skip_::
-                This option will not produce a derivative value for any buckets where the value in the current or previous bucket is
+                This option will not produce a value for any buckets where the value in the current or previous bucket is
                 missing
 
 _insert_zeros_::
-                This option will assume the missing value is `0` and calculate the derivative with the value `0`.
+                This option will assume the missing value is `0` and calculate the value of the pipeline aggregation with the value `0`.
+
+_none_::        This option will insert the missing value as `NaN`. In practice, this policy has exactly the same result as the _`skip`_ 
+                gap policy except where scripts are used. In the scriptable pipeline aggregations the script will recieve a `Double.NaN` value for 
+                any `bucket_paths` where the value is missing and these `NaN` values will need to be dealt with in the script if this gap policy 
+                is used.
 
 
 

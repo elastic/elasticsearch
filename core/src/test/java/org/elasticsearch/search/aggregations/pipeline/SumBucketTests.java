@@ -26,7 +26,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
-import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -34,12 +33,11 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.sumBucket;
-
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.sumBucket;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
@@ -213,6 +211,58 @@ public class SumBucketTests extends ElasticsearchIntegrationTest {
                                                 .extendedBounds((long) minRandomValue, (long) maxRandomValue)
                                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
                                 .subAggregation(sumBucket("sum_bucket").setBucketsPaths("histo>sum"))).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        List<Terms.Bucket> termsBuckets = terms.getBuckets();
+        assertThat(termsBuckets.size(), equalTo(interval));
+
+        for (int i = 0; i < interval; ++i) {
+            Terms.Bucket termsBucket = termsBuckets.get(i);
+            assertThat(termsBucket, notNullValue());
+            assertThat((String) termsBucket.getKey(), equalTo("tag" + (i % interval)));
+
+            Histogram histo = termsBucket.getAggregations().get("histo");
+            assertThat(histo, notNullValue());
+            assertThat(histo.getName(), equalTo("histo"));
+            List<? extends Bucket> buckets = histo.getBuckets();
+
+            double bucketSum = 0;
+            for (int j = 0; j < numValueBuckets; ++j) {
+                Histogram.Bucket bucket = buckets.get(j);
+                assertThat(bucket, notNullValue());
+                assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) j * interval));
+                if (bucket.getDocCount() != 0) {
+                    Sum sum = bucket.getAggregations().get("sum");
+                    assertThat(sum, notNullValue());
+                    bucketSum += sum.value();
+                }
+            }
+
+            InternalSimpleValue sumBucketValue = termsBucket.getAggregations().get("sum_bucket");
+            assertThat(sumBucketValue, notNullValue());
+            assertThat(sumBucketValue.getName(), equalTo("sum_bucket"));
+            assertThat(sumBucketValue.value(), equalTo(bucketSum));
+        }
+    }
+
+    @Test
+    public void testMetric_asSubAggWithNonGapPolicy() throws Exception {
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(
+                        terms("terms")
+                                .field("tag")
+                                .order(Order.term(true))
+                                .subAggregation(
+                                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
+                                                .extendedBounds((long) minRandomValue, (long) maxRandomValue)
+                                                .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
+                                .subAggregation(sumBucket("sum_bucket").gapPolicy(GapPolicy.NONE).setBucketsPaths("histo>sum"))).execute()
+                .actionGet();
 
         assertSearchResponse(response);
 

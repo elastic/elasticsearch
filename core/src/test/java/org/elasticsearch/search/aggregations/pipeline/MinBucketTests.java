@@ -34,11 +34,11 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.minBucket;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.minBucket;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
@@ -236,6 +236,66 @@ public class MinBucketTests extends ElasticsearchIntegrationTest {
                                                 .extendedBounds((long) minRandomValue, (long) maxRandomValue)
                                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
                                 .subAggregation(minBucket("min_bucket").setBucketsPaths("histo>sum"))).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        List<Terms.Bucket> termsBuckets = terms.getBuckets();
+        assertThat(termsBuckets.size(), equalTo(interval));
+
+        for (int i = 0; i < interval; ++i) {
+            Terms.Bucket termsBucket = termsBuckets.get(i);
+            assertThat(termsBucket, notNullValue());
+            assertThat((String) termsBucket.getKey(), equalTo("tag" + (i % interval)));
+
+            Histogram histo = termsBucket.getAggregations().get("histo");
+            assertThat(histo, notNullValue());
+            assertThat(histo.getName(), equalTo("histo"));
+            List<? extends Bucket> buckets = histo.getBuckets();
+
+            List<String> minKeys = new ArrayList<>();
+            double minValue = Double.POSITIVE_INFINITY;
+            for (int j = 0; j < numValueBuckets; ++j) {
+                Histogram.Bucket bucket = buckets.get(j);
+                assertThat(bucket, notNullValue());
+                assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) j * interval));
+                if (bucket.getDocCount() != 0) {
+                    Sum sum = bucket.getAggregations().get("sum");
+                    assertThat(sum, notNullValue());
+                    if (sum.value() < minValue) {
+                        minValue = sum.value();
+                        minKeys = new ArrayList<>();
+                        minKeys.add(bucket.getKeyAsString());
+                    } else if (sum.value() == minValue) {
+                        minKeys.add(bucket.getKeyAsString());
+                    }
+                }
+            }
+
+            InternalBucketMetricValue minBucketValue = termsBucket.getAggregations().get("min_bucket");
+            assertThat(minBucketValue, notNullValue());
+            assertThat(minBucketValue.getName(), equalTo("min_bucket"));
+            assertThat(minBucketValue.value(), equalTo(minValue));
+            assertThat(minBucketValue.keys(), equalTo(minKeys.toArray(new String[minKeys.size()])));
+        }
+    }
+
+    @Test
+    public void testMetric_asSubAggWithNoneGapPolicy() throws Exception {
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(
+                        terms("terms")
+                                .field("tag")
+                                .order(Order.term(true))
+                                .subAggregation(
+                                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
+                                                .extendedBounds((long) minRandomValue, (long) maxRandomValue)
+                                                .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
+                                .subAggregation(minBucket("min_bucket").gapPolicy(GapPolicy.NONE).setBucketsPaths("histo>sum"))).execute()
+                .actionGet();
 
         assertSearchResponse(response);
 

@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.Bucket;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
-import org.elasticsearch.search.aggregations.pipeline.SimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.derivative.Derivative;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
@@ -39,12 +38,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.derivative;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.derivative;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.closeTo;
@@ -228,7 +227,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
             Derivative docCountDeriv = bucket.getAggregations().get("deriv");
             if (i > 0) {
                 assertThat(docCountDeriv, notNullValue());
-                assertThat(docCountDeriv.value(), closeTo((double) (firstDerivValueCounts[i - 1]), 0.00001));
+                assertThat(docCountDeriv.value(), closeTo((firstDerivValueCounts[i - 1]), 0.00001));
                 assertThat(docCountDeriv.normalizedValue(), closeTo((double) (firstDerivValueCounts[i - 1]) / 5, 0.00001));
             } else {
                 assertThat(docCountDeriv, nullValue());
@@ -236,7 +235,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
             Derivative docCount2ndDeriv = bucket.getAggregations().get("2nd_deriv");
             if (i > 1) {
                 assertThat(docCount2ndDeriv, notNullValue());
-                assertThat(docCount2ndDeriv.value(), closeTo((double) (secondDerivValueCounts[i - 2]), 0.00001));
+                assertThat(docCount2ndDeriv.value(), closeTo((secondDerivValueCounts[i - 2]), 0.00001));
                 assertThat(docCount2ndDeriv.normalizedValue(), closeTo((double) (secondDerivValueCounts[i - 2]) * 2, 0.00001));
             } else {
                 assertThat(docCount2ndDeriv, nullValue());
@@ -480,6 +479,49 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1)
                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
                                 .subAggregation(derivative("deriv").setBucketsPaths("sum"))).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(numDocsEmptyIdx));
+
+        InternalHistogram<Bucket> deriv = searchResponse.getAggregations().get("histo");
+        assertThat(deriv, Matchers.notNullValue());
+        assertThat(deriv.getName(), equalTo("histo"));
+        List<Bucket> buckets = deriv.getBuckets();
+        assertThat(buckets.size(), equalTo(valueCounts_empty.length));
+
+        double lastSumValue = Double.NaN;
+        for (int i = 0; i < valueCounts_empty.length; i++) {
+            Histogram.Bucket bucket = buckets.get(i);
+            checkBucketKeyAndDocCount("Bucket " + i, bucket, i, valueCounts_empty[i]);
+            Sum sum = bucket.getAggregations().get("sum");
+            double thisSumValue = sum.value();
+            if (bucket.getDocCount() == 0) {
+                thisSumValue = Double.NaN;
+            }
+            SimpleValue sumDeriv = bucket.getAggregations().get("deriv");
+            if (i == 0) {
+                assertThat(sumDeriv, nullValue());
+            } else {
+                double expectedDerivative = thisSumValue - lastSumValue;
+                if (Double.isNaN(expectedDerivative)) {
+                    assertThat(sumDeriv.value(), equalTo(expectedDerivative));
+                } else {
+                    assertThat(sumDeriv.value(), closeTo(expectedDerivative, 0.00001));
+                }
+            }
+            lastSumValue = thisSumValue;
+        }
+    }
+
+    @Test
+    public void singleValueAggDerivativeWithGaps_noneGapPolicy() throws Exception {
+        SearchResponse searchResponse = client()
+                .prepareSearch("empty_bucket_idx")
+                .setQuery(matchAllQuery())
+                .addAggregation(
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1)
+                                .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
+                                .subAggregation(derivative("deriv").gapPolicy(GapPolicy.NONE).setBucketsPaths("sum"))).execute()
+                .actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(numDocsEmptyIdx));
 

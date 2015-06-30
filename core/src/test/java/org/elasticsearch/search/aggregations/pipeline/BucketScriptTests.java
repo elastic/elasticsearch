@@ -46,6 +46,7 @@ import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorB
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 @ElasticsearchIntegrationTest.SuiteScopeTest
 public class BucketScriptTests extends ElasticsearchIntegrationTest {
@@ -119,9 +120,7 @@ public class BucketScriptTests extends ElasticsearchIntegrationTest {
             Histogram.Bucket bucket = buckets.get(i);
             if (bucket.getDocCount() == 0) {
                 SimpleValue seriesArithmetic = bucket.getAggregations().get("seriesArithmetic");
-                assertThat(seriesArithmetic, notNullValue());
-                double seriesArithmeticValue = seriesArithmetic.value();
-                assertTrue(Double.isNaN(seriesArithmeticValue));
+                assertThat(seriesArithmetic, nullValue());
             } else {
                 Sum field2Sum = bucket.getAggregations().get("field2Sum");
                 assertThat(field2Sum, notNullValue());
@@ -167,9 +166,7 @@ public class BucketScriptTests extends ElasticsearchIntegrationTest {
             Histogram.Bucket bucket = buckets.get(i);
             if (bucket.getDocCount() == 0) {
                 SimpleValue seriesArithmetic = bucket.getAggregations().get("seriesArithmetic");
-                assertThat(seriesArithmetic, notNullValue());
-                double seriesArithmeticValue = seriesArithmetic.value();
-                assertTrue(Double.isNaN(seriesArithmeticValue));
+                assertThat(seriesArithmetic, nullValue());
             } else {
                 Sum field2Sum = bucket.getAggregations().get("field2Sum");
                 assertThat(field2Sum, notNullValue());
@@ -213,9 +210,7 @@ public class BucketScriptTests extends ElasticsearchIntegrationTest {
             Histogram.Bucket bucket = buckets.get(i);
             if (bucket.getDocCount() == 0) {
                 SimpleValue seriesArithmetic = bucket.getAggregations().get("seriesArithmetic");
-                assertThat(seriesArithmetic, notNullValue());
-                double seriesArithmeticValue = seriesArithmetic.value();
-                assertTrue(Double.isNaN(seriesArithmeticValue));
+                assertThat(seriesArithmetic, nullValue());
             } else {
                 Sum field2Sum = bucket.getAggregations().get("field2Sum");
                 assertThat(field2Sum, notNullValue());
@@ -259,9 +254,7 @@ public class BucketScriptTests extends ElasticsearchIntegrationTest {
             Histogram.Bucket bucket = buckets.get(i);
             if (bucket.getDocCount() == 0) {
                 SimpleValue seriesArithmetic = bucket.getAggregations().get("seriesArithmetic");
-                assertThat(seriesArithmetic, notNullValue());
-                double seriesArithmeticValue = seriesArithmetic.value();
-                assertTrue(Double.isNaN(seriesArithmeticValue));
+                assertThat(seriesArithmetic, nullValue());
             } else {
                 Sum field2Sum = bucket.getAggregations().get("field2Sum");
                 assertThat(field2Sum, notNullValue());
@@ -309,6 +302,54 @@ public class BucketScriptTests extends ElasticsearchIntegrationTest {
             Histogram.Bucket bucket = buckets.get(i);
             if (bucket.getDocCount() == 0) {
                 SimpleValue seriesArithmetic = bucket.getAggregations().get("seriesArithmetic");
+                assertThat(seriesArithmetic, nullValue());
+            } else {
+                Sum field2Sum = bucket.getAggregations().get("field2Sum");
+                assertThat(field2Sum, notNullValue());
+                double field2SumValue = field2Sum.getValue();
+                Sum field3Sum = bucket.getAggregations().get("field3Sum");
+                assertThat(field3Sum, notNullValue());
+                double field3SumValue = field3Sum.getValue();
+                Sum field4Sum = bucket.getAggregations().get("field4Sum");
+                assertThat(field4Sum, notNullValue());
+                double field4SumValue = field4Sum.getValue();
+                SimpleValue seriesArithmetic = bucket.getAggregations().get("seriesArithmetic");
+                assertThat(seriesArithmetic, notNullValue());
+                double seriesArithmeticValue = seriesArithmetic.value();
+                assertThat(seriesArithmeticValue, equalTo((field2SumValue + field3SumValue + field4SumValue) * 3));
+            }
+        }
+    }
+
+    @Test
+    public void inlineScriptNoneGapPolicy() {
+
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(
+                        histogram("histo")
+                                .field(FIELD_1_NAME)
+                                .interval(interval)
+                                .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
+                                .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
+                                .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
+                                .subAggregation(
+                                        bucketScript("seriesArithmetic").setBucketsPaths("field2Sum", "field3Sum", "field4Sum")
+                                                .gapPolicy(GapPolicy.NONE)
+                                                .script(new Script("_value0 + _value1 + _value2", ScriptType.INLINE, null, null))))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+        InternalHistogram<Bucket> histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+        List<? extends Bucket> buckets = histo.getBuckets();
+
+        for (int i = 0; i < buckets.size(); ++i) {
+            Histogram.Bucket bucket = buckets.get(i);
+            if (bucket.getDocCount() == 0) {
+                SimpleValue seriesArithmetic = bucket.getAggregations().get("seriesArithmetic");
                 assertThat(seriesArithmetic, notNullValue());
                 double seriesArithmeticValue = seriesArithmetic.value();
                 assertTrue(Double.isNaN(seriesArithmeticValue));
@@ -325,7 +366,7 @@ public class BucketScriptTests extends ElasticsearchIntegrationTest {
                 SimpleValue seriesArithmetic = bucket.getAggregations().get("seriesArithmetic");
                 assertThat(seriesArithmetic, notNullValue());
                 double seriesArithmeticValue = seriesArithmetic.value();
-                assertThat(seriesArithmeticValue, equalTo((field2SumValue + field3SumValue + field4SumValue) * 3));
+                assertThat(seriesArithmeticValue, equalTo(field2SumValue + field3SumValue + field4SumValue));
             }
         }
     }
@@ -392,7 +433,7 @@ public class BucketScriptTests extends ElasticsearchIntegrationTest {
                                 .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
                                 .subAggregation(
                                         bucketScript("seriesArithmetic").setBucketsPaths("field2Sum", "field3Sum", "field4Sum").script(
-                                                new Script("my_script", ScriptType.INDEXED, null, null)).gapPolicy(GapPolicy.INSERT_ZEROS))).execute().actionGet();
+                                                new Script("my_script", ScriptType.INDEXED, null, null)))).execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -405,9 +446,7 @@ public class BucketScriptTests extends ElasticsearchIntegrationTest {
             Histogram.Bucket bucket = buckets.get(i);
             if (bucket.getDocCount() == 0) {
                 SimpleValue seriesArithmetic = bucket.getAggregations().get("seriesArithmetic");
-                assertThat(seriesArithmetic, notNullValue());
-                double seriesArithmeticValue = seriesArithmetic.value();
-                assertThat(seriesArithmeticValue, equalTo(0.0));
+                assertThat(seriesArithmetic, nullValue());
             } else {
                 Sum field2Sum = bucket.getAggregations().get("field2Sum");
                 assertThat(field2Sum, notNullValue());
@@ -476,9 +515,7 @@ public class BucketScriptTests extends ElasticsearchIntegrationTest {
             Histogram.Bucket bucket = buckets.get(i);
             if (bucket.getDocCount() == 0) {
                 SimpleValue seriesArithmetic = bucket.getAggregations().get("seriesArithmetic");
-                assertThat(seriesArithmetic, notNullValue());
-                double seriesArithmeticValue = seriesArithmetic.value();
-                assertTrue(Double.isNaN(seriesArithmeticValue));
+                assertThat(seriesArithmetic, nullValue());
             } else {
                 Sum field2Sum = bucket.getAggregations().get("field2Sum");
                 assertThat(field2Sum, notNullValue());

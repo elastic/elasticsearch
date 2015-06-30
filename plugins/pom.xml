@@ -37,6 +37,7 @@
             <groupId>org.elasticsearch</groupId>
             <artifactId>elasticsearch</artifactId>
             <type>test-jar</type>
+            <scope>test</scope>
         </dependency>
 
         <!-- Provided dependencies by elasticsearch itself  -->
@@ -64,12 +65,6 @@
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-queries</artifactId>
             <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.elasticsearch</groupId>
-            <artifactId>elasticsearch</artifactId>
-            <type>test-jar</type>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>

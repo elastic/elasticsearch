@@ -64,16 +64,23 @@ class JarHell {
                     while (elements.hasMoreElements()) {
                         String entry = elements.nextElement().getName();
                         if (entry.endsWith(".class")) {
+                            // for jar format, the separator is defined as /
+                            entry = entry.replace('/', '.').substring(0, entry.length() - 6);
                             checkClass(clazzes, entry, url);
                         }
                     }
                 }
             } else {
-                Files.walkFileTree(PathUtils.get(url.toURI()), new SimpleFileVisitor<Path>() {
+                // case for tests: where we have class files in the classpath
+                final Path root = PathUtils.get(url.toURI());
+                final String sep = root.getFileSystem().getSeparator();
+                Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
                     @Override
                     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                        String entry = file.toString();
+                        String entry = root.relativize(file).toString();
                         if (entry.endsWith(".class")) {
+                            // normalize with the os separator
+                            entry = entry.replace(sep, ".").substring(0,  entry.length() - 6);
                             checkClass(clazzes, entry, url);
                         }
                         return super.visitFile(file, attrs);
@@ -85,10 +92,10 @@ class JarHell {
     
     @SuppressForbidden(reason = "proper use of URL to reduce noise")
     static void checkClass(Map<String,URL> clazzes, String clazz, URL url) {
-        if (clazz.startsWith("org/apache/log4j")) {
+        if (clazz.startsWith("org.apache.log4j")) {
             return; // go figure, jar hell for what should be System.out.println...
         }
-        if (clazz.equals("org/joda/time/base/BaseDateTime.class")) {
+        if (clazz.equals("org.joda.time.base.BaseDateTime")) {
             return; // apparently this is intentional... clean this up
         }
         URL previous = clazzes.put(clazz, url);

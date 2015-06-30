@@ -44,6 +44,12 @@ governing permissions and limitations under the License. -->
             <groupId>com.microsoft.azure</groupId>
             <artifactId>azure-management-compute</artifactId>
             <version>0.7.0</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>stax</groupId>
+                    <artifactId>stax-api</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>com.microsoft.azure</groupId>

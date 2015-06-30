@@ -202,6 +202,11 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             this.headers = headers(headers);
         }
 
+        protected WithRestHeadersException(String msg, Throwable cause, Map<String, List<String>> headers) {
+            super(msg, cause);
+            this.headers = headers;
+        }
+
         public WithRestHeadersException(StreamInput in) throws IOException {
             super(in);
             int numKeys = in.readVInt();
@@ -545,6 +550,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.action.PrimaryMissingActionException.class,
                 org.elasticsearch.index.engine.CreateFailedEngineException.class,
                 org.elasticsearch.index.shard.IllegalIndexShardStateException.class,
+                WithRestHeadersException.class,
                 NotSerializableExceptionWrapper.class
         };
         Map<String, Constructor<? extends ElasticsearchException>> mapping = new HashMap<>(exceptions.length);

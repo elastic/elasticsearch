@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.*;
 import org.elasticsearch.common.transport.LocalTransportAddress;
@@ -170,6 +171,7 @@ public class ExceptionSerializationTests extends ElasticsearchTestCase {
         final Path testStartPath = PathUtils.get(ExceptionSerializationTests.class.getResource(path).toURI());
         Files.walkFileTree(testStartPath, visitor);
         assertTrue(notRegistered.remove(TestException.class));
+        assertTrue(notRegistered.remove(UnknownHeaderException.class));
         assertTrue("Classes subclassing ElasticsearchException must be registered \n" + notRegistered.toString(),
                 notRegistered.isEmpty());
         assertTrue(registered.removeAll(ElasticsearchException.getRegisteredKeys())); // check
@@ -576,6 +578,28 @@ public class ExceptionSerializationTests extends ElasticsearchTestCase {
                 assertArrayEquals(t.getSuppressed()[0].getStackTrace(), deserialized.getSuppressed()[0].getStackTrace());
                 assertTrue(deserialized.getSuppressed()[1] instanceof NullPointerException);
             }
+        }
+    }
+
+    public void testWithRestHeadersException() throws IOException {
+        ElasticsearchException.WithRestHeadersException ex = serialize(new ElasticsearchException.WithRestHeadersException("msg", new Tuple("foo", new String[]{"foo", "bar"})));
+        assertEquals("msg", ex.getMessage());
+        assertEquals(2, ex.getHeaders().get("foo").size());
+        assertEquals("foo", ex.getHeaders().get("foo").get(0));
+        assertEquals("bar", ex.getHeaders().get("foo").get(1));
+
+        // ensure we are carrying over the headers even if not serialized
+        ElasticsearchException e = serialize((ElasticsearchException)new UnknownHeaderException("msg", new Tuple("foo", new String[]{"foo", "bar"})));
+        assertTrue(e instanceof NotSerializableExceptionWrapper);
+        assertEquals("msg", ex.getMessage());
+        assertEquals(2, ex.getHeaders().get("foo").size());
+        assertEquals("foo", ex.getHeaders().get("foo").get(0));
+        assertEquals("bar", ex.getHeaders().get("foo").get(1));
+    }
+
+    public static class UnknownHeaderException extends ElasticsearchException.WithRestHeadersException {
+        public UnknownHeaderException(String msg, Tuple<String, String[]>... headers) {
+            super(msg, headers);
         }
     }
 }

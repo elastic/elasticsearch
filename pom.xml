@@ -163,6 +163,13 @@
                 <groupId>org.apache.lucene</groupId>
                 <artifactId>lucene-test-framework</artifactId>
                 <version>${lucene.maven.version}</version>
+                <!-- we specify our own junit4 version -->
+                <exclusions>
+                    <exclusion>
+                        <groupId>com.carrotsearch.randomizedtesting</groupId>
+                        <artifactId>junit4-ant</artifactId>
+                    </exclusion>
+                </exclusions>
             </dependency>
 
             <dependency>

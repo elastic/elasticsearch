@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.integration.ldap;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.junit.Test;
 
@@ -15,6 +16,7 @@ import java.io.IOException;
  * The super class will provide appropriate group mappings via configGroupMappings()
  */
 @Network
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-shield/issues/947")
 public class GroupMappingTests extends AbstractAdLdapRealmTests {
 
     @Test

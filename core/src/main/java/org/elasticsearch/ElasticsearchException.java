@@ -26,6 +26,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.HasRestHeaders;
@@ -42,7 +43,7 @@ import java.util.*;
 public class ElasticsearchException extends RuntimeException implements ToXContent {
 
     public static final String REST_EXCEPTION_SKIP_CAUSE = "rest.exception.skip_cause";
-    static final Map<String, Constructor<? extends ElasticsearchException>> MAPPING;
+    private static final Map<String, Constructor<? extends ElasticsearchException>> MAPPING;
 
     /**
      * Construct a <code>ElasticsearchException</code> with the specified detail message.
@@ -175,6 +176,17 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         } catch (InstantiationException|IllegalAccessException|InvocationTargetException e) {
             throw new IOException("failed to read exception: [" + name + "]", e);
         }
+    }
+
+    /**
+     * Retruns <code>true</code> iff the given name is a registered for an exception to be read.
+     */
+    static boolean isRegistered(String name) {
+        return MAPPING.containsKey(name);
+    }
+
+    static Set<String> getRegisteredKeys() { // for testing
+        return MAPPING.keySet();
     }
 
     /**
@@ -533,10 +545,9 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.action.PrimaryMissingActionException.class,
                 org.elasticsearch.index.engine.CreateFailedEngineException.class,
                 org.elasticsearch.index.shard.IllegalIndexShardStateException.class,
-                org.elasticsearch.common.io.stream.StreamInput.NamedException.class
+                NotSerializableExceptionWrapper.class
         };
-        Map<String, Constructor<? extends ElasticsearchException>> mapping = new HashMap<>();
-
+        Map<String, Constructor<? extends ElasticsearchException>> mapping = new HashMap<>(exceptions.length);
         for (Class<? extends ElasticsearchException> e : exceptions) {
             String name = e.getName();
             try {

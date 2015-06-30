@@ -546,33 +546,4 @@ public abstract class StreamInput extends InputStream {
         return new InputStreamStreamInput(new ByteArrayInputStream(bytes, offset, length));
     }
 
-    public static class NamedException extends ElasticsearchException {
-
-        private final String name;
-
-        public NamedException(String name, String msg, Throwable cause) {
-            super(msg, cause);
-            if (name == null) {
-                throw new IllegalArgumentException("name must not be null");
-            }
-            this.name = name;
-        }
-
-        public NamedException(StreamInput in) throws IOException {
-            super(in);
-            name = in.readString();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(name);
-        }
-
-        @Override
-        protected String getExceptionName() {
-            return Strings.toUnderscoreCase(name);
-        }
-    }
-
 }

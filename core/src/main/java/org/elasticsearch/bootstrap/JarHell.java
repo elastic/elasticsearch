@@ -41,21 +41,29 @@ import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 
 /** Simple check for duplicate class files across the classpath */
-class JarHell {
+public class JarHell {
 
     /**
      * Checks the current classloader for duplicate classes
      * @throws IllegalStateException if jar hell was found
      */
-    @SuppressForbidden(reason = "needs JarFile for speed, just reading entries")
-    static void checkJarHell() throws Exception {
+    public static void checkJarHell() throws Exception {
         ClassLoader loader = JarHell.class.getClassLoader();
         if (loader instanceof URLClassLoader == false) {
            return;
         }
+        checkJarHell(((URLClassLoader)loader).getURLs());
+    }
+
+    /**
+     * Checks the set of URLs for duplicate classes
+     * @throws IllegalStateException if jar hell was found
+     */
+    @SuppressForbidden(reason = "needs JarFile for speed, just reading entries")
+    public static void checkJarHell(URL urls[]) throws Exception {
         final Map<String,URL> clazzes = new HashMap<>(32768);
         Set<String> seenJars = new HashSet<>();
-        for (final URL url : ((URLClassLoader)loader).getURLs()) {
+        for (final URL url : urls) {
             String path = URLDecoder.decode(url.getPath(), "UTF-8");
             if (path.endsWith(".jar")) {
                 if (!seenJars.add(path)) {

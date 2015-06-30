@@ -557,7 +557,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 }
                 mapping.put(name, constructor);
             } catch (NoSuchMethodException t) {
-                throw new RuntimeException("failed to register [" + name + "] ", t);
+                throw new RuntimeException("failed to register [" + name + "] exception must have a public StreamInput ctor", t);
             }
         }
 

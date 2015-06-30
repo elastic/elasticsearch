@@ -22,6 +22,8 @@ package org.elasticsearch;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -43,6 +45,7 @@ import org.junit.Test;
 import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -264,6 +267,14 @@ public class ElasticsearchExceptionTests extends ElasticsearchTestCase {
                 new CorruptIndexException("baaaam", "this is my resource"),
                 new IndexFormatTooNewException("tooo new", 1, 1, 1),
                 new IndexFormatTooOldException("tooo new", 1, 1, 1),
+                new ArrayIndexOutOfBoundsException("booom"),
+                new StringIndexOutOfBoundsException("booom"),
+                new FileNotFoundException("booom"),
+                new NoSuchFileException("booom"),
+                new AssertionError("booom", new NullPointerException()),
+                new OutOfMemoryError("no memory left"),
+                new AlreadyClosedException("closed!!", new NullPointerException()),
+                new LockObtainFailedException("can't lock directory", new NullPointerException()),
                 new Throwable("this exception is unknown", new QueryParsingException(new Index("foo"), 1, 2, "foobar", null) ), // somethin unknown
         };
         for (Throwable t : causes) {
@@ -277,7 +288,7 @@ public class ElasticsearchExceptionTests extends ElasticsearchTestCase {
                 // these don't work yet - missing ctors
                 assertNotEquals(e.getCause().getMessage(), ex.getCause().getMessage());
             } else {
-                assertEquals(e.getCause().getMessage(), ex.getCause().getMessage());
+                assertEquals(ex.getCause().getClass().getName(), e.getCause().getMessage(), ex.getCause().getMessage());
             }
             assertEquals(e.getCause().getClass(), e.getCause().getClass());
             assertArrayEquals(e.getStackTrace(), ex.getStackTrace());

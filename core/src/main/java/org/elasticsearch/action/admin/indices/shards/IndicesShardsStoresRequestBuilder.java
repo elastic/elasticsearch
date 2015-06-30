@@ -28,4 +28,9 @@ public class IndicesShardsStoresRequestBuilder extends MasterNodeReadOperationRe
     public IndicesShardsStoresRequestBuilder(ElasticsearchClient client, Action<IndicesShardsStoresRequest, IndicesShardsStoresResponse, IndicesShardsStoresRequestBuilder> action, String... indices) {
         super(client, action, new IndicesShardsStoresRequest(indices));
     }
+
+    public IndicesShardsStoresRequestBuilder setStatuses(String... statuses) {
+        request.shardStatuses(statuses);
+        return this;
+    }
 }

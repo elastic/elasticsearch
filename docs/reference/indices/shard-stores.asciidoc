@@ -23,13 +23,13 @@ curl -XGET 'http://localhost:9200/_shard_stores'
 --------------------------------------------------
 
 The default scope of shards to list store information can be changed through
-`shards` param. Defaults to 'unallocated'.
-Using 'allocated' lists store information for active shards and 'all' for
+`status` param. Defaults to 'yellow'.
+Use 'green' to list store information for active shards and 'all' for
 store information on all shards.
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/_shard_stores?shards=allocated'
+curl -XGET 'http://localhost:9200/_shard_stores?status=all'
 --------------------------------------------------
 
 Response:
@@ -41,16 +41,19 @@ The shard stores information is grouped by indices and shard ids.
 {
     ...
    "0": { <1>
-        "primary_allocated": true, <2>
-        "stores": [ <3>
+        "stores": [ <2>
             {
-                "node": { <4>
-                    "name": "...",
-                    "host": "...",
-                    "address": "..."
+                "sPa3OgxLSYGvQ4oPs-Tajw": { <3>
+                    "name": "node_t0",
+                    "transport_address": "local[1]",
+                    "attributes": {
+                        "enable_custom_paths": "true",
+                        "mode": "local"
+                    }
                 },
-                "version": 4, <5>
-                "store_exception": ... <6>
+                "version": 4, <4>
+                "allocation" : "PRIMARY" | "REPLICA" | "UNUSED", <6>
+                "store_exception": ... <5>
             },
             ...
         ]
@@ -59,9 +62,11 @@ The shard stores information is grouped by indices and shard ids.
 }
 --------------------------------------------------
 <1> The key is the corresponding shard id for the store information
-<2> If the primary copy of the shard is allocated
-<3> A list of store information for all copies of the shard
-<4> The node information that hosts a copy of the shard
-<5> The version of the shard copy
+<2> A list of store information for all copies of the shard
+<3> The node information that hosts a copy of the shard, the key
+    is the unique node id.
+<4> The version of the shard copy
+<5> The status of the shard copy, whether it is used as a
+    primary, replica or not used at all
 <6> Any exception encountered while opening the shard index or
     from earlier engine failure

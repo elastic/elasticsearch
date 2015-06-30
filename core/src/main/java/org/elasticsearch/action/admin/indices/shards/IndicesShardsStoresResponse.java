@@ -52,45 +52,103 @@ public class IndicesShardsStoresResponse extends ActionResponse implements ToXCo
     /**
      * Shard store information from a node
      */
-    public static class ShardStoreStatus implements Streamable, ToXContent {
+    public static class ShardStoreStatus implements Streamable, ToXContent, Comparable<ShardStoreStatus> {
         private DiscoveryNode node;
         private long version;
         private Throwable storeException;
+        private Allocation allocation;
+
+        /**
+         * The status of the shard store
+         * with respect to the cluster
+         */
+        public enum Allocation {
+
+            /**
+             * Allocated as primary
+             */
+            PRIMARY((byte) 0),
+
+            /**
+             * Allocated as a replica
+             */
+            REPLICA((byte) 1),
+
+            /**
+             * Not allocated
+             */
+            UNUSED((byte) 2);
+
+            private final byte id;
+
+            Allocation(byte id) {
+                this.id = id;
+            }
+
+            public static Allocation fromId(byte id) {
+                switch (id) {
+                    case 0:
+                        return PRIMARY;
+                    case 1:
+                        return REPLICA;
+                    case 2:
+                        return UNUSED;
+                    default:
+                        throw new IllegalArgumentException("unknown id for allocation [" + id + "]");
+                }
+            }
+
+            private static Allocation readFrom(StreamInput in) throws IOException {
+                return fromId(in.readByte());
+            }
+
+            private void writeTo(StreamOutput out) throws IOException {
+                out.writeByte(id);
+            }
+        }
 
         private ShardStoreStatus() {
         }
 
-        ShardStoreStatus(DiscoveryNode node, long version, Throwable storeException) {
+        ShardStoreStatus(DiscoveryNode node, long version, Allocation allocation, Throwable storeException) {
             this.node = node;
             this.version = version;
+            this.allocation = allocation;
             this.storeException = storeException;
         }
 
         /**
-         * node the shard belongs to
+         * Node the shard belongs to
          */
         public DiscoveryNode getNode() {
             return node;
         }
 
         /**
-         * version of the shard, the highest
-         * version of the replica shards are
-         * promoted to primary if needed
+         * Version of the shard, used to select the store that will be
+         * used as the very first primary.
          */
         public long getVersion() {
             return version;
         }
 
         /**
-         * exception while trying to open the
+         * Exception while trying to open the
          * shard index or from when the shard failed
          */
         public Throwable getStoreException() {
             return storeException;
         }
 
-        private static ShardStoreStatus readShardStoreStatus(StreamInput in) throws IOException {
+        /**
+         * The allocation status of the store
+         * @see Allocation
+         */
+        public Allocation getAllocation() {
+            return allocation;
+        }
+
+        static ShardStoreStatus readShardStoreStatus(StreamInput in) throws IOException {
             ShardStoreStatus shardStoreStatus = new ShardStoreStatus();
             shardStoreStatus.readFrom(in);
             return shardStoreStatus;
@@ -100,6 +158,7 @@ public class IndicesShardsStoresResponse extends ActionResponse implements ToXCo
         public void readFrom(StreamInput in) throws IOException {
             node = DiscoveryNode.readNode(in);
             version = in.readLong();
+            allocation = Allocation.readFrom(in);
             if (in.readBoolean()) {
                 storeException = in.readThrowable();
             }
@@ -109,6 +168,7 @@ public class IndicesShardsStoresResponse extends ActionResponse implements ToXCo
         public void writeTo(StreamOutput out) throws IOException {
             node.writeTo(out);
             out.writeLong(version);
+            allocation.writeTo(out);
             if (storeException != null) {
                 out.writeBoolean(true);
                 out.writeThrowable(storeException);
@@ -119,18 +179,27 @@ public class IndicesShardsStoresResponse extends ActionResponse implements ToXCo
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(Fields.NODE);
-            builder.field("name", node.name());
-            builder.field("host", node.getHostName());
-            builder.field("address", node.getHostAddress());
-            builder.endObject();
+            node.toXContent(builder, params);
             builder.field(Fields.VERSION, version);
+            builder.field(Fields.ALLOCATED, allocation.name());
             if (storeException != null) {
                 builder.startObject(Fields.STORE_EXCEPTION);
                 ElasticsearchException.toXContent(builder, params, storeException);
                 builder.endObject();
             }
             return builder;
+        }
+
+        @Override
+        public int compareTo(ShardStoreStatus other) {
+            if (other == null) {
+                return -1;
+            }
+            int compare = Long.compare(other.getVersion(), getVersion());
+            if (compare == 0) {
+                return Integer.compare(allocation.id, other.allocation.id);
+            }
+            return compare;
         }
     }
 
@@ -224,8 +293,8 @@ public class IndicesShardsStoresResponse extends ActionResponse implements ToXCo
         }
     }
 
-    private ImmutableOpenMap<String, ImmutableOpenIntMap<List<ShardStoreStatus>>> shardStatuses = ImmutableOpenMap.of();
-    private ImmutableList<Failure> failures = ImmutableList.of();
+    private ImmutableOpenMap<String, ImmutableOpenIntMap<List<ShardStoreStatus>>> shardStatuses;
+    private ImmutableList<Failure> failures;
 
     IndicesShardsStoresResponse(ImmutableOpenMap<String, ImmutableOpenIntMap<List<ShardStoreStatus>>> shardStatuses, ImmutableList<Failure> failures) {
         this.shardStatuses = shardStatuses;
@@ -233,6 +302,7 @@ public class IndicesShardsStoresResponse extends ActionResponse implements ToXCo
     }
 
     IndicesShardsStoresResponse() {
+        this(ImmutableOpenMap.<String, ImmutableOpenIntMap<List<ShardStoreStatus>>>of(), ImmutableList.<Failure>of());
     }
 
     /**
@@ -320,7 +390,6 @@ public class IndicesShardsStoresResponse extends ActionResponse implements ToXCo
             builder.startObject(Fields.SHARDS);
             for (IntObjectCursor<List<ShardStoreStatus>> shardStatusesEntry : indexShards.value) {
                 builder.startObject(String.valueOf(shardStatusesEntry.key));
-                builder.field(Fields.ALLOCATED, allocated(shardStatusesEntry.value));
                 builder.startArray(Fields.STORES);
                 for (ShardStoreStatus shardStoreStatus : shardStatusesEntry.value) {
                     builder.startObject();
@@ -339,24 +408,14 @@ public class IndicesShardsStoresResponse extends ActionResponse implements ToXCo
         return builder;
     }
 
-    private boolean allocated(List<ShardStoreStatus> shardStoreStatuses) {
-        for (ShardStoreStatus shardStoreStatuse : shardStoreStatuses) {
-            if (shardStoreStatuse.getVersion() != -1) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     static final class Fields {
-        static final XContentBuilderString FAILURES = new XContentBuilderString("failures");
         static final XContentBuilderString INDICES = new XContentBuilderString("indices");
         static final XContentBuilderString SHARDS = new XContentBuilderString("shards");
-        public static final XContentBuilderString STORES = new XContentBuilderString("stores");
-        public static final XContentBuilderString ALLOCATED = new XContentBuilderString("primary_allocated");
+        static final XContentBuilderString FAILURES = new XContentBuilderString("failures");
+        static final XContentBuilderString STORES = new XContentBuilderString("stores");
         // ShardStatus fields
-        static final XContentBuilderString NODE = new XContentBuilderString("node");
         static final XContentBuilderString VERSION = new XContentBuilderString("version");
         static final XContentBuilderString STORE_EXCEPTION = new XContentBuilderString("store_exception");
+        static final XContentBuilderString ALLOCATED = new XContentBuilderString("allocation");
     }
 }

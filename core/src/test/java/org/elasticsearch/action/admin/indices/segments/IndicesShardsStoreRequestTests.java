@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.cursors.IntObjectCursor;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.base.Predicate;
-import org.elasticsearch.action.admin.indices.shards.IndicesShardsStoresRequest.ShardState;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardsStoresResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Requests;
@@ -54,14 +53,13 @@ import static org.hamcrest.Matchers.*;
 public class IndicesShardsStoreRequestTests extends ElasticsearchIntegrationTest {
 
     private void indexRandomData(String index) throws ExecutionException, InterruptedException {
-        int numDocs = scaledRandomIntBetween(100, 1000);
+        int numDocs = scaledRandomIntBetween(10, 20);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
             builders[i] = client().prepareIndex(index, "type").setSource("field", "value");
         }
         indexRandom(true, builders);
-        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).setWaitIfOngoing(true).execute().actionGet());
-        ensureGreen(index);
+        client().admin().indices().prepareFlush().setForce(true).setWaitIfOngoing(true).execute().actionGet();
     }
 
     @Test
@@ -81,12 +79,13 @@ public class IndicesShardsStoreRequestTests extends ElasticsearchIntegrationTest
         ));
         ensureGreen(index);
         indexRandomData(index);
+        ensureGreen(index);
 
         // no unallocated shards
         IndicesShardsStoresResponse response = client().admin().indices().prepareShardStores(index).get();
         assertThat(response.getShardStatuses().size(), equalTo(0));
 
-        response = client().admin().indices().shardsStores(Requests.indicesShardsStoresRequest(index).shardState(ShardState.ALL)).get();
+        response = client().admin().indices().shardsStores(Requests.indicesShardsStoresRequest(index).shardStatuses("all")).get();
         assertThat(response.getShardStatuses().containsKey(index), equalTo(true));
         ImmutableOpenIntMap<List<IndicesShardsStoresResponse.ShardStoreStatus>> shardStores = response.getShardStatuses().get(index);
         assertThat(shardStores.values().size(), equalTo(2));
@@ -103,12 +102,29 @@ public class IndicesShardsStoreRequestTests extends ElasticsearchIntegrationTest
         logger.info("--> stop random node");
         internalCluster().stopRandomNode(new IndexNonMasterNodePredicate(index, internalCluster().getMasterName()));
         ensureYellow(index);
-        response = client().admin().indices().shardsStores(Requests.indicesShardsStoresRequest(index).shardState(ShardState.UNALLOCATED)).get();
+        RoutingNodes.UnassignedShards unassigned = clusterService().state().routingNodes().unassigned();
+        response = client().admin().indices().shardsStores(Requests.indicesShardsStoresRequest(index).shardStatuses("yellow")).get();
         assertThat(response.getShardStatuses().containsKey(index), equalTo(true));
         ImmutableOpenIntMap<List<IndicesShardsStoresResponse.ShardStoreStatus>> shardStoresStatuses = response.getShardStatuses().get(index);
-        assertThat(shardStoresStatuses.size(), equalTo(2));
+        assertThat(shardStoresStatuses.size(), equalTo(unassigned.size()));
         logger.info("--> enable allocation");
         enableAllocation(index);
+    }
+
+    @Test
+    public void testDefault() throws Exception {
+        String index = "test";
+        internalCluster().ensureAtMostNumDataNodes(1);
+        assertAcked(prepareCreate(index).setSettings(Settings.builder()
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
+        ));
+        ensureYellow();
+        indexRandomData(index);
+        ensureYellow();
+        IndicesShardsStoresResponse response = client().admin().indices().prepareShardStores().get();
+        assertThat(response.getShardStatuses().containsKey(index), equalTo(true));
+        assertThat(response.getShardStatuses().get(index).get(0).size(), equalTo(1));
     }
 
     @Test
@@ -125,7 +141,8 @@ public class IndicesShardsStoreRequestTests extends ElasticsearchIntegrationTest
         ensureGreen();
         indexRandomData(index1);
         indexRandomData(index2);
-        IndicesShardsStoresResponse response = client().admin().indices().shardsStores(Requests.indicesShardsStoresRequest().shardState(ShardState.ALL)).get();
+        ensureGreen();
+        IndicesShardsStoresResponse response = client().admin().indices().shardsStores(Requests.indicesShardsStoresRequest().shardStatuses("all")).get();
         ImmutableOpenMap<String, ImmutableOpenIntMap<List<IndicesShardsStoresResponse.ShardStoreStatus>>> shardStatuses = response.getShardStatuses();
         assertThat(shardStatuses.containsKey(index1), equalTo(true));
         assertThat(shardStatuses.containsKey(index2), equalTo(true));
@@ -133,7 +150,7 @@ public class IndicesShardsStoreRequestTests extends ElasticsearchIntegrationTest
         assertThat(shardStatuses.get(index2).size(), equalTo(2));
 
         // ensure index filtering works
-        response = client().admin().indices().shardsStores(Requests.indicesShardsStoresRequest(index1).shardState(ShardState.ALL)).get();
+        response = client().admin().indices().shardsStores(Requests.indicesShardsStoresRequest(index1).shardStatuses("all")).get();
         shardStatuses = response.getShardStatuses();
         assertThat(shardStatuses.containsKey(index1), equalTo(true));
         assertThat(shardStatuses.containsKey(index2), equalTo(false));
@@ -150,6 +167,7 @@ public class IndicesShardsStoreRequestTests extends ElasticsearchIntegrationTest
         ));
         ensureGreen();
         indexRandomData(index);
+        ensureGreen(index);
 
         logger.info("--> disable allocation");
         disableAllocation(index);
@@ -166,10 +184,7 @@ public class IndicesShardsStoreRequestTests extends ElasticsearchIntegrationTest
             }
         }
 
-        logger.info("--> full cluster restart");
-        internalCluster().fullRestart();
-
-        IndicesShardsStoresResponse rsp = client().admin().indices().prepareShardStores(index).get();
+        IndicesShardsStoresResponse rsp = client().admin().indices().prepareShardStores(index).setStatuses("all").get();
         ImmutableOpenIntMap<List<IndicesShardsStoresResponse.ShardStoreStatus>> shardStatuses = rsp.getShardStatuses().get(index);
         assertNotNull(shardStatuses);
         assertThat(shardStatuses.size(), greaterThan(0));
@@ -185,37 +200,6 @@ public class IndicesShardsStoreRequestTests extends ElasticsearchIntegrationTest
     }
 
     @Test
-    public void testUnassignedShards() throws Exception {
-        final String index = "test";
-        internalCluster().ensureAtLeastNumDataNodes(2);
-        assertAcked(prepareCreate(index).setSettings(Settings.builder()
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "2")
-                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
-        ));
-        ensureGreen();
-        indexRandomData(index);
-
-        logger.info("--> disable allocation");
-        disableAllocation(index);
-        logger.info("--> stop random node");
-        internalCluster().stopRandomNode(new IndexNonMasterNodePredicate(index, internalCluster().getMasterName()));
-        ensureYellow(index);
-
-        RoutingNodes.UnassignedShards unassigned = clusterService().state().routingNodes().unassigned();
-        assertThat(unassigned.size(), greaterThan(0));
-        IndicesShardsStoresResponse response = client().admin().indices().prepareShardStores(index).get();
-        ImmutableOpenMap<String, ImmutableOpenIntMap<List<IndicesShardsStoresResponse.ShardStoreStatus>>> statuses = response.getShardStatuses();
-        for (MutableShardRouting shardRouting : unassigned) {
-            assertTrue(statuses.containsKey(shardRouting.getIndex()));
-            ImmutableOpenIntMap<List<IndicesShardsStoresResponse.ShardStoreStatus>> listMap = statuses.get(shardRouting.getIndex());
-            assertTrue(listMap.containsKey(shardRouting.id()));
-        }
-        ensureYellow();
-        logger.info("--> enable allocation");
-        enableAllocation(index);
-    }
-
-    @Test
     public void testSerialization() throws Exception {
         String index = "test";
         internalCluster().ensureAtMostNumDataNodes(2);
@@ -224,27 +208,28 @@ public class IndicesShardsStoreRequestTests extends ElasticsearchIntegrationTest
         ));
         ensureGreen();
         indexRandomData(index);
-        IndicesShardsStoresResponse response = client().admin().indices().shardsStores(Requests.indicesShardsStoresRequest().shardState(ShardState.ALL)).get();
+        ensureGreen();
+        IndicesShardsStoresResponse response = client().admin().indices().shardsStores(Requests.indicesShardsStoresRequest().shardStatuses("all")).get();
         XContentBuilder contentBuilder = XContentFactory.jsonBuilder();
         contentBuilder.startObject();
         response.toXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
         contentBuilder.endObject();
         BytesReference bytes = contentBuilder.bytes();
         final XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(bytes);
-        Map<String, Object> map = parser.mapAndClose();
+        Map<String, Object> map = parser.map();
+        parser.close();
         Map<String, Object> indices = (Map<String, Object>) map.get("indices");
         assertThat(indices.containsKey("test"), equalTo(true));
         Map<String, Object> shards = ((Map<String, Object>) ((Map<String, Object>) indices.get("test")).get("shards"));
         assertThat(shards.size(), equalTo(2));
         for (String shardId : shards.keySet()) {
             HashMap shardStoresStatus = (HashMap) shards.get(shardId);
-            assertThat(shardStoresStatus.containsKey("primary_allocated"), equalTo(true));
             assertThat(shardStoresStatus.containsKey("stores"), equalTo(true));
             List stores = (ArrayList) shardStoresStatus.get("stores");
             for (Object store : stores) {
                 HashMap storeInfo = ((HashMap) store);
-                assertThat(storeInfo.containsKey("node"), equalTo(true));
                 assertThat(storeInfo.containsKey("version"), equalTo(true));
+                assertThat(storeInfo.containsKey("allocation"), equalTo(true));
             }
         }
     }

@@ -42,15 +42,15 @@ public class RestIndicesShardStoresAction extends BaseRestHandler {
     @Inject
     public RestIndicesShardStoresAction(Settings settings, RestController controller, Client client) {
         super(settings, controller, client);
-        controller.registerHandler(GET, "/_shard_stores/{shards}", this);
-        controller.registerHandler(GET, "/{index}/_shard_stores/{shards}", this);
+        controller.registerHandler(GET, "/_shard_stores", this);
+        controller.registerHandler(GET, "/{index}/_shard_stores", this);
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         IndicesShardsStoresRequest indicesShardsStoresRequest = new IndicesShardsStoresRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        if (request.hasParam("shards")) {
-            indicesShardsStoresRequest.shardState(request.param("shards"));
+        if (request.hasParam("status")) {
+            indicesShardsStoresRequest.shardStatuses(Strings.splitStringByCommaToArray(request.param("status")));
         }
         indicesShardsStoresRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesShardsStoresRequest.indicesOptions()));
         client.admin().indices().shardsStores(indicesShardsStoresRequest, new RestBuilderListener<IndicesShardsStoresResponse>(channel) {

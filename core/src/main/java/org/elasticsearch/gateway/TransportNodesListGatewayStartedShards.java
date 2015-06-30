@@ -21,7 +21,6 @@ package org.elasticsearch.gateway;
 
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -275,7 +274,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
     public static class NodeGatewayStartedShards extends BaseNodeResponse {
 
         private long version = -1;
-        private Throwable exception = null;
+        private Throwable storeException = null;
 
         NodeGatewayStartedShards() {
         }
@@ -283,18 +282,18 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             this(node, version, null);
         }
 
-        public NodeGatewayStartedShards(DiscoveryNode node, long version, Throwable exception) {
+        public NodeGatewayStartedShards(DiscoveryNode node, long version, Throwable storeException) {
             super(node);
             this.version = version;
-            this.exception = exception;
+            this.storeException = storeException;
         }
 
         public long version() {
             return this.version;
         }
 
-        public Throwable exception() {
-            return this.exception;
+        public Throwable storeException() {
+            return this.storeException;
         }
 
         @Override
@@ -302,7 +301,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             super.readFrom(in);
             version = in.readLong();
             if (in.readBoolean()) {
-                exception = in.readThrowable();
+                storeException = in.readThrowable();
             }
 
         }
@@ -311,9 +310,9 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeLong(version);
-            if (exception != null) {
+            if (storeException != null) {
                 out.writeBoolean(true);
-                out.writeThrowable(exception);
+                out.writeThrowable(storeException);
             } else {
                 out.writeBoolean(false);
             }

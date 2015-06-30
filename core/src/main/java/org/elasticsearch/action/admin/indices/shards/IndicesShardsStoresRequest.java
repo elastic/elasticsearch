@@ -25,36 +25,44 @@ import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class IndicesShardsStoresRequest extends MasterNodeReadRequest<IndicesShardsStoresRequest> implements IndicesRequest.Replaceable {
 
     /**
-     * Shard criteria to get store information on
+     * Status used to choose shards to get store information on
      */
-    public enum ShardState {
-        /**
-         * Shard that has at least one
-         * active copy
-         */
-        ALLOCATED((byte) 0),
+    public enum Status {
 
         /**
-         * Shard that has at least one
-         * unallocated (un-assigned) copy
-         * (primary or replica)
+         * Status to get store information on all active shards
          */
-        UNALLOCATED((byte) 1),
+        GREEN((byte) 0),
 
         /**
-         * All Shards
+         * Status to get store information on shards with
+         * at least one unassigned replica
          */
-        ALL((byte) 2);
+        YELLOW((byte) 1),
+
+        /**
+         * Status to get store information on shards with
+         * unassigned primary or replica
+         */
+        RED((byte) 2),
+
+        /**
+         * Status to get store information on all shards
+         */
+        ALL((byte) 3);
 
         private final byte id;
 
-        ShardState(byte id) {
+        Status(byte id) {
             this.id = id;
         }
 
@@ -62,35 +70,47 @@ public class IndicesShardsStoresRequest extends MasterNodeReadRequest<IndicesSha
             return id;
         }
 
-        public static ShardState fromId(byte id) {
+        public static Status fromId(byte id) {
             switch (id) {
                 case 0:
-                    return ALLOCATED;
+                    return GREEN;
                 case 1:
-                    return UNALLOCATED;
+                    return YELLOW;
                 case 2:
+                    return RED;
+                case 3:
                     return ALL;
                 default:
-                    throw new IllegalArgumentException("No shard state for id [" + id + "]");
+                    throw new IllegalArgumentException("No status for id [" + id + "]");
             }
         }
 
-        public static ShardState fromString(String shardState) {
-            if (shardState.equalsIgnoreCase("allocated")) {
-                return ALLOCATED;
-            } else if (shardState.equalsIgnoreCase("unallocated")) {
-                return UNALLOCATED;
-            } else if (shardState.equalsIgnoreCase("all")) {
+        public static Status fromString(String status) {
+            if (status.equalsIgnoreCase("green")) {
+                return GREEN;
+            } else if (status.equalsIgnoreCase("yellow")) {
+                return YELLOW;
+            } else if (status.equalsIgnoreCase("red")) {
+                return RED;
+            } else if (status.equalsIgnoreCase("all")) {
                 return ALL;
             } else {
-                throw new IllegalArgumentException("unknown shard state [" + shardState + "]");
+                throw new IllegalArgumentException("unknown status [" + status + "]");
             }
+        }
+
+        public static Status readFrom(StreamInput in) throws IOException {
+            return fromId(in.readByte());
+        }
+
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeByte(id());
         }
     }
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
-    private ShardState shardState = ShardState.UNALLOCATED;
+    private Status[] shardStatuses = new Status[] { Status.YELLOW };
 
     /**
      * Create a request for shards stores info for <code>indices</code>
@@ -103,28 +123,23 @@ public class IndicesShardsStoresRequest extends MasterNodeReadRequest<IndicesSha
     }
 
     /**
-     * Set the criteria for shards to get stores info on.
-     * @param shardState one of "allocated", "unallocated" or "all"
-     * see {@link ShardState} for details
+     * Set statuses to filter shards to get stores info on.
+     * @param shardStatuses acceptable values are "green", "yellow", "red" and "all"
+     * see {@link Status} for details
      */
-    public IndicesShardsStoresRequest shardState(String shardState) {
-        return this.shardState(ShardState.fromString(shardState));
-    }
-
-    /**
-     * Set the criteria for shards to get stores info on.
-     * see {@link ShardState}
-     */
-    public IndicesShardsStoresRequest shardState(ShardState shardState) {
-        this.shardState = shardState;
+    public IndicesShardsStoresRequest shardStatuses(String... shardStatuses) {
+        this.shardStatuses = new Status[shardStatuses.length];
+        for (int i = 0; i < shardStatuses.length; i++) {
+            this.shardStatuses[i] = Status.fromString(shardStatuses[i]);
+        }
         return this;
     }
 
     /**
      * Returns the shard criteria to get store information on
      */
-    public ShardState shardState() {
-        return shardState;
+    public Status[] shardStatuses() {
+        return shardStatuses;
     }
 
     @Override
@@ -157,7 +172,10 @@ public class IndicesShardsStoresRequest extends MasterNodeReadRequest<IndicesSha
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
-        out.writeByte(shardState.id());
+        out.writeVInt(shardStatuses.length);
+        for (Status shardStatus : shardStatuses) {
+            shardStatus.writeTo(out);
+        }
         indicesOptions.writeIndicesOptions(out);
     }
 
@@ -165,7 +183,11 @@ public class IndicesShardsStoresRequest extends MasterNodeReadRequest<IndicesSha
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         indices = in.readStringArray();
-        shardState = ShardState.fromId(in.readByte());
+        int nStatus = in.readVInt();
+        shardStatuses = new Status[nStatus];
+        for (int i = 0; i < nStatus; i++) {
+            shardStatuses[i] = Status.readFrom(in);
+        }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 }

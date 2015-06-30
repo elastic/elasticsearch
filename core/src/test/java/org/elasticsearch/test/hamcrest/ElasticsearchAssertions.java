@@ -60,6 +60,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -649,6 +650,32 @@ public class ElasticsearchAssertions {
         }
 
     }
+
+    public static void assertVersionSerializable(Version version, final Throwable t) {
+        ElasticsearchAssertions.assertVersionSerializable(version, new ThrowableWrapper(t));
+    }
+
+    private static final class ThrowableWrapper implements Streamable {
+        Throwable throwable;
+        public ThrowableWrapper(Throwable t) {
+            throwable = t;
+        }
+
+        public ThrowableWrapper() {
+            throwable = null;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            throwable = in.readThrowable();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeThrowable(throwable);
+        }
+    }
+
 
     private static Streamable tryCreateNewInstance(Streamable streamable) throws NoSuchMethodException, InstantiationException,
             IllegalAccessException, InvocationTargetException {

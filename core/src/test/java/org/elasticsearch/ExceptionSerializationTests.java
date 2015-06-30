@@ -18,14 +18,16 @@
  */
 package org.elasticsearch;
 
+import com.fasterxml.jackson.core.JsonLocation;
+import com.fasterxml.jackson.core.JsonParseException;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+import org.codehaus.groovy.runtime.typehandling.GroovyCastException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -33,7 +35,6 @@ import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.*;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.*;
@@ -63,6 +64,8 @@ import org.elasticsearch.search.warmer.IndexWarmerMissingException;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.TestSearchContext;
+import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.ActionTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -179,7 +182,8 @@ public class ExceptionSerializationTests extends ElasticsearchTestCase {
         }
     }
 
-    private <T extends ElasticsearchException> T serialize(T exception) throws IOException {
+    private <T extends Throwable> T serialize(T exception) throws IOException {
+        ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersion(random()), exception);
         BytesStreamOutput out = new BytesStreamOutput();
         out.writeThrowable(exception);
         StreamInput in = StreamInput.wrap(out.bytes());
@@ -552,5 +556,26 @@ public class ExceptionSerializationTests extends ElasticsearchTestCase {
         assertEquals("{\"type\":\"null_pointer_exception\",\"reason\":null}", toXContent(ex));
         ex = serialize(new NotSerializableExceptionWrapper(new IllegalArgumentException("nono!")));
         assertEquals("{\"type\":\"illegal_argument_exception\",\"reason\":\"nono!\"}", toXContent(ex));
+
+        Throwable[] unknowns = new Throwable[] {
+                new JsonParseException("foobar", new JsonLocation(new Object(), 1,2,3,4)),
+                new GroovyCastException("boom boom boom"),
+                new IOException("booom")
+        };
+        for (Throwable t : unknowns) {
+            if (randomBoolean()) {
+                t.addSuppressed(new IOException("suppressed"));
+                t.addSuppressed(new NullPointerException());
+            }
+            Throwable deserialized = serialize(t);
+            assertTrue(deserialized instanceof NotSerializableExceptionWrapper);
+            assertArrayEquals(t.getStackTrace(), deserialized.getStackTrace());
+            assertEquals(t.getSuppressed().length, deserialized.getSuppressed().length);
+            if (t.getSuppressed().length > 0) {
+                assertTrue(deserialized.getSuppressed()[0] instanceof NotSerializableExceptionWrapper);
+                assertArrayEquals(t.getSuppressed()[0].getStackTrace(), deserialized.getSuppressed()[0].getStackTrace());
+                assertTrue(deserialized.getSuppressed()[1] instanceof NullPointerException);
+            }
+        }
     }
 }

@@ -39,6 +39,8 @@ import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.junit.Test;
 
@@ -293,9 +295,10 @@ public class ElasticsearchExceptionTests extends ElasticsearchTestCase {
             assertEquals(e.getCause().getClass(), e.getCause().getClass());
             assertArrayEquals(e.getStackTrace(), ex.getStackTrace());
             assertTrue(e.getStackTrace().length > 1);
+            ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersion(getRandom()), t);
+            ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersion(getRandom()), ex);
+            ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersion(getRandom()), e);
         }
-
-
     }
 
 }

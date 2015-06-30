@@ -14,6 +14,7 @@ indices:admin/mappings/fields/get[index]
 indices:admin/mappings/fields/get[index][s]
 indices:admin/optimize[s]
 indices:admin/refresh[s]
+indices:admin/render/template/search
 indices:admin/upgrade
 indices:admin/upgrade[s]
 indices:admin/validate/query[s]

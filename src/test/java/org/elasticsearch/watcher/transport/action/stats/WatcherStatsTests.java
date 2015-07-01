@@ -15,6 +15,7 @@ import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.condition.ConditionBuilders;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
+import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsRequest;
 import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.junit.Test;
@@ -81,5 +82,8 @@ public class WatcherStatsTests extends AbstractWatcherIntegrationTests {
         assertThat(response.getWatcherState(), is(WatcherState.STARTED));
         assertThat(response.getWatchesCount(), is(1L));
         assertThat(response.getThreadPoolMaxSize(), greaterThan(0L));
+
+        DeleteWatchResponse deleteWatchResponse = watcherClient.prepareDeleteWatch("_name").get();
+        assertThat(deleteWatchResponse.isFound(), is(true));
     }
 }

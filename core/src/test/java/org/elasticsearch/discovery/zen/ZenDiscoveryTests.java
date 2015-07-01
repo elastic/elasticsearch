@@ -19,6 +19,7 @@
 
 package org.elasticsearch.discovery.zen;
 
+import com.google.common.collect.Iterables;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -35,7 +36,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.fd.FaultDetection;
+import org.elasticsearch.discovery.zen.membership.MembershipAction;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -45,7 +48,10 @@ import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.lang.ref.Reference;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -215,4 +221,40 @@ public class ZenDiscoveryTests extends ElasticsearchIntegrationTest {
         assertThat(reference.get(), notNullValue());
         assertThat(ExceptionsHelper.detailedMessage(reference.get()), containsString("cluster state from a different master then the current one, rejecting "));
     }
+
+    @Test
+    public void testHandleNodeJoin_incompatibleMinVersion() {
+        Settings nodeSettings = Settings.settingsBuilder()
+                .put("discovery.type", "zen") // <-- To override the local setting if set externally
+                .build();
+        String nodeName = internalCluster().startNode(nodeSettings, Version.V_2_0_0);
+        ZenDiscovery zenDiscovery = (ZenDiscovery) internalCluster().getInstance(Discovery.class, nodeName);
+
+        DiscoveryNode node = new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), Version.V_1_6_0);
+        final AtomicReference<IllegalStateException> holder = new AtomicReference<>();
+        zenDiscovery.handleJoinRequest(node, new MembershipAction.JoinCallback() {
+            @Override
+            public void onSuccess() {
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+                holder.set((IllegalStateException) t);
+            }
+        });
+
+        assertThat(holder.get(), notNullValue());
+        assertThat(holder.get().getMessage(), equalTo("Can't handle join request from a node with a version [1.6.0] that is lower than the minimum compatible version [2.0.0-SNAPSHOT]"));
+    }
+
+    @Test
+    public void testJoinElectedMaster_incompatibleMinVersion() {
+        ElectMasterService electMasterService = new ElectMasterService(Settings.EMPTY, Version.V_2_0_0);
+
+        DiscoveryNode node = new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), Version.V_2_0_0);
+        assertThat(electMasterService.electMaster(Collections.singletonList(node)), sameInstance(node));
+        node = new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), Version.V_1_6_0);
+        assertThat("Can't join master because version 1.6.0 is lower than the minimum compatable version 2.0.0 can support", electMasterService.electMaster(Collections.singletonList(node)), nullValue());
+    }
+
 }

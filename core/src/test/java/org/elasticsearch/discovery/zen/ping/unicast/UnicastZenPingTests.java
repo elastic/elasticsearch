@@ -57,7 +57,7 @@ public class UnicastZenPingTests extends ElasticsearchTestCase {
         ThreadPool threadPool = new ThreadPool(getClass().getName());
         ClusterName clusterName = new ClusterName("test");
         NetworkService networkService = new NetworkService(settings);
-        ElectMasterService electMasterService = new ElectMasterService(settings);
+        ElectMasterService electMasterService = new ElectMasterService(settings, Version.CURRENT);
 
         NettyTransport transportA = new NettyTransport(settings, threadPool, networkService, BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT);
         final TransportService transportServiceA = new TransportService(transportA, threadPool).start();

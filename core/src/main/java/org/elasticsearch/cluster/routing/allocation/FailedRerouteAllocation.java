@@ -45,6 +45,14 @@ public class FailedRerouteAllocation extends RoutingAllocation {
             this.shard = shard;
             this.details = details;
         }
+
+        @Override
+        public String toString() {
+            return "FailedShard{" +
+                    "shard=" + shard +
+                    ", details='" + details + '\'' +
+                    '}';
+        }
     }
 
     private final List<FailedShard> failedShards;

@@ -33,13 +33,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericDateAnalyzer;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.RootMapper;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
@@ -53,7 +55,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseDateTimeFormatter;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
-public class TimestampFieldMapper extends DateFieldMapper implements RootMapper {
+public class TimestampFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_timestamp";
     public static final String CONTENT_TYPE = "_timestamp";
@@ -65,7 +67,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements RootMapper 
         // TODO: this should be removed
         public static final MappedFieldType PRE_20_FIELD_TYPE;
         public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern(DEFAULT_DATE_TIME_FORMAT);
-        public static final DateFieldType FIELD_TYPE = new TimestampFieldType();
+        public static final TimestampFieldType FIELD_TYPE = new TimestampFieldType();
 
         static {
             FIELD_TYPE.setStored(true);
@@ -86,7 +88,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements RootMapper 
         public static final String DEFAULT_TIMESTAMP = "now";
     }
 
-    public static class Builder extends NumberFieldMapper.Builder<Builder, TimestampFieldMapper> {
+    public static class Builder extends MetadataFieldMapper.Builder<Builder, TimestampFieldMapper> {
 
         private EnabledAttributeMapper enabledState = EnabledAttributeMapper.UNSET_DISABLED;
         private String path = Defaults.PATH;
@@ -95,15 +97,15 @@ public class TimestampFieldMapper extends DateFieldMapper implements RootMapper 
         private Boolean ignoreMissing = null;
 
         public Builder(MappedFieldType existing) {
-            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.PRECISION_STEP_64_BIT);
+            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing);
             if (existing != null) {
                 // if there is an existing type, always use that store value (only matters for < 2.0)
                 explicitStore = true;
             }
         }
 
-        DateFieldType fieldType() {
-            return (DateFieldType)fieldType;
+        DateFieldMapper.DateFieldType fieldType() {
+            return (DateFieldMapper.DateFieldType)fieldType;
         }
 
         public Builder enabled(EnabledAttributeMapper enabledState) {
@@ -144,18 +146,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements RootMapper 
             }
             setupFieldType(context);
             return new TimestampFieldMapper(fieldType, docValues, enabledState, path, defaultTimestamp,
-                    ignoreMissing,
-                    ignoreMalformed(context), coerce(context), fieldDataSettings, context.indexSettings());
-        }
-
-        @Override
-        protected NamedAnalyzer makeNumberAnalyzer(int precisionStep) {
-            return NumericDateAnalyzer.buildNamedAnalyzer(fieldType().dateTimeFormatter(), precisionStep);
-        }
-
-        @Override
-        protected int maxPrecisionStep() {
-            return 64;
+                    ignoreMissing, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -214,7 +205,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements RootMapper 
         }
     }
 
-    static final class TimestampFieldType extends DateFieldType {
+    public static final class TimestampFieldType extends DateFieldMapper.DateFieldType {
 
         public TimestampFieldType() {}
 
@@ -223,7 +214,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements RootMapper 
         }
 
         @Override
-        public DateFieldType clone() {
+        public TimestampFieldType clone() {
             return new TimestampFieldType(this);
         }
 
@@ -251,17 +242,14 @@ public class TimestampFieldMapper extends DateFieldMapper implements RootMapper 
     private final Boolean ignoreMissing;
 
     public TimestampFieldMapper(Settings indexSettings, MappedFieldType existing) {
-        this(defaultFieldType(indexSettings, existing).clone(), null, Defaults.ENABLED, Defaults.PATH, Defaults.DEFAULT_TIMESTAMP,
-             null, Defaults.IGNORE_MALFORMED, Defaults.COERCE,
+        this(defaultFieldType(indexSettings, existing).clone(), null, Defaults.ENABLED, Defaults.PATH, Defaults.DEFAULT_TIMESTAMP, null,
              existing == null ? null : (existing.fieldDataType() == null ? null : existing.fieldDataType().getSettings()),
              indexSettings);
     }
 
     protected TimestampFieldMapper(MappedFieldType fieldType, Boolean docValues, EnabledAttributeMapper enabledState, String path,
-                                   String defaultTimestamp, Boolean ignoreMissing, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-                                   @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(fieldType, docValues, ignoreMalformed, coerce, fieldDataSettings,
-                indexSettings, MultiFields.empty(), null);
+                                   String defaultTimestamp, Boolean ignoreMissing, @Nullable Settings fieldDataSettings, Settings indexSettings) {
+        super(fieldType, docValues, fieldDataSettings, indexSettings);
         this.enabledState = enabledState;
         this.path = path;
         this.defaultTimestamp = defaultTimestamp;
@@ -270,8 +258,18 @@ public class TimestampFieldMapper extends DateFieldMapper implements RootMapper 
     }
 
     @Override
+    public TimestampFieldType fieldType() {
+        return (TimestampFieldType)super.fieldType();
+    }
+
+    @Override
     public MappedFieldType defaultFieldType() {
         return defaultFieldType;
+    }
+
+    @Override
+    public FieldDataType defaultFieldDataType() {
+        return new FieldDataType("long");
     }
 
     public boolean enabled() {
@@ -306,14 +304,14 @@ public class TimestampFieldMapper extends DateFieldMapper implements RootMapper 
     }
 
     @Override
-    protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
         if (enabledState.enabled) {
             long timestamp = context.sourceToParse().timestamp();
             if (fieldType().indexOptions() == IndexOptions.NONE && !fieldType().stored() && !fieldType().hasDocValues()) {
                 context.ignoredValue(fieldType().names().indexName(), String.valueOf(timestamp));
             }
             if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-                fields.add(new LongFieldMapper.CustomLongNumericField(this, timestamp, fieldType()));
+                fields.add(new LongFieldMapper.CustomLongNumericField(timestamp, fieldType()));
             }
             if (fieldType().hasDocValues()) {
                 fields.add(new NumericDocValuesField(fieldType().names().indexName(), timestamp));

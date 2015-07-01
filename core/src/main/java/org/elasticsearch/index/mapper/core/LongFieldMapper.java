@@ -298,7 +298,7 @@ public class LongFieldMapper extends NumberFieldMapper {
             }
         }
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            CustomLongNumericField field = new CustomLongNumericField(this, value, fieldType());
+            CustomLongNumericField field = new CustomLongNumericField(value, fieldType());
             field.setBoost(boost);
             fields.add(field);
         }
@@ -333,18 +333,15 @@ public class LongFieldMapper extends NumberFieldMapper {
 
         private final long number;
 
-        private final NumberFieldMapper mapper;
-
-        public CustomLongNumericField(NumberFieldMapper mapper, long number, MappedFieldType fieldType) {
-            super(mapper, number, fieldType);
-            this.mapper = mapper;
+        public CustomLongNumericField(long number, MappedFieldType fieldType) {
+            super(number, fieldType);
             this.number = number;
         }
 
         @Override
         public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) throws IOException {
             if (fieldType().indexOptions() != IndexOptions.NONE) {
-                return mapper.popCachedStream().setLongValue(number);
+                return getCachedStream().setLongValue(number);
             }
             return null;
         }

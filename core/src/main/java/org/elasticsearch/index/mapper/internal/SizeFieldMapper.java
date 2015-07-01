@@ -21,19 +21,20 @@ package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Field;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericIntegerAnalyzer;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.RootMapper;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 
@@ -45,7 +46,7 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseStore;
 
-public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
+public class SizeFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_size";
     public static final String CONTENT_TYPE = "_size";
@@ -66,12 +67,12 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
         }
     }
 
-    public static class Builder extends NumberFieldMapper.Builder<Builder, IntegerFieldMapper> {
+    public static class Builder extends MetadataFieldMapper.Builder<Builder, SizeFieldMapper> {
 
         protected EnabledAttributeMapper enabledState = EnabledAttributeMapper.UNSET_DISABLED;
 
         public Builder(MappedFieldType existing) {
-            super(Defaults.NAME, existing == null ? Defaults.SIZE_FIELD_TYPE : existing, Defaults.PRECISION_STEP_32_BIT);
+            super(Defaults.NAME, existing == null ? Defaults.SIZE_FIELD_TYPE : existing);
             builder = this;
         }
 
@@ -84,16 +85,6 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
         public SizeFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             return new SizeFieldMapper(enabledState, fieldType, context.indexSettings());
-        }
-
-        @Override
-        protected NamedAnalyzer makeNumberAnalyzer(int precisionStep) {
-            return NumericIntegerAnalyzer.buildNamedAnalyzer(precisionStep);
-        }
-
-        @Override
-        protected int maxPrecisionStep() {
-            return 32;
         }
     }
 
@@ -124,8 +115,9 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
     }
 
     public SizeFieldMapper(EnabledAttributeMapper enabled, MappedFieldType fieldType, Settings indexSettings) {
-        super(fieldType, false, Defaults.IGNORE_MALFORMED,  Defaults.COERCE, null, indexSettings, MultiFields.empty(), null);
+        super(fieldType, false, null, indexSettings);
         this.enabledState = enabled;
+
     }
 
     @Override
@@ -148,20 +140,30 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
     }
 
     @Override
+    public MappedFieldType defaultFieldType() {
+        return Defaults.SIZE_FIELD_TYPE;
+    }
+
+    @Override
+    public FieldDataType defaultFieldDataType() {
+        return new FieldDataType("int");
+    }
+
+    @Override
     public Mapper parse(ParseContext context) throws IOException {
         // nothing to do here, we call the parent in postParse
         return null;
     }
 
     @Override
-    protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
         if (!enabledState.enabled) {
             return;
         }
         if (context.flyweight()) {
             return;
         }
-        fields.add(new CustomIntegerNumericField(this, context.source().length(), fieldType()));
+        fields.add(new IntegerFieldMapper.CustomIntegerNumericField(context.source().length(), fieldType()));
     }
 
     @Override

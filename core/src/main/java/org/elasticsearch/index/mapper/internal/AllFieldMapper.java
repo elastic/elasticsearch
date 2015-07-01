@@ -40,7 +40,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.RootMapper;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
@@ -57,7 +57,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 /**
  *
  */
-public class AllFieldMapper extends AbstractFieldMapper implements RootMapper {
+public class AllFieldMapper extends MetadataFieldMapper {
 
     public interface IncludeInAll extends Mapper {
 
@@ -87,7 +87,7 @@ public class AllFieldMapper extends AbstractFieldMapper implements RootMapper {
         }
     }
 
-    public static class Builder extends AbstractFieldMapper.Builder<Builder, AllFieldMapper> {
+    public static class Builder extends MetadataFieldMapper.Builder<Builder, AllFieldMapper> {
 
         private EnabledAttributeMapper enabled = Defaults.ENABLED;
 

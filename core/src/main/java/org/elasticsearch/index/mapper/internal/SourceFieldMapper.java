@@ -48,8 +48,8 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.BufferedInputStream;
@@ -66,7 +66,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
 /**
  *
  */
-public class SourceFieldMapper extends AbstractFieldMapper implements RootMapper {
+public class SourceFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_source";
 
@@ -92,7 +92,7 @@ public class SourceFieldMapper extends AbstractFieldMapper implements RootMapper
 
     }
 
-    public static class Builder extends Mapper.Builder<Builder, SourceFieldMapper> {
+    public static class Builder extends MetadataFieldMapper.Builder<Builder, SourceFieldMapper> {
 
         private boolean enabled = Defaults.ENABLED;
 
@@ -106,7 +106,7 @@ public class SourceFieldMapper extends AbstractFieldMapper implements RootMapper
         private String[] excludes = null;
 
         public Builder() {
-            super(Defaults.NAME);
+            super(Defaults.NAME, Defaults.FIELD_TYPE);
         }
 
         public Builder enabled(boolean enabled) {

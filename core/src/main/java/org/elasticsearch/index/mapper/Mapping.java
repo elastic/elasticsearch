@@ -56,24 +56,24 @@ public final class Mapping implements ToXContent {
 
     final Version indexCreated;
     final RootObjectMapper root;
-    final RootMapper[] rootMappers;
-    final ImmutableMap<Class<? extends RootMapper>, RootMapper> rootMappersMap;
+    final MetadataFieldMapper[] metadataMappers;
+    final ImmutableMap<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> rootMappersMap;
     final SourceTransform[] sourceTransforms;
     volatile ImmutableMap<String, Object> meta;
 
-    public Mapping(Version indexCreated, RootObjectMapper rootObjectMapper, RootMapper[] rootMappers, SourceTransform[] sourceTransforms, ImmutableMap<String, Object> meta) {
+    public Mapping(Version indexCreated, RootObjectMapper rootObjectMapper, MetadataFieldMapper[] metadataMappers, SourceTransform[] sourceTransforms, ImmutableMap<String, Object> meta) {
         this.indexCreated = indexCreated;
         this.root = rootObjectMapper;
-        this.rootMappers = rootMappers;
-        ImmutableMap.Builder<Class<? extends RootMapper>, RootMapper> builder = ImmutableMap.builder();
-        for (RootMapper rootMapper : rootMappers) {
-            if (indexCreated.before(Version.V_2_0_0) && LEGACY_INCLUDE_IN_OBJECT.contains(rootMapper.name())) {
-                root.putMapper(rootMapper);
+        this.metadataMappers = metadataMappers;
+        ImmutableMap.Builder<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> builder = ImmutableMap.builder();
+        for (MetadataFieldMapper metadataMapper : metadataMappers) {
+            if (indexCreated.before(Version.V_2_0_0) && LEGACY_INCLUDE_IN_OBJECT.contains(metadataMapper.name())) {
+                root.putMapper(metadataMapper);
             }
-            builder.put(rootMapper.getClass(), rootMapper);
+            builder.put(metadataMapper.getClass(), metadataMapper);
         }
         // keep root mappers sorted for consistent serialization
-        Arrays.sort(rootMappers, new Comparator<Mapper>() {
+        Arrays.sort(metadataMappers, new Comparator<Mapper>() {
             @Override
             public int compare(Mapper o1, Mapper o2) {
                 return o1.name().compareTo(o2.name());
@@ -93,24 +93,24 @@ public final class Mapping implements ToXContent {
      * Generate a mapping update for the given root object mapper.
      */
     public Mapping mappingUpdate(Mapper rootObjectMapper) {
-        return new Mapping(indexCreated, (RootObjectMapper) rootObjectMapper, rootMappers, sourceTransforms, meta);
+        return new Mapping(indexCreated, (RootObjectMapper) rootObjectMapper, metadataMappers, sourceTransforms, meta);
     }
 
     /** Get the root mapper with the given class. */
     @SuppressWarnings("unchecked")
-    public <T extends RootMapper> T rootMapper(Class<T> clazz) {
+    public <T extends MetadataFieldMapper> T rootMapper(Class<T> clazz) {
         return (T) rootMappersMap.get(clazz);
     }
 
     /** @see DocumentMapper#merge(Mapping, boolean) */
     public void merge(Mapping mergeWith, MergeResult mergeResult) {
-        assert rootMappers.length == mergeWith.rootMappers.length;
+        assert metadataMappers.length == mergeWith.metadataMappers.length;
 
         root.merge(mergeWith.root, mergeResult);
-        for (RootMapper rootMapper : rootMappers) {
-            RootMapper mergeWithRootMapper = mergeWith.rootMapper(rootMapper.getClass());
-            if (mergeWithRootMapper != null) {
-                rootMapper.merge(mergeWithRootMapper, mergeResult);
+        for (MetadataFieldMapper metadataMapper : metadataMappers) {
+            MetadataFieldMapper mergeWithMetadataMapper = mergeWith.rootMapper(metadataMapper.getClass());
+            if (mergeWithMetadataMapper != null) {
+                metadataMapper.merge(mergeWithMetadataMapper, mergeResult);
             }
         }
 
@@ -141,7 +141,7 @@ public final class Mapping implements ToXContent {
                 if (meta != null && !meta.isEmpty()) {
                     builder.field("_meta", meta);
                 }
-                for (Mapper mapper : rootMappers) {
+                for (Mapper mapper : metadataMappers) {
                     mapper.toXContent(builder, params);
                 }
                 return builder;

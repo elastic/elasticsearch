@@ -37,7 +37,7 @@ Alternatively the `fields` option can also be defined in the request body:
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'http://localhost:9200/_field_stats?level=indices' -d '{
+curl -XPOST "http://localhost:9200/_field_stats?level=indices" -d '{
    "fields" : ["rating"]
 }'
 --------------------------------------------------
@@ -88,14 +88,17 @@ The highest value in the field represented in a displayable form.
 NOTE: Documents marked as deleted (but not yet removed by the merge process)
 still affect all the mentioned statistics.
 
+[float]
+=== Cluster level field statistics example
 
-.Cluster level field statistics
-==================================================
+Request:
 
 [source,js]
 --------------------------------------------------
-GET /_field_stats?fields=rating,answer_count,creation_date,display_name
+curl -XGET "http://localhost:9200/_field_stats?fields=rating,answer_count,creation_date,display_name"
 --------------------------------------------------
+
+Response:
 
 [source,json]
 --------------------------------------------------
@@ -151,15 +154,18 @@ GET /_field_stats?fields=rating,answer_count,creation_date,display_name
 --------------------------------------------------
 
 <1> The `_all` key indicates that it contains the field stats of all indices in the cluster.
-==================================================
 
-.Indices level field statistics
-==================================================
+[float]
+==== Indices level field statistics example
+
+Request:
 
 [source,js]
 --------------------------------------------------
-GET /_field_stats?fields=rating,answer_count,creation_date,display_name&level=indices
+curl -XGET "http://localhost:9200/_field_stats?fields=rating,answer_count,creation_date,display_name&level=indices"
 --------------------------------------------------
+
+Response:
 
 [source,js]
 --------------------------------------------------
@@ -229,7 +235,7 @@ holding questions created in the year 2014:
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'http://localhost:9200/_field_stats?level=indices' -d '{
+curl -XPOST "http://localhost:9200/_field_stats?level=indices" -d '{
    "fields" : ["answer_count"] <1>
    "index_constraints" : { <2>
       "creation_date" : { <3>
@@ -257,5 +263,3 @@ Each index constraint support the following comparisons:
 `gt`::  	Greater-than
 `lte`:: 	Less-than or equal to
 `lt`::  	Less-than
-
-==================================================

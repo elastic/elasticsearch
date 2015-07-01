@@ -25,6 +25,7 @@ import org.elasticsearch.bootstrap.ESPolicy;
 import org.elasticsearch.bootstrap.Security;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.logging.Loggers;
 
 import java.io.FilePermission;
 import java.nio.file.Path;
@@ -55,7 +56,13 @@ public class BootstrapForTesting {
         try {
             JarHell.checkJarHell();
         } catch (Exception e) {
-            throw new RuntimeException("found jar hell in test classpath", e);
+            if (Boolean.parseBoolean(System.getProperty("tests.maven"))) {
+                throw new RuntimeException("found jar hell in test classpath", e);
+            } else {
+                Loggers.getLogger(BootstrapForTesting.class)
+                    .warn("Your ide or custom test runner has jar hell issues, " +
+                          "you might want to look into that", e);
+            }
         }
 
         // make sure java.io.tmpdir exists always (in case code uses it in a static initializer)

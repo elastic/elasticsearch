@@ -51,6 +51,15 @@ Run apt-get update and the repository is ready for use. You can install it with:
 sudo apt-get update && sudo apt-get install elasticsearch
 --------------------------------------------------
 
+[WARNING]
+==================================================
+If two entries exist for the same Elasticsearch repository, you will see an error like this during `apt-get update`: 
+
+`Duplicate sources.list entry http://packages.elastic.co/elasticsearch/1.6/debian/ ...`
+
+Examine `/etc/apt/sources.list.d/elasticsearch-{branch}.list` for the duplicate entry or locate the duplicate entry amongst the files in `/etc/apt/sources.list.d/` and the `/etc/apt/sources.list` file.
+==================================================
+
 Configure Elasticsearch to automatically start during bootup. If your
 distribution is using SysV init, then you will need to run:
 

@@ -223,9 +223,9 @@ mwubuntu1    127.0.1.1            8           4 0.00 d         *      New Goblin
 
 Here, we can see our one node named "New Goblin", which is the single node that is currently in our cluster.
 
-=== List All Indexes
+=== List All Indices
 
-Now let's take a peek at our indexes:
+Now let's take a peek at our indices:
 
 [source,sh]
 --------------------------------------------------
@@ -240,7 +240,7 @@ curl 'localhost:9200/_cat/indices?v'
 health index pri rep docs.count docs.deleted store.size pri.store.size
 --------------------------------------------------
 
-Which simply means we have no indexes yet in the cluster.
+Which simply means we have no indices yet in the cluster.
 
 === Create an Index
 

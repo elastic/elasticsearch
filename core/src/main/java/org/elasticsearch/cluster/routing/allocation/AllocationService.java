@@ -247,7 +247,7 @@ public class AllocationService extends AbstractComponent {
             }
         }
         for (ShardRouting shardToFail : shardsToFail) {
-           changed |= applyFailedShard(allocation, shardToFail, false, new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "primary failed while replica initializing"));
+            changed |= applyFailedShard(allocation, shardToFail, false, new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "primary failed while replica initializing"));
         }
 
         // now, go over and elect a new primary if possible, not, from this code block on, if one is elected,
@@ -331,14 +331,20 @@ public class AllocationService extends AbstractComponent {
             if (currentRoutingNode != null) {
                 for (ShardRouting shard : currentRoutingNode) {
                     if (shard.shardId().equals(startedShard.shardId())) {
-                        relocatingNodeId = shard.relocatingNodeId();
-                        if (!shard.started()) {
+                        if (shard.equals(startedShard)) {
+                            relocatingNodeId = shard.relocatingNodeId();
                             dirty = true;
                             routingNodes.started(shard);
+                            logger.trace("{} marked as started", shard);
+                        } else {
+                            logger.debug("failed to find shard [{}] in order to start it [no matching shard on node], ignoring", startedShard);
                         }
                         break;
                     }
                 }
+            } else {
+                logger.debug("failed to find shard [{}] in order to start it [failed to find node], ignoring", startedShard);
+
             }
 
             // startedShard is the current state of the shard (post relocation for example)
@@ -404,6 +410,7 @@ public class AllocationService extends AbstractComponent {
                     }
                 }
                 if (dirty) {
+                    logger.debug("failed shard {} found in routingNodes, failing it", failedShard);
                     // now, find the node that we are relocating *from*, and cancel its relocation
                     RoutingNode relocatingFromNode = routingNodes.node(failedShard.relocatingNodeId());
                     if (relocatingFromNode != null) {
@@ -440,6 +447,7 @@ public class AllocationService extends AbstractComponent {
                     }
                 }
                 if (dirty) {
+                    logger.debug("failed shard {} found in routingNodes, failing it", failedShard);
                     // next, we need to find the target initializing shard that is recovering from, and remove it...
                     RoutingNodes.RoutingNodeIterator initializingNode = routingNodes.routingNodeIter(failedShard.relocatingNodeId());
                     if (initializingNode != null) {
@@ -490,7 +498,9 @@ public class AllocationService extends AbstractComponent {
                     }
                 }
             }
-            if (!dirty) {
+            if (dirty) {
+                logger.debug("failed shard {} found in routingNodes and failed", failedShard);
+            } else {
                 logger.debug("failed shard {} not found in routingNodes, ignoring it", failedShard);
             }
         }

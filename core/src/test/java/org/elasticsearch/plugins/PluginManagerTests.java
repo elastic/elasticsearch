@@ -417,6 +417,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
      */
     @Test
     @Network
+    @AwaitsFix(bugUrl = "fails with jar hell failures - http://build-us-00.elastic.co/job/es_core_master_oracle_6/519/testReport/")
     public void testInstallPluginWithElasticsearchDownloadService() throws IOException {
         assumeTrue("download.elastic.co is accessible", isDownloadServiceWorking("download.elastic.co", 80, "/elasticsearch/ci-test.txt"));
         singlePluginInstallAndRemove("elasticsearch/elasticsearch-transport-thrift/2.4.0", null);
@@ -430,6 +431,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
      */
     @Test
     @Network
+    @AwaitsFix(bugUrl = "fails with jar hell failures - http://build-us-00.elastic.co/job/es_core_master_oracle_6/519/testReport/")
     public void testInstallPluginWithMavenCentral() throws IOException {
         assumeTrue("search.maven.org is accessible", isDownloadServiceWorking("search.maven.org", 80, "/"));
         assumeTrue("repo1.maven.org is accessible", isDownloadServiceWorking("repo1.maven.org", 443, "/maven2/org/elasticsearch/elasticsearch-transport-thrift/2.4.0/elasticsearch-transport-thrift-2.4.0.pom"));

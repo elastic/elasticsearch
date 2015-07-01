@@ -20,9 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
@@ -47,7 +45,7 @@ import java.util.Map;
  * <li>'{@code ~}N' at the end of phrases specifies near/slop query: <tt>"term1 term2"~5</tt>
  * </ul>
  * <p/>
- * See: {@link XSimpleQueryParser} for more information.
+ * See: {@link SimpleQueryParser} for more information.
  * <p/>
  * This query supports these options:
  * <p/>
@@ -63,11 +61,6 @@ import java.util.Map;
  * boosting a field with ^n
  */
 public class SimpleQueryStringParser extends BaseQueryParser {
-
-    @Inject
-    public SimpleQueryStringParser(Settings settings) {
-
-    }
 
     @Override
     public String[] names() {

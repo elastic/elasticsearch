@@ -57,7 +57,16 @@ final class Security {
         Policy.setPolicy(new ESPolicy(createPermissions(environment)));
 
         // enable security manager
-        System.setSecurityManager(new SecurityManager());
+        System.setSecurityManager(new SecurityManager() {
+            // we disable this completely, because its granted otherwise:
+            // 'Note: The "exitVM.*" permission is automatically granted to
+            // all code loaded from the application class path, thus enabling
+            // applications to terminate themselves.'
+            @Override
+            public void checkExit(int status) {
+                throw new SecurityException("exit(" + status + ") not allowed by system policy");
+            }
+        });
 
         // do some basic tests
         selfTest();

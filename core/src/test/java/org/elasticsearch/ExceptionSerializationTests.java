@@ -55,6 +55,7 @@ import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.indices.recovery.RecoverFilesRecoveryException;
 import org.elasticsearch.percolator.PercolateException;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.indices.alias.delete.AliasesMissingException;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchException;
@@ -588,18 +589,30 @@ public class ExceptionSerializationTests extends ElasticsearchTestCase {
         assertEquals("foo", ex.getHeaders().get("foo").get(0));
         assertEquals("bar", ex.getHeaders().get("foo").get(1));
 
+        RestStatus status = randomFrom(RestStatus.values());
         // ensure we are carrying over the headers even if not serialized
-        ElasticsearchException e = serialize((ElasticsearchException)new UnknownHeaderException("msg", new Tuple("foo", new String[]{"foo", "bar"})));
-        assertTrue(e instanceof NotSerializableExceptionWrapper);
-        assertEquals("msg", ex.getMessage());
-        assertEquals(2, ex.getHeaders().get("foo").size());
-        assertEquals("foo", ex.getHeaders().get("foo").get(0));
-        assertEquals("bar", ex.getHeaders().get("foo").get(1));
+        ElasticsearchException serialize = serialize((ElasticsearchException) new UnknownHeaderException("msg", status, new Tuple("foo", new String[]{"foo", "bar"})));
+        assertTrue(serialize instanceof NotSerializableExceptionWrapper);
+        NotSerializableExceptionWrapper e = (NotSerializableExceptionWrapper) serialize;
+        assertEquals("msg", e.getMessage());
+        assertEquals(2, e.getHeaders().get("foo").size());
+        assertEquals("foo", e.getHeaders().get("foo").get(0));
+        assertEquals("bar", e.getHeaders().get("foo").get(1));
+        assertSame(status, e.status());
+
     }
 
     public static class UnknownHeaderException extends ElasticsearchException.WithRestHeadersException {
-        public UnknownHeaderException(String msg, Tuple<String, String[]>... headers) {
+        private final RestStatus status;
+
+        public UnknownHeaderException(String msg, RestStatus status, Tuple<String, String[]>... headers) {
             super(msg, headers);
+            this.status = status;
+        }
+
+        @Override
+        public RestStatus status() {
+            return status;
         }
     }
 }

@@ -59,7 +59,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
  */
 public class AllFieldMapper extends MetadataFieldMapper {
 
-    public interface IncludeInAll extends Mapper {
+    public interface IncludeInAll {
 
         void includeInAll(Boolean includeInAll);
 
@@ -202,7 +202,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
 
     protected AllFieldMapper(MappedFieldType fieldType, EnabledAttributeMapper enabled,
                              @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(fieldType, false, fieldDataSettings, indexSettings);
+        super(NAME, fieldType, false, fieldDataSettings, indexSettings);
         this.enabledState = enabled;
 
     }

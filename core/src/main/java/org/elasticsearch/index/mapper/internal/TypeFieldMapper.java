@@ -87,7 +87,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public TypeFieldMapper build(BuilderContext context) {
-            fieldType.setNames(new MappedFieldType.Names(name, indexName, indexName, name));
+            fieldType.setNames(new MappedFieldType.Names(indexName, indexName, name));
             return new TypeFieldMapper(fieldType, context.indexSettings());
         }
     }
@@ -150,7 +150,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
     }
 
     public TypeFieldMapper(MappedFieldType fieldType, Settings indexSettings) {
-        super(fieldType, false, null, indexSettings);
+        super(NAME, fieldType, false, null, indexSettings);
     }
 
     @Override

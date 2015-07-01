@@ -41,7 +41,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fieldvisitor.AllFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
-import org.elasticsearch.index.fieldvisitor.JustUidFieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
@@ -363,16 +362,12 @@ public class FetchPhase implements SearchPhase {
     private InternalSearchHit.InternalNestedIdentity getInternalNestedIdentity(SearchContext context, int nestedSubDocId, LeafReaderContext subReaderContext, DocumentMapper documentMapper, ObjectMapper nestedObjectMapper) throws IOException {
         int currentParent = nestedSubDocId;
         ObjectMapper nestedParentObjectMapper;
-        StringBuilder field = new StringBuilder();
         ObjectMapper current = nestedObjectMapper;
+        String originalName = nestedObjectMapper.name();
         InternalSearchHit.InternalNestedIdentity nestedIdentity = null;
         do {
             Filter parentFilter;
             nestedParentObjectMapper = documentMapper.findParentObjectMapper(current);
-            if (field.length() != 0) {
-                field.insert(0, '.');
-            }
-            field.insert(0, current.name());
             if (nestedParentObjectMapper != null) {
                 if (nestedParentObjectMapper.nested().isNested() == false) {
                     current = nestedParentObjectMapper;
@@ -410,8 +405,11 @@ public class FetchPhase implements SearchPhase {
             }
             currentParent = nextParent;
             current = nestedObjectMapper = nestedParentObjectMapper;
-            nestedIdentity = new InternalSearchHit.InternalNestedIdentity(field.toString(), offset, nestedIdentity);
-            field = new StringBuilder();
+            int currentPrefix = current == null ? 0 : current.name().length() + 1;
+            nestedIdentity = new InternalSearchHit.InternalNestedIdentity(originalName.substring(currentPrefix), offset, nestedIdentity);
+            if (current != null) {
+                originalName = current.name();
+            }
         } while (current != null);
         return nestedIdentity;
     }

@@ -88,7 +88,7 @@ public class DoubleFieldMapper extends NumberFieldMapper {
         @Override
         public DoubleFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            DoubleFieldMapper fieldMapper = new DoubleFieldMapper(fieldType, docValues, ignoreMalformed(context), coerce(context),
+            DoubleFieldMapper fieldMapper = new DoubleFieldMapper(name, fieldType, docValues, ignoreMalformed(context), coerce(context),
                     fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -201,9 +201,9 @@ public class DoubleFieldMapper extends NumberFieldMapper {
         }
     }
 
-    protected DoubleFieldMapper(MappedFieldType fieldType, Boolean docValues, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
+    protected DoubleFieldMapper(String simpleName, MappedFieldType fieldType, Boolean docValues, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                                 @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(fieldType, docValues, ignoreMalformed, coerce, fieldDataSettings, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, docValues, ignoreMalformed, coerce, fieldDataSettings, indexSettings, multiFields, copyTo);
     }
 
     @Override

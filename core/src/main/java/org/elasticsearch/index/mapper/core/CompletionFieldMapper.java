@@ -151,7 +151,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
             CompletionFieldType completionFieldType = (CompletionFieldType)fieldType;
             completionFieldType.setProvider(new AnalyzingCompletionLookupProvider(preserveSeparators, false, preservePositionIncrements, payloads));
             completionFieldType.setContextMapping(contextMapping);
-            return new CompletionFieldMapper(fieldType, maxInputLength, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+            return new CompletionFieldMapper(name, fieldType, maxInputLength, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
 
     }
@@ -311,8 +311,8 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
 
     private int maxInputLength;
 
-    public CompletionFieldMapper(MappedFieldType fieldType, int maxInputLength, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(fieldType, false, null, indexSettings, multiFields, copyTo);
+    public CompletionFieldMapper(String simpleName, MappedFieldType fieldType, int maxInputLength, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+        super(simpleName, fieldType, false, null, indexSettings, multiFields, copyTo);
         this.maxInputLength = maxInputLength;
     }
 
@@ -505,7 +505,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
     
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(fieldType().names().shortName())
+        builder.startObject(simpleName())
                 .field(Fields.TYPE, CONTENT_TYPE);
         
         builder.field(Fields.ANALYZER, fieldType().indexAnalyzer().name());

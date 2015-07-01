@@ -102,7 +102,7 @@ public final class Mapping implements ToXContent {
         return (T) rootMappersMap.get(clazz);
     }
 
-    /** @see DocumentMapper#merge(Mapping, boolean) */
+    /** @see DocumentMapper#merge(Mapping, boolean, boolean) */
     public void merge(Mapping mergeWith, MergeResult mergeResult) {
         assert metadataMappers.length == mergeWith.metadataMappers.length;
 

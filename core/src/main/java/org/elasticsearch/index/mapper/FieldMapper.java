@@ -23,28 +23,27 @@ import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
 
-/**
- *
- */
-public interface FieldMapper extends Mapper {
+public abstract class FieldMapper extends Mapper {
 
-    String DOC_VALUES_FORMAT = "doc_values_format";
+    public FieldMapper(String simpleName) {
+        super(simpleName);
+    }
 
-    MappedFieldType fieldType();
+    public abstract MappedFieldType fieldType();
 
     /** Returns a reference to the MappedFieldType for this mapper. */
-    MappedFieldTypeReference fieldTypeReference();
+    public abstract MappedFieldTypeReference fieldTypeReference();
 
     /**
      * Updates the reference to this field's MappedFieldType.
      * Implementations should assert equality of the underlying field type
      */
-    void setFieldTypeReference(MappedFieldTypeReference ref);
+    public abstract void setFieldTypeReference(MappedFieldTypeReference ref);
 
     /**
      * List of fields where this field should be copied to
      */
-    AbstractFieldMapper.CopyTo copyTo();
+    public abstract AbstractFieldMapper.CopyTo copyTo();
 
     /**
      * Fields might not be available before indexing, for example _all, token_count,...
@@ -52,13 +51,13 @@ public interface FieldMapper extends Mapper {
      *
      * @return If the field is available before indexing or not.
      * */
-    boolean isGenerated();
+    public abstract boolean isGenerated();
 
     /**
      * Parse using the provided {@link ParseContext} and return a mapping
      * update if dynamic mappings modified the mappings, or {@code null} if
      * mappings were not modified.
      */
-    Mapper parse(ParseContext context) throws IOException;
+    public abstract Mapper parse(ParseContext context) throws IOException;
 
 }

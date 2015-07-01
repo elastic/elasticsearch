@@ -89,7 +89,7 @@ public class IntegerFieldMapper extends NumberFieldMapper {
         @Override
         public IntegerFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            IntegerFieldMapper fieldMapper = new IntegerFieldMapper(fieldType, docValues,
+            IntegerFieldMapper fieldMapper = new IntegerFieldMapper(name, fieldType, docValues,
                     ignoreMalformed(context), coerce(context), fieldDataSettings,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
@@ -202,11 +202,11 @@ public class IntegerFieldMapper extends NumberFieldMapper {
         }
     }
 
-    protected IntegerFieldMapper(MappedFieldType fieldType, Boolean docValues,
+    protected IntegerFieldMapper(String simpleName, MappedFieldType fieldType, Boolean docValues,
                                  Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                                  @Nullable Settings fieldDataSettings,
                                  Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(fieldType, docValues, ignoreMalformed, coerce, fieldDataSettings, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, docValues, ignoreMalformed, coerce, fieldDataSettings, indexSettings, multiFields, copyTo);
     }
 
     @Override

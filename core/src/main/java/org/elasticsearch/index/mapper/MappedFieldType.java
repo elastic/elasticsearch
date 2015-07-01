@@ -54,8 +54,6 @@ public abstract class MappedFieldType extends FieldType {
 
     public static class Names {
 
-        private final String shortName;
-
         private final String indexName;
 
         private final String originalIndexName;
@@ -63,21 +61,13 @@ public abstract class MappedFieldType extends FieldType {
         private final String fullName;
 
         public Names(String name) {
-            this(name, name, name, name);
+            this(name, name, name);
         }
 
-        public Names(String shortName, String indexName, String originalIndexName, String fullName) {
-            this.shortName = shortName;
+        public Names(String indexName, String originalIndexName, String fullName) {
             this.indexName = indexName;
             this.originalIndexName = originalIndexName;
             this.fullName = fullName;
-        }
-
-        /**
-         * The logical name of the field.
-         */
-        public String shortName() {
-            return shortName;
         }
 
         /**
@@ -111,15 +101,13 @@ public abstract class MappedFieldType extends FieldType {
             if (!fullName.equals(names.fullName)) return false;
             if (!indexName.equals(names.indexName)) return false;
             if (!originalIndexName.equals(names.originalIndexName)) return false;
-            if (!shortName.equals(names.shortName)) return false;
 
             return true;
         }
 
         @Override
         public int hashCode() {
-            int result = shortName.hashCode();
-            result = 31 * result + indexName.hashCode();
+            int result = indexName.hashCode();
             result = 31 * result + originalIndexName.hashCode();
             result = 31 * result + fullName.hashCode();
             return result;

@@ -720,3 +720,7 @@ to prevent clashes with the watcher plugin
 * `watcher.interval.low` is now `resource.reload.interval.low`
 * `watcher.interval.medium` is now `resource.reload.interval.medium`
 * `watcher.interval.high` is now `resource.reload.interval.high`
+
+=== Percolator stats
+
+Changed the `percolate.getTime` stat (total time spent on percolating) to `percolate.time` state.

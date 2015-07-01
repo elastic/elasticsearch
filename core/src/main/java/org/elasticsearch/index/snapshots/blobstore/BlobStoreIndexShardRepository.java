@@ -204,7 +204,9 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 throw new RepositoryVerificationException(repositoryName, "store location [" + blobStore + "] is not accessible on the node [" + localNode + "]", exp);
             }
         } else {
-            throw new RepositoryVerificationException(repositoryName, "store location [" + blobStore + "] is not shared between node [" + localNode + "] and the master node");
+            throw new RepositoryVerificationException(repositoryName, "a file written by master to the store [" + blobStore + "] cannot be accessed on the node [" + localNode + "]. "
+                    + "This might indicate that the store [" + blobStore + "] is not shared between this node and the master node or "
+                    + "that permissions on the store don't allow reading files written by the master node");
         }
     }
 

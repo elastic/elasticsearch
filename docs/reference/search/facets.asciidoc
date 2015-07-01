@@ -104,7 +104,7 @@ allowing the user to refine her query based on the insight from the
 facet, i.e. restrict the search to a specific category, price or date
 range. Facets can be used, however, for other purposes: computing
 histograms, statistical aggregations, and more. See the blog about
-link:/blog/data-visualization-with-elasticsearch-and-protovis/[data visualization].for inspiration.
+link:/blog/data-visualization-with-elasticsearch-and-protovis/[data visualization] for inspiration.
 
 
 

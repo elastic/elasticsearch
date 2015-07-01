@@ -138,7 +138,7 @@ public final class ShardPath {
                         logger.warn("{} failed to archive shard from an index with a different UUID into {}", ex, shardId, target);
                         throw ex;
                     }
-                    logger.warn("{} archived shard from an index with a different UUID into {}, Remove the leftover shard if it's not needed anymore", shardId, target);
+                    logger.warn("{} archived shard from an index with a different UUID into {}, Delete the leftover shard manually if it's not needed anymore", shardId, target);
                 }
             }
         }

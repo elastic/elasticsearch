@@ -23,6 +23,7 @@ import com.google.common.base.Objects;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -886,12 +887,22 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
     }
 
-    private void handleJoinRequest(final DiscoveryNode node, final MembershipAction.JoinCallback callback) {
+    void handleJoinRequest(final DiscoveryNode node, final MembershipAction.JoinCallback callback) {
 
         if (!transportService.addressSupported(node.address().getClass())) {
             // TODO, what should we do now? Maybe inform that node that its crap?
             logger.warn("received a wrong address type from [{}], ignoring...", node);
         } else {
+            // The minimum supported version for a node joining a master:
+            Version minimumNodeJoinVersion = localNode().getVersion().minimumCompatibilityVersion();
+            // Sanity check: maybe we don't end up here, because serialization may have failed.
+            if (node.getVersion().before(minimumNodeJoinVersion)) {
+                callback.onFailure(
+                        new IllegalStateException("Can't handle join request from a node with a version [" + node.getVersion() + "] that is lower than the minimum compatible version [" + minimumNodeJoinVersion.minimumCompatibilityVersion() + "]")
+                );
+                return;
+            }
+
             // try and connect to the node, if it fails, we can raise an exception back to the client...
             transportService.connectToNode(node);
 

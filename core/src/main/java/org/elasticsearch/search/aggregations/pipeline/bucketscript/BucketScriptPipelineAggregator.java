@@ -112,26 +112,36 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
             if (script.getParams() != null) {
                 vars.putAll(script.getParams());
             }
+            boolean skipBucket = false;
             for (Map.Entry<String, String> entry : bucketsPathsMap.entrySet()) {
                 String varName = entry.getKey();
                 String bucketsPath = entry.getValue();
                 Double value = resolveBucketValue(originalAgg, bucket, bucketsPath, gapPolicy);
+                if (GapPolicy.SKIP == gapPolicy && (value == null || Double.isNaN(value))) {
+                    skipBucket = true;
+                    break;
+                }
                 vars.put(varName, value);
             }
-            ExecutableScript executableScript = reduceContext.scriptService().executable(compiledScript, vars);
-            Object returned = executableScript.run();
-            if (returned == null) {
+            if (skipBucket) {
                 newBuckets.add(bucket);
             } else {
-                if (!(returned instanceof Number)) {
-                    throw new AggregationExecutionException("series_arithmetic script for reducer [" + name() + "] must return a Number");
+                ExecutableScript executableScript = reduceContext.scriptService().executable(compiledScript, vars);
+                Object returned = executableScript.run();
+                if (returned == null) {
+                    newBuckets.add(bucket);
+                } else {
+                    if (!(returned instanceof Number)) {
+                        throw new AggregationExecutionException("series_arithmetic script for reducer [" + name()
+                                + "] must return a Number");
+                    }
+                    List<InternalAggregation> aggs = new ArrayList<>(Lists.transform(bucket.getAggregations().asList(), FUNCTION));
+                    aggs.add(new InternalSimpleValue(name(), ((Number) returned).doubleValue(), formatter,
+                            new ArrayList<PipelineAggregator>(), metaData()));
+                    InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(new InternalAggregations(aggs),
+                            (InternalMultiBucketAggregation.InternalBucket) bucket);
+                    newBuckets.add(newBucket);
                 }
-                List<InternalAggregation> aggs = new ArrayList<>(Lists.transform(bucket.getAggregations().asList(), FUNCTION));
-                aggs.add(new InternalSimpleValue(name(), ((Number) returned).doubleValue(), formatter, new ArrayList<PipelineAggregator>(),
-                        metaData()));
-                InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(new InternalAggregations(aggs),
-                        (InternalMultiBucketAggregation.InternalBucket) bucket);
-                newBuckets.add(newBucket);
             }
         }
         return originalAgg.create(newBuckets);

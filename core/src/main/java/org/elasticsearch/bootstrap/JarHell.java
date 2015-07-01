@@ -21,6 +21,8 @@ package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOException;
 import java.net.URL;
@@ -31,6 +33,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -51,6 +54,12 @@ public class JarHell {
         ClassLoader loader = JarHell.class.getClassLoader();
         if (loader instanceof URLClassLoader == false) {
            return;
+        }
+        ESLogger logger = Loggers.getLogger(JarHell.class);
+        if (logger.isDebugEnabled()) {
+            logger.debug("java.class.path= {}" + System.getProperty("java.class.path"));
+            logger.debug("sun.boot.class.path= {}" + System.getProperty("sun.boot.class.path"));
+            logger.debug("classloader urls= {}" + Arrays.toString(((URLClassLoader)loader).getURLs()));
         }
         checkJarHell(((URLClassLoader)loader).getURLs());
     }

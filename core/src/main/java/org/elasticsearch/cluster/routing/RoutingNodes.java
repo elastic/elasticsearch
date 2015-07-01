@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.base.Predicate;
 import com.google.common.collect.*;
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -576,6 +577,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             for (ShardRouting r : mutableShardRoutings) {
                 add(r);
             }
+        }
+
+        public void sort(Comparator<ShardRouting> comparator) {
+            CollectionUtil.timSort(unassigned, comparator);
         }
 
         public int size() {

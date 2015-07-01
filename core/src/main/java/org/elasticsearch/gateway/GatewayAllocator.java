@@ -147,8 +147,17 @@ public class GatewayAllocator extends AbstractComponent {
         RoutingNodes routingNodes = allocation.routingNodes();
 
         // First, handle primaries, they must find a place to be allocated on here
-        MetaData metaData = routingNodes.metaData();
-        Iterator<ShardRouting> unassignedIterator = routingNodes.unassigned().iterator();
+        final MetaData metaData = routingNodes.metaData();
+        RoutingNodes.UnassignedShards unassigned = routingNodes.unassigned();
+        unassigned.sort(new PriorityComparator() {
+
+            @Override
+            protected Settings getIndexSettings(String index) {
+                IndexMetaData indexMetaData = metaData.index(index);
+                return indexMetaData.getSettings();
+            }
+        }); // sort for priority ordering
+        Iterator<ShardRouting> unassignedIterator = unassigned.iterator();
         while (unassignedIterator.hasNext()) {
             ShardRouting shard = unassignedIterator.next();
 
@@ -368,7 +377,7 @@ public class GatewayAllocator extends AbstractComponent {
         }
 
         // Now, handle replicas, try to assign them to nodes that are similar to the one the primary was allocated on
-        unassignedIterator = routingNodes.unassigned().iterator();
+        unassignedIterator = unassigned.iterator();
         while (unassignedIterator.hasNext()) {
             ShardRouting shard = unassignedIterator.next();
             if (shard.primary()) {
@@ -542,4 +551,5 @@ public class GatewayAllocator extends AbstractComponent {
             routingService.reroute("async_shard_fetch");
         }
     }
+
 }

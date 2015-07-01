@@ -115,7 +115,7 @@ public abstract class ContextBuilder<E extends ContextMapping> {
         final Object argType = config.get(ContextMapping.FIELD_TYPE);
         
         if (argType == null) {
-            throw new ElasticsearchParseException("missing [" + ContextMapping.FIELD_TYPE + "] in context mapping");
+            throw new ElasticsearchParseException("missing [{}] in context mapping", ContextMapping.FIELD_TYPE);
         }
 
         final String type = argType.toString(); 
@@ -125,7 +125,7 @@ public abstract class ContextBuilder<E extends ContextMapping> {
         } else if (CategoryContextMapping.TYPE.equals(type)) {
             contextMapping = CategoryContextMapping.load(name, config);
         } else {
-            throw new ElasticsearchParseException("unknown context type[" + type + "]");
+            throw new ElasticsearchParseException("unknown context type [{}]", type);
         }
         config.remove(ContextMapping.FIELD_TYPE);
         DocumentMapperParser.checkNoRemainingFields(name, config, indexVersionCreated);

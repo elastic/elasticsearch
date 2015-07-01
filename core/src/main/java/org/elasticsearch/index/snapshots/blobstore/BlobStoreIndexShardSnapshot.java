@@ -287,13 +287,13 @@ public class BlobStoreIndexShardSnapshot {
                                 metaHash.offset = 0;
                                 metaHash.length = metaHash.bytes.length;
                             } else {
-                                throw new ElasticsearchParseException("unknown parameter [" + currentFieldName + "]");
+                                throw new ElasticsearchParseException("unknown parameter [{}]", currentFieldName);
                             }
                         } else {
-                            throw new ElasticsearchParseException("unexpected token  [" + token + "]");
+                            throw new ElasticsearchParseException("unexpected token  [{}]", token);
                         }
                     } else {
-                        throw new ElasticsearchParseException("unexpected token  [" + token + "]");
+                        throw new ElasticsearchParseException("unexpected token [{}]",token);
                     }
                 }
             }
@@ -480,7 +480,7 @@ public class BlobStoreIndexShardSnapshot {
                         } else if (ParseFields.TOTAL_SIZE.match(currentFieldName)) {
                             totalSize = parser.longValue();
                         } else {
-                            throw new ElasticsearchParseException("unknown parameter [" + currentFieldName + "]");
+                            throw new ElasticsearchParseException("unknown parameter [{}]", currentFieldName);
                         }
                     } else if (token == XContentParser.Token.START_ARRAY) {
                         if (ParseFields.FILES.match(currentFieldName)) {
@@ -488,13 +488,13 @@ public class BlobStoreIndexShardSnapshot {
                                 indexFiles.add(FileInfo.fromXContent(parser));
                             }
                         } else {
-                            throw new ElasticsearchParseException("unknown parameter [" + currentFieldName + "]");
+                            throw new ElasticsearchParseException("unknown parameter [{}]", currentFieldName);
                         }
                     } else {
-                        throw new ElasticsearchParseException("unexpected token  [" + token + "]");
+                        throw new ElasticsearchParseException("unexpected token  [{}]", token);
                     }
                 } else {
-                    throw new ElasticsearchParseException("unexpected token  [" + token + "]");
+                    throw new ElasticsearchParseException("unexpected token [{}]", token);
                 }
             }
         }

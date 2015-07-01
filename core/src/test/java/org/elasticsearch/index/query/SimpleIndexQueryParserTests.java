@@ -2297,7 +2297,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
             queryParser.parse(query).query();
             fail("FunctionScoreQueryParser should throw an exception here because two functions in body are not allowed.");
         } catch (QueryParsingException e) {
-            assertThat(e.getDetailedMessage(), containsString("Use functions[{...},...] if you want to define several functions."));
+            assertThat(e.getDetailedMessage(), containsString("use [functions] array if you want to define several functions."));
         }
     }
 
@@ -2353,7 +2353,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
             queryParser.parse(query).query();
             fail("Expect exception here because array of functions and one weight in body is not allowed.");
         } catch (QueryParsingException e) {
-            assertThat(e.getDetailedMessage(), containsString("You can either define \"functions\":[...] or a single function, not both. Found \"functions\": [...] already, now encountering \"weight\"."));
+            assertThat(e.getDetailedMessage(), containsString("you can either define [functions] array or a single function, not both. already found [functions] array, now encountering [weight]."));
         }
         query = jsonBuilder().startObject().startObject("function_score")
                 .field("weight", 2)
@@ -2365,7 +2365,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
             queryParser.parse(query).query();
             fail("Expect exception here because array of functions and one weight in body is not allowed.");
         } catch (QueryParsingException e) {
-            assertThat(e.getDetailedMessage(), containsString("You can either define \"functions\":[...] or a single function, not both. Found \"weight\" already, now encountering \"functions\": [...]."));
+            assertThat(e.getDetailedMessage(), containsString("you can either define [functions] array or a single function, not both. already found [weight], now encountering [functions]."));
         }
     }
 

@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.ObjectSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.ImmutableMap;
-
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -50,6 +49,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -83,23 +83,10 @@ import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.dfs.CachedDfSource;
 import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.dfs.DfsSearchResult;
-import org.elasticsearch.search.fetch.FetchPhase;
-import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.fetch.QueryFetchSearchResult;
-import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
-import org.elasticsearch.search.fetch.ShardFetchRequest;
-import org.elasticsearch.search.internal.DefaultSearchContext;
-import org.elasticsearch.search.internal.InternalScrollSearchRequest;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.fetch.*;
+import org.elasticsearch.search.internal.*;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
-import org.elasticsearch.search.internal.ShardSearchLocalRequest;
-import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.query.QueryPhase;
-import org.elasticsearch.search.query.QueryPhaseExecutionException;
-import org.elasticsearch.search.query.QuerySearchRequest;
-import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.query.QuerySearchResultProvider;
-import org.elasticsearch.search.query.ScrollQuerySearchResult;
+import org.elasticsearch.search.query.*;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -767,7 +754,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             XContentParser.Token token;
             token = parser.nextToken();
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new ElasticsearchParseException("Expected START_OBJECT but got " + token.name() + " " + parser.currentName());
+                throw new ElasticsearchParseException("failed to parse search source. source must be an object, but found [{}] instead", token.name());
             }
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
@@ -775,14 +762,14 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                     parser.nextToken();
                     SearchParseElement element = elementParsers.get(fieldName);
                     if (element == null) {
-                        throw new SearchParseException(context, "No parser for element [" + fieldName + "]", parser.getTokenLocation());
+                        throw new SearchParseException(context, "failed to parse search source. unknown search element [" + fieldName + "]", parser.getTokenLocation());
                     }
                     element.parse(parser, context);
                 } else {
                     if (token == null) {
-                        throw new ElasticsearchParseException("End of query source reached but query is not complete.");
+                        throw new ElasticsearchParseException("failed to parse search source. end of query source reached but query is not complete.");
                     } else {
-                        throw new ElasticsearchParseException("Expected field name but got " + token.name() + " \"" + parser.currentName() + "\"");
+                        throw new ElasticsearchParseException("failed to parse search source. expected field name but got [{}]", token);
                     }
                 }
             }
@@ -793,7 +780,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             } catch (Throwable e1) {
                 // ignore
             }
-            throw new SearchParseException(context, "Failed to parse source [" + sSource + "]", parser.getTokenLocation(), e);
+            XContentLocation location = parser != null ? parser.getTokenLocation() : null;
+            throw new SearchParseException(context, "failed to parse search source [" + sSource + "]", location, e);
         } finally {
             if (parser != null) {
                 parser.close();

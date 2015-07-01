@@ -74,7 +74,7 @@ public class FetchSourceParseElement implements SearchParseElement {
                     } else if ("excludes".equals(currentFieldName) || "exclude".equals(currentFieldName)) {
                         currentList = excludes != null ? excludes : (excludes = new ArrayList<>(2));
                     } else {
-                        throw new ElasticsearchParseException("Source definition may not contain " + parser.text());
+                        throw new ElasticsearchParseException("source definition may not contain [{}]", parser.text());
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -87,7 +87,7 @@ public class FetchSourceParseElement implements SearchParseElement {
                 }
             }
         } else {
-            throw new ElasticsearchParseException("source element value can be of type " + token.name());
+            throw new ElasticsearchParseException("source element value can be of type [{}]", token.name());
         }
 
         return new FetchSourceContext(

@@ -39,12 +39,12 @@ public class QueryParsingException extends IndexException {
     private final int lineNumber;
     private final int columnNumber;
 
-    public QueryParsingException(QueryParseContext parseContext, String msg) {
-        this(parseContext, msg, null);
+    public QueryParsingException(QueryParseContext parseContext, String msg, Object... args) {
+        this(parseContext, msg, null, args);
     }
 
-    public QueryParsingException(QueryParseContext parseContext, String msg, Throwable cause) {
-        super(parseContext.index(), msg, cause);
+    public QueryParsingException(QueryParseContext parseContext, String msg, Throwable cause, Object... args) {
+        super(parseContext.index(), msg, cause, args);
         int lineNumber = UNKNOWN_POSITION;
         int columnNumber = UNKNOWN_POSITION;
         XContentParser parser = parseContext.parser();

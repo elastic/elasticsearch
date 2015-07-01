@@ -74,7 +74,7 @@ public class RestRenderSearchTemplateAction extends BaseRestHandler {
             String currentFieldName = null;
             XContentParser.Token token = parser.nextToken();
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new ElasticsearchParseException("request body must start with [" + XContentParser.Token.START_OBJECT + "] but found [" + token + "]");
+                throw new ElasticsearchParseException("failed to parse request. request body must be an object but found [{}] instead", token);
             }
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
@@ -83,10 +83,10 @@ public class RestRenderSearchTemplateAction extends BaseRestHandler {
                     if (token == XContentParser.Token.START_OBJECT) {
                         params = parser.map();
                     } else {
-                        throw new ElasticsearchParseException("Expected [" + XContentParser.Token.START_OBJECT + "] for [params] but found [" + token + "]");
+                        throw new ElasticsearchParseException("failed to parse request. field [{}] is expected to be an object, but found [{}] instead", currentFieldName, token);
                     }
                 } else {
-                    throw new ElasticsearchParseException("Unknown field [" + currentFieldName + "] of type [" + token + "]");
+                    throw new ElasticsearchParseException("failed to parse request. unknown field [{}] of type [{}]", currentFieldName, token);
                 }
             }
             template = new Template(templateId, ScriptType.INDEXED, MustacheScriptEngineService.NAME, null, params);

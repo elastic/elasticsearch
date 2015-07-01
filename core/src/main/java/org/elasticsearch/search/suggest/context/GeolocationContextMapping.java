@@ -174,14 +174,14 @@ public class GeolocationContextMapping extends ContextMapping {
                 } else if (def instanceof Map) {
                     Map<String, Object> latlonMap = (Map<String, Object>) def;
                     if (!latlonMap.containsKey("lat") || !(latlonMap.get("lat") instanceof Double)) {
-                        throw new ElasticsearchParseException("field [" + FIELD_MISSING + "] map must have field lat and a valid latitude");
+                        throw new ElasticsearchParseException("field [{}] map must have field lat and a valid latitude", FIELD_MISSING);
                     }
                     if (!latlonMap.containsKey("lon") || !(latlonMap.get("lon") instanceof Double)) {
-                        throw new ElasticsearchParseException("field [" + FIELD_MISSING + "] map must have field lon and a valid longitude");
+                        throw new ElasticsearchParseException("field [{}] map must have field lon and a valid longitude", FIELD_MISSING);
                     }
                     builder.addDefaultLocation(Double.valueOf(latlonMap.get("lat").toString()), Double.valueOf(latlonMap.get("lon").toString()));
                 } else {
-                    throw new ElasticsearchParseException("field [" + FIELD_MISSING + "] must be of type string or list");
+                    throw new ElasticsearchParseException("field [{}] must be of type string or list", FIELD_MISSING);
                 }
                 config.remove(FIELD_MISSING);
             }
@@ -350,7 +350,7 @@ public class GeolocationContextMapping extends ContextMapping {
                                 throw new ElasticsearchParseException("latitude must be a number");
                         }
                     } else {
-                        throw new ElasticsearchParseException("only lat/lon or [" + FIELD_VALUE + "] is allowed");
+                        throw new ElasticsearchParseException("only lat/lon or [{}] is allowed", FIELD_VALUE);
                     }
                 } else if ("lon".equals(fieldName)) {
                     if(point == null) {
@@ -364,7 +364,7 @@ public class GeolocationContextMapping extends ContextMapping {
                                 throw new ElasticsearchParseException("longitude must be a number");
                         }
                     } else {
-                        throw new ElasticsearchParseException("only lat/lon or [" + FIELD_VALUE + "] is allowed");
+                        throw new ElasticsearchParseException("only lat/lon or [{}] is allowed", FIELD_VALUE);
                     }
                 } else if (FIELD_PRECISION.equals(fieldName)) {
                     if(parser.nextToken() == Token.START_ARRAY) {
@@ -381,10 +381,10 @@ public class GeolocationContextMapping extends ContextMapping {
                         parser.nextToken();
                         point = GeoUtils.parseGeoPoint(parser);
                     } else {
-                        throw new ElasticsearchParseException("only lat/lon or [" + FIELD_VALUE + "] is allowed");
+                        throw new ElasticsearchParseException("only lat/lon or [{}] is allowed", FIELD_VALUE);
                     }
                 } else {
-                    throw new ElasticsearchParseException("unexpected fieldname [" + fieldName + "]");
+                    throw new ElasticsearchParseException("unexpected fieldname [{}]", fieldName);
                 }
             }
 

@@ -29,12 +29,12 @@ import java.io.IOException;
  */
 public class ElasticsearchParseException extends ElasticsearchException {
 
-    public ElasticsearchParseException(String msg) {
-        super(msg);
+    public ElasticsearchParseException(String msg, Object... args) {
+        super(msg, args);
     }
 
-    public ElasticsearchParseException(String msg, Throwable cause) {
-        super(msg, cause);
+    public ElasticsearchParseException(String msg, Throwable cause, Object... args) {
+        super(msg, cause, args);
     }
 
     public ElasticsearchParseException(StreamInput in) throws IOException {

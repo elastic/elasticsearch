@@ -355,7 +355,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
                             String name = parser.text();
                             ContextMapping mapping = fieldType().getContextMapping().get(name);
                             if (mapping == null) {
-                                throw new ElasticsearchParseException("context [" + name + "] is not defined");
+                                throw new ElasticsearchParseException("context [{}] is not defined", name);
                             } else {
                                 token = parser.nextToken();
                                 configs.put(name, mapping.parseContext(context, parser));

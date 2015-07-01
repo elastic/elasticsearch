@@ -26,10 +26,8 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgParser;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -59,12 +57,8 @@ public class HoltWintersModel extends MovAvgModel {
             SeasonalityType result = null;
             for (SeasonalityType policy : values()) {
                 if (policy.parseField.match(text)) {
-                    if (result == null) {
-                        result = policy;
-                    } else {
-                        throw new IllegalStateException("Text can be parsed to 2 different seasonality types: text=[" + text
-                                + "], " + "policies=" + Arrays.asList(result, policy));
-                    }
+                    result = policy;
+                    break;
                 }
             }
             if (result == null) {
@@ -72,7 +66,7 @@ public class HoltWintersModel extends MovAvgModel {
                 for (SeasonalityType policy : values()) {
                     validNames.add(policy.getName());
                 }
-                throw new ElasticsearchParseException("Invalid seasonality type: [" + text + "], accepted values: " + validNames);
+                throw new ElasticsearchParseException("failed to parse seasonality type [{}]. accepted values are [{}]", text, validNames);
             }
             return result;
         }

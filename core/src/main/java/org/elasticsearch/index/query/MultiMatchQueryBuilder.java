@@ -147,7 +147,7 @@ public class MultiMatchQueryBuilder extends QueryBuilder implements BoostableQue
                 }
             }
             if (type == null) {
-                throw new ElasticsearchParseException("No type found for value: " + value);
+                throw new ElasticsearchParseException("failed to parse [{}] query type [{}]. unknown type.", MultiMatchQueryParser.NAME, value);
             }
             return type;
         }

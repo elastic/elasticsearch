@@ -218,7 +218,7 @@ public class GeoDistanceSortParser implements SortParser {
                 double lon = parser.doubleValue();
                 parser.nextToken();
                 if (!parser.currentToken().equals(XContentParser.Token.VALUE_NUMBER)) {
-                    throw new ElasticsearchParseException("geo point parsing: expected second number but got" + parser.currentToken());
+                    throw new ElasticsearchParseException("geo point parsing: expected second number but got [{}] instead", parser.currentToken());
                 }
                 double lat = parser.doubleValue();
                 GeoPoint point = new GeoPoint();

@@ -139,7 +139,7 @@ public class RepositoriesMetaData extends AbstractDiffable<Custom> implements Me
             if (token == XContentParser.Token.FIELD_NAME) {
                 String name = parser.currentName();
                 if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                    throw new ElasticsearchParseException("failed to parse repository [" + name + "], expected object");
+                    throw new ElasticsearchParseException("failed to parse repository [{}], expected object", name);
                 }
                 String type = null;
                 Settings settings = Settings.EMPTY;
@@ -148,23 +148,23 @@ public class RepositoriesMetaData extends AbstractDiffable<Custom> implements Me
                         String currentFieldName = parser.currentName();
                         if ("type".equals(currentFieldName)) {
                             if (parser.nextToken() != XContentParser.Token.VALUE_STRING) {
-                                throw new ElasticsearchParseException("failed to parse repository [" + name + "], unknown type");
+                                throw new ElasticsearchParseException("failed to parse repository [{}], unknown type", name);
                             }
                             type = parser.text();
                         } else if ("settings".equals(currentFieldName)) {
                             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                                throw new ElasticsearchParseException("failed to parse repository [" + name + "], incompatible params");
+                                throw new ElasticsearchParseException("failed to parse repository [{}], incompatible params", name);
                             }
                             settings = Settings.settingsBuilder().put(SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered())).build();
                         } else {
-                            throw new ElasticsearchParseException("failed to parse repository [" + name + "], unknown field [" + currentFieldName + "]");
+                            throw new ElasticsearchParseException("failed to parse repository [{}], unknown field [{}]", name, currentFieldName);
                         }
                     } else {
-                        throw new ElasticsearchParseException("failed to parse repository [" + name + "]");
+                        throw new ElasticsearchParseException("failed to parse repository [{}]", name);
                     }
                 }
                 if (type == null) {
-                    throw new ElasticsearchParseException("failed to parse repository [" + name + "], missing repository type");
+                    throw new ElasticsearchParseException("failed to parse repository [{}], missing repository type", name);
                 }
                 repository.add(new RepositoryMetaData(name, type, settings));
             } else {

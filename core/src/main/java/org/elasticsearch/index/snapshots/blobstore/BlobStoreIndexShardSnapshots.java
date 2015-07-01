@@ -231,13 +231,13 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         if (token == XContentParser.Token.START_OBJECT) {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token != XContentParser.Token.FIELD_NAME) {
-                    throw new ElasticsearchParseException("unexpected token  [" + token + "]");
+                    throw new ElasticsearchParseException("unexpected token [{}]", token);
                 }
                 String currentFieldName = parser.currentName();
                 token = parser.nextToken();
                 if (token == XContentParser.Token.START_ARRAY) {
                     if (ParseFields.FILES.match(currentFieldName) == false) {
-                        throw new ElasticsearchParseException("unknown array [" + currentFieldName + "]");
+                        throw new ElasticsearchParseException("unknown array [{}]", currentFieldName);
                     }
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                         FileInfo fileInfo = FileInfo.fromXContent(parser);
@@ -245,22 +245,22 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if (ParseFields.SNAPSHOTS.match(currentFieldName) == false) {
-                        throw new ElasticsearchParseException("unknown object [" + currentFieldName + "]");
+                        throw new ElasticsearchParseException("unknown object [{}]", currentFieldName);
                     }
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token != XContentParser.Token.FIELD_NAME) {
-                            throw new ElasticsearchParseException("unknown object [" + currentFieldName + "]");
+                            throw new ElasticsearchParseException("unknown object [{}]", currentFieldName);
                         }
                         String snapshot = parser.currentName();
                         if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                            throw new ElasticsearchParseException("unknown object [" + currentFieldName + "]");
+                            throw new ElasticsearchParseException("unknown object [{}]", currentFieldName);
                         }
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {
                                 currentFieldName = parser.currentName();
                                 if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
                                     if (ParseFields.FILES.match(currentFieldName) == false) {
-                                        throw new ElasticsearchParseException("unknown array [" + currentFieldName + "]");
+                                        throw new ElasticsearchParseException("unknown array [{}]", currentFieldName);
                                     }
                                     List<String> fileNames = newArrayList();
                                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
@@ -272,7 +272,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                         }
                     }
                 } else {
-                    throw new ElasticsearchParseException("unexpected token  [" + token + "]");
+                    throw new ElasticsearchParseException("unexpected token [{}]", token);
                 }
             }
         }

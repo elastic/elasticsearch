@@ -145,7 +145,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
                     return mode;
                 }
             }
-            throw new ElasticsearchParseException("No " + KEY.getPreferredName() + " found for value [" + value + "]");
+            throw new ElasticsearchParseException("no [{}] found for value [{}]", KEY.getPreferredName(), value);
         }
     }
 }

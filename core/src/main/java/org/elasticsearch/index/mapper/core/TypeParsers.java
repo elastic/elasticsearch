@@ -87,12 +87,12 @@ public class TypeParsers {
                                 firstType = type;
                             }
                         } else {
-                            throw new MapperParsingException("No type specified for property [" + propName + "]");
+                            throw new MapperParsingException("no type specified for property [" + propName + "]");
                         }
 
                         Mapper.TypeParser typeParser = parserContext.typeParser(type);
                         if (typeParser == null) {
-                            throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + fieldName + "]");
+                            throw new MapperParsingException("no handler for type [" + type + "] declared on field [" + fieldName + "]");
                         }
                         if (propName.equals(name)) {
                             mainFieldBuilder = (AbstractFieldMapper.Builder) typeParser.parse(propName, propNode, parserContext);
@@ -256,14 +256,14 @@ public class TypeParsers {
                 
                 NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
                 if (analyzer == null) {
-                    throw new MapperParsingException("Analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
+                    throw new MapperParsingException("analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
                 }
                 indexAnalyzer = analyzer;
                 iterator.remove();
             } else if (propName.equals("search_analyzer")) {
                 NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
                 if (analyzer == null) {
-                    throw new MapperParsingException("Analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
+                    throw new MapperParsingException("analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
                 }
                 searchAnalyzer = analyzer;
                 iterator.remove();
@@ -313,14 +313,14 @@ public class TypeParsers {
             } else if (propNode instanceof Map) {
                 multiFieldsPropNodes = (Map<String, Object>) propNode;
             } else {
-                throw new MapperParsingException("Expected map for property [fields] on field [" + propNode + "] or " +
+                throw new MapperParsingException("expected map for property [fields] on field [" + propNode + "] or " +
                         "[" + propName + "] but got a " + propNode.getClass());
             }
 
             for (Map.Entry<String, Object> multiFieldEntry : multiFieldsPropNodes.entrySet()) {
                 String multiFieldName = multiFieldEntry.getKey();
                 if (!(multiFieldEntry.getValue() instanceof Map)) {
-                    throw new MapperParsingException("Illegal field [" + multiFieldName + "], only fields can be specified inside fields");
+                    throw new MapperParsingException("illegal field [" + multiFieldName + "], only fields can be specified inside fields");
                 }
                 @SuppressWarnings("unchecked")
                 Map<String, Object> multiFieldNodes = (Map<String, Object>) multiFieldEntry.getValue();
@@ -330,7 +330,7 @@ public class TypeParsers {
                 if (typeNode != null) {
                     type = typeNode.toString();
                 } else {
-                    throw new MapperParsingException("No type specified for property [" + multiFieldName + "]");
+                    throw new MapperParsingException("no type specified for property [" + multiFieldName + "]");
                 }
                 if (type.equals(ObjectMapper.CONTENT_TYPE) || type.equals(ObjectMapper.NESTED_CONTENT_TYPE)) {
                     throw new MapperParsingException("Type [" + type + "] cannot be used in multi field");
@@ -338,7 +338,7 @@ public class TypeParsers {
 
                 Mapper.TypeParser typeParser = parserContext.typeParser(type);
                 if (typeParser == null) {
-                    throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + multiFieldName + "]");
+                    throw new MapperParsingException("no handler for type [" + type + "] declared on field [" + multiFieldName + "]");
                 }
                 builder.addMultiField(typeParser.parse(multiFieldName, multiFieldNodes, parserContext));
                 multiFieldNodes.remove("type");
@@ -360,7 +360,7 @@ public class TypeParsers {
         } else if (INDEX_OPTIONS_DOCS.equalsIgnoreCase(value)) {
             return IndexOptions.DOCS;
         } else {
-            throw new ElasticsearchParseException("Failed to parse index option [" + value + "]");
+            throw new ElasticsearchParseException("failed to parse index option [{}]", value);
         }
     }
 
@@ -389,7 +389,7 @@ public class TypeParsers {
             builder.storeTermVectorOffsets(true);
             builder.storeTermVectorPayloads(true);
         } else {
-            throw new MapperParsingException("Wrong value for termVector [" + termVector + "] for field [" + fieldName + "]");
+            throw new MapperParsingException("wrong value for termVector [" + termVector + "] for field [" + fieldName + "]");
         }
     }
 
@@ -404,7 +404,7 @@ public class TypeParsers {
             builder.index(true);
             builder.tokenized(true);
         } else {
-            throw new MapperParsingException("Wrong value for index [" + index + "] for field [" + fieldName + "]");
+            throw new MapperParsingException("wrong value for index [" + index + "] for field [" + fieldName + "]");
         }
     }
 
@@ -425,7 +425,7 @@ public class TypeParsers {
         } else if ("full".equals(path)) {
             return ContentPath.Type.FULL;
         } else {
-            throw new MapperParsingException("Wrong value for pathType [" + path + "] for object [" + name + "]");
+            throw new MapperParsingException("wrong value for pathType [" + path + "] for object [" + name + "]");
         }
     }
 

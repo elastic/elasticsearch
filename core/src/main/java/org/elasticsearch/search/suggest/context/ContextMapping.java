@@ -293,7 +293,7 @@ public abstract class ContextMapping implements ToXContent {
                     String name = parser.text();
                     ContextMapping mapping = mappings.get(name);
                     if (mapping == null) {
-                        throw new ElasticsearchParseException("no mapping defined for [" + name + "]");
+                        throw new ElasticsearchParseException("no mapping defined for [{}]", name);
                     }
                     parser.nextToken();
                     querySet.put(name, mapping.parseQuery(name, parser));

@@ -37,7 +37,7 @@ Import Aggregation definition classes:
 
 [source,java]
 --------------------------------------------------
-import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogram;
 --------------------------------------------------
 
 [source,java]

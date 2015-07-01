@@ -66,7 +66,7 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
             Set<SimpleQueryStringFlag> flagSet = new HashSet<>();
             int size = randomIntBetween(0, SimpleQueryStringFlag.values().length);
             for (int i = 0; i < size; i++) {
-                randomFrom(SimpleQueryStringFlag.values());
+                flagSet.add(randomFrom(SimpleQueryStringFlag.values()));
             }
             if (flagSet.size() > 0) {
                 result.flags(flagSet.toArray(new SimpleQueryStringFlag[flagSet.size()]));

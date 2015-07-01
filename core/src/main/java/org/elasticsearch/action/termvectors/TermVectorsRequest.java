@@ -588,8 +588,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
                             fields.add(parser.text());
                         }
                     } else {
-                        throw new ElasticsearchParseException(
-                                "The parameter fields must be given as an array! Use syntax : \"fields\" : [\"field1\", \"field2\",...]");
+                        throw new ElasticsearchParseException("failed to parse term vectors request. field [fields] must be an array");
                     }
                 } else if (currentFieldName.equals("offsets")) {
                     termVectorsRequest.offsets(parser.booleanValue());
@@ -613,12 +612,12 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
                     termVectorsRequest.type = parser.text();
                 } else if ("_id".equals(currentFieldName)) {
                     if (termVectorsRequest.doc != null) {
-                        throw new ElasticsearchParseException("Either \"id\" or \"doc\" can be specified, but not both!");
+                        throw new ElasticsearchParseException("failed to parse term vectors request. either [id] or [doc] can be specified, but not both!");
                     }
                     termVectorsRequest.id = parser.text();
                 } else if ("doc".equals(currentFieldName)) {
                     if (termVectorsRequest.id != null) {
-                        throw new ElasticsearchParseException("Either \"id\" or \"doc\" can be specified, but not both!");
+                        throw new ElasticsearchParseException("failed to parse term vectors request. either [id] or [doc] can be specified, but not both!");
                     }
                     termVectorsRequest.doc(jsonBuilder().copyCurrentStructure(parser));
                 } else if ("_routing".equals(currentFieldName) || "routing".equals(currentFieldName)) {
@@ -628,8 +627,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
                 } else if ("_version_type".equals(currentFieldName) || "_versionType".equals(currentFieldName) || "version_type".equals(currentFieldName) || "versionType".equals(currentFieldName)) {
                     termVectorsRequest.versionType = VersionType.fromString(parser.text());
                 } else {
-                    throw new ElasticsearchParseException("The parameter " + currentFieldName
-                            + " is not valid for term vector request!");
+                    throw new ElasticsearchParseException("failed to parse term vectors request. unknown field [{}]", currentFieldName);
                 }
             }
         }
@@ -645,8 +643,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
             if (e.getValue() instanceof String) {
                 mapStrStr.put(e.getKey(), (String) e.getValue());
             } else {
-                throw new ElasticsearchException(
-                        "The analyzer at " + e.getKey() + " should be of type String, but got a " + e.getValue().getClass() + "!");
+                throw new ElasticsearchException("expecting the analyzer at [{}] to be a String, but found [{}] instead", e.getKey(), e.getValue().getClass());
             }
         }
         return mapStrStr;
@@ -675,8 +672,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
                 } else if (currentFieldName.equals("max_word_length")) {
                     settings.maxWordLength = parser.intValue();
                 } else {
-                    throw new ElasticsearchParseException("The parameter " + currentFieldName
-                            + " is not valid for filter parameter for term vector request!");
+                    throw new ElasticsearchParseException("failed to parse term vectors request. the field [{}] is not valid for filter parameter for term vector request", currentFieldName);
                 }
             }
         }

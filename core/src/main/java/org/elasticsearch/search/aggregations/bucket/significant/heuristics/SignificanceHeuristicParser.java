@@ -20,17 +20,14 @@
 
 package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParsingException;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.EnumSet;
 
 public interface SignificanceHeuristicParser {
 
-    public SignificanceHeuristic parse(XContentParser parser) throws IOException, QueryParsingException;
+    SignificanceHeuristic parse(XContentParser parser) throws IOException, QueryParsingException;
 
-    public String[] getNames();
+    String[] getNames();
 }

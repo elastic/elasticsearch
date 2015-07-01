@@ -62,7 +62,7 @@ public abstract class XContentSettingsLoader implements SettingsLoader {
             return settings;
         }
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException("malformed, expected settings to start with 'object', instead was [" + token + "]");
+            throw new ElasticsearchParseException("malformed, expected settings to start with 'object', instead was [{}]", token);
         }
         serializeObject(settings, sb, path, jp, null);
         return settings;

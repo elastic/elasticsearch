@@ -151,7 +151,7 @@ public class LeafFieldsLookup implements Map {
                 fieldVisitor.postProcess(data.fieldType());
                 data.fields(ImmutableMap.of(name, fieldVisitor.fields().get(data.fieldType().names().indexName())));
             } catch (IOException e) {
-                throw new ElasticsearchParseException("failed to load field [" + name + "]", e);
+                throw new ElasticsearchParseException("failed to load field [{}]", e, name);
             }
         }
         return data;

@@ -110,7 +110,7 @@ public class JLHScore extends SignificanceHeuristic {
         public SignificanceHeuristic parse(XContentParser parser) throws IOException, QueryParsingException {
             // move to the closing bracket
             if (!parser.nextToken().equals(XContentParser.Token.END_OBJECT)) {
-                throw new ElasticsearchParseException("expected }, got " + parser.currentName() + " instead in jhl score");
+                throw new ElasticsearchParseException("failed to parse [jhl] significance heuristic. expected an empty object, but found [{}] instead", parser.currentToken());
             }
             return new JLHScore();
         }

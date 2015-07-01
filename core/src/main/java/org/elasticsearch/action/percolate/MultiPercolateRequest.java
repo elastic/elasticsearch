@@ -136,7 +136,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
                             percolateRequest.onlyCount(true);
                             parsePercolateAction(parser, percolateRequest, allowExplicitIndex);
                         } else {
-                            throw new ElasticsearchParseException(percolateAction + " isn't a supported percolate operation");
+                            throw new ElasticsearchParseException("[{}] isn't a supported percolate operation", percolateAction);
                         }
                     }
                 }

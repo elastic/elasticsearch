@@ -135,11 +135,11 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             } else if (MULTI_VALUE_MODE.match(currentFieldName)) {
                 multiValueMode = parser.text();
             } else {
-                throw new ElasticsearchParseException("Malformed score function score parameters.");
+                throw new ElasticsearchParseException("malformed score function score parameters.");
             }
         }
         if (fieldName == null) {
-            throw new ElasticsearchParseException("Malformed score function score parameters.");
+            throw new ElasticsearchParseException("malformed score function score parameters.");
         }
         XContentParser variableParser = XContentFactory.xContent(variableContent.string()).createParser(variableContent.string());
         scoreFunction = parseVariable(fieldName, variableParser, parseContext, MultiValueMode.fromString(multiValueMode.toUpperCase(Locale.ROOT)));
@@ -153,7 +153,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         // the doc later
         MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
         if (fieldType == null) {
-            throw new QueryParsingException(parseContext, "Unknown field [" + fieldName + "]");
+            throw new QueryParsingException(parseContext, "unknown field [{}]", fieldName);
         }
 
         // dates and time need special handling
@@ -165,8 +165,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         } else if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
             return parseNumberVariable(fieldName, parser, parseContext, (NumberFieldMapper.NumberFieldType) fieldType, mode);
         } else {
-            throw new QueryParsingException(parseContext, "Field " + fieldName + " is of type " + fieldType
-                    + ", but only numeric types are supported.");
+            throw new QueryParsingException(parseContext, "field [{}] is of type [{}], but only numeric types are supported.", fieldName, fieldType);
         }
     }
 
@@ -194,12 +193,11 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             } else if (parameterName.equals(DecayFunctionBuilder.OFFSET)) {
                 offset = parser.doubleValue();
             } else {
-                throw new ElasticsearchParseException("Parameter " + parameterName + " not supported!");
+                throw new ElasticsearchParseException("parameter [{}] not supported!", parameterName);
             }
         }
         if (!scaleFound || !refFound) {
-            throw new ElasticsearchParseException("Both " + DecayFunctionBuilder.SCALE + " and " + DecayFunctionBuilder.ORIGIN
-                    + " must be set for numeric fields.");
+            throw new ElasticsearchParseException("both [{}] and [{}] must be set for numeric fields.", DecayFunctionBuilder.SCALE, DecayFunctionBuilder.ORIGIN);
         }
         IndexNumericFieldData numericFieldData = parseContext.getForField(fieldType);
         return new NumericFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), numericFieldData, mode);
@@ -225,11 +223,11 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             } else if (parameterName.equals(DecayFunctionBuilder.OFFSET)) {
                 offsetString = parser.text();
             } else {
-                throw new ElasticsearchParseException("Parameter " + parameterName + " not supported!");
+                throw new ElasticsearchParseException("parameter [{}] not supported!", parameterName);
             }
         }
         if (origin == null || scaleString == null) {
-            throw new ElasticsearchParseException(DecayFunctionBuilder.ORIGIN + " and " + DecayFunctionBuilder.SCALE + " must be set for geo fields.");
+            throw new ElasticsearchParseException("[{}] and [{}] must be set for geo fields.", DecayFunctionBuilder.ORIGIN, DecayFunctionBuilder.SCALE);
         }
         double scale = DistanceUnit.DEFAULT.parse(scaleString, DistanceUnit.DEFAULT);
         double offset = DistanceUnit.DEFAULT.parse(offsetString, DistanceUnit.DEFAULT);
@@ -258,7 +256,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             } else if (parameterName.equals(DecayFunctionBuilder.OFFSET)) {
                 offsetString = parser.text();
             } else {
-                throw new ElasticsearchParseException("Parameter " + parameterName + " not supported!");
+                throw new ElasticsearchParseException("parameter [{}] not supported!", parameterName);
             }
         }
         long origin = SearchContext.current().nowInMillis();
@@ -267,7 +265,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         }
 
         if (scaleString == null) {
-            throw new ElasticsearchParseException(DecayFunctionBuilder.SCALE + " must be set for date fields.");
+            throw new ElasticsearchParseException("[{}] must be set for date fields.", DecayFunctionBuilder.SCALE);
         }
         TimeValue val = TimeValue.parseTimeValue(scaleString, TimeValue.timeValueHours(24), getClass().getSimpleName() + ".scale");
         double scale = val.getMillis();

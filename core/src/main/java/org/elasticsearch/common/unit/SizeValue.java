@@ -190,7 +190,7 @@ public class SizeValue implements Streamable {
                 singles = Long.parseLong(sValue);
             }
         } catch (NumberFormatException e) {
-            throw new ElasticsearchParseException("Failed to parse [" + sValue + "]", e);
+            throw new ElasticsearchParseException("failed to parse [{}]", e, sValue);
         }
         return new SizeValue(singles, SizeUnit.SINGLE);
     }

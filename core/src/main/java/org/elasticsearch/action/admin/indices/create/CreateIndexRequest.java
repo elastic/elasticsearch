@@ -403,7 +403,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
                     try {
                         customs.put(name, proto.fromMap((Map<String, Object>) entry.getValue()));
                     } catch (IOException e) {
-                        throw new ElasticsearchParseException("failed to parse custom metadata for [" + name + "]");
+                        throw new ElasticsearchParseException("failed to parse custom metadata for [{}]", name);
                     }
                 }
             }

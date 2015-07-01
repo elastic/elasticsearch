@@ -471,7 +471,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
                         }
                     }
                     if (!ignoreIndexErrors) {
-                        throw new ElasticsearchParseException("unexpected token  [" + token + "]");
+                        throw new ElasticsearchParseException("unexpected token [{}]", token);
                     } else {
                         logger.warn("[{}] [{}] unexpected token while reading snapshot metadata [{}]", snapshotId, index, token);
                     }
@@ -524,7 +524,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
                     }
                 }
             }
-            throw new ElasticsearchParseException("unexpected token  [" + token + "]");
+            throw new ElasticsearchParseException("unexpected token  [{}]", token);
         } catch (JsonParseException ex) {
             throw new ElasticsearchParseException("failed to read snapshot", ex);
         }
@@ -549,7 +549,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
                     }
                 }
             }
-            throw new ElasticsearchParseException("unexpected token  [" + token + "]");
+            throw new ElasticsearchParseException("unexpected token [{}]", token);
         }
     }
 

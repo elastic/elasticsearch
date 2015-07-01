@@ -201,15 +201,15 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
                         } else if ("status".equals(currentFieldName)) {
                             snapshotShardFailure.status = RestStatus.valueOf(parser.text());
                         } else {
-                            throw new ElasticsearchParseException("unknown parameter [" + currentFieldName + "]");
+                            throw new ElasticsearchParseException("unknown parameter [{}]", currentFieldName);
                         }
                     }
                 } else {
-                    throw new ElasticsearchParseException("unexpected token  [" + token + "]");
+                    throw new ElasticsearchParseException("unexpected token [{}]", token);
                 }
             }
         } else {
-            throw new ElasticsearchParseException("unexpected token  [" + token + "]");
+            throw new ElasticsearchParseException("unexpected token [{}]", token);
         }
         return snapshotShardFailure;
     }

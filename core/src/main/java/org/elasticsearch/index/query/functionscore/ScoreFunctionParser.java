@@ -28,13 +28,13 @@ import java.io.IOException;
 
 public interface ScoreFunctionParser {
 
-    public ScoreFunction parse(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException;
+    ScoreFunction parse(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException;
 
     /**
      * Returns the name of the function, for example "linear", "gauss" etc. This
      * name is used for registering the parser in
      * {@link FunctionScoreQueryParser}.
      * */
-    public String[] getNames();
+    String[] getNames();
 
 }

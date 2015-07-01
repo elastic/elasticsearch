@@ -58,7 +58,7 @@ public class DateMathParser {
             try {
                 time = now.call();
             } catch (Exception e) {
-                throw new ElasticsearchParseException("Could not read the current timestamp", e);
+                throw new ElasticsearchParseException("could not read the current timestamp", e);
             }
             mathString = text.substring("now".length());
         } else {
@@ -95,12 +95,12 @@ public class DateMathParser {
                 } else if (c == '-') {
                     sign = -1;
                 } else {
-                    throw new ElasticsearchParseException("operator not supported for date math [" + mathString + "]");
+                    throw new ElasticsearchParseException("operator not supported for date math [{}]", mathString);
                 }
             }
                 
             if (i >= mathString.length()) {
-                throw new ElasticsearchParseException("truncated date math [" + mathString + "]");
+                throw new ElasticsearchParseException("truncated date math [{}]", mathString);
             }
 
             final int num;
@@ -112,13 +112,13 @@ public class DateMathParser {
                     i++;
                 }
                 if (i >= mathString.length()) {
-                    throw new ElasticsearchParseException("truncated date math [" + mathString + "]");
+                    throw new ElasticsearchParseException("truncated date math [{}]", mathString);
                 }
                 num = Integer.parseInt(mathString.substring(numFrom, i));
             }
             if (round) {
                 if (num != 1) {
-                    throw new ElasticsearchParseException("rounding `/` can only be used on single unit types [" + mathString + "]");
+                    throw new ElasticsearchParseException("rounding `/` can only be used on single unit types [{}]", mathString);
                 }
             }
             char unit = mathString.charAt(i++);
@@ -175,7 +175,7 @@ public class DateMathParser {
                     }
                     break;
                 default:
-                    throw new ElasticsearchParseException("unit [" + unit + "] not supported for date math [" + mathString + "]");
+                    throw new ElasticsearchParseException("unit [{}] not supported for date math [{}]", unit, mathString);
             }
             if (propertyToRound != null) {
                 if (roundUp) {
@@ -200,7 +200,7 @@ public class DateMathParser {
             return parser.parseMillis(value);
         } catch (IllegalArgumentException e) {
             
-            throw new ElasticsearchParseException("failed to parse date field [" + value + "] with format [" + dateTimeFormatter.format() + "]", e);
+            throw new ElasticsearchParseException("failed to parse date field [{}] with format [{}]", e, value, dateTimeFormatter.format());
         }
     }
 

@@ -418,7 +418,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
                         } else if (token == XContentParser.Token.VALUE_STRING) {
                             fetchSourceContext = new FetchSourceContext(new String[]{parser.text()});
                         } else {
-                            throw new ElasticsearchParseException("illegal type for _source: [" + token + "]");
+                            throw new ElasticsearchParseException("illegal type for _source: [{}]", token);
                         }
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
@@ -447,7 +447,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
                                 } else if ("excludes".equals(currentFieldName) || "exclude".equals(currentFieldName)) {
                                     currentList = excludes != null ? excludes : (excludes = new ArrayList<>(2));
                                 } else {
-                                    throw new ElasticsearchParseException("Source definition may not contain " + parser.text());
+                                    throw new ElasticsearchParseException("source definition may not contain [{}]", parser.text());
                                 }
                             } else if (token == XContentParser.Token.START_ARRAY) {
                                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {

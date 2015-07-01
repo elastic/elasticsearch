@@ -81,23 +81,23 @@ public class MoveAllocationCommand implements AllocationCommand {
                     } else if ("to_node".equals(currentFieldName) || "toNode".equals(currentFieldName)) {
                         toNode = parser.text();
                     } else {
-                        throw new ElasticsearchParseException("[move] command does not support field [" + currentFieldName + "]");
+                        throw new ElasticsearchParseException("[{}] command does not support field [{}]", NAME, currentFieldName);
                     }
                 } else {
-                    throw new ElasticsearchParseException("[move] command does not support complex json tokens [" + token + "]");
+                    throw new ElasticsearchParseException("[{}] command does not support complex json tokens [{}]", NAME, token);
                 }
             }
             if (index == null) {
-                throw new ElasticsearchParseException("[move] command missing the index parameter");
+                throw new ElasticsearchParseException("[{}] command missing the index parameter", NAME);
             }
             if (shardId == -1) {
-                throw new ElasticsearchParseException("[move] command missing the shard parameter");
+                throw new ElasticsearchParseException("[{}] command missing the shard parameter", NAME);
             }
             if (fromNode == null) {
-                throw new ElasticsearchParseException("[move] command missing the from_node parameter");
+                throw new ElasticsearchParseException("[{}] command missing the from_node parameter", NAME);
             }
             if (toNode == null) {
-                throw new ElasticsearchParseException("[move] command missing the to_node parameter");
+                throw new ElasticsearchParseException("[{}] command missing the to_node parameter", NAME);
             }
             return new MoveAllocationCommand(new ShardId(index, shardId), fromNode, toNode);
         }

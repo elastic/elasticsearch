@@ -32,6 +32,7 @@ import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
@@ -393,5 +394,14 @@ public class IndexShardTests extends ElasticsearchSingleNodeTest {
         assertEquals(versionCreated.luceneVersion, test.minimumCompatibleVersion());
         test.engine().flush();
         assertEquals(Version.CURRENT.luceneVersion, test.minimumCompatibleVersion());
+    }
+
+    public void testUpdatePriority() {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .setSettings(IndexMetaData.SETTING_PRIORITY, 200));
+        IndexSettingsService indexSettingsService = getInstanceFromNode(IndicesService.class).indexService("test").settingsService();
+        assertEquals(200, indexSettingsService.getSettings().getAsInt(IndexMetaData.SETTING_PRIORITY, 0).intValue());
+        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_PRIORITY, 400).build()).get();
+        assertEquals(400, indexSettingsService.getSettings().getAsInt(IndexMetaData.SETTING_PRIORITY, 0).intValue());
     }
 }

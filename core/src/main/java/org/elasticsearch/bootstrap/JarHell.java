@@ -80,6 +80,7 @@ public class JarHell {
         // like sun.boot.class.path, and with jigsaw we don't yet have a way to get
         // a "list" at all. So just exclude any elements underneath the java home
         String javaHome = System.getProperty("java.home");
+        logger.debug("java.home: {}", javaHome);
         final Map<String,URL> clazzes = new HashMap<>(32768);
         Set<String> seenJars = new HashSet<>();
         for (final URL url : urls) {

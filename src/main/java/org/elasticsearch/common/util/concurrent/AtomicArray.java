@@ -67,6 +67,15 @@ public class AtomicArray<E> {
         }
     }
 
+    public final void setOnce(int i, E value) {
+        if (array.compareAndSet(i, null, value) == false) {
+            throw new IllegalStateException("index [" + i + "] has already been set");
+        }
+        if (nonNullList != null) { // read first, lighter, and most times it will be null...
+            nonNullList = null;
+        }
+    }
+
     /**
      * Gets the current value at position {@code i}.
      *

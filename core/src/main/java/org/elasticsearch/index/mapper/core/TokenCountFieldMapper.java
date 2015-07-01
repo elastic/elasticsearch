@@ -78,7 +78,7 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
         @Override
         public TokenCountFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            TokenCountFieldMapper fieldMapper = new TokenCountFieldMapper(fieldType, docValues,
+            TokenCountFieldMapper fieldMapper = new TokenCountFieldMapper(name, fieldType, docValues,
                     ignoreMalformed(context), coerce(context), fieldDataSettings, context.indexSettings(),
                     analyzer, multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
@@ -127,10 +127,10 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
 
     private NamedAnalyzer analyzer;
 
-    protected TokenCountFieldMapper(MappedFieldType fieldType, Boolean docValues, Explicit<Boolean> ignoreMalformed,
+    protected TokenCountFieldMapper(String simpleName, MappedFieldType fieldType, Boolean docValues, Explicit<Boolean> ignoreMalformed,
                                     Explicit<Boolean> coerce, Settings fieldDataSettings, Settings indexSettings,
                                     NamedAnalyzer analyzer, MultiFields multiFields, CopyTo copyTo) {
-        super(fieldType, docValues, ignoreMalformed, coerce, fieldDataSettings, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, docValues, ignoreMalformed, coerce, fieldDataSettings, indexSettings, multiFields, copyTo);
         this.analyzer = analyzer;
     }
 
@@ -146,7 +146,7 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
             if (valueAndBoost.value() == null) {
                 count = fieldType().nullValue();
             } else {
-                count = countPositions(analyzer.analyzer().tokenStream(fieldType().names().shortName(), valueAndBoost.value()));
+                count = countPositions(analyzer.analyzer().tokenStream(simpleName(), valueAndBoost.value()));
             }
             addIntegerFields(context, fields, count, valueAndBoost.boost());
         }

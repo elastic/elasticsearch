@@ -89,7 +89,7 @@ public class LongFieldMapper extends NumberFieldMapper {
         @Override
         public LongFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            LongFieldMapper fieldMapper = new LongFieldMapper(fieldType, docValues,
+            LongFieldMapper fieldMapper = new LongFieldMapper(name, fieldType, docValues,
                     ignoreMalformed(context), coerce(context), fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -201,11 +201,11 @@ public class LongFieldMapper extends NumberFieldMapper {
         }
     }
 
-    protected LongFieldMapper(MappedFieldType fieldType, Boolean docValues,
+    protected LongFieldMapper(String simpleName, MappedFieldType fieldType, Boolean docValues,
                               Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                               @Nullable Settings fieldDataSettings,
                               Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(fieldType, docValues, ignoreMalformed, coerce, fieldDataSettings, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, docValues, ignoreMalformed, coerce, fieldDataSettings, indexSettings, multiFields, copyTo);
     }
 
     @Override

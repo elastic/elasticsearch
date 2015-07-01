@@ -53,7 +53,7 @@ public class ExternalMetadataMapper extends MetadataFieldMapper {
     }
 
     protected ExternalMetadataMapper(Settings indexSettings) {
-        super(FIELD_TYPE, true, null, indexSettings);
+        super(FIELD_NAME, FIELD_TYPE, true, null, indexSettings);
     }
 
     @Override

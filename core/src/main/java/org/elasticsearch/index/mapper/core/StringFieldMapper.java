@@ -130,7 +130,7 @@ public class StringFieldMapper extends AbstractFieldMapper implements AllFieldMa
             defaultFieldType.freeze();
             setupFieldType(context);
             StringFieldMapper fieldMapper = new StringFieldMapper(
-                    fieldType, defaultFieldType, docValues, positionOffsetGap, ignoreAbove,
+                    name, fieldType, defaultFieldType, docValues, positionOffsetGap, ignoreAbove,
                     fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -223,10 +223,10 @@ public class StringFieldMapper extends AbstractFieldMapper implements AllFieldMa
     private int ignoreAbove;
     private final MappedFieldType defaultFieldType;
 
-    protected StringFieldMapper(MappedFieldType fieldType, MappedFieldType defaultFieldType, Boolean docValues,
+    protected StringFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Boolean docValues,
                                 int positionOffsetGap, int ignoreAbove, @Nullable Settings fieldDataSettings,
                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(fieldType, docValues, fieldDataSettings, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, docValues, fieldDataSettings, indexSettings, multiFields, copyTo);
         if (fieldType.tokenized() && fieldType.indexOptions() != NONE && fieldType().hasDocValues()) {
             throw new MapperParsingException("Field [" + fieldType.names().fullName() + "] cannot be analyzed and have doc values");
         }

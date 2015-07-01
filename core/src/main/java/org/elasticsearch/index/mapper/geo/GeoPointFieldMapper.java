@@ -207,7 +207,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper implements ArrayVal
             fieldType.setHasDocValues(false);
             setupFieldType(context);
 
-            return new GeoPointFieldMapper(fieldType, docValues, fieldDataSettings, context.indexSettings(), origPathType,
+            return new GeoPointFieldMapper(name, fieldType, docValues, fieldDataSettings, context.indexSettings(), origPathType,
                      latMapper, lonMapper, geohashMapper, multiFieldsBuilder.build(this, context));
         }
     }
@@ -586,9 +586,9 @@ public class GeoPointFieldMapper extends AbstractFieldMapper implements ArrayVal
 
     private final StringFieldMapper geohashMapper;
 
-    public GeoPointFieldMapper(MappedFieldType fieldType, Boolean docValues, @Nullable Settings fieldDataSettings, Settings indexSettings,
+    public GeoPointFieldMapper(String simpleName, MappedFieldType fieldType, Boolean docValues, @Nullable Settings fieldDataSettings, Settings indexSettings,
             ContentPath.Type pathType, DoubleFieldMapper latMapper, DoubleFieldMapper lonMapper, StringFieldMapper geohashMapper,MultiFields multiFields) {
-        super(fieldType, docValues, fieldDataSettings, indexSettings, multiFields, null);
+        super(simpleName, fieldType, docValues, fieldDataSettings, indexSettings, multiFields, null);
         this.pathType = pathType;
         this.latMapper = latMapper;
         this.lonMapper = lonMapper;
@@ -629,7 +629,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper implements ArrayVal
     public Mapper parse(ParseContext context) throws IOException {
         ContentPath.Type origPathType = context.path().pathType();
         context.path().pathType(pathType);
-        context.path().add(fieldType().names().shortName());
+        context.path().add(simpleName());
 
         GeoPoint sparse = context.parseExternalValue(GeoPoint.class);
         

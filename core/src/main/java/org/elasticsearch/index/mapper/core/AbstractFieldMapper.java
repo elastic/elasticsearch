@@ -60,7 +60,7 @@ import java.util.TreeMap;
 
 import static org.elasticsearch.index.mapper.core.TypeParsers.DOC_VALUES;
 
-public abstract class AbstractFieldMapper implements FieldMapper {
+public abstract class AbstractFieldMapper extends FieldMapper {
 
     public static class Defaults {
         public static final float BOOST = 1.0f;
@@ -229,7 +229,7 @@ public abstract class AbstractFieldMapper implements FieldMapper {
         }
 
         protected MappedFieldType.Names buildNames(BuilderContext context) {
-            return new MappedFieldType.Names(name, buildIndexName(context), buildIndexNameClean(context), buildFullName(context));
+            return new MappedFieldType.Names(buildIndexName(context), buildIndexNameClean(context), buildFullName(context));
         }
 
         protected String buildIndexName(BuilderContext context) {
@@ -263,11 +263,12 @@ public abstract class AbstractFieldMapper implements FieldMapper {
     protected CopyTo copyTo;
     protected final boolean indexCreatedBefore2x;
 
-    protected AbstractFieldMapper(MappedFieldType fieldType, Boolean docValues, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        this(fieldType, docValues, fieldDataSettings, indexSettings, MultiFields.empty(), null);
+    protected AbstractFieldMapper(String simpleName, MappedFieldType fieldType, Boolean docValues, @Nullable Settings fieldDataSettings, Settings indexSettings) {
+        this(simpleName, fieldType, docValues, fieldDataSettings, indexSettings, MultiFields.empty(), null);
     }
 
-    protected AbstractFieldMapper(MappedFieldType fieldType, Boolean docValues, @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+    protected AbstractFieldMapper(String simpleName, MappedFieldType fieldType, Boolean docValues, @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+        super(simpleName);
         assert indexSettings != null;
         this.indexCreatedBefore2x = Version.indexCreated(indexSettings).before(Version.V_2_0_0);
         this.customFieldDataSettings = fieldDataSettings;
@@ -315,8 +316,7 @@ public abstract class AbstractFieldMapper implements FieldMapper {
 
     @Override
     public String name() {
-        // TODO: cleanup names so Mapper knows about paths, so that it is always clear whether we are using short or full name
-        return fieldType().names().shortName();
+        return fieldType().names().fullName();
     }
 
     public abstract MappedFieldType defaultFieldType();
@@ -424,7 +424,7 @@ public abstract class AbstractFieldMapper implements FieldMapper {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(fieldType().names().shortName());
+        builder.startObject(simpleName());
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
         doXContentBody(builder, includeDefaults, params);
         return builder.endObject();
@@ -433,7 +433,7 @@ public abstract class AbstractFieldMapper implements FieldMapper {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
 
         builder.field("type", contentType());
-        if (indexCreatedBefore2x && (includeDefaults || !fieldType().names().shortName().equals(fieldType().names().originalIndexName()))) {
+        if (indexCreatedBefore2x && (includeDefaults || !simpleName().equals(fieldType().names().originalIndexName()))) {
             builder.field("index_name", fieldType().names().originalIndexName());
         }
 
@@ -637,7 +637,7 @@ public abstract class AbstractFieldMapper implements FieldMapper {
             ContentPath.Type origPathType = context.path().pathType();
             context.path().pathType(pathType);
 
-            context.path().add(mainField.fieldType().names().shortName());
+            context.path().add(mainField.simpleName());
             for (ObjectCursor<FieldMapper> cursor : mappers.values()) {
                 cursor.value.parse(context);
             }
@@ -654,7 +654,7 @@ public abstract class AbstractFieldMapper implements FieldMapper {
 
             for (ObjectCursor<FieldMapper> cursor : mergeWithMultiField.multiFields.mappers.values()) {
                 FieldMapper mergeWithMapper = cursor.value;
-                Mapper mergeIntoMapper = mappers.get(mergeWithMapper.fieldType().names().shortName());
+                Mapper mergeIntoMapper = mappers.get(mergeWithMapper.simpleName());
                 if (mergeIntoMapper == null) {
                     // no mapping, simply add it if not simulating
                     if (!mergeResult.simulate()) {
@@ -665,7 +665,7 @@ public abstract class AbstractFieldMapper implements FieldMapper {
                         if (newMappersBuilder == null) {
                             newMappersBuilder = ImmutableOpenMap.builder(mappers);
                         }
-                        newMappersBuilder.put(mergeWithMapper.fieldType().names().shortName(), mergeWithMapper);
+                        newMappersBuilder.put(mergeWithMapper.simpleName(), mergeWithMapper);
                         if (mergeWithMapper instanceof AbstractFieldMapper) {
                             if (newFieldMappers == null) {
                                 newFieldMappers = new ArrayList<>(2);

@@ -90,7 +90,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper {
         @Override
         public BooleanFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            return new BooleanFieldMapper(fieldType, docValues,
+            return new BooleanFieldMapper(name, fieldType, docValues,
                     fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
@@ -194,9 +194,9 @@ public class BooleanFieldMapper extends AbstractFieldMapper {
         }
     }
 
-    protected BooleanFieldMapper(MappedFieldType fieldType, Boolean docValues,
+    protected BooleanFieldMapper(String simpleName, MappedFieldType fieldType, Boolean docValues,
                                  @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(fieldType, docValues, fieldDataSettings, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, docValues, fieldDataSettings, indexSettings, multiFields, copyTo);
     }
 
     @Override

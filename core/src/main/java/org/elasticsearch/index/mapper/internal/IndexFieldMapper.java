@@ -31,12 +31,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.RootMapper;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
@@ -50,7 +49,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 /**
  *
  */
-public class IndexFieldMapper extends AbstractFieldMapper implements RootMapper {
+public class IndexFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_index";
 
@@ -75,7 +74,7 @@ public class IndexFieldMapper extends AbstractFieldMapper implements RootMapper 
         public static final EnabledAttributeMapper ENABLED_STATE = EnabledAttributeMapper.UNSET_DISABLED;
     }
 
-    public static class Builder extends AbstractFieldMapper.Builder<Builder, IndexFieldMapper> {
+    public static class Builder extends MetadataFieldMapper.Builder<Builder, IndexFieldMapper> {
 
         private EnabledAttributeMapper enabledState = EnabledAttributeMapper.UNSET_DISABLED;
 

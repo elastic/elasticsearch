@@ -307,7 +307,7 @@ public class ShortFieldMapper extends NumberFieldMapper {
             }
         }
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            CustomShortNumericField field = new CustomShortNumericField(this, value, fieldType());
+            CustomShortNumericField field = new CustomShortNumericField(value, fieldType());
             field.setBoost(boost);
             fields.add(field);
         }
@@ -343,18 +343,15 @@ public class ShortFieldMapper extends NumberFieldMapper {
 
         private final short number;
 
-        private final NumberFieldMapper mapper;
-
-        public CustomShortNumericField(NumberFieldMapper mapper, short number, NumberFieldType fieldType) {
-            super(mapper, number, fieldType);
-            this.mapper = mapper;
+        public CustomShortNumericField(short number, NumberFieldType fieldType) {
+            super(number, fieldType);
             this.number = number;
         }
 
         @Override
         public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) throws IOException {
             if (fieldType().indexOptions() != IndexOptions.NONE) {
-                return mapper.popCachedStream().setIntValue(number);
+                return getCachedStream().setIntValue(number);
             }
             return null;
         }

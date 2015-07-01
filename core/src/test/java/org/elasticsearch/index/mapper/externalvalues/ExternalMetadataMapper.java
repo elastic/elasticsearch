@@ -19,21 +19,42 @@
 
 package org.elasticsearch.index.mapper.externalvalues;
 
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.StringField;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.MergeResult;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
-public class ExternalRootMapper implements RootMapper {
+public class ExternalMetadataMapper extends MetadataFieldMapper {
 
     static final String CONTENT_TYPE = "_external_root";
     static final String FIELD_NAME = "_is_external";
     static final String FIELD_VALUE = "true";
+
+    private static MappedFieldType FIELD_TYPE = new BooleanFieldMapper.BooleanFieldType();
+    static {
+        FIELD_TYPE.setNames(new MappedFieldType.Names(FIELD_NAME));
+        FIELD_TYPE.freeze();
+    }
+
+    protected ExternalMetadataMapper(Settings indexSettings) {
+        super(FIELD_TYPE, true, null, indexSettings);
+    }
 
     @Override
     public String name() {
@@ -41,8 +62,23 @@ public class ExternalRootMapper implements RootMapper {
     }
 
     @Override
+    public MappedFieldType defaultFieldType() {
+        return FIELD_TYPE;
+    }
+
+    @Override
+    public FieldDataType defaultFieldDataType() {
+        return new FieldDataType("string");
+    }
+
+    @Override
+    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+        // handled in post parse
+    }
+
+    @Override
     public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
-        if (!(mergeWith instanceof ExternalRootMapper)) {
+        if (!(mergeWith instanceof ExternalMetadataMapper)) {
             mergeResult.addConflict("Trying to merge " + mergeWith + " with " + this);
         }
     }
@@ -58,6 +94,11 @@ public class ExternalRootMapper implements RootMapper {
     }
 
     @Override
+    protected String contentType() {
+        return CONTENT_TYPE;
+    }
+
+    @Override
     public void preParse(ParseContext context) throws IOException {
     }
 
@@ -66,15 +107,15 @@ public class ExternalRootMapper implements RootMapper {
         context.doc().add(new StringField(FIELD_NAME, FIELD_VALUE, Store.YES));
     }
 
-    public static class Builder extends Mapper.Builder<Builder, ExternalRootMapper> {
+    public static class Builder extends MetadataFieldMapper.Builder<Builder, ExternalMetadataMapper> {
 
         protected Builder() {
-            super(CONTENT_TYPE);
+            super(CONTENT_TYPE, FIELD_TYPE);
         }
 
         @Override
-        public ExternalRootMapper build(BuilderContext context) {
-            return new ExternalRootMapper();
+        public ExternalMetadataMapper build(BuilderContext context) {
+            return new ExternalMetadataMapper(context.indexSettings());
         }
         
     }

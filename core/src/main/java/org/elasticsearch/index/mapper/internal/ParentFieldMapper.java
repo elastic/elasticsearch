@@ -37,12 +37,11 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.RootMapper;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -54,14 +53,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeMapValue;
 
 /**
  *
  */
-public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper {
+public class ParentFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_parent";
     public static final String CONTENT_TYPE = "_parent";
@@ -84,7 +82,7 @@ public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper
         }
     }
 
-    public static class Builder extends AbstractFieldMapper.Builder<Builder, ParentFieldMapper> {
+    public static class Builder extends MetadataFieldMapper.Builder<Builder, ParentFieldMapper> {
 
         protected String indexName;
 

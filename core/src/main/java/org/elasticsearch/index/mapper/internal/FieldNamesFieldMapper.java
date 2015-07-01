@@ -33,10 +33,8 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.RootMapper;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
@@ -55,7 +53,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
  *
  * Added in Elasticsearch 1.3.
  */
-public class FieldNamesFieldMapper extends AbstractFieldMapper implements RootMapper {
+public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_field_names";
 
@@ -79,7 +77,7 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper implements RootMa
         }
     }
 
-    public static class Builder extends AbstractFieldMapper.Builder<Builder, FieldNamesFieldMapper> {
+    public static class Builder extends MetadataFieldMapper.Builder<Builder, FieldNamesFieldMapper> {
         private boolean enabled = Defaults.ENABLED;
 
         public Builder(MappedFieldType existing) {

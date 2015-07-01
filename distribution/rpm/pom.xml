@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
@@ -11,6 +11,7 @@
 
     <artifactId>elasticsearch-rpm</artifactId>
     <name>Elasticsearch RPM Distribution</name>
+    <packaging>rpm</packaging>
 
     <properties>
     </properties>
@@ -78,7 +79,9 @@
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>rpm-maven-plugin</artifactId>
+                <extensions>true</extensions>
                 <configuration>
+                    <name>elasticsearch-${project.version}.rpm</name>
                     <distribution>Elasticsearch</distribution>
                     <group>Application/Internet</group>
                     <packager>Elasticsearch</packager>
@@ -97,6 +100,7 @@
                     <keyPassphrase>
                         <passphrase>${gpg.passphrase}</passphrase>
                     </keyPassphrase>
+                    <icon>${project.basedir}/src/main/resources/logo/elastic.gif</icon>
                     <mappings>
                         <!-- Add bin directory -->
                         <mapping>
@@ -154,12 +158,6 @@
                                         <exclude>slf4j-api-*.jar</exclude>
                                         <exclude>sigar-*.jar</exclude>
                                     </excludes>
-                                </source>
-                                <source>
-                                    <location>${project.build.directory}/</location>
-                                    <includes>
-                                        <include>elasticsearch-${project.version}.jar</include>
-                                    </includes>
                                 </source>
                             </sources>
                         </mapping>

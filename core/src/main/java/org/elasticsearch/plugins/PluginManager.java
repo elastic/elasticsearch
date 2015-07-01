@@ -313,13 +313,13 @@ public class PluginManager {
                 // be on the safe side: do not rely on that directories are always extracted
                 // before their children (although this makes sense, but is it guaranteed?)
                 Files.createDirectories(targetFile.getParent());
-                if (!entry.isDirectory()) {
-                    OutputStream out = Files.newOutputStream(targetFile);
-                    int len;
-                    while((len = zipInput.read(buffer)) >= 0) {
-                        out.write(buffer, 0, len);
+                if (entry.isDirectory() == false) {
+                    try (OutputStream out = Files.newOutputStream(targetFile)) {
+                        int len;
+                        while((len = zipInput.read(buffer)) >= 0) {
+                            out.write(buffer, 0, len);
+                        }
                     }
-                    out.close();
                 }
                 zipInput.closeEntry();
             }

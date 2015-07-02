@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.store;
 
 import com.google.common.base.Predicate;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterService;
@@ -74,6 +75,7 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/11989")
     @TestLogging("indices.store:TRACE")
     public void indexCleanup() throws Exception {
         final String masterNode = internalCluster().startNode(ImmutableSettings.builder().put(SETTINGS).put("node.data", false));
@@ -117,10 +119,12 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
             disruption.startDisrupting();
         }
         internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand(new ShardId("test", 0), node_1, node_3)).get();
-        clusterHealth = client().admin().cluster().prepareHealth()
+        // make sure we do not use the
+        clusterHealth = internalCluster().masterClient().admin().cluster().prepareHealth()
                 .setWaitForNodes("4")
                 .setWaitForRelocatingShards(0)
                 .get();
+        logClusterState();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         if (disruption != null) {
             // we must stop the disruption here, else the delayed cluster state processing on the disrupted node

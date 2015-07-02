@@ -55,13 +55,15 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
     }
 
     private synchronized void stop(boolean manual) {
+        //This is set here since even if we are not started if we have requested a manual stop we do not want an automatic start to start watcher
+        manuallyStopped = manual;
+
         WatcherState watcherState = watcherService.state();
         if (watcherState != WatcherState.STARTED) {
             logger.debug("not stopping watcher. watcher can only stop if its current state is [{}], but its current state now is [{}]", WatcherState.STARTED, watcherState);
             return;
         }
 
-        manuallyStopped = manual;
         watcherService.stop();
     }
 
@@ -77,6 +79,11 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
         if (!manual && manuallyStopped) {
             logger.debug("not starting watcher. watcher was stopped manually and therefore cannot be auto-start");
             return;
+        }
+
+        //If we are manually starting we should clear the manuallyStopped flag
+        if (manual && manuallyStopped) {
+            manuallyStopped = false;
         }
 
         if (!watcherService.validate(state)) {

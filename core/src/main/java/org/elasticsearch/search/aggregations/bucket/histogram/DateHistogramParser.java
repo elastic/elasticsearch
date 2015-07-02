@@ -101,11 +101,11 @@ public class DateHistogramParser implements Aggregator.Parser {
             } else if (vsParser.token(currentFieldName, token, parser)) {
                 continue;
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (TIME_ZONE.match(currentFieldName)) {
+                if (context.parseFieldMatcher().match(currentFieldName, TIME_ZONE)) {
                     timeZone = DateTimeZone.forID(parser.text());
-                } else if (OFFSET.match(currentFieldName)) {
+                } else if (context.parseFieldMatcher().match(currentFieldName, OFFSET)) {
                     offset = parseOffset(parser.text());
-                } else if (INTERVAL.match(currentFieldName)) {
+                } else if (context.parseFieldMatcher().match(currentFieldName, INTERVAL)) {
                     interval = parser.text();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
@@ -139,7 +139,7 @@ public class DateHistogramParser implements Aggregator.Parser {
                             //TODO should we throw an error if the value is not "asc" or "desc"???
                         }
                     }
-                } else if (EXTENDED_BOUNDS.match(currentFieldName)) {
+                } else if (context.parseFieldMatcher().match(currentFieldName, EXTENDED_BOUNDS)) {
                     extendedBounds = new ExtendedBounds();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {

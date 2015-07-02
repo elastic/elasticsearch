@@ -84,8 +84,8 @@ public class ScriptSortParser implements SortParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (ScriptField.SCRIPT.match(currentName)) {
-                    script = Script.parse(parser);
+                if (context.parseFieldMatcher().match(currentName, ScriptField.SCRIPT)) {
+                    script = Script.parse(parser, context.parseFieldMatcher());
                 } else if ("params".equals(currentName)) {
                     params = parser.map();
                 } else if ("nested_filter".equals(currentName) || "nestedFilter".equals(currentName)) {
@@ -99,7 +99,7 @@ public class ScriptSortParser implements SortParser {
                     reverse = parser.booleanValue();
                 } else if ("order".equals(currentName)) {
                     reverse = "desc".equals(parser.text());
-                } else if (scriptParameterParser.token(currentName, token, parser)) {
+                } else if (scriptParameterParser.token(currentName, token, parser, context.parseFieldMatcher())) {
                     // Do Nothing (handled by ScriptParameterParser
                 } else if ("type".equals(currentName)) {
                     type = parser.text();

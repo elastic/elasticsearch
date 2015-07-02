@@ -66,9 +66,9 @@ public class SamplerParser implements Aggregator.Parser {
             } else if (vsParser.token(currentFieldName, token, parser)) {
                 continue;
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                if (SHARD_SIZE_FIELD.match(currentFieldName)) {
+                if (context.parseFieldMatcher().match(currentFieldName, SHARD_SIZE_FIELD)) {
                     shardSize = parser.intValue();
-                } else if (MAX_DOCS_PER_VALUE_FIELD.match(currentFieldName)) {
+                } else if (context.parseFieldMatcher().match(currentFieldName, MAX_DOCS_PER_VALUE_FIELD)) {
                     diversityChoiceMade = true;
                     maxDocsPerValue = parser.intValue();
                 } else {
@@ -76,7 +76,7 @@ public class SamplerParser implements Aggregator.Parser {
                             + aggregationName, parser.getTokenLocation());
                 }
             } else if (!vsParser.token(currentFieldName, token, parser)) {
-                if (EXECUTION_HINT_FIELD.match(currentFieldName)) {
+                if (context.parseFieldMatcher().match(currentFieldName, EXECUTION_HINT_FIELD)) {
                     executionHint = parser.text();
                 } else {
                     throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].",

@@ -20,23 +20,18 @@
 package org.elasticsearch.index.query;
 
 import com.google.common.base.Objects;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RandomAccessWeight;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.script.LeafSearchScript;
-import org.elasticsearch.script.Script;
+import org.elasticsearch.script.*;
 import org.elasticsearch.script.Script.ScriptField;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -79,9 +74,9 @@ public class ScriptQueryParser extends BaseQueryParserTemp {
             } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
                 // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (ScriptField.SCRIPT.match(currentFieldName)) {
-                    script = Script.parse(parser);
-                } else if ("params".equals(currentFieldName)) { // TODO remove in 2.0 (here to support old script APIs)
+                if (parseContext.parseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
+                    script = Script.parse(parser, parseContext.parseFieldMatcher());
+                } else if ("params".equals(currentFieldName)) { // TODO remove in 3.0 (here to support old script APIs)
                     params = parser.map();
                 } else {
                     throw new QueryParsingException(parseContext, "[script] query does not support [" + currentFieldName + "]");
@@ -91,7 +86,7 @@ public class ScriptQueryParser extends BaseQueryParserTemp {
                     queryName = parser.text();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
-                } else if (!scriptParameterParser.token(currentFieldName, token, parser)) {
+                } else if (!scriptParameterParser.token(currentFieldName, token, parser, parseContext.parseFieldMatcher())) {
                     throw new QueryParsingException(parseContext, "[script] query does not support [" + currentFieldName + "]");
                 }
             }

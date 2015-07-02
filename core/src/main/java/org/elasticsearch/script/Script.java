@@ -22,6 +22,7 @@ package org.elasticsearch.script;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -204,12 +205,12 @@ public class Script implements ToXContent, Streamable {
         return script;
     }
 
-    public static Script parse(Map<String, Object> config, boolean removeMatchedEntries) {
-        return PARSER.parse(config, removeMatchedEntries);
+    public static Script parse(Map<String, Object> config, boolean removeMatchedEntries, ParseFieldMatcher parseFieldMatcher) {
+        return PARSER.parse(config, removeMatchedEntries, parseFieldMatcher);
     }
 
-    public static Script parse(XContentParser parser) throws IOException {
-        return PARSER.parse(parser);
+    public static Script parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
+        return PARSER.parse(parser, parseFieldMatcher);
     }
 
     @Override
@@ -281,7 +282,7 @@ public class Script implements ToXContent, Streamable {
         }
     }
 
-    public static interface ScriptField {
+    public interface ScriptField {
         ParseField SCRIPT = new ParseField("script");
         ParseField LANG = new ParseField("lang");
         ParseField PARAMS = new ParseField("params");

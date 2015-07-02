@@ -104,7 +104,7 @@ public class RangeQueryParser extends BaseQueryParser {
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
-                } else if (FIELDDATA_FIELD.match(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, FIELDDATA_FIELD)) {
                     // ignore
                 } else {
                     throw new QueryParsingException(parseContext, "[range] query does not support [" + currentFieldName + "]");

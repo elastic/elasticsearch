@@ -20,19 +20,14 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script.ScriptParseException;
 import org.elasticsearch.script.ScriptService.ScriptType;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
+import java.util.*;
 
 public class ScriptParameterParser {
 
@@ -59,7 +54,7 @@ public class ScriptParameterParser {
             fileParameters = new HashSet<>();
             indexedParameters = new HashSet<>();
             for (String parameterName : parameterNames) {
-                if (ScriptService.SCRIPT_LANG.match(parameterName)) {
+                if (ParseFieldMatcher.EMPTY.match(parameterName, ScriptService.SCRIPT_LANG)) {
                     throw new IllegalArgumentException("lang is reserved and cannot be used as a parameter name");
                 }
                 inlineParameters.add(new ParseField(parameterName));
@@ -69,28 +64,28 @@ public class ScriptParameterParser {
         }
     }
 
-    public boolean token(String currentFieldName, XContentParser.Token token, XContentParser parser) throws IOException {
+    public boolean token(String currentFieldName, XContentParser.Token token, XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
         if (token == XContentParser.Token.VALUE_STRING) {
-            if (ScriptService.SCRIPT_LANG.match(currentFieldName)) {
+            if (parseFieldMatcher.match(currentFieldName, ScriptService.SCRIPT_LANG)) {
                 lang  = parser.text();
                 return true;
             } else {
                 for (ParseField parameter : inlineParameters) {
-                    if (parameter.match(currentFieldName)) {
+                    if (parseFieldMatcher.match(currentFieldName, parameter)) {
                         String coreParameterName = parameter.getPreferredName();
                         putParameterValue(coreParameterName, parser.textOrNull(), ScriptType.INLINE);
                         return true;
                     }
                 }
                 for (ParseField parameter : fileParameters) {
-                    if (parameter.match(currentFieldName)) {
+                    if (parseFieldMatcher.match(currentFieldName, parameter)) {
                         String coreParameterName = parameter.getPreferredName().replace(FILE_SUFFIX, "");
                         putParameterValue(coreParameterName, parser.textOrNull(), ScriptType.FILE);
                         return true;
                     }
                 }
                 for (ParseField parameter : indexedParameters) {
-                    if (parameter.match(currentFieldName)) {
+                    if (parseFieldMatcher.match(currentFieldName, parameter)) {
                         String coreParameterName = parameter.getPreferredName().replace(INDEXED_SUFFIX, "");
                         putParameterValue(coreParameterName, parser.textOrNull(), ScriptType.INDEXED);
                         return true;
@@ -101,25 +96,25 @@ public class ScriptParameterParser {
         return false;
     }
 
-    public void parseConfig(Map<String, Object> config, boolean removeMatchedEntries) {
-        for (Iterator<Entry<String, Object>> itr = config.entrySet().iterator(); itr.hasNext();) {
-            Entry<String, Object> entry = itr.next();
+    public void parseConfig(Map<String, Object> config, boolean removeMatchedEntries, ParseFieldMatcher parseFieldMatcher) {
+        for (Iterator<Map.Entry<String, Object>> itr = config.entrySet().iterator(); itr.hasNext();) {
+            Map.Entry<String, Object> entry = itr.next();
             String parameterName = entry.getKey();
             Object parameterValue = entry.getValue();
-            if (ScriptService.SCRIPT_LANG.match(parameterName)) {
+            if (parseFieldMatcher.match(parameterName, ScriptService.SCRIPT_LANG)) {
                 if (parameterValue instanceof String || parameterValue == null) {
-                   lang = (String) parameterValue;
-                   if (removeMatchedEntries) {
-                       itr.remove();
-                   }
+                    lang = (String) parameterValue;
+                    if (removeMatchedEntries) {
+                        itr.remove();
+                    }
                 } else {
                     throw new ScriptParseException("Value must be of type String: [" + parameterName + "]");
-               }
+                }
             } else {
                 for (ParseField parameter : inlineParameters) {
-                    if (parameter.match(parameterName)) {
+                    if (parseFieldMatcher.match(parameterName, parameter)) {
                         String coreParameterName = parameter.getPreferredName();
-                        String stringValue = null;
+                        String stringValue;
                         if (parameterValue instanceof String) {
                             stringValue = (String) parameterValue;
                         } else {
@@ -132,9 +127,9 @@ public class ScriptParameterParser {
                     }
                 }
                 for (ParseField parameter : fileParameters) {
-                    if (parameter.match(parameterName)) {
+                    if (parseFieldMatcher.match(parameterName, parameter)) {
                         String coreParameterName = parameter.getPreferredName().replace(FILE_SUFFIX, "");;
-                        String stringValue = null;
+                        String stringValue;
                         if (parameterValue instanceof String) {
                             stringValue = (String) parameterValue;
                         } else {
@@ -147,7 +142,7 @@ public class ScriptParameterParser {
                     }
                 }
                 for (ParseField parameter : indexedParameters) {
-                    if (parameter.match(parameterName)) {
+                    if (parseFieldMatcher.match(parameterName, parameter)) {
                         String coreParameterName = parameter.getPreferredName().replace(INDEXED_SUFFIX, "");
                         String stringValue = null;
                         if (parameterValue instanceof String) {

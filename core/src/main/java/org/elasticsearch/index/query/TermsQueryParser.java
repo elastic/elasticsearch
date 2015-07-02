@@ -37,7 +37,6 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.indices.cache.query.terms.TermsLookup;
 import org.elasticsearch.search.internal.SearchContext;
@@ -140,7 +139,7 @@ public class TermsQueryParser extends BaseQueryParserTemp {
             } else if (token.isValue()) {
                 if (EXECUTION_KEY.equals(currentFieldName)) {
                     // ignore
-                } else if (MIN_SHOULD_MATCH_FIELD.match(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, MIN_SHOULD_MATCH_FIELD)) {
                     if (minShouldMatch != null) {
                         throw new IllegalArgumentException("[" + currentFieldName + "] is not allowed in a filter context for the [" + TermsQueryBuilder.NAME + "] query");
                     }

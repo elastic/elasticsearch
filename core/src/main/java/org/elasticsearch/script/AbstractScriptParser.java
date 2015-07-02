@@ -19,6 +19,7 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script.ScriptField;
 import org.elasticsearch.script.Script.ScriptParseException;
@@ -43,7 +44,7 @@ public abstract class AbstractScriptParser<S extends Script> {
         return Collections.emptyMap();
     }
 
-    public S parse(XContentParser parser) throws IOException {
+    public S parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
 
         XContentParser.Token token = parser.currentToken();
         // If the parser hasn't yet been pushed to the first token, do it now
@@ -67,37 +68,37 @@ public abstract class AbstractScriptParser<S extends Script> {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (ScriptType.INLINE.getParseField().match(currentFieldName) || ScriptService.SCRIPT_INLINE.match(currentFieldName)) {
+            } else if (parseFieldMatcher.match(currentFieldName, ScriptType.INLINE.getParseField()) || parseFieldMatcher.match(currentFieldName, ScriptService.SCRIPT_INLINE)) {
                 type = ScriptType.INLINE;
                 script = parseInlineScript(parser);
-            } else if (ScriptType.FILE.getParseField().match(currentFieldName) || ScriptService.SCRIPT_FILE.match(currentFieldName)) {
+            } else if (parseFieldMatcher.match(currentFieldName, ScriptType.FILE.getParseField()) || parseFieldMatcher.match(currentFieldName, ScriptService.SCRIPT_FILE)) {
                 type = ScriptType.FILE;
                 if (token == XContentParser.Token.VALUE_STRING) {
                     script = parser.text();
                 } else {
                     throw new ScriptParseException("expected a string value for field [{}], but found [{}]", currentFieldName, token);
                 }
-            } else if (ScriptType.INDEXED.getParseField().match(currentFieldName) || ScriptService.SCRIPT_ID.match(currentFieldName)) {
+            } else if (parseFieldMatcher.match(currentFieldName, ScriptType.INDEXED.getParseField()) || parseFieldMatcher.match(currentFieldName, ScriptService.SCRIPT_ID)) {
                 type = ScriptType.INDEXED;
                 if (token == XContentParser.Token.VALUE_STRING) {
                     script = parser.text();
                 } else {
                     throw new ScriptParseException("expected a string value for field [{}], but found [{}]", currentFieldName, token);
                 }
-            } else if (ScriptField.LANG.match(currentFieldName) || ScriptService.SCRIPT_LANG.match(currentFieldName)) {
+            } else if (parseFieldMatcher.match(currentFieldName, ScriptField.LANG) || parseFieldMatcher.match(currentFieldName, ScriptService.SCRIPT_LANG)) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     lang = parser.text();
                 } else {
                     throw new ScriptParseException("expected a string value for field [{}], but found [{}]", currentFieldName, token);
                 }
-            } else if (ScriptField.PARAMS.match(currentFieldName)) {
+            } else if (parseFieldMatcher.match(currentFieldName, ScriptField.PARAMS)) {
                 if (token == XContentParser.Token.START_OBJECT) {
                     params = parser.map();
                 } else {
                     throw new ScriptParseException("expected an object for field [{}], but found [{}]", currentFieldName, token);
                 }
             } else {
-                // TODO remove this in 2.0
+                // TODO remove this in 3.0
                 ScriptType paramScriptType = getAdditionalScriptParameters().get(currentFieldName);
                 if (paramScriptType != null) {
                     script = parseInlineScript(parser);
@@ -125,7 +126,7 @@ public abstract class AbstractScriptParser<S extends Script> {
         return null;
     }
 
-    public S parse(Map<String, Object> config, boolean removeMatchedEntries) {
+    public S parse(Map<String, Object> config, boolean removeMatchedEntries, ParseFieldMatcher parseFieldMatcher) {
         String script = null;
         ScriptType type = null;
         String lang = null;
@@ -134,7 +135,7 @@ public abstract class AbstractScriptParser<S extends Script> {
             Entry<String, Object> entry = itr.next();
             String parameterName = entry.getKey();
             Object parameterValue = entry.getValue();
-            if (ScriptField.LANG.match(parameterName) || ScriptService.SCRIPT_LANG.match(parameterName)) {
+            if (parseFieldMatcher.match(parameterName, ScriptField.LANG) || parseFieldMatcher.match(parameterName, ScriptService.SCRIPT_LANG)) {
                 if (parameterValue instanceof String || parameterValue == null) {
                     lang = (String) parameterValue;
                     if (removeMatchedEntries) {
@@ -143,7 +144,7 @@ public abstract class AbstractScriptParser<S extends Script> {
                 } else {
                     throw new ScriptParseException("Value must be of type String: [" + parameterName + "]");
                 }
-            } else if (ScriptField.PARAMS.match(parameterName)) {
+            } else if (parseFieldMatcher.match(parameterName, ScriptField.PARAMS)) {
                 if (parameterValue instanceof Map || parameterValue == null) {
                     params = (Map<String, Object>) parameterValue;
                     if (removeMatchedEntries) {
@@ -152,7 +153,7 @@ public abstract class AbstractScriptParser<S extends Script> {
                 } else {
                     throw new ScriptParseException("Value must be of type String: [" + parameterName + "]");
                 }
-            } else if (ScriptType.INLINE.getParseField().match(parameterName) || ScriptService.SCRIPT_INLINE.match(parameterName)) {
+            } else if (parseFieldMatcher.match(parameterName, ScriptType.INLINE.getParseField()) || parseFieldMatcher.match(parameterName, ScriptService.SCRIPT_INLINE)) {
                 if (parameterValue instanceof String || parameterValue == null) {
                     script = (String) parameterValue;
                     type = ScriptType.INLINE;
@@ -162,7 +163,7 @@ public abstract class AbstractScriptParser<S extends Script> {
                 } else {
                     throw new ScriptParseException("Value must be of type String: [" + parameterName + "]");
                 }
-            } else if (ScriptType.FILE.getParseField().match(parameterName) || ScriptService.SCRIPT_FILE.match(parameterName)) {
+            } else if (parseFieldMatcher.match(parameterName, ScriptType.FILE.getParseField()) || parseFieldMatcher.match(parameterName, ScriptService.SCRIPT_FILE)) {
                 if (parameterValue instanceof String || parameterValue == null) {
                     script = (String) parameterValue;
                     type = ScriptType.FILE;
@@ -172,7 +173,7 @@ public abstract class AbstractScriptParser<S extends Script> {
                 } else {
                     throw new ScriptParseException("Value must be of type String: [" + parameterName + "]");
                 }
-            } else if (ScriptType.INDEXED.getParseField().match(parameterName) || ScriptService.SCRIPT_ID.match(parameterName)) {
+            } else if (parseFieldMatcher.match(parameterName, ScriptType.INDEXED.getParseField()) || parseFieldMatcher.match(parameterName, ScriptService.SCRIPT_ID)) {
                 if (parameterValue instanceof String || parameterValue == null) {
                     script = (String) parameterValue;
                     type = ScriptType.INDEXED;

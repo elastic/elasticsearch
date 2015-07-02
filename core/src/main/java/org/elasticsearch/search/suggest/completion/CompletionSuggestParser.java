@@ -60,7 +60,7 @@ public class CompletionSuggestParser implements SuggestContextParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (!parseSuggestContext(parser, mapperService, fieldName, suggestion))  {
+                if (!parseSuggestContext(parser, mapperService, fieldName, suggestion, queryParserService.parseFieldMatcher()))  {
                     if (token == XContentParser.Token.VALUE_BOOLEAN && "fuzzy".equals(fieldName)) {
                         suggestion.setFuzzy(parser.booleanValue());
                     }
@@ -73,7 +73,7 @@ public class CompletionSuggestParser implements SuggestContextParser {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             fuzzyConfigName = parser.currentName();
                         } else if (token.isValue()) {
-                            if (FUZZINESS.match(fuzzyConfigName, ParseField.EMPTY_FLAGS)) {
+                            if (queryParserService.parseFieldMatcher().match(fuzzyConfigName, FUZZINESS)) {
                                 suggestion.setFuzzyEditDistance(Fuzziness.parse(parser).asDistance());
                             } else if ("transpositions".equals(fuzzyConfigName)) {
                                 suggestion.setFuzzyTranspositions(parser.booleanValue());

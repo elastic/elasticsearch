@@ -23,7 +23,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -45,11 +45,7 @@ import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
-import java.util.EnumSet;
 
-/**
- *
- */
 public class IndexQueryParserService extends AbstractIndexComponent {
 
     public static final String DEFAULT_FIELD = "index.query.default_field";
@@ -82,7 +78,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
 
     private String defaultField;
     private boolean queryStringLenient;
-    private final boolean strict;
+    private final ParseFieldMatcher parseFieldMatcher;
     private final boolean defaultAllowUnmappedFields;
 
     @Inject
@@ -103,7 +99,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
 
         this.defaultField = indexSettings.get(DEFAULT_FIELD, AllFieldMapper.NAME);
         this.queryStringLenient = indexSettings.getAsBoolean(QUERY_STRING_LENIENT, false);
-        this.strict = indexSettings.getAsBoolean(PARSE_STRICT, false);
+        this.parseFieldMatcher = new ParseFieldMatcher(indexSettings);
         this.defaultAllowUnmappedFields = indexSettings.getAsBoolean(ALLOW_UNMAPPED, true);
         this.indicesQueriesRegistry = indicesQueriesRegistry;
     }
@@ -240,9 +236,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
 
     @Nullable
     public Query parseInnerQuery(QueryParseContext parseContext) throws IOException {
-        if (strict) {
-            parseContext.parseFlags(EnumSet.of(ParseField.Flag.STRICT));
-        }
+        parseContext.parseFieldMatcher(parseFieldMatcher);
         Query query = parseContext.parseInnerQuery();
         if (query == null) {
             query = Queries.newMatchNoDocsQuery();
@@ -301,9 +295,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     private ParsedQuery innerParse(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException {
         parseContext.reset(parser);
         try {
-            if (strict) {
-                parseContext.parseFlags(EnumSet.of(ParseField.Flag.STRICT));
-            }
+            parseContext.parseFieldMatcher(parseFieldMatcher);
             Query query = parseContext.parseInnerQuery();
             if (query == null) {
                 query = Queries.newMatchNoDocsQuery();
@@ -312,5 +304,9 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         } finally {
             parseContext.reset(null);
         }
+    }
+
+    public ParseFieldMatcher parseFieldMatcher() {
+        return parseFieldMatcher;
     }
 }

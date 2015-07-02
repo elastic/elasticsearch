@@ -21,6 +21,7 @@
 
 package org.elasticsearch.index.query.functionscore.script;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreFunction;
@@ -67,15 +68,15 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (ScriptField.SCRIPT.match(currentFieldName)) {
-                    script = Script.parse(parser);
-                } else if ("params".equals(currentFieldName)) { // TODO remove in 2.0 (here to support old script APIs)
+                if (parseContext.parseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
+                    script = Script.parse(parser, parseContext.parseFieldMatcher());
+                } else if ("params".equals(currentFieldName)) { // TODO remove in 3.0 (here to support old script APIs)
                     vars = parser.map();
                 } else {
                     throw new QueryParsingException(parseContext, NAMES[0] + " query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if (!scriptParameterParser.token(currentFieldName, token, parser)) {
+                if (!scriptParameterParser.token(currentFieldName, token, parser, parseContext.parseFieldMatcher())) {
                     throw new QueryParsingException(parseContext, NAMES[0] + " query does not support [" + currentFieldName + "]");
                 }
             }

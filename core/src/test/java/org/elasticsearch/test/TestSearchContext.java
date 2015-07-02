@@ -27,9 +27,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.common.HasContext;
-import org.elasticsearch.common.HasContextAndHeaders;
-import org.elasticsearch.common.HasHeaders;
+import org.elasticsearch.common.*;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
@@ -85,6 +83,7 @@ public class TestSearchContext extends SearchContext {
     private SearchContextAggregations aggregations;
 
     public TestSearchContext(ThreadPool threadPool,PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, IndexService indexService, QueryCache filterCache, IndexFieldDataService indexFieldDataService) {
+        super(ParseFieldMatcher.STRICT);
         this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.indexService = indexService;
@@ -94,6 +93,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     public TestSearchContext() {
+        super(ParseFieldMatcher.STRICT);
         this.pageCacheRecycler = null;
         this.bigArrays = null;
         this.indexService = null;

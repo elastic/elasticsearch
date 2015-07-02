@@ -81,7 +81,7 @@ public class MultiMatchQueryParser extends BaseQueryParserTemp {
                 if ("query".equals(currentFieldName)) {
                     value = parser.objectText();
                 } else if ("type".equals(currentFieldName)) {
-                    type = MultiMatchQueryBuilder.Type.parse(parser.text(), parseContext.parseFlags());
+                    type = MultiMatchQueryBuilder.Type.parse(parser.text(), parseContext.parseFieldMatcher());
                 } else if ("analyzer".equals(currentFieldName)) {
                     String analyzer = parser.text();
                     if (parseContext.analysisService().analyzer(analyzer) == null) {
@@ -92,7 +92,7 @@ public class MultiMatchQueryParser extends BaseQueryParserTemp {
                     boost = parser.floatValue();
                 } else if ("slop".equals(currentFieldName) || "phrase_slop".equals(currentFieldName) || "phraseSlop".equals(currentFieldName)) {
                     multiMatchQuery.setPhraseSlop(parser.intValue());
-                } else if (Fuzziness.FIELD.match(currentFieldName, parseContext.parseFlags())) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Fuzziness.FIELD)) {
                     multiMatchQuery.setFuzziness(Fuzziness.parse(parser));
                 } else if ("prefix_length".equals(currentFieldName) || "prefixLength".equals(currentFieldName)) {
                     multiMatchQuery.setFuzzyPrefixLength(parser.intValue());

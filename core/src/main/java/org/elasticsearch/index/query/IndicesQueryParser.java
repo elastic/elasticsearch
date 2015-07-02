@@ -73,10 +73,10 @@ public class IndicesQueryParser extends BaseQueryParserTemp {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (QUERY_FIELD.match(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
                     innerQuery = new XContentStructure.InnerQuery(parseContext, null);
                     queryFound = true;
-                } else if (NO_MATCH_QUERY.match(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, NO_MATCH_QUERY)) {
                     innerNoMatchQuery = new XContentStructure.InnerQuery(parseContext, null);
                 } else {
                     throw new QueryParsingException(parseContext, "[indices] query does not support [" + currentFieldName + "]");
@@ -106,7 +106,7 @@ public class IndicesQueryParser extends BaseQueryParserTemp {
                     }
                     indicesFound = true;
                     currentIndexMatchesIndices = matchesIndices(parseContext.index().name(), parser.text());
-                } else if (NO_MATCH_QUERY.match(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, NO_MATCH_QUERY)) {
                     String type = parser.text();
                     if ("all".equals(type)) {
                         noMatchQuery = Queries.newMatchAllQuery();

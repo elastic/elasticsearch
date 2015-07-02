@@ -85,7 +85,7 @@ public class HasParentQueryParser extends BaseQueryParserTemp {
                 // type may not have been extracted yet, so use the
                 // XContentStructure.<type> facade to parse if available,
                 // or delay parsing if not.
-                if (QUERY_FIELD.match(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
                     iq = new XContentStructure.InnerQuery(parseContext, parentType == null ? null : new String[] {parentType});
                     queryFound = true;
                 } else if ("inner_hits".equals(currentFieldName)) {

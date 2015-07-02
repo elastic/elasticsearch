@@ -22,6 +22,7 @@ package org.elasticsearch.rest;
 import org.elasticsearch.action.*;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 
@@ -39,11 +40,13 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
 
     private final RestController controller;
     private final Client client;
+    protected final ParseFieldMatcher parseFieldMatcher;
 
     protected BaseRestHandler(Settings settings, RestController controller, Client client) {
         super(settings);
         this.controller = controller;
         this.client = client;
+        this.parseFieldMatcher = new ParseFieldMatcher(settings);
     }
 
     @Override

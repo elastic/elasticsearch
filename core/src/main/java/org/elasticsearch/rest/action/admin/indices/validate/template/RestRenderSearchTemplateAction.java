@@ -68,7 +68,7 @@ public class RestRenderSearchTemplateAction extends BaseRestHandler {
         String templateId = request.param("id");
         final Template template;
         if (templateId == null) {
-            template = Template.parse(parser);
+            template = Template.parse(parser, parseFieldMatcher);
         } else {
             Map<String, Object> params = null;
             String currentFieldName = null;
@@ -79,7 +79,7 @@ public class RestRenderSearchTemplateAction extends BaseRestHandler {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (ScriptField.PARAMS.match(currentFieldName)) {
+                } else if (parseFieldMatcher.match(currentFieldName, ScriptField.PARAMS)) {
                     if (token == XContentParser.Token.START_OBJECT) {
                         params = parser.map();
                     } else {

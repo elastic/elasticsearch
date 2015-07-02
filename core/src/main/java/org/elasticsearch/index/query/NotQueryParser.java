@@ -58,7 +58,7 @@ public class NotQueryParser extends BaseQueryParser {
             } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
                 // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (QUERY_FIELD.match(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
                     query = parseContext.parseInnerFilterToQueryBuilder();
                     queryFound = true;
                 } else {

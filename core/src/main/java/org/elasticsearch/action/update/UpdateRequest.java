@@ -25,6 +25,7 @@ import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -291,13 +292,13 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     public UpdateRequest addScriptParam(String name, Object value) {
         Script script = script();
         if (script == null) {
-            HashMap<String, Object> scriptParams = new HashMap<String, Object>();
+            HashMap<String, Object> scriptParams = new HashMap<>();
             scriptParams.put(name, value);
             updateOrCreateScript(null, null, null, scriptParams);
         } else {
             Map<String, Object> scriptParams = script.getParams();
             if (scriptParams == null) {
-                scriptParams = new HashMap<String, Object>();
+                scriptParams = new HashMap<>();
                 scriptParams.put(name, value);
                 updateOrCreateScript(null, null, null, scriptParams);
             } else {
@@ -648,7 +649,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if ("script".equals(currentFieldName) && token == XContentParser.Token.START_OBJECT) {
-                    script = Script.parse(parser);
+                    //here we don't have settings available, unable to throw strict deprecation exceptions
+                    script = Script.parse(parser, ParseFieldMatcher.EMPTY);
                 } else if ("params".equals(currentFieldName)) {
                     scriptParams = parser.map();
                 } else if ("scripted_upsert".equals(currentFieldName)) {
@@ -666,7 +668,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
                 } else if ("detect_noop".equals(currentFieldName)) {
                     detectNoop(parser.booleanValue());
                 } else {
-                    scriptParameterParser.token(currentFieldName, token, parser);
+                    //here we don't have settings available, unable to throw deprecation exceptions
+                    scriptParameterParser.token(currentFieldName, token, parser, ParseFieldMatcher.EMPTY);
                 }
             }
             // Don't have a script using the new API so see if it is specified with the old API

@@ -74,7 +74,7 @@ public class FunctionScoreQueryParser implements QueryParser {
 
     static {
         CombineFunction[] values = CombineFunction.values();
-        Builder<String, CombineFunction> combineFunctionMapBuilder = ImmutableMap.<String, CombineFunction>builder();
+        Builder<String, CombineFunction> combineFunctionMapBuilder = ImmutableMap.builder();
         for (CombineFunction combineFunction : values) {
             combineFunctionMapBuilder.put(combineFunction.getName(), combineFunction);
         }
@@ -108,7 +108,7 @@ public class FunctionScoreQueryParser implements QueryParser {
                 currentFieldName = parser.currentName();
             } else if ("query".equals(currentFieldName)) {
                 query = parseContext.parseInnerQuery();
-            } else if (FILTER_FIELD.match(currentFieldName)) {
+            } else if (parseContext.parseFieldMatcher().match(currentFieldName, FILTER_FIELD)) {
                 filter = parseContext.parseInnerFilter();
             } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
                 scoreMode = parseScoreMode(parseContext, parser);
@@ -217,7 +217,7 @@ public class FunctionScoreQueryParser implements QueryParser {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
-                    } else if (WEIGHT_FIELD.match(currentFieldName)) {
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, WEIGHT_FIELD)) {
                         functionWeight = parser.floatValue();
                     } else {
                         if ("filter".equals(currentFieldName)) {

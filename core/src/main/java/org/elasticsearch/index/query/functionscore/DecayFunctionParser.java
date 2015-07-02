@@ -122,7 +122,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
     public ScoreFunction parse(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException {
         String currentFieldName;
         XContentParser.Token token;
-        AbstractDistanceScoreFunction scoreFunction = null;
+        AbstractDistanceScoreFunction scoreFunction;
         String multiValueMode = "MIN";
         XContentBuilder variableContent = XContentFactory.jsonBuilder();
         String fieldName = null;
@@ -132,7 +132,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             if (token == XContentParser.Token.START_OBJECT) {
                 variableContent.copyCurrentStructure(parser);
                 fieldName = currentFieldName;
-            } else if (MULTI_VALUE_MODE.match(currentFieldName)) {
+            } else if (parseContext.parseFieldMatcher().match(currentFieldName, MULTI_VALUE_MODE)) {
                 multiValueMode = parser.text();
             } else {
                 throw new ElasticsearchParseException("malformed score function score parameters.");

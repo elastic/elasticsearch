@@ -70,7 +70,7 @@ public class NestedQueryParser extends BaseQueryParserTemp {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("query".equals(currentFieldName)) {
                     builder.query();
-                } else if (FILTER_FIELD.match(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, FILTER_FIELD)) {
                     builder.filter();
                 } else if ("inner_hits".equals(currentFieldName)) {
                     builder.setInnerHits(innerHitsQueryParserHelper.parse(parseContext));

@@ -177,7 +177,7 @@ public class QueryStringQueryParser extends BaseQueryParserTemp {
                     qpSettings.fuzzyRewriteMethod(QueryParsers.parseRewriteMethod(parser.textOrNull()));
                 } else if ("phrase_slop".equals(currentFieldName) || "phraseSlop".equals(currentFieldName)) {
                     qpSettings.phraseSlop(parser.intValue());
-                } else if (FUZZINESS.match(currentFieldName, parseContext.parseFlags())) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, FUZZINESS)) {
                     qpSettings.fuzzyMinSim(Fuzziness.parse(parser).asSimilarity());
                 } else if ("boost".equals(currentFieldName)) {
                     qpSettings.boost(parser.floatValue());

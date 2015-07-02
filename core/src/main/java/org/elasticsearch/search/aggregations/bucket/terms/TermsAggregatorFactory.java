@@ -20,12 +20,9 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -125,9 +122,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
             }
         };
 
-        public static ExecutionMode fromString(String value) {
+        public static ExecutionMode fromString(String value, ParseFieldMatcher parseFieldMatcher) {
             for (ExecutionMode mode : values()) {
-                if (mode.parseField.match(value)) {
+                if (parseFieldMatcher.match(value, mode.parseField)) {
                     return mode;
                 }
             }
@@ -201,7 +198,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
         if (valuesSource instanceof ValuesSource.Bytes) {
             ExecutionMode execution = null;
             if (executionHint != null) {
-                execution = ExecutionMode.fromString(executionHint);
+                execution = ExecutionMode.fromString(executionHint, aggregationContext.searchContext().parseFieldMatcher());
             }
 
             // In some cases, using ordinals is just not supported: override it
@@ -243,7 +240,6 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                 }
             }
 
-            assert execution != null;
             return execution.create(name, factories, valuesSource, order, bucketCountThresholds, includeExclude, aggregationContext,
                     parent, collectMode, showTermDocCountError, pipelineAggregators, metaData);
         }

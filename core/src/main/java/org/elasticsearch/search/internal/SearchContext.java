@@ -29,6 +29,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
@@ -65,8 +66,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- */
 public abstract class SearchContext implements Releasable, HasContextAndHeaders {
 
     private static ThreadLocal<SearchContext> current = new ThreadLocal<>();
@@ -88,6 +87,16 @@ public abstract class SearchContext implements Releasable, HasContextAndHeaders 
 
     private Multimap<Lifetime, Releasable> clearables = null;
     private final AtomicBoolean closed = new AtomicBoolean(false);
+
+    protected final ParseFieldMatcher parseFieldMatcher;
+
+    protected SearchContext(ParseFieldMatcher parseFieldMatcher) {
+        this.parseFieldMatcher = parseFieldMatcher;
+    }
+
+    public ParseFieldMatcher parseFieldMatcher() {
+        return parseFieldMatcher;
+    }
 
     @Override
     public final void close() {
@@ -181,8 +190,6 @@ public abstract class SearchContext implements Releasable, HasContextAndHeaders 
 
     /**
      * A shortcut function to see whether there is a fetchSourceContext and it says the source is requested.
-     *
-     * @return
      */
     public abstract boolean sourceRequested();
 
@@ -315,7 +322,7 @@ public abstract class SearchContext implements Releasable, HasContextAndHeaders 
     public abstract FetchSearchResult fetchResult();
 
     /**
-     * Schedule the release of a resource. The time when {@link Releasable#release()} will be called on this object
+     * Schedule the release of a resource. The time when {@link Releasable#close()} will be called on this object
      * is function of the provided {@link Lifetime}.
      */
     public void addReleasable(Releasable releasable, Lifetime lifetime) {
@@ -366,6 +373,6 @@ public abstract class SearchContext implements Releasable, HasContextAndHeaders 
         /**
          * This life time is for objects that need to live until the search context they are attached to is destroyed.
          */
-        CONTEXT;
+        CONTEXT
     }
 }

@@ -24,13 +24,13 @@ import com.google.common.collect.Lists;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.search.MatchQuery;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 
@@ -133,15 +133,11 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
             return parseField;
         }
 
-        public static Type parse(String value) {
-            return parse(value, ParseField.EMPTY_FLAGS);
-        }
-
-        public static Type parse(String value, EnumSet<ParseField.Flag> flags) {
+        public static Type parse(String value, ParseFieldMatcher parseFieldMatcher) {
             MultiMatchQueryBuilder.Type[] values = MultiMatchQueryBuilder.Type.values();
             Type type = null;
             for (MultiMatchQueryBuilder.Type t : values) {
-                if (t.parseField().match(value, flags)) {
+                if (parseFieldMatcher.match(value, t.parseField())) {
                     type = t;
                     break;
                 }
@@ -194,7 +190,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
      * Sets the type of the text query.
      */
     public MultiMatchQueryBuilder type(Object type) {
-        this.type = type == null ? null : Type.parse(type.toString().toLowerCase(Locale.ROOT));
+        this.type = type == null ? null : Type.parse(type.toString().toLowerCase(Locale.ROOT), ParseFieldMatcher.EMPTY);
         return this;
     }
 

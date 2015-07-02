@@ -20,16 +20,15 @@
 package org.elasticsearch.search.aggregations.pipeline.moving.avg;
 
 import com.google.common.collect.EvictingQueue;
-
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.*;
 import org.elasticsearch.test.ElasticsearchTestCase;
-
-import static org.hamcrest.Matchers.equalTo;
-
 import org.junit.Test;
 
 import java.text.ParseException;
 import java.util.*;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class MovAvgUnitTests extends ElasticsearchTestCase {
 
@@ -519,7 +518,7 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
         }
 
         int seasonCounter = (windowSize - 1) - period;
-        double expected = s + (0 * b) + seasonal[seasonCounter % windowSize];;
+        double expected = s + (0 * b) + seasonal[seasonCounter % windowSize];
         double actual = model.next(window);
         assertThat(Double.compare(expected, actual), equalTo(0));
     }
@@ -619,7 +618,7 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
                 settings.put("gamma", v);
 
                 try {
-                    parser.parse(settings, "pipeline", 10);
+                    parser.parse(settings, "pipeline", 10, ParseFieldMatcher.STRICT);
                 } catch (ParseException e) {
                     fail(parser.getName() + " parser should not have thrown SearchParseException while parsing [" +
                             v.getClass().getSimpleName() +"]");
@@ -634,7 +633,7 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
             settings.put("gamma", "abc");
 
             try {
-                parser.parse(settings, "pipeline", 10);
+                parser.parse(settings, "pipeline", 10, ParseFieldMatcher.STRICT);
             } catch (ParseException e) {
                 //all good
                 continue;

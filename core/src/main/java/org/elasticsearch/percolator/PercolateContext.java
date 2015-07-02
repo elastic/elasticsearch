@@ -32,9 +32,7 @@ import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.common.HasContext;
-import org.elasticsearch.common.HasContextAndHeaders;
-import org.elasticsearch.common.HasHeaders;
+import org.elasticsearch.common.*;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.text.StringText;
@@ -77,11 +75,7 @@ import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -123,7 +117,8 @@ public class PercolateContext extends SearchContext {
 
     public PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, IndexShard indexShard,
                             IndexService indexService, PageCacheRecycler pageCacheRecycler,
-                            BigArrays bigArrays, ScriptService scriptService, Query aliasFilter) {
+                            BigArrays bigArrays, ScriptService scriptService, Query aliasFilter, ParseFieldMatcher parseFieldMatcher) {
+        super(parseFieldMatcher);
         this.indexShard = indexShard;
         this.indexService = indexService;
         this.fieldDataService = indexService.fieldData();

@@ -20,9 +20,9 @@
 package org.elasticsearch.search.aggregations.pipeline.movavg.models;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -85,8 +85,6 @@ public abstract class MovAvgModel {
 
     /**
      * Returns an empty set of predictions, filled with NaNs
-     * @param numPredictions
-     * @return
      */
     protected double[] emptyPredictions(int numPredictions) {
         double[] predictions = new double[numPredictions];
@@ -117,12 +115,13 @@ public abstract class MovAvgModel {
         /**
          * Parse a settings hash that is specific to this model
          *
-         * @param settings      Map of settings, extracted from the request
-         * @param pipelineName   Name of the parent pipeline agg
-         * @param windowSize    Size of the window for this moving avg
-         * @return              A fully built moving average model
+         * @param settings           Map of settings, extracted from the request
+         * @param pipelineName       Name of the parent pipeline agg
+         * @param windowSize         Size of the window for this moving avg
+         * @param parseFieldMatcher  Matcher for field names
+         * @return                   A fully built moving average model
          */
-        public abstract MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName, int windowSize) throws ParseException;
+        public abstract MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName, int windowSize, ParseFieldMatcher parseFieldMatcher) throws ParseException;
 
 
         /**

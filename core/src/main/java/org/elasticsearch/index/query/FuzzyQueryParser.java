@@ -84,7 +84,7 @@ public class FuzzyQueryParser extends BaseQueryParserTemp {
                         value = parser.text();
                     } else if ("boost".equals(currentFieldName)) {
                         boost = parser.floatValue();
-                    } else if (FUZZINESS.match(currentFieldName, parseContext.parseFlags())) {
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, FUZZINESS)) {
                         fuzziness = Fuzziness.parse(parser);
                     } else if ("prefix_length".equals(currentFieldName) || "prefixLength".equals(currentFieldName)) {
                         prefixLength = parser.intValue();

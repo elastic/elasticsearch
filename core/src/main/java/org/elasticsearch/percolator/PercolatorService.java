@@ -38,7 +38,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.action.percolate.PercolateShardResponse;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -111,7 +110,6 @@ public class PercolatorService extends AbstractComponent {
 
     private final IndicesService indicesService;
     private final IntObjectHashMap<PercolatorType> percolatorTypes;
-    private final PageCacheRecycler pageCacheRecycler;
     private final BigArrays bigArrays;
     private final ClusterService clusterService;
 
@@ -128,13 +126,12 @@ public class PercolatorService extends AbstractComponent {
 
     @Inject
     public PercolatorService(Settings settings, IndicesService indicesService,
-                             PageCacheRecycler pageCacheRecycler, BigArrays bigArrays,
+                             BigArrays bigArrays,
                              HighlightPhase highlightPhase, ClusterService clusterService,
                              AggregationPhase aggregationPhase, ScriptService scriptService,
                              MappingUpdatedAction mappingUpdatedAction) {
         super(settings);
         this.indicesService = indicesService;
-        this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays;
         this.clusterService = clusterService;
         this.highlightPhase = highlightPhase;
@@ -186,7 +183,7 @@ public class PercolatorService extends AbstractComponent {
 
         SearchShardTarget searchShardTarget = new SearchShardTarget(clusterService.localNode().id(), request.shardId().getIndex(), request.shardId().id());
         final PercolateContext context = new PercolateContext(
-                request, searchShardTarget, indexShard, percolateIndexService, pageCacheRecycler, bigArrays, scriptService, aliasFilter
+                request, searchShardTarget, indexShard, percolateIndexService, bigArrays, scriptService, aliasFilter
         );
         try {
             ParsedDocument parsedDocument = parseRequest(percolateIndexService, request, context);

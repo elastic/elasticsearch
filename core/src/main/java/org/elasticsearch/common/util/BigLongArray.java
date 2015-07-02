@@ -20,6 +20,7 @@
 package org.elasticsearch.common.util;
 
 import com.google.common.base.Preconditions;
+
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 
@@ -36,12 +37,12 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
     private long[][] pages;
 
     /** Constructor. */
-    public BigLongArray(long size, BigArrays bigArrays, boolean clearOnResize) {
-        super(LONG_PAGE_SIZE, bigArrays, clearOnResize);
+    public BigLongArray(long size, BigArrays bigArrays) {
+        super(LONG_PAGE_SIZE, bigArrays);
         this.size = size;
         pages = new long[numPages(size)][];
         for (int i = 0; i < pages.length; ++i) {
-            pages[i] = newLongPage(i);
+            pages[i] = new long[LONG_PAGE_SIZE];
         }
     }
 
@@ -82,11 +83,10 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
             pages = Arrays.copyOf(pages, ArrayUtil.oversize(numPages, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
         }
         for (int i = numPages - 1; i >= 0 && pages[i] == null; --i) {
-            pages[i] = newLongPage(i);
+            pages[i] = new long[LONG_PAGE_SIZE];
         }
         for (int i = numPages; i < pages.length && pages[i] != null; ++i) {
             pages[i] = null;
-            releasePage(i);
         }
         this.size = newSize;
     }

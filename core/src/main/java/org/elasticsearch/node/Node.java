@@ -22,8 +22,6 @@ package org.elasticsearch.node;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.cache.recycler.PageCacheRecyclerModule;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClientModule;
 import org.elasticsearch.cluster.ClusterModule;
@@ -162,7 +160,6 @@ public class Node implements Releasable {
         try {
             ModulesBuilder modules = new ModulesBuilder();
             modules.add(new Version.Module(version));
-            modules.add(new PageCacheRecyclerModule(settings));
             modules.add(new CircuitBreakerModule(settings));
             modules.add(new BigArraysModule(settings));
             modules.add(new PluginsModule(settings, pluginsService));
@@ -403,7 +400,6 @@ public class Node implements Releasable {
         }
 
         injector.getInstance(NodeEnvironment.class).close();
-        injector.getInstance(PageCacheRecycler.class).close();
 
         logger.info("closed");
     }

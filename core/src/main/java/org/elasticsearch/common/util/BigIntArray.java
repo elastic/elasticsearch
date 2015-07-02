@@ -36,12 +36,12 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
     private int[][] pages;
 
     /** Constructor. */
-    public BigIntArray(long size, BigArrays bigArrays, boolean clearOnResize) {
-        super(INT_PAGE_SIZE, bigArrays, clearOnResize);
+    public BigIntArray(long size, BigArrays bigArrays) {
+        super(INT_PAGE_SIZE, bigArrays);
         this.size = size;
         pages = new int[numPages(size)][];
         for (int i = 0; i < pages.length; ++i) {
-            pages[i] = newIntPage(i);
+            pages[i] = new int[INT_PAGE_SIZE];
         }
     }
 
@@ -98,11 +98,10 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
             pages = Arrays.copyOf(pages, ArrayUtil.oversize(numPages, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
         }
         for (int i = numPages - 1; i >= 0 && pages[i] == null; --i) {
-            pages[i] = newIntPage(i);
+            pages[i] = new int[INT_PAGE_SIZE];
         }
         for (int i = numPages; i < pages.length && pages[i] != null; ++i) {
             pages[i] = null;
-            releasePage(i);
         }
         this.size = newSize;
     }

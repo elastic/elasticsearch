@@ -31,7 +31,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.HasContext;
 import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.HasHeaders;
@@ -98,7 +97,6 @@ public class PercolateContext extends SearchContext {
     private final IndexService indexService;
     private final IndexFieldDataService fieldDataService;
     private final IndexShard indexShard;
-    private final PageCacheRecycler pageCacheRecycler;
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
     private final ConcurrentMap<BytesRef, Query> percolateQueries;
@@ -122,15 +120,13 @@ public class PercolateContext extends SearchContext {
     private Sort sort;
 
     public PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, IndexShard indexShard,
-                            IndexService indexService, PageCacheRecycler pageCacheRecycler,
-                            BigArrays bigArrays, ScriptService scriptService, Query aliasFilter) {
+                            IndexService indexService, BigArrays bigArrays, ScriptService scriptService, Query aliasFilter) {
         this.indexShard = indexShard;
         this.indexService = indexService;
         this.fieldDataService = indexService.fieldData();
         this.searchShardTarget = searchShardTarget;
         this.percolateQueries = indexShard.percolateRegistry().percolateQueries();
         this.types = new String[]{request.documentType()};
-        this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.querySearchResult = new QuerySearchResult(0, searchShardTarget);
         this.engineSearcher = indexShard.acquireSearcher("percolate");
@@ -438,11 +434,6 @@ public class PercolateContext extends SearchContext {
     @Override
     public ScriptService scriptService() {
         return scriptService;
-    }
-
-    @Override
-    public PageCacheRecycler pageCacheRecycler() {
-        return pageCacheRecycler;
     }
 
     @Override

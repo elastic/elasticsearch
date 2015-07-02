@@ -57,7 +57,7 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
         super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
-            mins = context.bigArrays().newDoubleArray(1, false);
+            mins = context.bigArrays().newDoubleArray(1);
             mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
         }
         this.formatter = formatter;

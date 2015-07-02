@@ -59,7 +59,7 @@ public class MaxAggregator extends NumericMetricsAggregator.SingleValue {
         this.valuesSource = valuesSource;
         this.formatter = formatter;
         if (valuesSource != null) {
-            maxes = context.bigArrays().newDoubleArray(1, false);
+            maxes = context.bigArrays().newDoubleArray(1);
             maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
         }
     }

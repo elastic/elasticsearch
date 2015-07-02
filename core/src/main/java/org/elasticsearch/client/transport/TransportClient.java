@@ -26,7 +26,6 @@ import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.client.transport.support.TransportProxyClient;
@@ -263,8 +262,6 @@ public class TransportClient extends AbstractClient {
         } catch (Exception e) {
             // ignore
         }
-
-        injector.getInstance(PageCacheRecycler.class).close();
     }
 
     @Override

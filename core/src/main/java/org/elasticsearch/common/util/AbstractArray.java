@@ -28,23 +28,22 @@ import java.util.Collections;
 abstract class AbstractArray implements BigArray {
 
     private final BigArrays bigArrays;
-    public final boolean clearOnResize;
     private boolean released = false;
 
-    AbstractArray(BigArrays bigArrays, boolean clearOnResize) {
+    AbstractArray(BigArrays bigArrays) {
         this.bigArrays = bigArrays;
-        this.clearOnResize = clearOnResize;
     }
 
     @Override
     public final void close() {
-        bigArrays.adjustBreaker(-ramBytesUsed());
-        assert !released : "double release";
-        released = true;
-        doClose();
+        if (released == false) {
+            released = true;
+            bigArrays.adjustBreaker(-ramBytesUsed());
+            doClose();
+        }
     }
 
-    protected abstract void doClose();
+    protected void doClose() {}
 
     @Override
     public Collection<Accountable> getChildResources() {

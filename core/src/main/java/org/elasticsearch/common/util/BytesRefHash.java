@@ -47,10 +47,10 @@ public final class BytesRefHash extends AbstractHash {
     //Constructor with configurable capacity and load factor.
     public BytesRefHash(long capacity, float maxLoadFactor, BigArrays bigArrays) {
         super(capacity, maxLoadFactor, bigArrays);
-        startOffsets = bigArrays.newLongArray(capacity + 1, false);
+        startOffsets = bigArrays.newLongArray(capacity + 1);
         startOffsets.set(0, 0);
-        bytes = bigArrays.newByteArray(capacity * 3, false);
-        hashes = bigArrays.newIntArray(capacity, false);
+        bytes = bigArrays.newByteArray(capacity * 3);
+        hashes = bigArrays.newIntArray(capacity);
         spare = new BytesRef();
     }
 

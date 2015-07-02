@@ -47,7 +47,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, factories, context, parent, pipelineAggregators, metaData);
         bigArrays = context.bigArrays();
-        docCounts = bigArrays.newIntArray(1, true);
+        docCounts = bigArrays.newIntArray(1);
     }
 
     /**

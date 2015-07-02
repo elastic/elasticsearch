@@ -159,7 +159,7 @@ public class ParentQuery extends IndexCacheableQuery {
         ParentOrdAndScoreCollector(SearchContext searchContext, IndexParentChildFieldData globalIfd, String parentType) {
             this.bigArrays = searchContext.bigArrays();
             this.parentIdxs = new LongHash(512, bigArrays);
-            this.scores = bigArrays.newFloatArray(512, false);
+            this.scores = bigArrays.newFloatArray(512);
             this.globalIfd = globalIfd;
             this.parentType = parentType;
         }

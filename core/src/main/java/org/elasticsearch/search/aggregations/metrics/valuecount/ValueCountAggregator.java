@@ -61,7 +61,7 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
         this.valuesSource = valuesSource;
         this.formatter = formatter;
         if (valuesSource != null) {
-            counts = context.bigArrays().newLongArray(1, true);
+            counts = context.bigArrays().newLongArray(1);
         }
     }
 

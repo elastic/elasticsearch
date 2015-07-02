@@ -37,12 +37,12 @@ final class BigByteArray extends AbstractBigArray implements ByteArray {
     private byte[][] pages;
 
     /** Constructor. */
-    public BigByteArray(long size, BigArrays bigArrays, boolean clearOnResize) {
-        super(BYTE_PAGE_SIZE, bigArrays, clearOnResize);
+    public BigByteArray(long size, BigArrays bigArrays) {
+        super(BYTE_PAGE_SIZE, bigArrays);
         this.size = size;
         pages = new byte[numPages(size)][];
         for (int i = 0; i < pages.length; ++i) {
-            pages[i] = newBytePage(i);
+            pages[i] = new byte[BYTE_PAGE_SIZE];
         }
     }
     
@@ -137,11 +137,10 @@ final class BigByteArray extends AbstractBigArray implements ByteArray {
             pages = Arrays.copyOf(pages, ArrayUtil.oversize(numPages, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
         }
         for (int i = numPages - 1; i >= 0 && pages[i] == null; --i) {
-            pages[i] = newBytePage(i);
+            pages[i] = new byte[BYTE_PAGE_SIZE];
         }
         for (int i = numPages; i < pages.length && pages[i] != null; ++i) {
             pages[i] = null;
-            releasePage(i);
         }
         this.size = newSize;
     }

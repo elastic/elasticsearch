@@ -41,7 +41,7 @@ public final class LongHash extends AbstractHash {
     //Constructor with configurable capacity and load factor.
     public LongHash(long capacity, float maxLoadFactor, BigArrays bigArrays) {
         super(capacity, maxLoadFactor, bigArrays);
-        keys = bigArrays.newLongArray(capacity, false);
+        keys = bigArrays.newLongArray(capacity);
     }
 
     /**

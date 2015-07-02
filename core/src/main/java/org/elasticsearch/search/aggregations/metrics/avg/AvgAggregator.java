@@ -59,8 +59,8 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
         this.formatter = formatter;
         if (valuesSource != null) {
             final BigArrays bigArrays = context.bigArrays();
-            counts = bigArrays.newLongArray(1, true);
-            sums = bigArrays.newDoubleArray(1, true);
+            counts = bigArrays.newLongArray(1);
+            sums = bigArrays.newDoubleArray(1);
         }
     }
 

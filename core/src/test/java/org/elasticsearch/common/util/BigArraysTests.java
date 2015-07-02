@@ -20,7 +20,6 @@
 package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
@@ -28,7 +27,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.settings.NodeSettingsService;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.junit.Before;
 
@@ -36,11 +35,10 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 
-public class BigArraysTests extends ElasticsearchSingleNodeTest {
+public class BigArraysTests extends ElasticsearchTestCase {
 
     public static BigArrays randombigArrays() {
-        final PageCacheRecycler recycler = randomBoolean() ? null : ElasticsearchSingleNodeTest.getInstanceFromNode(PageCacheRecycler.class);
-        return new MockBigArrays(recycler, new NoneCircuitBreakerService());
+        return new MockBigArrays(new NoneCircuitBreakerService());
     }
 
     private BigArrays bigArrays;
@@ -53,7 +51,7 @@ public class BigArraysTests extends ElasticsearchSingleNodeTest {
     public void testByteArrayGrowth() {
         final int totalLen = randomIntBetween(1, 4000000);
         final int startLen = randomIntBetween(1, randomBoolean() ? 1000 : totalLen);
-        ByteArray array = bigArrays.newByteArray(startLen, randomBoolean());
+        ByteArray array = bigArrays.newByteArray(startLen);
         byte[] ref = new byte[totalLen];
         for (int i = 0; i < totalLen; ++i) {
             ref[i] = randomByte();
@@ -69,7 +67,7 @@ public class BigArraysTests extends ElasticsearchSingleNodeTest {
     public void testIntArrayGrowth() {
         final int totalLen = randomIntBetween(1, 1000000);
         final int startLen = randomIntBetween(1, randomBoolean() ? 1000 : totalLen);
-        IntArray array = bigArrays.newIntArray(startLen, randomBoolean());
+        IntArray array = bigArrays.newIntArray(startLen);
         int[] ref = new int[totalLen];
         for (int i = 0; i < totalLen; ++i) {
             ref[i] = randomInt();
@@ -85,7 +83,7 @@ public class BigArraysTests extends ElasticsearchSingleNodeTest {
     public void testLongArrayGrowth() {
         final int totalLen = randomIntBetween(1, 1000000);
         final int startLen = randomIntBetween(1, randomBoolean() ? 1000 : totalLen);
-        LongArray array = bigArrays.newLongArray(startLen, randomBoolean());
+        LongArray array = bigArrays.newLongArray(startLen);
         long[] ref = new long[totalLen];
         for (int i = 0; i < totalLen; ++i) {
             ref[i] = randomLong();
@@ -101,7 +99,7 @@ public class BigArraysTests extends ElasticsearchSingleNodeTest {
     public void testFloatArrayGrowth() {
         final int totalLen = randomIntBetween(1, 1000000);
         final int startLen = randomIntBetween(1, randomBoolean() ? 1000 : totalLen);
-        FloatArray array = bigArrays.newFloatArray(startLen, randomBoolean());
+        FloatArray array = bigArrays.newFloatArray(startLen);
         float[] ref = new float[totalLen];
         for (int i = 0; i < totalLen; ++i) {
             ref[i] = randomFloat();
@@ -117,7 +115,7 @@ public class BigArraysTests extends ElasticsearchSingleNodeTest {
     public void testDoubleArrayGrowth() {
         final int totalLen = randomIntBetween(1, 1000000);
         final int startLen = randomIntBetween(1, randomBoolean() ? 1000 : totalLen);
-        DoubleArray array = bigArrays.newDoubleArray(startLen, randomBoolean());
+        DoubleArray array = bigArrays.newDoubleArray(startLen);
         double[] ref = new double[totalLen];
         for (int i = 0; i < totalLen; ++i) {
             ref[i] = randomDouble();
@@ -156,7 +154,7 @@ public class BigArraysTests extends ElasticsearchSingleNodeTest {
         final int toIndex = randomBoolean()
             ? Math.min(fromIndex + randomInt(100), len) // single page
             : randomIntBetween(fromIndex, len); // likely multiple pages
-        final ByteArray array2 = bigArrays.newByteArray(len, randomBoolean());
+        final ByteArray array2 = bigArrays.newByteArray(len);
         final byte[] array1 = new byte[len];
         for (int i = 0; i < len; ++i) {
             array1[i] = randomByte();
@@ -177,7 +175,7 @@ public class BigArraysTests extends ElasticsearchSingleNodeTest {
         final int toIndex = randomBoolean()
             ? Math.min(fromIndex + randomInt(100), len) // single page
             : randomIntBetween(fromIndex, len); // likely multiple pages
-        final FloatArray array2 = bigArrays.newFloatArray(len, randomBoolean());
+        final FloatArray array2 = bigArrays.newFloatArray(len);
         final float[] array1 = new float[len];
         for (int i = 0; i < len; ++i) {
             array1[i] = randomFloat();
@@ -198,7 +196,7 @@ public class BigArraysTests extends ElasticsearchSingleNodeTest {
         final int toIndex = randomBoolean()
             ? Math.min(fromIndex + randomInt(100), len) // single page
             : randomIntBetween(fromIndex, len); // likely multiple pages
-        final DoubleArray array2 = bigArrays.newDoubleArray(len, randomBoolean());
+        final DoubleArray array2 = bigArrays.newDoubleArray(len);
         final double[] array1 = new double[len];
         for (int i = 0; i < len; ++i) {
             array1[i] = randomDouble();
@@ -219,7 +217,7 @@ public class BigArraysTests extends ElasticsearchSingleNodeTest {
         final int toIndex = randomBoolean()
             ? Math.min(fromIndex + randomInt(100), len) // single page
             : randomIntBetween(fromIndex, len); // likely multiple pages
-        final LongArray array2 = bigArrays.newLongArray(len, randomBoolean());
+        final LongArray array2 = bigArrays.newLongArray(len);
         final long[] array1 = new long[len];
         for (int i = 0; i < len; ++i) {
             array1[i] = randomLong();
@@ -237,7 +235,7 @@ public class BigArraysTests extends ElasticsearchSingleNodeTest {
     public void testByteArrayBulkGet() {
         final byte[] array1 = new byte[randomIntBetween(1, 4000000)];
         getRandom().nextBytes(array1);
-        final ByteArray array2 = bigArrays.newByteArray(array1.length, randomBoolean());
+        final ByteArray array2 = bigArrays.newByteArray(array1.length);
         for (int i = 0; i < array1.length; ++i) {
             array2.set(i, array1[i]);
         }
@@ -254,7 +252,7 @@ public class BigArraysTests extends ElasticsearchSingleNodeTest {
     public void testByteArrayBulkSet() {
         final byte[] array1 = new byte[randomIntBetween(1, 4000000)];
         getRandom().nextBytes(array1);
-        final ByteArray array2 = bigArrays.newByteArray(array1.length, randomBoolean());
+        final ByteArray array2 = bigArrays.newByteArray(array1.length);
         for (int i = 0; i < array1.length; ) {
             final int len = Math.min(array1.length - i, randomBoolean() ? randomInt(10) : randomInt(3 * BigArrays.BYTE_PAGE_SIZE));
             array2.set(i, array1, i, len);
@@ -340,7 +338,7 @@ public class BigArraysTests extends ElasticsearchSingleNodeTest {
                             .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING, size - 1, ByteSizeUnit.BYTES)
                             .build(),
                     new NodeSettingsService(Settings.EMPTY));
-            BigArrays bigArrays = new BigArrays(null, hcbs).withCircuitBreaking();
+            BigArrays bigArrays = new BigArrays(hcbs).withCircuitBreaking();
             Method create = BigArrays.class.getMethod("new" + type + "Array", long.class);
             try {
                 create.invoke(bigArrays, size);
@@ -360,7 +358,7 @@ public class BigArraysTests extends ElasticsearchSingleNodeTest {
                             .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING, maxSize, ByteSizeUnit.BYTES)
                             .build(),
                     new NodeSettingsService(Settings.EMPTY));
-            BigArrays bigArrays = new BigArrays(null, hcbs).withCircuitBreaking();
+            BigArrays bigArrays = new BigArrays(hcbs).withCircuitBreaking();
             Method create = BigArrays.class.getMethod("new" + type + "Array", long.class);
             final int size = scaledRandomIntBetween(1, 20);
             BigArray array = (BigArray) create.invoke(bigArrays, size);

@@ -26,7 +26,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -62,20 +61,16 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
 
     private final ScriptService scriptService;
 
-    private final PageCacheRecycler pageCacheRecycler;
-
     private final BigArrays bigArrays;
 
     @Inject
     public TransportExplainAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                   TransportService transportService, IndicesService indicesService,
-                                  ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
-                                  BigArrays bigArrays, ActionFilters actionFilters) {
+                                  ScriptService scriptService, BigArrays bigArrays, ActionFilters actionFilters) {
         super(settings, ExplainAction.NAME, threadPool, clusterService, transportService, actionFilters,
                 ExplainRequest.class, ThreadPool.Names.GET);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
-        this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays;
     }
 
@@ -112,8 +107,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         SearchContext context = new DefaultSearchContext(
                 0, new ShardSearchLocalRequest(new String[]{request.type()}, request.nowInMillis, request.filteringAlias()),
                 null, result.searcher(), indexService, indexShard,
-                scriptService, pageCacheRecycler,
-                bigArrays, threadPool.estimatedTimeInMillisCounter()
+                scriptService, bigArrays, threadPool.estimatedTimeInMillisCounter()
         );
         SearchContext.setCurrent(context);
 

@@ -59,17 +59,17 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
         this.wrapLongitude = wrapLongitude;
         if (valuesSource != null) {
             final BigArrays bigArrays = context.bigArrays();
-            tops = bigArrays.newDoubleArray(1, false);
+            tops = bigArrays.newDoubleArray(1);
             tops.fill(0, tops.size(), Double.NEGATIVE_INFINITY);
-            bottoms = bigArrays.newDoubleArray(1, false);
+            bottoms = bigArrays.newDoubleArray(1);
             bottoms.fill(0, bottoms.size(), Double.POSITIVE_INFINITY);
-            posLefts = bigArrays.newDoubleArray(1, false);
+            posLefts = bigArrays.newDoubleArray(1);
             posLefts.fill(0, posLefts.size(), Double.POSITIVE_INFINITY);
-            posRights = bigArrays.newDoubleArray(1, false);
+            posRights = bigArrays.newDoubleArray(1);
             posRights.fill(0, posRights.size(), Double.NEGATIVE_INFINITY);
-            negLefts = bigArrays.newDoubleArray(1, false);
+            negLefts = bigArrays.newDoubleArray(1);
             negLefts.fill(0, negLefts.size(), Double.POSITIVE_INFINITY);
-            negRights = bigArrays.newDoubleArray(1, false);
+            negRights = bigArrays.newDoubleArray(1);
             negRights.fill(0, negRights.size(), Double.NEGATIVE_INFINITY);
         }
     }

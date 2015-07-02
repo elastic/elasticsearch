@@ -53,12 +53,12 @@ public class FreqTermsEnum extends FilterableTermsEnum implements Releasable {
         this.needDocFreqs = needDocFreq;
         this.needTotalTermFreqs = needTotalTermFreq;
         if (needDocFreq) {
-            termDocFreqs = bigArrays.newIntArray(INITIAL_NUM_TERM_FREQS_CACHED, false);
+            termDocFreqs = bigArrays.newIntArray(INITIAL_NUM_TERM_FREQS_CACHED);
         } else {
             termDocFreqs = null;
         }
         if (needTotalTermFreq) {
-            termsTotalFreqs = bigArrays.newLongArray(INITIAL_NUM_TERM_FREQS_CACHED, false);
+            termsTotalFreqs = bigArrays.newLongArray(INITIAL_NUM_TERM_FREQS_CACHED);
         } else {
             termsTotalFreqs = null;
         }

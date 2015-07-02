@@ -26,7 +26,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastAction;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -65,18 +64,16 @@ public class TransportExistsAction extends TransportBroadcastAction<ExistsReques
 
     private final IndicesService indicesService;
     private final ScriptService scriptService;
-    private final PageCacheRecycler pageCacheRecycler;
     private final BigArrays bigArrays;
 
     @Inject
     public TransportExistsAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                 IndicesService indicesService, ScriptService scriptService,
-                                PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, ActionFilters actionFilters) {
+                                BigArrays bigArrays, ActionFilters actionFilters) {
         super(settings, ExistsAction.NAME, threadPool, clusterService, transportService, actionFilters,
                 ExistsRequest.class, ShardExistsRequest.class, ThreadPool.Names.SEARCH);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
-        this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays;
     }
 
@@ -151,7 +148,7 @@ public class TransportExistsAction extends TransportBroadcastAction<ExistsReques
         SearchContext context = new DefaultSearchContext(0,
                 new ShardSearchLocalRequest(request.types(), request.nowInMillis(), request.filteringAliases()),
                 shardTarget, indexShard.acquireSearcher("exists"), indexService, indexShard,
-                scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter());
+                scriptService, bigArrays, threadPool.estimatedTimeInMillisCounter());
         SearchContext.setCurrent(context);
 
         try {

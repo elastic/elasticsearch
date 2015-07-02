@@ -80,7 +80,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
         // these two filters are cached in the parser
         this.childFilter = aggregationContext.searchContext().searcher().createNormalizedWeight(childFilter, false);
         this.parentFilter = aggregationContext.searchContext().searcher().createNormalizedWeight(parentFilter, false);
-        this.parentOrdToBuckets = aggregationContext.bigArrays().newLongArray(maxOrd, false);
+        this.parentOrdToBuckets = aggregationContext.bigArrays().newLongArray(maxOrd);
         this.parentOrdToBuckets.fill(0, maxOrd, -1);
         this.parentOrdToOtherBuckets = new LongObjectPagedHashMap<>(aggregationContext.bigArrays());
         this.valuesSource = valuesSource;

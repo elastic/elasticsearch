@@ -55,7 +55,7 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
         this.valuesSource = valuesSource;
         this.formatter = formatter;
         if (valuesSource != null) {
-            sums = context.bigArrays().newDoubleArray(1, true);
+            sums = context.bigArrays().newDoubleArray(1);
         }
     }
 

@@ -30,7 +30,6 @@ import org.elasticsearch.http.netty.pipelining.OrderedUpstreamMessageEvent;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.cache.recycler.MockBigArrays;
-import org.elasticsearch.test.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
@@ -61,7 +60,6 @@ public class NettyHttpServerPipeliningTest extends ElasticsearchTestCase {
 
     private NetworkService networkService;
     private ThreadPool threadPool;
-    private MockPageCacheRecycler mockPageCacheRecycler;
     private MockBigArrays bigArrays;
     private CustomNettyHttpServerTransport httpServerTransport;
 
@@ -69,8 +67,7 @@ public class NettyHttpServerPipeliningTest extends ElasticsearchTestCase {
     public void setup() throws Exception {
         networkService = new NetworkService(Settings.EMPTY);
         threadPool = new ThreadPool("test");
-        mockPageCacheRecycler = new MockPageCacheRecycler(Settings.EMPTY, threadPool);
-        bigArrays = new MockBigArrays(mockPageCacheRecycler, new NoneCircuitBreakerService());
+        bigArrays = new MockBigArrays(new NoneCircuitBreakerService());
     }
 
     @After

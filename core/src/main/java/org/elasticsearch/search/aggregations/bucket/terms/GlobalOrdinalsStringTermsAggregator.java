@@ -348,7 +348,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             super(name, factories, valuesSource, order, bucketCountThresholds, null, aggregationContext, parent, collectionMode,
                     showTermDocCountError, pipelineAggregators, metaData);
             assert factories == null || factories.count() == 0;
-            this.segmentDocCounts = context.bigArrays().newIntArray(1, true);
+            this.segmentDocCounts = context.bigArrays().newIntArray(1);
         }
 
         // bucketOrd is ord + 1 to avoid a branch to deal with the missing ord

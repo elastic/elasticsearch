@@ -277,7 +277,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             }
 
             final org.elasticsearch.common.hash.MurmurHash3.Hash128 hash = new org.elasticsearch.common.hash.MurmurHash3.Hash128();
-            try (LongArray hashes = bigArrays.newLongArray(maxOrd, false)) {
+            try (LongArray hashes = bigArrays.newLongArray(maxOrd)) {
                 for (int ord = allVisitedOrds.nextSetBit(0); ord < DocIdSetIterator.NO_MORE_DOCS; ord = ord + 1 < maxOrd ? allVisitedOrds.nextSetBit(ord + 1) : DocIdSetIterator.NO_MORE_DOCS) {
                     final BytesRef value = values.lookupOrd(ord);
                     org.elasticsearch.common.hash.MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, hash);

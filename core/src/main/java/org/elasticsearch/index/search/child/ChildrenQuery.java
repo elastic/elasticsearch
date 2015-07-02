@@ -371,7 +371,7 @@ public final class ChildrenQuery extends IndexCacheableQuery {
 
         protected ParentScoreCollector(IndexParentChildFieldData globalIfd, SearchContext searchContext, String parentType) {
             super(globalIfd, searchContext, parentType);
-            this.scores = this.bigArrays.newFloatArray(512, false);
+            this.scores = this.bigArrays.newFloatArray(512);
         }
 
         @Override
@@ -397,7 +397,7 @@ public final class ChildrenQuery extends IndexCacheableQuery {
 
         protected ParentScoreCountCollector(IndexParentChildFieldData globalIfd, SearchContext searchContext, String parentType) {
             super(globalIfd, searchContext, parentType);
-            this.occurrences = bigArrays.newIntArray(512, false);
+            this.occurrences = bigArrays.newIntArray(512);
         }
 
         @Override
@@ -420,7 +420,7 @@ public final class ChildrenQuery extends IndexCacheableQuery {
 
         protected CountCollector(IndexParentChildFieldData globalIfd, SearchContext searchContext, String parentType) {
             super(globalIfd, searchContext, parentType);
-            this.occurrences = bigArrays.newIntArray(512, false);
+            this.occurrences = bigArrays.newIntArray(512);
         }
 
         @Override

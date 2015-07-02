@@ -32,7 +32,7 @@ abstract class AbstractHash extends AbstractPagedHashMap {
 
     AbstractHash(long capacity, float maxLoadFactor, BigArrays bigArrays) {
         super(capacity, maxLoadFactor, bigArrays);
-        ids = bigArrays.newLongArray(capacity(), true);
+        ids = bigArrays.newLongArray(capacity());
     }
 
     /**

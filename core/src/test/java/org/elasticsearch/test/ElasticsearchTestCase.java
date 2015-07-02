@@ -53,7 +53,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.test.cache.recycler.MockBigArrays;
-import org.elasticsearch.test.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.test.search.MockSearchService;
@@ -197,7 +196,6 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
 
     @After
     public final void ensureCleanedUp() throws Exception {
-        MockPageCacheRecycler.ensureAllPagesAreReleased();
         MockBigArrays.ensureAllArraysAreReleased();
         // field cache should NEVER get loaded.
         String[] entries = UninvertingReader.getUninvertedStats();

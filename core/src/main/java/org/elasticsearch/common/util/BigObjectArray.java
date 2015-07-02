@@ -36,11 +36,11 @@ final class BigObjectArray<T> extends AbstractBigArray implements ObjectArray<T>
 
     /** Constructor. */
     public BigObjectArray(long size, BigArrays bigArrays) {
-        super(OBJECT_PAGE_SIZE, bigArrays, true);
+        super(OBJECT_PAGE_SIZE, bigArrays);
         this.size = size;
         pages = new Object[numPages(size)][];
         for (int i = 0; i < pages.length; ++i) {
-            pages[i] = newObjectPage(i);
+            pages[i] = new Object[OBJECT_PAGE_SIZE];
         }
     }
 
@@ -76,11 +76,10 @@ final class BigObjectArray<T> extends AbstractBigArray implements ObjectArray<T>
             pages = Arrays.copyOf(pages, ArrayUtil.oversize(numPages, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
         }
         for (int i = numPages - 1; i >= 0 && pages[i] == null; --i) {
-            pages[i] = newObjectPage(i);
+            pages[i] = new Object[OBJECT_PAGE_SIZE];
         }
         for (int i = numPages; i < pages.length && pages[i] != null; ++i) {
             pages[i] = null;
-            releasePage(i);
         }
         this.size = newSize;
     }

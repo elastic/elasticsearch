@@ -65,13 +65,13 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
         this.sigma = sigma;
         if (valuesSource != null) {
             final BigArrays bigArrays = context.bigArrays();
-            counts = bigArrays.newLongArray(1, true);
-            sums = bigArrays.newDoubleArray(1, true);
-            mins = bigArrays.newDoubleArray(1, false);
+            counts = bigArrays.newLongArray(1);
+            sums = bigArrays.newDoubleArray(1);
+            mins = bigArrays.newDoubleArray(1);
             mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
-            maxes = bigArrays.newDoubleArray(1, false);
+            maxes = bigArrays.newDoubleArray(1);
             maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
-            sumOfSqrs = bigArrays.newDoubleArray(1, true);
+            sumOfSqrs = bigArrays.newDoubleArray(1);
         }
     }
 

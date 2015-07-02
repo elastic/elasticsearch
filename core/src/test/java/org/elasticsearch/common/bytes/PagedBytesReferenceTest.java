@@ -52,7 +52,7 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        bigarrays = new BigArrays(null, new NoneCircuitBreakerService());
+        bigarrays = new BigArrays(new NoneCircuitBreakerService());
     }
 
     @Override
@@ -521,8 +521,8 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
 
     public void testEquals() {
         int length = randomIntBetween(100, PAGE_SIZE * randomIntBetween(2, 5));
-        ByteArray ba1 = bigarrays.newByteArray(length, false);
-        ByteArray ba2 = bigarrays.newByteArray(length, false);
+        ByteArray ba1 = bigarrays.newByteArray(length);
+        ByteArray ba2 = bigarrays.newByteArray(length);
 
         // copy contents
         for (long i = 0; i < length; i++) {
@@ -544,7 +544,7 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
 
     public void testSliceEquals() {
         int length = randomIntBetween(100, PAGE_SIZE * randomIntBetween(2, 5));
-        ByteArray ba1 = bigarrays.newByteArray(length, false);
+        ByteArray ba1 = bigarrays.newByteArray(length);
         BytesReference pbr = new PagedBytesReference(bigarrays, ba1, length);
 
         // test equality of slices

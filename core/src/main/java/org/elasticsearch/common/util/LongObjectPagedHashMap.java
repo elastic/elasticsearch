@@ -21,7 +21,6 @@ package org.elasticsearch.common.util;
 
 
 import com.google.common.collect.UnmodifiableIterator;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lease.Releasables;
 
 import java.util.Iterator;
@@ -47,7 +46,7 @@ public class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements I
 
     public LongObjectPagedHashMap(long capacity, float maxLoadFactor, BigArrays bigArrays) {
         super(capacity, maxLoadFactor, bigArrays);
-        keys = bigArrays.newLongArray(capacity(), false);
+        keys = bigArrays.newLongArray(capacity());
         values = bigArrays.newObjectArray(capacity());
     }
 

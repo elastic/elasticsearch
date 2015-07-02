@@ -123,7 +123,7 @@ public class GND extends NXYSignificanceHeuristic {
                     parser.nextToken();
                     backgroundIsSuperset = parser.booleanValue();
                 } else {
-                    throw new ElasticsearchParseException("Field " + parser.currentName().toString() + " unknown for " + givenName);
+                    throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. unknown field [{}]", givenName, parser.currentName());
                 }
                 token = parser.nextToken();
             }

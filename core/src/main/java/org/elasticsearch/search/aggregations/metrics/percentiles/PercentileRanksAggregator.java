@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
-import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestState;
@@ -40,7 +39,7 @@ import java.util.Map;
 public class PercentileRanksAggregator extends AbstractPercentilesAggregator {
 
     public PercentileRanksAggregator(String name, Numeric valuesSource, AggregationContext context, Aggregator parent, double[] percents,
-            double compression, boolean keyed, @Nullable ValueFormatter formatter, List<PipelineAggregator> pipelineAggregators,
+            double compression, boolean keyed, ValueFormatter formatter, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData)
             throws IOException {
         super(name, valuesSource, context, parent, percents, compression, keyed, formatter, pipelineAggregators, metaData);

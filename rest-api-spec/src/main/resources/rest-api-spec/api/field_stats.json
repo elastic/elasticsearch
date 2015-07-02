@@ -41,6 +41,9 @@
         }
       }
     },
-    "body": null
+    "body": {
+      "description": "Field json objects containing the name and optionally a range to filter out indices result, that have results outside the defined bounds",
+      "required": false
+    }
   }
 }

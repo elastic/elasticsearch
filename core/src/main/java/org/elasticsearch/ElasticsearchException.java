@@ -24,9 +24,10 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
+import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.HasRestHeaders;
@@ -48,21 +49,29 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     /**
      * Construct a <code>ElasticsearchException</code> with the specified detail message.
      *
+     * The message can be parameterized using {@code {}} as placeholders for the given
+     * arguments
+     *
      * @param msg the detail message
+     * @param args the arguments for the message
      */
-    public ElasticsearchException(String msg) {
-        super(msg);
+    public ElasticsearchException(String msg, Object... args) {
+        super(LoggerMessageFormat.format(msg, args));
     }
 
     /**
      * Construct a <code>ElasticsearchException</code> with the specified detail message
      * and nested exception.
      *
+     * The message can be parameterized using {@code {}} as placeholders for the given
+     * arguments
+     *
      * @param msg   the detail message
      * @param cause the nested exception
+     * @param args  the arguments for the message
      */
-    public ElasticsearchException(String msg, Throwable cause) {
-        super(msg, cause);
+    public ElasticsearchException(String msg, Throwable cause, Object... args) {
+        super(LoggerMessageFormat.format(msg, args), cause);
     }
 
     public ElasticsearchException(StreamInput in) throws IOException {
@@ -200,6 +209,11 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         public WithRestHeadersException(String msg, Tuple<String, String[]>... headers) {
             super(msg);
             this.headers = headers(headers);
+        }
+
+        protected WithRestHeadersException(String msg, Throwable cause, Map<String, List<String>> headers) {
+            super(msg, cause);
+            this.headers = headers;
         }
 
         public WithRestHeadersException(StreamInput in) throws IOException {
@@ -545,6 +559,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.action.PrimaryMissingActionException.class,
                 org.elasticsearch.index.engine.CreateFailedEngineException.class,
                 org.elasticsearch.index.shard.IllegalIndexShardStateException.class,
+                WithRestHeadersException.class,
                 NotSerializableExceptionWrapper.class
         };
         Map<String, Constructor<? extends ElasticsearchException>> mapping = new HashMap<>(exceptions.length);

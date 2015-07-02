@@ -3,8 +3,8 @@
 
 You can use the *Java client* in multiple ways:
 
-* Perform standard <<index_,index>>, <<get,get>>,
-  <<delete,delete>> and <<search,search>> operations on an
+* Perform standard <<java-docs-index,index>>, <<java-docs-get,get>>,
+  <<java-docs-delete,delete>> and <<java-search,search>> operations on an
   existing cluster
 * Perform administrative tasks on a running cluster
 * Start full nodes when you want to run Elasticsearch embedded in your

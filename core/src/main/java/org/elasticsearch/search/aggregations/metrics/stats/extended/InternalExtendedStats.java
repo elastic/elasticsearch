@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.metrics.stats.extended;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -68,9 +67,8 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
 
     InternalExtendedStats() {} // for serialization
 
-    public InternalExtendedStats(String name, long count, double sum, double min, double max, double sumOfSqrs,
- double sigma,
-            @Nullable ValueFormatter formatter, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+    public InternalExtendedStats(String name, long count, double sum, double min, double max, double sumOfSqrs, double sigma,
+            ValueFormatter formatter, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, count, sum, min, max, formatter, pipelineAggregators, metaData);
         this.sumOfSqrs = sumOfSqrs;
         this.sigma = sigma;
@@ -200,7 +198,7 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
                 .field(Fields.LOWER, count != 0 ? getStdDeviationBound(Bounds.LOWER) : null)
                 .endObject();
 
-        if (count != 0 && valueFormatter != null && !(valueFormatter instanceof ValueFormatter.Raw)) {
+        if (count != 0 && !(valueFormatter instanceof ValueFormatter.Raw)) {
             builder.field(Fields.SUM_OF_SQRS_AS_STRING, valueFormatter.format(sumOfSqrs));
             builder.field(Fields.VARIANCE_AS_STRING, valueFormatter.format(getVariance()));
             builder.field(Fields.STD_DEVIATION_AS_STRING, getStdDeviationAsString());

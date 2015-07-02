@@ -173,10 +173,10 @@ public class AllocationCommands {
         }
         if (token == XContentParser.Token.FIELD_NAME) {
             if (!parser.currentName().equals("commands")) {
-                throw new ElasticsearchParseException("expected field name to be named `commands`, got " + parser.currentName());
+                throw new ElasticsearchParseException("expected field name to be named [commands], got [{}] instead", parser.currentName());
             }
             if (!parser.currentName().equals("commands")) {
-                throw new ElasticsearchParseException("expected field name to be named `commands`, got " + parser.currentName());
+                throw new ElasticsearchParseException("expected field name to be named [commands], got [{}] instead", parser.currentName());
             }
             token = parser.nextToken();
             if (token != XContentParser.Token.START_ARRAY) {
@@ -185,7 +185,7 @@ public class AllocationCommands {
         } else if (token == XContentParser.Token.START_ARRAY) {
             // ok...
         } else {
-            throw new ElasticsearchParseException("expected either field name commands, or start array, got " + token);
+            throw new ElasticsearchParseException("expected either field name [commands], or start array, got [{}] instead", token);
         }
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.START_OBJECT) {
@@ -196,10 +196,10 @@ public class AllocationCommands {
                 commands.add(AllocationCommands.lookupFactorySafe(commandName).fromXContent(parser));
                 // move to the end object one
                 if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                    throw new ElasticsearchParseException("allocation command is malformed, done parsing a command, but didn't get END_OBJECT, got " + token);
+                    throw new ElasticsearchParseException("allocation command is malformed, done parsing a command, but didn't get END_OBJECT, got [{}] instead", token);
                 }
             } else {
-                throw new ElasticsearchParseException("allocation command is malformed, got token " + token);
+                throw new ElasticsearchParseException("allocation command is malformed, got [{}] instead", token);
             }
         }
         return commands;

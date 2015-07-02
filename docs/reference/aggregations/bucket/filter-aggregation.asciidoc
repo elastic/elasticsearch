@@ -19,7 +19,7 @@ Example:
 }
 --------------------------------------------------
 
-In the above example, we calculate the average price of all the products that are currently in-stock.
+In the above example, we calculate the average price of all the products that are red.
 
 Response:
 
@@ -29,7 +29,7 @@ Response:
     ...
 
     "aggs" : {
-        "in_stock_products" : {
+        "red_products" : {
             "doc_count" : 100,
             "avg_price" : { "value" : 56.3 }
         }

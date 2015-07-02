@@ -133,7 +133,7 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
         refresh();
 
         ValidateQueryResponse response = client().admin().indices().prepareValidateQuery()
-                .setQuery(queryStringQuery("past:[now-2M/d TO now/d]")).setExplain(true).get();
+                .setQuery(queryStringQuery("past:[now-2M/d TO now/d]")).setRewrite(true).get();
 
         assertNoFailures(response);
         assertThat(response.getQueryExplanation().size(), equalTo(1));

@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.pipeline.cumulativesum;
 
 import com.google.common.collect.Lists;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -68,7 +67,7 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
     public CumulativeSumPipelineAggregator() {
     }
 
-    public CumulativeSumPipelineAggregator(String name, String[] bucketsPaths, @Nullable ValueFormatter formatter,
+    public CumulativeSumPipelineAggregator(String name, String[] bucketsPaths, ValueFormatter formatter,
             Map<String, Object> metadata) {
         super(name, bucketsPaths, metadata);
         this.formatter = formatter;
@@ -114,7 +113,7 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
 
         private final ValueFormatter formatter;
 
-        public Factory(String name, String[] bucketsPaths, @Nullable ValueFormatter formatter) {
+        public Factory(String name, String[] bucketsPaths, ValueFormatter formatter) {
             super(name, TYPE.name(), bucketsPaths);
             this.formatter = formatter;
         }

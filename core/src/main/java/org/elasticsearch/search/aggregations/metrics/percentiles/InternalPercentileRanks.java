@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.metrics.percentiles;
 
 import com.google.common.collect.UnmodifiableIterator;
 
-import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestState;
@@ -51,10 +50,10 @@ public class InternalPercentileRanks extends AbstractInternalPercentiles impleme
     public static void registerStreams() {
         AggregationStreams.registerStream(STREAM, TYPE.stream());
     }
-    
+
     InternalPercentileRanks() {} // for serialization
 
-    public InternalPercentileRanks(String name, double[] cdfValues, TDigestState state, boolean keyed, @Nullable ValueFormatter formatter,
+    public InternalPercentileRanks(String name, double[] cdfValues, TDigestState state, boolean keyed, ValueFormatter formatter,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, cdfValues, state, keyed, formatter, pipelineAggregators, metaData);
     }
@@ -89,7 +88,7 @@ public class InternalPercentileRanks extends AbstractInternalPercentiles impleme
     public Type type() {
         return TYPE;
     }
-    
+
     static double percentileRank(TDigestState state, double value) {
         double percentileRank = state.cdf(value);
         if (percentileRank < 0) {

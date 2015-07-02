@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -59,7 +58,7 @@ public class InternalBucketMetricValue extends InternalNumericMetricsAggregation
         super();
     }
 
-    public InternalBucketMetricValue(String name, String[] keys, double value, @Nullable ValueFormatter formatter,
+    public InternalBucketMetricValue(String name, String[] keys, double value, ValueFormatter formatter,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.keys = keys;
@@ -117,7 +116,7 @@ public class InternalBucketMetricValue extends InternalNumericMetricsAggregation
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         boolean hasValue = !Double.isInfinite(value);
         builder.field(CommonFields.VALUE, hasValue ? value : null);
-        if (hasValue && valueFormatter != null) {
+        if (hasValue && !(valueFormatter instanceof ValueFormatter.Raw)) {
             builder.field(CommonFields.VALUE_AS_STRING, valueFormatter.format(value));
         }
         builder.startArray("keys");

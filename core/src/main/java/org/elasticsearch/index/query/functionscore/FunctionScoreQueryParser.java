@@ -50,13 +50,15 @@ import java.util.Arrays;
 public class FunctionScoreQueryParser implements QueryParser {
 
     public static final String NAME = "function_score";
-    ScoreFunctionParserMapper functionParserMapper;
+
     // For better readability of error message
-    static final String MISPLACED_FUNCTION_MESSAGE_PREFIX = "You can either define \"functions\":[...] or a single function, not both. ";
-    static final String MISPLACED_BOOST_FUNCTION_MESSAGE_SUFFIX = " Did you mean \"boost\" instead?";
+    static final String MISPLACED_FUNCTION_MESSAGE_PREFIX = "you can either define [functions] array or a single function, not both. ";
+    static final String MISPLACED_BOOST_FUNCTION_MESSAGE_SUFFIX = " did you mean [boost] instead?";
 
     public static final ParseField WEIGHT_FIELD = new ParseField("weight");
     private static final ParseField FILTER_FIELD = new ParseField("filter").withAllDeprecated("query");
+
+    ScoreFunctionParserMapper functionParserMapper;
 
     @Inject
     public FunctionScoreQueryParser(ScoreFunctionParserMapper functionParserMapper) {
@@ -122,7 +124,7 @@ public class FunctionScoreQueryParser implements QueryParser {
                 minScore = parser.floatValue();
             } else if ("functions".equals(currentFieldName)) {
                 if (singleFunctionFound) {
-                    String errorString = "Found \"" + singleFunctionName + "\" already, now encountering \"functions\": [...].";
+                    String errorString = "already found [" + singleFunctionName + "], now encountering [functions].";
                     handleMisplacedFunctionsDeclaration(errorString, singleFunctionName);
                 }
                 currentFieldName = parseFiltersAndFunctions(parseContext, parser, filterFunctions, currentFieldName);
@@ -139,12 +141,11 @@ public class FunctionScoreQueryParser implements QueryParser {
                     scoreFunction = functionParserMapper.get(parseContext, currentFieldName).parse(parseContext, parser);
                 }
                 if (functionArrayFound) {
-                    String errorString = "Found \"functions\": [...] already, now encountering \"" + currentFieldName + "\".";
+                    String errorString = "already found [functions] array, now encountering [" + currentFieldName + "].";
                     handleMisplacedFunctionsDeclaration(errorString, currentFieldName);
                 }
                 if (filterFunctions.size() > 0) {
-                    String errorString = "Found function " + singleFunctionName + " already, now encountering \"" + currentFieldName + "\". Use functions[{...},...] if you want to define several functions.";
-                    throw new ElasticsearchParseException(errorString);
+                    throw new ElasticsearchParseException("failed to parse [{}] query. already found function [{}], now encountering [{}]. use [functions] array if you want to define several functions.", NAME, singleFunctionName, currentFieldName);
                 }
                 filterFunctions.add(new FiltersFunctionScoreQuery.FilterFunction(null, scoreFunction));
                 singleFunctionFound = true;
@@ -200,7 +201,7 @@ public class FunctionScoreQueryParser implements QueryParser {
         if (Arrays.asList(FactorParser.NAMES).contains(functionName)) {
             errorString = errorString + MISPLACED_BOOST_FUNCTION_MESSAGE_SUFFIX;
         }
-        throw new ElasticsearchParseException(errorString);
+        throw new ElasticsearchParseException("failed to parse [{}] query. [{}]", NAME, errorString);
     }
 
     private String parseFiltersAndFunctions(QueryParseContext parseContext, XContentParser parser,
@@ -211,8 +212,7 @@ public class FunctionScoreQueryParser implements QueryParser {
             ScoreFunction scoreFunction = null;
             Float functionWeight = null;
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new QueryParsingException(parseContext, NAME + ": malformed query, expected a " + XContentParser.Token.START_OBJECT
-                        + " while parsing functions but got a " + token);
+                throw new QueryParsingException(parseContext, "failed to parse [{}]. malformed query, expected a [{}] while parsing functions but got a [{}] instead", XContentParser.Token.START_OBJECT, token, NAME);
             } else {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
@@ -239,7 +239,7 @@ public class FunctionScoreQueryParser implements QueryParser {
                 filter = Queries.newMatchAllQuery();
             }
             if (scoreFunction == null) {
-                throw new ElasticsearchParseException("function_score: One entry in functions list is missing a function.");
+                throw new ElasticsearchParseException("failed to parse [{}] query. an entry in functions list is missing a function.", NAME);
             }
             filterFunctions.add(new FiltersFunctionScoreQuery.FilterFunction(filter, scoreFunction));
 
@@ -262,7 +262,7 @@ public class FunctionScoreQueryParser implements QueryParser {
         } else if ("first".equals(scoreMode)) {
             return FiltersFunctionScoreQuery.ScoreMode.First;
         } else {
-            throw new QueryParsingException(parseContext, NAME + " illegal score_mode [" + scoreMode + "]");
+            throw new QueryParsingException(parseContext, "failed to parse [{}] query. illegal score_mode [{}]", NAME, scoreMode);
         }
     }
 
@@ -270,7 +270,7 @@ public class FunctionScoreQueryParser implements QueryParser {
         String boostMode = parser.text();
         CombineFunction cf = combineFunctionsMap.get(boostMode);
         if (cf == null) {
-            throw new QueryParsingException(parseContext, NAME + " illegal boost_mode [" + boostMode + "]");
+            throw new QueryParsingException(parseContext, "failed to parse [{}] query. illegal boost_mode [{}]", NAME, boostMode);
         }
         return cf;
     }

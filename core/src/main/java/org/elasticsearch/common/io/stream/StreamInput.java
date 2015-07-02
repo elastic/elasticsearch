@@ -525,7 +525,7 @@ public abstract class StreamInput extends InputStream {
                 case 6:
                     return (T) readStackTrace(new IllegalArgumentException(readOptionalString(), readThrowable()), this);
                 case 7:
-                    return (T) readStackTrace(new IllegalStateException(readOptionalString(), readThrowable()), this);
+                    return (T) readStackTrace(new AlreadyClosedException(readOptionalString(), readThrowable()), this);
                 case 8:
                     return (T) readStackTrace(new EOFException(readOptionalString()), this);
                 case 9:
@@ -547,7 +547,7 @@ public abstract class StreamInput extends InputStream {
                 case 15:
                     return (T) readStackTrace(new OutOfMemoryError(readOptionalString()), this);
                 case 16:
-                    return (T) readStackTrace(new AlreadyClosedException(readOptionalString(), readThrowable()), this);
+                    return (T) readStackTrace(new IllegalStateException(readOptionalString(), readThrowable()), this);
                 case 17:
                     return (T) readStackTrace(new LockObtainFailedException(readOptionalString(), readThrowable()), this);
                 default:

@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.store;
 
 import com.google.common.base.Predicate;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterService;
@@ -77,6 +78,7 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/11989")
     public void indexCleanup() throws Exception {
         final String masterNode = internalCluster().startNode(Settings.builder().put("node.data", false));
         final String node_1 = internalCluster().startNode(Settings.builder().put("node.master", false));

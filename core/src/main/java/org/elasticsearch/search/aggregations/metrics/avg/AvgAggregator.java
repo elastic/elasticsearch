@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.metrics.avg;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
@@ -52,7 +51,7 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
     DoubleArray sums;
     ValueFormatter formatter;
 
-    public AvgAggregator(String name, ValuesSource.Numeric valuesSource, @Nullable ValueFormatter formatter,
+    public AvgAggregator(String name, ValuesSource.Numeric valuesSource, ValueFormatter formatter,
  AggregationContext context,
             Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);

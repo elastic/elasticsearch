@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -31,7 +30,6 @@ import java.util.Map;
 
 public class BucketStreamContext implements Streamable {
 
-    @Nullable
     private ValueFormatter formatter;
     private boolean keyed;
     private Map<String, Object> attributes;
@@ -39,7 +37,7 @@ public class BucketStreamContext implements Streamable {
     public BucketStreamContext() {
     }
 
-    public void formatter(@Nullable ValueFormatter formatter) {
+    public void formatter(ValueFormatter formatter) {
         this.formatter = formatter;
     }
 

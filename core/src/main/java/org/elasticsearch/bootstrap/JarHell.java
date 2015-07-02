@@ -21,6 +21,8 @@ package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOException;
 import java.net.URL;
@@ -31,6 +33,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -41,26 +44,58 @@ import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 
 /** Simple check for duplicate class files across the classpath */
-class JarHell {
+public class JarHell {
+
+    /** Simple driver class, can be used eg. from builds. Returns non-zero on jar-hell */
+    public static void main(String args[]) throws Exception {
+        checkJarHell();
+    }
 
     /**
      * Checks the current classloader for duplicate classes
      * @throws IllegalStateException if jar hell was found
      */
-    @SuppressForbidden(reason = "needs JarFile for speed, just reading entries")
-    static void checkJarHell() throws Exception {
+    public static void checkJarHell() throws Exception {
         ClassLoader loader = JarHell.class.getClassLoader();
         if (loader instanceof URLClassLoader == false) {
            return;
         }
+        ESLogger logger = Loggers.getLogger(JarHell.class);
+        if (logger.isDebugEnabled()) {
+            logger.debug("java.class.path: {}", System.getProperty("java.class.path"));
+            logger.debug("sun.boot.class.path: {}", System.getProperty("sun.boot.class.path"));
+            logger.debug("classloader urls: {}", Arrays.toString(((URLClassLoader)loader).getURLs()));
+        }
+        checkJarHell(((URLClassLoader)loader).getURLs());
+    }
+
+    /**
+     * Checks the set of URLs for duplicate classes
+     * @throws IllegalStateException if jar hell was found
+     */
+    @SuppressForbidden(reason = "needs JarFile for speed, just reading entries")
+    public static void checkJarHell(URL urls[]) throws Exception {
+        ESLogger logger = Loggers.getLogger(JarHell.class);
+        // we don't try to be sneaky and use deprecated/internal/not portable stuff
+        // like sun.boot.class.path, and with jigsaw we don't yet have a way to get
+        // a "list" at all. So just exclude any elements underneath the java home
+        String javaHome = System.getProperty("java.home");
+        logger.debug("java.home: {}", javaHome);
         final Map<String,URL> clazzes = new HashMap<>(32768);
         Set<String> seenJars = new HashSet<>();
-        for (final URL url : ((URLClassLoader)loader).getURLs()) {
+        for (final URL url : urls) {
             String path = URLDecoder.decode(url.getPath(), "UTF-8");
+            // exclude system resources
+            if (path.startsWith(javaHome)) {
+                logger.debug("excluding system resource: {}", path);
+                continue;
+            }
             if (path.endsWith(".jar")) {
                 if (!seenJars.add(path)) {
+                    logger.debug("excluding duplicate classpath element: {}", path);
                     continue; // we can't fail because of sheistiness with joda-time
                 }
+                logger.debug("examining jar: {}", path);
                 try (JarFile file = new JarFile(path)) {
                     Manifest manifest = file.getManifest();
                     if (manifest != null) {
@@ -94,6 +129,7 @@ class JarHell {
                     }
                 }
             } else {
+                logger.debug("examining directory: {}", path);
                 // case for tests: where we have class files in the classpath
                 final Path root = PathUtils.get(url.toURI());
                 final String sep = root.getFileSystem().getSeparator();

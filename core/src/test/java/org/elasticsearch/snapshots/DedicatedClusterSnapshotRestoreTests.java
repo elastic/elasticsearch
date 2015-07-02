@@ -960,7 +960,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
                         }
                         data = parser.text();
                     } else {
-                        throw new ElasticsearchParseException("failed to parse snapshottable metadata, unknown field [" + currentFieldName + "]");
+                        throw new ElasticsearchParseException("failed to parse snapshottable metadata, unknown field [{}]", currentFieldName);
                     }
                 } else {
                     throw new ElasticsearchParseException("failed to parse snapshottable metadata");

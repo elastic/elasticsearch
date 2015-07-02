@@ -197,12 +197,6 @@ public class HasChildQueryParser extends BaseQueryParserTemp {
     }
 
     public static Query joinUtilHelper(String parentType, ParentChildIndexFieldData parentChildIndexFieldData, Query toQuery, ScoreType scoreType, Query innerQuery, int minChildren, int maxChildren) throws IOException {
-        SearchContext searchContext = SearchContext.current();
-        if (searchContext == null) {
-            throw new IllegalStateException("Search context is required to be set");
-        }
-
-        String joinField = ParentFieldMapper.joinField(parentType);
         ScoreMode scoreMode;
         // TODO: move entirely over from ScoreType to org.apache.lucene.join.ScoreMode, when we drop the 1.x parent child code.
         switch (scoreType) {
@@ -224,16 +218,74 @@ public class HasChildQueryParser extends BaseQueryParserTemp {
             default:
                 throw new UnsupportedOperationException("score type [" + scoreType + "] not supported");
         }
-        IndexReader indexReader = searchContext.searcher().getIndexReader();
-        IndexSearcher indexSearcher = new IndexSearcher(indexReader);
-        IndexParentChildFieldData indexParentChildFieldData = parentChildIndexFieldData.loadGlobal(indexReader);
-        MultiDocValues.OrdinalMap ordinalMap = ParentChildIndexFieldData.getOrdinalMap(indexParentChildFieldData, parentType);
-
         // 0 in pre 2.x p/c impl means unbounded
         if (maxChildren == 0) {
             maxChildren = Integer.MAX_VALUE;
         }
-        return JoinUtil.createJoinQuery(joinField, innerQuery, toQuery, indexSearcher, scoreMode, ordinalMap, minChildren, maxChildren);
+        return new LateParsingQuery(toQuery, innerQuery, minChildren, maxChildren, parentType, scoreMode, parentChildIndexFieldData);
+    }
+
+    final static class LateParsingQuery extends Query {
+
+        private final Query toQuery;
+        private final Query innerQuery;
+        private final int minChildren;
+        private final int maxChildren;
+        private final String parentType;
+        private final ScoreMode scoreMode;
+        private final ParentChildIndexFieldData parentChildIndexFieldData;
+        private final Object identity = new Object();
+
+        LateParsingQuery(Query toQuery, Query innerQuery, int minChildren, int maxChildren, String parentType, ScoreMode scoreMode, ParentChildIndexFieldData parentChildIndexFieldData) {
+            this.toQuery = toQuery;
+            this.innerQuery = innerQuery;
+            this.minChildren = minChildren;
+            this.maxChildren = maxChildren;
+            this.parentType = parentType;
+            this.scoreMode = scoreMode;
+            this.parentChildIndexFieldData = parentChildIndexFieldData;
+        }
+
+        @Override
+        public Query rewrite(IndexReader reader) throws IOException {
+            SearchContext searchContext = SearchContext.current();
+            if (searchContext == null) {
+                throw new IllegalArgumentException("Search context is required to be set");
+            }
+
+            String joinField = ParentFieldMapper.joinField(parentType);
+            IndexReader indexReader = searchContext.searcher().getIndexReader();
+            IndexSearcher indexSearcher = new IndexSearcher(indexReader);
+            IndexParentChildFieldData indexParentChildFieldData = parentChildIndexFieldData.loadGlobal(indexReader);
+            MultiDocValues.OrdinalMap ordinalMap = ParentChildIndexFieldData.getOrdinalMap(indexParentChildFieldData, parentType);
+            return JoinUtil.createJoinQuery(joinField, innerQuery, toQuery, indexSearcher, scoreMode, ordinalMap, minChildren, maxChildren);
+        }
+
+        // Even though we only cache rewritten queries it is good to let all queries implement hashCode() and equals():
+
+        // We can't check for actually equality here, since we need to IndexReader for this, but
+        // that isn't available on all cases during query parse time, so instead rely on identity:
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            if (!super.equals(o)) return false;
+
+            LateParsingQuery that = (LateParsingQuery) o;
+            return identity.equals(that.identity);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = super.hashCode();
+            result = 31 * result + identity.hashCode();
+            return result;
+        }
+
+        @Override
+        public String toString(String s) {
+            return "LateParsingQuery {parentType=" + parentType + "}";
+        }
     }
     
     @Override

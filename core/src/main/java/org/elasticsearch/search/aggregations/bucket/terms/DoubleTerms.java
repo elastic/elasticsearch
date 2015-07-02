@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -81,12 +80,12 @@ public class DoubleTerms extends InternalTerms<DoubleTerms, DoubleTerms.Bucket> 
 
         double term;
 
-        public Bucket(@Nullable ValueFormatter formatter, boolean showDocCountError) {
+        public Bucket(ValueFormatter formatter, boolean showDocCountError) {
             super(formatter, showDocCountError);
         }
 
         public Bucket(double term, long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError,
-                @Nullable ValueFormatter formatter) {
+                ValueFormatter formatter) {
             super(docCount, aggregations, showDocCountError, docCountError, formatter);
             this.term = term;
         }
@@ -141,7 +140,7 @@ public class DoubleTerms extends InternalTerms<DoubleTerms, DoubleTerms.Bucket> 
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(CommonFields.KEY, term);
-            if (formatter != null && formatter != ValueFormatter.RAW) {
+            if (formatter != ValueFormatter.RAW) {
                 builder.field(CommonFields.KEY_AS_STRING, formatter.format(term));
             }
             builder.field(CommonFields.DOC_COUNT, getDocCount());
@@ -154,13 +153,12 @@ public class DoubleTerms extends InternalTerms<DoubleTerms, DoubleTerms.Bucket> 
         }
     }
 
-    private @Nullable
-    ValueFormatter formatter;
+    private ValueFormatter formatter;
 
     DoubleTerms() {
     } // for serialization
 
-    public DoubleTerms(String name, Terms.Order order, @Nullable ValueFormatter formatter, int requiredSize, int shardSize,
+    public DoubleTerms(String name, Terms.Order order, ValueFormatter formatter, int requiredSize, int shardSize,
             long minDocCount, List<? extends InternalTerms.Bucket> buckets, boolean showTermDocCountError, long docCountError,
             long otherDocCount, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, order, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError, otherDocCount, pipelineAggregators,

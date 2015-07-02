@@ -188,7 +188,8 @@ public class GeoDistanceParser implements Aggregator.Parser {
         @Override
         protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
                 Map<String, Object> metaData) throws IOException {
-            return new Unmapped(name, ranges, keyed, null, aggregationContext, parent, rangeFactory, pipelineAggregators, metaData);
+            return new Unmapped(name, ranges, keyed, config.format(), aggregationContext, parent, rangeFactory, pipelineAggregators,
+                    metaData);
         }
 
         @Override
@@ -197,7 +198,8 @@ public class GeoDistanceParser implements Aggregator.Parser {
                 Map<String, Object> metaData)
                 throws IOException {
             DistanceSource distanceSource = new DistanceSource(valuesSource, distanceType, origin, unit);
-            return new RangeAggregator(name, factories, distanceSource, null, rangeFactory, ranges, keyed, aggregationContext, parent,
+            return new RangeAggregator(name, factories, distanceSource, config.format(), rangeFactory, ranges, keyed, aggregationContext,
+                    parent,
                     pipelineAggregators, metaData);
         }
 

@@ -255,7 +255,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
                 if (typeParser != null) {
                     iterator.remove();
                     Map<String, Object> fieldNodeMap = (Map<String, Object>) fieldNode;
-                    docBuilder.put(typeParser.parse(fieldName, fieldNodeMap, parserContext));
+                    docBuilder.put((MetadataFieldMapper.Builder)typeParser.parse(fieldName, fieldNodeMap, parserContext));
                     fieldNodeMap.remove("type");
                     checkNoRemainingFields(fieldName, fieldNodeMap, parserContext.indexVersionCreated());
                 }

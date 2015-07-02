@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.cluster.reroute;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
@@ -102,13 +101,13 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
                     if ("commands".equals(currentFieldName)) {
                         this.commands = AllocationCommands.fromXContent(parser);
                     } else {
-                        throw new ElasticsearchParseException("failed to parse reroute request, got start array with wrong field name [" + currentFieldName + "]");
+                        throw new ElasticsearchParseException("failed to parse reroute request, got start array with wrong field name [{}]", currentFieldName);
                     }
                 } else if (token.isValue()) {
                     if ("dry_run".equals(currentFieldName) || "dryRun".equals(currentFieldName)) {
                         dryRun = parser.booleanValue();
                     } else {
-                        throw new ElasticsearchParseException("failed to parse reroute request, got value with wrong field name [" + currentFieldName + "]");
+                        throw new ElasticsearchParseException("failed to parse reroute request, got value with wrong field name [{}]", currentFieldName);
                     }
                 }
             }

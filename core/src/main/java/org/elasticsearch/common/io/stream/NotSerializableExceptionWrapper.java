@@ -20,8 +20,14 @@
 package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 /**
  * This exception can be used to wrap a given, not serializable exception
@@ -30,32 +36,49 @@ import java.io.IOException;
  * the throwable it was created with instead of it's own. The stacktrace has no indication
  * of where this exception was created.
  */
-public final class NotSerializableExceptionWrapper extends ElasticsearchException {
+public final class NotSerializableExceptionWrapper extends ElasticsearchException.WithRestHeadersException {
 
     private final String name;
+    private final RestStatus status;
 
-    public NotSerializableExceptionWrapper(Throwable other) {
-        super(other.getMessage(), other.getCause());
+    public NotSerializableExceptionWrapper(Throwable other, Map<String, List<String>> headers) {
+        super(other.getMessage(), other.getCause(), headers);
         this.name = ElasticsearchException.getExceptionName(other);
+        this.status = ExceptionsHelper.status(other);
         setStackTrace(other.getStackTrace());
         for (Throwable otherSuppressed : other.getSuppressed()) {
             addSuppressed(otherSuppressed);
         }
     }
 
+    public NotSerializableExceptionWrapper(WithRestHeadersException other) {
+        this(other, other.getHeaders());
+    }
+
+    public NotSerializableExceptionWrapper(Throwable other) {
+        this(other, Collections.EMPTY_MAP);
+    }
+
     public NotSerializableExceptionWrapper(StreamInput in) throws IOException {
         super(in);
         name = in.readString();
+        status = RestStatus.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(name);
+        RestStatus.writeTo(out, status);
     }
 
     @Override
     protected String getExceptionName() {
         return name;
+    }
+
+    @Override
+    public RestStatus status() {
+        return status;
     }
 }

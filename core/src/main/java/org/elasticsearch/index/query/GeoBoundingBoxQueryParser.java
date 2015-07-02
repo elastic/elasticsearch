@@ -38,6 +38,8 @@ import java.io.IOException;
  */
 public class GeoBoundingBoxQueryParser extends BaseQueryParserTemp {
 
+    public static final String NAME = "geo_bbox";
+
     public static final String TOP = "top";
     public static final String LEFT = "left";
     public static final String RIGHT = "right";
@@ -125,11 +127,11 @@ public class GeoBoundingBoxQueryParser extends BaseQueryParserTemp {
                                 bottom = sparse.getLat();
                                 left = sparse.getLon();
                             } else {
-                                throw new ElasticsearchParseException("Unexpected field [" + currentFieldName + "]");
+                                throw new ElasticsearchParseException("failed to parse [{}] query. unexpected field [{}]", NAME, currentFieldName);
                             }
                         }
                     } else {
-                        throw new ElasticsearchParseException("fieldname expected but [" + token + "] found");
+                        throw new ElasticsearchParseException("failed to parse [{}] query. field name expected but [{}] found", NAME, token);
                     }
                 }
             } else if (token.isValue()) {
@@ -142,7 +144,7 @@ public class GeoBoundingBoxQueryParser extends BaseQueryParserTemp {
                 } else if ("type".equals(currentFieldName)) {
                     type = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext, "[geo_bbox] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "failed to parse [{}] query. unexpected field [{}]", NAME, currentFieldName);
                 }
             }
         }
@@ -164,10 +166,10 @@ public class GeoBoundingBoxQueryParser extends BaseQueryParserTemp {
 
         MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
         if (fieldType == null) {
-            throw new QueryParsingException(parseContext, "failed to find geo_point field [" + fieldName + "]");
+            throw new QueryParsingException(parseContext, "failed to parse [{}] query. could not find [{}] field [{}]", NAME, GeoPointFieldMapper.CONTENT_TYPE, fieldName);
         }
         if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
-            throw new QueryParsingException(parseContext, "field [" + fieldName + "] is not a geo_point field");
+            throw new QueryParsingException(parseContext, "failed to parse [{}] query. field [{}] is expected to be of type [{}], but is of [{}] type instead", NAME, fieldName, GeoPointFieldMapper.CONTENT_TYPE, fieldType.names().shortName());
         }
         GeoPointFieldMapper.GeoPointFieldType geoFieldType = ((GeoPointFieldMapper.GeoPointFieldType) fieldType);
 
@@ -178,8 +180,7 @@ public class GeoBoundingBoxQueryParser extends BaseQueryParserTemp {
             IndexGeoPointFieldData indexFieldData = parseContext.getForField(fieldType);
             filter = new InMemoryGeoBoundingBoxQuery(topLeft, bottomRight, indexFieldData);
         } else {
-            throw new QueryParsingException(parseContext, "geo bounding box type [" + type
-                    + "] not supported, either 'indexed' or 'memory' are allowed");
+            throw new QueryParsingException(parseContext, "failed to parse [{}] query. geo bounding box type [{}] is not supported. either [indexed] or [memory] are allowed", NAME, type);
         }
         if (filter != null) {
             filter.setBoost(boost);

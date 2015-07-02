@@ -20,11 +20,9 @@
 package org.elasticsearch.indices.cluster;
 
 import com.carrotsearch.hppc.IntHashSet;
-import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Lists;
-
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -32,7 +30,6 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -49,17 +46,12 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexShardAlreadyExistsException;
 import org.elasticsearch.index.IndexShardMissingException;
-import org.elasticsearch.index.aliases.IndexAlias;
 import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.shard.IndexShardRecoveryException;
-import org.elasticsearch.index.shard.StoreRecoveryService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettingsService;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.*;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -67,13 +59,11 @@ import org.elasticsearch.indices.recovery.RecoveryStatus;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 
-import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.ExceptionsHelper.detailedMessage;
 
 /**
@@ -467,44 +457,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     continue;
                 }
                 IndexAliasesService indexAliasesService = indexService.aliasesService();
-                processAliases(index, indexMetaData.aliases().values(), indexAliasesService);
-                // go over and remove aliases
-                for (IndexAlias indexAlias : indexAliasesService) {
-                    if (!indexMetaData.aliases().containsKey(indexAlias.alias())) {
-                        // we have it in our aliases, but not in the metadata, remove it
-                        indexAliasesService.remove(indexAlias.alias());
-                    }
-                }
+                indexAliasesService.setAliases(indexMetaData.getAliases());
             }
         }
-    }
-
-    private void processAliases(String index, ObjectContainer<AliasMetaData> aliases, IndexAliasesService indexAliasesService) {
-        HashMap<String, IndexAlias> newAliases = newHashMap();
-        for (ObjectCursor<AliasMetaData> cursor : aliases) {
-            AliasMetaData aliasMd = cursor.value;
-            String alias = aliasMd.alias();
-            CompressedXContent filter = aliasMd.filter();
-            try {
-                if (!indexAliasesService.hasAlias(alias)) {
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("[{}] adding alias [{}], filter [{}]", index, alias, filter);
-                    }
-                    newAliases.put(alias, indexAliasesService.create(alias, filter));
-                } else {
-                    if ((filter == null && indexAliasesService.alias(alias).filter() != null) ||
-                            (filter != null && !filter.equals(indexAliasesService.alias(alias).filter()))) {
-                        if (logger.isDebugEnabled()) {
-                            logger.debug("[{}] updating alias [{}], filter [{}]", index, alias, filter);
-                        }
-                        newAliases.put(alias, indexAliasesService.create(alias, filter));
-                    }
-                }
-            } catch (Throwable e) {
-                logger.warn("[{}] failed to add alias [{}], filter [{}]", e, index, alias, filter);
-            }
-        }
-        indexAliasesService.addAll(newAliases);
     }
 
     private void applyNewOrUpdatedShards(final ClusterChangedEvent event) {

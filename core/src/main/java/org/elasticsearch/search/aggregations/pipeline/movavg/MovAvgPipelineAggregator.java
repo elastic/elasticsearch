@@ -23,7 +23,6 @@ import com.google.common.base.Function;
 import com.google.common.collect.EvictingQueue;
 import com.google.common.collect.Lists;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -47,7 +46,9 @@ import org.elasticsearch.search.aggregations.support.format.ValueFormatterStream
 import org.joda.time.DateTime;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
@@ -84,7 +85,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
     public MovAvgPipelineAggregator() {
     }
 
-    public MovAvgPipelineAggregator(String name, String[] bucketsPaths, @Nullable ValueFormatter formatter, GapPolicy gapPolicy,
+    public MovAvgPipelineAggregator(String name, String[] bucketsPaths, ValueFormatter formatter, GapPolicy gapPolicy,
                          int window, int predict, MovAvgModel model, Map<String, Object> metadata) {
         super(name, bucketsPaths, metadata);
         this.formatter = formatter;
@@ -221,7 +222,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         private MovAvgModel model;
         private int predict;
 
-        public Factory(String name, String[] bucketsPaths, @Nullable ValueFormatter formatter, GapPolicy gapPolicy,
+        public Factory(String name, String[] bucketsPaths, ValueFormatter formatter, GapPolicy gapPolicy,
                        int window, int predict, MovAvgModel model) {
             super(name, TYPE.name(), bucketsPaths);
             this.formatter = formatter;

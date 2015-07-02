@@ -325,7 +325,7 @@ public class PercolatorService extends AbstractComponent {
                     if ("size".equals(currentFieldName)) {
                         context.size(parser.intValue());
                         if (context.size() < 0) {
-                            throw new ElasticsearchParseException("size is set to [" + context.size() + "] and is expected to be higher or equal to 0");
+                            throw new ElasticsearchParseException("size is set to [{}] and is expected to be higher or equal to 0", context.size());
                         }
                     } else if ("sort".equals(currentFieldName)) {
                         parseSort(parser, context);

@@ -33,6 +33,17 @@ Supported request options:
 `level`::   Defines if field stats should be returned on a per index level or on a
             cluster wide level. Valid values are `indices` and `cluster` (default).
 
+Alternatively the `fields` option can also be defined in the request body:
+
+[source,js]
+--------------------------------------------------
+curl -XPOST "http://localhost:9200/_field_stats?level=indices" -d '{
+   "fields" : ["rating"]
+}'
+--------------------------------------------------
+
+This is equivalent to the previous request.
+
 [float]
 === Field statistics
 
@@ -77,14 +88,17 @@ The highest value in the field represented in a displayable form.
 NOTE: Documents marked as deleted (but not yet removed by the merge process)
 still affect all the mentioned statistics.
 
+[float]
+=== Cluster level field statistics example
 
-.Cluster level field statistics
-==================================================
+Request:
 
 [source,js]
 --------------------------------------------------
-GET /_field_stats?fields=rating,answer_count,creation_date,display_name
+curl -XGET "http://localhost:9200/_field_stats?fields=rating,answer_count,creation_date,display_name"
 --------------------------------------------------
+
+Response:
 
 [source,json]
 --------------------------------------------------
@@ -140,15 +154,18 @@ GET /_field_stats?fields=rating,answer_count,creation_date,display_name
 --------------------------------------------------
 
 <1> The `_all` key indicates that it contains the field stats of all indices in the cluster.
-==================================================
 
-.Indices level field statistics
-==================================================
+[float]
+==== Indices level field statistics example
+
+Request:
 
 [source,js]
 --------------------------------------------------
-GET /_field_stats?fields=rating,answer_count,creation_date,display_name&level=indices
+curl -XGET "http://localhost:9200/_field_stats?fields=rating,answer_count,creation_date,display_name&level=indices"
 --------------------------------------------------
+
+Response:
 
 [source,js]
 --------------------------------------------------
@@ -205,4 +222,44 @@ GET /_field_stats?fields=rating,answer_count,creation_date,display_name&level=in
 
 <1> The `stack` key means it contains all field stats for the `stack` index.
 
-==================================================
+[float]
+=== Field stats index constraints
+
+Field stats index constraints allows to omit all field stats for indices that don't match with the constraint. An index
+constraint can exclude indices' field stats based on the `min_value` and `max_value` statistic. This option is only
+useful if the `level` option is set to `indices`.
+
+For example index constraints can be useful to find out the min and max value of a particular property of your data in
+a time based scenario. The following request only returns field stats for the `answer_count` property for indices
+holding questions created in the year 2014:
+
+[source,js]
+--------------------------------------------------
+curl -XPOST "http://localhost:9200/_field_stats?level=indices" -d '{
+   "fields" : ["answer_count"] <1>
+   "index_constraints" : { <2>
+      "creation_date" : { <3>
+         "min_value" : { <4>
+            "gte" : "2014-01-01T00:00:00.000Z",
+         },
+         "max_value" : {
+            "lt" : "2015-01-01T00:00:00.000Z"
+         }
+      }
+   }
+}'
+--------------------------------------------------
+
+<1> The fields to compute and return field stats for.
+<2> The set index constraints. Note that index constrains can be defined for fields that aren't defined in the `fields` option.
+<3> Index constraints for the field `creation_date`.
+<4> An index constraint on the `min_value` property of a field statistic.
+
+For a field, index constraints can be defined on the `min_value` statistic, `max_value` statistic or both.
+Each index constraint support the following comparisons:
+
+[horizontal]
+`gte`:: 	Greater-than or equal to
+`gt`::  	Greater-than
+`lte`:: 	Less-than or equal to
+`lt`::  	Less-than

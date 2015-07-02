@@ -1,0 +1,15 @@
+[[java-query-dsl-and-query]]
+==== And Query
+
+deprecated[2.0.0, Use the `bool` query instead]
+
+See {ref}/query-dsl-and-query.html[And Query]
+
+[source,java]
+--------------------------------------------------
+QueryBuilder query = andQuery(
+    rangeQuery("postDate").from("2010-03-01").to("2010-04-01"),    <1>
+    prefixQuery("name.second", "ba"));                             <1>
+--------------------------------------------------
+<1> queries
+

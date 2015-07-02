@@ -31,7 +31,12 @@ public class FieldStatsRequestBuilder extends BroadcastOperationRequestBuilder<F
     }
 
     public FieldStatsRequestBuilder setFields(String... fields) {
-        request().fields(fields);
+        request().setFields(fields);
+        return this;
+    }
+
+    public FieldStatsRequestBuilder setIndexContraints(IndexConstraint... fields) {
+        request().setIndexConstraints(fields);
         return this;
     }
 

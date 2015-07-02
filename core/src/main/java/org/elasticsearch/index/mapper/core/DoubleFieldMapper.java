@@ -297,7 +297,7 @@ public class DoubleFieldMapper extends NumberFieldMapper {
         }
 
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            CustomDoubleNumericField field = new CustomDoubleNumericField(this, value, fieldType());
+            CustomDoubleNumericField field = new CustomDoubleNumericField(value, fieldType());
             field.setBoost(boost);
             fields.add(field);
         }
@@ -343,18 +343,15 @@ public class DoubleFieldMapper extends NumberFieldMapper {
 
         private final double number;
 
-        private final NumberFieldMapper mapper;
-
-        public CustomDoubleNumericField(NumberFieldMapper mapper, double number, NumberFieldType fieldType) {
-            super(mapper, number, fieldType);
-            this.mapper = mapper;
+        public CustomDoubleNumericField(double number, NumberFieldType fieldType) {
+            super(number, fieldType);
             this.number = number;
         }
 
         @Override
         public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) throws IOException {
             if (fieldType().indexOptions() != IndexOptions.NONE) {
-                return mapper.popCachedStream().setDoubleValue(number);
+                return getCachedStream().setDoubleValue(number);
             }
             return null;
         }

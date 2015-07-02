@@ -31,7 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
-public abstract class FieldStats<T> implements Streamable, ToXContent {
+public abstract class FieldStats<T extends Comparable<T>> implements Streamable, ToXContent {
 
     private byte type;
     private long maxDoc;
@@ -121,6 +121,12 @@ public abstract class FieldStats<T> implements Streamable, ToXContent {
     public abstract String getMaxValue();
 
     /**
+     * @param value The string to be parsed
+     * @return The concrete object represented by the string argument
+     */
+    protected abstract T valueOf(String value);
+
+    /**
      * Merges the provided stats into this stats instance.
      */
     public void append(FieldStats stats) {
@@ -139,6 +145,34 @@ public abstract class FieldStats<T> implements Streamable, ToXContent {
             this.sumTotalTermFreq = -1;
         } else if (this.sumTotalTermFreq != -1) {
             this.sumTotalTermFreq += stats.sumTotalTermFreq;
+        }
+    }
+
+    /**
+     * @return <code>true</code> if this instance matches with the provided index constraint, otherwise <code>false</code> is returned
+     */
+    public boolean match(IndexConstraint constraint) {
+        int cmp;
+        T value  = valueOf(constraint.getValue());
+        if (constraint.getProperty() == IndexConstraint.Property.MIN) {
+            cmp = minValue.compareTo(value);
+        } else if (constraint.getProperty() == IndexConstraint.Property.MAX) {
+            cmp = maxValue.compareTo(value);
+        } else {
+            throw new IllegalArgumentException("Unsupported property [" + constraint.getProperty() + "]");
+        }
+
+        switch (constraint.getComparison()) {
+            case GT:
+                return cmp > 0;
+            case GTE:
+                return cmp >= 0;
+            case LT:
+                return cmp < 0;
+            case LTE:
+                return cmp <= 0;
+            default:
+                throw new IllegalArgumentException("Unsupported comparison [" + constraint.getComparison() + "]");
         }
     }
 
@@ -211,6 +245,11 @@ public abstract class FieldStats<T> implements Streamable, ToXContent {
         }
 
         @Override
+        protected java.lang.Long valueOf(String value) {
+            return java.lang.Long.valueOf(value);
+        }
+
+        @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             minValue = in.readLong();
@@ -256,6 +295,11 @@ public abstract class FieldStats<T> implements Streamable, ToXContent {
         }
 
         @Override
+        protected java.lang.Float valueOf(String value) {
+            return java.lang.Float.valueOf(value);
+        }
+
+        @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             minValue = in.readFloat();
@@ -298,6 +342,11 @@ public abstract class FieldStats<T> implements Streamable, ToXContent {
             Double other = (Double) stats;
             this.minValue = Math.min(other.minValue, minValue);
             this.maxValue = Math.max(other.maxValue, maxValue);
+        }
+
+        @Override
+        protected java.lang.Double valueOf(String value) {
+            return java.lang.Double.valueOf(value);
         }
 
         @Override
@@ -350,6 +399,11 @@ public abstract class FieldStats<T> implements Streamable, ToXContent {
         }
 
         @Override
+        protected BytesRef valueOf(String value) {
+            return new BytesRef(value);
+        }
+
+        @Override
         protected void toInnerXContent(XContentBuilder builder) throws IOException {
             builder.field(Fields.MIN_VALUE, getMinValue());
             builder.field(Fields.MAX_VALUE, getMaxValue());
@@ -391,6 +445,11 @@ public abstract class FieldStats<T> implements Streamable, ToXContent {
         @Override
         public String getMaxValue() {
             return dateFormatter.printer().print(maxValue);
+        }
+
+        @Override
+        protected java.lang.Long valueOf(String value) {
+            return dateFormatter.parser().parseMillis(value);
         }
 
         @Override

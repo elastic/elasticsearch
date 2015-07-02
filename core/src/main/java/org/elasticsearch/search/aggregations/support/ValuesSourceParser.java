@@ -24,7 +24,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
@@ -112,7 +111,7 @@ public class ValuesSourceParser<VS extends ValuesSource> {
                     if (targetValueType != null && input.valueType.isNotA(targetValueType)) {
                         throw new SearchParseException(context, aggType.name() + " aggregation [" + aggName +
                                 "] was configured with an incompatible value type [" + input.valueType + "]. [" + aggType +
-                                "] aggregation can only work on value of type [" + targetValueType + "]", 
+                                "] aggregation can only work on value of type [" + targetValueType + "]",
                                 parser.getTokenLocation());
                     }
                 } else if (!scriptParameterParser.token(currentFieldName, token, parser)) {
@@ -149,12 +148,14 @@ public class ValuesSourceParser<VS extends ValuesSource> {
                 input.script = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), input.params);
             }
         }
-        
+
         ValueType valueType = input.valueType != null ? input.valueType : targetValueType;
 
         if (input.field == null) {
             if (input.script == null) {
-                return new ValuesSourceConfig(ValuesSource.class);
+                ValuesSourceConfig<VS> config = new ValuesSourceConfig(ValuesSource.class);
+                config.format = resolveFormat(null, valueType);
+                return config;
             }
             Class valuesSourceType = valueType != null ? (Class<VS>) valueType.getValuesSourceType() : this.valuesSourceType;
             if (valuesSourceType == null || valuesSourceType == ValuesSource.class) {
@@ -212,7 +213,7 @@ public class ValuesSourceParser<VS extends ValuesSource> {
 
     private static ValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType) {
         if (valueType == null) {
-            return null; // we can't figure it out
+            return ValueFormat.RAW; // we can't figure it out
         }
         ValueFormat valueFormat = valueType.defaultFormat;
         if (valueFormat != null && valueFormat instanceof ValueFormat.Patternable && format != null) {
@@ -234,7 +235,7 @@ public class ValuesSourceParser<VS extends ValuesSource> {
         if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
             return format != null ? ValueFormat.Number.format(format) : ValueFormat.RAW;
         }
-        return null;
+        return ValueFormat.RAW;
     }
 
     public static class Builder<VS extends ValuesSource> {

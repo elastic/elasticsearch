@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -60,7 +61,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
     private final TransportService transportService;
     private final ClusterService clusterService;
     private final DiscoveryNodeService discoveryNodeService;
-    private AllocationService allocationService;
+    private RoutingService routingService;
     private final ClusterName clusterName;
     private final Version version;
 
@@ -96,8 +97,8 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
     }
 
     @Override
-    public void setAllocationService(AllocationService allocationService) {
-        this.allocationService = allocationService;
+    public void setRoutingService(RoutingService routingService) {
+        this.routingService = routingService;
     }
 
     @Override
@@ -176,9 +177,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                             nodesBuilder.put(discovery.localNode);
                         }
                         nodesBuilder.localNodeId(master.localNode().id()).masterNodeId(master.localNode().id());
-                        ClusterState updatedState = ClusterState.builder(currentState).nodes(nodesBuilder).build();
-                        RoutingAllocation.Result routingResult = master.allocationService.reroute(ClusterState.builder(updatedState).build());
-                        return ClusterState.builder(updatedState).routingResult(routingResult).build();
+                        return ClusterState.builder(currentState).nodes(nodesBuilder).build();
                     }
 
                     @Override
@@ -189,6 +188,10 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                     @Override
                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                         sendInitialStateEventIfNeeded();
+                        // we reroute not in the same cluster state update since in certain areas we rely on
+                        // the node to be in the cluster state (sampled from ClusterService#state) to be there, also
+                        // shard transitions need to better be handled in such cases
+                        master.routingService.reroute("post_node_add");
                     }
                 });
             }
@@ -240,7 +243,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                         }
                         // reroute here, so we eagerly remove dead nodes from the routing
                         ClusterState updatedState = ClusterState.builder(currentState).nodes(newNodes).build();
-                        RoutingAllocation.Result routingResult = master.allocationService.reroute(ClusterState.builder(updatedState).build());
+                        RoutingAllocation.Result routingResult = master.routingService.getAllocationService().reroute(ClusterState.builder(updatedState).build());
                         return ClusterState.builder(updatedState).routingResult(routingResult).build();
                     }
 

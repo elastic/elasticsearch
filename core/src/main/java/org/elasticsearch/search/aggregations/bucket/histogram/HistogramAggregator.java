@@ -47,7 +47,7 @@ import java.util.Map;
 public class HistogramAggregator extends BucketsAggregator {
 
     private final ValuesSource.Numeric valuesSource;
-    private final @Nullable ValueFormatter formatter;
+    private final ValueFormatter formatter;
     private final Rounding rounding;
     private final InternalOrder order;
     private final boolean keyed;
@@ -58,11 +58,10 @@ public class HistogramAggregator extends BucketsAggregator {
 
     private final LongHash bucketOrds;
 
-    public HistogramAggregator(String name, AggregatorFactories factories, Rounding rounding, InternalOrder order,
-                               boolean keyed, long minDocCount, @Nullable ExtendedBounds extendedBounds,
-                               @Nullable ValuesSource.Numeric valuesSource, @Nullable ValueFormatter formatter,
-                               InternalHistogram.Factory<?> histogramFactory, AggregationContext aggregationContext,
-                               Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+    public HistogramAggregator(String name, AggregatorFactories factories, Rounding rounding, InternalOrder order, boolean keyed,
+            long minDocCount, @Nullable ExtendedBounds extendedBounds, @Nullable ValuesSource.Numeric valuesSource,
+            ValueFormatter formatter, InternalHistogram.Factory<?> histogramFactory, AggregationContext aggregationContext,
+            Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 
         super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
         this.rounding = rounding;

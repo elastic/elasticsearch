@@ -579,7 +579,6 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
     @Test
     @TestLogging(value = "test. transport.tracer:TRACE")
-    @AwaitsFix(bugUrl = "@spinscale is looking into failures: http://build-us-00.elastic.co/job/es_core_master_strong/3986/")
     public void testTracerLog() throws InterruptedException {
         TransportRequestHandler handler = new TransportRequestHandler<StringMessageRequest>() {
             @Override

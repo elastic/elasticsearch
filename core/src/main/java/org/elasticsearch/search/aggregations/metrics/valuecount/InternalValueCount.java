@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.metrics.valuecount;
 
-import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -27,6 +26,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
 import java.util.List;
@@ -56,7 +56,7 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
 
     InternalValueCount() {} // for serialization
 
-    public InternalValueCount(String name, long value, @Nullable ValueFormatter formatter, List<PipelineAggregator> pipelineAggregators,
+    public InternalValueCount(String name, long value, ValueFormatter formatter, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.value = value;
@@ -89,18 +89,20 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
 
     @Override
     protected void doReadFrom(StreamInput in) throws IOException {
+        valueFormatter = ValueFormatterStreams.readOptional(in);
         value = in.readVLong();
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
+        ValueFormatterStreams.writeOptional(valueFormatter, out);
         out.writeVLong(value);
     }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(CommonFields.VALUE, value);
-        if (valueFormatter != null && !(valueFormatter instanceof ValueFormatter.Raw)) {
+        if (!(valueFormatter instanceof ValueFormatter.Raw)) {
             builder.field(CommonFields.VALUE_AS_STRING, valueFormatter.format(value));
         }
         return builder;

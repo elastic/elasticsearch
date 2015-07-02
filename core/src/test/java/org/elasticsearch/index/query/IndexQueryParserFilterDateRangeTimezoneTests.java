@@ -99,7 +99,7 @@ public class IndexQueryParserFilterDateRangeTimezoneTests extends ElasticsearchS
         Query parsedQuery;
         try {
             SearchContext.setCurrent(new TestSearchContext());
-            parsedQuery = queryParser.parse(query).query();
+            parsedQuery = queryParser.parse(query).query().rewrite(null);
         } finally {
             SearchContext.removeCurrent();
         }

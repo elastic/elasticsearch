@@ -434,4 +434,5 @@ public class QueryParseContext {
     public Version indexVersionCreated() {
         return indexVersionCreated;
     }
+
 }

@@ -168,19 +168,19 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
 
         // test exceptions
         String faultyHeuristicdefinition = "\"mutual_information\":{\"include_negatives\": false, \"some_unknown_field\": false}";
-        String expectedError = "unknown for mutual_information";
+        String expectedError = "unknown field [some_unknown_field]";
         checkParseException(heuristicParserMapper, searchContext, faultyHeuristicdefinition, expectedError);
 
         faultyHeuristicdefinition = "\"chi_square\":{\"unknown_field\": true}";
-        expectedError = "unknown for chi_square";
+        expectedError = "unknown field [unknown_field]";
         checkParseException(heuristicParserMapper, searchContext, faultyHeuristicdefinition, expectedError);
 
         faultyHeuristicdefinition = "\"jlh\":{\"unknown_field\": true}";
-        expectedError = "expected }, got ";
+        expectedError = "expected an empty object, but found ";
         checkParseException(heuristicParserMapper, searchContext, faultyHeuristicdefinition, expectedError);
 
         faultyHeuristicdefinition = "\"gnd\":{\"unknown_field\": true}";
-        expectedError = "unknown for gnd";
+        expectedError = "unknown field [unknown_field]";
         checkParseException(heuristicParserMapper, searchContext, faultyHeuristicdefinition, expectedError);
     }
 

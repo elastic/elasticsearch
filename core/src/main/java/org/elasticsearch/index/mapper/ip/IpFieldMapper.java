@@ -288,7 +288,7 @@ public class IpFieldMapper extends NumberFieldMapper {
 
         final long value = ipToLong(ipAsString);
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            CustomLongNumericField field = new CustomLongNumericField(this, value, fieldType());
+            CustomLongNumericField field = new CustomLongNumericField(value, fieldType());
             field.setBoost(fieldType().boost());
             fields.add(field);
         }

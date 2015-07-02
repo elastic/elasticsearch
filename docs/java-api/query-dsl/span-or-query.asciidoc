@@ -1,0 +1,14 @@
+[[java-query-dsl-span-or-query]]
+==== Span Or Query
+
+See {ref}/query-dsl-span-or-query.html[Span Or Query]
+
+[source,java]
+--------------------------------------------------
+QueryBuilder qb = spanOrQuery()
+    .clause(spanTermQuery("field","value1"))    <1>
+    .clause(spanTermQuery("field","value2"))    <1>
+    .clause(spanTermQuery("field","value3"));   <1>
+--------------------------------------------------
+<1> span term queries
+

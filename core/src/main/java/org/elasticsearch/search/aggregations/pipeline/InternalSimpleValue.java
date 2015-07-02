@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -56,7 +55,8 @@ public class InternalSimpleValue extends InternalNumericMetricsAggregation.Singl
     protected InternalSimpleValue() {
     } // for serialization
 
-    public InternalSimpleValue(String name, double value, @Nullable ValueFormatter formatter, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+    public InternalSimpleValue(String name, double value, ValueFormatter formatter, List<PipelineAggregator> pipelineAggregators,
+            Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.valueFormatter = formatter;
         this.value = value;
@@ -97,7 +97,7 @@ public class InternalSimpleValue extends InternalNumericMetricsAggregation.Singl
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         boolean hasValue = !(Double.isInfinite(value) || Double.isNaN(value));
         builder.field(CommonFields.VALUE, hasValue ? value : null);
-        if (hasValue && valueFormatter != null) {
+        if (hasValue && !(valueFormatter instanceof ValueFormatter.Raw)) {
             builder.field(CommonFields.VALUE_AS_STRING, valueFormatter.format(value));
         }
         return builder;

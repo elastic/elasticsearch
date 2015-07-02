@@ -259,7 +259,7 @@ public class TimeValue implements Streamable {
             } else {
                 if (Settings.getSettingsRequireUnits()) {
                     // Missing units:
-                    throw new ElasticsearchParseException("Failed to parse setting [" + settingName + "] with value [" + sValue + "] as a time value: unit is missing or unrecognized");
+                    throw new ElasticsearchParseException("Failed to parse setting [{}] with value [{}] as a time value: unit is missing or unrecognized", settingName, sValue);
                 } else {
                     // Leniency default to msec for bwc:
                     millis = Long.parseLong(sValue);
@@ -267,7 +267,7 @@ public class TimeValue implements Streamable {
             }
             return new TimeValue(millis, TimeUnit.MILLISECONDS);
         } catch (NumberFormatException e) {
-            throw new ElasticsearchParseException("Failed to parse [" + sValue + "]", e);
+            throw new ElasticsearchParseException("Failed to parse [{}]", e, sValue);
         }
     }
 

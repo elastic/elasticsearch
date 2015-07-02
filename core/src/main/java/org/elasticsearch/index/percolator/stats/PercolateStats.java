@@ -132,7 +132,7 @@ public class PercolateStats implements Streamable, ToXContent {
     static final class Fields {
         static final XContentBuilderString PERCOLATE = new XContentBuilderString("percolate");
         static final XContentBuilderString TOTAL = new XContentBuilderString("total");
-        static final XContentBuilderString TIME = new XContentBuilderString("getTime");
+        static final XContentBuilderString TIME = new XContentBuilderString("time");
         static final XContentBuilderString TIME_IN_MILLIS = new XContentBuilderString("time_in_millis");
         static final XContentBuilderString CURRENT = new XContentBuilderString("current");
         static final XContentBuilderString MEMORY_SIZE_IN_BYTES = new XContentBuilderString("memory_size_in_bytes");

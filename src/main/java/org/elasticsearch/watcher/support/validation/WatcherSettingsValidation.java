@@ -10,8 +10,10 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.watcher.support.Exceptions;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  *
@@ -46,10 +48,10 @@ public class WatcherSettingsValidation extends AbstractLifecycleComponent<Watche
         if (errors.isEmpty()) {
             return;
         }
-        WatcherSettingsException exception = new WatcherSettingsException();
+        StringBuilder sb = new StringBuilder("encountered invalid watcher settings:\n");
         for (String error : errors) {
-            exception.addError(error);
+            sb.append("- ").append(error).append("\n");
         }
-        throw exception;
+        throw Exceptions.invalidSettings(sb.toString());
     }
 }

@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.input;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -18,7 +19,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
  */
 public class InputRegistryTests extends ElasticsearchTestCase {
 
-    @Test(expected = InputException.class)
+    @Test(expected = ElasticsearchParseException.class)
     public void testParse_EmptyInput() throws Exception {
         InputRegistry registry = new InputRegistry(ImmutableMap.<String, InputFactory>of());
         XContentParser parser = JsonXContent.jsonXContent.createParser(
@@ -28,7 +29,7 @@ public class InputRegistryTests extends ElasticsearchTestCase {
         fail("expecting an exception when trying to parse an empty input");
     }
 
-    @Test(expected = InputException.class)
+    @Test(expected = ElasticsearchParseException.class)
     public void testParse_ArrayInput() throws Exception {
         InputRegistry registry = new InputRegistry(ImmutableMap.<String, InputFactory>of());
         XContentParser parser = JsonXContent.jsonXContent.createParser(

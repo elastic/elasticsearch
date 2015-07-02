@@ -13,14 +13,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.watcher.execution.ExecutionService;
@@ -37,9 +35,12 @@ import org.elasticsearch.watcher.trigger.manual.ManualTriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.watch.WatchStore;
+import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import java.util.Map;
+
+import static org.elasticsearch.watcher.support.Exceptions.illegalArgument;
 
 /**
  * Performs the watch execution operation.
@@ -83,7 +84,8 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
             if (request.getId() != null) {
                 watch = watchStore.get(request.getId());
                 if (watch == null) {
-                    throw new WatcherException("watch [{}] does not exist", request.getId());
+                    //todo we need to find a better std exception for this one
+                    throw new ElasticsearchException("watch [{}] does not exist", request.getId());
                 }
                 knownWatch = true;
             } else if (request.getWatchSource() != null) {
@@ -91,7 +93,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
                 watch = watchParser.parse(ExecuteWatchRequest.INLINE_WATCH_ID, false, request.getWatchSource());
                 knownWatch = false;
             } else {
-                throw new WatcherException("no watch provided");
+                throw illegalArgument("no watch provided");
             }
 
             String triggerType = watch.trigger().type();

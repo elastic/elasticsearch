@@ -8,8 +8,6 @@ package org.elasticsearch.watcher.watch;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.watcher.WatcherException;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -79,20 +77,9 @@ public interface Payload extends ToXContent {
 
     class XContent extends Simple {
 
-        public XContent(XContentParser parser) {
-            super(mapOrdered(parser));
-        }
-
-        public XContent(ToXContent response) {
+        public XContent(ToXContent response) throws IOException {
             super(responseToData(response));
         }
 
-        private static Map<String, Object> mapOrdered(XContentParser parser) {
-            try {
-                return parser.mapOrdered();
-            } catch (IOException ioe) {
-                throw new WatcherException("could not build a payload out of xcontent", ioe);
-            }
-        }
     }
 }

@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.actions.webhook;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -197,7 +198,7 @@ public class WebhookActionTests extends ElasticsearchTestCase {
         assertThat(parsedAction.action(), is(action));
     }
 
-    @Test(expected = WebhookActionException.class)
+    @Test(expected = ElasticsearchParseException.class)
     public void testParser_Failure() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject();
         if (randomBoolean()) {

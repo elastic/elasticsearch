@@ -41,9 +41,13 @@ public interface Transform extends ToXContent {
         }
 
         public Result(String type, Exception e) {
+            this(type, ExceptionsHelper.detailedMessage(e));
+        }
+
+        public Result(String type, String errorMessage) {
             this.type = type;
             this.status = Status.FAILURE;
-            this.reason = ExceptionsHelper.detailedMessage(e);
+            this.reason = errorMessage;
             this.payload = null;
         }
 

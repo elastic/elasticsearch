@@ -254,8 +254,8 @@ public final class WatcherTestUtils {
 
     public static SearchType getRandomSupportedSearchType() {
         return randomFrom(
-                SearchType.COUNT,
-                SearchType.DFS_QUERY_AND_FETCH,
+                SearchType.QUERY_AND_FETCH,
+                SearchType.QUERY_THEN_FETCH,
                 SearchType.DFS_QUERY_THEN_FETCH,
                 SearchType.DFS_QUERY_AND_FETCH);
     }

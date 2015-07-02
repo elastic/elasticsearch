@@ -15,7 +15,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.AbstractPlugin;
-import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
@@ -27,7 +26,6 @@ import org.junit.Test;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
@@ -168,7 +166,7 @@ public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTests
 
             @Override
             public Action.Result execute(String actionId, WatchExecutionContext context, Payload payload) throws Exception {
-                throw new WatcherException("dummy error");
+                throw new RuntimeException("dummy error");
             }
         }
 

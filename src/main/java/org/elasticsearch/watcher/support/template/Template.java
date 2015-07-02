@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.watcher.support.template;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.watcher.WatcherException;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -94,11 +94,9 @@ public class Template implements ToXContent {
             case FILE:
                 builder.field(Field.FILE.getPreferredName(), template);
                 break;
-            case INDEXED:
+            default: // INDEXED
+                assert type == ScriptType.INDEXED : "template type [" + type + "] is not supported";
                 builder.field(Field.ID.getPreferredName(), template);
-                break;
-            default:
-                throw new WatcherException("unsupported script type [{}]", type);
         }
         if (this.params != null) {
             builder.field(Field.PARAMS.getPreferredName(), this.params);
@@ -112,7 +110,7 @@ public class Template implements ToXContent {
             return new Template(String.valueOf(parser.objectText()));
         }
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new ParseException("expected a string value or an object, but found [{}] instead", token);
+            throw new ElasticsearchParseException("expected a string value or an object, but found [{}] instead", token);
         }
 
         String template = null;
@@ -138,27 +136,27 @@ public class Template implements ToXContent {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     template = parser.text();
                 } else {
-                    throw new ParseException("expected a string value for field [{}], but found [{}]", currentFieldName, token);
+                    throw new ElasticsearchParseException("expected a string value for field [{}], but found [{}]", currentFieldName, token);
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ID)) {
                 type = ScriptType.INDEXED;
                 if (token == XContentParser.Token.VALUE_STRING) {
                     template = parser.text();
                 } else {
-                    throw new ParseException("expected a string value for field [{}], but found [{}]", currentFieldName, token);
+                    throw new ElasticsearchParseException("expected a string value for field [{}], but found [{}]", currentFieldName, token);
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.PARAMS)) {
                 if (token == XContentParser.Token.START_OBJECT) {
                     params = parser.map();
                 } else {
-                    throw new ParseException("expected an object for field [{}], but found [{}]", currentFieldName, token);
+                    throw new ElasticsearchParseException("expected an object for field [{}], but found [{}]", currentFieldName, token);
                 }
             } else {
-                throw new ParseException("unexpected field [{}]", currentFieldName);
+                throw new ElasticsearchParseException("unexpected field [{}]", currentFieldName);
             }
         }
         if (template == null) {
-            throw new ParseException("expected one of [{}], [{}] or [{}] fields, but found none", Field.INLINE.getPreferredName(), Field.FILE.getPreferredName(), Field.ID.getPreferredName());
+            throw new ElasticsearchParseException("expected one of [{}], [{}] or [{}] fields, but found none", Field.INLINE.getPreferredName(), Field.FILE.getPreferredName(), Field.ID.getPreferredName());
         }
         assert type != null : "if template is not null, type should definitely not be null";
         return new Template(template, contentType, type, params);
@@ -255,17 +253,6 @@ public class Template implements ToXContent {
             public Template build() {
                 return new Template(template, null, type, params);
             }
-        }
-    }
-
-    public static class ParseException extends WatcherException {
-
-        public ParseException(String msg, Object... args) {
-            super(msg, args);
-        }
-
-        public ParseException(String msg, Throwable cause, Object... args) {
-            super(msg, cause, args);
         }
     }
 

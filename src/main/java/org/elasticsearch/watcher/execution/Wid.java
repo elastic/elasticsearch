@@ -5,10 +5,11 @@
  */
 package org.elasticsearch.watcher.execution;
 
-import org.elasticsearch.watcher.WatcherException;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
+
+import static org.elasticsearch.watcher.support.Exceptions.illegalArgument;
 
 /**
  *
@@ -30,7 +31,7 @@ public class Wid {
         this.value = value;
         int index = value.lastIndexOf("_");
         if (index <= 0) {
-            throw new WatcherException("invalid watcher execution id [{}]", value);
+            throw illegalArgument("invalid watcher execution id [{}]", value);
         }
         this.watchId = value.substring(0, index);
     }

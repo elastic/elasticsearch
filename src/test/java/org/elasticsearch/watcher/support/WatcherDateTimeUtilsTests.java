@@ -7,6 +7,7 @@ package org.elasticsearch.watcher.support;
 
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -27,7 +28,7 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class WatcherDateTimeUtilsTests extends ElasticsearchTestCase {
 
-    @Test(expected = WatcherDateTimeUtils.ParseException.class)
+    @Test(expected = ElasticsearchParseException.class)
     public void testParseTimeValue_Numeric() throws Exception {
         TimeValue value = new TimeValue(randomInt(100), randomFrom(TimeUnit.values()));
         long millis = value.getMillis();
@@ -47,7 +48,7 @@ public class WatcherDateTimeUtilsTests extends ElasticsearchTestCase {
         assertThat(parsed.millis(), is(value.millis()));
     }
 
-    @Test(expected = WatcherDateTimeUtils.ParseException.class)
+    @Test(expected = ElasticsearchParseException.class)
     public void testParseTimeValue_Numeric_Negative() throws Exception {
         TimeValue value = new TimeValue(randomIntBetween(1, 100), randomFrom(MILLISECONDS, SECONDS, MINUTES, HOURS, DAYS));
 
@@ -80,7 +81,7 @@ public class WatcherDateTimeUtilsTests extends ElasticsearchTestCase {
         assertThat(parsed.millis(), is(values.get(key).millis()));
     }
 
-    @Test(expected = WatcherDateTimeUtils.ParseException.class)
+    @Test(expected = ElasticsearchParseException.class)
     public void testParseTimeValue_String_Negative() throws Exception {
         int value = -1 * randomIntBetween(2, 200);
         ImmutableMap<String, TimeValue> values = ImmutableMap.<String, TimeValue>builder()

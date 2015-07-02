@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.input;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -35,7 +36,7 @@ public class InputRegistry {
         String type = null;
 
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-            throw new InputException("could not parse input for watch [{}]. expected an object representing the input, but found [{}] instead", watchId, parser.currentToken());
+            throw new ElasticsearchParseException("could not parse input for watch [{}]. expected an object representing the input, but found [{}] instead", watchId, parser.currentToken());
         }
 
         XContentParser.Token token;
@@ -44,20 +45,20 @@ public class InputRegistry {
             if (token == XContentParser.Token.FIELD_NAME) {
                 type = parser.currentName();
             } else if (type == null) {
-                throw new InputException("could not parse input for watch [{}]. expected field indicating the input type, but found [{}] instead", watchId, token);
+                throw new ElasticsearchParseException("could not parse input for watch [{}]. expected field indicating the input type, but found [{}] instead", watchId, token);
             } else if (token == XContentParser.Token.START_OBJECT) {
                 InputFactory factory = factories.get(type);
                 if (factory == null) {
-                    throw new InputException("could not parse input for watch [{}]. unknown input type [{}]", watchId, type);
+                    throw new ElasticsearchParseException("could not parse input for watch [{}]. unknown input type [{}]", watchId, type);
                 }
                 input = factory.parseExecutable(watchId, parser);
             } else {
-                throw new InputException("could not parse input for watch [{}]. expected an object representing input [{}], but found [{}] instead", watchId, type, token);
+                throw new ElasticsearchParseException("could not parse input for watch [{}]. expected an object representing input [{}], but found [{}] instead", watchId, type, token);
             }
         }
 
         if (input == null) {
-            throw new InputException("could not parse input for watch [{}]. expected field indicating the input type, but found an empty object instead", watchId, token);
+            throw new ElasticsearchParseException("could not parse input for watch [{}]. expected field indicating the input type, but found an empty object instead", watchId, token);
         }
 
         return input;

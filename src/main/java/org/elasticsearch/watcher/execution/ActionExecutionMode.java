@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.watcher.execution;
 
-import org.elasticsearch.watcher.WatcherException;
-
 import java.util.Locale;
+
+import static org.elasticsearch.watcher.support.Exceptions.illegalArgument;
 
 /**
  *
@@ -69,7 +69,7 @@ public enum ActionExecutionMode {
             case 4: return FORCE_EXECUTE;
             case 5: return SKIP;
         }
-        throw new WatcherException("unknown action execution mode id [{}]", id);
+        throw illegalArgument("unknown action execution mode id [{}]", id);
     }
 
     public static ActionExecutionMode resolve(String key) {
@@ -83,6 +83,6 @@ public enum ActionExecutionMode {
             case "force_execute":   return FORCE_EXECUTE;
             case "skip":            return SKIP;
         }
-        throw new WatcherException("unknown action execution mode [{}]", key);
+        throw illegalArgument("unknown action execution mode [{}]", key);
     }
 }

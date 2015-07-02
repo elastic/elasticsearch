@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.input.simple;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -12,7 +13,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.input.ExecutableInput;
 import org.elasticsearch.watcher.input.Input;
-import org.elasticsearch.watcher.input.InputException;
 import org.elasticsearch.watcher.input.InputFactory;
 import org.elasticsearch.watcher.watch.Payload;
 import org.junit.Test;
@@ -63,7 +63,7 @@ public class SimpleInputTests extends ElasticsearchTestCase {
     }
 
 
-    @Test(expected = InputException.class)
+    @Test(expected = ElasticsearchParseException.class)
     public void testParser_Invalid() throws Exception {
 
         XContentBuilder jsonBuilder = jsonBuilder().value("just a string");

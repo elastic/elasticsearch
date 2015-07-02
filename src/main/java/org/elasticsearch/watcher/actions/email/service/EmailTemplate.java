@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.watcher.actions.email.service;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.support.template.TemplateEngine;
 
@@ -446,13 +446,13 @@ public class EmailTemplate implements ToXContent {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
                         } else if (currentFieldName == null) {
-                            throw new ParseException("could not parse email template. empty [{}] field", fieldName);
+                            throw new ElasticsearchParseException("could not parse email template. empty [{}] field", fieldName);
                         } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Email.Field.BODY_TEXT)) {
                             builder.textBody(Template.parse(parser));
                         } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Email.Field.BODY_HTML)) {
                             builder.htmlBody(Template.parse(parser));
                         } else {
-                            throw new ParseException("could not parse email template. unknown field [{}.{}] field", fieldName, currentFieldName);
+                            throw new ElasticsearchParseException("could not parse email template. unknown field [{}.{}] field", fieldName, currentFieldName);
                         }
                     }
                 }
@@ -466,17 +466,5 @@ public class EmailTemplate implements ToXContent {
             return builder.build();
         }
     }
-
-    public static class ParseException extends WatcherException {
-
-        public ParseException(String msg, Object... args) {
-            super(msg, args);
-        }
-
-        public ParseException(String msg, Throwable cause, Object... args) {
-            super(msg, cause, args);
-        }
-    }
-
 
 }

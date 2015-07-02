@@ -5,8 +5,9 @@
  */
 package org.elasticsearch.watcher.trigger.schedule;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import com.google.common.primitives.Ints;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -38,17 +39,11 @@ public class DailyScheduleTests extends ScheduleTestCase {
         assertThat(crons, arrayContaining("0 " + Ints.join(",", time.minute()) + " " + Ints.join(",", time.hour()) + " * * ?"));
     }
 
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void test_SingleTime_Invalid() throws Exception {
-        try {
-            HourAndMinute ham = invalidDayTime();
-            new DayTimes(ham.hour, ham.minute);
-            fail("expected either a parse exception or an watcher settings exception on invalid time input");
-        } catch (DayTimes.ParseException pe) {
-            // expected
-        } catch (ScheduleTriggerException ase) {
-            // expected
-        }
+        HourAndMinute ham = invalidDayTime();
+        new DayTimes(ham.hour, ham.minute);
+        fail("expected an illegal argument exception on invalid time input");
     }
 
     @Test
@@ -93,7 +88,7 @@ public class DailyScheduleTests extends ScheduleTestCase {
         assertThat(schedule.times()[0], is(time));
     }
 
-    @Test(expected = ScheduleTriggerException.class)
+    @Test(expected = ElasticsearchParseException.class)
     public void testParser_SingleTime_Object_Invalid() throws Exception {
         HourAndMinute time = invalidDayTime();
         XContentBuilder builder = jsonBuilder()
@@ -125,7 +120,7 @@ public class DailyScheduleTests extends ScheduleTestCase {
         assertThat(schedule.times()[0], is(DayTimes.parse(timeStr)));
     }
 
-    @Test(expected = ScheduleTriggerException.class)
+    @Test(expected = ElasticsearchParseException.class)
     public void testParser_SingleTime_String_Invalid() throws Exception {
         XContentBuilder builder = jsonBuilder()
                 .startObject()
@@ -155,7 +150,7 @@ public class DailyScheduleTests extends ScheduleTestCase {
         }
     }
 
-    @Test(expected = ScheduleTriggerException.class)
+    @Test(expected = ElasticsearchParseException.class)
     public void testParser_MultipleTimes_Objects_Invalid() throws Exception {
         HourAndMinute[] times = invalidDayTimes();
         XContentBuilder builder = jsonBuilder()
@@ -186,7 +181,7 @@ public class DailyScheduleTests extends ScheduleTestCase {
         }
     }
 
-    @Test(expected = ScheduleTriggerException.class)
+    @Test(expected = ElasticsearchParseException.class)
     public void testParser_MultipleTimes_Strings_Invalid() throws Exception {
         String[] times = invalidDayTimesAsStrings();
         XContentBuilder builder = jsonBuilder()

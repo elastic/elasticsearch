@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.input.http;
 
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -74,7 +75,7 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
             try {
                 parser = contentType.xContent().createParser(response.body());
             } catch (Exception e) {
-                throw new HttpInputException("could not parse response body [{}] it does not appear to be [{}]", type(), ctx.id(), response.body().toUtf8(), contentType.shortName());
+                throw new ElasticsearchParseException("could not parse response body [{}] it does not appear to be [{}]", type(), ctx.id(), response.body().toUtf8(), contentType.shortName());
             }
         }
 

@@ -6,11 +6,12 @@
 package org.elasticsearch.watcher.actions;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.license.LicenseService;
-import org.elasticsearch.watcher.support.validation.Validation;
 import org.elasticsearch.watcher.support.clock.Clock;
+import org.elasticsearch.watcher.support.validation.Validation;
 import org.elasticsearch.watcher.transform.TransformRegistry;
 
 import java.io.IOException;
@@ -41,7 +42,7 @@ public class ActionRegistry  {
 
     public ExecutableActions parseActions(String watchId, XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-            throw new ActionException("could not parse actions for watch [{}]. expected an object but found [{}] instead", watchId, parser.currentToken());
+            throw new ElasticsearchParseException("could not parse actions for watch [{}]. expected an object but found [{}] instead", watchId, parser.currentToken());
         }
         List<ActionWrapper> actions = new ArrayList<>();
 
@@ -52,7 +53,7 @@ public class ActionRegistry  {
                 id = parser.currentName();
                 Validation.Error error = Validation.actionId(id);
                 if (error != null) {
-                    throw new ActionException("could not parse action [{}] for watch [{}]. {}", id, watchId, error);
+                    throw new ElasticsearchParseException("could not parse action [{}] for watch [{}]. {}", id, watchId, error);
                 }
             } else if (token == XContentParser.Token.START_OBJECT && id != null) {
                 ActionWrapper action = ActionWrapper.parse(watchId, id, parser, this, transformRegistry, clock, licenseService);

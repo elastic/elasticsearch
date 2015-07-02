@@ -7,7 +7,7 @@ package org.elasticsearch.watcher.actions.email.service;
 
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.watcher.support.secret.SecretService;
 
 import javax.activation.CommandMap;
@@ -60,7 +60,7 @@ public class Account {
         email = config.defaults.apply(email);
 
         if (email.to == null) {
-            throw new EmailException("email must have [to] recipient");
+            throw new SettingsException("missing required email [to] field");
         }
 
         Transport transport = session.getTransport(SMTP_PROTOCOL);
@@ -117,10 +117,10 @@ public class Account {
         public Config(String name, Settings settings) {
             this.name = name;
             profile = Profile.resolve(settings.get("profile"), Profile.STANDARD);
-            defaults = new EmailDefaults(settings.getAsSettings("email_defaults"));
+            defaults = new EmailDefaults(name, settings.getAsSettings("email_defaults"));
             smtp = new Smtp(settings.getAsSettings(SMTP_PROTOCOL));
             if (smtp.host == null) {
-                throw new EmailSettingsException("missing required email account setting for account [" + name + "]. 'smtp.host' must be configured");
+                throw new SettingsException("missing required email account setting for account [" + name + "]. 'smtp.host' must be configured");
             }
         }
 
@@ -200,14 +200,18 @@ public class Account {
             final Email.AddressList bcc;
             final String subject;
 
-            public EmailDefaults(Settings settings) {
-                from = Email.Address.parse(settings, Email.Field.FROM.getPreferredName());
-                replyTo = Email.AddressList.parse(settings, Email.Field.REPLY_TO.getPreferredName());
-                priority = Email.Priority.parse(settings, Email.Field.PRIORITY.getPreferredName());
-                to = Email.AddressList.parse(settings, Email.Field.TO.getPreferredName());
-                cc = Email.AddressList.parse(settings, Email.Field.CC.getPreferredName());
-                bcc = Email.AddressList.parse(settings, Email.Field.BCC.getPreferredName());
-                subject = settings.get(Email.Field.SUBJECT.getPreferredName());
+            public EmailDefaults(String accountName, Settings settings) {
+                try {
+                    from = Email.Address.parse(settings, Email.Field.FROM.getPreferredName());
+                    replyTo = Email.AddressList.parse(settings, Email.Field.REPLY_TO.getPreferredName());
+                    priority = Email.Priority.parse(settings, Email.Field.PRIORITY.getPreferredName());
+                    to = Email.AddressList.parse(settings, Email.Field.TO.getPreferredName());
+                    cc = Email.AddressList.parse(settings, Email.Field.CC.getPreferredName());
+                    bcc = Email.AddressList.parse(settings, Email.Field.BCC.getPreferredName());
+                    subject = settings.get(Email.Field.SUBJECT.getPreferredName());
+                } catch (IllegalArgumentException iae) {
+                    throw new SettingsException("invalid email defaults in email account settings [" + accountName + "]", iae);
+                }
             }
 
             Email apply(Email email) {

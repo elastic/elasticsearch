@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.input.search;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
@@ -317,7 +318,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
         assertThat(names, arrayContaining("test", "test-" + DateTimeFormat.forPattern(dateFormat).print(now.minusDays(1))));
     }
 
-    @Test(expected = SearchInputException.class)
+    @Test(expected = ElasticsearchParseException.class)
     public void testParser_ScanNotSupported() throws Exception {
         SearchRequest request = client().prepareSearch()
                 .setSearchType(SearchType.SCAN)

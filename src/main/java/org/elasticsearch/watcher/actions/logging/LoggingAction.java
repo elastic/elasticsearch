@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.actions.logging;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -82,8 +83,8 @@ public class LoggingAction implements Action {
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TEXT)) {
                 try {
                     text = Template.parse(parser);
-                } catch (Template.ParseException pe) {
-                    throw new LoggingActionException("failed to parse [{}] action [{}/{}]. failed to parse [{}] field", pe, TYPE, watchId, actionId, Field.TEXT.getPreferredName());
+                } catch (ElasticsearchParseException pe) {
+                    throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. failed to parse [{}] field", pe, TYPE, watchId, actionId, Field.TEXT.getPreferredName());
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.CATEGORY)) {
@@ -92,18 +93,18 @@ public class LoggingAction implements Action {
                     try {
                         level = LoggingLevel.valueOf(parser.text().toUpperCase(Locale.ROOT));
                     } catch (IllegalArgumentException iae) {
-                        throw new LoggingActionException("failed to parse [{}] action [{}/{}]. unknown logging level [{}]", TYPE, watchId, actionId, parser.text());
+                        throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. unknown logging level [{}]", TYPE, watchId, actionId, parser.text());
                     }
                 } else {
-                    throw new LoggingActionException("failed to parse [{}] action [{}/{}]. unexpected string field [{}]", TYPE, watchId, actionId, currentFieldName);
+                    throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. unexpected string field [{}]", TYPE, watchId, actionId, currentFieldName);
                 }
             } else {
-                throw new LoggingActionException("failed to parse [{}] action [{}/{}]. unexpected token [{}]", TYPE, watchId, actionId, token);
+                throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. unexpected token [{}]", TYPE, watchId, actionId, token);
             }
         }
 
         if (text == null) {
-            throw new LoggingActionException("failed to parse [{}] action [{}/{}]. missing required [{}] field", TYPE, watchId, actionId, Field.TEXT.getPreferredName());
+            throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. missing required [{}] field", TYPE, watchId, actionId, Field.TEXT.getPreferredName());
         }
 
         return new LoggingAction(text, level, category);

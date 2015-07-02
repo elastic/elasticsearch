@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.watcher.transform.search;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -366,7 +366,7 @@ public class SearchTransformTests extends ElasticsearchIntegrationTest {
         assertThat(names, arrayContaining("idx", "idx-" + DateTimeFormat.forPattern(dateFormat).print(now.minusDays(3))));
     }
 
-    @Test(expected = SearchTransformException.class)
+    @Test(expected = ElasticsearchParseException.class)
     public void testParser_ScanNotSupported() throws Exception {
         SearchRequest request = client().prepareSearch()
                 .setSearchType(SearchType.SCAN)

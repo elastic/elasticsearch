@@ -67,11 +67,7 @@ public abstract class CronnableSchedule implements Schedule {
     static Cron[] crons(String... expressions) {
         Cron[] crons = new Cron[expressions.length];
         for (int i = 0; i < crons.length; i++) {
-            try {
-                crons[i] = new Cron(expressions[i]);
-            } catch (Cron.ParseException pe) {
-                throw new CronSchedule.ValidationException(expressions[i], pe);
-            }
+            crons[i] = new Cron(expressions[i]);
         }
         return crons;
     }

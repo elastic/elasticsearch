@@ -27,7 +27,6 @@ import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.watcher.history.TriggeredWatchException;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.hamcrest.core.IsNull;
 import org.junit.Before;
@@ -108,7 +107,7 @@ public class TriggeredWatchStoreTests extends ElasticsearchTestCase {
         try {
             triggeredWatchStore.loadTriggeredWatches(cs);
             fail("exception expected, because not all primary shards are started");
-        } catch (TriggeredWatchException e) {
+        } catch (Exception e) {
             assertThat(e.getMessage(), equalTo("not all primary shards of the [.triggered_watches] index are started."));
         }
 
@@ -143,7 +142,7 @@ public class TriggeredWatchStoreTests extends ElasticsearchTestCase {
         try {
             triggeredWatchStore.loadTriggeredWatches(cs);
             fail("exception expected, because refresh did't manage to run on all primary shards");
-        } catch (TriggeredWatchException e) {
+        } catch (Exception e) {
             assertThat(e.getMessage(), equalTo("refresh was supposed to run on [1] shards, but ran on [0] shards"));
         }
 
@@ -186,7 +185,7 @@ public class TriggeredWatchStoreTests extends ElasticsearchTestCase {
         try {
             triggeredWatchStore.loadTriggeredWatches(cs);
             fail("exception expected, because scan search didn't manage to run on all shards");
-        } catch (TriggeredWatchException e) {
+        } catch (Exception e) {
             assertThat(e.getMessage(), equalTo("scan search was supposed to run on [1] shards, but ran on [0] shards"));
         }
         verify(clientProxy, times(1)).refresh(any(RefreshRequest.class));

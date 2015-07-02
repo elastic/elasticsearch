@@ -13,13 +13,11 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.input.Input;
-import org.elasticsearch.watcher.support.WatcherInactiveException;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.support.validation.WatcherSettingsValidation;
 import org.elasticsearch.watcher.transform.Transform;
@@ -73,7 +71,7 @@ public class ExecutionService extends AbstractComponent {
         }
     }
 
-    public void start(ClusterState state) {
+    public void start(ClusterState state) throws Exception {
         if (started.get()) {
             return;
         }
@@ -166,7 +164,7 @@ public class ExecutionService extends AbstractComponent {
         return queuedWatches;
     }
 
-    void processEventsAsync(Iterable<TriggerEvent> events) throws WatcherException {
+    void processEventsAsync(Iterable<TriggerEvent> events) throws Exception {
         if (!started.get()) {
             throw new IllegalStateException("not started");
         }
@@ -191,7 +189,12 @@ public class ExecutionService extends AbstractComponent {
             @Override
             public void onResponse(List<Integer> successFullSlots) {
                 for (Integer slot : successFullSlots) {
-                    executeAsync(contexts.get(slot), triggeredWatches.get(slot));
+                    TriggeredWatch triggeredWatch = triggeredWatches.get(slot);
+                    try {
+                        executeAsync(contexts.get(slot), triggeredWatch);
+                    } catch (Exception e) {
+                        logger.error("failed to execute watch [{}]", e, triggeredWatch.id());
+                    }
                 }
             }
 
@@ -207,7 +210,7 @@ public class ExecutionService extends AbstractComponent {
         });
     }
 
-    void processEventsSync(Iterable<TriggerEvent> events) throws WatcherException {
+    void processEventsSync(Iterable<TriggerEvent> events) throws Exception {
         if (!started.get()) {
             throw new IllegalStateException("not started");
         }
@@ -311,7 +314,7 @@ public class ExecutionService extends AbstractComponent {
        triggered (it'll have its history record)
     */
 
-    private void executeAsync(WatchExecutionContext ctx, TriggeredWatch triggeredWatch) {
+    private void executeAsync(WatchExecutionContext ctx, TriggeredWatch triggeredWatch) throws Exception {
         try {
             executor.execute(new WatchExecutionTask(ctx));
         } catch (EsRejectedExecutionException e) {
@@ -371,7 +374,7 @@ public class ExecutionService extends AbstractComponent {
         return ctx.finish();
     }
 
-    void executeTriggeredWatches(Collection<TriggeredWatch> triggeredWatches) {
+    void executeTriggeredWatches(Collection<TriggeredWatch> triggeredWatches) throws Exception {
         assert triggeredWatches != null;
         int counter = 0;
         for (TriggeredWatch triggeredWatch : triggeredWatches) {
@@ -402,10 +405,6 @@ public class ExecutionService extends AbstractComponent {
         public void run() {
             try {
                 execute(ctx);
-            } catch (WatcherInactiveException e) {
-                // When can end up here when acquiring the lock or adding a watch to the current executions while shutting down.
-                // Once we a watch is added to the current executions we shouldn't end up here.
-                logger.debug("could not execute watch [{}]/[{}]. watcher is not active", e, ctx.watch().id(), ctx.id());
             } catch (Exception e) {
                 logger.error("could not execute watch [{}]/[{}]", e, ctx.watch().id(), ctx.id());
             }

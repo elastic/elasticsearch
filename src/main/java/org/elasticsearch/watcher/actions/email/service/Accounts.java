@@ -7,6 +7,7 @@ package org.elasticsearch.watcher.actions.email.service;
 
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.watcher.support.secret.SecretService;
 
 import java.util.HashMap;
@@ -39,7 +40,7 @@ public class Accounts {
                 this.defaultAccountName = account.name();
             }
         } else if (!accounts.containsKey(defaultAccountName)) {
-            throw new EmailSettingsException("could not fine default account [" + defaultAccountName + "]");
+            throw new SettingsException("could not find default email account [" + defaultAccountName + "]");
         } else {
             this.defaultAccountName = defaultAccountName;
         }
@@ -51,12 +52,12 @@ public class Accounts {
      *
      * @param name  The name of the requested account
      * @return      The account associated with the given name.
-     * @throws      EmailException if the name is null and the default account is null.
+     * @throws      IllegalStateException if the name is null and the default account is null.
      */
-    public Account account(String name) throws EmailException {
+    public Account account(String name) throws IllegalStateException {
         if (name == null) {
             if (defaultAccountName == null) {
-                throw new EmailSettingsException("cannot find default email account as no accounts have been configured");
+                throw new IllegalStateException("cannot find default email account as no accounts have been configured");
             }
             name = defaultAccountName;
         }

@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.support.http;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -14,7 +15,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.http.auth.HttpAuth;
@@ -208,14 +208,14 @@ public class HttpRequest implements ToXContent {
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.CONNECTION_TIMEOUT)) {
                     try {
                         builder.connectionTimeout(WatcherDateTimeUtils.parseTimeValue(parser, Field.CONNECTION_TIMEOUT.toString()));
-                    } catch (WatcherDateTimeUtils.ParseException pe) {
-                        throw new ParseException("could not parse http request. invalid time value for [{}] field", pe, currentFieldName);
+                    } catch (ElasticsearchParseException pe) {
+                        throw new ElasticsearchParseException("could not parse http request. invalid time value for [{}] field", pe, currentFieldName);
                     }
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.READ_TIMEOUT)) {
                     try {
                         builder.readTimeout(WatcherDateTimeUtils.parseTimeValue(parser, Field.READ_TIMEOUT.toString()));
-                    } catch (WatcherDateTimeUtils.ParseException pe) {
-                        throw new ParseException("could not parse http request. invalid time value for [{}] field", pe, currentFieldName);
+                    } catch (ElasticsearchParseException pe) {
+                        throw new ElasticsearchParseException("could not parse http request. invalid time value for [{}] field", pe, currentFieldName);
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.HEADERS)) {
@@ -225,7 +225,7 @@ public class HttpRequest implements ToXContent {
                     }  else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.BODY)) {
                         builder.body(parser.text());
                     } else {
-                        throw new ParseException("could not parse http request. unexpected object field [{}]", currentFieldName);
+                        throw new ElasticsearchParseException("could not parse http request. unexpected object field [{}]", currentFieldName);
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.SCHEME)) {
@@ -239,39 +239,28 @@ public class HttpRequest implements ToXContent {
                     } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.BODY)) {
                         builder.body(parser.text());
                     } else {
-                        throw new ParseException("could not parse http request. unexpected string field [{}]", currentFieldName);
+                        throw new ElasticsearchParseException("could not parse http request. unexpected string field [{}]", currentFieldName);
                     }
                 } else if (token == XContentParser.Token.VALUE_NUMBER) {
                     if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.PORT)) {
                         builder.port = parser.intValue();
                     } else {
-                        throw new ParseException("could not parse http request. unexpected numeric field [{}]", currentFieldName);
+                        throw new ElasticsearchParseException("could not parse http request. unexpected numeric field [{}]", currentFieldName);
                     }
                 } else {
-                    throw new ParseException("could not parse http request. unexpected token [{}]", token);
+                    throw new ElasticsearchParseException("could not parse http request. unexpected token [{}]", token);
                 }
             }
 
             if (builder.host == null) {
-                throw new ParseException("could not parse http request. missing required [{}] field", Field.HOST.getPreferredName());
+                throw new ElasticsearchParseException("could not parse http request. missing required [{}] field", Field.HOST.getPreferredName());
             }
 
             if (builder.port < 0) {
-                throw new ParseException("could not parse http request. missing required [{}] field", Field.PORT.getPreferredName());
+                throw new ElasticsearchParseException("could not parse http request. missing required [{}] field", Field.PORT.getPreferredName());
             }
 
             return builder.build();
-        }
-
-        public static class ParseException extends WatcherException {
-
-            public ParseException(String msg, Object... args) {
-                super(msg, args);
-            }
-
-            public ParseException(String msg, Throwable cause, Object... args) {
-                super(msg, cause, args);
-            }
         }
     }
 

@@ -15,6 +15,8 @@ import org.elasticsearch.watcher.watch.Payload;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.common.logging.support.LoggerMessageFormat.format;
+
 /**
  *
  */
@@ -48,7 +50,7 @@ public class ExecutableChainTransform extends ExecutableTransform<ChainTransform
             Transform.Result result = transform.execute(ctx, payload);
             results.add(result);
             if (result.status() == Transform.Result.Status.FAILURE) {
-                throw new ChainTransformException("failed to execute [{}] transform. failed to execute sub-transform [{}]", ChainTransform.TYPE, transform.type());
+                return new ChainTransform.Result(format("failed to execute [{}] transform for [{}]. failed to execute sub-transform [{}]", ChainTransform.TYPE, ctx.id(), transform.type()), results.build());
             }
             payload = result.payload();
         }

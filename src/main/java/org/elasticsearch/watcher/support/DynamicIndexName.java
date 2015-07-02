@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.watcher.support;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.watcher.WatcherException;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
@@ -141,10 +141,10 @@ public class DynamicIndexName implements ToXContent {
                 format = defaultFormat;
             } else {
                 if (expression.lastIndexOf(RIGHT_BOUND) != expression.length() - 1) {
-                    throw new ParseException("invalid dynamic name expression [{}]. missing closing `}` for date math format", expression);
+                    throw new ElasticsearchParseException("invalid dynamic name expression [{}]. missing closing `}` for date math format", expression);
                 }
                 if (i == expression.length() - 2) {
-                    throw new ParseException("invalid dynamic name expression [{}]. missing date format", expression);
+                    throw new ElasticsearchParseException("invalid dynamic name expression [{}]. missing date format", expression);
                 }
                 mathExpression = expression.substring(0, i);
                 format = expression.substring(i + 1, expression.length() - 1);
@@ -218,7 +218,7 @@ public class DynamicIndexName implements ToXContent {
                                 inDateFormat = true;
                                 sb.append(c);
                             } else {
-                                throw new ParseException("invalid dynamic name expression [{}]. invalid character in placeholder at position [{}]", new String(text, from, length), i);
+                                throw new ElasticsearchParseException("invalid dynamic name expression [{}]. invalid character in placeholder at position [{}]", new String(text, from, length), i);
                             }
                             break;
 
@@ -254,7 +254,7 @@ public class DynamicIndexName implements ToXContent {
 
                         case RIGHT_BOUND:
                             if (!escapedChar) {
-                                throw new ParseException("invalid dynamic name expression [{}]. invalid character at position [{}]. " +
+                                throw new ElasticsearchParseException("invalid dynamic name expression [{}]. invalid character at position [{}]. " +
                                         "`{` and `}` are reserved characters and should be escaped when used as part of the index name using `\\` (e.g. `\\{text\\}`)", new String(text, from, length), i);
                             }
                         default:
@@ -263,7 +263,7 @@ public class DynamicIndexName implements ToXContent {
                 }
             }
             if (inPlaceHolder) {
-                throw new ParseException("invalid dynamic name expression [{}]. date math placeholder is open ended", new String(text, from, length));
+                throw new ElasticsearchParseException("invalid dynamic name expression [{}]. date math placeholder is open ended", new String(text, from, length));
             }
             if (sb.length() > 0) {
                 expressions.add(new StaticExpression(sb.toString()));
@@ -332,18 +332,6 @@ public class DynamicIndexName implements ToXContent {
                 dynamicIndexNames[i] = parse(templates[i], timeZone);
             }
             return dynamicIndexNames;
-        }
-
-    }
-
-    public static class ParseException extends WatcherException {
-
-        public ParseException(String msg, Object... args) {
-            super(msg, args);
-        }
-
-        public ParseException(String msg, Throwable cause, Object... args) {
-            super(msg, cause, args);
         }
     }
 }

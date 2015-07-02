@@ -6,12 +6,14 @@
 package org.elasticsearch.watcher.trigger;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.watcher.support.Exceptions;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -19,6 +21,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+
+import static org.elasticsearch.watcher.support.Exceptions.illegalArgument;
 
 /**
  *
@@ -40,7 +44,7 @@ public class TriggerService extends AbstractComponent {
         this.engines = builder.build();
     }
 
-    public synchronized void start(Collection<? extends TriggerEngine.Job> jobs) {
+    public synchronized void start(Collection<? extends TriggerEngine.Job> jobs) throws Exception {
         for (TriggerEngine engine : engines.values()) {
             engine.start(jobs);
         }
@@ -78,7 +82,7 @@ public class TriggerService extends AbstractComponent {
     public TriggerEvent simulateEvent(String type, String jobId, Map<String, Object> data) {
         TriggerEngine engine = engines.get(type);
         if (engine == null) {
-            throw new TriggerException("could not simulate trigger event. unknown trigger type [{}]", type);
+            throw illegalArgument("could not simulate trigger event. unknown trigger type [{}]", type);
         }
         return engine.simulateEvent(jobId, data, this);
     }
@@ -88,17 +92,17 @@ public class TriggerService extends AbstractComponent {
         assert token == XContentParser.Token.START_OBJECT;
         token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new TriggerException("could not parse trigger for [{}]. expected trigger type string field, but found [{}]", jobName, token);
+            throw new ElasticsearchParseException("could not parse trigger for [{}]. expected trigger type string field, but found [{}]", jobName, token);
         }
         String type = parser.text();
         token = parser.nextToken();
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new TriggerException("could not parse trigger [{}] for [{}]. expected trigger an object as the trigger body, but found [{}]", type, jobName, token);
+            throw new ElasticsearchParseException("could not parse trigger [{}] for [{}]. expected trigger an object as the trigger body, but found [{}]", type, jobName, token);
         }
         Trigger trigger = parseTrigger(jobName, type, parser);
         token = parser.nextToken();
         if (token != XContentParser.Token.END_OBJECT) {
-            throw new TriggerException("could not parse trigger [{}] for [{}]. expected [END_OBJECT] token, but found [{}]", type, jobName, token);
+            throw new ElasticsearchParseException("could not parse trigger [{}] for [{}]. expected [END_OBJECT] token, but found [{}]", type, jobName, token);
         }
         return trigger;
     }
@@ -106,7 +110,7 @@ public class TriggerService extends AbstractComponent {
     public Trigger parseTrigger(String jobName, String type, XContentParser parser) throws IOException {
         TriggerEngine engine = engines.get(type);
         if (engine == null) {
-            throw new TriggerException("could not parse trigger [{}] for [{}]. unknown trigger type [{}]", type, jobName, type);
+            throw new ElasticsearchParseException("could not parse trigger [{}] for [{}]. unknown trigger type [{}]", type, jobName, type);
         }
         return engine.parseTrigger(jobName, parser);
     }
@@ -116,17 +120,17 @@ public class TriggerService extends AbstractComponent {
         assert token == XContentParser.Token.START_OBJECT;
         token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new TriggerException("could not parse trigger event for [{}] for watch [{}]. expected trigger type string field, but found [{}]", context, watchId, token);
+            throw new ElasticsearchParseException("could not parse trigger event for [{}] for watch [{}]. expected trigger type string field, but found [{}]", context, watchId, token);
         }
         String type = parser.text();
         token = parser.nextToken();
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new TriggerException("could not parse trigger event for [{}] for watch [{}]. expected trigger an object as the trigger body, but found [{}]", context, watchId, token);
+            throw new ElasticsearchParseException("could not parse trigger event for [{}] for watch [{}]. expected trigger an object as the trigger body, but found [{}]", context, watchId, token);
         }
         TriggerEvent trigger = parseTriggerEvent(watchId, context, type, parser);
         token = parser.nextToken();
         if (token != XContentParser.Token.END_OBJECT) {
-            throw new TriggerException("could not parse trigger [{}] for [{}]. expected [END_OBJECT] token, but found [{}]", type, context, token);
+            throw new ElasticsearchParseException("could not parse trigger [{}] for [{}]. expected [END_OBJECT] token, but found [{}]", type, context, token);
         }
         return trigger;
     }
@@ -141,7 +145,7 @@ public class TriggerService extends AbstractComponent {
     public TriggerEvent parseTriggerEvent(String watchId, String context, String type, XContentParser parser) throws IOException {
         TriggerEngine engine = engines.get(type);
         if (engine == null) {
-            throw new TriggerException("Unknown trigger type [{}]", type);
+            throw new ElasticsearchParseException("Unknown trigger type [{}]", type);
         }
         return engine.parseTriggerEvent(this, watchId, context, parser);
     }

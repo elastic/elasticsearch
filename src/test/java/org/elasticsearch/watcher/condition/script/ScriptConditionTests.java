@@ -7,24 +7,25 @@ package org.elasticsearch.watcher.condition.script;
 
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.watch.Payload;
+import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
 import org.junit.Before;
@@ -33,11 +34,10 @@ import org.junit.Test;
 import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.watcher.support.Exceptions.illegalArgument;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.getScriptServiceProxy;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.mockExecutionContext;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  */
@@ -103,7 +103,7 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
         assertTrue(executable.execute(ctx).met());
     }
 
-    @Test(expected = ScriptConditionException.class)
+    @Test(expected = ElasticsearchParseException.class)
     public void testParser_InValid() throws Exception {
         ScriptConditionFactory factory = new ScriptConditionFactory(Settings.settingsBuilder().build(), getScriptServiceProxy(tp));
         XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -114,7 +114,7 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
         fail("expected a condition exception trying to parse an invalid condition XContent");
     }
 
-    @Test(expected = ScriptConditionValidationException.class)
+    @Test(expected = ScriptException.class)
     public void testScriptConditionParser_badScript() throws Exception {
         ScriptConditionFactory conditionParser = new ScriptConditionFactory(Settings.settingsBuilder().build(), getScriptServiceProxy(tp));
         ScriptType scriptType = randomFrom(ScriptType.values());
@@ -136,7 +136,7 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
         fail("expected a condition validation exception trying to create an executable with a bad or missing script");
     }
 
-    @Test(expected = ScriptConditionValidationException.class)
+    @Test(expected = ScriptException.class)
     public void testScriptConditionParser_badLang() throws Exception {
         ScriptConditionFactory conditionParser = new ScriptConditionFactory(Settings.settingsBuilder().build(), getScriptServiceProxy(tp));
         ScriptType scriptType = ScriptType.INLINE;
@@ -170,7 +170,7 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
         assertThat(result, notNullValue());
         assertThat(result.status(), is(Condition.Result.Status.FAILURE));
         assertThat(result.reason(), notNullValue());
-        assertThat(result.reason(), containsString("ScriptConditionException"));
+        assertThat(result.reason(), containsString("ScriptException"));
     }
 
     @Test
@@ -200,7 +200,7 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
                 builder.field("id", script);
                 break;
             default:
-                throw new WatcherException("unsupported script type [{}]", scriptType);
+                throw illegalArgument("unsupported script type [{}]", scriptType);
         }
         if (scriptLang != null) {
             builder.field("lang", scriptLang);

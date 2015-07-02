@@ -7,16 +7,13 @@ package org.elasticsearch.watcher.watch;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.watcher.support.xcontent.WatcherParams;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.PeriodType;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -24,7 +21,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.actions.ActionRegistry;
 import org.elasticsearch.watcher.actions.ActionStatus;
 import org.elasticsearch.watcher.actions.ActionWrapper;
@@ -39,17 +35,22 @@ import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.support.secret.SecretService;
 import org.elasticsearch.watcher.support.secret.SensitiveXContentParser;
+import org.elasticsearch.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.watcher.transform.ExecutableTransform;
 import org.elasticsearch.watcher.transform.TransformRegistry;
 import org.elasticsearch.watcher.trigger.Trigger;
 import org.elasticsearch.watcher.trigger.TriggerEngine;
 import org.elasticsearch.watcher.trigger.TriggerService;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
+import org.joda.time.PeriodType;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.watcher.support.Exceptions.ioException;
 
 public class Watch implements TriggerEngine.Job, ToXContent {
 
@@ -184,14 +185,10 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         return builder;
     }
 
-    public BytesReference getAsBytes() {
+    public BytesReference getAsBytes() throws IOException {
         // we don't want to cache this and instead rebuild it every time on demand. The watch is in
         // memory and we don't need this redundancy
-        try {
-            return toXContent(jsonBuilder(), WatcherParams.builder().put(Watch.INCLUDE_STATUS_KEY, true).build()).bytes();
-        } catch (IOException ioe) {
-            throw new WatcherException("could not serialize watch [{}]", ioe, id);
-        }
+        return toXContent(jsonBuilder(), WatcherParams.builder().put(Watch.INCLUDE_STATUS_KEY, true).build()).bytes();
     }
 
     public static class Parser extends AbstractComponent {
@@ -225,7 +222,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
             this.clock = clock;
         }
 
-        public Watch parse(String name, boolean includeStatus, BytesReference source) {
+        public Watch parse(String name, boolean includeStatus, BytesReference source) throws IOException {
             return parse(name, includeStatus, false, source);
         }
 
@@ -243,11 +240,11 @@ public class Watch implements TriggerEngine.Job, ToXContent {
          *
          * @see org.elasticsearch.watcher.WatcherService#putWatch(String, BytesReference, TimeValue)
          */
-        public Watch parseWithSecrets(String id, boolean includeStatus, BytesReference source) {
+        public Watch parseWithSecrets(String id, boolean includeStatus, BytesReference source) throws IOException {
             return parse(id, includeStatus, true, source);
         }
 
-        private Watch parse(String id, boolean includeStatus, boolean withSecrets, BytesReference source) {
+        private Watch parse(String id, boolean includeStatus, boolean withSecrets, BytesReference source) throws IOException {
             if (logger.isTraceEnabled()) {
                 logger.trace("parsing watch [{}] ", source.toUtf8());
             }
@@ -260,7 +257,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                 parser.nextToken();
                 return parse(id, includeStatus, parser);
             } catch (IOException ioe) {
-                throw new WatcherException("could not parse watch [{}]", ioe, id);
+                throw ioException("could not parse watch [{}]", ioe, id);
             } finally {
                 if (parser != null) {
                     parser.close();
@@ -282,11 +279,11 @@ public class Watch implements TriggerEngine.Job, ToXContent {
             XContentParser.Token token;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == null ) {
-                    throw new ParseException("could not parse watch [{}]. null token", id);
+                    throw new ElasticsearchParseException("could not parse watch [{}]. null token", id);
                 } else if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token == null || currentFieldName == null) {
-                    throw new WatcherException("could not parse watch [{}], unexpected token [{}]", id, token);
+                    throw new ElasticsearchParseException("could not parse watch [{}], unexpected token [{}]", id, token);
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TRIGGER)) {
                     trigger = triggerService.parseTrigger(id, parser);
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.INPUT)) {
@@ -298,8 +295,8 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.THROTTLE_PERIOD)) {
                     try {
                         throttlePeriod = WatcherDateTimeUtils.parseTimeValue(parser, Field.THROTTLE_PERIOD.toString());
-                    } catch (WatcherDateTimeUtils.ParseException pe) {
-                        throw new ParseException("could not parse watch [{}]. failed to parse time value for field [{}]", pe, id, currentFieldName);
+                    } catch (ElasticsearchParseException pe) {
+                        throw new ElasticsearchParseException("could not parse watch [{}]. failed to parse time value for field [{}]", pe, id, currentFieldName);
                     }
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ACTIONS)) {
                     actions = actionRegistry.parseActions(id, parser);
@@ -312,18 +309,18 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                         parser.skipChildren();
                     }
                 } else {
-                    throw new ParseException("could not parse watch [{}]. unexpected field [{}]", id, currentFieldName);
+                    throw new ElasticsearchParseException("could not parse watch [{}]. unexpected field [{}]", id, currentFieldName);
                 }
             }
             if (trigger == null) {
-                throw new WatcherException("could not parse watch [{}]. missing required field [{}]", id, Field.TRIGGER.getPreferredName());
+                throw new ElasticsearchParseException("could not parse watch [{}]. missing required field [{}]", id, Field.TRIGGER.getPreferredName());
             }
 
             if (status != null) {
                 // verify the status is valid (that every action indeed has a status)
                 for (ActionWrapper action : actions) {
                     if (status.actionStatus(action.id()) == null) {
-                        throw new WatcherException("could not parse watch [{}]. watch status in invalid state. action [{}] status is missing", id, action.id());
+                        throw new ElasticsearchParseException("could not parse watch [{}]. watch status in invalid state. action [{}] status is missing", id, action.id());
                     }
                 }
             } else {
@@ -337,17 +334,6 @@ public class Watch implements TriggerEngine.Job, ToXContent {
             }
 
             return new Watch(id, trigger, input, condition, transform, throttlePeriod, actions, metatdata, status);
-        }
-    }
-
-    public static class ParseException extends WatcherException {
-
-        public ParseException(String msg, Object... args) {
-            super(msg, args);
-        }
-
-        public ParseException(String msg, Throwable cause, Object... args) {
-            super(msg, cause, args);
         }
     }
 

@@ -7,7 +7,6 @@ package org.elasticsearch.watcher.trigger.manual;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.trigger.TriggerService;
 
@@ -47,17 +46,6 @@ public class ManualTriggerEvent extends TriggerEvent {
     public static ManualTriggerEvent parse(TriggerService triggerService, String watchId, String context, XContentParser parser) throws IOException {
         TriggerEvent parsedTriggerEvent = triggerService.parseTriggerEvent(watchId, context, parser);
         return new ManualTriggerEvent(context, parsedTriggerEvent);
-    }
-
-    public static class ParseException extends WatcherException {
-
-        public ParseException(String msg, Object... args) {
-            super(msg, args);
-        }
-
-        public ParseException(String msg, Throwable cause, Object... args) {
-            super(msg, cause, args);
-        }
     }
 
 }

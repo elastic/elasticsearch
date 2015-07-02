@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.support;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -182,25 +183,25 @@ public class DynamicIndexNameTests extends ElasticsearchTestCase {
                 ".logstash-" + DateTimeFormat.forPattern("YYYY.MM").print(now.withDayOfMonth(1))));
     }
 
-    @Test(expected = DynamicIndexName.ParseException.class)
+    @Test(expected = ElasticsearchParseException.class)
     public void testExpression_Invalid_Unescaped() throws Exception {
         DynamicIndexName.Parser parser = new DynamicIndexName.Parser("YYYY.MM.dd", DateTimeZone.UTC);
         parser.parse("<.mar}vel-{now/d}>");
     }
 
-    @Test(expected = DynamicIndexName.ParseException.class)
+    @Test(expected = ElasticsearchParseException.class)
     public void testExpression_Invalid_DateMathFormat() throws Exception {
         DynamicIndexName.Parser parser = new DynamicIndexName.Parser("YYYY.MM.dd", DateTimeZone.UTC);
         parser.parse("<.marvel-{now/d{}>");
     }
 
-    @Test(expected = DynamicIndexName.ParseException.class)
+    @Test(expected = ElasticsearchParseException.class)
     public void testExpression_Invalid_EmptyDateMathFormat() throws Exception {
         DynamicIndexName.Parser parser = new DynamicIndexName.Parser("YYYY.MM.dd", DateTimeZone.UTC);
         parser.parse("<.marvel-{now/d{}}>");
     }
 
-    @Test(expected = DynamicIndexName.ParseException.class)
+    @Test(expected = ElasticsearchParseException.class)
     public void testExpression_Invalid_OpenEnded() throws Exception {
         DynamicIndexName.Parser parser = new DynamicIndexName.Parser("YYYY.MM.dd", DateTimeZone.UTC);
         parser.parse("<.marvel-{now/d>");

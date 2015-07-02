@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.input.simple;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.input.Input;
@@ -56,7 +57,7 @@ public class SimpleInput implements Input {
 
     public static SimpleInput parse(String watchId, XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-            throw new SimpleInputException("could not parse [{}] input for watch [{}]. expected an object but found [{}] instead", TYPE, watchId, parser.currentToken());
+            throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. expected an object but found [{}] instead", TYPE, watchId, parser.currentToken());
         }
         Payload payload = new Payload.Simple(parser.map());
         return new SimpleInput(payload);

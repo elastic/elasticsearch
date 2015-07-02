@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.actions.email.service;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.support.secret.SecretService;
 import org.junit.Test;
@@ -84,7 +85,7 @@ public class AccountsTests extends ElasticsearchTestCase {
         assertThat(account.name(), isOneOf("account1", "account2"));
     }
 
-    @Test(expected = EmailSettingsException.class)
+    @Test(expected = SettingsException.class)
     public void testMultipleAccounts_UnknownDefault() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put("default_account", "unknown");
@@ -93,15 +94,15 @@ public class AccountsTests extends ElasticsearchTestCase {
         new Accounts(builder.build(), new SecretService.PlainText(), logger);
     }
 
-    @Test(expected = EmailSettingsException.class)
+    @Test(expected = IllegalStateException.class)
     public void testNoAccount() throws Exception {
         Settings.Builder builder = Settings.builder();
         Accounts accounts = new Accounts(builder.build(), new SecretService.PlainText(), logger);
         accounts.account(null);
-        fail("no accounts are configured so trying to get the default account should throw an EmailSettingsException");
+        fail("no accounts are configured so trying to get the default account should throw an IllegalStateException");
     }
 
-    @Test(expected = EmailSettingsException.class)
+    @Test(expected = SettingsException.class)
     public void testNoAccount_WithDefaultAccount() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put("default_account", "unknown");

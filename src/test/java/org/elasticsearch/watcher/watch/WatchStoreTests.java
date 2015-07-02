@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.watch;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -27,7 +26,6 @@ import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.junit.Before;
 import org.junit.Test;
@@ -55,7 +53,7 @@ public class WatchStoreTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testStartNoPreviousWatchesIndex() {
+    public void testStartNoPreviousWatchesIndex() throws Exception {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         MetaData.Builder metaDateBuilder = MetaData.builder();
         csBuilder.metaData(metaDateBuilder);
@@ -122,7 +120,7 @@ public class WatchStoreTests extends ElasticsearchTestCase {
         assertThat(watchStore.validate(cs), is(true));
         try {
             watchStore.start(cs);
-        } catch (WatcherException e) {
+        } catch (Exception e) {
             assertThat(e.getMessage(), equalTo("not all required shards have been refreshed"));
         }
         verify(clientProxy, times(1)).refresh(any(RefreshRequest.class));
@@ -161,7 +159,7 @@ public class WatchStoreTests extends ElasticsearchTestCase {
         assertThat(watchStore.validate(cs), is(true));
         try {
             watchStore.start(cs);
-        } catch (ElasticsearchException e) {
+        } catch (Exception e) {
             assertThat(e.getMessage(), equalTo("Partial response while loading watches"));
         }
         verify(clientProxy, times(1)).refresh(any(RefreshRequest.class));
@@ -170,7 +168,7 @@ public class WatchStoreTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testStartNoWatchStored() {
+    public void testStartNoWatchStored() throws Exception {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         MetaData.Builder metaDateBuilder = MetaData.builder();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
@@ -207,7 +205,7 @@ public class WatchStoreTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testStartWatchStored() {
+    public void testStartWatchStored() throws Exception {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         MetaData.Builder metaDateBuilder = MetaData.builder();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();

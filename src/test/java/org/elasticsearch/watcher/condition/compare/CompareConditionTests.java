@@ -7,7 +7,7 @@ package org.elasticsearch.watcher.condition.compare;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import org.joda.time.DateTime;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -18,6 +18,7 @@ import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.clock.ClockMock;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.watch.Payload;
+import org.joda.time.DateTime;
 import org.junit.Test;
 
 import java.util.Locale;
@@ -193,7 +194,7 @@ public class CompareConditionTests extends ElasticsearchTestCase {
         assertThat(condition.getValue(), is(value));
     }
 
-    @Test(expected = CompareConditionException.class)
+    @Test(expected = ElasticsearchParseException.class)
     public void testParse_InValid_NoOperationBody() throws Exception {
         CompareConditionFactory factory = new CompareConditionFactory(Settings.EMPTY, SystemClock.INSTANCE);
         XContentBuilder builder = jsonBuilder();
@@ -206,7 +207,7 @@ public class CompareConditionTests extends ElasticsearchTestCase {
         factory.parseCondition("_id", parser);
     }
 
-    @Test(expected = CompareConditionException.class)
+    @Test(expected = ElasticsearchParseException.class)
     public void testParse_InValid_UnknownOp() throws Exception {
         Object value = randomFrom("value", 1, null);
         CompareConditionFactory factory = new CompareConditionFactory(Settings.EMPTY, SystemClock.INSTANCE);
@@ -223,7 +224,7 @@ public class CompareConditionTests extends ElasticsearchTestCase {
         factory.parseCondition("_id", parser);
     }
 
-    @Test(expected = CompareConditionException.class)
+    @Test(expected = ElasticsearchParseException.class)
     public void testParse_InValid_WrongValueForOp() throws Exception {
         Object value = randomFrom(ImmutableList.of("1", "2"), ImmutableMap.of("key", "value"));
         String op = randomFrom("lt", "lte", "gt", "gte");

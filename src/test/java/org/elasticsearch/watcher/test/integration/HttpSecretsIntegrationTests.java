@@ -8,12 +8,10 @@ package org.elasticsearch.watcher.test.integration;
 import com.squareup.okhttp.mockwebserver.MockResponse;
 import com.squareup.okhttp.mockwebserver.MockWebServer;
 import com.squareup.okhttp.mockwebserver.RecordedRequest;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.get.GetResponse;
-import org.joda.time.DateTime;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.watcher.shield.ShieldSecretService;
@@ -28,6 +26,7 @@ import org.elasticsearch.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.WatchStore;
+import org.joda.time.DateTime;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -35,7 +34,6 @@ import org.junit.Test;
 import java.net.BindException;
 import java.util.Map;
 
-import static org.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.watcher.actions.ActionBuilders.webhookAction;
@@ -46,6 +44,7 @@ import static org.elasticsearch.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.cron;
 import static org.hamcrest.Matchers.*;
+import static org.joda.time.DateTimeZone.UTC;
 
 /**
  *
@@ -69,7 +68,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTests
                 logger.warn("port [{}] was already in use trying next port", webPort);
             }
         }
-        throw new WatcherException("unable to find open port between 9200 and 9300");
+        throw new ElasticsearchException("unable to find open port between 9200 and 9300");
     }
 
     @After

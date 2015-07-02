@@ -6,7 +6,7 @@
 package org.elasticsearch.watcher.actions.logging;
 
 import com.google.common.collect.ImmutableMap;
-import org.joda.time.DateTime;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -14,13 +14,13 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.actions.Action;
-import org.elasticsearch.watcher.actions.ActionException;
 import org.elasticsearch.watcher.actions.email.service.Attachment;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.support.template.TemplateEngine;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.watch.Payload;
+import org.joda.time.DateTime;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -28,13 +28,13 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.watcher.actions.ActionBuilders.loggingAction;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.Is.is;
+import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Mockito.*;
 
 /**
@@ -175,7 +175,7 @@ public class LoggingActionTests extends ElasticsearchTestCase {
         assertThat(executable.action(), is(action));
     }
 
-    @Test(expected = ActionException.class)
+    @Test(expected = ElasticsearchParseException.class)
     public void testParser_Failure() throws Exception {
         Settings settings = Settings.EMPTY;
         LoggingActionFactory parser = new LoggingActionFactory(settings, engine);

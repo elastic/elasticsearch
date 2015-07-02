@@ -8,13 +8,13 @@ package org.elasticsearch.watcher.license;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SysGlobals;
 import com.google.common.collect.ImmutableSet;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.core.License;
-import org.elasticsearch.license.plugin.core.LicenseExpiredException;
 import org.elasticsearch.license.plugin.core.LicensesClientService;
 import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.plugins.AbstractPlugin;
@@ -179,50 +179,50 @@ public class LicenseIntegrationTests extends AbstractWatcherIntegrationTests {
                     .addAction("_index", indexAction("idx", "type")))
                     .execute().actionGet();
             fail("put watch API should NOT work when license is disabled");
-        } catch (LicenseExpiredException lee) {
-            assertThat(lee.feature(), is(LicenseService.FEATURE_NAME));
-            assertThat(lee.status(), is(RestStatus.UNAUTHORIZED));
+        } catch (ElasticsearchSecurityException ee) {
+            assertThat(ee.getHeader("es.license.expired.feature"), hasItem(LicenseService.FEATURE_NAME));
+            assertThat(ee.status(), is(RestStatus.UNAUTHORIZED));
         }
 
         try {
             watcherClient().prepareAckWatch(watchName).get();
-            fail("ack watch APIshould NOT work when license is disabled");
-        } catch (LicenseExpiredException lee) {
-            assertThat(lee.feature(), is(LicenseService.FEATURE_NAME));
-            assertThat(lee.status(), is(RestStatus.UNAUTHORIZED));
+            fail("ack watch API should NOT work when license is disabled");
+        } catch (ElasticsearchSecurityException ee) {
+            assertThat(ee.getHeader("es.license.expired.feature"), hasItem(LicenseService.FEATURE_NAME));
+            assertThat(ee.status(), is(RestStatus.UNAUTHORIZED));
         }
 
         try {
             watcherClient().prepareGetWatch(watchName).get();
             fail("get watch API should NOT work when license is disabled");
-        } catch (LicenseExpiredException lee) {
-            assertThat(lee.feature(), is(LicenseService.FEATURE_NAME));
-            assertThat(lee.status(), is(RestStatus.UNAUTHORIZED));
+        } catch (ElasticsearchSecurityException ee) {
+            assertThat(ee.getHeader("es.license.expired.feature"), hasItem(LicenseService.FEATURE_NAME));
+            assertThat(ee.status(), is(RestStatus.UNAUTHORIZED));
         }
 
         try {
             watcherClient().prepareDeleteWatch(watchName).get();
             fail("delete watch API should NOT work when license is disabled");
-        } catch (LicenseExpiredException lee) {
-            assertThat(lee.feature(), is(LicenseService.FEATURE_NAME));
-            assertThat(lee.status(), is(RestStatus.UNAUTHORIZED));
+        } catch (ElasticsearchSecurityException ee) {
+            assertThat(ee.getHeader("es.license.expired.feature"), hasItem(LicenseService.FEATURE_NAME));
+            assertThat(ee.status(), is(RestStatus.UNAUTHORIZED));
         }
 
         // watcher stats should not work
         try {
             watcherClient().prepareWatcherStats().get();
             fail("watcher stats API should NOT work when license is disabled");
-        } catch (LicenseExpiredException lee) {
-            assertThat(lee.feature(), is(LicenseService.FEATURE_NAME));
-            assertThat(lee.status(), is(RestStatus.UNAUTHORIZED));
+        } catch (ElasticsearchSecurityException ee) {
+            assertThat(ee.getHeader("es.license.expired.feature"), hasItem(LicenseService.FEATURE_NAME));
+            assertThat(ee.status(), is(RestStatus.UNAUTHORIZED));
         }
 
         try {
             watcherClient().prepareWatchService().restart().get();
             fail("watcher service API should NOT work when license is disabled");
-        } catch (LicenseExpiredException lee) {
-            assertThat(lee.feature(), is(LicenseService.FEATURE_NAME));
-            assertThat(lee.status(), is(RestStatus.UNAUTHORIZED));
+        } catch (ElasticsearchSecurityException ee) {
+            assertThat(ee.getHeader("es.license.expired.feature"), hasItem(LicenseService.FEATURE_NAME));
+            assertThat(ee.status(), is(RestStatus.UNAUTHORIZED));
         }
 
         enableLicensing();

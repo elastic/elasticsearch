@@ -6,8 +6,9 @@
 package org.elasticsearch.watcher.support.template;
 
 
-import org.elasticsearch.common.bytes.BytesReference;
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -15,7 +16,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.template.xmustache.XMustacheTemplateEngine;
 import org.junit.Before;
@@ -24,6 +24,7 @@ import org.junit.Test;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.watcher.support.Exceptions.illegalArgument;
 import static org.hamcrest.Matchers.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -124,7 +125,7 @@ public class TemplateTests extends ElasticsearchTestCase {
         assertThat(parsed, equalTo(template));
     }
 
-    @Test(expected = Template.ParseException.class)
+    @Test(expected = ElasticsearchParseException.class)
     public void testParser_Invalid_UnexpectedField() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject()
                 .field("unknown_field", "value")
@@ -136,7 +137,7 @@ public class TemplateTests extends ElasticsearchTestCase {
         fail("expected parse exception when encountering an unknown field");
     }
 
-    @Test(expected = Template.ParseException.class)
+    @Test(expected = ElasticsearchParseException.class)
     public void testParser_Invalid_UnknownScriptType() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject()
                 .field("template", "_template")
@@ -150,7 +151,7 @@ public class TemplateTests extends ElasticsearchTestCase {
         fail("expected parse exception when script type is unknown");
     }
 
-    @Test(expected = Template.ParseException.class)
+    @Test(expected = ElasticsearchParseException.class)
     public void testParser_Invalid_MissingText() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject()
                 .field("type", ScriptType.INDEXED)
@@ -169,7 +170,7 @@ public class TemplateTests extends ElasticsearchTestCase {
             case FILE:      return Template.file(text);
             case INDEXED:   return Template.indexed(text);
             default:
-                throw new WatcherException("unsupported script type [{}]", type);
+                throw illegalArgument("unsupported script type [{}]", type);
         }
     }
 

@@ -6,7 +6,6 @@
 package org.elasticsearch.watcher.support;
 
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.watcher.WatcherException;
 
 import java.io.IOException;
 import java.util.*;
@@ -18,7 +17,7 @@ public final class XContentFilterKeysUtils {
     private XContentFilterKeysUtils() {
     }
 
-    public static Map<String, Object> filterMapOrdered(Set<String> keys, XContentParser parser) {
+    public static Map<String, Object> filterMapOrdered(Set<String> keys, XContentParser parser) throws IOException {
         try {
             if (parser.currentToken() != null) {
                 throw new IllegalArgumentException("Parser already started");
@@ -29,7 +28,7 @@ public final class XContentFilterKeysUtils {
             State state = new State(new ArrayList<>(keys));
             return parse(parser, state);
         } catch (IOException e) {
-            throw new WatcherException("could not build a filtered payload out of xcontent", e);
+            throw new IOException("could not build a filtered payload out of xcontent", e);
         }
     }
 

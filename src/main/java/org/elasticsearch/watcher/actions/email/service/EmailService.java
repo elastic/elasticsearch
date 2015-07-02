@@ -5,16 +5,18 @@
  */
 package org.elasticsearch.watcher.actions.email.service;
 
+import javax.mail.MessagingException;
+
 /**
  *
  */
 public interface EmailService {
 
-    EmailSent send(Email email, Authentication auth, Profile profile);
+    EmailSent send(Email email, Authentication auth, Profile profile) throws MessagingException;
 
-    EmailSent send(Email email, Authentication auth, Profile profile, String accountName);
+    EmailSent send(Email email, Authentication auth, Profile profile, String accountName) throws MessagingException;
 
-    static class EmailSent {
+    class EmailSent {
 
         private final String account;
         private final Email email;

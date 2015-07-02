@@ -48,10 +48,9 @@ public enum WatcherState {
                 return STARTING;
             case 2:
                 return STARTED;
-            case 3:
+            default: //3
+                assert id == 3 : "unknown watcher state id [" + id + "]";
                 return STOPPING;
-            default:
-                throw new WatcherException("unknown watch service state id [" + id + "]");
         }
     }
 }

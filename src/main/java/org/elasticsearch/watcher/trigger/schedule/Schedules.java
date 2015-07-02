@@ -46,7 +46,7 @@ public class Schedules {
      *
      * @param cronExpressions   one or more cron expressions
      * @return                  the newly created cron schedule.
-     * @throws                  CronSchedule.ValidationException if any of the given expression is invalid
+     * @throws                  IllegalArgumentException if any of the given expression is invalid
      */
     public static CronSchedule cron(String... cronExpressions) {
         return new CronSchedule(cronExpressions);
@@ -58,7 +58,7 @@ public class Schedules {
      * @param minutes   the minutes within the hour that the schedule should trigger at. values must be
      *                  between 0 and 59 (inclusive).
      * @return          the newly created hourly schedule
-     * @throws ScheduleTriggerException if any of the provided minutes are out of valid range
+     * @throws          IllegalArgumentException if any of the provided minutes are out of valid range
      */
     public static HourlySchedule hourly(int... minutes) {
         return new HourlySchedule(minutes);

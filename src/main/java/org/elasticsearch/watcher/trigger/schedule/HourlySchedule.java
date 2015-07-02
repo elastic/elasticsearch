@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.trigger.schedule;
 
 import com.google.common.primitives.Ints;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -17,6 +18,8 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+
+import static org.elasticsearch.watcher.support.Exceptions.illegalArgument;
 
 /**
  *
@@ -70,7 +73,7 @@ public class HourlySchedule extends CronnableSchedule {
                 sb.append(",");
             }
             if (!validMinute(minutes[i])) {
-                throw new ScheduleTriggerException("invalid hourly minute [" + minutes[i] + "]. minute must be between 0 and 59 incl.");
+                throw illegalArgument("invalid hourly minute [{}]. minute must be between 0 and 59 incl.", minutes[i]);
             }
             sb.append(minutes[i]);
         }
@@ -100,27 +103,28 @@ public class HourlySchedule extends CronnableSchedule {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (currentFieldName == null) {
-                    throw new ScheduleTriggerException("could not parse [{}] schedule. unexpected token [{}]", TYPE, token);
+                    throw new ElasticsearchParseException("could not parse [{}] schedule. unexpected token [{}]", TYPE, token);
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, MINUTE_FIELD)) {
                     if (token.isValue()) {
                         try {
                             minutes.add(DayTimes.parseMinuteValue(parser, token));
-                        } catch (DayTimes.ParseException pe) {
-                            throw new ScheduleTriggerException("could not parse [hourly] schedule. invalid value for [minute]", pe);
+                        } catch (ElasticsearchParseException pe) {
+                            throw new ElasticsearchParseException("could not parse [{}] schedule. invalid value for [{}]", pe, TYPE, currentFieldName);
                         }
                     } else if (token == XContentParser.Token.START_ARRAY) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             try {
                                 minutes.add(DayTimes.parseMinuteValue(parser, token));
-                            } catch (DayTimes.ParseException pe) {
-                                throw new ScheduleTriggerException("could not parse [hourly] schedule. invalid value for [minute]", pe);
+                            } catch (ElasticsearchParseException pe) {
+                                throw new ElasticsearchParseException("could not parse [{}] schedule. invalid value for [{}]", pe, TYPE, currentFieldName);
                             }
                         }
                     } else {
-                        throw new ScheduleTriggerException("could not parse [hourly] schedule. invalid minute value. expected either string/value or an array of string/number values, but found [" + token + "]");
+                        throw new ElasticsearchParseException("could not parse [{}] schedule. invalid value for [{}]. " +
+                                "expected either string/value or an array of string/number values, but found [{}]", TYPE, currentFieldName, token);
                     }
                 } else {
-                    throw new ScheduleTriggerException("could not parse [hourly] schedule. unexpected field [" + currentFieldName + "]");
+                    throw new ElasticsearchParseException("could not parse [{}] schedule. unexpected field [{}]", TYPE, currentFieldName);
                 }
             }
 

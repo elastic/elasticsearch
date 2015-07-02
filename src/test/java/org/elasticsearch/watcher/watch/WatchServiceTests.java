@@ -6,16 +6,15 @@
 package org.elasticsearch.watcher.watch;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.WatcherService;
 import org.elasticsearch.watcher.WatcherState;
 import org.elasticsearch.watcher.actions.ActionStatus;
@@ -25,6 +24,7 @@ import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.trigger.Trigger;
 import org.elasticsearch.watcher.trigger.TriggerEngine;
 import org.elasticsearch.watcher.trigger.TriggerService;
+import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
 import org.junit.Test;
@@ -83,7 +83,7 @@ public class WatchServiceTests extends ElasticsearchTestCase {
         verify(triggerService, times(1)).add(any(TriggerEngine.Job.class));
     }
 
-    @Test(expected = WatcherService.TimeoutException.class)
+    @Test(expected = ElasticsearchTimeoutException.class)
     public void testPutWatch_Timeout() throws Exception {
         TimeValue timeout = TimeValue.timeValueSeconds(5);
         when(watchLockService.tryAcquire("_id", timeout)).thenReturn(null);
@@ -133,7 +133,7 @@ public class WatchServiceTests extends ElasticsearchTestCase {
         verify(triggerService, times(1)).remove("_id");
     }
 
-    @Test(expected = WatcherService.TimeoutException.class)
+    @Test(expected = ElasticsearchTimeoutException.class)
     public void testDeleteWatch_Timeout() throws Exception {
         TimeValue timeout = TimeValue.timeValueSeconds(5);
         when(watchLockService.tryAcquire("_id", timeout)).thenReturn(null);
@@ -195,7 +195,7 @@ public class WatchServiceTests extends ElasticsearchTestCase {
         verify(watchStore, times(1)).updateStatus(watch);
     }
 
-    @Test(expected = WatcherService.TimeoutException.class)
+    @Test(expected = ElasticsearchTimeoutException.class)
     public void testAckWatch_Timeout() throws Exception {
         TimeValue timeout = TimeValue.timeValueSeconds(5);
         when(watchLockService.tryAcquire("_id", timeout)).thenReturn(null);
@@ -230,7 +230,7 @@ public class WatchServiceTests extends ElasticsearchTestCase {
         try {
             watcherService.ackWatch("_id", Strings.EMPTY_ARRAY, timeout);
             fail();
-        } catch (WatcherException e) {
+        } catch (IllegalArgumentException iae) {
             // expected
         }
 

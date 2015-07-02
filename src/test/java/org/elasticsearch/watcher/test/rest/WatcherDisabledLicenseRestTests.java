@@ -6,15 +6,8 @@
 package org.elasticsearch.watcher.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.plugin.core.LicenseExpiredException;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.test.rest.RestTestCandidate;
-import org.elasticsearch.watcher.WatcherPlugin;
 import org.elasticsearch.watcher.license.LicenseIntegrationTests;
 import org.elasticsearch.watcher.license.LicenseIntegrationTests.MockLicenseService;
 import org.junit.Test;
@@ -22,7 +15,6 @@ import org.junit.Test;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.is;
 
 /**
  */
@@ -49,7 +41,6 @@ public class WatcherDisabledLicenseRestTests extends WatcherRestTests {
                 return;
             }
             assertThat(ae.getMessage(), containsString("license expired for feature [watcher]"));
-            assertThat(ae.getMessage(), containsString(Strings.toUnderscoreCase(LicenseExpiredException.class.getSimpleName())));
         }
     }
 

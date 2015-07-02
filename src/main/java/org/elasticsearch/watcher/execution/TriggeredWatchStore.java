@@ -26,8 +26,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.watcher.history.HistoryException;
-import org.elasticsearch.watcher.history.TriggeredWatchException;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 
 import java.io.IOException;
@@ -39,6 +37,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+
+import static org.elasticsearch.watcher.support.Exceptions.illegalState;
+import static org.elasticsearch.watcher.support.Exceptions.ioException;
 
 public class TriggeredWatchStore extends AbstractComponent {
 
@@ -90,7 +91,7 @@ public class TriggeredWatchStore extends AbstractComponent {
         }
     }
 
-    public void put(TriggeredWatch triggeredWatch) throws HistoryException {
+    public void put(TriggeredWatch triggeredWatch) throws Exception {
         ensureStarted();
         accessLock.lock();
         try {
@@ -99,13 +100,13 @@ public class TriggeredWatchStore extends AbstractComponent {
                     .opType(IndexRequest.OpType.CREATE);
             client.index(request, (TimeValue) null);
         } catch (IOException e) {
-            throw new TriggeredWatchException("failed to persist triggered watch [{}]", e, triggeredWatch);
+            throw ioException("failed to persist triggered watch [{}]", e, triggeredWatch);
         } finally {
             accessLock.unlock();
         }
     }
 
-    public void put(final TriggeredWatch triggeredWatch, final ActionListener<Boolean> listener) throws TriggeredWatchException {
+    public void put(final TriggeredWatch triggeredWatch, final ActionListener<Boolean> listener) throws Exception {
         ensureStarted();
         try {
             IndexRequest request = new IndexRequest(INDEX_NAME, DOC_TYPE, triggeredWatch.id().value())
@@ -123,11 +124,11 @@ public class TriggeredWatchStore extends AbstractComponent {
                 }
             });
         } catch (IOException e) {
-            throw new TriggeredWatchException("failed to persist triggered watch [{}]", e, triggeredWatch);
+            throw ioException("failed to persist triggered watch [{}]", e, triggeredWatch);
         }
     }
 
-    public void putAll(final List<TriggeredWatch> triggeredWatches, final ActionListener<List<Integer>> listener) throws TriggeredWatchException {
+    public void putAll(final List<TriggeredWatch> triggeredWatches, final ActionListener<List<Integer>> listener) throws Exception {
 
         if (triggeredWatches.isEmpty()) {
             listener.onResponse(Collections.EMPTY_LIST);
@@ -180,11 +181,11 @@ public class TriggeredWatchStore extends AbstractComponent {
                 }
             });
         } catch (IOException e) {
-            throw new TriggeredWatchException("failed to persist triggered watches", e);
+            throw ioException("failed to persist triggered watches", e);
         }
     }
 
-    public List<Integer> putAll(final List<TriggeredWatch> triggeredWatches) throws TriggeredWatchException {
+    public List<Integer> putAll(final List<TriggeredWatch> triggeredWatches) throws Exception {
         ensureStarted();
         try {
             BulkRequest request = new BulkRequest();
@@ -207,18 +208,18 @@ public class TriggeredWatchStore extends AbstractComponent {
             }
             return successFullSlots;
         } catch (IOException e) {
-            throw new TriggeredWatchException("failed to persist triggered watches", e);
+            throw ioException("failed to persist triggered watches", e);
         }
     }
 
-    public void delete(Wid wid) throws TriggeredWatchException {
+    public void delete(Wid wid) throws Exception {
         ensureStarted();
         accessLock.lock();
         try {
             DeleteRequest request = new DeleteRequest(INDEX_NAME, DOC_TYPE, wid.value());
             client.delete(request);
             logger.trace("successfully deleted triggered watch with id [{}]", wid);
-        }   finally {
+        } finally {
             accessLock.unlock();
         }
     }
@@ -232,13 +233,13 @@ public class TriggeredWatchStore extends AbstractComponent {
 
         int numPrimaryShards;
         if (!state.routingTable().index(INDEX_NAME).allPrimaryShardsActive()) {
-            throw new TriggeredWatchException("not all primary shards of the [{}] index are started.", INDEX_NAME);
+            throw illegalState("not all primary shards of the [{}] index are started.", INDEX_NAME);
         } else {
             numPrimaryShards = indexMetaData.numberOfShards();
         }
         RefreshResponse refreshResponse = client.refresh(new RefreshRequest(INDEX_NAME));
         if (refreshResponse.getSuccessfulShards() < numPrimaryShards) {
-            throw new TriggeredWatchException("refresh was supposed to run on [{}] shards, but ran on [{}] shards", numPrimaryShards, refreshResponse.getSuccessfulShards());
+            throw illegalState("refresh was supposed to run on [{}] shards, but ran on [{}] shards", numPrimaryShards, refreshResponse.getSuccessfulShards());
         }
 
         SearchRequest searchRequest = createScanSearchRequest();
@@ -246,7 +247,7 @@ public class TriggeredWatchStore extends AbstractComponent {
         List<TriggeredWatch> triggeredWatches = new ArrayList<>();
         try {
             if (response.getTotalShards() != response.getSuccessfulShards()) {
-                throw new TriggeredWatchException("scan search was supposed to run on [{}] shards, but ran on [{}] shards", numPrimaryShards, response.getSuccessfulShards());
+                throw illegalState("scan search was supposed to run on [{}] shards, but ran on [{}] shards", numPrimaryShards, response.getSuccessfulShards());
             }
 
             if (response.getHits().getTotalHits() > 0) {
@@ -286,7 +287,7 @@ public class TriggeredWatchStore extends AbstractComponent {
 
     private void ensureStarted() {
         if (!started.get()) {
-            throw new TriggeredWatchException("unable to persist triggered watches, the store is not ready");
+            throw illegalState("unable to persist triggered watches, the store is not ready");
         }
     }
 

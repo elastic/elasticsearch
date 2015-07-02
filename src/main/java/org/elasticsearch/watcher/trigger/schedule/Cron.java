@@ -5,12 +5,15 @@
  */
 package org.elasticsearch.watcher.trigger.schedule;
 
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.watcher.support.Exceptions;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
-import org.elasticsearch.watcher.trigger.TriggerException;
 
 import java.util.*;
+
+import static org.elasticsearch.watcher.support.Exceptions.illegalArgument;
 
 
 /**
@@ -260,7 +263,11 @@ public class Cron {
     public Cron(String expression) {
         assert expression != null : "cron expression cannot be null";
         this.expression = expression.toUpperCase(Locale.ROOT);
-        buildExpression(this.expression);
+        try {
+            buildExpression(this.expression);
+        } catch (Exception e) {
+            throw illegalArgument("invalid cron expression [{}]", e, expression);
+        }
     }
 
     /**
@@ -769,13 +776,13 @@ public class Cron {
     public static boolean isValid(String expression) {
         try {
             validate(expression);
-        } catch (ParseException pe) {
+        } catch (IllegalArgumentException pe) {
             return false;
         }
         return true;
     }
 
-    public static void validate(String expression) throws ParseException {
+    public static void validate(String expression) throws IllegalArgumentException {
         new Cron(expression);
     }
 
@@ -823,14 +830,14 @@ public class Cron {
 
                 // throw an exception if L is used with other days of the month
                 if(exprOn == DAY_OF_MONTH && expr.indexOf('L') != -1 && expr.length() > 1 && expr.contains(",")) {
-                    throw new ParseException("Support for specifying 'L' and 'LW' with other days of the month is not implemented", -1);
+                    throw illegalArgument("support for specifying 'L' and 'LW' with other days of the month is not implemented");
                 }
                 // throw an exception if L is used with other days of the week
                 if(exprOn == DAY_OF_WEEK && expr.indexOf('L') != -1 && expr.length() > 1  && expr.contains(",")) {
-                    throw new ParseException("Support for specifying 'L' with other days of the week is not implemented", -1);
+                    throw illegalArgument("support for specifying 'L' with other days of the week is not implemented");
                 }
                 if(exprOn == DAY_OF_WEEK && expr.indexOf('#') != -1 && expr.indexOf('#', expr.indexOf('#') +1) != -1) {
-                    throw new ParseException("Support for specifying multiple \"nth\" days is not implemented.", -1);
+                    throw illegalArgument("support for specifying multiple \"nth\" days is not implemented.");
                 }
 
                 StringTokenizer vTok = new StringTokenizer(expr, ",");
@@ -843,7 +850,7 @@ public class Cron {
             }
 
             if (exprOn <= DAY_OF_WEEK) {
-                throw new ParseException("Unexpected end of expression.", expression.length());
+                throw illegalArgument("unexpected end of expression at pos [{}].", expression.length());
             }
 
             if (exprOn <= YEAR) {
@@ -859,16 +866,15 @@ public class Cron {
 
             if (!dayOfMSpec || dayOfWSpec) {
                 if (!dayOfWSpec || dayOfMSpec) {
-                    throw new ParseException(
-                            "Support for specifying both a day-of-week AND a day-of-month parameter is not implemented.", 0);
+                    throw illegalArgument("support for specifying both a day-of-week AND a day-of-month parameter is not implemented.");
                 }
             }
         } catch (Exception e) {
-            throw new ParseException("Illegal cron expression format (" + e.toString() + ")", 0);
+            throw illegalArgument("illegal cron expression format [{}]", e.toString());
         }
     }
 
-    private int storeExpressionVals(int pos, String s, int type) throws ParseException {
+    private int storeExpressionVals(int pos, String s, int type) throws ElasticsearchParseException {
 
         int incr = 0;
         int i = skipWhiteSpace(pos, s);
@@ -883,7 +889,7 @@ public class Cron {
             if (type == MONTH) {
                 sval = getMonthNumber(sub) + 1;
                 if (sval <= 0) {
-                    throw new ParseException("Invalid Month value: '" + sub + "'", i);
+                    throw illegalArgument("invalid Month value [{}] at pos [{}]", sub, i);
                 }
                 if (s.length() > i + 3) {
                     c = s.charAt(i + 3);
@@ -892,15 +898,14 @@ public class Cron {
                         sub = s.substring(i, i + 3);
                         eval = getMonthNumber(sub) + 1;
                         if (eval <= 0) {
-                            throw new ParseException("Invalid Month value: '" + sub + "'", i);
+                            throw illegalArgument("invalid Month value [{}] at pos [{}]", sub, i);
                         }
                     }
                 }
             } else if (type == DAY_OF_WEEK) {
                 sval = getDayOfWeekNumber(sub);
                 if (sval < 0) {
-                    throw new ParseException("Invalid Day-of-Week value: '"
-                            + sub + "'", i);
+                    throw illegalArgument("invalid Day-of-Week value [{}] at pos [{}]", sub, i);
                 }
                 if (s.length() > i + 3) {
                     c = s.charAt(i + 3);
@@ -909,9 +914,7 @@ public class Cron {
                         sub = s.substring(i, i + 3);
                         eval = getDayOfWeekNumber(sub);
                         if (eval < 0) {
-                            throw new ParseException(
-                                    "Invalid Day-of-Week value: '" + sub
-                                            + "'", i);
+                            throw illegalArgument("invalid Day-of-Week value [{}] at pos [{}]", sub, i);
                         }
                     } else if (c == '#') {
                         try {
@@ -921,9 +924,7 @@ public class Cron {
                                 throw new Exception();
                             }
                         } catch (Exception e) {
-                            throw new ParseException(
-                                    "A numeric value between 1 and 5 must follow the '#' option",
-                                    i);
+                            throw illegalArgument("a numeric value between 1 and 5 must follow the '#' option at pos [{}]", i);
                         }
                     } else if (c == 'L') {
                         lastdayOfWeek = true;
@@ -932,9 +933,7 @@ public class Cron {
                 }
 
             } else {
-                throw new ParseException(
-                        "Illegal characters for this position: '" + sub + "'",
-                        i);
+                throw illegalArgument("illegal characters [{}] at pos [{}] '", sub, i);
             }
             if (eval != -1) {
                 incr = 1;
@@ -947,20 +946,15 @@ public class Cron {
             i++;
             if ((i + 1) < s.length()
                     && (s.charAt(i) != ' ' && s.charAt(i + 1) != '\t')) {
-                throw new ParseException("Illegal character after '?': "
-                        + s.charAt(i), i);
+                throw illegalArgument("illegal character [{}] after '?' at pos [{}]", s.charAt(i), i);
             }
             if (type != DAY_OF_WEEK && type != DAY_OF_MONTH) {
-                throw new ParseException(
-                        "'?' can only be specfied for Day-of-Month or Day-of-Week.",
-                        i);
+                throw illegalArgument("'?' can only be specified for Day-of-Month or Day-of-Week. at pos [{}]", i);
             }
             if (type == DAY_OF_WEEK && !lastdayOfMonth) {
                 int val = daysOfMonth.last();
                 if (val == NO_SPEC_INT) {
-                    throw new ParseException(
-                            "'?' can only be specfied for Day-of-Month -OR- Day-of-Week.",
-                            i);
+                    throw illegalArgument("'?' can only be specified for Day-of-Month -OR- Day-of-Week. at pos [{}]", i);
                 }
             }
 
@@ -975,7 +969,7 @@ public class Cron {
             } else if (c == '/'
                     && ((i + 1) >= s.length() || s.charAt(i + 1) == ' ' || s
                     .charAt(i + 1) == '\t')) {
-                throw new ParseException("'/' must be followed by an integer.", i);
+                throw illegalArgument("'/' must be followed by an integer. at pos [{}]", i);
             } else if (c == '*') {
                 i++;
             }
@@ -983,7 +977,7 @@ public class Cron {
             if (c == '/') { // is an increment specified?
                 i++;
                 if (i >= s.length()) {
-                    throw new ParseException("Unexpected end of string.", i);
+                    throw illegalArgument("Unexpected end of string. at pos [{}]", i);
                 }
 
                 incr = getNumericValue(s, i);
@@ -993,15 +987,15 @@ public class Cron {
                     i++;
                 }
                 if (incr > 59 && (type == SECOND || type == MINUTE)) {
-                    throw new ParseException("Increment > 60 : " + incr, i);
+                    throw illegalArgument("increment [{}] > 60 at pos [{}]", incr, i);
                 } else if (incr > 23 && (type == HOUR)) {
-                    throw new ParseException("Increment > 24 : " + incr, i);
+                    throw illegalArgument("increment [{}] > 24 at pos [{}]", incr, i);
                 } else if (incr > 31 && (type == DAY_OF_MONTH)) {
-                    throw new ParseException("Increment > 31 : " + incr, i);
+                    throw illegalArgument("increment [{}] > 31 at pos [{}] ", incr, i);
                 } else if (incr > 7 && (type == DAY_OF_WEEK)) {
-                    throw new ParseException("Increment > 7 : " + incr, i);
+                    throw illegalArgument("increment [{}] > 7 at pos [{}] ", incr, i);
                 } else if (incr > 12 && (type == MONTH)) {
-                    throw new ParseException("Increment > 12 : " + incr, i);
+                    throw illegalArgument("increment [{}] > 12 at pos [{}]", incr, i);
                 }
             } else {
                 incr = 1;
@@ -1023,7 +1017,7 @@ public class Cron {
                     ValueSet vs = getValue(0, s, i+1);
                     lastdayOffset = vs.value;
                     if(lastdayOffset > 30)
-                        throw new ParseException("Offset from last day must be <= 30", i+1);
+                        throw illegalArgument("offset from last day must be <= 30 at pos [{}]", i + 1);
                     i = vs.pos;
                 }
                 if(s.length() > i) {
@@ -1051,13 +1045,13 @@ public class Cron {
                 return i;
             }
         } else {
-            throw new ParseException("Unexpected character: " + c, i);
+            throw illegalArgument("Unexpected character [{}] at pos [{}] ", c, i);
         }
 
         return i;
     }
 
-    private int checkNext(int pos, String s, int val, int type) throws ParseException {
+    private int checkNext(int pos, String s, int val, int type) throws ElasticsearchParseException {
 
         int end = -1;
         int i = pos;
@@ -1072,10 +1066,10 @@ public class Cron {
         if (c == 'L') {
             if (type == DAY_OF_WEEK) {
                 if(val < 1 || val > 7)
-                    throw new ParseException("Day-of-Week values must be between 1 and 7", -1);
+                    throw illegalArgument("Day-of-Week values must be between 1 and 7");
                 lastdayOfWeek = true;
             } else {
-                throw new ParseException("'L' option is not valid here. (pos=" + i + ")", i);
+                throw illegalArgument("'L' option is not valid here. at pos [{}]", i);
             }
             TreeSet<Integer> set = getSet(type);
             set.add(val);
@@ -1087,10 +1081,10 @@ public class Cron {
             if (type == DAY_OF_MONTH) {
                 nearestWeekday = true;
             } else {
-                throw new ParseException("'W' option is not valid here. (pos=" + i + ")", i);
+                throw illegalArgument("'W' option is not valid here. at pos [{}]", i);
             }
             if(val > 31)
-                throw new ParseException("The 'W' option does not make sense with values larger than 31 (max number of days in a month)", i);
+                throw illegalArgument("the 'W' option does not make sense with values larger than 31 (max number of days in a month) at pos [{}]", i);
             TreeSet<Integer> set = getSet(type);
             set.add(val);
             i++;
@@ -1099,7 +1093,7 @@ public class Cron {
 
         if (c == '#') {
             if (type != DAY_OF_WEEK) {
-                throw new ParseException("'#' option is not valid here. (pos=" + i + ")", i);
+                throw illegalArgument("'#' option is not valid here. at pos [{}]", i);
             }
             i++;
             try {
@@ -1108,9 +1102,7 @@ public class Cron {
                     throw new Exception();
                 }
             } catch (Exception e) {
-                throw new ParseException(
-                        "A numeric value between 1 and 5 must follow the '#' option",
-                        i);
+                throw illegalArgument("a numeric value between 1 and 5 must follow the '#' option at pos [{}]", i);
             }
 
             TreeSet<Integer> set = getSet(type);
@@ -1178,7 +1170,7 @@ public class Cron {
                 i = vs.pos;
                 return i;
             } else {
-                throw new ParseException("Unexpected character '" + c + "' after '/'", i);
+                throw illegalArgument("Unexpected character [{}] after '/' at pos [{}]", c, i);
             }
         }
 
@@ -1255,31 +1247,31 @@ public class Cron {
         return i;
     }
 
-    private void addToSet(int val, int end, int incr, int type) throws ParseException {
+    private void addToSet(int val, int end, int incr, int type) throws ElasticsearchParseException {
 
         TreeSet<Integer> set = getSet(type);
 
         if (type == SECOND || type == MINUTE) {
             if ((val < 0 || val > 59 || end > 59) && (val != ALL_SPEC_INT)) {
-                throw new ParseException("Minute and Second values must be between 0 and 59", -1);
+                throw illegalArgument("Minute and Second values must be between 0 and 59");
             }
         } else if (type == HOUR) {
             if ((val < 0 || val > 23 || end > 23) && (val != ALL_SPEC_INT)) {
-                throw new ParseException("Hour values must be between 0 and 23", -1);
+                throw illegalArgument("Hour values must be between 0 and 23");
             }
         } else if (type == DAY_OF_MONTH) {
             if ((val < 1 || val > 31 || end > 31) && (val != ALL_SPEC_INT)
                     && (val != NO_SPEC_INT)) {
-                throw new ParseException("Day of month values must be between 1 and 31", -1);
+                throw illegalArgument("Day of month values must be between 1 and 31");
             }
         } else if (type == MONTH) {
             if ((val < 1 || val > 12 || end > 12) && (val != ALL_SPEC_INT)) {
-                throw new ParseException("Month values must be between 1 and 12", -1);
+                throw illegalArgument("Month values must be between 1 and 12");
             }
         } else if (type == DAY_OF_WEEK) {
             if ((val == 0 || val > 7 || end > 7) && (val != ALL_SPEC_INT)
                     && (val != NO_SPEC_INT)) {
-                throw new ParseException("Day-of-Week values must be between 1 and 7", -1);
+                throw illegalArgument("Day-of-Week values must be between 1 and 7");
             }
         }
 
@@ -1500,20 +1492,5 @@ public class Cron {
     private static class ValueSet {
         int value;
         int pos;
-    }
-
-    public static class ParseException extends TriggerException {
-
-        private int errorOffset;
-
-        public ParseException(String msg, int errorOffset) {
-            super(msg);
-            this.errorOffset = errorOffset;
-        }
-
-        public ParseException(String msg, java.text.ParseException cause) {
-            super(msg, cause);
-            this.errorOffset = cause.getErrorOffset();
-        }
     }
 }

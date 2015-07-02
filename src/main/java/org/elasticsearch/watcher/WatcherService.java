@@ -6,13 +6,12 @@
 package org.elasticsearch.watcher;
 
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.joda.time.DateTimeZone;
-import org.joda.time.PeriodType;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -23,9 +22,13 @@ import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.watch.WatchLockService;
 import org.elasticsearch.watcher.watch.WatchStatus;
 import org.elasticsearch.watcher.watch.WatchStore;
+import org.joda.time.DateTimeZone;
+import org.joda.time.PeriodType;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.elasticsearch.watcher.support.Exceptions.*;
 
 
 public class WatcherService extends AbstractComponent {
@@ -50,7 +53,7 @@ public class WatcherService extends AbstractComponent {
         this.executionService = executionService;
     }
 
-    public void start(ClusterState clusterState) {
+    public void start(ClusterState clusterState) throws Exception {
         if (state.compareAndSet(WatcherState.STOPPED, WatcherState.STARTING)) {
             try {
                 logger.info("starting watch service...");
@@ -82,8 +85,8 @@ public class WatcherService extends AbstractComponent {
             executionService.stop();
             try {
                 watchLockService.stop();
-            } catch (WatchLockService.TimeoutException we) {
-                logger.warn("error stopping WatchLockService", we);
+            } catch (ElasticsearchTimeoutException te) {
+                logger.warn("error stopping WatchLockService", te);
             }
             watchStore.stop();
             state.set(WatcherState.STOPPED);
@@ -99,7 +102,7 @@ public class WatcherService extends AbstractComponent {
         if (!force) {
             lock = watchLockService.tryAcquire(id, timeout);
             if (lock == null) {
-                throw new TimeoutException("could not delete watch [{}] within [{}]... wait and try again. If this error continues to occur there is a high chance that the watch execution is stuck (either due to unresponsive external system such as an email service, or due to a bad script", id, timeout.format(PeriodType.seconds()));
+                throw new ElasticsearchTimeoutException("could not delete watch [{}] within [{}]... wait and try again. If this error continues to occur there is a high chance that the watch execution is stuck (either due to unresponsive external system such as an email service, or due to a bad script", id, timeout.format(PeriodType.seconds()));
             }
         }
         try {
@@ -115,11 +118,11 @@ public class WatcherService extends AbstractComponent {
         }
     }
 
-    public IndexResponse putWatch(String id, BytesReference watchSource, TimeValue timeout) {
+    public IndexResponse putWatch(String id, BytesReference watchSource, TimeValue timeout) throws IOException {
         ensureStarted();
         WatchLockService.Lock lock = watchLockService.tryAcquire(id, timeout);
         if (lock == null) {
-            throw new TimeoutException("could not put watch [{}] within [{}]... wait and try again. If this error continues to occur there is a high chance that the watch execution is stuck (either due to unresponsive external system such as an email service, or due to a bad script", id, timeout.format(PeriodType.seconds()));
+            throw new ElasticsearchTimeoutException("could not put watch [{}] within [{}]... wait and try again. If this error continues to occur there is a high chance that the watch execution is stuck (either due to unresponsive external system such as an email service, or due to a bad script", id, timeout.format(PeriodType.seconds()));
         }
         try {
             Watch watch = watchParser.parseWithSecrets(id, false, watchSource);
@@ -128,9 +131,6 @@ public class WatcherService extends AbstractComponent {
                 triggerService.add(result.current());
             }
             return result.indexResponse();
-        } catch (Exception e) {
-            logger.warn("failed to put watch [{}]", e, id);
-            throw new WatcherException("failed to put watch [{}]", e, id);
         } finally {
             lock.release();
         }
@@ -150,11 +150,11 @@ public class WatcherService extends AbstractComponent {
     /**
      * Acks the watch if needed
      */
-    public WatchStatus ackWatch(String id, String[] actionIds, TimeValue timeout) {
+    public WatchStatus ackWatch(String id, String[] actionIds, TimeValue timeout) throws IOException {
         ensureStarted();
         WatchLockService.Lock lock = watchLockService.tryAcquire(id, timeout);
         if (lock == null) {
-            throw new TimeoutException("could not ack watch [{}] within [{}]... wait and try again. If this error continues to occur there is a high chance that the watch execution is stuck (either due to unresponsive external system such as an email service, or due to a bad script", id, timeout.format(PeriodType.seconds()));
+            throw new ElasticsearchTimeoutException("could not ack watch [{}] within [{}]... wait and try again. If this error continues to occur there is a high chance that the watch execution is stuck (either due to unresponsive external system such as an email service, or due to a bad script", id, timeout.format(PeriodType.seconds()));
         }
         if (actionIds == null || actionIds.length == 0) {
             actionIds = new String[] { Watch.ALL_ACTIONS_ID };
@@ -162,16 +162,16 @@ public class WatcherService extends AbstractComponent {
         try {
             Watch watch = watchStore.get(id);
             if (watch == null) {
-                throw new WatcherException("watch [{}] does not exist", id);
+                throw illegalArgument("watch [{}] does not exist", id);
             }
             // we need to create a safe copy of the status
             if (watch.ack(clock.now(DateTimeZone.UTC), actionIds)) {
                 try {
                     watchStore.updateStatus(watch);
                 } catch (IOException ioe) {
-                    throw new WatcherException("failed to update the watch [{}] on ack", ioe, watch.id());
+                    throw ioException("failed to update the watch [{}] on ack", ioe, watch.id());
                 } catch (VersionConflictEngineException vcee) {
-                    throw new WatcherException("failed to update the watch [{}] on ack, perhaps it was force deleted", vcee, watch.id());
+                    throw illegalState("failed to update the watch [{}] on ack, perhaps it was force deleted", vcee, watch.id());
                 }
             }
             return new WatchStatus(watch.status());
@@ -190,10 +190,4 @@ public class WatcherService extends AbstractComponent {
         }
     }
 
-    public static class TimeoutException extends WatcherException {
-
-        public TimeoutException(String msg, Object... args) {
-            super(msg, args);
-        }
-    }
 }

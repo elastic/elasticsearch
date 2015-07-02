@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.condition.script;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.condition.Condition;
@@ -58,8 +59,8 @@ public class ScriptCondition implements Condition {
         try {
             Script script = Script.parse(parser);
             return new ScriptCondition(script);
-        } catch (Script.ParseException pe) {
-            throw new ScriptConditionException("could not parse [{}] condition for watch [{}]. failed to parse script", pe, TYPE, watchId);
+        } catch (ElasticsearchParseException pe) {
+            throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. failed to parse script", pe, TYPE, watchId);
         }
     }
 

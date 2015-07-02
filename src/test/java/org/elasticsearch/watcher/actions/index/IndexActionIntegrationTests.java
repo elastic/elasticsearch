@@ -158,7 +158,7 @@ public class IndexActionIntegrationTests extends AbstractWatcherIntegrationTests
                 .trigger(schedule(cron("0/1 * * * * ? 2020")))
                 .input(searchInput(new SearchRequest("idx")
                         .types("type")
-                        .searchType(SearchType.COUNT)
+                        .searchType(SearchType.QUERY_THEN_FETCH)
                         .source(searchSource()
                                 .aggregation(dateHistogram("trend")
                                         .field("timestamp")

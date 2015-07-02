@@ -8,7 +8,6 @@ package org.elasticsearch.watcher.actions.email.service;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.settings.NodeSettingsService;

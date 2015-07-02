@@ -9,6 +9,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.watcher.support.Exceptions;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.transform.ExecutableTransform;
@@ -18,6 +19,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.watcher.support.Exceptions.invalidScript;
 import static org.elasticsearch.watcher.support.Variables.createCtxModel;
 
 /**
@@ -35,7 +37,7 @@ public class ExecutableScriptTransform extends ExecutableTransform<ScriptTransfo
         try {
             compiledScript = scriptService.compile(script);
         } catch (Exception e) {
-            throw new ScriptTransformValidationException("failed to compile script [{}] with lang [{}] of type [{}]", e, script.script(), script.lang(), script.type(), e);
+            throw invalidScript("failed to compile script [{}] with lang [{}] of type [{}]", e, script.script(), script.lang(), script.type(), e);
         }
     }
 

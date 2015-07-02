@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.actions.email.service;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.watcher.actions.email.service.support.BodyPartSource;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -150,7 +151,7 @@ public abstract class Attachment extends BodyPartSource {
                 case SMILE: return "application/smile";
                 case CBOR:  return "application/cbor";
                 default:
-                    throw new EmailException("unsupported xcontent attachment type [" + type.name() + "]");
+                    throw new IllegalArgumentException("unsupported xcontent attachment type [" + type.name() + "]");
             }
         }
 
@@ -160,7 +161,7 @@ public abstract class Attachment extends BodyPartSource {
                 content.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 return builder.bytes().toBytes();
             } catch (IOException ioe) {
-                throw new EmailException("could not create an xcontent attachment [" + name + "]", ioe);
+                throw new ElasticsearchException("could not create an xcontent attachment [" + name + "]", ioe);
             }
         }
 

@@ -32,14 +32,13 @@ public enum Profile implements ToXContent {
             MimeMultipart related = null;
             for (int i = 0; i < mixed.getCount(); i++) {
                 MimeBodyPart part = (MimeBodyPart) mixed.getBodyPart(i);
-
                 if (part.getContentType().startsWith("multipart/related")) {
                     related = (MimeMultipart) part.getContent();
                     break;
                 }
             }
             if (related == null) {
-                throw new EmailException("could not extract body text from mime message");
+                throw new IllegalStateException("could not extract body text from mime message using [standard] profile. could not find part content type with [multipart/related]");
             }
 
             MimeMultipart alternative = null;
@@ -51,7 +50,7 @@ public enum Profile implements ToXContent {
                 }
             }
             if (alternative == null) {
-                throw new EmailException("could not extract body text from mime message");
+                throw new IllegalStateException("could not extract body text from mime message using [standard] profile. could not find part content type with [multipart/alternative]");
             }
 
             for (int i = 0; i < alternative.getCount(); i++) {
@@ -61,7 +60,7 @@ public enum Profile implements ToXContent {
                 }
             }
 
-            throw new EmailException("could not extract body text from mime message");
+            throw new IllegalStateException("could not extract body text from mime message using [standard] profile");
         }
 
         @Override
@@ -153,7 +152,7 @@ public enum Profile implements ToXContent {
     public static Profile resolve(String name) {
         Profile profile = resolve(name, null);
         if (profile == null) {
-            throw new EmailSettingsException("unsupported email profile [" + name + "]");
+            throw new IllegalArgumentException("[" + name + "] is an unknown email profile");
         }
         return profile;
     }

@@ -7,8 +7,9 @@ package org.elasticsearch.watcher.trigger.schedule;
 
 
 import com.google.common.base.Joiner;
-import org.elasticsearch.common.bytes.BytesReference;
 import com.google.common.primitives.Ints;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -96,7 +97,7 @@ public class WeeklyScheduleTests extends ScheduleTestCase {
         assertThat(schedule.times()[0].times(), hasItemInArray(time));
     }
 
-    @Test(expected = ScheduleTriggerException.class)
+    @Test(expected = ElasticsearchParseException.class)
     public void testParser_SingleTime_Invalid() throws Exception {
         HourAndMinute time = invalidDayTime();
         XContentBuilder builder = jsonBuilder()
@@ -128,7 +129,7 @@ public class WeeklyScheduleTests extends ScheduleTestCase {
         }
     }
 
-    @Test(expected = ScheduleTriggerException.class)
+    @Test(expected = ElasticsearchParseException.class)
     public void testParser_MultipleTimes_Objects_Invalid() throws Exception {
         HourAndMinute[] times = invalidDayTimes();
         XContentBuilder builder = jsonBuilder()

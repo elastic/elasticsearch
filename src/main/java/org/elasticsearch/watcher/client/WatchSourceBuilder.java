@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.client;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
@@ -12,14 +13,13 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.search.builder.SearchSourceBuilderException;
-import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.throttler.Throttler;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.input.none.NoneInput;
+import org.elasticsearch.watcher.support.Exceptions;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.trigger.Trigger;
@@ -120,7 +120,7 @@ public class WatchSourceBuilder implements ToXContent {
         builder.startObject();
 
         if (trigger == null) {
-            throw new BuilderException("failed to build watch source. no trigger defined");
+            throw Exceptions.illegalState("failed to build watch source. no trigger defined");
         }
         builder.startObject(Watch.Field.TRIGGER.getPreferredName())
                 .field(trigger.type(), trigger, params)
@@ -157,13 +157,14 @@ public class WatchSourceBuilder implements ToXContent {
         return builder.endObject();
     }
 
-    public BytesReference buildAsBytes(XContentType contentType) throws SearchSourceBuilderException {
+    public BytesReference buildAsBytes(XContentType contentType) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             toXContent(builder, ToXContent.EMPTY_PARAMS);
             return builder.bytes();
-        } catch (java.lang.Exception e) {
-            throw new BuilderException("Failed to build watch source", e);
+        } catch (IOException ioe) {
+            // todo think of a better std exception for this
+            throw new ElasticsearchException("failed to render watch source as bytes", ioe);
         }
     }
 
@@ -196,16 +197,4 @@ public class WatchSourceBuilder implements ToXContent {
             return builder.endObject();
         }
     }
-
-    public static class BuilderException extends WatcherException {
-
-        public BuilderException(String msg) {
-            super(msg);
-        }
-
-        public BuilderException(String msg, Throwable cause) {
-            super(msg, cause);
-        }
-    }
-
 }

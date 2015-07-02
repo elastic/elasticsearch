@@ -8,6 +8,7 @@ package org.elasticsearch.watcher.actions.index;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -283,7 +284,7 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
             if (!(useIndex && useType)) {
                 fail();
             }
-        } catch (IndexActionException iae) {
+        } catch (ElasticsearchParseException iae) {
             assertThat(useIndex && useType, equalTo(false));
         }
     }

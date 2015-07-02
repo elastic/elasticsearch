@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.actions.email;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -130,8 +131,8 @@ public class EmailAction implements Action {
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ATTACH_DATA)) {
                 try {
                     dataAttachment = DataAttachment.parse(parser);
-                } catch (DataAttachment.Exception dae) {
-                    throw new EmailActionException("could not parse [{}] action [{}/{}]. failed to parse data attachment field [{}]", dae, TYPE, watchId, actionId, currentFieldName);
+                } catch (IOException ioe) {
+                    throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]. failed to parse data attachment field [{}]", ioe, TYPE, watchId, actionId, currentFieldName);
                 }
             }else if (!emailParser.handle(currentFieldName, parser)) {
                 if (token == XContentParser.Token.VALUE_STRING) {
@@ -142,12 +143,16 @@ public class EmailAction implements Action {
                     } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.PASSWORD)) {
                         password = SensitiveXContentParser.secretOrNull(parser);
                     } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.PROFILE)) {
-                        profile = Profile.resolve(parser.text());
+                        try {
+                            profile = Profile.resolve(parser.text());
+                        } catch (IllegalArgumentException iae) {
+                            throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]", TYPE, watchId, actionId, iae);
+                        }
                     } else {
-                        throw new EmailActionException("could not parse [{}] action [{}/{}]. unexpected string field [{}]", TYPE, watchId, actionId, currentFieldName);
+                        throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]. unexpected string field [{}]", TYPE, watchId, actionId, currentFieldName);
                     }
                 } else {
-                    throw new EmailActionException("could not parse [{}] action [{}/{}]. unexpected token [{}]", TYPE, watchId, actionId, token);
+                    throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]. unexpected token [{}]", TYPE, watchId, actionId, token);
                 }
             }
         }

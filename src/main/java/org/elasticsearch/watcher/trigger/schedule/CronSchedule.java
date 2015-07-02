@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.trigger.schedule;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -42,43 +43,36 @@ public class CronSchedule extends CronnableSchedule {
 
         @Override
         public CronSchedule parse(XContentParser parser) throws IOException {
-            try {
-
-                XContentParser.Token token = parser.currentToken();
-                if (token == XContentParser.Token.VALUE_STRING) {
+            XContentParser.Token token = parser.currentToken();
+            if (token == XContentParser.Token.VALUE_STRING) {
+                try {
                     return new CronSchedule(parser.text());
-                } else if (token == XContentParser.Token.START_ARRAY) {
-                    List<String> crons = new ArrayList<>();
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        switch (token) {
-                            case VALUE_STRING:
-                                crons.add(parser.text());
-                                break;
-                            default:
-                                throw new ScheduleTriggerException("could not parse [cron] schedule. expected a string value in the cron array but found [" + token + "]");
-                        }
+                } catch (IllegalArgumentException iae) {
+                    throw new ElasticsearchParseException("could not parse [cron] schedule", iae);
+                }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                List<String> crons = new ArrayList<>();
+                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                    switch (token) {
+                        case VALUE_STRING:
+                            crons.add(parser.text());
+                            break;
+                        default:
+                            throw new ElasticsearchParseException("could not parse [cron] schedule. expected a string value in the cron array but found [" + token + "]");
                     }
-                    if (crons.isEmpty()) {
-                        throw new ScheduleTriggerException("could not parse [cron] schedule. no cron expression found in cron array");
-                    }
+                }
+                if (crons.isEmpty()) {
+                    throw new ElasticsearchParseException("could not parse [cron] schedule. no cron expression found in cron array");
+                }
+                try {
                     return new CronSchedule(crons.toArray(new String[crons.size()]));
-                } else {
-                    throw new ScheduleTriggerException("could not parse [cron] schedule. expected either a cron string value or an array of cron string values, but found [" + token + "]");
+                } catch (IllegalArgumentException iae) {
+                    throw new ElasticsearchParseException("could not parse [cron] schedule", iae);
                 }
 
-            } catch (ValidationException ve) {
-                throw new ScheduleTriggerException("could not parse [cron] schedule. invalid cron expression [" + ve.expression + "]", ve);
+            } else {
+                throw new ElasticsearchParseException("could not parse [cron] schedule. expected either a cron string value or an array of cron string values, but found [" + token + "]");
             }
-        }
-    }
-
-    public static class ValidationException extends ScheduleTriggerException {
-
-        private String expression;
-
-        public ValidationException(String expression, Cron.ParseException cause) {
-            super("invalid cron expression [{}]", cause, expression);
-            this.expression = expression;
         }
     }
 }

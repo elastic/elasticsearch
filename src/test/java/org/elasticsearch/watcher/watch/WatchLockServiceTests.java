@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.watch;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -28,7 +29,7 @@ public class WatchLockServiceTests extends ElasticsearchTestCase {
             lockService.acquire("_name");
             fail("exception expected");
         } catch (Exception e) {
-            assertThat(e.getMessage(), equalTo("not started"));
+            assertThat(e.getMessage(), containsString("not running"));
         }
     }
 
@@ -58,7 +59,7 @@ public class WatchLockServiceTests extends ElasticsearchTestCase {
         lockService.stop();
     }
 
-    @Test(expected = WatchLockService.TimeoutException.class)
+    @Test(expected = ElasticsearchTimeoutException.class)
     public void testLocking_stopTimeout(){
         final WatchLockService lockService = new WatchLockService(new TimeValue(1, TimeUnit.SECONDS));
         lockService.start();

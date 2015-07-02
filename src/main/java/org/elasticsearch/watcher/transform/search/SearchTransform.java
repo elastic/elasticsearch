@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.transform.search;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -13,7 +14,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.support.SearchRequestEquivalence;
-import org.elasticsearch.watcher.support.SearchRequestParseException;
 import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.transform.Transform;
@@ -104,8 +104,8 @@ public class SearchTransform implements Transform {
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.REQUEST)) {
                 try {
                     request = WatcherUtils.readSearchRequest(parser, ExecutableSearchTransform.DEFAULT_SEARCH_TYPE);
-                } catch (SearchRequestParseException srpe) {
-                    throw new SearchTransformException("could not parse [{}] transform for watch [{}]. failed to parse [{}]", srpe, TYPE, watchId, currentFieldName);
+                } catch (ElasticsearchParseException srpe) {
+                    throw new ElasticsearchParseException("could not parse [{}] transform for watch [{}]. failed to parse [{}]", srpe, TYPE, watchId, currentFieldName);
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TIMEOUT)) {
                 timeout = WatcherDateTimeUtils.parseTimeValue(parser, Field.TIMEOUT.toString());
@@ -113,15 +113,15 @@ public class SearchTransform implements Transform {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     dynamicNameTimeZone = DateTimeZone.forID(parser.text());
                 } else {
-                    throw new SearchTransformException("could not parse [{}] transform for watch [{}]. failed to parse [{}]. must be a string value (e.g. 'UTC' or '+01:00').", TYPE, watchId, currentFieldName);
+                    throw new ElasticsearchParseException("could not parse [{}] transform for watch [{}]. failed to parse [{}]. must be a string value (e.g. 'UTC' or '+01:00').", TYPE, watchId, currentFieldName);
                 }
             } else {
-                throw new SearchTransformException("could not parse [{}] transform for watch [{}]. unexpected field [{}]", TYPE, watchId, currentFieldName);
+                throw new ElasticsearchParseException("could not parse [{}] transform for watch [{}]. unexpected field [{}]", TYPE, watchId, currentFieldName);
             }
         }
 
         if (request == null) {
-            throw new SearchTransformException("could not parse [{}] transform for watch [{}]. missing required [{}] field", TYPE, watchId, Field.REQUEST.getPreferredName());
+            throw new ElasticsearchParseException("could not parse [{}] transform for watch [{}]. missing required [{}] field", TYPE, watchId, Field.REQUEST.getPreferredName());
         }
         return new SearchTransform(request, timeout, dynamicNameTimeZone);
     }

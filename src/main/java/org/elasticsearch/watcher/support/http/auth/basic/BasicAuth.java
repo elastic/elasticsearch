@@ -10,7 +10,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.support.http.auth.HttpAuth;
-import org.elasticsearch.watcher.support.http.auth.HttpAuthException;
 import org.elasticsearch.watcher.support.secret.Secret;
 import org.elasticsearch.watcher.support.secret.SensitiveXContentParser;
 import org.elasticsearch.watcher.support.xcontent.WatcherParams;
@@ -96,10 +95,10 @@ public class BasicAuth implements HttpAuth {
         }
 
         if (username == null) {
-            throw new HttpAuthException("username is a required option");
+            throw new ElasticsearchParseException("username is a required option");
         }
         if (password == null) {
-            throw new HttpAuthException("password is a required option");
+            throw new ElasticsearchParseException("password is a required option");
         }
 
         return new BasicAuth(username, password);

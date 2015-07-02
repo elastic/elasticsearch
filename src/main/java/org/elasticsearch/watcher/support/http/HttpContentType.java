@@ -8,10 +8,11 @@ package org.elasticsearch.watcher.support.http;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.watcher.WatcherException;
 
 import java.io.IOException;
 import java.util.Locale;
+
+import static org.elasticsearch.watcher.support.Exceptions.illegalArgument;
 
 /**
  */
@@ -60,7 +61,7 @@ public enum HttpContentType implements ToXContent {
             case "yaml":  return YAML;
             case "text":  return TEXT;
             default:
-                throw new WatcherException("unknown content type [{}]", id);
+                throw illegalArgument("unknown http content type [{}]", id);
         }
     }
 }

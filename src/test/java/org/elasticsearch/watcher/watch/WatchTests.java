@@ -5,9 +5,10 @@
  */
 package org.elasticsearch.watcher.watch;
 
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -16,7 +17,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.actions.*;
 import org.elasticsearch.watcher.actions.email.DataAttachment;
 import org.elasticsearch.watcher.actions.email.EmailAction;
@@ -220,8 +220,8 @@ public class WatchTests extends ElasticsearchTestCase {
         try {
             watchParser.parse("failure", false, jsonBuilder.bytes());
             fail("This watch should fail to parse as actions is an array");
-        } catch (WatcherException we) {
-            assertThat(we.getMessage().contains("could not parse actions for watch [failure]"), is(true));
+        } catch (ElasticsearchParseException pe) {
+            assertThat(pe.getMessage().contains("could not parse actions for watch [failure]"), is(true));
         }
     }
 

@@ -6,9 +6,8 @@
 package org.elasticsearch.watcher.transform.script;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
-
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -16,10 +15,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.Variables;
@@ -34,6 +33,7 @@ import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.watcher.support.Exceptions.illegalArgument;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.*;
 import static org.hamcrest.Matchers.*;
 import static org.mockito.Mockito.mock;
@@ -173,7 +173,7 @@ public class ScriptTransformTests extends ElasticsearchTestCase {
     }
 
 
-    @Test(expected = ScriptTransformValidationException.class)
+    @Test(expected = ScriptException.class)
     public void testScriptConditionParser_badScript() throws Exception {
         ScriptTransformFactory transformFactory = new ScriptTransformFactory(Settings.settingsBuilder().build(), getScriptServiceProxy(tp));
         ScriptType scriptType = randomFrom(ScriptType.values());
@@ -201,7 +201,7 @@ public class ScriptTransformTests extends ElasticsearchTestCase {
         fail("expected a transform validation exception trying to create an executable with a bad or missing script");
     }
 
-    @Test(expected = ScriptTransformValidationException.class)
+    @Test(expected = ScriptException.class)
     public void testScriptConditionParser_badLang() throws Exception {
         ScriptTransformFactory transformFactory = new ScriptTransformFactory(Settings.settingsBuilder().build(), getScriptServiceProxy(tp));
         ScriptType scriptType = randomFrom(ScriptType.values());
@@ -226,7 +226,7 @@ public class ScriptTransformTests extends ElasticsearchTestCase {
             case FILE:      return Script.file(script);
             case INDEXED:   return Script.indexed(script);
             default:
-                throw new WatcherException("unsupported script type [{}]", type);
+                throw illegalArgument("unsupported script type [{}]", type);
         }
     }
 
@@ -236,7 +236,7 @@ public class ScriptTransformTests extends ElasticsearchTestCase {
             case FILE: return "file";
             case INDEXED: return "id";
             default:
-                throw new WatcherException("unsupported script type [{}]", type);
+                throw illegalArgument("unsupported script type [{}]", type);
         }
     }
 }

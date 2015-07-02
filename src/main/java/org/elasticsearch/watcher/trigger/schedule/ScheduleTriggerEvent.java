@@ -5,15 +5,15 @@
  */
 package org.elasticsearch.watcher.trigger.schedule;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.joda.time.DateTime;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
+import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -71,35 +71,24 @@ public class ScheduleTriggerEvent extends TriggerEvent {
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TRIGGERED_TIME)) {
                 try {
                     triggeredTime = WatcherDateTimeUtils.parseDateMath(currentFieldName, parser, DateTimeZone.UTC, clock);
-                } catch (WatcherDateTimeUtils.ParseException pe) {
+                } catch (ElasticsearchParseException pe) {
                     //Failed to parse as a date try datemath parsing
-                    throw new ParseException("could not parse [{}] trigger event for [{}] for watch [{}]. failed to parse date field [{}]", pe, ScheduleTriggerEngine.TYPE, context, watchId, currentFieldName);
+                    throw new ElasticsearchParseException("could not parse [{}] trigger event for [{}] for watch [{}]. failed to parse date field [{}]", pe, ScheduleTriggerEngine.TYPE, context, watchId, currentFieldName);
                 }
             }  else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.SCHEDULED_TIME)) {
                 try {
                     scheduledTime = WatcherDateTimeUtils.parseDateMath(currentFieldName, parser, DateTimeZone.UTC, clock);
-                } catch (WatcherDateTimeUtils.ParseException pe) {
-                    throw new ParseException("could not parse [{}] trigger event for [{}] for watch [{}]. failed to parse date field [{}]", pe, ScheduleTriggerEngine.TYPE, context, watchId, currentFieldName);
+                } catch (ElasticsearchParseException pe) {
+                    throw new ElasticsearchParseException("could not parse [{}] trigger event for [{}] for watch [{}]. failed to parse date field [{}]", pe, ScheduleTriggerEngine.TYPE, context, watchId, currentFieldName);
                 }
             }else {
-                throw new ParseException("could not parse trigger event for [{}] for watch [{}]. unexpected token [{}]", context, watchId, token);
+                throw new ElasticsearchParseException("could not parse trigger event for [{}] for watch [{}]. unexpected token [{}]", context, watchId, token);
             }
         }
 
         // should never be, it's fully controlled internally (not coming from the user)
         assert triggeredTime != null && scheduledTime != null;
         return new ScheduleTriggerEvent(triggeredTime, scheduledTime);
-    }
-
-    public static class ParseException extends WatcherException {
-
-        public ParseException(String msg, Object... args) {
-            super(msg, args);
-        }
-
-        public ParseException(String msg, Throwable cause, Object... args) {
-            super(msg, cause, args);
-        }
     }
 
     interface Field extends TriggerEvent.Field {

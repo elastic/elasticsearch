@@ -6,8 +6,8 @@
 package org.elasticsearch.watcher.transport.action.put;
 
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
@@ -52,7 +52,7 @@ public class PutWatchTests extends AbstractWatcherIntegrationTests {
         assertThat(response.getVersion(), is(1L));
     }
 
-    @Test(expected = WatchSourceBuilder.BuilderException.class)
+    @Test(expected = IllegalStateException.class)
     public void testPut_NoTrigger() throws Exception {
         ensureWatcherStarted();
         watcherClient().preparePutWatch("_name").setSource(watchBuilder()
@@ -70,7 +70,7 @@ public class PutWatchTests extends AbstractWatcherIntegrationTests {
                 .get();
     }
 
-    @Test(expected = WatcherException.class)
+    @Test(expected = ElasticsearchParseException.class)
     public void testPut_InvalidActionId() throws Exception {
         ensureWatcherStarted();
         watcherClient().preparePutWatch("_name").setSource(watchBuilder()

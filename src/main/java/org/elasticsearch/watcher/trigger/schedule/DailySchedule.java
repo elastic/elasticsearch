@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.trigger.schedule;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -95,20 +96,20 @@ public class DailySchedule extends CronnableSchedule {
                     if (token != XContentParser.Token.START_ARRAY) {
                         try {
                             times.add(DayTimes.parse(parser, token));
-                        } catch (DayTimes.ParseException pe) {
-                            throw new ScheduleTriggerException("could not parse [daily] schedule. invalid time value for field [at] - [" + token + "]", pe);
+                        } catch (ElasticsearchParseException pe) {
+                            throw new ElasticsearchParseException("could not parse [{}] schedule. invalid time value for field [{}] - [{}]", pe, TYPE, currentFieldName, token);
                         }
                     } else {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             try {
                                 times.add(DayTimes.parse(parser, token));
-                            } catch (DayTimes.ParseException pe) {
-                                throw new ScheduleTriggerException("could not parse [daily] schedule. invalid time value for field [at] - [" + token + "]", pe);
+                            } catch (ElasticsearchParseException pe) {
+                                throw new ElasticsearchParseException("could not parse [{}] schedule. invalid time value for field [{}] - [{}]", pe, TYPE, currentFieldName, token);
                             }
                         }
                     }
                 } else {
-                    throw new ScheduleTriggerException("could not parse [daily] schedule. unexpected field [" + currentFieldName + "]");
+                    throw new ElasticsearchParseException("could not parse [{}] schedule. unexpected field [{}]", TYPE, currentFieldName);
                 }
             }
 

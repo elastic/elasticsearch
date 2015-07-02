@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.rest.action;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -15,7 +16,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
-import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.watcher.rest.WatcherRestHandler;
@@ -86,7 +86,7 @@ public class RestExecuteWatchAction extends WatcherRestHandler {
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.RECORD_EXECUTION)) {
                     builder.setRecordExecution(parser.booleanValue());
                 } else {
-                    throw new ParseException("could not parse watch execution request. unexpected boolean field [{}]", currentFieldName);
+                    throw new ElasticsearchParseException("could not parse watch execution request. unexpected boolean field [{}]", currentFieldName);
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ALTERNATIVE_INPUT)) {
@@ -105,33 +105,22 @@ public class RestExecuteWatchAction extends WatcherRestHandler {
                             try {
                                 ActionExecutionMode mode = ActionExecutionMode.resolve(parser.textOrNull());
                                 builder.setActionMode(currentFieldName, mode);
-                            } catch (WatcherException we) {
-                                throw new ParseException("could not parse watch execution request", we);
+                            } catch (IllegalArgumentException iae) {
+                                throw new ElasticsearchParseException("could not parse watch execution request", iae);
                             }
                         } else {
-                            throw new ParseException("could not parse watch execution request. unexpected array field [{}]", currentFieldName);
+                            throw new ElasticsearchParseException("could not parse watch execution request. unexpected array field [{}]", currentFieldName);
                         }
                     }
                 } else {
-                    throw new ParseException("could not parse watch execution request. unexpected object field [{}]", currentFieldName);
+                    throw new ElasticsearchParseException("could not parse watch execution request. unexpected object field [{}]", currentFieldName);
                 }
             } else {
-                throw new ParseException("could not parse watch execution request. unexpected token [{}]", token);
+                throw new ElasticsearchParseException("could not parse watch execution request. unexpected token [{}]", token);
             }
         }
 
         return builder.request();
-    }
-
-    public static class ParseException extends WatcherException {
-
-        public ParseException(String msg, Object... args) {
-            super(msg, args);
-        }
-
-        public ParseException(String msg, Throwable cause, Object... args) {
-            super(msg, cause, args);
-        }
     }
 
     interface Field {

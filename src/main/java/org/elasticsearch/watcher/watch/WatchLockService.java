@@ -5,17 +5,19 @@
  */
 package org.elasticsearch.watcher.watch;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.joda.time.PeriodType;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.watcher.WatcherException;
-import org.elasticsearch.watcher.support.WatcherInactiveException;
 import org.elasticsearch.watcher.support.concurrent.FairKeyedLock;
+import org.joda.time.PeriodType;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.elasticsearch.watcher.support.Exceptions.illegalState;
 
 /**
  *
@@ -42,7 +44,7 @@ public class WatchLockService extends AbstractComponent {
 
     public Lock acquire(String name) {
         if (!running.get()) {
-            throw new WatcherInactiveException("not started");
+            throw illegalState("cannot acquire lock for watch [{}]. lock service is not running", name);
         }
 
         watchLocks.acquire(name);
@@ -51,7 +53,7 @@ public class WatchLockService extends AbstractComponent {
 
     public Lock tryAcquire(String name, TimeValue timeout) {
         if (!running.get()) {
-            throw new WatcherInactiveException("not started");
+            throw illegalState("cannot acquire lock for watch [{}]. lock service is not running", name);
         }
         try {
             if (!watchLocks.tryAcquire(name, timeout.millis(), TimeUnit.MILLISECONDS)) {
@@ -60,7 +62,9 @@ public class WatchLockService extends AbstractComponent {
             }
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
-            throw new AcquireException("could not acquire lock for watch [{}]", name);
+            //todo figure out a better std exception for this
+            logger.error("could not acquire lock for watch [{}]", ie, name);
+            return null;
         }
         return new Lock(name, watchLocks);
     }
@@ -72,9 +76,9 @@ public class WatchLockService extends AbstractComponent {
     }
 
     /**
-     * @throws TimeoutException if we have waited longer than maxStopTimeout
+     * @throws ElasticsearchTimeoutException if we have waited longer than maxStopTimeout
      */
-    public void stop() throws TimeoutException {
+    public void stop() throws ElasticsearchTimeoutException {
         if (running.compareAndSet(true, false)) {
             // It can happen we have still ongoing operations and we wait those operations to finish to avoid
             // that watch service or any of its components end up in a illegal state after the state as been set to stopped.
@@ -88,7 +92,7 @@ public class WatchLockService extends AbstractComponent {
             while (watchLocks.hasLockedKeys()) {
                 TimeValue timeWaiting = new TimeValue(System.currentTimeMillis() - startWait);
                 if (timeWaiting.getSeconds() > maxStopTimeout.getSeconds()) {
-                    throw new TimeoutException("timed out waiting for watches to complete, after waiting for [{}]", timeWaiting);
+                    throw new ElasticsearchTimeoutException("timed out waiting for watches to complete, after waiting for [{}]", timeWaiting);
                 }
                 try {
                     Thread.sleep(100);
@@ -118,25 +122,4 @@ public class WatchLockService extends AbstractComponent {
         }
     }
 
-    public static class TimeoutException extends WatcherException {
-
-        public TimeoutException(String msg, Throwable cause, Object... args) {
-            super(msg, cause, args);
-        }
-
-        public TimeoutException(String msg, Object... args) {
-            super(msg, args);
-        }
-    }
-
-    public static class AcquireException extends WatcherException {
-
-        public AcquireException(String msg, Object... args) {
-            super(msg, args);
-        }
-
-        public AcquireException(String msg, Throwable cause, Object... args) {
-            super(msg, cause, args);
-        }
-    }
 }

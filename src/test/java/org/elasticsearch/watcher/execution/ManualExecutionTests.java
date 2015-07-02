@@ -5,13 +5,10 @@
  */
 package org.elasticsearch.watcher.execution;
 
-import org.elasticsearch.watcher.support.clock.SystemClock;
-import org.elasticsearch.watcher.transport.actions.get.GetWatchResponse;
-import org.joda.time.DateTime;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.WatcherService;
 import org.elasticsearch.watcher.actions.ActionStatus;
 import org.elasticsearch.watcher.actions.logging.LoggingAction;
@@ -22,6 +19,7 @@ import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
 import org.elasticsearch.watcher.support.Script;
+import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchResponse;
@@ -29,6 +27,7 @@ import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchRequest;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchRequest;
+import org.elasticsearch.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchRequest;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
@@ -36,6 +35,7 @@ import org.elasticsearch.watcher.trigger.manual.ManualTriggerEvent;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
+import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Test;
 
@@ -384,7 +384,7 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
                 assertThat(record, notNullValue());
                 assertThat(record.state(), is(ExecutionState.NOT_EXECUTED_WATCH_MISSING));
             } catch (Throwable t) {
-                throw new WatcherException("Failure mode execution of [{}] failed in an unexpected way", t, watchId);
+                throw new ElasticsearchException("Failure mode execution of [{}] failed in an unexpected way", t, watchId);
             }
         }
     }

@@ -6,11 +6,14 @@
 package org.elasticsearch.watcher.support.http.auth;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
+
+import static org.elasticsearch.watcher.support.Exceptions.illegalArgument;
 
 /**
  *
@@ -34,7 +37,7 @@ public class HttpAuthRegistry {
             } else if (token == XContentParser.Token.START_OBJECT && type != null) {
                 HttpAuthFactory factory = factories.get(type);
                 if (factory == null) {
-                    throw new HttpAuthException("unknown http auth type [" + type + "]");
+                    throw new ElasticsearchParseException("unknown http auth type [{}]", type);
                 }
                 auth = factory.parse(parser);
             }
@@ -45,7 +48,7 @@ public class HttpAuthRegistry {
     public <A extends HttpAuth, AA extends ApplicableHttpAuth<A>> AA createApplicable(A auth) {
         HttpAuthFactory factory = factories.get(auth.type());
         if (factory == null) {
-            throw new HttpAuthException("unknown http auth type [{}]", auth.type());
+            throw illegalArgument("unknown http auth type [{}]", auth.type());
         }
         return (AA) factory.createApplicable(auth);
     }

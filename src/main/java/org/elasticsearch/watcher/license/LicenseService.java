@@ -28,8 +28,8 @@ public class LicenseService extends AbstractLifecycleComponent<LicenseService> {
 
     public static final String FEATURE_NAME = WatcherPlugin.NAME;
 
-    private static final LicensesService.TrialLicenseOptions TRIAL_LICENSE_OPTIONS =
-            new LicensesService.TrialLicenseOptions(TimeValue.timeValueHours(30 * 24), 1000);
+    private static final LicensesClientService.TrialLicenseOptions TRIAL_LICENSE_OPTIONS =
+            new LicensesClientService.TrialLicenseOptions(TimeValue.timeValueHours(30 * 24), 1000);
 
     private static final FormatDateTimeFormatter DATE_FORMATTER = Joda.forPattern("EEEE, MMMMM dd, yyyy", Locale.ROOT);
 

@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.trigger.schedule;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -39,11 +40,11 @@ public class ScheduleRegistry {
             } else if (type != null) {
                 schedule = parse(context, type, parser);
             } else {
-                throw new ScheduleTriggerException("could not parse schedule. expected a schedule type field, but found [" + token + "]");
+                throw new ElasticsearchParseException("could not parse schedule. expected a schedule type field, but found [{}] instead", token);
             }
         }
         if (schedule == null) {
-            throw new ScheduleTriggerException("could not parse schedule. expected a schedule type field, but no fields were found");
+            throw new ElasticsearchParseException("could not parse schedule. expected a schedule type field, but no fields were found");
         }
         return schedule;
     }
@@ -51,7 +52,7 @@ public class ScheduleRegistry {
     public Schedule parse(String context, String type, XContentParser parser) throws IOException {
         Schedule.Parser scheduleParser = parsers.get(type);
         if (scheduleParser == null) {
-            throw new ScheduleTriggerException("could not parse schedule for [" + context + "]. unknown schedule type [" + type + "]");
+            throw new ElasticsearchParseException("could not parse schedule for [{}]. unknown schedule type [{}]", context, type);
         }
         return scheduleParser.parse(parser);
     }

@@ -7,11 +7,12 @@ package org.elasticsearch.watcher.support;
 
 import com.google.common.base.Equivalence;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 
 import java.io.IOException;
 import java.util.Arrays;
+
+import static org.elasticsearch.watcher.support.Exceptions.illegalState;
 
 
 /**
@@ -38,7 +39,7 @@ public final class SearchRequestEquivalence extends Equivalence<SearchRequest> {
             byte[] bytes2 = output1.bytes().toBytes();
             return Arrays.equals(bytes1, bytes2);
         } catch (Throwable t) {
-            throw new WatcherException("could not compare search requests", t);
+            throw illegalState("could not compare search requests", t);
         }
     }
 
@@ -49,7 +50,7 @@ public final class SearchRequestEquivalence extends Equivalence<SearchRequest> {
             request.writeTo(output);
             return Arrays.hashCode(output.bytes().toBytes());
         } catch (IOException ioe) {
-            throw new WatcherException("could not compute hashcode for search request", ioe);
+            throw illegalState("could not compute hashcode for search request", ioe);
         }
     }
 }

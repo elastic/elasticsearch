@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.trigger.schedule;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -42,8 +43,9 @@ public class IntervalScheduleTests extends ElasticsearchTestCase {
         try {
             new IntervalSchedule.Parser().parse(parser);
             fail("exception expected, because interval is negative");
-        } catch (ScheduleTriggerException e) {
-            assertThat(e.getMessage(), containsString("interval can't be lower than 1000 ms, but"));
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+            assertThat(e.getCause().getMessage(), containsString("interval can't be lower than 1000 ms, but"));
         }
     }
 
@@ -59,7 +61,7 @@ public class IntervalScheduleTests extends ElasticsearchTestCase {
         assertThat(schedule.interval(), is(value));
     }
 
-    @Test(expected = ScheduleTriggerException.class)
+    @Test(expected = ElasticsearchParseException.class)
     public void testParse_Invalid_String() throws Exception {
         XContentBuilder builder = jsonBuilder().value("43S");
         BytesReference bytes = builder.bytes();
@@ -68,7 +70,7 @@ public class IntervalScheduleTests extends ElasticsearchTestCase {
         new IntervalSchedule.Parser().parse(parser);
     }
 
-    @Test(expected = ScheduleTriggerException.class)
+    @Test(expected = ElasticsearchParseException.class)
     public void testParse_Invalid_Object() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject().endObject();
         BytesReference bytes = builder.bytes();

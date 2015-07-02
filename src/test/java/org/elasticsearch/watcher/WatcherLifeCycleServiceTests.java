@@ -78,7 +78,7 @@ public class WatcherLifeCycleServiceTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testManualStartStop() {
+    public void testManualStartStop() throws Exception {
         DiscoveryNodes.Builder nodes = new DiscoveryNodes.Builder().masterNodeId("id1").localNodeId("id1");
         ClusterState clusterState = ClusterState.builder(new ClusterName("my-cluster"))
                 .nodes(nodes).build();
@@ -128,7 +128,7 @@ public class WatcherLifeCycleServiceTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testManualStartStop_clusterStateNotValid() {
+    public void testManualStartStop_clusterStateNotValid() throws Exception {
         DiscoveryNodes.Builder nodes = new DiscoveryNodes.Builder().masterNodeId("id1").localNodeId("id1");
         ClusterState clusterState = ClusterState.builder(new ClusterName("my-cluster"))
                 .nodes(nodes).build();
@@ -143,7 +143,7 @@ public class WatcherLifeCycleServiceTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testManualStartStop_watcherNotStopped() {
+    public void testManualStartStop_watcherNotStopped() throws Exception {
         DiscoveryNodes.Builder nodes = new DiscoveryNodes.Builder().masterNodeId("id1").localNodeId("id1");
         ClusterState clusterState = ClusterState.builder(new ClusterName("my-cluster"))
                 .nodes(nodes).build();

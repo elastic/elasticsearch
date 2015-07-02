@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.test.integration;
 
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -16,7 +17,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.condition.ConditionBuilders;
@@ -29,7 +29,6 @@ import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
-import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerException;
 import org.elasticsearch.watcher.trigger.schedule.Schedules;
 import org.elasticsearch.watcher.trigger.schedule.support.MonthTimes;
 import org.elasticsearch.watcher.trigger.schedule.support.WeekTimes;
@@ -177,7 +176,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
                     .setSource(watchSource.bytes())
                     .get();
             fail();
-        } catch (WatcherException e) {
+        } catch (ElasticsearchParseException e) {
             // In watch store we fail parsing if an watch contains undefined fields.
         }
         try {
@@ -379,7 +378,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
                             .addAction("_logger", loggingAction("executed!")))
                     .get();
             fail("put watch should have failed");
-        } catch (ScheduleTriggerException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("interval can't be lower than 1000 ms, but [-5s] was specified"));
         }
 
@@ -392,7 +391,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
                             .addAction("_logger", loggingAction("executed!")))
                     .get();
             fail("put watch should have failed");
-        } catch (ScheduleTriggerException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("invalid hourly minute [-10]. minute must be between 0 and 59 incl."));
         }
 
@@ -405,7 +404,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
                             .addAction("_logger", loggingAction("executed!")))
                     .get();
             fail("put watch should have failed");
-        } catch (ScheduleTriggerException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("invalid time [0-10:00]. invalid time hour value [-10]. time hours must be between 0 and 23 incl."));
         }
 
@@ -418,7 +417,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
                                     .addAction("_logger", loggingAction("executed!")))
                             .get();
             fail("put watch should have failed");
-        } catch (ScheduleTriggerException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("invalid time [0-10:00]. invalid time hour value [-10]. time hours must be between 0 and 23 incl."));
         }
 
@@ -431,7 +430,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
                             .addAction("_logger", loggingAction("executed!")))
                     .get();
             fail("put watch should have failed");
-        } catch (ScheduleTriggerException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("invalid time [0-10:00]. invalid time hour value [-10]. time hours must be between 0 and 23 incl."));
         }
     }

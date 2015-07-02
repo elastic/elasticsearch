@@ -31,6 +31,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.watcher.support.Exceptions.illegalState;
 
 public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
 
@@ -63,7 +64,8 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
             if (doc instanceof Map) {
                 data = (Map<String, Object>) doc;
             } else {
-                throw new IndexActionException("could not execute action [{}] of watch [{}]. failed to index payload data. [_data] field must either hold a Map or an List/Array of Maps", actionId, ctx.watch().id());
+                throw illegalState("could not execute action [{}] of watch [{}]. failed to index payload data." +
+                        "[_data] field must either hold a Map or an List/Array of Maps", actionId, ctx.watch().id());
             }
         }
 
@@ -97,7 +99,8 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         BulkRequest bulkRequest = new BulkRequest();
         for (Object item : list) {
             if (!(item instanceof Map)) {
-                throw new IndexActionException("could not execute action [{}] of watch [{}]. failed to index payload data. [_data] field must either hold a Map or an List/Array of Maps", actionId, ctx.watch().id());
+                throw illegalState("could not execute action [{}] of watch [{}]. failed to index payload data. " +
+                        "[_data] field must either hold a Map or an List/Array of Maps", actionId, ctx.watch().id());
             }
             Map<String, Object> doc = (Map<String, Object>) item;
             IndexRequest indexRequest = new IndexRequest();

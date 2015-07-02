@@ -29,15 +29,15 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 
 import java.io.IOException;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.elasticsearch.watcher.support.Exceptions.illegalState;
 
 /**
  */
@@ -66,7 +66,7 @@ public class WatchStore extends AbstractComponent {
         this.scrollSize = settings.getAsInt("watcher.watch.scroll.size", 100);
     }
 
-    public void start(ClusterState state) {
+    public void start(ClusterState state) throws Exception {
         if (started.get()) {
             logger.debug("watch store already started");
             return;
@@ -125,7 +125,7 @@ public class WatchStore extends AbstractComponent {
     /**
      * Creates an watch if this watch already exists it will be overwritten
      */
-    public WatchPut put(Watch watch) {
+    public WatchPut put(Watch watch) throws IOException {
         ensureStarted();
         IndexRequest indexRequest = createIndexRequest(watch.id(), watch.getAsBytes(), Versions.MATCH_ANY);
         IndexResponse response = client.index(indexRequest, (TimeValue) null);
@@ -154,15 +154,12 @@ public class WatchStore extends AbstractComponent {
         UpdateRequest updateRequest = new UpdateRequest(INDEX, DOC_TYPE, watch.id());
         updateRequest.doc(source);
         updateRequest.version(watch.version());
-        try {
-            UpdateResponse response = client.update(updateRequest);
-            watch.status().version(response.getVersion());
-            watch.version(response.getVersion());
-            watch.status().resetDirty();
-            // Don't need to update the watches, since we are working on an instance from it.
-        } catch (DocumentMissingException dme) {
-            throw new WatchMissingException("could not update watch [{}] as it could not be found", watch.id(), dme);
-        }
+
+        UpdateResponse response = client.update(updateRequest);
+        watch.status().version(response.getVersion());
+        watch.version(response.getVersion());
+        watch.status().resetDirty();
+        // Don't need to update the watches, since we are working on an instance from it.
     }
 
     /**
@@ -209,7 +206,7 @@ public class WatchStore extends AbstractComponent {
         assert watches.isEmpty() : "no watches should reside, but there are [" + watches.size() + "] watches.";
         RefreshResponse refreshResponse = client.refresh(new RefreshRequest(INDEX));
         if (refreshResponse.getSuccessfulShards() < numPrimaryShards) {
-            throw new WatcherException("not all required shards have been refreshed");
+            throw illegalState("not all required shards have been refreshed");
         }
 
         int count = 0;

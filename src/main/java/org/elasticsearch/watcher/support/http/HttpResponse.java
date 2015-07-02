@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.support.http;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -14,7 +15,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.watcher.WatcherException;
 import org.jboss.netty.handler.codec.http.HttpHeaders;
 
 import javax.annotation.Nullable;
@@ -141,18 +141,18 @@ public class HttpResponse implements ToXContent {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (currentFieldName == null) {
-                throw new ParseException("could not parse http response. expected a field name but found [{}] instead", token);
+                throw new ElasticsearchParseException("could not parse http response. expected a field name but found [{}] instead", token);
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                 if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.STATUS)) {
                     status = parser.intValue();
                 } else {
-                    throw new ParseException("could not parse http response. unknown numeric field [{}]", currentFieldName);
+                    throw new ElasticsearchParseException("could not parse http response. unknown numeric field [{}]", currentFieldName);
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.BODY)) {
                     body = parser.text();
                 } else {
-                    throw new ParseException("could not parse http response. unknown string field [{}]", currentFieldName);
+                    throw new ElasticsearchParseException("could not parse http response. unknown string field [{}]", currentFieldName);
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 String headerName = null;
@@ -160,14 +160,14 @@ public class HttpResponse implements ToXContent {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         headerName = parser.currentName();
                     } else if (headerName == null){
-                        throw new ParseException("could not parse http response. expected a header name but found [{}] instead", token);
+                        throw new ElasticsearchParseException("could not parse http response. expected a header name but found [{}] instead", token);
                     } else if (token.isValue()) {
                         headers.put(headerName, new String[] { String.valueOf(parser.objectText()) });
                     } else if (token == XContentParser.Token.START_ARRAY) {
                         List<String> values = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (!token.isValue()) {
-                                throw new ParseException("could not parse http response. expected a header value for header [{}] but found [{}] instead", headerName, token);
+                                throw new ElasticsearchParseException("could not parse http response. expected a header value for header [{}] but found [{}] instead", headerName, token);
                             } else {
                                 values.add(String.valueOf(parser.objectText()));
                             }
@@ -176,24 +176,14 @@ public class HttpResponse implements ToXContent {
                     }
                 }
             } else {
-                throw new ParseException("could not parse http response. unexpected token [{}]", token);
+                throw new ElasticsearchParseException("could not parse http response. unexpected token [{}]", token);
             }
         }
 
         if (status < 0) {
-            throw new ParseException("could not parse http response. missing required numeric [{}] field holding the response's http status code", Field.STATUS.getPreferredName());
+            throw new ElasticsearchParseException("could not parse http response. missing required numeric [{}] field holding the response's http status code", Field.STATUS.getPreferredName());
         }
         return new HttpResponse(status, body, headers.build());
-    }
-
-    public static class ParseException extends WatcherException {
-        public ParseException(String msg, Object... args) {
-            super(msg, args);
-        }
-
-        public ParseException(String msg, Throwable cause, Object... args) {
-            super(msg, cause, args);
-        }
     }
 
     interface Field {

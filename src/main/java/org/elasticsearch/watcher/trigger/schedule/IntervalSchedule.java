@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.trigger.schedule;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -12,6 +13,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.watcher.support.Exceptions.illegalArgument;
 
 /**
  *
@@ -24,7 +27,7 @@ public class IntervalSchedule implements Schedule {
 
     public IntervalSchedule(Interval interval) {
         if (interval.millis < 1000) {
-            throw new ScheduleTriggerException("interval can't be lower than 1000 ms, but [{}] was specified", interval);
+            throw illegalArgument("interval can't be lower than 1000 ms, but [{}] was specified", interval);
         }
         this.interval = interval;
     }
@@ -85,15 +88,19 @@ public class IntervalSchedule implements Schedule {
         @Override
         public IntervalSchedule parse(XContentParser parser) throws IOException {
             XContentParser.Token token = parser.currentToken();
-            if (token == XContentParser.Token.VALUE_NUMBER) {
-                return new IntervalSchedule(Interval.seconds(parser.longValue()));
+            try {
+                if (token == XContentParser.Token.VALUE_NUMBER) {
+                    return new IntervalSchedule(Interval.seconds(parser.longValue()));
+                }
+                if (token == XContentParser.Token.VALUE_STRING) {
+                    String value = parser.text();
+                    return new IntervalSchedule(Interval.parse(value));
+                }
+            } catch (Exception e) {
+                throw new ElasticsearchParseException("could not parse [{}] shcedule", e);
             }
-            if (token == XContentParser.Token.VALUE_STRING) {
-                String value = parser.text();
-                return new IntervalSchedule(Interval.parse(value));
-            }
-            throw new ScheduleTriggerException("could not parse [interval] schedule. expected either a numeric value " +
-                    "(millis) or a string value representing time value (e.g. '5s'), but found [" + token + "]");
+            throw new ElasticsearchParseException("could not parse [{}] schedule. expected either a numeric value " +
+                    "(millis) or a string value representing time value (e.g. '5s'), but found [{}]", TYPE, token);
         }
     }
 
@@ -107,7 +114,7 @@ public class IntervalSchedule implements Schedule {
      */
     public static class Interval implements ToXContent {
 
-        public static enum Unit {
+        public enum Unit {
             SECONDS(TimeUnit.SECONDS.toMillis(1), "s"),
             MINUTES(TimeUnit.MINUTES.toMillis(1), "m"),
             HOURS(TimeUnit.HOURS.toMillis(1), "h"),
@@ -117,7 +124,7 @@ public class IntervalSchedule implements Schedule {
             private final String suffix;
             private final long millis;
 
-            private Unit(long millis, String suffix) {
+            Unit(long millis, String suffix) {
                 this.millis = millis;
                 this.suffix = suffix;
             }
@@ -132,8 +139,8 @@ public class IntervalSchedule implements Schedule {
                 try {
                     return Long.parseLong(num);
                 } catch (NumberFormatException nfe) {
-                    throw new ScheduleTriggerException("could not parse [interval] schedule. could not parse ["
-                            + num + "] as a " + name().toLowerCase(Locale.ROOT) + " duration");
+                    throw new ElasticsearchParseException("could not parse [{}] schedule. could not parse [{}] as a [{}] duration",
+                            TYPE, num, name().toLowerCase(Locale.ROOT));
                 }
             }
 
@@ -195,7 +202,7 @@ public class IntervalSchedule implements Schedule {
                     return new Interval(unit.parse(value), unit);
                 }
             }
-            throw new ScheduleTriggerException("could not parse [interval] schedule. unrecognized interval format [" + value + "]");
+            throw illegalArgument("could not parse [{}] schedule. unrecognized interval format [{}]", TYPE, value);
         }
     }
 }

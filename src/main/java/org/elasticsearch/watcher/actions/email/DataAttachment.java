@@ -5,19 +5,21 @@
  */
 package org.elasticsearch.watcher.actions.email;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.actions.email.service.Attachment;
 import org.elasticsearch.watcher.watch.Payload;
 
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
+
+import static org.elasticsearch.watcher.support.Exceptions.illegalArgument;
 
 /**
  *
@@ -69,7 +71,7 @@ public enum DataAttachment implements ToXContent {
             case "yaml": return YAML;
             case "json": return JSON;
             default:
-                throw new Exception("unknown data attachment format [{}]", format);
+                throw illegalArgument("unknown data attachment format [{}]", format);
         }
     }
 
@@ -82,7 +84,7 @@ public enum DataAttachment implements ToXContent {
             return parser.booleanValue() ? DEFAULT : null;
         }
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new Exception("could not parse data attachment. expected either a boolean value or an object but found [{}] instead", token);
+            throw new ElasticsearchParseException("could not parse data attachment. expected either a boolean value or an object but found [{}] instead", token);
         }
 
         DataAttachment dataAttachment = DEFAULT;
@@ -92,30 +94,19 @@ public enum DataAttachment implements ToXContent {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (currentFieldName == null) {
-                throw new Exception("could not parse data attachment. expected [{}] field but found [{}] instead", Field.FORMAT.getPreferredName(), token);
+                throw new ElasticsearchParseException("could not parse data attachment. expected [{}] field but found [{}] instead", Field.FORMAT.getPreferredName(), token);
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.FORMAT)) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     dataAttachment = resolve(parser.text());
                 } else {
-                    throw new Exception("could not parse data attachment. expected string value for [{}] field but found [{}] instead", currentFieldName, token);
+                    throw new ElasticsearchParseException("could not parse data attachment. expected string value for [{}] field but found [{}] instead", currentFieldName, token);
                 }
             } else {
-                throw new Exception("could not parse data attachment. unexpected field [{}]", currentFieldName);
+                throw new ElasticsearchParseException("could not parse data attachment. unexpected field [{}]", currentFieldName);
             }
         }
 
         return dataAttachment;
-    }
-
-    public static class Exception extends WatcherException {
-
-        public Exception(String msg, Object... args) {
-            super(msg, args);
-        }
-
-        public Exception(String msg, Throwable cause, Object... args) {
-            super(msg, cause, args);
-        }
     }
 
     interface Field {

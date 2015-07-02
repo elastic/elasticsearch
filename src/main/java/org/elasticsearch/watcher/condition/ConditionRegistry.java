@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.condition;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -66,17 +67,17 @@ public class ConditionRegistry {
             if (token == XContentParser.Token.FIELD_NAME) {
                 type = parser.currentName();
             } else if (type == null) {
-                throw new ConditionException("could not parse condition for watch [{}]. invalid definition. expected a field indicating the condition type, but found", watchId, token);
+                throw new ElasticsearchParseException("could not parse condition for watch [{}]. invalid definition. expected a field indicating the condition type, but found", watchId, token);
             } else {
                 factory = factories.get(type);
                 if (factory == null) {
-                    throw new ConditionException("could not parse condition for watch [{}]. unknown condition type [{}]", watchId, type);
+                    throw new ElasticsearchParseException("could not parse condition for watch [{}]. unknown condition type [{}]", watchId, type);
                 }
                 condition = factory.parseCondition(watchId, parser);
             }
         }
         if (condition == null) {
-            throw new ConditionException("could not parse condition for watch [{}]. missing required condition type field", watchId);
+            throw new ElasticsearchParseException("could not parse condition for watch [{}]. missing required condition type field", watchId);
         }
         return condition;
     }

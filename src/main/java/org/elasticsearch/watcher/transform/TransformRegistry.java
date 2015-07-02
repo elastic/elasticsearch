@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.transform;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -45,7 +46,7 @@ public class TransformRegistry {
     public ExecutableTransform parse(String watchId, String type, XContentParser parser) throws IOException {
         TransformFactory factory = factories.get(type);
         if (factory == null) {
-            throw new TransformException("could not parse transform for watch [{}], unknown transform type [{}]", watchId, type);
+            throw new ElasticsearchParseException("could not parse transform for watch [{}], unknown transform type [{}]", watchId, type);
         }
         return factory.parseExecutable(watchId, parser);
     }
@@ -53,7 +54,7 @@ public class TransformRegistry {
     public Transform parseTransform(String watchId, String type, XContentParser parser) throws IOException {
         TransformFactory factory = factories.get(type);
         if (factory == null) {
-            throw new TransformException("could not parse transform for watch [{}], unknown transform type [{}]", watchId, type);
+            throw new ElasticsearchParseException("could not parse transform for watch [{}], unknown transform type [{}]", watchId, type);
         }
         return factory.parseTransform(watchId, parser);
     }

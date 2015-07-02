@@ -8,14 +8,15 @@ package org.elasticsearch.watcher.trigger.schedule.support;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Ints;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.watcher.WatcherException;
-import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerException;
 
 import java.io.IOException;
 import java.util.*;
+
+import static org.elasticsearch.watcher.support.Exceptions.illegalArgument;
 
 /**
  *
@@ -45,7 +46,7 @@ public class YearTimes implements Times {
     void validate() {
         for (int day : days) {
             if (day < 1 || day > 32) { //32 represents the last day of the month
-                throw new ScheduleTriggerException("invalid month day [" + day + "]");
+                throw illegalArgument("invalid month day [{}]", day);
             }
         }
         for (DayTimes dayTimes : times) {
@@ -124,9 +125,9 @@ public class YearTimes implements Times {
         return new Builder();
     }
 
-    public static YearTimes parse(XContentParser parser, XContentParser.Token token) throws IOException, ParseException {
+    public static YearTimes parse(XContentParser parser, XContentParser.Token token) throws IOException, ElasticsearchParseException {
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new ParseException("could not parse year times. expected an object, but found [" + token + "]");
+            throw new ElasticsearchParseException("could not parse year times. expected an object, but found [{}]", token);
         }
         Set<Month> monthsSet = new HashSet<>();
         Set<Integer> daysSet = new HashSet<>();
@@ -143,7 +144,7 @@ public class YearTimes implements Times {
                         monthsSet.add(parseMonthValue(parser, token));
                     }
                 } else {
-                    throw new ParseException("invalid year month value for [" + currentFieldName + "] field. expected string/number value or an array of string/number values, but found [" + token + "]");
+                    throw new ElasticsearchParseException("invalid year month value for [{}] field. expected string/number value or an array of string/number values, but found [{}]", currentFieldName, token);
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, DAY_FIELD)) {
                 if (token.isValue()) {
@@ -153,21 +154,21 @@ public class YearTimes implements Times {
                         daysSet.add(MonthTimes.parseDayValue(parser, token));
                     }
                 } else {
-                    throw new ParseException("invalid year day value for [on] field. expected string/number value or an array of string/number values, but found [" + token + "]");
+                    throw new ElasticsearchParseException("invalid year day value for [{}] field. expected string/number value or an array of string/number values, but found [{}]", currentFieldName, token);
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, TIME_FIELD)) {
                 if (token != XContentParser.Token.START_ARRAY) {
                     try {
                         timesSet.add(DayTimes.parse(parser, token));
-                    } catch (DayTimes.ParseException pe) {
-                        throw new ParseException("invalid time value for field [at] - [" + token + "]", pe);
+                    } catch (ElasticsearchParseException pe) {
+                        throw new ElasticsearchParseException("invalid time value for field [{}] - [{}]", pe, currentFieldName, token);
                     }
                 } else {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         try {
                             timesSet.add(DayTimes.parse(parser, token));
-                        } catch (DayTimes.ParseException pe) {
-                            throw new ParseException("invalid time value for field [at] - [" + token + "]", pe);
+                        } catch (ElasticsearchParseException pe) {
+                            throw new ElasticsearchParseException("invalid time value for field [{}] - [{}]", pe, currentFieldName, token);
                         }
                     }
                 }
@@ -186,18 +187,7 @@ public class YearTimes implements Times {
         if (token == XContentParser.Token.VALUE_NUMBER) {
             return Month.resolve(parser.intValue());
         }
-        throw new YearTimes.ParseException("invalid year month value. expected a string or a number value, but found [" + token + "]");
-    }
-
-    public static class ParseException extends WatcherException {
-
-        public ParseException(String msg) {
-            super(msg);
-        }
-
-        public ParseException(String msg, Throwable cause) {
-            super(msg, cause);
-        }
+        throw new ElasticsearchParseException("invalid year month value. expected a string or a number value, but found [{}]", token);
     }
 
     public static class Builder {

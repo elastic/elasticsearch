@@ -51,8 +51,8 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
         verify(clientProxy).index(Matchers.<IndexRequest>any(), Matchers.<TimeValue>any());
     }
 
-    @Test(expected = HistoryException.class)
-    public void testPut_stopped() {
+    @Test(expected = IllegalStateException.class)
+    public void testPut_stopped() throws Exception {
         Wid wid = new Wid("_name", 0, new DateTime(0, UTC));
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(wid.watchId(), new DateTime(0, UTC), new DateTime(0, UTC));
         WatchRecord watchRecord = new WatchRecord(wid, event, ExecutionState.EXECUTED, null);

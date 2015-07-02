@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.condition.never;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.condition.Condition;
@@ -31,11 +32,11 @@ public class NeverCondition implements Condition {
 
     public static NeverCondition parse(String watchId, XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-            throw new NeverConditionException("could not parse [{}] condition for watch [{}]. expected an empty object but found [{}]", TYPE, watchId, parser.currentName());
+            throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. expected an empty object but found [{}]", TYPE, watchId, parser.currentName());
         }
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.END_OBJECT) {
-            throw new NeverConditionException("could not parse [{}] condition for watch [{}]. expected an empty object but found [{}]", TYPE, watchId, parser.currentName());
+            throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. expected an empty object but found [{}]", TYPE, watchId, parser.currentName());
         }
         return INSTANCE;
     }

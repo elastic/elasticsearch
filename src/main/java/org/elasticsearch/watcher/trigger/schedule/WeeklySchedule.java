@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.trigger.schedule;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.trigger.schedule.support.WeekTimes;
@@ -81,8 +82,8 @@ public class WeeklySchedule extends CronnableSchedule {
             if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                 try {
                     return new WeeklySchedule(WeekTimes.parse(parser, parser.currentToken()));
-                } catch (WeekTimes.ParseException pe) {
-                    throw new ScheduleTriggerException("could not parse [weekly] schedule. invalid weekly times", pe);
+                } catch (ElasticsearchParseException pe) {
+                    throw new ElasticsearchParseException("could not parse [{}] schedule. invalid weekly times", pe, TYPE);
                 }
             }
             if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
@@ -91,14 +92,14 @@ public class WeeklySchedule extends CronnableSchedule {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                     try {
                         times.add(WeekTimes.parse(parser, token));
-                    } catch (WeekTimes.ParseException pe) {
-                        throw new ScheduleTriggerException("could not parse [weekly] schedule. invalid weekly times", pe);
+                    } catch (ElasticsearchParseException pe) {
+                        throw new ElasticsearchParseException("could not parse [{}] schedule. invalid weekly times", pe, TYPE);
                     }
                 }
                 return times.isEmpty() ? new WeeklySchedule() : new WeeklySchedule(times.toArray(new WeekTimes[times.size()]));
             }
-            throw new ScheduleTriggerException("could not parse [weekly] schedule. expected either an object or an array " +
-                    "of objects representing weekly times, but found [" + parser.currentToken() + "] instead");
+            throw new ElasticsearchParseException("could not parse [{}] schedule. expected either an object or an array " +
+                    "of objects representing weekly times, but found [{}] instead", TYPE, parser.currentToken());
         }
     }
 

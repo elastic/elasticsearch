@@ -12,7 +12,7 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.plugin.core.LicenseExpiredException;
+import org.elasticsearch.license.plugin.core.LicenseUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.license.LicenseService;
@@ -34,7 +34,7 @@ public abstract class WatcherTransportAction<Request extends MasterNodeRequest<R
         if (licenseService.enabled()) {
             super.doExecute(request, listener);
         } else {
-            listener.onFailure(new LicenseExpiredException(LicenseService.FEATURE_NAME));
+            listener.onFailure(LicenseUtils.newExpirationException(LicenseService.FEATURE_NAME));
         }
     }
 }

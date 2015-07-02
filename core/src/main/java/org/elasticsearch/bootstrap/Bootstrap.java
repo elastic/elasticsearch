@@ -44,7 +44,6 @@ import org.elasticsearch.monitor.process.JmxProcessProbe;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
-import org.hyperic.sigar.Sigar;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
@@ -97,7 +96,7 @@ public class Bootstrap {
     }
     
     /** initialize native resources */
-    public static void initializeNatives(boolean mlockAll, boolean ctrlHandler, boolean loadSigar) {
+    public static void initializeNatives(boolean mlockAll, boolean ctrlHandler, boolean bootstrapPlugins) {
         final ESLogger logger = Loggers.getLogger(Bootstrap.class);
         
         // check if the user is running as root, and bail
@@ -140,16 +139,9 @@ public class Bootstrap {
             // we've already logged this.
         }
 
-        if (loadSigar) {
-            // initialize sigar explicitly
-            try {
-                Sigar.load();
-                logger.trace("sigar libraries loaded successfully");
-            } catch (Throwable t) {
-                logger.trace("failed to load sigar libraries", t);
-            }
-        } else {
-            logger.trace("sigar not loaded, disabled via settings");
+        // Add hook to allow plugins to execute code before setting up security manager?
+        if (bootstrapPlugins) {
+            logger.trace("load plugins native stuff");
         }
 
         // init lucene random seed. it will use /dev/urandom where available:

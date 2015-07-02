@@ -38,8 +38,8 @@ public abstract class MetadataFieldMapper extends AbstractFieldMapper {
         }
     }
 
-    protected MetadataFieldMapper(MappedFieldType fieldType, Boolean docValues, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(fieldType, docValues, fieldDataSettings, indexSettings, MultiFields.empty(), null);
+    protected MetadataFieldMapper(String simpleName, MappedFieldType fieldType, Boolean docValues, @Nullable Settings fieldDataSettings, Settings indexSettings) {
+        super(simpleName, fieldType, docValues, fieldDataSettings, indexSettings, MultiFields.empty(), null);
     }
 
     /**

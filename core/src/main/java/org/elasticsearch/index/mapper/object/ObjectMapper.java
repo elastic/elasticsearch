@@ -66,7 +66,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
 /**
  *
  */
-public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll, Cloneable {
+public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll, Cloneable {
 
     public static final String CONTENT_TYPE = "object";
     public static final String NESTED_CONTENT_TYPE = "nested";
@@ -175,7 +175,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll, Clonea
             Map<String, Mapper> mappers = new HashMap<>();
             for (Mapper.Builder builder : mappersBuilders) {
                 Mapper mapper = builder.build(context);
-                mappers.put(mapper.name(), mapper);
+                mappers.put(mapper.simpleName(), mapper);
             }
             context.path().pathType(origPathType);
             context.path().remove();
@@ -331,8 +331,6 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll, Clonea
         }
     }
 
-    private final String name;
-
     private final String fullPath;
 
     private final boolean enabled;
@@ -353,7 +351,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll, Clonea
     private volatile CopyOnWriteHashMap<String, Mapper> mappers;
 
     ObjectMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers) {
-        this.name = name;
+        super(name);
         this.fullPath = fullPath;
         this.enabled = enabled;
         this.nested = nested;
@@ -393,7 +391,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll, Clonea
 
     @Override
     public String name() {
-        return this.name;
+        return this.fullPath;
     }
 
     public boolean isEnabled() {
@@ -463,7 +461,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll, Clonea
         if (mapper instanceof AllFieldMapper.IncludeInAll) {
             ((AllFieldMapper.IncludeInAll) mapper).includeInAllIfNotSet(includeInAll);
         }
-        mappers = mappers.copyAndPut(mapper.name(), mapper);
+        mappers = mappers.copyAndPut(mapper.simpleName(), mapper);
     }
 
     @Override
@@ -516,7 +514,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll, Clonea
         List<FieldMapper> newFieldMappers = new ArrayList<>();
         for (Mapper mapper : mergeWithObject) {
             Mapper mergeWithMapper = mapper;
-            Mapper mergeIntoMapper = mappers.get(mergeWithMapper.name());
+            Mapper mergeIntoMapper = mappers.get(mergeWithMapper.simpleName());
             if (mergeIntoMapper == null) {
                 // no mapping, simply add it if not simulating
                 if (!mergeResult.simulate()) {
@@ -551,7 +549,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll, Clonea
     }
 
     public void toXContent(XContentBuilder builder, Params params, ToXContent custom) throws IOException {
-        builder.startObject(name);
+        builder.startObject(simpleName());
         if (nested.isNested()) {
             builder.field("type", NESTED_CONTENT_TYPE);
             if (nested.isIncludeInParent()) {

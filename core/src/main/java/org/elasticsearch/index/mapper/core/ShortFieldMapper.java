@@ -85,7 +85,7 @@ public class ShortFieldMapper extends NumberFieldMapper {
         @Override
         public ShortFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            ShortFieldMapper fieldMapper = new ShortFieldMapper(fieldType, docValues,
+            ShortFieldMapper fieldMapper = new ShortFieldMapper(name, fieldType, docValues,
                     ignoreMalformed(context), coerce(context), fieldDataSettings,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
@@ -199,11 +199,11 @@ public class ShortFieldMapper extends NumberFieldMapper {
         }
     }
 
-    protected ShortFieldMapper(MappedFieldType fieldType, Boolean docValues,
+    protected ShortFieldMapper(String simpleName, MappedFieldType fieldType, Boolean docValues,
                                Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                                @Nullable Settings fieldDataSettings,
                                Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(fieldType, docValues, ignoreMalformed, coerce,
+        super(simpleName, fieldType, docValues, ignoreMalformed, coerce,
              fieldDataSettings, indexSettings, multiFields, copyTo);
     }
 

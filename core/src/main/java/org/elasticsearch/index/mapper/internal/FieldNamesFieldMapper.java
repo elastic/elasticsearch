@@ -207,7 +207,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     }
 
     public FieldNamesFieldMapper(MappedFieldType fieldType, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(fieldType, false, fieldDataSettings, indexSettings);
+        super(NAME, fieldType, false, fieldDataSettings, indexSettings);
         this.defaultFieldType = Defaults.FIELD_TYPE;
         this.pre13Index = Version.indexCreated(indexSettings).before(Version.V_1_3_0);
         if (this.pre13Index) {

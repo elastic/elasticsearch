@@ -31,11 +31,9 @@ import org.elasticsearch.index.similarity.SimilarityLookupService;
 
 import java.util.Map;
 
-public interface Mapper extends ToXContent, Iterable<Mapper> {
+public abstract class Mapper implements ToXContent, Iterable<Mapper> {
 
-    Mapper[] EMPTY_ARRAY = new Mapper[0];
-
-    class BuilderContext {
+    public static class BuilderContext {
         private final Settings indexSettings;
         private final ContentPath contentPath;
 
@@ -62,7 +60,7 @@ public interface Mapper extends ToXContent, Iterable<Mapper> {
         }
     }
 
-    abstract class Builder<T extends Builder, Y extends Mapper> {
+    public static abstract class Builder<T extends Builder, Y extends Mapper> {
 
         public String name;
 
@@ -79,7 +77,7 @@ public interface Mapper extends ToXContent, Iterable<Mapper> {
         public abstract Y build(BuilderContext context);
     }
 
-    interface TypeParser {
+    public interface TypeParser {
 
         class ParserContext {
 
@@ -134,7 +132,20 @@ public interface Mapper extends ToXContent, Iterable<Mapper> {
         Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException;
     }
 
-    String name();
+    private final String simpleName;
 
-    void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException;
+    public Mapper(String simpleName) {
+        this.simpleName = simpleName;
+    }
+
+    /** Returns the simple name, which identifies this mapper against other mappers at the same level in the mappers hierarchy
+     * TODO: make this protected once Mapper, FieldMapper and AbstractFieldMapper are merged together */
+    public final String simpleName() {
+        return simpleName;
+    }
+
+    /** Returns the canonical name which uniquely identifies the mapper against other mappers in a type. */
+    public abstract String name();
+
+    public abstract void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException;
 }

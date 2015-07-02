@@ -12,7 +12,8 @@
     <artifactId>elasticsearch-license-plugin</artifactId>
 
     <properties>
-        <!-- TODO: do we want to always enforce non-default keys -->
+        <!-- TODO: do we want to always enforce non-default keys
+         -->
         <keys.path>${basedir}/src/test/resources</keys.path>
         <license.basedir combine.self="override">${project.parent.basedir}</license.basedir>
     </properties>
@@ -27,6 +28,12 @@
         <dependency>
             <groupId>org.elasticsearch</groupId>
             <artifactId>elasticsearch-license-core</artifactId>
+            <version>2.0.0-SNAPSHOT</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.elasticsearch</groupId>
+            <artifactId>elasticsearch-license-plugin-api</artifactId>
             <version>2.0.0-SNAPSHOT</version>
             <scope>compile</scope>
         </dependency>

@@ -7,6 +7,7 @@ package org.elasticsearch.watcher.actions.email.service;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -179,25 +180,25 @@ public class Email implements ToXContent {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if ((token.isValue() || token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) && currentFieldName != null) {
-                if (Field.ID.match(currentFieldName)) {
+                if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ID)) {
                     email.id(parser.text());
-                } else if (Field.FROM.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.FROM)) {
                     email.from(Address.parse(currentFieldName, token, parser));
-                } else if (Field.REPLY_TO.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.REPLY_TO)) {
                     email.replyTo(AddressList.parse(currentFieldName, token, parser));
-                } else if (Field.TO.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TO)) {
                     email.to(AddressList.parse(currentFieldName, token, parser));
-                } else if (Field.CC.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.CC)) {
                     email.cc(AddressList.parse(currentFieldName, token, parser));
-                } else if (Field.BCC.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.BCC)) {
                     email.bcc(AddressList.parse(currentFieldName, token, parser));
-                } else if (Field.PRIORITY.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.PRIORITY)) {
                     email.priority(Email.Priority.resolve(parser.text()));
-                } else if (Field.SENT_DATE.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.SENT_DATE)) {
                     email.sentDate(new DateTime(parser.text()));
-                } else if (Field.SUBJECT.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.SUBJECT)) {
                     email.subject(parser.text());
-                } else if (Field.BODY.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.BODY)) {
                     String bodyField = currentFieldName;
                     if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
                         email.textBody(parser.text());
@@ -207,9 +208,9 @@ public class Email implements ToXContent {
                                 currentFieldName = parser.currentName();
                             } else if (currentFieldName == null) {
                                 throw new ParseException("could not parse email. empty [{}] field", bodyField);
-                            } else if (Email.Field.BODY_TEXT.match(currentFieldName)) {
+                            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Email.Field.BODY_TEXT)) {
                                 email.textBody(parser.text());
-                            } else if (Email.Field.BODY_HTML.match(currentFieldName)) {
+                            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Email.Field.BODY_HTML)) {
                                 email.htmlBody(parser.text());
                             } else {
                                 throw new ParseException("could not parse email. unexpected field [{}.{}] field", bodyField, currentFieldName);
@@ -451,9 +452,9 @@ public class Email implements ToXContent {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else if (token == XContentParser.Token.VALUE_STRING) {
-                        if (ADDRESS_EMAIL_FIELD.match(currentFieldName)) {
+                        if (ParseFieldMatcher.STRICT.match(currentFieldName, ADDRESS_EMAIL_FIELD)) {
                             email = parser.text();
-                        } else if (ADDRESS_NAME_FIELD.match(currentFieldName)) {
+                        } else if (ParseFieldMatcher.STRICT.match(currentFieldName, ADDRESS_NAME_FIELD)) {
                             name = parser.text();
                         } else {
                             throw new ParseException("could not parse [" + field + "] object as address. unknown address field [" + currentFieldName + "]");

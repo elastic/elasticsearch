@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.trigger.schedule;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.joda.time.DateTime;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -67,14 +68,14 @@ public class ScheduleTriggerEvent extends TriggerEvent {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (Field.TRIGGERED_TIME.match(currentFieldName)) {
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TRIGGERED_TIME)) {
                 try {
                     triggeredTime = WatcherDateTimeUtils.parseDateMath(currentFieldName, parser, DateTimeZone.UTC, clock);
                 } catch (WatcherDateTimeUtils.ParseException pe) {
                     //Failed to parse as a date try datemath parsing
                     throw new ParseException("could not parse [{}] trigger event for [{}] for watch [{}]. failed to parse date field [{}]", pe, ScheduleTriggerEngine.TYPE, context, watchId, currentFieldName);
                 }
-            }  else if (Field.SCHEDULED_TIME.match(currentFieldName)) {
+            }  else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.SCHEDULED_TIME)) {
                 try {
                     scheduledTime = WatcherDateTimeUtils.parseDateMath(currentFieldName, parser, DateTimeZone.UTC, clock);
                 } catch (WatcherDateTimeUtils.ParseException pe) {

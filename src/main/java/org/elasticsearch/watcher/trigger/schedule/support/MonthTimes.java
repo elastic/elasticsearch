@@ -8,6 +8,7 @@ package org.elasticsearch.watcher.trigger.schedule.support;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Ints;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.WatcherException;
@@ -150,7 +151,7 @@ public class MonthTimes implements Times {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (DAY_FIELD.match(currentFieldName)) {
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, DAY_FIELD)) {
                 if (token.isValue()) {
                     daysSet.add(parseDayValue(parser, token));
                 } else if (token == XContentParser.Token.START_ARRAY) {
@@ -160,7 +161,7 @@ public class MonthTimes implements Times {
                 } else {
                     throw new ParseException("invalid month day value for [on] field. expected string/number value or an array of string/number values, but found [" + token + "]");
                 }
-            } else if (TIME_FIELD.match(currentFieldName)) {
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, TIME_FIELD)) {
                 if (token != XContentParser.Token.START_ARRAY) {
                     try {
                         timesSet.add(DayTimes.parse(parser, token));

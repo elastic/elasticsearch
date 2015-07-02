@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.trigger.schedule;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.trigger.schedule.support.DayTimes;
@@ -90,7 +91,7 @@ public class DailySchedule extends CronnableSchedule {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (AT_FIELD.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, AT_FIELD)) {
                     if (token != XContentParser.Token.START_ARRAY) {
                         try {
                             times.add(DayTimes.parse(parser, token));

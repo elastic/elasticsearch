@@ -7,6 +7,7 @@ package org.elasticsearch.watcher.trigger.schedule;
 
 import com.google.common.primitives.Ints;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.trigger.schedule.support.DayTimes;
@@ -100,7 +101,7 @@ public class HourlySchedule extends CronnableSchedule {
                     currentFieldName = parser.currentName();
                 } else if (currentFieldName == null) {
                     throw new ScheduleTriggerException("could not parse [{}] schedule. unexpected token [{}]", TYPE, token);
-                } else if (MINUTE_FIELD.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, MINUTE_FIELD)) {
                     if (token.isValue()) {
                         try {
                             minutes.add(DayTimes.parseMinuteValue(parser, token));

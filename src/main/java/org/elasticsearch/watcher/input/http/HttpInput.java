@@ -8,6 +8,7 @@ package org.elasticsearch.watcher.input.http;
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.input.Input;
@@ -79,7 +80,7 @@ public class HttpInput implements Input {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (Field.REQUEST.match(currentFieldName)) {
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.REQUEST)) {
                 try {
                     request = requestParser.parse(parser);
                 } catch (HttpRequestTemplate.ParseException pe) {
@@ -99,7 +100,7 @@ public class HttpInput implements Input {
                     throw new HttpInputException("could not parse [{}] input for watch [{}]. unexpected array field [{}]", TYPE, watchId, currentFieldName);
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (Field.RESPONSE_CONTENT_TYPE.match(currentFieldName)) {
+                if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.RESPONSE_CONTENT_TYPE)) {
                     expectedResponseBodyType = HttpContentType.resolve(parser.text());
                     if (expectedResponseBodyType == null) {
                         throw new HttpInputException("could not parse [{}] input for watch [{}]. unknown content type [{}]", TYPE, watchId, parser.text());

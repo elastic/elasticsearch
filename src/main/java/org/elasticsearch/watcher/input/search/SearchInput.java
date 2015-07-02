@@ -9,6 +9,7 @@ import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -117,14 +118,14 @@ public class SearchInput implements Input {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (Field.REQUEST.match(currentFieldName)) {
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.REQUEST)) {
                 try {
                     request = WatcherUtils.readSearchRequest(parser, ExecutableSearchInput.DEFAULT_SEARCH_TYPE);
                 } catch (SearchRequestParseException srpe) {
                     throw new SearchInputException("could not parse [{}] input for watch [{}]. failed to parse [{}]", srpe, TYPE, watchId, currentFieldName);
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (Field.EXTRACT.match(currentFieldName)) {
+                if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.EXTRACT)) {
                     extract = new HashSet<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.VALUE_STRING) {
@@ -136,9 +137,9 @@ public class SearchInput implements Input {
                 } else {
                     throw new SearchInputException("could not parse [{}] input for watch [{}]. unexpected array field [{}]", TYPE, watchId, currentFieldName);
                 }
-            } else if (Field.TIMEOUT.match(currentFieldName)) {
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TIMEOUT)) {
                 timeout = WatcherDateTimeUtils.parseTimeValue(parser, Field.TIMEOUT.toString());
-            } else if (Field.DYNAMIC_NAME_TIMEZONE.match(currentFieldName)) {
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.DYNAMIC_NAME_TIMEZONE)) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     dynamicNameTimeZone = DateTimeZone.forID(parser.text());
                 } else {

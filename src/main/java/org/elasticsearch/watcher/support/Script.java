@@ -7,6 +7,7 @@ package org.elasticsearch.watcher.support;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -126,34 +127,34 @@ public class Script implements ToXContent {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (Field.INLINE.match(currentFieldName)) {
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.INLINE)) {
                 type = ScriptType.INLINE;
                 if (token == XContentParser.Token.VALUE_STRING) {
                     script = parser.text();
                 } else {
                     throw new ParseException("expected a string value for field [{}], but found [{}]", currentFieldName, token);
                 }
-            } else if (Field.FILE.match(currentFieldName)) {
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.FILE)) {
                 type = ScriptType.FILE;
                 if (token == XContentParser.Token.VALUE_STRING) {
                     script = parser.text();
                 } else {
                     throw new ParseException("expected a string value for field [{}], but found [{}]", currentFieldName, token);
                 }
-            } else if (Field.ID.match(currentFieldName)) {
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ID)) {
                 type = ScriptType.INDEXED;
                 if (token == XContentParser.Token.VALUE_STRING) {
                     script = parser.text();
                 } else {
                     throw new ParseException("expected a string value for field [{}], but found [{}]", currentFieldName, token);
                 }
-            } else if (Field.LANG.match(currentFieldName)) {
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.LANG)) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     lang = parser.text();
                 } else {
                     throw new ParseException("expected a string value for field [{}], but found [{}]", currentFieldName, token);
                 }
-            } else if (Field.PARAMS.match(currentFieldName)) {
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.PARAMS)) {
                 if (token == XContentParser.Token.START_OBJECT) {
                     params = parser.map();
                 } else {

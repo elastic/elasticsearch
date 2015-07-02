@@ -8,6 +8,7 @@ package org.elasticsearch.watcher.actions;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -149,9 +150,9 @@ public class ActionWrapper implements ToXContent {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else {
-                if (Transform.Field.TRANSFORM.match(currentFieldName)) {
+                if (ParseFieldMatcher.STRICT.match(currentFieldName, Transform.Field.TRANSFORM)) {
                     transform = transformRegistry.parse(watchId, parser);
-                } else if (Throttler.Field.THROTTLE_PERIOD.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Throttler.Field.THROTTLE_PERIOD)) {
                     try {
                         throttlePeriod = WatcherDateTimeUtils.parseTimeValue(parser, Throttler.Field.THROTTLE_PERIOD.toString());
                     } catch (WatcherDateTimeUtils.ParseException pe) {

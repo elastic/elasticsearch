@@ -7,6 +7,7 @@ package org.elasticsearch.watcher.actions.logging;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.actions.Action;
@@ -78,16 +79,16 @@ public class LoggingAction implements Action {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (Field.TEXT.match(currentFieldName)) {
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TEXT)) {
                 try {
                     text = Template.parse(parser);
                 } catch (Template.ParseException pe) {
                     throw new LoggingActionException("failed to parse [{}] action [{}/{}]. failed to parse [{}] field", pe, TYPE, watchId, actionId, Field.TEXT.getPreferredName());
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (Field.CATEGORY.match(currentFieldName)) {
+                if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.CATEGORY)) {
                     category = parser.text();
-                } else if (Field.LEVEL.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.LEVEL)) {
                     try {
                         level = LoggingLevel.valueOf(parser.text().toUpperCase(Locale.ROOT));
                     } catch (IllegalArgumentException iae) {

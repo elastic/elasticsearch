@@ -7,6 +7,7 @@ package org.elasticsearch.watcher.actions.index;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -115,20 +116,20 @@ public class IndexAction implements Action {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (Field.INDEX.match(currentFieldName)) {
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.INDEX)) {
                 try {
                     index = parser.text();
                 } catch (DynamicIndexName.ParseException pe) {
                     throw new IndexActionException("could not parse [{}] action [{}/{}]. failed to parse index name value for field [{}]", pe, TYPE, watchId, actionId, currentFieldName);
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (Field.DOC_TYPE.match(currentFieldName)) {
+                if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.DOC_TYPE)) {
                     docType = parser.text();
-                } else if (Field.EXECUTION_TIME_FIELD.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.EXECUTION_TIME_FIELD)) {
                     executionTimeField = parser.text();
-                } else if (Field.TIMEOUT.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TIMEOUT)) {
                     timeout = WatcherDateTimeUtils.parseTimeValue(parser, Field.TIMEOUT.toString());
-                } else if (Field.DYNAMIC_NAME_TIMEZONE.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.DYNAMIC_NAME_TIMEZONE)) {
                     if (token == XContentParser.Token.VALUE_STRING) {
                         dynamicNameTimeZone = DateTimeZone.forID(parser.text());
                     } else {

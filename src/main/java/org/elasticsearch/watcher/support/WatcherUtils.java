@@ -10,6 +10,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -148,7 +149,7 @@ public final class WatcherUtils {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (INDICES_FIELD.match(currentFieldName)) {
+                if (ParseFieldMatcher.STRICT.match(currentFieldName, INDICES_FIELD)) {
                     List<String> indices = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.VALUE_STRING) {
@@ -158,7 +159,7 @@ public final class WatcherUtils {
                         }
                     }
                     searchRequest.indices(indices.toArray(new String[indices.size()]));
-                } else if (TYPES_FIELD.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, TYPES_FIELD)) {
                     List<String> types = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.VALUE_STRING) {
@@ -172,11 +173,11 @@ public final class WatcherUtils {
                     throw new SearchRequestParseException("could not read search request. unexpected array field [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (BODY_FIELD.match(currentFieldName)) {
+                if (ParseFieldMatcher.STRICT.match(currentFieldName, BODY_FIELD)) {
                     XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
                     builder.copyCurrentStructure(parser);
                     searchBody = builder.bytes();
-                } else if (INDICES_OPTIONS_FIELD.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, INDICES_OPTIONS_FIELD)) {
                     boolean expandOpen = DEFAULT_INDICES_OPTIONS.expandWildcardsOpen();
                     boolean expandClosed = DEFAULT_INDICES_OPTIONS.expandWildcardsClosed();
                     boolean allowNoIndices = DEFAULT_INDICES_OPTIONS.allowNoIndices();
@@ -185,7 +186,7 @@ public final class WatcherUtils {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
                         } else if (token.isValue()) {
-                            if (EXPAND_WILDCARDS_FIELD.match(currentFieldName)) {
+                            if (ParseFieldMatcher.STRICT.match(currentFieldName, EXPAND_WILDCARDS_FIELD)) {
                                 switch (parser.text()) {
                                     case "all":
                                         expandOpen = true;
@@ -206,9 +207,9 @@ public final class WatcherUtils {
                                     default:
                                         throw new SearchRequestParseException("could not read search request. unknown value [" + parser.text() + "] for [" + currentFieldName + "] field ");
                                 }
-                            } else if (IGNORE_UNAVAILABLE_FIELD.match(currentFieldName)) {
+                            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, IGNORE_UNAVAILABLE_FIELD)) {
                                 ignoreUnavailable = parser.booleanValue();
-                            } else if (ALLOW_NO_INDICES_FIELD.match(currentFieldName)) {
+                            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, ALLOW_NO_INDICES_FIELD)) {
                                 allowNoIndices = parser.booleanValue();
                             } else {
                                 throw new SearchRequestParseException("could not read search request. unexpected index option [" + currentFieldName + "]");
@@ -218,7 +219,7 @@ public final class WatcherUtils {
                         }
                     }
                     indicesOptions = IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandOpen, expandClosed, DEFAULT_INDICES_OPTIONS);
-                } else if (TEMPLATE_FIELD.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, TEMPLATE_FIELD)) {
                     XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
                     builder.copyCurrentStructure(parser);
                     templateBody = builder.string();
@@ -226,14 +227,14 @@ public final class WatcherUtils {
                     throw new SearchRequestParseException("could not read search request. unexpected object field [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (INDICES_FIELD.match(currentFieldName)) {
+                if (ParseFieldMatcher.STRICT.match(currentFieldName, INDICES_FIELD)) {
                     String indicesStr = parser.text();
                     searchRequest.indices(Strings.delimitedListToStringArray(indicesStr, ",", " \t"));
-                } else if (TYPES_FIELD.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, TYPES_FIELD)) {
                     String typesStr = parser.text();
                     searchRequest.types(Strings.delimitedListToStringArray(typesStr, ",", " \t"));
-                } else if (SEARCH_TYPE_FIELD.match(currentFieldName)) {
-                    searchType = SearchType.fromString(parser.text().toLowerCase(Locale.ROOT));
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, SEARCH_TYPE_FIELD)) {
+                    searchType = SearchType.fromString(parser.text().toLowerCase(Locale.ROOT), ParseFieldMatcher.STRICT);
                     if (searchType == SearchType.SCAN){
                         throw new SearchRequestParseException("could not read search request. value [" + searchType.name() + "] is not supported for field [" + SEARCH_TYPE_FIELD.getPreferredName() + "]" );
                     }

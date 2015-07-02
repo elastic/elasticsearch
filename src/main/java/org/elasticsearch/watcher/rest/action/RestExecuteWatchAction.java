@@ -7,6 +7,7 @@ package org.elasticsearch.watcher.rest.action;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -80,23 +81,23 @@ public class RestExecuteWatchAction extends WatcherRestHandler {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                if (Field.IGNORE_CONDITION.match(currentFieldName)) {
+                if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.IGNORE_CONDITION)) {
                     builder.setIgnoreCondition(parser.booleanValue());
-                } else if (Field.RECORD_EXECUTION.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.RECORD_EXECUTION)) {
                     builder.setRecordExecution(parser.booleanValue());
                 } else {
                     throw new ParseException("could not parse watch execution request. unexpected boolean field [{}]", currentFieldName);
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (Field.ALTERNATIVE_INPUT.match(currentFieldName)) {
+                if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ALTERNATIVE_INPUT)) {
                     builder.setAlternativeInput(parser.map());
-                } else if (Field.TRIGGER_DATA.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TRIGGER_DATA)) {
                     builder.setTriggerData(parser.map());
-                } else if (Field.WATCH.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.WATCH)) {
                     XContentBuilder watcherSource = XContentBuilder.builder(parser.contentType().xContent());
                     XContentHelper.copyCurrentStructure(watcherSource.generator(), parser);
                     builder.setWatchSource(watcherSource.bytes());
-                } else if (Field.ACTION_MODES.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ACTION_MODES)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();

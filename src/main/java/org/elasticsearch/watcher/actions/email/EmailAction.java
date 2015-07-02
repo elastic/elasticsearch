@@ -7,6 +7,7 @@ package org.elasticsearch.watcher.actions.email;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.actions.Action;
@@ -126,7 +127,7 @@ public class EmailAction implements Action {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (Field.ATTACH_DATA.match(currentFieldName)) {
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ATTACH_DATA)) {
                 try {
                     dataAttachment = DataAttachment.parse(parser);
                 } catch (DataAttachment.Exception dae) {
@@ -134,13 +135,13 @@ public class EmailAction implements Action {
                 }
             }else if (!emailParser.handle(currentFieldName, parser)) {
                 if (token == XContentParser.Token.VALUE_STRING) {
-                    if (Field.ACCOUNT.match(currentFieldName)) {
+                    if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ACCOUNT)) {
                         account = parser.text();
-                    } else if (Field.USER.match(currentFieldName)) {
+                    } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.USER)) {
                         user = parser.text();
-                    } else if (Field.PASSWORD.match(currentFieldName)) {
+                    } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.PASSWORD)) {
                         password = SensitiveXContentParser.secretOrNull(parser);
-                    } else if (Field.PROFILE.match(currentFieldName)) {
+                    } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.PROFILE)) {
                         profile = Profile.resolve(parser.text());
                     } else {
                         throw new EmailActionException("could not parse [{}] action [{}/{}]. unexpected string field [{}]", TYPE, watchId, actionId, currentFieldName);

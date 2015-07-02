@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.actions.email;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -92,7 +93,7 @@ public enum DataAttachment implements ToXContent {
                 currentFieldName = parser.currentName();
             } else if (currentFieldName == null) {
                 throw new Exception("could not parse data attachment. expected [{}] field but found [{}] instead", Field.FORMAT.getPreferredName(), token);
-            } else if (Field.FORMAT.match(currentFieldName)) {
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.FORMAT)) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     dataAttachment = resolve(parser.text());
                 } else {

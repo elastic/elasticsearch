@@ -9,6 +9,7 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.commons.lang3.ArrayUtils;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -243,19 +244,19 @@ public class WatchStatus implements ToXContent, Streamable {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (Field.LAST_CHECKED.match(currentFieldName)) {
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.LAST_CHECKED)) {
                 if (token.isValue()) {
                     lastChecked = parseDate(currentFieldName, parser, DateTimeZone.UTC);
                 } else {
                     throw new WatcherException("could not parse watch status for [{}]. expecting field [{}] to hold a date value, found [{}] instead", watchId, currentFieldName, token);
                 }
-            } else if (Field.LAST_MET_CONDITION.match(currentFieldName)) {
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.LAST_MET_CONDITION)) {
                 if (token.isValue()) {
                     lastMetCondition = parseDate(currentFieldName, parser, DateTimeZone.UTC);
                 } else {
                     throw new WatcherException("could not parse watch status for [{}]. expecting field [{}] to hold a date value, found [{}] instead", watchId, currentFieldName, token);
                 }
-            } else if (Field.ACTIONS.match(currentFieldName)) {
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ACTIONS)) {
                 actions = ImmutableMap.builder();
                 if (token == XContentParser.Token.START_OBJECT) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

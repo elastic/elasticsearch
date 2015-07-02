@@ -7,6 +7,7 @@ package org.elasticsearch.watcher.support.http;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
@@ -244,44 +245,44 @@ public class HttpRequestTemplate implements ToXContent {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (Field.PATH.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.PATH)) {
                     builder.path(parseFieldTemplate(currentFieldName, parser));
-                } else if (Field.HEADERS.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.HEADERS)) {
                     builder.putHeaders(parseFieldTemplates(currentFieldName, parser));
-                } else if (Field.PARAMS.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.PARAMS)) {
                     builder.putParams(parseFieldTemplates(currentFieldName, parser));
-                } else if (Field.BODY.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.BODY)) {
                     builder.body(parseFieldTemplate(currentFieldName, parser));
-                } else if (Field.CONNECTION_TIMEOUT.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.CONNECTION_TIMEOUT)) {
                     try {
                         builder.connectionTimeout(WatcherDateTimeUtils.parseTimeValue(parser, Field.CONNECTION_TIMEOUT.toString()));
                     } catch (WatcherDateTimeUtils.ParseException pe) {
                         throw new ParseException("could not parse http request template. invalid time value for [{}] field", pe, currentFieldName);
                     }
-                } else if (Field.READ_TIMEOUT.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.READ_TIMEOUT)) {
                     try {
                         builder.readTimeout(WatcherDateTimeUtils.parseTimeValue(parser, Field.READ_TIMEOUT.toString()));
                     } catch (WatcherDateTimeUtils.ParseException pe) {
                         throw new ParseException("could not parse http request template. invalid time value for [{}] field", pe, currentFieldName);
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    if (Field.AUTH.match(currentFieldName)) {
+                    if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.AUTH)) {
                         builder.auth(httpAuthRegistry.parse(parser));
                     }  else {
                         throw new ParseException("could not parse http request template. unexpected object field [{}]", currentFieldName);
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
-                    if (Field.SCHEME.match(currentFieldName)) {
+                    if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.SCHEME)) {
                         builder.scheme(Scheme.parse(parser.text()));
-                    } else if (Field.METHOD.match(currentFieldName)) {
+                    } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.METHOD)) {
                         builder.method(HttpMethod.parse(parser.text()));
-                    } else if (Field.HOST.match(currentFieldName)) {
+                    } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.HOST)) {
                         builder.host = parser.text();
                     } else {
                         throw new ParseException("could not parse http request template. unexpected string field [{}]", currentFieldName);
                     }
                 } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                    if (Field.PORT.match(currentFieldName)) {
+                    if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.PORT)) {
                         builder.port = parser.intValue();
                     } else {
                         throw new ParseException("could not parse http request template. unexpected numeric field [{}]", currentFieldName);

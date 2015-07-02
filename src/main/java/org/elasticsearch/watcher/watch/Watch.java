@@ -9,6 +9,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -286,25 +287,25 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                     currentFieldName = parser.currentName();
                 } else if (token == null || currentFieldName == null) {
                     throw new WatcherException("could not parse watch [{}], unexpected token [{}]", id, token);
-                } else if (Field.TRIGGER.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TRIGGER)) {
                     trigger = triggerService.parseTrigger(id, parser);
-                } else if (Field.INPUT.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.INPUT)) {
                     input = inputRegistry.parse(id, parser);
-                } else if (Field.CONDITION.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.CONDITION)) {
                     condition = conditionRegistry.parseExecutable(id, parser);
-                } else if (Field.TRANSFORM.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TRANSFORM)) {
                     transform = transformRegistry.parse(id, parser);
-                } else if (Field.THROTTLE_PERIOD.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.THROTTLE_PERIOD)) {
                     try {
                         throttlePeriod = WatcherDateTimeUtils.parseTimeValue(parser, Field.THROTTLE_PERIOD.toString());
                     } catch (WatcherDateTimeUtils.ParseException pe) {
                         throw new ParseException("could not parse watch [{}]. failed to parse time value for field [{}]", pe, id, currentFieldName);
                     }
-                } else if (Field.ACTIONS.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ACTIONS)) {
                     actions = actionRegistry.parseActions(id, parser);
-                } else if (Field.METADATA.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.METADATA)) {
                     metatdata = parser.map();
-                } else if (Field.STATUS.match(currentFieldName)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.STATUS)) {
                     if (includeStatus) {
                         status = WatchStatus.parse(id, parser);
                     } else {

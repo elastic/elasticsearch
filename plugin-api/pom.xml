@@ -35,18 +35,7 @@
             <resource>
                 <directory>src/main/resources</directory>
                 <filtering>true</filtering>
-        </resource>
+            </resource>
         </resources>
-
-        <plugins>
-            <plugin>
-                <groupId>com.carrotsearch.randomizedtesting</groupId>
-                <artifactId>junit4-maven-plugin</artifactId>
-                <configuration>
-                <skipTests>true</skipTests>
-                </configuration>
-            </plugin>
-        </plugins>
-
     </build>
 </project>

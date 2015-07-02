@@ -29,7 +29,9 @@
             <groupId>org.elasticsearch</groupId>
             <artifactId>elasticsearch-license-core</artifactId>
             <version>2.0.0-SNAPSHOT</version>
-            <scope>compile</scope>
+            <!-- we mark this as provided because we need the dependency but shade it into this jar, so consumers of this
+                 project don't need to depend on the core artifact -->
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.elasticsearch</groupId>

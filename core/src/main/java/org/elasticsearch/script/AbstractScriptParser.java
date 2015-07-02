@@ -97,7 +97,7 @@ public abstract class AbstractScriptParser<S extends Script> {
                     throw new ScriptParseException("expected an object for field [{}], but found [{}]", currentFieldName, token);
                 }
             } else {
-                // TODO remove this in 2.0
+                // TODO remove this in 3.0
                 ScriptType paramScriptType = getAdditionalScriptParameters().get(currentFieldName);
                 if (paramScriptType != null) {
                     script = parseInlineScript(parser);

@@ -147,7 +147,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
                 }
             }
             if (type == null) {
-                throw new ElasticsearchParseException("failed to parse [{}] query type [{}]. unknown type.", MultiMatchQueryParser.NAME, value);
+                throw new ElasticsearchParseException("failed to parse [{}] query type [{}]. unknown type.", NAME, value);
             }
             return type;
         }

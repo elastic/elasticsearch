@@ -14,14 +14,15 @@ import org.elasticsearch.license.plugin.LicensePlugin;
  *
  * During startup an error will be printed that the config directory can't be found, to fix this:
  * 1) Add a config directly to the top level project directory
- * 2) or set `-Des.path.conf=` to a location where there is a config directory on your machine.
+ * 2) or set `-Des.path.home=` to a location where there is a config directory on your machine.
  */
 public class WatcherF {
 
     public static void main(String[] args) {
         System.setProperty("es.http.cors.enabled", "true");
-        System.setProperty("es.script.disable_dynamic", "false");
+        System.setProperty("es.script.inline", "on");
         System.setProperty("es.shield.enabled", "false");
+        System.setProperty("es.security.manager.enabled", "false");
         System.setProperty("es.plugins.load_classpath_plugins", "false");
         System.setProperty("es.plugin.types", WatcherPlugin.class.getName() + "," + LicensePlugin.class.getName());
         System.setProperty("es.cluster.name", WatcherF.class.getSimpleName());

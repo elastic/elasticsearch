@@ -154,12 +154,15 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
         }
 
         public void close() {
+            logger.trace("stopping ticker thread");
             active = false;
             try {
                 closeLatch.await();
             } catch (InterruptedException e) {
+                logger.warn("caught an interrupted exception when waiting while closing ticker thread", e);
                 Thread.currentThread().interrupt();
             }
+            logger.trace("ticker thread stopped");
         }
     }
 

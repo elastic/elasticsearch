@@ -8,6 +8,7 @@ package org.elasticsearch.watcher.transport.action.stats;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.WatcherBuild;
 import org.elasticsearch.watcher.WatcherState;
 import org.elasticsearch.watcher.WatcherVersion;
@@ -37,6 +38,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 /**
  */
 @ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false)
+@TestLogging("watcher:TRACE")
 public class WatcherStatsTests extends AbstractWatcherIntegrationTests {
 
     @Test

@@ -116,7 +116,7 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
             try {
                 // Check non-diffable elements
                 assertThat(clusterStateFromDiffs.version(), equalTo(clusterState.version()));
-                assertThat(clusterStateFromDiffs.uuid(), equalTo(clusterState.uuid()));
+                assertThat(clusterStateFromDiffs.stateUUID(), equalTo(clusterState.stateUUID()));
 
                 // Check nodes
                 assertThat(clusterStateFromDiffs.nodes().nodes(), equalTo(clusterState.nodes().nodes()));

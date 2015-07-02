@@ -266,7 +266,7 @@ public class PublishClusterStateAction extends AbstractComponent {
                 } else if (lastSeenClusterState != null) {
                     Diff<ClusterState> diff = lastSeenClusterState.readDiffFrom(in);
                     lastSeenClusterState = diff.apply(lastSeenClusterState);
-                    logger.debug("received diff cluster state version {} with uuid {}, diff size {}", lastSeenClusterState.version(), lastSeenClusterState.uuid(), request.bytes().length());
+                    logger.debug("received diff cluster state version {} with uuid {}, diff size {}", lastSeenClusterState.version(), lastSeenClusterState.stateUUID(), request.bytes().length());
                 } else {
                     logger.debug("received diff for but don't have any local cluster state - requesting full state");
                     throw new IncompatibleClusterStateVersionException("have no local cluster state");

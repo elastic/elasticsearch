@@ -7,8 +7,6 @@ package org.elasticsearch.shield.authc.support;
 
 import com.google.common.base.Charsets;
 import org.elasticsearch.common.Base64;
-import org.elasticsearch.shield.ShieldException;
-import org.elasticsearch.shield.ShieldSettingsException;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -261,7 +259,7 @@ public enum Hasher {
     public static Hasher resolve(String name) {
         Hasher hasher = resolve(name, null);
         if (hasher == null) {
-            throw new ShieldSettingsException("unknown hash function [" + name + "]");
+            throw new IllegalArgumentException("unknown hash function [" + name + "]");
         }
         return hasher;
     }
@@ -278,7 +276,7 @@ public enum Hasher {
             try {
                 digest = MessageDigest.getInstance("MD5");
             } catch (NoSuchAlgorithmException e) {
-                throw new ShieldException("unsupported digest algorithm [MD5]. Please verify you are running on Java 7 or above", e);
+                throw new IllegalStateException("unsupported digest algorithm [MD5]. Please verify you are running on Java 7 or above", e);
             }
         }
 
@@ -288,7 +286,7 @@ public enum Hasher {
                 md5.reset();
                 return md5;
             } catch (CloneNotSupportedException e) {
-                throw new ShieldException("could not create MD5 digest", e);
+                throw new IllegalStateException("could not create MD5 digest", e);
             }
         }
     }
@@ -301,7 +299,7 @@ public enum Hasher {
             try {
                 digest = MessageDigest.getInstance("SHA-1");
             } catch (NoSuchAlgorithmException e) {
-                throw new ShieldException("unsupported digest algorithm [SHA-1]", e);
+                throw new IllegalStateException("unsupported digest algorithm [SHA-1]", e);
             }
         }
 
@@ -311,7 +309,7 @@ public enum Hasher {
                 sha1.reset();
                 return sha1;
             } catch (CloneNotSupportedException e) {
-                throw new ShieldException("could not create SHA-1 digest", e);
+                throw new IllegalStateException("could not create SHA-1 digest", e);
             }
         }
     }
@@ -324,7 +322,7 @@ public enum Hasher {
             try {
                 digest = MessageDigest.getInstance("SHA-256");
             } catch (NoSuchAlgorithmException e) {
-                throw new ShieldException("unsupported digest algorithm [SHA-256]. Please verify you are running on Java 7 or above", e);
+                throw new IllegalStateException("unsupported digest algorithm [SHA-256]. Please verify you are running on Java 7 or above", e);
             }
         }
 
@@ -334,7 +332,7 @@ public enum Hasher {
                 sha.reset();
                 return sha;
             } catch (CloneNotSupportedException e) {
-                throw new ShieldException("could not create [SHA-256] digest", e);
+                throw new IllegalStateException("could not create [SHA-256] digest", e);
             }
         }
     }

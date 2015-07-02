@@ -7,11 +7,12 @@ package org.elasticsearch.shield.authc.ldap;
 
 import com.google.common.primitives.Ints;
 import com.unboundid.ldap.sdk.*;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.ShieldSettingsFilter;
+import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.shield.authc.ldap.support.LdapSession;
@@ -21,6 +22,7 @@ import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.ssl.ClientSSLService;
 
 import javax.net.SocketFactory;
+import java.io.IOException;
 import java.util.Locale;
 
 import static com.unboundid.ldap.sdk.Filter.createEqualityFilter;
@@ -46,7 +48,7 @@ public class LdapUserSearchSessionFactory extends SessionFactory {
         Settings settings = config.settings();
         userSearchBaseDn = settings.get("user_search.base_dn");
         if (userSearchBaseDn == null) {
-            throw new ShieldSettingsException("user_search base_dn must be specified");
+            throw new IllegalArgumentException("user_search base_dn must be specified");
         }
         scope = LdapSearchScope.resolve(settings.get("user_search.scope"), LdapSearchScope.SUB_TREE);
         userAttribute = settings.get("user_search.attribute", DEFAULT_USERNAME_ATTRIBUTE);
@@ -74,7 +76,7 @@ public class LdapUserSearchSessionFactory extends SessionFactory {
                 String entryDn = settings.get("user_search.pool.health_check.dn", (bindRequest == null) ? null : bindRequest.getBindDN());
                 if (entryDn == null) {
                     pool.close();
-                    throw new ShieldSettingsException("[bind_dn] has not been specified so a value must be specified for [user_search.pool.health_check.dn] or [user_search.pool.health_check.enabled] must be set to false");
+                    throw new IllegalArgumentException("[bind_dn] has not been specified so a value must be specified for [user_search.pool.health_check.dn] or [user_search.pool.health_check.enabled] must be set to false");
                 }
                 long healthCheckInterval = settings.getAsTime("user_search.pool.health_check.interval", DEFAULT_HEALTH_CHECK_INTERVAL).millis();
                 // Checks the status of the LDAP connection at a specified interval in the background. We do not check on
@@ -86,7 +88,7 @@ public class LdapUserSearchSessionFactory extends SessionFactory {
             }
             return pool;
         } catch (LDAPException e) {
-            throw new ShieldLdapException("unable to connect to any LDAP servers", e);
+            throw new ElasticsearchException("unable to connect to any LDAP servers", e);
         }
     }
 
@@ -103,7 +105,7 @@ public class LdapUserSearchSessionFactory extends SessionFactory {
         // Parse LDAP urls
         String[] ldapUrls = settings.getAsArray(URLS_SETTING);
         if (ldapUrls == null || ldapUrls.length == 0) {
-            throw new ShieldSettingsException("missing required LDAP setting [" + URLS_SETTING + "]");
+            throw new IllegalArgumentException("missing required LDAP setting [" + URLS_SETTING + "]");
         }
         LDAPServers servers = new LDAPServers(ldapUrls);
         LDAPConnectionOptions options = connectionOptions(settings);
@@ -124,34 +126,34 @@ public class LdapUserSearchSessionFactory extends SessionFactory {
     }
 
     @Override
-    public LdapSession session(String user, SecuredString password) {
+    public LdapSession session(String user, SecuredString password) throws Exception {
         SearchRequest request = new SearchRequest(userSearchBaseDn, scope.scope(), createEqualityFilter(userAttribute, encodeValue(user)), Strings.EMPTY_ARRAY);
         request.setTimeLimitSeconds(Ints.checkedCast(timeout.seconds()));
         try {
             SearchResultEntry entry = searchForEntry(connectionPool, request, logger);
             if (entry == null) {
-                throw new ShieldLdapException("failed to find user [" + user + "] with search base [" + userSearchBaseDn + "] scope [" + scope.toString().toLowerCase(Locale.ENGLISH) +"]");
+                throw new AuthenticationException("failed to find user [" + user + "] with search base [" + userSearchBaseDn + "] scope [" + scope.toString().toLowerCase(Locale.ENGLISH) +"]");
             }
             String dn = entry.getDN();
             tryBind(dn, password);
             return new LdapSession(logger, connectionPool, dn, groupResolver, timeout);
         } catch (LDAPException e) {
-            throw new ShieldLdapException("failed to authenticate user [" + user + "]", e);
+            throw new AuthenticationException("failed to authenticate user [" + user + "]", e);
         }
     }
 
-    private void tryBind(String dn, SecuredString password) {
+    private void tryBind(String dn, SecuredString password) throws IOException {
         LDAPConnection bindConnection;
         try {
             bindConnection = serverSet.getConnection();
         } catch (LDAPException e) {
-            throw new ShieldLdapException("unable to connect to any LDAP servers for bind", e);
+            throw new IOException("unable to connect to any LDAP servers for bind", e);
         }
 
         try {
             bindConnection.bind(dn, new String(password.internalChars()));
         } catch (LDAPException e) {
-            throw new ShieldLdapException("failed LDAP authentication", dn, e);
+            throw new AuthenticationException("failed LDAP authentication for DN [" + dn + "]", e);
         } finally {
             bindConnection.close();
         }

@@ -12,7 +12,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.shield.ShieldException;
 import org.elasticsearch.shield.audit.logfile.CapturingLogger;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.Hasher;
@@ -204,7 +203,7 @@ public class FileUserPasswdStoreTests extends ElasticsearchTestCase {
         try {
             FileUserPasswdStore.parseFile(file, logger);
             fail("expected a parse failure");
-        } catch (ShieldException se) {
+        } catch (IllegalStateException se) {
             this.logger.info("expected", se);
         }
     }

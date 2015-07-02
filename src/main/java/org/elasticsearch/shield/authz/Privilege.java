@@ -22,7 +22,6 @@ import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.suggest.SuggestAction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.shield.ShieldException;
 import org.elasticsearch.shield.support.AutomatonPredicate;
 import org.elasticsearch.shield.support.Automatons;
 
@@ -208,12 +207,12 @@ public abstract class Privilege<P extends Privilege<P>> {
         public static void addCustom(String name, String... actionPatterns) {
             for (String pattern : actionPatterns) {
                 if (!Index.ACTION_MATCHER.apply(pattern)) {
-                    throw new ShieldException("cannot register custom index privilege [" + name + "]. index action must follow the 'indices:*' format");
+                    throw new IllegalArgumentException("cannot register custom index privilege [" + name + "]. index action must follow the 'indices:*' format");
                 }
             }
             Index custom = new Index(name, actionPatterns);
             if (values.contains(custom)) {
-                throw new ShieldException("cannot register custom index privilege [" + name + "] as it already exists.");
+                throw new IllegalArgumentException("cannot register custom index privilege [" + name + "] as it already exists.");
             }
             values.add(custom);
         }
@@ -316,12 +315,12 @@ public abstract class Privilege<P extends Privilege<P>> {
         public static void addCustom(String name, String... actionPatterns) {
             for (String pattern : actionPatterns) {
                 if (!Cluster.ACTION_MATCHER.apply(pattern)) {
-                    throw new ShieldException("cannot register custom cluster privilege [" + name + "]. cluster aciton must follow the 'cluster:*' format");
+                    throw new IllegalArgumentException("cannot register custom cluster privilege [" + name + "]. cluster aciton must follow the 'cluster:*' format");
                 }
             }
             Cluster custom = new Cluster(name, actionPatterns);
             if (values.contains(custom)) {
-                throw new ShieldException("cannot register custom cluster privilege [" + name + "] as it already exists.");
+                throw new IllegalArgumentException("cannot register custom cluster privilege [" + name + "] as it already exists.");
             }
             values.add(custom);
         }

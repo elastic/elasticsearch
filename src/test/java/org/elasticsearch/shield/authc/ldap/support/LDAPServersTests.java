@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authc.ldap.support;
 
-import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -54,14 +53,14 @@ public class LDAPServersTests extends ElasticsearchTestCase {
         assertThat(servers.ssl(), is(equalTo(false)));
     }
 
-    @Test(expected = ShieldSettingsException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void testConfigure_1ldaps_1ldap() {
         String[] urls = new String[] { "LDAPS://primary.example.com:636", "ldap://secondary.example.com:392" };
 
         new SessionFactory.LDAPServers(urls);
     }
 
-    @Test(expected = ShieldSettingsException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void testConfigure_1ldap_1ldaps() {
         String[] urls = new String[] { "ldap://primary.example.com:392", "ldaps://secondary.example.com:636" };
 

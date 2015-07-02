@@ -8,7 +8,6 @@ package org.elasticsearch.shield.authc.ldap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
-import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.ldap.support.AbstractLdapRealm;
@@ -56,7 +55,7 @@ public class LdapRealm extends AbstractLdapRealm {
             Settings searchSettings = config.settings().getAsSettings("user_search");
             if (!searchSettings.names().isEmpty()) {
                 if (config.settings().getAsArray(LdapSessionFactory.USER_DN_TEMPLATES_SETTING).length > 0) {
-                    throw new ShieldSettingsException("settings were found for both user search and user template modes of operation. Please remove the settings for the\n"
+                    throw new IllegalArgumentException("settings were found for both user search and user template modes of operation. Please remove the settings for the\n"
                             + "mode you do not wish to use. For more details refer to the ldap authentication section of the Shield guide.");
                 }
                 return new LdapUserSearchSessionFactory(config, clientSSLService);

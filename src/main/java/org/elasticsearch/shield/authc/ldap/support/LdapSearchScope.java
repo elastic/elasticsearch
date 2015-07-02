@@ -6,7 +6,6 @@
 package org.elasticsearch.shield.authc.ldap.support;
 
 import com.unboundid.ldap.sdk.SearchScope;
-import org.elasticsearch.shield.authc.ldap.ShieldLdapException;
 
 import java.util.Locale;
 
@@ -39,7 +38,7 @@ public enum LdapSearchScope {
             case "one_level" : return ONE_LEVEL;
             case "sub_tree" : return SUB_TREE;
             default:
-                throw new ShieldLdapException("Unknown search scope [" + scope + "]");
+                throw new IllegalArgumentException("Unknown search scope [" + scope + "]");
         }
     }
 }

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,7 +40,7 @@ public abstract class User {
         if (input.readBoolean()) {
             String name = input.readString();
             if (!System.NAME.equals(name)) {
-                throw new ShieldException("invalid system user");
+                throw new ElasticsearchException("invalid system user");
             }
             return SYSTEM;
         }

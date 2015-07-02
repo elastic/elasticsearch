@@ -5,13 +5,11 @@
  */
 package org.elasticsearch.shield.authz;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.shield.ShieldException;
 
-/**
- *
- */
-public class AuthorizationException extends ShieldException {
+// FIXME move this class to core and change package...
+public class AuthorizationException extends ElasticsearchException {
 
     public AuthorizationException(String msg) {
         super(msg);

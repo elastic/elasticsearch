@@ -8,7 +8,6 @@ package org.elasticsearch.shield.authc;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
@@ -70,7 +69,7 @@ public class RealmsTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test(expected = ShieldSettingsException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void testWithSettings_WithMultipleInternalRealmsOfSameType() throws Exception {
         Settings settings = Settings.builder()
                 .put("shield.authc.realms.realm_1.type", ESUsersRealm.TYPE)

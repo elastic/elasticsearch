@@ -7,9 +7,9 @@ package org.elasticsearch.shield.authc.activedirectory;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.ldap.LdapSessionFactory;
-import org.elasticsearch.shield.authc.ldap.ShieldLdapException;
 import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.shield.authc.ldap.support.LdapSession;
 import org.elasticsearch.shield.authc.ldap.support.LdapTest;
@@ -21,6 +21,7 @@ import org.elasticsearch.test.junit.annotations.Network;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -54,7 +55,7 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
     }
 
     @Test @SuppressWarnings("unchecked")
-    public void testAdAuth() {
+    public void testAdAuth() throws Exception {
         RealmConfig config = new RealmConfig("ad-test", buildAdSettings(AD_LDAP_URL, AD_DOMAIN, false), globalSettings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, clientSSLService);
 
@@ -76,7 +77,7 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
 
     @Test
     @AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch-shield/issues/499")
-    public void testTcpReadTimeout() {
+    public void testTcpReadTimeout() throws Exception {
         Settings settings = Settings.builder()
                 .put(buildAdSettings(AD_LDAP_URL, AD_DOMAIN, false))
                 .put(SessionFactory.HOSTNAME_VERIFICATION_SETTING, false)
@@ -89,13 +90,13 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
             // In certain cases we may have a successful bind, but a search should take longer and cause a timeout
             ldap.groups();
             fail("The TCP connection should timeout before getting groups back");
-        } catch (ActiveDirectoryException e) {
+        } catch (AuthenticationException e) {
             assertThat(e.getCause().getMessage(), containsString("A client-side timeout was encountered while waiting"));
         }
     }
 
     @Test
-    public void testAdAuth_avengers() {
+    public void testAdAuth_avengers() throws Exception {
         RealmConfig config = new RealmConfig("ad-test", buildAdSettings(AD_LDAP_URL, AD_DOMAIN, false), globalSettings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, clientSSLService);
 
@@ -108,7 +109,7 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
     }
 
     @Test @SuppressWarnings("unchecked")
-    public void testAuthenticate() {
+    public void testAuthenticate() throws Exception {
         Settings settings = buildAdSettings(AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com", LdapSearchScope.ONE_LEVEL, false);
         RealmConfig config = new RealmConfig("ad-test", settings, globalSettings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, clientSSLService);
@@ -129,7 +130,7 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
     }
 
     @Test @SuppressWarnings("unchecked")
-    public void testAuthenticate_baseUserSearch() {
+    public void testAuthenticate_baseUserSearch() throws Exception {
         Settings settings = buildAdSettings(AD_LDAP_URL, AD_DOMAIN, "CN=Bruce Banner, CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com", LdapSearchScope.BASE, false);
         RealmConfig config = new RealmConfig("ad-test", settings, globalSettings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, clientSSLService);
@@ -150,7 +151,7 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
     }
 
     @Test @SuppressWarnings("unchecked")
-    public void testAuthenticate_baseGroupSearch() {
+    public void testAuthenticate_baseGroupSearch() throws Exception {
         Settings settings = Settings.builder()
                 .put(buildAdSettings(AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com", LdapSearchScope.ONE_LEVEL, false))
                 .put(ActiveDirectorySessionFactory.AD_GROUP_SEARCH_BASEDN_SETTING, "CN=Avengers,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
@@ -168,7 +169,7 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
     }
 
     @Test @SuppressWarnings("unchecked")
-    public void testAuthenticateWithUserPrincipalName() {
+    public void testAuthenticateWithUserPrincipalName() throws Exception {
         Settings settings = buildAdSettings(AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com", LdapSearchScope.ONE_LEVEL, false);
         RealmConfig config = new RealmConfig("ad-test", settings, globalSettings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, clientSSLService);
@@ -186,7 +187,7 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testAuthenticateWithSAMAccountName() {
+    public void testAuthenticateWithSAMAccountName() throws Exception {
         Settings settings = buildAdSettings(AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com", LdapSearchScope.ONE_LEVEL, false);
         RealmConfig config = new RealmConfig("ad-test", settings, globalSettings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, clientSSLService);
@@ -205,7 +206,7 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
     }
 
     @Test @SuppressWarnings("unchecked")
-    public void testCustomUserFilter() {
+    public void testCustomUserFilter() throws Exception {
         Settings settings = Settings.builder()
                 .put(buildAdSettings(AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com", LdapSearchScope.SUB_TREE, false))
                 .put(ActiveDirectorySessionFactory.AD_USER_SEARCH_FILTER_SETTING, "(&(objectclass=user)(userPrincipalName={0}@ad.test.elasticsearch.com))")
@@ -225,7 +226,7 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
 
 
     @Test @SuppressWarnings("unchecked")
-    public void testStandardLdapConnection(){
+    public void testStandardLdapConnection() throws Exception {
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userTemplate = "CN={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
         Settings settings = LdapTest.buildLdapSettings(AD_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE);
@@ -245,7 +246,7 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
     }
 
     @Test @SuppressWarnings("unchecked")
-    public void testStandardLdapWithAttributeGroups(){
+    public void testStandardLdapWithAttributeGroups() throws Exception {
         String userTemplate = "CN={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
         Settings settings = LdapTest.buildLdapSettings(AD_LDAP_URL, userTemplate, false);
         RealmConfig config = new RealmConfig("ad-as-ldap-test", settings, globalSettings);
@@ -264,20 +265,19 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testAdAuthWithHostnameVerification() {
+    public void testAdAuthWithHostnameVerification() throws Exception {
         RealmConfig config = new RealmConfig("ad-test", buildAdSettings(AD_LDAP_URL, AD_DOMAIN, true), globalSettings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, clientSSLService);
 
         String userName = "ironman";
         try (LdapSession ldap = sessionFactory.session(userName, SecuredStringTests.build(PASSWORD))) {
             fail("Test active directory certificate does not have proper hostname/ip address for hostname verification");
-        } catch (ActiveDirectoryException e) {
+        } catch (IOException e) {
             assertThat(e.getMessage(), containsString("failed to connect to any active directory servers"));
         }
     }
 
-    @Test(expected = ShieldLdapException.class)
-    public void testStandardLdapHostnameVerification(){
+    public void testStandardLdapHostnameVerification() throws Exception {
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userTemplate = "CN={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
         Settings settings = Settings.builder()
@@ -290,6 +290,8 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
         String user = "Bruce Banner";
         try (LdapSession ldap = sessionFactory.session(user, SecuredStringTests.build(PASSWORD))) {
             fail("Test active directory certificate does not have proper hostname/ip address for hostname verification");
+        } catch (IOException e) {
+            assertThat(e.getMessage(), containsString("failed to connect to any LDAP servers"));
         }
     }
 

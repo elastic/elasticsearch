@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authc.support;
 
-import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -64,7 +63,7 @@ public class HasherTests extends ElasticsearchTestCase {
         try {
             Hasher.resolve("unknown_hasher");
             fail("expected a shield setting error when trying to resolve an unknown hasher");
-        } catch (ShieldSettingsException sse) {
+        } catch (IllegalArgumentException e) {
             // expected
         }
         Hasher hasher = randomFrom(Hasher.values());

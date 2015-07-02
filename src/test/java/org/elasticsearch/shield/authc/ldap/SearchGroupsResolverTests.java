@@ -12,7 +12,7 @@ import com.unboundid.ldap.sdk.LDAPURL;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.shield.ShieldSettingsException;
+import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.shield.authc.ldap.support.SessionFactory;
 import org.elasticsearch.shield.ssl.ClientSSLService;
@@ -126,7 +126,7 @@ public class SearchGroupsResolverTests extends ElasticsearchTestCase {
         try {
             new SearchGroupsResolver(settings);
             fail("base_dn must be specified and an exception should have been thrown");
-        } catch (ShieldSettingsException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("base_dn must be specified"));
         }
     }
@@ -160,7 +160,7 @@ public class SearchGroupsResolverTests extends ElasticsearchTestCase {
         try {
             resolver.readUserAttribute(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(5), NoOpLogger.INSTANCE);
             fail("searching for a non-existing attribute should throw an LdapException");
-        } catch (ShieldLdapException e) {
+        } catch (AuthenticationException e) {
             assertThat(e.getMessage(), containsString("no results returned"));
         }
     }

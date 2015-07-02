@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.shield.transport;
 
-import org.elasticsearch.shield.ssl.ElasticsearchSSLException;
-
 import javax.net.ssl.SSLEngine;
 import java.util.Locale;
 
@@ -62,7 +60,7 @@ public enum SSLClientAuth {
             case "true":
                 return REQUIRED;
             default:
-                throw new ElasticsearchSSLException("could not resolve ssl client auth auth. unknown ssl client auth value [" + value + "]");
+                throw new IllegalArgumentException("could not resolve ssl client auth auth. unknown ssl client auth value [" + value + "]");
         }
     }
 }

@@ -7,6 +7,7 @@ package org.elasticsearch.shield.authc.ldap;
 
 import com.google.common.primitives.Ints;
 import com.unboundid.ldap.sdk.*;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -47,7 +48,7 @@ class UserAttributeGroupsResolver implements GroupsResolver {
             String[] values = attributeReturned.getValues();
             return Arrays.asList(values);
         } catch (LDAPException e) {
-            throw new ShieldLdapException("could not look up group attributes for user", userDn, e);
+            throw new ElasticsearchException("could not look up group attributes for DN [{}]", e, userDn);
         }
     }
 }

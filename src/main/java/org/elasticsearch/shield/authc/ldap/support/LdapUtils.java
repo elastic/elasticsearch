@@ -7,7 +7,6 @@ package org.elasticsearch.shield.authc.ldap.support;
 
 import com.unboundid.ldap.sdk.*;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.shield.authc.ldap.ShieldLdapException;
 
 import javax.naming.ldap.Rdn;
 import java.text.MessageFormat;
@@ -24,7 +23,7 @@ public final class LdapUtils {
         try {
             return new DN(dn);
         } catch (LDAPException e) {
-            throw new ShieldLdapException("invalid DN [" + dn + "]", e);
+            throw new IllegalArgumentException("invalid DN [" + dn + "]", e);
         }
     }
 

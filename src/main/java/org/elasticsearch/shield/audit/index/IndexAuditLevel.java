@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.shield.audit.index;
 
-import org.elasticsearch.shield.ShieldException;
-
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Locale;
@@ -55,7 +53,7 @@ public enum IndexAuditLevel {
                     enumSet.add(SYSTEM_ACCESS_GRANTED);
                     break;
                 default:
-                    throw new ShieldException("invalid event name specified [" + level + "]");
+                    throw new IllegalArgumentException("invalid event name specified [" + level + "]");
             }
         }
         return enumSet;

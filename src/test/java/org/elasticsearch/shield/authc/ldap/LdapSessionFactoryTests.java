@@ -6,6 +6,7 @@
 package org.elasticsearch.shield.authc.ldap;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.shield.authc.ldap.support.LdapSession;
@@ -17,6 +18,7 @@ import org.elasticsearch.test.junit.annotations.Network;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.List;
 
 import static org.hamcrest.Matchers.*;
@@ -52,7 +54,7 @@ public class LdapSessionFactoryTests extends LdapTest {
         try (LdapSession session = sessionFactory.session(user, userPass)) {
             fail("expected connection timeout error here");
         } catch (Throwable t) {
-            assertThat(t, instanceOf(ShieldLdapException.class));
+            assertThat(t, instanceOf(AuthenticationException.class));
             assertThat(t.getCause().getMessage(), containsString("A client-side timeout was encountered while waiting "));
         } finally {
             ldapServer.setProcessingDelayMillis(0L);
@@ -85,7 +87,7 @@ public class LdapSessionFactoryTests extends LdapTest {
         } catch (Throwable t) {
             long time = System.currentTimeMillis() - start;
             assertThat(time, lessThan(10000l));
-            assertThat(t, instanceOf(ShieldLdapException.class));
+            assertThat(t, instanceOf(IOException.class));
             assertThat(t.getCause().getCause().getMessage(), containsString("within the configured timeout of"));
         }
     }
@@ -112,7 +114,7 @@ public class LdapSessionFactoryTests extends LdapTest {
     }
 
 
-    @Test(expected = ShieldLdapException.class)
+    @Test(expected = AuthenticationException.class)
     public void testBindWithBogusTemplates() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         String[] userTemplates = new String[] {

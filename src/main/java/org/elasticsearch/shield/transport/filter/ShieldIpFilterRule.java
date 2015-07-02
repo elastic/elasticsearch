@@ -6,7 +6,7 @@
 package org.elasticsearch.shield.transport.filter;
 
 import com.google.common.net.InetAddresses;
-import org.elasticsearch.shield.ShieldException;
+import org.elasticsearch.ElasticsearchException;
 import org.jboss.netty.handler.ipfilter.IpFilterRule;
 import org.jboss.netty.handler.ipfilter.IpSubnetFilterRule;
 import org.jboss.netty.handler.ipfilter.PatternRule;
@@ -99,7 +99,7 @@ public class ShieldIpFilterRule implements IpFilterRule {
             try {
                 return new IpSubnetFilterRule(isAllowRule, value);
             } catch (UnknownHostException e) {
-                throw new ShieldException("unable to create shield filter for rule [" + (isAllowRule ? "allow " : "deny ") + value + "]", e);
+                throw new ElasticsearchException("unable to create shield filter for rule [" + (isAllowRule ? "allow " : "deny ") + value + "]", e);
             }
         }
 

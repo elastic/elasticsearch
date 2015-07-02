@@ -12,7 +12,6 @@ import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.shield.ShieldException;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.Hasher;
@@ -129,7 +128,7 @@ public class FileUserPasswdStore {
         try {
             lines = Files.readAllLines(path, Charsets.UTF_8);
         } catch (IOException ioe) {
-            throw new ShieldException("could not read users file [" + path.toAbsolutePath() + "]", ioe);
+            throw new IllegalStateException("could not read users file [" + path.toAbsolutePath() + "]", ioe);
         }
 
         ImmutableMap.Builder<String, char[]> users = ImmutableMap.builder();

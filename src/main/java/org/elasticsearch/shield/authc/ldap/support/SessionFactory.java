@@ -14,7 +14,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.SecuredString;
 
@@ -71,8 +70,10 @@ public abstract class SessionFactory {
      *
      * @param user      The name of the user to authenticate the connection with.
      * @param password  The password of the user
+     * @return LdapSession representing a connection to LDAP as the provided user
+     * @throws Exception if an error occurred when creating the session
      */
-    public abstract LdapSession session(String user, SecuredString password);
+    public abstract LdapSession session(String user, SecuredString password) throws Exception;
 
     protected static LDAPConnectionOptions connectionOptions(Settings settings) {
         LDAPConnectionOptions options = new LDAPConnectionOptions();
@@ -103,7 +104,7 @@ public abstract class SessionFactory {
                     addresses[i] = url.getHost();
                     ports[i] = url.getPort();
                 } catch (LDAPException e) {
-                    throw new ShieldSettingsException("unable to parse configured LDAP url [" + urls[i] +"]", e);
+                    throw new IllegalArgumentException("unable to parse configured LDAP url [" + urls[i] +"]", e);
                 }
             }
         }
@@ -133,7 +134,7 @@ public abstract class SessionFactory {
 
             if (!allSecure && !allClear) {
                 //No mixing is allowed because we use the same socketfactory
-                throw new ShieldSettingsException("configured LDAP protocols are not all equal " +
+                throw new IllegalArgumentException("configured LDAP protocols are not all equal " +
                         "(ldaps://.. and ldap://..): [" + Strings.arrayToCommaDelimitedString(ldapUrls) + "]");
             }
 

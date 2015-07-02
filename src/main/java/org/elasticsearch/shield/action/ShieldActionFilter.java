@@ -25,7 +25,6 @@ import org.elasticsearch.shield.authz.AuthorizationException;
 import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.shield.authz.Privilege;
 import org.elasticsearch.shield.crypto.CryptoService;
-import org.elasticsearch.shield.crypto.SignatureException;
 import org.elasticsearch.shield.license.LicenseEventsNotifier;
 import org.elasticsearch.shield.license.LicenseService;
 
@@ -142,9 +141,9 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
 
             return request;
 
-        } catch (SignatureException se) {
+        } catch (IllegalArgumentException|IllegalStateException e) {
             auditTrail.tamperedRequest(user, action, request);
-            throw new AuthorizationException("invalid request: " + se.getMessage());
+            throw new AuthorizationException("invalid request: " + e.getMessage());
         }
     }
 

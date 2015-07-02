@@ -10,7 +10,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.shield.ShieldSettingsException;
+import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.activedirectory.ActiveDirectorySessionFactoryTests;
 import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
@@ -100,7 +100,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
 
         try (LdapSession ldap = sessionFactory.session(user, userPass)) {
             fail("the user should not have been found");
-        } catch (ShieldLdapException e) {
+        } catch (AuthenticationException e) {
             assertThat(e.getMessage(), containsString("failed to find user [William Bush] with search base [o=sevenSeas] scope [base]"));
         } finally {
             sessionFactory.shutdown();
@@ -155,7 +155,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
 
         try (LdapSession ldap = sessionFactory.session(user, userPass)) {
             fail("the user should not have been found");
-        } catch (ShieldLdapException e) {
+        } catch (AuthenticationException e) {
             assertThat(e.getMessage(), containsString("failed to find user [William Bush] with search base [o=sevenSeas] scope [one_level]"));
         } finally {
             sessionFactory.shutdown();
@@ -209,7 +209,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
 
         try (LdapSession ldap = sessionFactory.session(user, userPass)) {
             fail("the user should not have been found");
-        } catch (ShieldLdapException e) {
+        } catch (AuthenticationException e) {
             assertThat(e.getMessage(), containsString("failed to find user [William Bush] with search base [o=sevenSeas] scope [sub_tree]"));
         } finally {
             sessionFactory.shutdown();
@@ -242,7 +242,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
     }
 
     @Test @Network
-    public void testUserSearchWithActiveDirectory() {
+    public void testUserSearchWithActiveDirectory() throws Exception {
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userSearchBase = "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
         Settings settings = settingsBuilder()
@@ -270,7 +270,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
     }
 
     @Test @Network
-    public void testUserSearchwithBindUserOpenLDAP() {
+    public void testUserSearchwithBindUserOpenLDAP() throws Exception {
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         RealmConfig config = new RealmConfig("oldap-test", settingsBuilder()
@@ -344,7 +344,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
     }
 
     @Test
-    public void testThatEmptyBindDNThrowsExceptionWithHealthCheckEnabled() throws Exception{
+    public void testThatEmptyBindDNThrowsExceptionWithHealthCheckEnabled() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         String userSearchBase = "o=sevenSeas";
         RealmConfig config = new RealmConfig("ldap_realm", settingsBuilder()
@@ -355,7 +355,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
 
         try {
             new LdapUserSearchSessionFactory(config, null);
-        } catch (ShieldSettingsException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("[bind_dn] has not been specified so a value must be specified for [user_search.pool.health_check.dn] or [user_search.pool.health_check.enabled] must be set to false"));
         }
     }

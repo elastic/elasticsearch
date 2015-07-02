@@ -8,7 +8,6 @@ package org.elasticsearch.shield.ssl;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.shield.ShieldSettingsException;
 
 public class ClientSSLService extends AbstractSSLService {
 
@@ -23,13 +22,13 @@ public class ClientSSLService extends AbstractSSLService {
 
         if (sslSettings.keyStorePath != null) {
             if (sslSettings.keyStorePassword == null) {
-                throw new ShieldSettingsException("no keystore password configured");
+                throw new IllegalArgumentException("no keystore password configured");
             }
         }
 
         if (sslSettings.trustStorePath != null) {
             if (sslSettings.trustStorePassword == null) {
-                throw new ShieldSettingsException("no truststore password configured");
+                throw new IllegalArgumentException("no truststore password configured");
             }
         }
 

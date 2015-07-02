@@ -7,7 +7,6 @@ package org.elasticsearch.shield.authc.pki;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.DnRoleMapper;
@@ -158,7 +157,7 @@ public class PkiRealmTests extends ElasticsearchTestCase {
         try {
             new PkiRealm(new RealmConfig("", settings, globalSettings), mock(DnRoleMapper.class));
             fail("exception should have been thrown");
-        } catch (ShieldSettingsException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("no truststore password configured"));
         }
     }

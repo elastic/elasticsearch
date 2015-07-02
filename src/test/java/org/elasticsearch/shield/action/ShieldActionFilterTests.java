@@ -16,7 +16,6 @@ import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authz.AuthorizationException;
 import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.shield.crypto.CryptoService;
-import org.elasticsearch.shield.crypto.SignatureException;
 import org.elasticsearch.shield.license.LicenseEventsNotifier;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Before;
@@ -96,7 +95,7 @@ public class ShieldActionFilterTests extends ElasticsearchTestCase {
         SearchScrollRequest request = new SearchScrollRequest("scroll_id");
         ActionListener listener = mock(ActionListener.class);
         ActionFilterChain chain = mock(ActionFilterChain.class);
-        SignatureException sigException = new SignatureException("bad bad boy");
+        IllegalArgumentException sigException = new IllegalArgumentException("bad bad boy");
         User user = mock(User.class);
         when(authcService.authenticate("_action", request, User.SYSTEM)).thenReturn(user);
         when(cryptoService.signed("scroll_id")).thenReturn(true);

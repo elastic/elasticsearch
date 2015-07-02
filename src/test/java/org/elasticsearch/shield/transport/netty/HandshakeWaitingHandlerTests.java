@@ -9,7 +9,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.shield.ShieldException;
 import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.shield.ssl.ServerSSLService;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -196,7 +195,7 @@ public class HandshakeWaitingHandlerTests extends ElasticsearchTestCase {
                     randomPort = randomIntBetween(49000, 65500);
                 }
                 if (tries >= maxTries) {
-                    throw new ShieldException("Failed to start server bootstrap [" + tries + "] times, stopping", t);
+                    throw new RuntimeException("Failed to start server bootstrap [" + tries + "] times, stopping", t);
                 }
                 tries++;
             }

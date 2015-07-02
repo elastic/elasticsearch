@@ -17,7 +17,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.shield.ShieldSettingsException;
 
 import javax.net.ssl.*;
 import java.io.IOException;
@@ -95,10 +94,10 @@ public abstract class AbstractSSLService extends AbstractComponent {
             return sslContexts.getUnchecked(sslSettings);
         } catch (UncheckedExecutionException e) {
             // Unwrap ElasticsearchSSLException
-            if (e.getCause() instanceof ElasticsearchSSLException) {
-                throw (ElasticsearchSSLException) e.getCause();
+            if (e.getCause() instanceof ElasticsearchException) {
+                throw (ElasticsearchException) e.getCause();
             } else {
-                throw new ElasticsearchSSLException("failed to load SSLContext", e);
+                throw new ElasticsearchException("failed to load SSLContext", e);
             }
         }
     }
@@ -132,13 +131,13 @@ public abstract class AbstractSSLService extends AbstractComponent {
         } catch (ElasticsearchException e) {
             throw e;
         } catch (Throwable t) {
-            throw new ElasticsearchSSLException("failed loading cipher suites [" + Arrays.asList(ciphers) + "]", t);
+            throw new IllegalArgumentException("failed loading cipher suites [" + Arrays.asList(ciphers) + "]", t);
         }
 
         try {
             sslEngine.setEnabledProtocols(supportedProtocols);
         } catch (IllegalArgumentException e) {
-            throw new ElasticsearchSSLException("failed setting supported protocols [" + Arrays.asList(supportedProtocols) + "]", e);
+            throw new IllegalArgumentException("failed setting supported protocols [" + Arrays.asList(supportedProtocols) + "]", e);
         }
         return sslEngine;
     }
@@ -163,7 +162,7 @@ public abstract class AbstractSSLService extends AbstractComponent {
         }
 
         if (requestedCiphersList.isEmpty()) {
-            throw new ShieldSettingsException("none of the ciphers [" + Arrays.asList(requestedCiphers) + "] are supported by this JVM");
+            throw new IllegalArgumentException("none of the ciphers [" + Arrays.asList(requestedCiphers) + "] are supported by this JVM");
         }
 
         if (!unsupportedCiphers.isEmpty()) {
@@ -204,7 +203,7 @@ public abstract class AbstractSSLService extends AbstractComponent {
                 kmf.init(ks, keyPassword.toCharArray());
                 return kmf.getKeyManagers();
             } catch (Exception e) {
-                throw new ElasticsearchSSLException("failed to initialize a KeyManagerFactory", e);
+                throw new ElasticsearchException("failed to initialize a KeyManagerFactory", e);
             }
         }
 
@@ -217,7 +216,7 @@ public abstract class AbstractSSLService extends AbstractComponent {
                 sslContext.getServerSessionContext().setSessionTimeout(Ints.checkedCast(sessionCacheTimeout.seconds()));
                 return sslContext;
             } catch (Exception e) {
-                throw new ElasticsearchSSLException("failed to initialize the SSLContext", e);
+                throw new ElasticsearchException("failed to initialize the SSLContext", e);
             }
         }
 
@@ -234,7 +233,7 @@ public abstract class AbstractSSLService extends AbstractComponent {
                 trustFactory.init(ks);
                 return trustFactory.getTrustManagers();
             } catch (Exception e) {
-                throw new ElasticsearchSSLException("failed to initialize a TrustManagerFactory", e);
+                throw new ElasticsearchException("failed to initialize a TrustManagerFactory", e);
             }
         }
 

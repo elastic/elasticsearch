@@ -14,7 +14,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.ShieldPlugin;
-import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -135,7 +134,7 @@ public class DnRoleMapper {
             return ImmutableMap.copyOf(dnToRoles);
 
         } catch (IOException e) {
-            throw new ShieldSettingsException("could not read realm [" + realmType + "/" + realmName + "] role mappings file [" + path.toAbsolutePath() + "]", e);
+            throw new ElasticsearchException("could not read realm [" + realmType + "/" + realmName + "] role mappings file [" + path.toAbsolutePath() + "]", e);
         }
     }
 

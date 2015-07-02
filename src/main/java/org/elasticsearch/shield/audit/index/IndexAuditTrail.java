@@ -39,7 +39,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.shield.ShieldException;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
@@ -152,7 +151,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
         String[] excludedEvents = settings.getAsArray("shield.audit.index.events.exclude");
         try {
             events = parse(includedEvents, excludedEvents);
-        } catch (ShieldException e) {
+        } catch (IllegalArgumentException e) {
             logger.warn("invalid event type specified, using default for audit index output. include events [{}], exclude events [{}]", e, includedEvents, excludedEvents);
             events = parse(DEFAULT_EVENT_INCLUDES, Strings.EMPTY_ARRAY);
         }
@@ -542,7 +541,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
         if (currentState != State.STOPPING && currentState != State.STOPPED) {
             boolean accepted = eventQueue.offer(message);
             if (!accepted) {
-                throw new ShieldException("queue is full, bulk processor may have stopped indexing");
+                throw new IllegalStateException("queue is full, bulk processor may have stopped indexing");
             }
         }
     }
@@ -638,11 +637,11 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
             assert !Thread.currentThread().isInterrupted() : "current thread has been interrupted before putting index template!!!";
             PutIndexTemplateResponse response = client.admin().indices().putTemplate(request).actionGet();
             if (!response.isAcknowledged()) {
-                throw new ShieldException("failed to put index template for audit logging");
+                throw new IllegalStateException("failed to put index template for audit logging");
             }
         } catch (Exception e) {
             logger.debug("unexpected exception while putting index template", e);
-            throw new ShieldException("failed to load [" + INDEX_TEMPLATE_NAME + ".json]", e);
+            throw new IllegalStateException("failed to load [" + INDEX_TEMPLATE_NAME + ".json]", e);
         }
     }
 

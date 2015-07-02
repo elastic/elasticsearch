@@ -11,7 +11,6 @@ import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.suggest.SuggestAction;
-import org.elasticsearch.shield.ShieldException;
 import org.elasticsearch.shield.support.AutomatonPredicate;
 import org.elasticsearch.shield.support.Automatons;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -128,12 +127,12 @@ public class PrivilegeTests extends ElasticsearchTestCase {
         assertThat(cluster.predicate().apply("cluster:bar"), is(true));
     }
 
-    @Test(expected = ShieldException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void testCluster_AddCustom_InvalidPattern() throws Exception {
         Privilege.Cluster.addCustom("foo", "bar");
     }
 
-    @Test(expected = ShieldException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void testCluster_AddCustom_AlreadyExists() throws Exception {
         Privilege.Cluster.addCustom("all", "bar");
     }
@@ -215,12 +214,12 @@ public class PrivilegeTests extends ElasticsearchTestCase {
         assertThat(index.predicate().apply("indices:bar"), is(true));
     }
 
-    @Test(expected = ShieldException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void testIndex_AddCustom_InvalidPattern() throws Exception {
         Privilege.Index.addCustom("foo", "bar");
     }
 
-    @Test(expected = ShieldException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void testIndex_AddCustom_AlreadyExists() throws Exception {
         Privilege.Index.addCustom("all", "bar");
     }

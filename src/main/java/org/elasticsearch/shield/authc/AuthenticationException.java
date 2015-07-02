@@ -5,24 +5,24 @@
  */
 package org.elasticsearch.shield.authc;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.shield.ShieldException;
 import org.elasticsearch.shield.ShieldPlugin;
 
-/**
- *
- */
-public class AuthenticationException extends ShieldException {
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
-    public static final Tuple<String, String[]> BASIC_AUTH_HEADER = Tuple.tuple("WWW-Authenticate", new String[]{"Basic realm=\"" + ShieldPlugin.NAME + "\""});
+public class AuthenticationException extends ElasticsearchException.WithRestHeadersException {
+
+    public static final Map<String, List<String>> HEADERS = Collections.singletonMap("WWW-Authenticate", Collections.singletonList("Basic realm=\"" + ShieldPlugin.NAME + "\""));
 
     public AuthenticationException(String msg) {
-        super(msg, BASIC_AUTH_HEADER);
+        this(msg, null);
     }
 
     public AuthenticationException(String msg, Throwable cause) {
-        super(msg, cause, BASIC_AUTH_HEADER);
+        super(msg, cause, HEADERS);
     }
 
     @Override

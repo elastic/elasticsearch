@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.Realm;
-import org.elasticsearch.shield.authc.RealmMissingException;
 import org.elasticsearch.shield.authc.Realms;
 import org.elasticsearch.shield.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -73,7 +72,7 @@ public class TransportClearRealmCacheAction extends TransportNodesAction<ClearRe
         for (String realmName : nodeRequest.realms) {
             Realm realm = realms.realm(realmName);
             if (realm == null) {
-                throw new RealmMissingException("could not find active realm [" + realmName + "]");
+                throw new IllegalArgumentException("could not find active realm [" + realmName + "]");
             }
             clearCache(realm, nodeRequest.usernames);
         }

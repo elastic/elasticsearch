@@ -9,8 +9,8 @@ import com.google.common.primitives.Ints;
 import com.unboundid.ldap.sdk.*;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.ShieldSettingsFilter;
+import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.shield.authc.ldap.support.LdapSession;
@@ -20,6 +20,8 @@ import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.ssl.ClientSSLService;
 
 import javax.net.SocketFactory;
+
+import java.io.IOException;
 
 import static org.elasticsearch.shield.authc.ldap.support.LdapUtils.createFilter;
 import static org.elasticsearch.shield.authc.ldap.support.LdapUtils.search;
@@ -52,7 +54,7 @@ public class ActiveDirectorySessionFactory extends SessionFactory {
         Settings settings = config.settings();
         domainName = settings.get(AD_DOMAIN_NAME_SETTING);
         if (domainName == null) {
-            throw new ShieldSettingsException("missing [" + AD_DOMAIN_NAME_SETTING + "] setting for active directory");
+            throw new IllegalArgumentException("missing [" + AD_DOMAIN_NAME_SETTING + "] setting for active directory");
         }
         String domainDN = buildDnFromDomain(domainName);
         userSearchDN = settings.get(AD_USER_SEARCH_BASEDN_SETTING, domainDN);
@@ -93,13 +95,13 @@ public class ActiveDirectorySessionFactory extends SessionFactory {
      * @return An authenticated
      */
     @Override
-    public LdapSession session(String userName, SecuredString password) {
+    public LdapSession session(String userName, SecuredString password) throws Exception {
         LDAPConnection connection;
 
         try {
             connection = ldapServerSet.getConnection();
         } catch (LDAPException e) {
-            throw new ActiveDirectoryException("failed to connect to any active directory servers", e);
+            throw new IOException("failed to connect to any active directory servers", e);
         }
 
         String userPrincipal = userName + "@" + domainName;
@@ -110,15 +112,16 @@ public class ActiveDirectorySessionFactory extends SessionFactory {
             SearchResult results = search(connection, searchRequest, logger);
             int numResults = results.getEntryCount();
             if (numResults > 1) {
-                throw new ActiveDirectoryException("search for user [" + userName + "] by principle name yielded multiple results");
+                throw new IllegalStateException("search for user [" + userName + "] by principle name yielded multiple results");
             } else if (numResults < 1) {
-                throw new ActiveDirectoryException("search for user [" + userName + "] by principle name yielded no results");
+                throw new IllegalStateException("search for user [" + userName + "] by principle name yielded no results");
             }
             String dn = results.getSearchEntries().get(0).getDN();
             return new LdapSession(connectionLogger, connection, dn, groupResolver, timeout);
         } catch (LDAPException e) {
             connection.close();
-            throw new ActiveDirectoryException("unable to authenticate user [" + userName + "] to active directory domain [" + domainName + "]", e);
+            // TODO think more about this exception...
+            throw new AuthenticationException("unable to authenticate user [" + userName + "] to active directory domain [" + domainName + "]", e);
         }
     }
 

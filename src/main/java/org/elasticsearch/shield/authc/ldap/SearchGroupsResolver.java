@@ -11,7 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.shield.ShieldSettingsException;
+import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.shield.authc.ldap.support.LdapSession.GroupsResolver;
 
@@ -37,7 +37,7 @@ class SearchGroupsResolver implements GroupsResolver {
     public SearchGroupsResolver(Settings settings) {
         baseDn = settings.get("base_dn");
         if (baseDn == null) {
-            throw new ShieldSettingsException("base_dn must be specified");
+            throw new IllegalArgumentException("base_dn must be specified");
         }
         filter = settings.get("filter", GROUP_SEARCH_DEFAULT_FILTER);
         userAttribute = settings.get("user_attribute");
@@ -57,7 +57,7 @@ class SearchGroupsResolver implements GroupsResolver {
                 groups.add(entry.getDN());
             }
         } catch (LDAPException e) {
-            throw new ShieldLdapException("could not search for LDAP groups", userDn, e);
+            throw new AuthenticationException("could not search for LDAP groups for DN [" + userDn + "]", e);
         }
 
         return groups;
@@ -70,11 +70,11 @@ class SearchGroupsResolver implements GroupsResolver {
             SearchResultEntry results = searchForEntry(connection, request, logger);
             Attribute attribute = results.getAttribute(userAttribute);
             if (attribute == null) {
-                throw new ShieldLdapException("no results returned for attribute [" + userAttribute + "]", userDn);
+                throw new AuthenticationException("no results returned for DN [" + userDn + "] attribute [" + userAttribute + "]");
             }
             return attribute.getValue();
         } catch (LDAPException e) {
-            throw new ShieldLdapException("could not retrieve attribute [" + userAttribute + "]", userDn, e);
+            throw new AuthenticationException("could not retrieve attribute [" + userAttribute + "] for DN [" + userDn + "]", e);
         }
     }
 }

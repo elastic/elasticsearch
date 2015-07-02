@@ -12,7 +12,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 
@@ -75,11 +74,11 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
             Settings realmSettings = realmsSettings.getAsSettings(name);
             String type = realmSettings.get("type");
             if (type == null) {
-                throw new ShieldSettingsException("missing realm type for [" + name + "] realm");
+                throw new IllegalArgumentException("missing realm type for [" + name + "] realm");
             }
             Realm.Factory factory = factories.get(type);
             if (factory == null) {
-                throw new ShieldSettingsException("unknown realm type [" + type + "] set for realm [" + name + "]");
+                throw new IllegalArgumentException("unknown realm type [" + type + "] set for realm [" + name + "]");
             }
             factory.filterOutSensitiveSettings(name, settingsFilter);
             RealmConfig config = new RealmConfig(name, realmSettings, settings, env);
@@ -93,7 +92,7 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
                 // this is an internal realm factory, let's make sure we didn't already registered one
                 // (there can only be one instance of an internal realm)
                 if (internalTypes.contains(type)) {
-                    throw new ShieldSettingsException("multiple [" + type + "] realms are configured. [" + type +
+                    throw new IllegalArgumentException("multiple [" + type + "] realms are configured. [" + type +
                             "] is an internal realm and therefore there can only be one such realm configured");
                 }
                 internalTypes.add(type);
@@ -124,11 +123,11 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
             Settings realmSettings = realmsSettings.getAsSettings(name);
             String type = realmSettings.get("type");
             if (type == null) {
-                throw new ShieldSettingsException("missing realm type for [" + name + "] realm");
+                throw new IllegalArgumentException("missing realm type for [" + name + "] realm");
             }
             if (type.equals(realmType)) {
                 if (result != null) {
-                    throw new ShieldSettingsException("multiple [" + realmType + "] realms are configured. only one [" + realmType + "] may be configured");
+                    throw new IllegalArgumentException("multiple [" + realmType + "] realms are configured. only one [" + realmType + "] may be configured");
                 }
                 result = realmSettings;
             }

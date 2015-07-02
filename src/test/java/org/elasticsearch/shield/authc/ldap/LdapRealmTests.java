@@ -7,7 +7,6 @@ package org.elasticsearch.shield.authc.ldap;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
-import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
@@ -210,7 +209,7 @@ public class LdapRealmTests extends LdapTest {
         try {
             LdapRealm.Factory.sessionFactory(config, null);
             fail("an exception should have been thrown because both user template and user search settings were specified");
-        } catch (ShieldSettingsException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("settings were found for both user search and user template"));
         }
     }

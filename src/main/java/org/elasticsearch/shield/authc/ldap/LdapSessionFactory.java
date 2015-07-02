@@ -7,7 +7,7 @@ package org.elasticsearch.shield.authc.ldap;
 
 import com.unboundid.ldap.sdk.*;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.ShieldSettingsException;
+import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.ldap.support.LdapSession;
 import org.elasticsearch.shield.authc.ldap.support.LdapSession.GroupsResolver;
@@ -16,6 +16,7 @@ import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.ssl.ClientSSLService;
 
 import javax.net.SocketFactory;
+import java.io.IOException;
 import java.text.MessageFormat;
 import java.util.Locale;
 
@@ -40,7 +41,7 @@ public class LdapSessionFactory extends SessionFactory {
         Settings settings = config.settings();
         userDnTemplates = settings.getAsArray(USER_DN_TEMPLATES_SETTING);
         if (userDnTemplates == null) {
-            throw new ShieldSettingsException("missing required LDAP setting [" + USER_DN_TEMPLATES_SETTING + "]");
+            throw new IllegalArgumentException("missing required LDAP setting [" + USER_DN_TEMPLATES_SETTING + "]");
         }
         this.ldapServerSet = serverSet(config.settings(), sslService);
         groupResolver = groupResolver(settings);
@@ -50,7 +51,7 @@ public class LdapSessionFactory extends SessionFactory {
         // Parse LDAP urls
         String[] ldapUrls = settings.getAsArray(URLS_SETTING);
         if (ldapUrls == null || ldapUrls.length == 0) {
-            throw new ShieldSettingsException("missing required LDAP setting [" + URLS_SETTING + "]");
+            throw new IllegalArgumentException("missing required LDAP setting [" + URLS_SETTING + "]");
         }
         LDAPServers servers = new LDAPServers(ldapUrls);
         LDAPConnectionOptions options = connectionOptions(settings);
@@ -78,13 +79,13 @@ public class LdapSessionFactory extends SessionFactory {
      * @return authenticated exception
      */
     @Override
-    public LdapSession session(String username, SecuredString password) {
+    public LdapSession session(String username, SecuredString password) throws Exception {
         LDAPConnection connection;
 
         try {
             connection = ldapServerSet.getConnection();
         } catch (LDAPException e) {
-            throw new ShieldLdapException("failed to connect to any LDAP servers", e);
+            throw new IOException("failed to connect to any LDAP servers", e);
         }
 
         LDAPException lastException = null;
@@ -106,7 +107,7 @@ public class LdapSessionFactory extends SessionFactory {
         }
 
         connection.close();
-        throw new ShieldLdapException("failed LDAP authentication", lastException);
+        throw new AuthenticationException("failed LDAP authentication", lastException);
     }
 
     /**

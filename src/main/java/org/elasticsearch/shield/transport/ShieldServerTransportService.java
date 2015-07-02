@@ -9,7 +9,6 @@ import com.google.common.collect.Maps;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.ShieldException;
 import org.elasticsearch.shield.action.ShieldActionMapper;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authz.AuthorizationService;
@@ -128,7 +127,7 @@ public class ShieldServerTransportService extends TransportService {
                         // apply the default filter to local requests. We never know what the request is or who sent it...
                         filter = profileFilters.get("default");
                     } else {
-                        throw new ShieldException("transport profile [" + profile + "] is not associated with a transport filter");
+                        throw new IllegalStateException("transport profile [" + profile + "] is not associated with a transport filter");
                     }
                 }
                 assert filter != null;

@@ -70,7 +70,7 @@ public class ValuesSourceParser<VS extends ValuesSource> {
         String field = null;
         Script script = null;
         @Deprecated
-        Map<String, Object> params = null; // TODO Remove in 2.0
+        Map<String, Object> params = null; // TODO Remove in 3.0
         ValueType valueType = null;
         String format = null;
         Object missing = null;

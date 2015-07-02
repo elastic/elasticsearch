@@ -69,7 +69,7 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (ScriptField.SCRIPT.match(currentFieldName)) {
                     script = Script.parse(parser);
-                } else if ("params".equals(currentFieldName)) { // TODO remove in 2.0 (here to support old script APIs)
+                } else if ("params".equals(currentFieldName)) { // TODO remove in 3.0 (here to support old script APIs)
                     vars = parser.map();
                 } else {
                     throw new QueryParsingException(parseContext, NAMES[0] + " query does not support [" + currentFieldName + "]");

@@ -82,7 +82,7 @@ public class ScriptQueryParser implements QueryParser {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (ScriptField.SCRIPT.match(currentFieldName)) {
                     script = Script.parse(parser);
-                } else if ("params".equals(currentFieldName)) { // TODO remove in 2.0 (here to support old script APIs)
+                } else if ("params".equals(currentFieldName)) { // TODO remove in 3.0 (here to support old script APIs)
                     params = parser.map();
                 } else {
                     throw new QueryParsingException(parseContext, "[script] query does not support [" + currentFieldName + "]");

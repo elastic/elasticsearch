@@ -142,7 +142,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if (ScriptField.SCRIPT.match(currentFieldName)) {
                         script = Script.parse(parser);
-                    } else if ("params".equals(currentFieldName)) { // TODO remove in 2.0 (here to support old script APIs)
+                    } else if ("params".equals(currentFieldName)) { // TODO remove in 3.0 (here to support old script APIs)
                         params = parser.map();
                     } else {
                         throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. unknown object [{}]", heuristicName, currentFieldName);

@@ -26,3 +26,6 @@
 
 * https://github.com/kodcu/pes[Pes]:
   A pluggable elastic query DSL builder for Elasticsearch
+  
+  * https://github.com/ozlerhakan/mongolastic[Mongolastic]:
+  A tool that clone data from ElasticSearch to MongoDB and vice versa

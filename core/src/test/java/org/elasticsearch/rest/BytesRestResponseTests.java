@@ -152,10 +152,12 @@ public class BytesRestResponseTests extends ElasticsearchTestCase {
         assertEquals(expected.trim(), text.trim());
     }
 
-    public static class WithHeadersException extends ElasticsearchException.WithRestHeadersException {
+    public static class WithHeadersException extends ElasticsearchException {
 
         WithHeadersException() {
-            super("", header("n1", "v11", "v12"), header("n2", "v21", "v22"));
+            super("");
+            this.addHeader("n1", "v11", "v12");
+            this.addHeader("n2", "v21", "v22");
         }
     }
 

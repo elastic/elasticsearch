@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.*;
 import org.elasticsearch.common.transport.LocalTransportAddress;
@@ -583,30 +582,35 @@ public class ExceptionSerializationTests extends ElasticsearchTestCase {
     }
 
     public void testWithRestHeadersException() throws IOException {
-        ElasticsearchException.WithRestHeadersException ex = serialize(new ElasticsearchException.WithRestHeadersException("msg", new Tuple("foo", new String[]{"foo", "bar"})));
+        ElasticsearchException ex = new ElasticsearchException("msg");
+        ex.addHeader("foo", "foo", "bar");
+        ex = serialize(ex);
         assertEquals("msg", ex.getMessage());
-        assertEquals(2, ex.getHeaders().get("foo").size());
-        assertEquals("foo", ex.getHeaders().get("foo").get(0));
-        assertEquals("bar", ex.getHeaders().get("foo").get(1));
+        assertEquals(2, ex.getHeader("foo").size());
+        assertEquals("foo", ex.getHeader("foo").get(0));
+        assertEquals("bar", ex.getHeader("foo").get(1));
 
         RestStatus status = randomFrom(RestStatus.values());
         // ensure we are carrying over the headers even if not serialized
-        ElasticsearchException serialize = serialize((ElasticsearchException) new UnknownHeaderException("msg", status, new Tuple("foo", new String[]{"foo", "bar"})));
+        UnknownHeaderException uhe = new UnknownHeaderException("msg", status);
+        uhe.addHeader("foo", "foo", "bar");
+
+        ElasticsearchException serialize = serialize((ElasticsearchException)uhe);
         assertTrue(serialize instanceof NotSerializableExceptionWrapper);
         NotSerializableExceptionWrapper e = (NotSerializableExceptionWrapper) serialize;
         assertEquals("msg", e.getMessage());
-        assertEquals(2, e.getHeaders().get("foo").size());
-        assertEquals("foo", e.getHeaders().get("foo").get(0));
-        assertEquals("bar", e.getHeaders().get("foo").get(1));
+        assertEquals(2, e.getHeader("foo").size());
+        assertEquals("foo", e.getHeader("foo").get(0));
+        assertEquals("bar", e.getHeader("foo").get(1));
         assertSame(status, e.status());
 
     }
 
-    public static class UnknownHeaderException extends ElasticsearchException.WithRestHeadersException {
+    public static class UnknownHeaderException extends ElasticsearchException {
         private final RestStatus status;
 
-        public UnknownHeaderException(String msg, RestStatus status, Tuple<String, String[]>... headers) {
-            super(msg, headers);
+        public UnknownHeaderException(String msg, RestStatus status) {
+            super(msg);
             this.status = status;
         }
 
@@ -614,5 +618,12 @@ public class ExceptionSerializationTests extends ElasticsearchTestCase {
         public RestStatus status() {
             return status;
         }
+    }
+
+    public void testElasticsearchSecurityException() throws IOException {
+        ElasticsearchSecurityException ex = new ElasticsearchSecurityException("user [{}] is not allowed", RestStatus.UNAUTHORIZED, "foo");
+        ElasticsearchSecurityException e = serialize(ex);
+        assertEquals(ex.status(), e.status());
+        assertEquals(RestStatus.UNAUTHORIZED, e.status());
     }
 }

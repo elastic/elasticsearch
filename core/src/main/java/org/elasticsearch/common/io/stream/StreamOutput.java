@@ -511,9 +511,6 @@ public abstract class StreamOutput extends OutputStream {
                 final String name = throwable.getClass().getName();
                 if (throwable instanceof ElasticsearchException && ElasticsearchException.isRegistered(name)) {
                     ex = (ElasticsearchException) throwable;
-                } else if (throwable instanceof ElasticsearchException.WithRestHeadersException) {
-                    // ensure we transport also the headers
-                    ex = new NotSerializableExceptionWrapper((ElasticsearchException.WithRestHeadersException)throwable);
                 } else {
                     ex = new NotSerializableExceptionWrapper(throwable);
                 }

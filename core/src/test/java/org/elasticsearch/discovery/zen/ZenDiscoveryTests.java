@@ -226,6 +226,7 @@ public class ZenDiscoveryTests extends ElasticsearchIntegrationTest {
     public void testHandleNodeJoin_incompatibleMinVersion() {
         Settings nodeSettings = Settings.settingsBuilder()
                 .put("discovery.type", "zen") // <-- To override the local setting if set externally
+                .put("node.mode", "local")  // <-- force local transport so we can fake a network address
                 .build();
         String nodeName = internalCluster().startNode(nodeSettings, Version.V_2_0_0);
         ZenDiscovery zenDiscovery = (ZenDiscovery) internalCluster().getInstance(Discovery.class, nodeName);

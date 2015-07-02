@@ -27,7 +27,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.support.LoggerMessageFormat;
+import org.elasticsearch.common.ESMessageFormat;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.HasRestHeaders;
@@ -56,7 +56,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * @param args the arguments for the message
      */
     public ElasticsearchException(String msg, Object... args) {
-        super(LoggerMessageFormat.format(msg, args));
+        super(ESMessageFormat.format(msg, args));
     }
 
     /**
@@ -71,7 +71,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * @param args  the arguments for the message
      */
     public ElasticsearchException(String msg, Throwable cause, Object... args) {
-        super(LoggerMessageFormat.format(msg, args), cause);
+        super(ESMessageFormat.format(msg, args), cause);
     }
 
     public ElasticsearchException(StreamInput in) throws IOException {

@@ -26,7 +26,6 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -291,7 +290,7 @@ public class Script implements ToXContent, Streamable {
     public static class ScriptParseException extends ElasticsearchException {
 
         public ScriptParseException(String msg, Object... args) {
-            super(LoggerMessageFormat.format(msg, args));
+            super(msg, args);
         }
 
         public ScriptParseException(StreamInput in) throws IOException{

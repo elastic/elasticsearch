@@ -19,7 +19,10 @@
 
 package org.elasticsearch.common.logging.support;
 
+import org.elasticsearch.common.ESMessageFormat;
 import org.elasticsearch.common.logging.ESLogger;
+
+import static org.elasticsearch.common.ESMessageFormat.formatWithPrefix;
 
 /**
  *
@@ -40,7 +43,7 @@ public abstract class AbstractESLogger implements ESLogger {
     @Override
     public void trace(String msg, Object... params) {
         if (isTraceEnabled()) {
-            internalTrace(LoggerMessageFormat.format(prefix, msg, params));
+            internalTrace(formatWithPrefix(prefix, msg, params));
         }
     }
 
@@ -49,7 +52,7 @@ public abstract class AbstractESLogger implements ESLogger {
     @Override
     public void trace(String msg, Throwable cause, Object... params) {
         if (isTraceEnabled()) {
-            internalTrace(LoggerMessageFormat.format(prefix, msg, params), cause);
+            internalTrace(formatWithPrefix(prefix, msg, params), cause);
         }
     }
 
@@ -59,7 +62,7 @@ public abstract class AbstractESLogger implements ESLogger {
     @Override
     public void debug(String msg, Object... params) {
         if (isDebugEnabled()) {
-            internalDebug(LoggerMessageFormat.format(prefix, msg, params));
+            internalDebug(formatWithPrefix(prefix, msg, params));
         }
     }
 
@@ -68,7 +71,7 @@ public abstract class AbstractESLogger implements ESLogger {
     @Override
     public void debug(String msg, Throwable cause, Object... params) {
         if (isDebugEnabled()) {
-            internalDebug(LoggerMessageFormat.format(prefix, msg, params), cause);
+            internalDebug(formatWithPrefix(prefix, msg, params), cause);
         }
     }
 
@@ -78,7 +81,7 @@ public abstract class AbstractESLogger implements ESLogger {
     @Override
     public void info(String msg, Object... params) {
         if (isInfoEnabled()) {
-            internalInfo(LoggerMessageFormat.format(prefix, msg, params));
+            internalInfo(formatWithPrefix(prefix, msg, params));
         }
     }
 
@@ -87,7 +90,7 @@ public abstract class AbstractESLogger implements ESLogger {
     @Override
     public void info(String msg, Throwable cause, Object... params) {
         if (isInfoEnabled()) {
-            internalInfo(LoggerMessageFormat.format(prefix, msg, params), cause);
+            internalInfo(formatWithPrefix(prefix, msg, params), cause);
         }
     }
 
@@ -97,7 +100,7 @@ public abstract class AbstractESLogger implements ESLogger {
     @Override
     public void warn(String msg, Object... params) {
         if (isWarnEnabled()) {
-            internalWarn(LoggerMessageFormat.format(prefix, msg, params));
+            internalWarn(formatWithPrefix(prefix, msg, params));
         }
     }
 
@@ -106,7 +109,7 @@ public abstract class AbstractESLogger implements ESLogger {
     @Override
     public void warn(String msg, Throwable cause, Object... params) {
         if (isWarnEnabled()) {
-            internalWarn(LoggerMessageFormat.format(prefix, msg, params), cause);
+            internalWarn(formatWithPrefix(prefix, msg, params), cause);
         }
     }
 
@@ -116,7 +119,7 @@ public abstract class AbstractESLogger implements ESLogger {
     @Override
     public void error(String msg, Object... params) {
         if (isErrorEnabled()) {
-            internalError(LoggerMessageFormat.format(prefix, msg, params));
+            internalError(formatWithPrefix(prefix, msg, params));
         }
     }
 
@@ -125,7 +128,7 @@ public abstract class AbstractESLogger implements ESLogger {
     @Override
     public void error(String msg, Throwable cause, Object... params) {
         if (isErrorEnabled()) {
-            internalError(LoggerMessageFormat.format(prefix, msg, params), cause);
+            internalError(formatWithPrefix(prefix, msg, params), cause);
         }
     }
 

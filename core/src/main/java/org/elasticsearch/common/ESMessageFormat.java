@@ -17,46 +17,118 @@
  * under the License.
  */
 
-package org.elasticsearch.common.logging.support;
+package org.elasticsearch.common;
 
 import java.util.HashMap;
 import java.util.Map;
 
 /**
+ * A message format in elasticsearch. Supports the following features:
+ *<pre>
  *
+ * - `{}`   indicates a place holder where single values will be translated to a string ({@code null}
+ *          will be translated to a {@code "null"} string). Arrays will be enclosed in brackets (`[` and `]`).
+ *
+ * - `[]`   indicates a place holder where single values will be translated to a string enclosed in
+ *          brackets `[` and `]`. Arrays will also be enclosed in brackets (but not double ones)
+ *
+ * examples:
+ *
+ *      PATTERN                 VALUE           OUTPUT
+ *
+ *      "value {}"              2               "value 2"
+ *      "value {}"              null            "value null"
+ *      "value []"              "text"          "value [text]"
+ *      "value []"              null            "value [null]"
+ *      "values {}"             [1, 2]          "values [1, 2]"
+ *      "values []"             [1, 2]          "values [1, 2]"
+ * </pre>
  */
-public class LoggerMessageFormat {
+public class ESMessageFormat {
 
-    static final char DELIM_START = '{';
-    static final char DELIM_STOP = '}';
-    static final String DELIM_STR = "{}";
+    enum Delim {
+
+        CURLY_BRACKETS('{', '}') {
+            @Override
+            public void append(StringBuilder sb, Object value) {
+                try {
+                    String oAsString = value.toString();
+                    sb.append(oAsString);
+                } catch (Throwable t) {
+                    sb.append("[FAILED toString()]");
+                }
+            }
+        },
+        BRACKETS('[', ']') {
+            @Override
+            public void append(StringBuilder sb, Object value) {
+                try {
+                    String oAsString = value.toString();
+                    sb.append(start).append(oAsString).append(end);
+                } catch (Throwable t) {
+                    sb.append("[FAILED toString()]");
+                }
+            }
+        };
+
+        protected final char start;
+        protected final char end;
+        protected final String str;
+
+        Delim(char start, char end) {
+            this.start = start;
+            this.end = end;
+            this.str = new String(new char[] { start, end });
+        }
+
+        public abstract void append(StringBuilder sb, Object value);
+
+        public int indexOf(String text, int from) {
+            return text.indexOf(str, from);
+        }
+    }
+
     private static final char ESCAPE_CHAR = '\\';
 
     public static String format(final String messagePattern, final Object... argArray) {
-        return format(null, messagePattern, argArray);
+        return formatWithPrefix(null, messagePattern, argArray);
     }
 
-    public static String format(final String prefix, final String messagePattern, final Object... argArray) {
+    public static String formatWithPrefix(final String prefix, final String messagePattern, final Object... argArray) {
         if (messagePattern == null) {
             return null;
         }
-        if (argArray == null) {
+
+        if (argArray == null || argArray.length == 0) {
             if (prefix == null) {
                 return messagePattern;
             } else {
                 return prefix + messagePattern;
             }
         }
+
         int i = 0;
         int j;
+        int k;
         final StringBuilder sbuf = new StringBuilder(messagePattern.length() + 50);
+
         if (prefix != null) {
             sbuf.append(prefix);
         }
 
         for (int L = 0; L < argArray.length; L++) {
 
-            j = messagePattern.indexOf(DELIM_STR, i);
+            Delim delim = Delim.CURLY_BRACKETS;
+
+            j = Delim.CURLY_BRACKETS.indexOf(messagePattern, i);
+            k = Delim.BRACKETS.indexOf(messagePattern, i);
+            if (j < 0) {
+                j = k;
+                delim = Delim.BRACKETS;
+            } else if (k > -1) {
+                j = Math.min(j, k);
+                delim = j == k ? Delim.BRACKETS : Delim.CURLY_BRACKETS;
+            }
 
             if (j == -1) {
                 // no more variables
@@ -70,22 +142,22 @@ public class LoggerMessageFormat {
             } else {
                 if (isEscapedDelimiter(messagePattern, j)) {
                     if (!isDoubleEscaped(messagePattern, j)) {
-                        L--; // DELIM_START was escaped, thus should not be incremented
+                        L--; // Delim.start was escaped, thus should not be incremented
                         sbuf.append(messagePattern.substring(i, j - 1));
-                        sbuf.append(DELIM_START);
+                        sbuf.append(delim.start);
                         i = j + 1;
                     } else {
                         // The escape character preceding the delimiter start is
                         // itself escaped: "abc x:\\{}"
                         // we have to consume one backward slash
                         sbuf.append(messagePattern.substring(i, j - 1));
-                        deeplyAppendParameter(sbuf, argArray[L], new HashMap());
+                        deeplyAppendParameter(delim, sbuf, argArray[L], new HashMap());
                         i = j + 2;
                     }
                 } else {
                     // normal case
                     sbuf.append(messagePattern.substring(i, j));
-                    deeplyAppendParameter(sbuf, argArray[L], new HashMap());
+                    deeplyAppendParameter(delim, sbuf, argArray[L], new HashMap());
                     i = j + 2;
                 }
             }
@@ -95,8 +167,7 @@ public class LoggerMessageFormat {
         return sbuf.toString();
     }
 
-    static boolean isEscapedDelimiter(String messagePattern,
-                                      int delimiterStartIndex) {
+    static boolean isEscapedDelimiter(String messagePattern, int delimiterStartIndex) {
 
         if (delimiterStartIndex == 0) {
             return false;
@@ -117,13 +188,13 @@ public class LoggerMessageFormat {
         }
     }
 
-    private static void deeplyAppendParameter(StringBuilder sbuf, Object o, Map seenMap) {
+    static void deeplyAppendParameter(Delim delim, StringBuilder sbuf, Object o, Map seenMap) {
         if (o == null) {
-            sbuf.append("null");
+            delim.append(sbuf, "null");
             return;
         }
         if (!o.getClass().isArray()) {
-            safeObjectAppend(sbuf, o);
+            delim.append(sbuf, o);
         } else {
             // check for primitive array types because they
             // unfortunately cannot be cast to Object[]
@@ -149,23 +220,13 @@ public class LoggerMessageFormat {
         }
     }
 
-    private static void safeObjectAppend(StringBuilder sbuf, Object o) {
-        try {
-            String oAsString = o.toString();
-            sbuf.append(oAsString);
-        } catch (Throwable t) {
-            sbuf.append("[FAILED toString()]");
-        }
-
-    }
-
-    private static void objectArrayAppend(StringBuilder sbuf, Object[] a, Map seenMap) {
-        sbuf.append('[');
+    static void objectArrayAppend(StringBuilder sbuf, Object[] a, Map seenMap) {
+        sbuf.append(Delim.BRACKETS.start);
         if (!seenMap.containsKey(a)) {
             seenMap.put(a, null);
             final int len = a.length;
             for (int i = 0; i < len; i++) {
-                deeplyAppendParameter(sbuf, a[i], seenMap);
+                deeplyAppendParameter(Delim.CURLY_BRACKETS, sbuf, a[i], seenMap);
                 if (i != len - 1)
                     sbuf.append(", ");
             }
@@ -174,94 +235,94 @@ public class LoggerMessageFormat {
         } else {
             sbuf.append("...");
         }
-        sbuf.append(']');
+        sbuf.append(Delim.BRACKETS.end);
     }
 
-    private static void booleanArrayAppend(StringBuilder sbuf, boolean[] a) {
-        sbuf.append('[');
+    static void booleanArrayAppend(StringBuilder sbuf, boolean[] a) {
+        sbuf.append(Delim.BRACKETS.start);
         final int len = a.length;
         for (int i = 0; i < len; i++) {
             sbuf.append(a[i]);
             if (i != len - 1)
                 sbuf.append(", ");
         }
-        sbuf.append(']');
+        sbuf.append(Delim.BRACKETS.end);
     }
 
-    private static void byteArrayAppend(StringBuilder sbuf, byte[] a) {
-        sbuf.append('[');
+    static void byteArrayAppend(StringBuilder sbuf, byte[] a) {
+        sbuf.append(Delim.BRACKETS.start);
         final int len = a.length;
         for (int i = 0; i < len; i++) {
             sbuf.append(a[i]);
             if (i != len - 1)
                 sbuf.append(", ");
         }
-        sbuf.append(']');
+        sbuf.append(Delim.BRACKETS.end);
     }
 
-    private static void charArrayAppend(StringBuilder sbuf, char[] a) {
-        sbuf.append('[');
+    static void charArrayAppend(StringBuilder sbuf, char[] a) {
+        sbuf.append(Delim.BRACKETS.start);
         final int len = a.length;
         for (int i = 0; i < len; i++) {
             sbuf.append(a[i]);
             if (i != len - 1)
                 sbuf.append(", ");
         }
-        sbuf.append(']');
+        sbuf.append(Delim.BRACKETS.end);
     }
 
-    private static void shortArrayAppend(StringBuilder sbuf, short[] a) {
-        sbuf.append('[');
+    static void shortArrayAppend(StringBuilder sbuf, short[] a) {
+        sbuf.append(Delim.BRACKETS.start);
         final int len = a.length;
         for (int i = 0; i < len; i++) {
             sbuf.append(a[i]);
             if (i != len - 1)
                 sbuf.append(", ");
         }
-        sbuf.append(']');
+        sbuf.append(Delim.BRACKETS.end);
     }
 
-    private static void intArrayAppend(StringBuilder sbuf, int[] a) {
-        sbuf.append('[');
+    static void intArrayAppend(StringBuilder sbuf, int[] a) {
+        sbuf.append(Delim.BRACKETS.start);
         final int len = a.length;
         for (int i = 0; i < len; i++) {
             sbuf.append(a[i]);
             if (i != len - 1)
                 sbuf.append(", ");
         }
-        sbuf.append(']');
+        sbuf.append(Delim.BRACKETS.end);
     }
 
-    private static void longArrayAppend(StringBuilder sbuf, long[] a) {
-        sbuf.append('[');
+    static void longArrayAppend(StringBuilder sbuf, long[] a) {
+        sbuf.append(Delim.BRACKETS.start);
         final int len = a.length;
         for (int i = 0; i < len; i++) {
             sbuf.append(a[i]);
             if (i != len - 1)
                 sbuf.append(", ");
         }
-        sbuf.append(']');
+        sbuf.append(Delim.BRACKETS.end);
     }
 
-    private static void floatArrayAppend(StringBuilder sbuf, float[] a) {
-        sbuf.append('[');
+    static void floatArrayAppend(StringBuilder sbuf, float[] a) {
+        sbuf.append(Delim.BRACKETS.start);
         final int len = a.length;
         for (int i = 0; i < len; i++) {
             sbuf.append(a[i]);
             if (i != len - 1)
                 sbuf.append(", ");
         }
-        sbuf.append(']');
+        sbuf.append(Delim.BRACKETS.end);
     }
 
-    private static void doubleArrayAppend(StringBuilder sbuf, double[] a) {
-        sbuf.append('[');
+    static void doubleArrayAppend(StringBuilder sbuf, double[] a) {
+        sbuf.append(Delim.BRACKETS.start);
         final int len = a.length;
         for (int i = 0; i < len; i++) {
             sbuf.append(a[i]);
             if (i != len - 1)
                 sbuf.append(", ");
         }
-        sbuf.append(']');
+        sbuf.append(Delim.BRACKETS.end);
     }
 }

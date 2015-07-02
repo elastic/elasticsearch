@@ -20,19 +20,16 @@
 package org.elasticsearch.rest;
 
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  *
  */
-public abstract class RestResponse implements HasRestHeaders {
+public abstract class RestResponse {
 
     protected Map<String, List<String>> customHeaders;
 
@@ -53,17 +50,18 @@ public abstract class RestResponse implements HasRestHeaders {
      */
     public abstract RestStatus status();
 
-    public void addHeaders(Map<String, List<String>> headers) {
+    public void copyHeaders(ElasticsearchException ex) {
+        Set<String> headerKeySet = ex.getHeaderKeys();
         if (customHeaders == null) {
-            customHeaders = new HashMap<>(headers.size());
+            customHeaders = new HashMap<>(headerKeySet.size());
         }
-        for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
-            List<String> values = customHeaders.get(entry.getKey());
+        for (String key : headerKeySet) {
+            List<String> values = customHeaders.get(key);
             if (values == null) {
                 values = Lists.newArrayList();
-                customHeaders.put(entry.getKey(), values);
+                customHeaders.put(key, values);
             }
-            values.addAll(entry.getValue());
+            values.addAll(ex.getHeader(key));
         }
     }
 
@@ -85,7 +83,6 @@ public abstract class RestResponse implements HasRestHeaders {
     /**
      * Returns custom headers that have been added, or null if none have been set.
      */
-    @Override
     @Nullable
     public Map<String, List<String>> getHeaders() {
         return customHeaders;

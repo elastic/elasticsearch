@@ -19,18 +19,13 @@
 
 package org.elasticsearch;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.HasRestHeaders;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -45,6 +40,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
 
     public static final String REST_EXCEPTION_SKIP_CAUSE = "rest.exception.skip_cause";
     private static final Map<String, Constructor<? extends ElasticsearchException>> MAPPING;
+    private final Map<String, List<String>> headers = new HashMap<>();
 
     /**
      * Construct a <code>ElasticsearchException</code> with the specified detail message.
@@ -77,6 +73,48 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public ElasticsearchException(StreamInput in) throws IOException {
         super(in.readOptionalString(), in.readThrowable());
         readStackTrace(this, in);
+        int numKeys = in.readVInt();
+        for (int i = 0; i < numKeys; i++) {
+            final String key = in.readString();
+            final int numValues = in.readVInt();
+            final ArrayList<String> values = new ArrayList<>(numValues);
+            for (int j = 0; j < numValues; j++) {
+                values.add(in.readString());
+            }
+            headers.put(key, values);
+        }
+    }
+
+    /**
+     * Adds a new header with the given key.
+     * This method will replace existing header if a header with the same key already exists
+     */
+    public void addHeader(String key, String... value) {
+        this.headers.put(key, Arrays.asList(value));
+    }
+
+    /**
+     * Adds a new header with the given key.
+     * This method will replace existing header if a header with the same key already exists
+     */
+    public void addHeader(String key, List<String> value) {
+        this.headers.put(key, value);
+    }
+
+
+    /**
+     * Returns a set of all header keys on this exception
+     */
+    public Set<String> getHeaderKeys() {
+        return headers.keySet();
+    }
+
+    /**
+     * Returns the list of header values for the given key or {@code null} if not header for the
+     * given key exists.
+     */
+    public List<String> getHeader(String key) {
+        return headers.get(key);
     }
 
     /**
@@ -173,6 +211,14 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         out.writeOptionalString(this.getMessage());
         out.writeThrowable(this.getCause());
         writeStackTraces(this, out);
+        out.writeVInt(headers.size());
+        for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
+            out.writeString(entry.getKey());
+            out.writeVInt(entry.getValue().size());
+            for (String v : entry.getValue()) {
+                out.writeString(v);
+            }
+        }
     }
 
     public static ElasticsearchException readException(StreamInput input, String name) throws IOException {
@@ -196,79 +242,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
 
     static Set<String> getRegisteredKeys() { // for testing
         return MAPPING.keySet();
-    }
-
-    /**
-     * A base class for exceptions that should carry rest headers
-     */
-    @SuppressWarnings("unchecked")
-    public static class WithRestHeadersException extends ElasticsearchException implements HasRestHeaders {
-
-        private final Map<String, List<String>> headers;
-
-        public WithRestHeadersException(String msg, Tuple<String, String[]>... headers) {
-            super(msg);
-            this.headers = headers(headers);
-        }
-
-        protected WithRestHeadersException(String msg, Throwable cause, Map<String, List<String>> headers) {
-            super(msg, cause);
-            this.headers = headers;
-        }
-
-        public WithRestHeadersException(StreamInput in) throws IOException {
-            super(in);
-            int numKeys = in.readVInt();
-            ImmutableMap.Builder<String, List<String>> builder = ImmutableMap.builder();
-            for (int i = 0; i < numKeys; i++) {
-                final String key = in.readString();
-                final int numValues = in.readVInt();
-                final ArrayList<String> headers = new ArrayList<>(numValues);
-                for (int j = 0; j < numValues; j++) {
-                    headers.add(in.readString());
-                }
-                builder.put(key, headers);
-            }
-            headers = builder.build();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeVInt(headers.size());
-            for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
-                out.writeString(entry.getKey());
-                out.writeVInt(entry.getValue().size());
-                for (String v : entry.getValue()) {
-                    out.writeString(v);
-                }
-            }
-        }
-
-        @Override
-        public Map<String, List<String>> getHeaders() {
-            return headers;
-        }
-
-        protected static Tuple<String, String[]> header(String name, String... values) {
-            return Tuple.tuple(name, values);
-        }
-
-        private static Map<String, List<String>> headers(Tuple<String, String[]>... headers) {
-            Map<String, List<String>> map = Maps.newHashMap();
-            for (Tuple<String, String[]> header : headers) {
-                List<String> list = map.get(header.v1());
-                if (list == null) {
-                    list = Lists.newArrayList(header.v2());
-                    map.put(header.v1(), list);
-                } else {
-                    for (String value : header.v2()) {
-                        list.add(value);
-                    }
-                }
-            }
-            return ImmutableMap.copyOf(map);
-        }
     }
 
     @Override
@@ -559,7 +532,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.action.PrimaryMissingActionException.class,
                 org.elasticsearch.index.engine.CreateFailedEngineException.class,
                 org.elasticsearch.index.shard.IllegalIndexShardStateException.class,
-                WithRestHeadersException.class,
+                ElasticsearchSecurityException.class,
                 NotSerializableExceptionWrapper.class
         };
         Map<String, Constructor<? extends ElasticsearchException>> mapping = new HashMap<>(exceptions.length);

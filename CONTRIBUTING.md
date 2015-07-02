@@ -6,7 +6,7 @@ Elasticsearch is an open source project and we love to receive contributions fro
 Bug reports
 -----------
 
-If you think you have found a bug in Elasticsearch, first make sure that you are testing against the [latest version of Elasticsearch](http://www.elasticsearch.org/download/) - your issue may already have been fixed. If not, search our [issues list](https://github.com/elasticsearch/elasticsearch/issues) on GitHub in case a similar issue has already been opened.
+If you think you have found a bug in Elasticsearch, first make sure that you are testing against the [latest version of Elasticsearch](https://www.elastic.co/downloads/elasticsearch) - your issue may already have been fixed. If not, search our [issues list](https://github.com/elasticsearch/elasticsearch/issues) on GitHub in case a similar issue has already been opened.
 
 It is very helpful if you can prepare a reproduction of the bug. In other words, provide a small test case which we can run to confirm your bug. It makes it easier to find the problem and to fix it. Test cases should be provided as `curl` commands which we can copy and paste into a terminal to run it locally, for example:
 

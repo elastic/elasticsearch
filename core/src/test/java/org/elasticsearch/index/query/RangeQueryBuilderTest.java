@@ -100,7 +100,7 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
                 dateTimeZone = DateTimeZone.forID(queryBuilder.timeZone());
             }
             MappedFieldType mapper = context.fieldMapper(queryBuilder.fieldName());
-            expectedQuery = ((DateFieldMapper.DateFieldType) mapper).rangeQuery(queryBuilder.from(), queryBuilder.to(),
+            expectedQuery = ((DateFieldMapper.DateFieldType) mapper).rangeQuery(BytesRefs.toBytesRef(queryBuilder.from()), BytesRefs.toBytesRef(queryBuilder.to()),
                     queryBuilder.includeLower(), queryBuilder.includeUpper(), dateTimeZone, forcedDateParser, context);
         } else if (queryBuilder.fieldName().equals(INT_FIELD_NAME)) {
             expectedQuery = NumericRangeQuery.newIntRange(INT_FIELD_NAME, (Integer) queryBuilder.from(), (Integer) queryBuilder.to(),

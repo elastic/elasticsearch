@@ -19,12 +19,57 @@
 
 package org.elasticsearch.monitor.process;
 
-/**
- *
- */
-public interface ProcessProbe {
+import org.elasticsearch.monitor.probe.Probe;
 
-    ProcessInfo processInfo();
+public interface ProcessProbe extends Probe {
 
-    ProcessStats processStats();
+    /**
+     * Returns the process identifier (PID)
+     */
+    Long pid();
+
+    /**
+     * Returns the maximum number of file descriptors
+     */
+    Long maxFileDescriptor();
+
+    /**
+     * Returns the number of open file descriptors
+     */
+    Long openFileDescriptor();
+
+    /**
+     * Returns the process CPU usage in percent
+     */
+    Short processCpuLoad();
+
+    /**
+     * Returns the CPU time (in milliseconds) used by the process
+     */
+    Long processCpuTime();
+
+    /**
+     * Returns the CPU time (in milliseconds) taken by all applications threads has executed in system/kernel mode
+     */
+    Long processSystemTime();
+
+    /**
+     * Returns the CPU time (in milliseconds) that all applications threads has executed in user mode
+     */
+    Long processUserTime();
+
+    /**
+     * Returns the amount (in bytes) of virtual memory that is guaranteed to be available to the running process in bytes
+     */
+    Long totalVirtualMemorySize();
+
+    /**
+     * Returns the amount (in bytes) of the resident memory for the process
+     */
+    Long residentMemorySize();
+
+    /**
+     * Returns the amount (in bytes) of shared memory for the process
+     */
+    Long sharedMemorySize();
 }

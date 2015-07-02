@@ -24,6 +24,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.SingleObjectCache;
+import org.elasticsearch.monitor.probe.ProbeUtils;
 
 /**
  *
@@ -32,18 +33,23 @@ public final class ProcessService extends AbstractComponent {
 
     private final ProcessProbe probe;
     private final ProcessInfo info;
-    private final SingleObjectCache<ProcessStats> processStatsCache;
+    private final ProcessStatsCache processStatsCache;
 
     @Inject
-    public ProcessService(Settings settings, ProcessProbe probe) {
+    public ProcessService(Settings settings, ProcessProbeRegistry registry) {
         super(settings);
-        this.probe = probe;
+        this.probe = registry.probe();
 
         final TimeValue refreshInterval = settings.getAsTime("monitor.process.refresh_interval", TimeValue.timeValueSeconds(1));
-        processStatsCache = new ProcessStatsCache(refreshInterval, probe.processStats());
-        this.info = probe.processInfo();
+        this.info = new ProcessInfo(probe.pid(), probe.maxFileDescriptor());
         this.info.refreshInterval = refreshInterval.millis();
-        logger.debug("Using probe [{}] with refresh_interval [{}]", probe, refreshInterval);
+
+        processStatsCache = new ProcessStatsCache(refreshInterval, new ProcessStats());
+        processStatsCache.refresh();
+        logger.debug("Using probe {} with refresh_interval [{}]", registry.types(), refreshInterval);
+        if (logger.isTraceEnabled()) {
+            ProbeUtils.logProbesResults(logger, registry);
+        }
     }
 
     public ProcessInfo info() {
@@ -61,7 +67,24 @@ public final class ProcessService extends AbstractComponent {
 
         @Override
         protected ProcessStats refresh() {
-            return probe.processStats();
+            ProcessStats processStats = new ProcessStats();
+            processStats.timestamp = System.currentTimeMillis();
+            processStats.openFileDescriptors = probe.openFileDescriptor();
+
+            ProcessStats.Cpu cpu = new ProcessStats.Cpu();
+            cpu.percent = probe.processCpuLoad();
+            cpu.total = probe.processCpuTime();
+            cpu.sys = probe.processSystemTime();
+            cpu.user = probe.processUserTime();
+            processStats.cpu = cpu;
+
+            ProcessStats.Mem mem = new ProcessStats.Mem();
+            mem.totalVirtual = probe.totalVirtualMemorySize();
+            mem.resident = probe.residentMemorySize();
+            mem.share = probe.sharedMemorySize();
+            processStats.mem = mem;
+
+            return processStats;
         }
     }
 }

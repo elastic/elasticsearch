@@ -19,7 +19,10 @@
 
 package org.elasticsearch.monitor;
 
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.monitor.fs.FsService;
@@ -32,14 +35,13 @@ import org.elasticsearch.monitor.network.NetworkService;
 import org.elasticsearch.monitor.os.JmxOsProbe;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.os.OsService;
-import org.elasticsearch.monitor.process.JmxProcessProbe;
-import org.elasticsearch.monitor.process.ProcessProbe;
-import org.elasticsearch.monitor.process.ProcessService;
+import org.elasticsearch.monitor.process.ProcessModule;
 
 /**
  *
  */
-public class MonitorModule extends AbstractModule {
+public class MonitorModule extends AbstractModule implements SpawnModules {
+
 
     public static final class MonitorSettings {
         public static final String MEMORY_MANAGER_TYPE = "monitor.memory.type";
@@ -55,18 +57,21 @@ public class MonitorModule extends AbstractModule {
     protected void configure() {
 
         // bind non sigar implementations
-        bind(ProcessProbe.class).to(JmxProcessProbe.class).asEagerSingleton();
         bind(OsProbe.class).to(JmxOsProbe.class).asEagerSingleton();
         bind(NetworkProbe.class).to(JmxNetworkProbe.class).asEagerSingleton();
         bind(FsProbe.class).to(JmxFsProbe.class).asEagerSingleton();
 
         // bind other services
-        bind(ProcessService.class).asEagerSingleton();
         bind(OsService.class).asEagerSingleton();
         bind(NetworkService.class).asEagerSingleton();
         bind(JvmService.class).asEagerSingleton();
         bind(FsService.class).asEagerSingleton();
 
         bind(JvmMonitorService.class).asEagerSingleton();
+    }
+
+    @Override
+    public Iterable<? extends Module> spawnModules() {
+        return ImmutableList.of(new ProcessModule());
     }
 }

@@ -35,9 +35,9 @@ import java.io.IOException;
  */
 public class ProcessStats implements Streamable, ToXContent {
 
-    long timestamp = -1;
+    Long timestamp;
 
-    long openFileDescriptors;
+    Long openFileDescriptors;
 
     Cpu cpu = null;
 
@@ -46,19 +46,19 @@ public class ProcessStats implements Streamable, ToXContent {
     ProcessStats() {
     }
 
-    public long timestamp() {
+    public Long timestamp() {
         return this.timestamp;
     }
 
-    public long getTimestamp() {
+    public Long getTimestamp() {
         return timestamp();
     }
 
-    public long openFileDescriptors() {
+    public Long openFileDescriptors() {
         return this.openFileDescriptors;
     }
 
-    public long getOpenFileDescriptors() {
+    public Long getOpenFileDescriptors() {
         return openFileDescriptors;
     }
 
@@ -104,21 +104,39 @@ public class ProcessStats implements Streamable, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.PROCESS);
-        builder.field(Fields.TIMESTAMP, timestamp);
-        builder.field(Fields.OPEN_FILE_DESCRIPTORS, openFileDescriptors);
+        if (timestamp != null) {
+            builder.field(Fields.TIMESTAMP, timestamp);
+        }
+        if (openFileDescriptors != null) {
+            builder.field(Fields.OPEN_FILE_DESCRIPTORS, openFileDescriptors);
+        }
         if (cpu != null) {
             builder.startObject(Fields.CPU);
-            builder.field(Fields.PERCENT, cpu.percent());
-            builder.timeValueField(Fields.SYS_IN_MILLIS, Fields.SYS, cpu.sys);
-            builder.timeValueField(Fields.USER_IN_MILLIS, Fields.USER, cpu.user);
-            builder.timeValueField(Fields.TOTAL_IN_MILLIS, Fields.TOTAL, cpu.total);
+            if (cpu.percent != null) {
+                builder.field(Fields.PERCENT, cpu.percent);
+            }
+            if (cpu.sys != null) {
+                builder.timeValueField(Fields.SYS_IN_MILLIS, Fields.SYS, cpu.sys);
+            }
+            if (cpu.user != null) {
+                builder.timeValueField(Fields.USER_IN_MILLIS, Fields.USER, cpu.user);
+            }
+            if (cpu.total != null) {
+                builder.timeValueField(Fields.TOTAL_IN_MILLIS, Fields.TOTAL, cpu.total);
+            }
             builder.endObject();
         }
         if (mem != null) {
             builder.startObject(Fields.MEM);
-            builder.byteSizeField(Fields.RESIDENT_IN_BYTES, Fields.RESIDENT, mem.resident);
-            builder.byteSizeField(Fields.SHARE_IN_BYTES, Fields.SHARE, mem.share);
-            builder.byteSizeField(Fields.TOTAL_VIRTUAL_IN_BYTES, Fields.TOTAL_VIRTUAL, mem.totalVirtual);
+            if (mem.resident != null) {
+                builder.byteSizeField(Fields.RESIDENT_IN_BYTES, Fields.RESIDENT, mem.resident);
+            }
+            if (mem.share != null) {
+                builder.byteSizeField(Fields.SHARE_IN_BYTES, Fields.SHARE, mem.share);
+            }
+            if (mem.totalVirtual != null) {
+                builder.byteSizeField(Fields.TOTAL_VIRTUAL_IN_BYTES, Fields.TOTAL_VIRTUAL, mem.totalVirtual);
+            }
             builder.endObject();
         }
         builder.endObject();
@@ -133,8 +151,8 @@ public class ProcessStats implements Streamable, ToXContent {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        timestamp = in.readVLong();
-        openFileDescriptors = in.readLong();
+        timestamp = in.readOptionalVLong();
+        openFileDescriptors = in.readOptionalLong();
         if (in.readBoolean()) {
             cpu = Cpu.readCpu(in);
         }
@@ -145,8 +163,8 @@ public class ProcessStats implements Streamable, ToXContent {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(timestamp);
-        out.writeLong(openFileDescriptors);
+        out.writeOptionalVLong(timestamp);
+        out.writeOptionalLong(openFileDescriptors);
         if (cpu == null) {
             out.writeBoolean(false);
         } else {
@@ -163,9 +181,9 @@ public class ProcessStats implements Streamable, ToXContent {
 
     public static class Mem implements Streamable {
 
-        long totalVirtual = -1;
-        long resident = -1;
-        long share = -1;
+        Long totalVirtual;
+        Long resident;
+        Long share;
 
         Mem() {
         }
@@ -185,9 +203,9 @@ public class ProcessStats implements Streamable, ToXContent {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeLong(totalVirtual);
-            out.writeLong(resident);
-            out.writeLong(share);
+            out.writeOptionalLong(totalVirtual);
+            out.writeOptionalLong(resident);
+            out.writeOptionalLong(share);
         }
 
         public ByteSizeValue totalVirtual() {
@@ -217,10 +235,10 @@ public class ProcessStats implements Streamable, ToXContent {
 
     public static class Cpu implements Streamable {
 
-        short percent = -1;
-        long sys = -1;
-        long user = -1;
-        long total = -1;
+        Short percent;
+        Long sys;
+        Long user;
+        Long total;
 
         Cpu() {
 
@@ -234,7 +252,7 @@ public class ProcessStats implements Streamable, ToXContent {
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            percent = in.readShort();
+            percent = in.readOptionalShort();
             sys = in.readLong();
             user = in.readLong();
             total = in.readLong();
@@ -242,10 +260,10 @@ public class ProcessStats implements Streamable, ToXContent {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeShort(percent);
-            out.writeLong(sys);
-            out.writeLong(user);
-            out.writeLong(total);
+            out.writeOptionalShort(percent);
+            out.writeOptionalLong(sys);
+            out.writeOptionalLong(user);
+            out.writeOptionalLong(total);
         }
 
         /**
@@ -253,7 +271,7 @@ public class ProcessStats implements Streamable, ToXContent {
          * <p/>
          * <p>Supported Platforms: All.
          */
-        public short percent() {
+        public Short percent() {
             return percent;
         }
 
@@ -262,7 +280,7 @@ public class ProcessStats implements Streamable, ToXContent {
          * <p/>
          * <p>Supported Platforms: All.
          */
-        public short getPercent() {
+        public Short getPercent() {
             return percent();
         }
 

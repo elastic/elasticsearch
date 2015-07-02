@@ -34,11 +34,11 @@ import java.io.IOException;
  */
 public class ProcessInfo implements Streamable, ToXContent {
 
-    long refreshInterval;
+    private Long refreshInterval;
 
-    private long id;
+    private Long id;
 
-    private long maxFileDescriptors = -1;
+    private Long maxFileDescriptors;
 
     private boolean mlockall;
 
@@ -46,39 +46,39 @@ public class ProcessInfo implements Streamable, ToXContent {
 
     }
 
-    public ProcessInfo(long id, long maxFileDescriptors) {
+    public ProcessInfo(Long refreshInterval, Long id, Long maxFileDescriptors, boolean mlockall) {
         this.id = id;
         this.maxFileDescriptors = maxFileDescriptors;
         this.mlockall = Bootstrap.isMemoryLocked();
     }
 
-    public long refreshInterval() {
+    public Long refreshInterval() {
         return this.refreshInterval;
     }
 
-    public long getRefreshInterval() {
+    public Long getRefreshInterval() {
         return this.refreshInterval;
     }
 
     /**
      * The process id.
      */
-    public long id() {
+    public Long id() {
         return this.id;
     }
 
     /**
      * The process id.
      */
-    public long getId() {
+    public Long getId() {
         return id();
     }
 
-    public long maxFileDescriptors() {
+    public Long maxFileDescriptors() {
         return this.maxFileDescriptors;
     }
 
-    public long getMaxFileDescriptors() {
+    public Long getMaxFileDescriptors() {
         return maxFileDescriptors;
     }
 
@@ -102,9 +102,15 @@ public class ProcessInfo implements Streamable, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.PROCESS);
-        builder.timeValueField(Fields.REFRESH_INTERVAL_IN_MILLIS, Fields.REFRESH_INTERVAL, refreshInterval);
-        builder.field(Fields.ID, id);
-        builder.field(Fields.MAX_FILE_DESCRIPTORS, maxFileDescriptors);
+        if (refreshInterval != null) {
+            builder.timeValueField(Fields.REFRESH_INTERVAL_IN_MILLIS, Fields.REFRESH_INTERVAL, refreshInterval);
+        }
+        if (id != null) {
+            builder.field(Fields.ID, id);
+        }
+        if (maxFileDescriptors != null) {
+            builder.field(Fields.MAX_FILE_DESCRIPTORS, maxFileDescriptors);
+        }
         builder.field(Fields.MLOCKALL, mlockall);
         builder.endObject();
         return builder;
@@ -118,17 +124,17 @@ public class ProcessInfo implements Streamable, ToXContent {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        refreshInterval = in.readLong();
-        id = in.readLong();
-        maxFileDescriptors = in.readLong();
+        refreshInterval = in.readOptionalLong();
+        id = in.readOptionalLong();
+        maxFileDescriptors = in.readOptionalLong();
         mlockall = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(refreshInterval);
-        out.writeLong(id);
-        out.writeLong(maxFileDescriptors);
+        out.writeOptionalLong(refreshInterval);
+        out.writeOptionalLong(id);
+        out.writeOptionalLong(maxFileDescriptors);
         out.writeBoolean(mlockall);
     }
 }

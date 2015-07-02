@@ -68,7 +68,7 @@ public abstract class StreamOutput extends OutputStream {
         throw new UnsupportedOperationException();
     }
 
-    /**
+    /**w
      * Writes a single byte.
      */
     public abstract void writeByte(byte b) throws IOException;
@@ -192,12 +192,39 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    public void writeOptionalShort(@Nullable Short s) throws IOException {
+        if (s == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeShort(s);
+        }
+    }
+
     public void writeOptionalVInt(@Nullable Integer integer) throws IOException {
         if (integer == null) {
             writeBoolean(false);
         } else {
             writeBoolean(true);
             writeVInt(integer);
+        }
+    }
+
+    public void writeOptionalVLong(@Nullable Long l) throws IOException {
+        if (l == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeVLong(l);
+        }
+    }
+
+    public void writeOptionalLong(@Nullable Long l) throws IOException {
+        if (l == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeLong(l);
         }
     }
 

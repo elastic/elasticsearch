@@ -19,6 +19,7 @@
 
 package org.elasticsearch.monitor.process;
 
+import org.elasticsearch.bootstrap.Bootstrap;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -41,8 +42,7 @@ public final class ProcessService extends AbstractComponent {
         this.probe = registry.probe();
 
         final TimeValue refreshInterval = settings.getAsTime("monitor.process.refresh_interval", TimeValue.timeValueSeconds(1));
-        this.info = new ProcessInfo(probe.pid(), probe.maxFileDescriptor());
-        this.info.refreshInterval = refreshInterval.millis();
+        this.info = new ProcessInfo(refreshInterval.millis(), probe.pid(), probe.maxFileDescriptor(), Bootstrap.isMemoryLocked());
 
         processStatsCache = new ProcessStatsCache(refreshInterval, new ProcessStats());
         processStatsCache.refresh();

@@ -87,9 +87,9 @@ setup:
   - do:
       indices.get_field_mapping:
         index: test_index
-        field: "i_*"
-  - match:  {test_index.mappings.test_type.i_t1.full_name: obj.i_t1 }
-  - match:  {test_index.mappings.test_type.i_t3.full_name: obj.i_t3 }
+        field: "obj.i_*"
+  - match:  {test_index.mappings.test_type.obj\.i_t1.full_name: obj.i_t1 }
+  - match:  {test_index.mappings.test_type.obj\.i_t3.full_name: obj.i_t3 }
   - length: {test_index.mappings.test_type: 2}
 
 ---
@@ -99,12 +99,12 @@ setup:
       indices.get_field_mapping:
         index: _all
         type: _all
-        field: "i_*"
-  - match:  {test_index.mappings.test_type.i_t1.full_name: obj.i_t1 }
-  - match:  {test_index.mappings.test_type.i_t3.full_name: obj.i_t3 }
+        field: "t*"
+  - match:  {test_index.mappings.test_type.t1.full_name: t1 }
+  - match:  {test_index.mappings.test_type.t2.full_name: t2 }
   - length: {test_index.mappings.test_type: 2}
-  - match:  {test_index_2.mappings.test_type_2.i_t1.full_name: obj.i_t1 }
-  - match:  {test_index_2.mappings.test_type_2.i_t3.full_name: obj.i_t3 }
+  - match:  {test_index_2.mappings.test_type_2.t1.full_name: t1 }
+  - match:  {test_index_2.mappings.test_type_2.t2.full_name: t2 }
   - length: {test_index_2.mappings.test_type_2: 2}
 
 ---
@@ -114,12 +114,12 @@ setup:
       indices.get_field_mapping:
         index: '*'
         type: '*'
-        field: "i_*"
-  - match:  {test_index.mappings.test_type.i_t1.full_name: obj.i_t1 }
-  - match:  {test_index.mappings.test_type.i_t3.full_name: obj.i_t3 }
+        field: "t*"
+  - match:  {test_index.mappings.test_type.t1.full_name: t1 }
+  - match:  {test_index.mappings.test_type.t2.full_name: t2 }
   - length: {test_index.mappings.test_type: 2}
-  - match:  {test_index_2.mappings.test_type_2.i_t1.full_name: obj.i_t1 }
-  - match:  {test_index_2.mappings.test_type_2.i_t3.full_name: obj.i_t3 }
+  - match:  {test_index_2.mappings.test_type_2.t1.full_name: t1 }
+  - match:  {test_index_2.mappings.test_type_2.t2.full_name: t2 }
   - length: {test_index_2.mappings.test_type_2: 2}
 
 ---
@@ -129,11 +129,11 @@ setup:
       indices.get_field_mapping:
         index: 'test_index,test_index_2'
         type: 'test_type,test_type_2'
-        field: "i_*"
-  - match:  {test_index.mappings.test_type.i_t1.full_name: obj.i_t1 }
-  - match:  {test_index.mappings.test_type.i_t3.full_name: obj.i_t3 }
+        field: "t*"
+  - match:  {test_index.mappings.test_type.t1.full_name: t1 }
+  - match:  {test_index.mappings.test_type.t2.full_name: t2 }
   - length: {test_index.mappings.test_type: 2}
-  - match:  {test_index_2.mappings.test_type_2.i_t1.full_name: obj.i_t1 }
-  - match:  {test_index_2.mappings.test_type_2.i_t3.full_name: obj.i_t3 }
+  - match:  {test_index_2.mappings.test_type_2.t1.full_name: t1 }
+  - match:  {test_index_2.mappings.test_type_2.t2.full_name: t2 }
   - length: {test_index_2.mappings.test_type_2: 2}
 

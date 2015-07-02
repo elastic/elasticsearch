@@ -108,7 +108,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
         @Override
         public IdFieldMapper build(BuilderContext context) {
-            fieldType.setNames(new MappedFieldType.Names(name, indexName, indexName, name));
+            fieldType.setNames(new MappedFieldType.Names(indexName, indexName, name));
             return new IdFieldMapper(fieldType, docValues, path, fieldDataSettings, context.indexSettings());
         }
     }
@@ -235,7 +235,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
     protected IdFieldMapper(MappedFieldType fieldType, Boolean docValues, String path,
                             @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(fieldType, docValues, fieldDataSettings, indexSettings);
+        super(NAME, fieldType, docValues, fieldDataSettings, indexSettings);
         this.path = path;
     }
     

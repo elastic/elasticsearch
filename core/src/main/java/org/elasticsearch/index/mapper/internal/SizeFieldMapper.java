@@ -52,7 +52,6 @@ public class SizeFieldMapper extends MetadataFieldMapper {
     public static final String CONTENT_TYPE = "_size";
 
     public static class Defaults extends IntegerFieldMapper.Defaults {
-        public static final String NAME = CONTENT_TYPE;
         public static final EnabledAttributeMapper ENABLED_STATE = EnabledAttributeMapper.UNSET_DISABLED;
 
         public static final MappedFieldType SIZE_FIELD_TYPE = IntegerFieldMapper.Defaults.FIELD_TYPE.clone();
@@ -72,7 +71,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         protected EnabledAttributeMapper enabledState = EnabledAttributeMapper.UNSET_DISABLED;
 
         public Builder(MappedFieldType existing) {
-            super(Defaults.NAME, existing == null ? Defaults.SIZE_FIELD_TYPE : existing);
+            super(NAME, existing == null ? Defaults.SIZE_FIELD_TYPE : existing);
             builder = this;
         }
 
@@ -115,14 +114,14 @@ public class SizeFieldMapper extends MetadataFieldMapper {
     }
 
     public SizeFieldMapper(EnabledAttributeMapper enabled, MappedFieldType fieldType, Settings indexSettings) {
-        super(fieldType, false, null, indexSettings);
+        super(NAME, fieldType, false, null, indexSettings);
         this.enabledState = enabled;
 
     }
 
     @Override
     protected String contentType() {
-        return Defaults.NAME;
+        return NAME;
     }
 
     public boolean enabled() {

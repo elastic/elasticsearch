@@ -119,7 +119,7 @@ public class IpFieldMapper extends NumberFieldMapper {
         @Override
         public IpFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            IpFieldMapper fieldMapper = new IpFieldMapper(fieldType, docValues, ignoreMalformed(context), coerce(context),
+            IpFieldMapper fieldMapper = new IpFieldMapper(name, fieldType, docValues, ignoreMalformed(context), coerce(context),
                     fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -235,11 +235,11 @@ public class IpFieldMapper extends NumberFieldMapper {
         }
     }
 
-    protected IpFieldMapper(MappedFieldType fieldType, Boolean docValues,
+    protected IpFieldMapper(String simpleName, MappedFieldType fieldType, Boolean docValues,
                             Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                             @Nullable Settings fieldDataSettings,
                             Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(fieldType, docValues, ignoreMalformed, coerce,
+        super(simpleName, fieldType, docValues, ignoreMalformed, coerce,
               fieldDataSettings, indexSettings, multiFields, copyTo);
     }
 

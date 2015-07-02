@@ -230,7 +230,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
     private final String type;
 
     protected ParentFieldMapper(MappedFieldType fieldType, String type, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(fieldType, Version.indexCreated(indexSettings).onOrAfter(Version.V_2_0_0), fieldDataSettings, indexSettings);
+        super(NAME, fieldType, Version.indexCreated(indexSettings).onOrAfter(Version.V_2_0_0), fieldDataSettings, indexSettings);
         this.type = type;
     }
 

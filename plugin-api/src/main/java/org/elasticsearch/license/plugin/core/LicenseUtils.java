@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.license.plugin.core;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.rest.RestStatus;
 
 public class LicenseUtils {
 
@@ -19,9 +19,9 @@ public class LicenseUtils {
      * <code>feature</code> accessible through {@link #EXPIRED_FEATURE_HEADER} in the
      * exception's rest header
      */
-    public static ElasticsearchException newExpirationException(String feature) {
-        // TODO: after https://github.com/elastic/elasticsearch/pull/12006 use ElasicsearchException with addHeader(EXPIRED_FEATURE_HEADER, feature)
-        return new ElasticsearchException.WithRestHeadersException("license expired for feature [" + feature + "]",
-                Tuple.tuple(EXPIRED_FEATURE_HEADER, new String[] {feature}));
+    public static ElasticsearchSecurityException newExpirationException(String feature) {
+        ElasticsearchSecurityException e = new ElasticsearchSecurityException("license expired for feature [{}]", RestStatus.UNAUTHORIZED, feature);
+        e.addHeader(EXPIRED_FEATURE_HEADER, feature);
+        return e;
     }
 }

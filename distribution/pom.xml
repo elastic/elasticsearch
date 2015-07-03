@@ -145,7 +145,21 @@
     <modules>
         <module>tar</module>
         <module>deb</module>
-        <module>rpm</module>
     </modules>
+
+    <profiles>
+        <profile>
+            <id>rpm</id>
+            <activation>
+                <file>
+                    <!-- Folks having /usr/bin/rpmbuild available will be able to build the rpm module -->
+                    <exists>/usr/bin/rpmbuild</exists>
+                </file>
+            </activation>
+            <modules>
+                <module>rpm</module>
+            </modules>
+        </profile>
+    </profiles>
 
 </project>

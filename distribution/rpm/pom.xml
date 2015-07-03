@@ -19,7 +19,7 @@
     <build>
 
         <filters>
-            <filter>${project.basedir}/src/packaging/packaging.properties</filter>
+            <filter>${project.basedir}/src/main/packaging/packaging.properties</filter>
         </filters>
 
         <plugins>
@@ -37,12 +37,12 @@
                         <configuration>
                             <outputDirectory>${project.build.directory}/generated-packaging/rpm/</outputDirectory>
                             <filters>
-                                <filter>${project.basedir}/../src/packaging/packaging.properties</filter>
-                                <filter>${project.basedir}/src/packaging/packaging.properties</filter>
+                                <filter>${project.basedir}/../src/main/packaging/packaging.properties</filter>
+                                <filter>${project.basedir}/src/main/packaging/packaging.properties</filter>
                             </filters>
                             <resources>
                                 <resource>
-                                    <directory>${project.basedir}/../src/packaging/</directory>
+                                    <directory>${project.basedir}/../src/main/packaging/</directory>
                                     <filtering>true</filtering>
                                     <includes>
                                         <include>**/*</include>
@@ -52,7 +52,7 @@
                                     </excludes>
                                 </resource>
                                 <resource>
-                                    <directory>${project.basedir}/src/packaging/</directory>
+                                    <directory>${project.basedir}/src/main/packaging/</directory>
                                     <filtering>true</filtering>
                                     <includes>
                                         <include>**/*</include>
@@ -79,8 +79,8 @@
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>rpm-maven-plugin</artifactId>
-                <extensions>true</extensions>
                 <configuration>
+                    <disabled>false</disabled>
                     <name>elasticsearch-${project.version}.rpm</name>
                     <distribution>Elasticsearch</distribution>
                     <group>Application/Internet</group>
@@ -276,36 +276,4 @@
             </plugin>
         </plugins>
     </build>
-
-    <profiles>
-        <profile>
-            <id>rpm</id>
-            <activation>
-                <file>
-                    <!--
-                        Folks having /usr/bin/rpmbuild available will be able to build automatically rpm artifact
-                        without needing to run explicitly cd distribution/rpm; mvn rpm:rpm
-                    -->
-                    <exists>/usr/bin/rpmbuild</exists>
-                </file>
-            </activation>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.codehaus.mojo</groupId>
-                        <artifactId>rpm-maven-plugin</artifactId>
-                        <executions>
-                            <execution>
-                                <id>build-artifacts</id>
-                                <phase>package</phase>
-                                <goals>
-                                    <goal>rpm</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-    </profiles>
 </project>

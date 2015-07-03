@@ -15,7 +15,7 @@
     <build>
 
         <filters>
-            <filter>${project.basedir}/../src/packaging/packaging.properties</filter>
+            <filter>${project.basedir}/../src/main/packaging/packaging.properties</filter>
         </filters>
 
         <plugins>

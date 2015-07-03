@@ -20,16 +20,8 @@
 
     <build>
 
-        <extensions>
-            <!-- Add support for the "deb" packaging -->
-            <extension>
-                <groupId>org.vafer</groupId>
-                <artifactId>jdeb</artifactId>
-            </extension>
-        </extensions>
-
         <filters>
-            <filter>${project.basedir}/src/packaging/packaging.properties</filter>
+            <filter>${project.basedir}/src/main/packaging/packaging.properties</filter>
         </filters>
 
         <plugins>
@@ -47,12 +39,12 @@
                         <configuration>
                             <outputDirectory>${project.build.directory}/generated-packaging/deb/</outputDirectory>
                             <filters>
-                                <filter>${project.basedir}/../src/packaging/packaging.properties</filter>
-                                <filter>${project.basedir}/src/packaging/packaging.properties</filter>
+                                <filter>${project.basedir}/../src/main/packaging/packaging.properties</filter>
+                                <filter>${project.basedir}/src/main/packaging/packaging.properties</filter>
                             </filters>
                             <resources>
                                 <resource>
-                                    <directory>${project.basedir}/../src/packaging/</directory>
+                                    <directory>${project.basedir}/../src/main/packaging/</directory>
                                     <filtering>true</filtering>
                                     <includes>
                                         <include>**/*</include>
@@ -62,7 +54,7 @@
                                     </excludes>
                                 </resource>
                                 <resource>
-                                    <directory>${project.basedir}/src/packaging/</directory>
+                                    <directory>${project.basedir}/src/main/packaging/</directory>
                                     <filtering>true</filtering>
                                     <includes>
                                         <include>**/*</include>
@@ -92,7 +84,8 @@
                 <groupId>org.vafer</groupId>
                 <version>1.4</version>
                 <configuration>
-                    <deb>${project.build.directory}/releases/elasticsearch-${project.version}.deb</deb>
+                    <!-- By default it should generates target/${artifactId}_${version}.deb but we get elasticsearch_2.0.0~SNAPSHOT_all.deb -->
+                    <deb>${project.build.directory}/releases/${project.artifactId}-${project.version}.deb</deb>
                     <controlDir>${project.build.directory}/generated-packaging/deb/scripts</controlDir>
                 </configuration>
                 <executions>

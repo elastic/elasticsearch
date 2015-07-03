@@ -18,11 +18,12 @@
  */
 package org.elasticsearch.indices.exists.types;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -61,11 +62,11 @@ public class TypesExistsTests extends ElasticsearchIntegrationTest {
         try {
             client.admin().indices().prepareTypesExists("notExist").setTypes("type1").execute().actionGet();
             fail("Exception should have been thrown");
-        } catch (IndexMissingException e) {}
+        } catch (IndexNotFoundException e) {}
         try {
             client.admin().indices().prepareTypesExists("notExist").setTypes("type0").execute().actionGet();
             fail("Exception should have been thrown");
-        } catch (IndexMissingException e) {}
+        } catch (IndexNotFoundException e) {}
         response = client.admin().indices().prepareTypesExists("alias1").setTypes("type1").execute().actionGet();
         assertThat(response.isExists(), equalTo(true));
         response = client.admin().indices().prepareTypesExists("*").setTypes("type1").execute().actionGet();

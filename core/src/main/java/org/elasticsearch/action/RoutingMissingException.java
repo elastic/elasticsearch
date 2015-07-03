@@ -32,8 +32,6 @@ import java.util.Objects;
  */
 public class RoutingMissingException extends ElasticsearchException {
 
-    private final String index;
-
     private final String type;
 
     private final String id;
@@ -43,20 +41,16 @@ public class RoutingMissingException extends ElasticsearchException {
         Objects.requireNonNull(index, "index must not be null");
         Objects.requireNonNull(type, "type must not be null");
         Objects.requireNonNull(id, "id must not be null");
-        this.index = index;
+        setIndex(index);
         this.type = type;
         this.id = id;
     }
 
-    public String index() {
-        return index;
-    }
-
-    public String type() {
+    public String getType() {
         return type;
     }
 
-    public String id() {
+    public String getId() {
         return id;
     }
 
@@ -67,7 +61,6 @@ public class RoutingMissingException extends ElasticsearchException {
 
     public RoutingMissingException(StreamInput in) throws IOException{
         super(in);
-        index = in.readString();
         type = in.readString();
         id = in.readString();
     }
@@ -75,7 +68,6 @@ public class RoutingMissingException extends ElasticsearchException {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(index);
         out.writeString(type);
         out.writeString(id);
     }

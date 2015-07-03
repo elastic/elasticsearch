@@ -50,10 +50,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndexClosedException;
-import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -363,12 +363,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         if (concreteIndex == null) {
             try {
                 concreteIndex = concreteIndices.resolveIfAbsent(request);
-            } catch (IndexClosedException ice) {
-                unavailableException = ice;
-            } catch (IndexMissingException ime) {
+            } catch (IndexClosedException | IndexNotFoundException ex) {
                 // Fix for issue where bulk request references an index that
                 // cannot be auto-created see issue #8125
-                unavailableException = ime;
+                unavailableException = ex;
             }
         }
         if (unavailableException == null) {

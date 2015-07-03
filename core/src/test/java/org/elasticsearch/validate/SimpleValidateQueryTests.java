@@ -27,9 +27,9 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
@@ -145,7 +145,7 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
         assertThat(response.isValid(), equalTo(true));
     }
 
-    @Test(expected = IndexMissingException.class)
+    @Test(expected = IndexNotFoundException.class)
     public void validateEmptyCluster() {
         client().admin().indices().prepareValidateQuery().get();
     }

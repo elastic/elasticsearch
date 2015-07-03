@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import org.apache.commons.lang3.StringUtils;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
@@ -33,8 +32,8 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
-import org.elasticsearch.indices.IndexMissingException;
 
 import java.util.*;
 
@@ -54,7 +53,7 @@ public class IndexNameExpressionResolver {
      * Same as {@link #concreteIndices(ClusterState, IndicesOptions, String...)}, but the index expressions and options
      * are encapsulated in the specified request.
      */
-    public String[] concreteIndices(ClusterState state, IndicesRequest request) throws IndexMissingException, IllegalArgumentException {
+    public String[] concreteIndices(ClusterState state, IndicesRequest request) {
         Context context = new Context(state, request.indicesOptions());
         return concreteIndices(context, request.indices());
     }
@@ -66,18 +65,18 @@ public class IndexNameExpressionResolver {
      * @param options           defines how the aliases or indices need to be resolved to concrete indices
      * @param indexExpressions  expressions that can be resolved to alias or index names.
      * @return the resolved concrete indices based on the cluster state, indices options and index expressions
-     * @throws IndexMissingException if one of the index expressions is pointing to a missing index or alias and the
+     * @throws IndexNotFoundException if one of the index expressions is pointing to a missing index or alias and the
      * provided indices options in the context don't allow such a case, or if the final result of the indices resolution
      * contains no indices and the indices options in the context don't allow such a case.
      * @throws IllegalArgumentException if one of the aliases resolve to multiple indices and the provided
      * indices options in the context don't allow such a case.
      */
-    public String[] concreteIndices(ClusterState state, IndicesOptions options, String... indexExpressions) throws IndexMissingException, IllegalArgumentException {
+    public String[] concreteIndices(ClusterState state, IndicesOptions options, String... indexExpressions) {
         Context context = new Context(state, options);
         return concreteIndices(context, indexExpressions);
     }
 
-    String[] concreteIndices(Context context, String... indexExpressions) throws IndexMissingException, IllegalArgumentException {
+    String[] concreteIndices(Context context, String... indexExpressions) {
         if (indexExpressions == null || indexExpressions.length == 0) {
             indexExpressions = new String[]{MetaData.ALL};
         }
@@ -99,7 +98,9 @@ public class IndexNameExpressionResolver {
 
         if (expressions.isEmpty()) {
             if (!options.allowNoIndices()) {
-                throw new IndexMissingException(new Index(Arrays.toString(indexExpressions)));
+                IndexNotFoundException infe = new IndexNotFoundException((String)null);
+                infe.setResources("index_expression", indexExpressions);
+                throw infe;
             } else {
                 return Strings.EMPTY_ARRAY;
             }
@@ -113,7 +114,10 @@ public class IndexNameExpressionResolver {
                 ImmutableOpenMap<String, AliasMetaData> indexAliasMap = metaData.aliases().get(expression);
                 if (indexAliasMap == null) {
                     if (failNoIndices) {
-                        throw new IndexMissingException(new Index(expression));
+                        IndexNotFoundException infe = new IndexNotFoundException(expression);
+                        infe.setResources("index_expression", expression);
+                        throw infe;
+
                     } else {
                         continue;
                     }
@@ -147,7 +151,9 @@ public class IndexNameExpressionResolver {
         }
 
         if (options.allowNoIndices() == false && concreteIndices.isEmpty()) {
-            throw new IndexMissingException(new Index(Arrays.toString(indexExpressions)));
+            IndexNotFoundException infe = new IndexNotFoundException((String)null);
+            infe.setResources("index_expression", indexExpressions);
+            throw infe;
         }
         return concreteIndices.toArray(new String[concreteIndices.size()]);
     }
@@ -160,11 +166,11 @@ public class IndexNameExpressionResolver {
      *
      * @param request   request containing the index or alias to be resolved to concrete index and
      *                  the indices options to be used for the index resolution
-     * @throws IndexMissingException    if the resolved index or alias provided doesn't exist
+     * @throws IndexNotFoundException    if the resolved index or alias provided doesn't exist
      * @throws IllegalArgumentException if the index resolution lead to more than one index
      * @return the concrete index obtained as a result of the index resolution
      */
-    public String concreteSingleIndex(ClusterState state, IndicesRequest request) throws IndexMissingException, IllegalArgumentException {
+    public String concreteSingleIndex(ClusterState state, IndicesRequest request) {
         String indexOrAlias = request.indices() != null && request.indices().length > 0 ? request.indices()[0] : null;
         String[] indices = concreteIndices(state, request.indicesOptions(), indexOrAlias);
         if (indices.length != 1) {
@@ -197,7 +203,7 @@ public class IndexNameExpressionResolver {
             IndexMetaData indexMetaData = state.metaData().getIndices().get(index);
             if (indexMetaData == null) {
                 // Shouldn't happen
-                throw new IndexMissingException(new Index(index));
+                throw new IndexNotFoundException(index);
             }
             AliasMetaData aliasMetaData = indexMetaData.aliases().get(alias);
             boolean filteringRequired = aliasMetaData != null && aliasMetaData.filteringRequired();
@@ -215,7 +221,7 @@ public class IndexNameExpressionResolver {
             IndexMetaData indexMetaData = state.metaData().getIndices().get(index);
             if (indexMetaData == null) {
                 // Shouldn't happen
-                throw new IndexMissingException(new Index(index));
+                throw new IndexNotFoundException(index);
             }
 
             AliasMetaData aliasMetaData = indexMetaData.aliases().get(alias);
@@ -538,7 +544,9 @@ public class IndexNameExpressionResolver {
                 }
                 if (!Regex.isSimpleMatchPattern(aliasOrIndex)) {
                     if (!options.ignoreUnavailable() && !metaData.getAliasAndIndexMap().containsKey(aliasOrIndex)) {
-                        throw new IndexMissingException(new Index(aliasOrIndex));
+                        IndexNotFoundException infe = new IndexNotFoundException(aliasOrIndex);
+                        infe.setResources("index_or_alias", aliasOrIndex);
+                        throw infe;
                     }
                     if (result != null) {
                         if (add) {
@@ -590,14 +598,18 @@ public class IndexNameExpressionResolver {
                     }
                 }
                 if (!found && !options.allowNoIndices()) {
-                    throw new IndexMissingException(new Index(aliasOrIndex));
+                    IndexNotFoundException infe = new IndexNotFoundException(aliasOrIndex);
+                    infe.setResources("index_or_alias", aliasOrIndex);
+                    throw infe;
                 }
             }
             if (result == null) {
                 return expressions;
             }
             if (result.isEmpty() && !options.allowNoIndices()) {
-                throw new IndexMissingException(new Index(StringUtils.join(expressions.iterator(), ',')));
+                IndexNotFoundException infe = new IndexNotFoundException((String)null);
+                infe.setResources("index_or_alias", expressions.toArray(new String[0]));
+                throw infe;
             }
             return new ArrayList<>(result);
         }

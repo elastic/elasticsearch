@@ -16,31 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.index;
 
-package org.elasticsearch.indices;
-
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexException;
-import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-/**
- *
- */
-public class IndexMissingException extends IndexException {
+public final class IndexNotFoundException extends ResourceNotFoundException {
 
-    public IndexMissingException(Index index) {
-        super(index, "no such index");
+    public IndexNotFoundException(String index) {
+        this(index, null);
     }
 
-    public IndexMissingException(StreamInput in) throws IOException{
+    public IndexNotFoundException(String index, Throwable cause) {
+        super("no such index", cause);
+        setIndex(index);
+    }
+
+    public IndexNotFoundException(StreamInput in) throws IOException {
         super(in);
-    }
-
-    @Override
-    public RestStatus status() {
-        return RestStatus.NOT_FOUND;
     }
 }

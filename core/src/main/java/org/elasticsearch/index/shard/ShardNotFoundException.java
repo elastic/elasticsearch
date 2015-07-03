@@ -17,24 +17,27 @@
  * under the License.
  */
 
-package org.elasticsearch.index.store;
+package org.elasticsearch.index.shard;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.shard.IndexShardException;
-import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
 /**
  *
  */
-public class StoreException extends IndexShardException {
-
-    public StoreException(ShardId shardId, String msg, Throwable cause) {
-        super(shardId, msg, cause);
+public class ShardNotFoundException extends ResourceNotFoundException {
+    public ShardNotFoundException(ShardId shardId) {
+        this(shardId, null);
     }
 
-    public StoreException(StreamInput in) throws IOException{
+    public ShardNotFoundException(ShardId shardId, Throwable ex) {
+        super("no such shard", ex);
+        setShard(shardId);
+
+    }
+    public ShardNotFoundException(StreamInput in) throws IOException{
         super(in);
     }
 }

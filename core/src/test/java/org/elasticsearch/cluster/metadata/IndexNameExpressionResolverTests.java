@@ -26,8 +26,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData.State;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
-import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -63,8 +63,8 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
             try {
                 indexNameExpressionResolver.concreteIndices(context, "bar");
                 fail();
-            } catch (IndexMissingException e) {
-                assertThat(e.index().name(), equalTo("bar"));
+            } catch (IndexNotFoundException e) {
+                assertThat(e.getIndex(), equalTo("bar"));
             }
 
             results = indexNameExpressionResolver.concreteIndices(context, "foofoo", "foobar");
@@ -78,15 +78,15 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
             try {
                 indexNameExpressionResolver.concreteIndices(context, "bar");
                 fail();
-            } catch (IndexMissingException e) {
-                assertThat(e.index().name(), equalTo("bar"));
+            } catch (IndexNotFoundException e) {
+                assertThat(e.getIndex(), equalTo("bar"));
             }
 
             try {
                 indexNameExpressionResolver.concreteIndices(context, "foo", "bar");
                 fail();
-            } catch (IndexMissingException e) {
-                assertThat(e.index().name(), equalTo("bar"));
+            } catch (IndexNotFoundException e) {
+                assertThat(e.getIndex(), equalTo("bar"));
             }
 
             results = indexNameExpressionResolver.concreteIndices(context, "barbaz", "foobar");
@@ -96,8 +96,8 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
             try {
                 indexNameExpressionResolver.concreteIndices(context, "barbaz", "bar");
                 fail();
-            } catch (IndexMissingException e) {
-                assertThat(e.index().name(), equalTo("bar"));
+            } catch (IndexNotFoundException e) {
+                assertThat(e.getIndex(), equalTo("bar"));
             }
 
             results = indexNameExpressionResolver.concreteIndices(context, "baz*");
@@ -225,22 +225,22 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
             try {
                 indexNameExpressionResolver.concreteIndices(context, "bar");
                 fail();
-            } catch(IndexMissingException e) {
-                assertThat(e.index().name(), equalTo("bar"));
+            } catch(IndexNotFoundException e) {
+                assertThat(e.getIndex(), equalTo("bar"));
             }
 
             try {
                 indexNameExpressionResolver.concreteIndices(context, "baz*");
                 fail();
-            } catch (IndexMissingException e) {
-                assertThat(e.index().name(), equalTo("baz*"));
+            } catch (IndexNotFoundException e) {
+                assertThat(e.getIndex(), equalTo("baz*"));
             }
 
             try {
                 indexNameExpressionResolver.concreteIndices(context, "foo", "baz*");
                 fail();
-            } catch (IndexMissingException e) {
-                assertThat(e.index().name(), equalTo("baz*"));
+            } catch (IndexNotFoundException e) {
+                assertThat(e.getIndex(), equalTo("baz*"));
             }
         }
 
@@ -320,8 +320,8 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
         try {
             indexNameExpressionResolver.concreteIndices(context, "-*");
             fail();
-        } catch (IndexMissingException e) {
-            assertThat(e.index().name(), equalTo("-*"));
+        } catch (IndexNotFoundException e) {
+            assertThat(e.getResourceId().toString(), equalTo("[-*]"));
         }
     }
 
@@ -364,8 +364,8 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
             try {
                 indexNameExpressionResolver.concreteIndices(context, "baz*");
                 fail();
-            } catch (IndexMissingException e) {
-                assertThat(e.index().name(), equalTo("baz*"));
+            } catch (IndexNotFoundException e) {
+                assertThat(e.getIndex(), equalTo("baz*"));
             }
 
             String[] results = indexNameExpressionResolver.concreteIndices(context, "foo", "baz*");
@@ -387,8 +387,8 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
             try {
                 indexNameExpressionResolver.concreteIndices(context, "foo", "baz*");
                 fail();
-            } catch (IndexMissingException e) {
-                assertThat(e.index().name(), equalTo("baz*"));
+            } catch (IndexNotFoundException e) {
+                assertThat(e.getIndex(), equalTo("baz*"));
             }
 
             results = indexNameExpressionResolver.concreteIndices(context, "foofoobar");
@@ -403,15 +403,15 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
             try {
                 indexNameExpressionResolver.concreteIndices(context, "baz*");
                 fail();
-            } catch (IndexMissingException e) {
-                assertThat(e.index().name(), equalTo("baz*"));
+            } catch (IndexNotFoundException e) {
+                assertThat(e.getIndex(), equalTo("baz*"));
             }
 
             try {
                 indexNameExpressionResolver.concreteIndices(context, "foo", "baz*");
                 fail();
-            } catch (IndexMissingException e) {
-                assertThat(e.index().name(), equalTo("baz*"));
+            } catch (IndexNotFoundException e) {
+                assertThat(e.getIndex(), equalTo("baz*"));
             }
 
             String[] results = indexNameExpressionResolver.concreteIndices(context, "foofoobar");
@@ -436,16 +436,16 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
             IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.strictSingleIndexNoExpandForbidClosed());
             indexNameExpressionResolver.concreteIndices(context, "baz*");
             fail();
-        } catch (IndexMissingException e) {
-            assertThat(e.index().name(), equalTo("baz*"));
+        } catch (IndexNotFoundException e) {
+            assertThat(e.getIndex(), equalTo("baz*"));
         }
 
         try {
             IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.strictSingleIndexNoExpandForbidClosed());
             indexNameExpressionResolver.concreteIndices(context, "foo", "baz*");
             fail();
-        } catch (IndexMissingException e) {
-            assertThat(e.index().name(), equalTo("baz*"));
+        } catch (IndexNotFoundException e) {
+            assertThat(e.getIndex(), equalTo("baz*"));
         }
 
         try {
@@ -470,7 +470,7 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
             fail();
         } catch(IndexClosedException e) {
             assertThat(e.getMessage(), equalTo("closed"));
-            assertEquals(e.index().getName(), "foofoo-closed");
+            assertEquals(e.getIndex(), "foofoo-closed");
         }
 
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.strictSingleIndexNoExpandForbidClosed());
@@ -491,16 +491,16 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
         try {
             indexNameExpressionResolver.concreteIndices(context, "foo");
             fail();
-        } catch (IndexMissingException e) {
-            assertThat(e.index().name(), equalTo("foo"));
+        } catch (IndexNotFoundException e) {
+            assertThat(e.getIndex(), equalTo("foo"));
         }
         results = indexNameExpressionResolver.concreteIndices(context, "foo*");
         assertThat(results, emptyArray());
         try {
             indexNameExpressionResolver.concreteIndices(context, "foo*", "bar");
             fail();
-        } catch (IndexMissingException e) {
-            assertThat(e.index().name(), equalTo("bar"));
+        } catch (IndexNotFoundException e) {
+            assertThat(e.getIndex(), equalTo("bar"));
         }
 
 
@@ -517,8 +517,8 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
         context = new IndexNameExpressionResolver.Context(state, IndicesOptions.fromOptions(true, false, true, false));
         try {
             indexNameExpressionResolver.concreteIndices(context, Strings.EMPTY_ARRAY);
-        } catch (IndexMissingException e) {
-            assertThat(e.index().name(), equalTo("[_all]"));
+        } catch (IndexNotFoundException e) {
+            assertThat(e.getResourceId().toString(), equalTo("[_all]"));
         }
     }
 
@@ -526,7 +526,7 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
         return IndexMetaData.builder(index).settings(settings(Version.CURRENT).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
     }
 
-    @Test(expected = IndexMissingException.class)
+    @Test(expected = IndexNotFoundException.class)
     public void testConcreteIndicesIgnoreIndicesOneMissingIndex() {
         MetaData.Builder mdBuilder = MetaData.builder()
                 .put(indexBuilder("testXXX"))
@@ -550,7 +550,7 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
         assertThat(newHashSet(indexNameExpressionResolver.concreteIndices(context, "testXXX", "testZZZ")), equalTo(newHashSet("testXXX")));
     }
 
-    @Test(expected = IndexMissingException.class)
+    @Test(expected = IndexNotFoundException.class)
     public void testConcreteIndicesIgnoreIndicesAllMissing() {
         MetaData.Builder mdBuilder = MetaData.builder()
                 .put(indexBuilder("testXXX"))
@@ -659,7 +659,7 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
         try {
             indexNameExpressionResolver.concreteIndices(context, allIndices);
             fail("wildcard expansion on should trigger IndexMissingException");
-        } catch (IndexMissingException e) {
+        } catch (IndexNotFoundException e) {
             // expected
         }
     }
@@ -688,7 +688,7 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
                 try {
                     indexNameExpressionResolver.concreteIndices(context, "Foo*");
                     fail("expecting exeption when result empty and allowNoIndicec=false");
-                } catch (IndexMissingException e) {
+                } catch (IndexNotFoundException e) {
                     // expected exception
                 }
             }

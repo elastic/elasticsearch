@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.state;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -31,8 +32,8 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -63,19 +64,19 @@ public class OpenCloseIndexTests extends ElasticsearchIntegrationTest {
         assertIndexIsOpened("test1");
     }
 
-    @Test(expected = IndexMissingException.class)
+    @Test(expected = IndexNotFoundException.class)
     public void testSimpleCloseMissingIndex() {
         Client client = client();
         client.admin().indices().prepareClose("test1").execute().actionGet();
     }
 
-    @Test(expected = IndexMissingException.class)
+    @Test(expected = IndexNotFoundException.class)
     public void testSimpleOpenMissingIndex() {
         Client client = client();
         client.admin().indices().prepareOpen("test1").execute().actionGet();
     }
 
-    @Test(expected = IndexMissingException.class)
+    @Test(expected = IndexNotFoundException.class)
     public void testCloseOneMissingIndex() {
         Client client = client();
         createIndex("test1");
@@ -96,7 +97,7 @@ public class OpenCloseIndexTests extends ElasticsearchIntegrationTest {
         assertIndexIsClosed("test1");
     }
 
-    @Test(expected = IndexMissingException.class)
+    @Test(expected = IndexNotFoundException.class)
     public void testOpenOneMissingIndex() {
         Client client = client();
         createIndex("test1");

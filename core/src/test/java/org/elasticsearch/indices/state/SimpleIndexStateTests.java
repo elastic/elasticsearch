@@ -31,8 +31,8 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
-import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -141,7 +141,7 @@ public class SimpleIndexStateTests extends ElasticsearchIntegrationTest {
         logger.info("--> deleting test index....");
         try {
             client().admin().indices().prepareDelete("test").get();
-        } catch (IndexMissingException ex) {
+        } catch (IndexNotFoundException ex) {
             // Ignore
         }
 

@@ -33,10 +33,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesService;
 
 import java.util.List;
@@ -76,7 +75,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                     for (AliasAction aliasAction : request.actions()) {
                         aliasValidator.validateAliasAction(aliasAction, currentState.metaData());
                         if (!currentState.metaData().hasIndex(aliasAction.index())) {
-                            throw new IndexMissingException(new Index(aliasAction.index()));
+                            throw new IndexNotFoundException(aliasAction.index());
                         }
                     }
 
@@ -85,7 +84,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                     for (AliasAction aliasAction : request.actions()) {
                         IndexMetaData indexMetaData = builder.get(aliasAction.index());
                         if (indexMetaData == null) {
-                            throw new IndexMissingException(new Index(aliasAction.index()));
+                            throw new IndexNotFoundException(aliasAction.index());
                         }
                         // TODO: not copy (putAll)
                         IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(indexMetaData);

@@ -270,12 +270,12 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     }
 
     /**
-     * Returns an IndexService for the specified index if exists otherwise a {@link IndexMissingException} is thrown.
+     * Returns an IndexService for the specified index if exists otherwise a {@link IndexNotFoundException} is thrown.
      */
-    public IndexService indexServiceSafe(String index) throws IndexMissingException {
+    public IndexService indexServiceSafe(String index) {
         IndexService indexService = indexService(index);
         if (indexService == null) {
-            throw new IndexMissingException(new Index(index));
+            throw new IndexNotFoundException(index);
         }
         return indexService;
     }

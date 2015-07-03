@@ -16,31 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.rest.action.admin.indices.alias.delete;
 
-package org.elasticsearch.index;
-
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.shard.IndexShardException;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  *
  */
-public class IndexShardMissingException extends IndexShardException {
+public class AliasesNotFoundException extends ResourceNotFoundException {
 
-    public IndexShardMissingException(ShardId shardId) {
-        super(shardId, "missing");
+    public AliasesNotFoundException(String... names) {
+        super("aliases " +  Arrays.toString(names) + " missing");
+        this.setResources("aliases", names);
     }
 
-    public IndexShardMissingException(StreamInput in) throws IOException{
+    public AliasesNotFoundException(StreamInput in) throws IOException{
         super(in);
-    }
-
-    @Override
-    public RestStatus status() {
-        return RestStatus.NOT_FOUND;
     }
 }

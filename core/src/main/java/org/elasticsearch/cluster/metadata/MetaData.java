@@ -48,7 +48,7 @@ import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
@@ -943,7 +943,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
             for (String index : indices) {
                 IndexMetaData indexMetaData = this.indices.get(index);
                 if (indexMetaData == null) {
-                    throw new IndexMissingException(new Index(index));
+                    throw new IndexNotFoundException(index);
                 }
                 put(IndexMetaData.builder(indexMetaData)
                         .settings(settingsBuilder().put(indexMetaData.settings()).put(settings)));
@@ -958,7 +958,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
             for (String index : indices) {
                 IndexMetaData indexMetaData = this.indices.get(index);
                 if (indexMetaData == null) {
-                    throw new IndexMissingException(new Index(index));
+                    throw new IndexNotFoundException(index);
                 }
                 put(IndexMetaData.builder(indexMetaData).numberOfReplicas(numberOfReplicas));
             }

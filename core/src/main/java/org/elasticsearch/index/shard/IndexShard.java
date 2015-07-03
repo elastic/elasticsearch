@@ -24,11 +24,13 @@ import com.google.common.base.Preconditions;
 
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.CheckIndex;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.ThreadInterruptedException;
+import org.elasticsearch.ElasticsearchCorruptionException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -104,6 +106,7 @@ import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.InternalIndicesLifecycle;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
+import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
@@ -839,7 +842,11 @@ public class IndexShard extends AbstractIndexShardComponent {
         recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
         // also check here, before we apply the translog
         if (Booleans.parseBoolean(checkIndexOnStartup, false)) {
-            checkIndex();
+            try {
+                checkIndex();
+            } catch (IOException ex) {
+                throw new RecoveryFailedException(recoveryState, "check index failed", ex);
+            }
         }
         recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
         // we disable deletes since we allow for operations to be executed against the shard while recovering
@@ -1182,19 +1189,17 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
-    private void checkIndex() throws IndexShardException {
+    private void checkIndex() throws IOException {
         if (store.tryIncRef()) {
             try {
                 doCheckIndex();
-            } catch (IOException e) {
-                throw new IndexShardException(shardId, "exception during checkindex", e);
             } finally {
                 store.decRef();
             }
         }
     }
 
-    private void doCheckIndex() throws IndexShardException, IOException {
+    private void doCheckIndex() throws IOException {
         long timeNS = System.nanoTime();
         if (!Lucene.indexExists(store.directory())) {
             return;
@@ -1204,7 +1209,7 @@ public class IndexShard extends AbstractIndexShardComponent {
 
         if ("checksum".equalsIgnoreCase(checkIndexOnStartup)) {
             // physical verification only: verify all checksums for the latest commit
-            boolean corrupt = false;
+            IOException corrupt = null;
             MetadataSnapshot metadata = store.getMetadata();
             for (Map.Entry<String, StoreFileMetaData> entry : metadata.asMap().entrySet()) {
                 try {
@@ -1213,13 +1218,13 @@ public class IndexShard extends AbstractIndexShardComponent {
                 } catch (IOException exc) {
                     out.println("checksum failed: " + entry.getKey());
                     exc.printStackTrace(out);
-                    corrupt = true;
+                    corrupt = exc;
                 }
             }
             out.flush();
-            if (corrupt) {
+            if (corrupt != null) {
                 logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
-                throw new IndexShardException(shardId, "index check failure");
+                throw corrupt;
             }
         } else {
             // full checkindex
@@ -1244,7 +1249,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                         }
                     } else {
                         // only throw a failure if we are not going to fix the index
-                        throw new IndexShardException(shardId, "index check failure");
+                        throw new IllegalStateException("index check failure but can't fix it");
                     }
                 }
             }

@@ -18,19 +18,20 @@
  */
 package org.elasticsearch.index.percolator;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexException;
 
 import java.io.IOException;
 
 /**
  * Exception during indexing a percolator query.
  */
-public class PercolatorException extends IndexException {
+public class PercolatorException extends ElasticsearchException {
 
     public PercolatorException(Index index, String msg, Throwable cause) {
-        super(index, msg, cause);
+        super(msg, cause);
+        setIndex(index);
     }
 
     public PercolatorException(StreamInput in) throws IOException{

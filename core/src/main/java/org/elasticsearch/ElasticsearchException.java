@@ -246,7 +246,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (this instanceof ElasticsearchWrapperException) {
+        Throwable ex = ExceptionsHelper.unwrapCause(this);
+        if (ex != this) {
             toXContent(builder, params, this);
         } else {
             builder.field("type", getExceptionName());

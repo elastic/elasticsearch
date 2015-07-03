@@ -49,14 +49,75 @@ public class FuzzyQueryBuilder extends MultiTermQueryBuilder implements Boostabl
     private String queryName;
 
     /**
-     * Constructs a new term query.
+     * Constructs a new fuzzy query.
      *
      * @param name  The name of the field
-     * @param value The value of the term
+     * @param value The value of the text
      */
     public FuzzyQueryBuilder(String name, Object value) {
         this.name = name;
         this.value = value;
+    }
+
+    /**
+     * Constructs a new fuzzy query.
+     *
+     * @param name  The name of the field
+     * @param value The value of the text
+     */
+    public FuzzyQueryBuilder(String name, String value) {
+        this(name, (Object) value);
+    }
+
+    /**
+     * Constructs a new fuzzy query.
+     *
+     * @param name  The name of the field
+     * @param value The value of the text
+     */
+    public FuzzyQueryBuilder(String name, int value) {
+        this(name, (Object) value);
+    }
+
+    /**
+     * Constructs a new fuzzy query.
+     *
+     * @param name  The name of the field
+     * @param value The value of the text
+     */
+    public FuzzyQueryBuilder(String name, long value) {
+        this(name, (Object) value);
+    }
+
+    /**
+     * Constructs a new fuzzy query.
+     *
+     * @param name  The name of the field
+     * @param value The value of the text
+     */
+    public FuzzyQueryBuilder(String name, float value) {
+        this(name, (Object) value);
+    }
+
+    /**
+     * Constructs a new fuzzy query.
+     *
+     * @param name  The name of the field
+     * @param value The value of the text
+     */
+    public FuzzyQueryBuilder(String name, double value) {
+        this(name, (Object) value);
+    }
+
+    // NO COMMIT: not sure we should also allow boolean?
+    /**
+     * Constructs a new fuzzy query.
+     *
+     * @param name  The name of the field
+     * @param value The value of the text
+     */
+    public FuzzyQueryBuilder(String name, boolean value) {
+        this(name, (Object) value);
     }
 
     /**

@@ -178,8 +178,8 @@ public class LongFieldMapper extends NumberFieldMapper {
         }
 
         @Override
-        public Query fuzzyQuery(String value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-            long iValue = Long.parseLong(value);
+        public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
+            long iValue = parseLongValue(value);
             final long iSim = fuzziness.asLong();
             return NumericRangeQuery.newLongRange(names().indexName(), numericPrecisionStep(),
                 iValue - iSim,

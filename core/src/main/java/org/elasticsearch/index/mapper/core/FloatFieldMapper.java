@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper.core;
 
 import com.carrotsearch.hppc.FloatArrayList;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
@@ -179,8 +178,8 @@ public class FloatFieldMapper extends NumberFieldMapper {
         }
 
         @Override
-        public Query fuzzyQuery(String value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-            float iValue = Float.parseFloat(value);
+        public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
+            float iValue = parseValue(value);
             final float iSim = fuzziness.asFloat();
             return NumericRangeQuery.newFloatRange(names().indexName(), numericPrecisionStep(),
                 iValue - iSim,

@@ -15,18 +15,15 @@ governing permissions and limitations under the License. -->
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>org.elasticsearch.plugin</groupId>
-    <artifactId>elasticsearch-delete-by-query</artifactId>
-
-    <packaging>jar</packaging>
-    <name>Elasticsearch Delete By Query plugin</name>
-    <description>The Delete By Query plugin allows to delete documents in Elasticsearch with a single query.</description>
-
     <parent>
-        <groupId>org.elasticsearch</groupId>
+        <groupId>org.elasticsearch.plugin</groupId>
         <artifactId>elasticsearch-plugin</artifactId>
         <version>2.0.0-SNAPSHOT</version>
     </parent>
+
+    <artifactId>elasticsearch-delete-by-query</artifactId>
+    <name>Elasticsearch Delete By Query plugin</name>
+    <description>The Delete By Query plugin allows to delete documents in Elasticsearch with a single query.</description>
 
     <properties>
         <tests.ifNoTests>warn</tests.ifNoTests>

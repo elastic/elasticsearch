@@ -15,19 +15,15 @@ governing permissions and limitations under the License. -->
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>org.elasticsearch.plugin</groupId>
-    <artifactId>elasticsearch-cloud-gce</artifactId>
-
-
-    <name>Elasticsearch Google Compute Engine cloud plugin</name>
-    <description>The Google Compute Engine (GCE) Cloud plugin allows to use GCE API for the unicast discovery mechanism.</description>
-
     <parent>
-        <groupId>org.elasticsearch</groupId>
+        <groupId>org.elasticsearch.plugin</groupId>
         <artifactId>elasticsearch-plugin</artifactId>
         <version>2.0.0-SNAPSHOT</version>
     </parent>
 
+    <artifactId>elasticsearch-cloud-gce</artifactId>
+    <name>Elasticsearch Google Compute Engine cloud plugin</name>
+    <description>The Google Compute Engine (GCE) Cloud plugin allows to use GCE API for the unicast discovery mechanism.</description>
 
     <properties>
         <google.gce.version>v1-rev59-1.20.0</google.gce.version>

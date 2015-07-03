@@ -207,11 +207,6 @@
             <artifactId>jna</artifactId>
             <scope>provided</scope>
         </dependency>
-        <dependency>
-            <groupId>org.fusesource</groupId>
-            <artifactId>sigar</artifactId>
-            <scope>provided</scope>
-        </dependency>
         <!-- Required by the REST test framework -->
         <dependency>
             <groupId>org.apache.httpcomponents</groupId>

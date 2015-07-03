@@ -214,11 +214,6 @@
             <artifactId>jna</artifactId>
             <optional>true</optional>
         </dependency>
-        <dependency>
-            <groupId>org.fusesource</groupId>
-            <artifactId>sigar</artifactId>
-            <optional>true</optional>
-        </dependency>
 
         <!-- remove this for java 8 -->
         <dependency>
@@ -709,19 +704,8 @@
                                     </mapper>
                                 </data>
                                 <data>
-                                    <src>${project.basedir}/lib/sigar/</src>
-                                    <includes>sigar-*.jar, libsigar-*-linux.*</includes>
-                                    <type>directory</type>
-                                    <mapper>
-                                        <type>perm</type>
-                                        <prefix>${packaging.elasticsearch.home.dir}/lib/sigar</prefix>
-                                        <user>root</user>
-                                        <group>root</group>
-                                    </mapper>
-                                </data>
-                                <data>
                                     <src>${project.build.directory}/lib</src>
-                                    <excludes>${project.build.finalName}-shaded.jar,${project.build.finalName}-sources.jar,${project.build.finalName}-tests.jar,${project.build.finalName}-test-sources.jar,slf4j-api-*.jar,sigar-*.jar</excludes>
+                                    <excludes>${project.build.finalName}-shaded.jar,${project.build.finalName}-sources.jar,${project.build.finalName}-tests.jar,${project.build.finalName}-test-sources.jar,slf4j-api-*.jar</excludes>
                                     <type>directory</type>
                                     <mapper>
                                         <type>perm</type>
@@ -889,25 +873,12 @@
                                         <exclude>${project.build.finalName}-tests.jar</exclude>
                                         <exclude>${project.build.finalName}-test-sources.jar</exclude>
                                         <exclude>slf4j-api-*.jar</exclude>
-                                        <exclude>sigar-*.jar</exclude>
                                     </excludes>
                                 </source>
                                 <source>
                                     <location>${project.build.directory}/</location>
                                     <includes>
                                         <include>${project.build.finalName}.jar</include>
-                                    </includes>
-                                </source>
-                            </sources>
-                        </mapping>
-                        <mapping>
-                            <directory>${packaging.elasticsearch.home.dir}/lib/sigar</directory>
-                            <sources>
-                                <source>
-                                    <location>lib/sigar</location>
-                                    <includes>
-                                        <include>sigar*.jar</include>
-                                        <include>libsigar-*-linux.*</include>
                                     </includes>
                                 </source>
                             </sources>

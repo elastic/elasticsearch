@@ -1,6 +1,6 @@
 #!/bin/sh
 
-CORE_CLASSPATH="$ES_HOME/lib/${project.build.finalName}.jar:$ES_HOME/lib/*:$ES_HOME/lib/sigar/*"
+CORE_CLASSPATH="$ES_HOME/lib/${project.build.finalName}.jar:$ES_HOME/lib/*"
 
 if [ "x$ES_CLASSPATH" = "x" ]; then
     ES_CLASSPATH="$CORE_CLASSPATH"

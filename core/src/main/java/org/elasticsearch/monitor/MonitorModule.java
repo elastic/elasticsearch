@@ -20,27 +20,21 @@
 package org.elasticsearch.monitor;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.monitor.fs.FsService;
 import org.elasticsearch.monitor.fs.JmxFsProbe;
-import org.elasticsearch.monitor.fs.SigarFsProbe;
 import org.elasticsearch.monitor.jvm.JvmMonitorService;
 import org.elasticsearch.monitor.jvm.JvmService;
 import org.elasticsearch.monitor.network.JmxNetworkProbe;
 import org.elasticsearch.monitor.network.NetworkProbe;
 import org.elasticsearch.monitor.network.NetworkService;
-import org.elasticsearch.monitor.network.SigarNetworkProbe;
 import org.elasticsearch.monitor.os.JmxOsProbe;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.os.OsService;
-import org.elasticsearch.monitor.os.SigarOsProbe;
 import org.elasticsearch.monitor.process.JmxProcessProbe;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.monitor.process.ProcessService;
-import org.elasticsearch.monitor.process.SigarProcessProbe;
-import org.elasticsearch.monitor.sigar.SigarService;
 
 /**
  *
@@ -59,29 +53,12 @@ public class MonitorModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        boolean sigarLoaded = false;
-        try {
-            settings.getClassLoader().loadClass("org.hyperic.sigar.Sigar");
-            SigarService sigarService = new SigarService(settings);
-            if (sigarService.sigarAvailable()) {
-                bind(SigarService.class).toInstance(sigarService);
-                bind(ProcessProbe.class).to(SigarProcessProbe.class).asEagerSingleton();
-                bind(OsProbe.class).to(SigarOsProbe.class).asEagerSingleton();
-                bind(NetworkProbe.class).to(SigarNetworkProbe.class).asEagerSingleton();
-                bind(FsProbe.class).to(SigarFsProbe.class).asEagerSingleton();
-                sigarLoaded = true;
-            }
-        } catch (Throwable e) {
-            // no sigar
-            Loggers.getLogger(SigarService.class).trace("failed to load sigar", e);
-        }
-        if (!sigarLoaded) {
-            // bind non sigar implementations
-            bind(ProcessProbe.class).to(JmxProcessProbe.class).asEagerSingleton();
-            bind(OsProbe.class).to(JmxOsProbe.class).asEagerSingleton();
-            bind(NetworkProbe.class).to(JmxNetworkProbe.class).asEagerSingleton();
-            bind(FsProbe.class).to(JmxFsProbe.class).asEagerSingleton();
-        }
+        // bind default implementations
+        bind(ProcessProbe.class).to(JmxProcessProbe.class).asEagerSingleton();
+        bind(OsProbe.class).to(JmxOsProbe.class).asEagerSingleton();
+        bind(NetworkProbe.class).to(JmxNetworkProbe.class).asEagerSingleton();
+        bind(FsProbe.class).to(JmxFsProbe.class).asEagerSingleton();
+
         // bind other services
         bind(ProcessService.class).asEagerSingleton();
         bind(OsService.class).asEagerSingleton();

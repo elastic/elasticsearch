@@ -779,12 +779,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                             long count = clusterJoinsCounter.incrementAndGet();
                             logger.trace("updated cluster join cluster to [{}]", count);
 
-                            // check that the initial state doesn't have any shards assigned to us.
-                            // this currently important - see https://github.com/elastic/elasticsearch/pull/11960
-                            // note: routingNode is null for master only/client nodes.
-                            final RoutingNode routingNode = updatedState.getRoutingNodes().node(updatedState.nodes().localNodeId());
-                            assert routingNode == null || routingNode.size() == 0 : "no shard should be assigned after join. see #11960. got: \n" + updatedState.prettyPrint();
-
                             return updatedState;
                         }
 
@@ -947,8 +941,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     }
 
 
-                    // we must return a new cluster state instant to force a publish in order for the joining
-                    // node to receive a new state.
+                    // we must return a new cluster state instance to force publishing. This is important
+                    // for the joining node to finalize it's join and set us as a master
                     final ClusterState.Builder newState = ClusterState.builder(currentState);
                     if (nodeAdded) {
                         newState.nodes(nodesBuilder);

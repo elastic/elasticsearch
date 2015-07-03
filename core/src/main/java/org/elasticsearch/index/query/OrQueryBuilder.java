@@ -95,6 +95,10 @@ public class OrQueryBuilder extends AbstractQueryBuilder<OrQueryBuilder> {
                 query.add(innerQuery, Occur.SHOULD);
             }
         }
+        if (query.clauses().isEmpty()) {
+            // no inner lucene query exists, ignore upstream
+            return null;
+        }
         return query;
     }
 

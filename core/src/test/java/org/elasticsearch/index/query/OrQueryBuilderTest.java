@@ -44,6 +44,9 @@ public class OrQueryBuilderTest extends BaseQueryTestCase<OrQueryBuilder> {
                 query.add(innerQuery, Occur.SHOULD);
             }
         }
+        if (query.clauses().isEmpty()) {
+            return null;
+        }
         return query;
     }
 
@@ -93,5 +96,15 @@ public class OrQueryBuilderTest extends BaseQueryTestCase<OrQueryBuilder> {
             }
         }
         assertValidate(orQuery, totalExpectedErrors);
+    }
+
+    @Test(expected=NullPointerException.class)
+    public void testNullConstructor() {
+        new OrQueryBuilder(EmptyQueryBuilder.PROTOTYPE, null);
+    }
+
+    @Test(expected=NullPointerException.class)
+    public void testAddNull() {
+        new OrQueryBuilder().add(null);
     }
 }

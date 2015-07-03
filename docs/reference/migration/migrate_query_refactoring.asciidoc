@@ -6,6 +6,11 @@ on the query-refactoring feature branch.
 
 === Java-API
 
+==== BoostingQueryBuilder
+
+Removed setters for mandatory positive/negative query. Both arguments now have
+to be supplied at construction time already and have to be non-null.
+
 ==== QueryFilterBuilder
 
 Removed the setter `queryName(String queryName)` since this field is not supported

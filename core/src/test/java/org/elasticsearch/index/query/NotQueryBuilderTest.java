@@ -31,7 +31,7 @@ public class NotQueryBuilderTest extends BaseQueryTestCase<NotQueryBuilder> {
 
     @Override
     protected Query doCreateExpectedQuery(NotQueryBuilder queryBuilder, QueryParseContext context) throws QueryParsingException, IOException {
-        if (queryBuilder.filter() == null) {
+        if (queryBuilder.filter().toQuery(context) == null) {
             return null;
         }
         return Queries.not(queryBuilder.filter().toQuery(context));
@@ -45,25 +45,9 @@ public class NotQueryBuilderTest extends BaseQueryTestCase<NotQueryBuilder> {
         return new NotQueryBuilder(RandomQueryBuilder.createQuery(random()));
     }
 
-    /**
-     * test corner case where no inner query exist
-     */
-    @Test
-    public void testNoInnerQuerry() throws QueryParsingException, IOException {
-        NotQueryBuilder notQuery = new NotQueryBuilder(null);
-        assertNull(notQuery.toQuery(createContext()));
-    }
-
-    /**
-     * Test corner case where inner queries returns null.
-     * This is legal, e.g. here {@link ConstantScoreQueryBuilder} can wrap a filter
-     * element that itself parses to <tt>null</tt>, e.g.
-     * '{ "constant_score" : "filter {} }'
-     */
-    @Test
-    public void testInnerQuery() throws QueryParsingException, IOException {
-        NotQueryBuilder notQuery = new NotQueryBuilder(new ConstantScoreQueryBuilder(null));
-        assertNull(notQuery.toQuery(createContext()));
+    @Test(expected=NullPointerException.class)
+    public void testNotQueryBuilderNull() {
+        new NotQueryBuilder(null);
     }
 
     /**

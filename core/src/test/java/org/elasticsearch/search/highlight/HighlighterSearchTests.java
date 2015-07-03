@@ -50,7 +50,6 @@ import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.highlight;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.*;
 
@@ -1368,7 +1367,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> highlighting and searching on field1");
         SearchSourceBuilder source = searchSource()
-                .query(boostingQuery().positive(termQuery("field2", "brown")).negative(termQuery("field2", "foobar")).negativeBoost(0.5f))
+                .query(boostingQuery(termQuery("field2", "brown"), termQuery("field2", "foobar")).negativeBoost(0.5f))
                 .highlight(highlight().field("field2").order("score").preTags("<x>").postTags("</x>"));
 
         SearchResponse searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
@@ -1386,7 +1385,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> highlighting and searching on field1");
         SearchSourceBuilder source = searchSource()
-                .query(boostingQuery().positive(termQuery("field2", "brown")).negative(termQuery("field2", "foobar")).negativeBoost(0.5f))
+                .query(boostingQuery(termQuery("field2", "brown"), termQuery("field2", "foobar")).negativeBoost(0.5f))
                 .highlight(highlight().field("field2").order("score").preTags("<x>").postTags("</x>"));
 
         SearchResponse searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
@@ -2300,7 +2299,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> highlighting and searching on field1");
         SearchSourceBuilder source = searchSource()
-                .query(boostingQuery().positive(termQuery("field2", "brown")).negative(termQuery("field2", "foobar")).negativeBoost(0.5f))
+                .query(boostingQuery(termQuery("field2", "brown"), termQuery("field2", "foobar")).negativeBoost(0.5f))
                 .highlight(highlight().field("field2").preTags("<x>").postTags("</x>"));
         SearchResponse searchResponse = client().search(searchRequest("test").source(source)).actionGet();
 
@@ -2603,10 +2602,10 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         assertHighlight(response, 0, "field1", 0, 1, highlightedMatcher);
         phrase.boost(1);
         // Try with a boosting query
-        response = search.setQuery(boostingQuery().positive(phrase).negative(terms).boost(boost).negativeBoost(1)).get();
+        response = search.setQuery(boostingQuery(phrase, terms).boost(boost).negativeBoost(1)).get();
         assertHighlight(response, 0, "field1", 0, 1, highlightedMatcher);
         // Try with a boosting query using a negative boost
-        response = search.setQuery(boostingQuery().positive(phrase).negative(terms).boost(1).negativeBoost(1/boost)).get();
+        response = search.setQuery(boostingQuery(phrase, terms).boost(1).negativeBoost(1/boost)).get();
         assertHighlight(response, 0, "field1", 0, 1, highlightedMatcher);
     }
 }

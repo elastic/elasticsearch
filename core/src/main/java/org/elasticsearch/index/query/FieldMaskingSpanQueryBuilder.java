@@ -40,6 +40,7 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
 
     static final FieldMaskingSpanQueryBuilder PROTOTYPE = new FieldMaskingSpanQueryBuilder();
 
+    // only used for prototype
     private FieldMaskingSpanQueryBuilder() {
         this.queryBuilder = null;
         this.fieldName = null;
@@ -53,7 +54,7 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
      */
     public FieldMaskingSpanQueryBuilder(SpanQueryBuilder queryBuilder, String fieldName) {
         this.queryBuilder = Objects.requireNonNull(queryBuilder);
-        this.fieldName = fieldName;
+        this.fieldName = Objects.requireNonNull(fieldName);
     }
 
     /**
@@ -73,7 +74,8 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        doXContentInnerBuilder(builder, "query", queryBuilder, params);
+        builder.field("query");
+        queryBuilder.toXContent(builder, params);
         builder.field("field", fieldName);
         printBoostAndQueryName(builder);
         builder.endObject();

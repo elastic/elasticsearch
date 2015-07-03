@@ -234,14 +234,22 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
 
         Query expectedQuery = createExpectedQuery(testQuery, context);
         Query actualQuery = testQuery.toQuery(context);
-        assertThat(actualQuery, instanceOf(expectedQuery.getClass()));
-        assertThat(actualQuery, equalTo(expectedQuery));
-        assertLuceneQuery(testQuery, actualQuery, context);
+        // expectedQuery can be null, e.g. in case of BoostingQueryBuilder
+        // with inner clause that returns null itself
+        if (expectedQuery == null) {
+            assertNull("Expected a null query, saw some object.", actualQuery);
+        } else {
+            assertThat(actualQuery, instanceOf(expectedQuery.getClass()));
+            assertThat(actualQuery, equalTo(expectedQuery));
+            assertLuceneQuery(testQuery, actualQuery, context);
+        }
     }
 
     protected final Query createExpectedQuery(QB queryBuilder, QueryParseContext context) throws IOException {
         Query expectedQuery = doCreateExpectedQuery(queryBuilder, context);
-        expectedQuery.setBoost(queryBuilder.boost());
+        if (expectedQuery != null) {
+            expectedQuery.setBoost(queryBuilder.boost());
+        }
         return expectedQuery;
     }
 

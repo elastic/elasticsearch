@@ -31,7 +31,11 @@ public class ConstantScoreQueryBuilderTest extends BaseQueryTestCase<ConstantSco
 
     @Override
     protected Query doCreateExpectedQuery(ConstantScoreQueryBuilder testBuilder, QueryParseContext context) throws QueryParsingException, IOException {
-        return new ConstantScoreQuery(testBuilder.query().toQuery(context));
+        Query innerQuery = testBuilder.query().toQuery(context);
+        if (innerQuery != null) {
+            return new ConstantScoreQuery(innerQuery);
+        }
+        return null;
     }
 
     /**
@@ -46,7 +50,7 @@ public class ConstantScoreQueryBuilderTest extends BaseQueryTestCase<ConstantSco
      * test that missing "filter" element causes {@link QueryParsingException}
      */
     @Test(expected=QueryParsingException.class)
-    public void testNoFilterElement() throws IOException {
+    public void testFilterElement() throws IOException {
         QueryParseContext context = createContext();
         String queryId = ConstantScoreQueryBuilder.PROTOTYPE.getName();
         String queryString = "{ \""+queryId+"\" : {}";
@@ -54,24 +58,6 @@ public class ConstantScoreQueryBuilderTest extends BaseQueryTestCase<ConstantSco
         context.reset(parser);
         assertQueryHeader(parser, queryId);
         context.indexQueryParserService().queryParser(queryId).fromXContent(context);
-    }
-
-    /**
-     * Test empty "filter" element.
-     * Current DSL allows inner filter element to be empty, returning a `null` inner filter builder
-     */
-    @Test
-    public void testEmptyFilterElement() throws IOException {
-        QueryParseContext context = createContext();
-        String queryId = ConstantScoreQueryBuilder.PROTOTYPE.getName();
-        String queryString = "{ \""+queryId+"\" : { \"filter\" : { } }";
-        XContentParser parser = XContentFactory.xContent(queryString).createParser(queryString);
-        context.reset(parser);
-        assertQueryHeader(parser, queryId);
-        ConstantScoreQueryBuilder queryBuilder = (ConstantScoreQueryBuilder) context.indexQueryParserService()
-                .queryParser(queryId).fromXContent(context);
-        assertNull(queryBuilder.query());
-        assertNull(queryBuilder.toQuery(createContext()));
     }
 
     @Test
@@ -86,5 +72,10 @@ public class ConstantScoreQueryBuilderTest extends BaseQueryTestCase<ConstantSco
         }
         ConstantScoreQueryBuilder constantScoreQuery = new ConstantScoreQueryBuilder(innerQuery);
         assertValidate(constantScoreQuery, totalExpectedErrors);
+    }
+
+    @Test(expected=NullPointerException.class)
+    public void testNullConstructor() {
+        new ConstantScoreQueryBuilder(null);
     }
 }

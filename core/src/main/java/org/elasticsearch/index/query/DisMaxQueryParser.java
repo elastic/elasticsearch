@@ -62,9 +62,7 @@ public class DisMaxQueryParser extends BaseQueryParser {
                 if ("queries".equals(currentFieldName)) {
                     queriesFound = true;
                     QueryBuilder query = parseContext.parseInnerQueryBuilder();
-                    if (query != null) {
-                        queries.add(query);
-                    }
+                    queries.add(query);
                 } else {
                     throw new QueryParsingException(parseContext, "[dis_max] query does not support [" + currentFieldName + "]");
                 }
@@ -73,9 +71,7 @@ public class DisMaxQueryParser extends BaseQueryParser {
                     queriesFound = true;
                     while (token != XContentParser.Token.END_ARRAY) {
                         QueryBuilder query = parseContext.parseInnerQueryBuilder();
-                        if (query != null) {
-                            queries.add(query);
-                        }
+                        queries.add(query);
                         token = parser.nextToken();
                     }
                 } else {

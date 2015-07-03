@@ -88,9 +88,7 @@ public class BoostingQueryParser extends BaseQueryParser {
             throw new QueryParsingException(parseContext, "[boosting] query requires 'negative_boost' to be set to be a positive value'");
         }
 
-        BoostingQueryBuilder boostingQuery = new BoostingQueryBuilder();
-        boostingQuery.positive(positiveQuery);
-        boostingQuery.negative(negativeQuery);
+        BoostingQueryBuilder boostingQuery = new BoostingQueryBuilder(positiveQuery, negativeQuery);
         boostingQuery.negativeBoost(negativeBoost);
         boostingQuery.boost(boost);
         boostingQuery.queryName(queryName);

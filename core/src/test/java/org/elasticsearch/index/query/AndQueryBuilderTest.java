@@ -43,6 +43,9 @@ public class AndQueryBuilderTest extends BaseQueryTestCase<AndQueryBuilder> {
                 query.add(innerQuery, Occur.MUST);
             }
         }
+        if (query.clauses().isEmpty()) {
+            return null;
+        }
         return query;
     }
 
@@ -76,6 +79,16 @@ public class AndQueryBuilderTest extends BaseQueryTestCase<AndQueryBuilder> {
         context.reset(parser);
         assertQueryHeader(parser, AndQueryBuilder.PROTOTYPE.getName());
         context.indexQueryParserService().queryParser(AndQueryBuilder.PROTOTYPE.getName()).fromXContent(context);
+    }
+
+    @Test(expected=NullPointerException.class)
+    public void testNullConstructor() {
+        new AndQueryBuilder(EmptyQueryBuilder.PROTOTYPE, null);
+    }
+
+    @Test(expected=NullPointerException.class)
+    public void testAddNull() {
+        new AndQueryBuilder(EmptyQueryBuilder.PROTOTYPE).add(null);
     }
 
     @Test

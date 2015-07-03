@@ -255,15 +255,15 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
 
     @Override
     protected Query doToQuery(QueryParseContext parseContext) throws IOException {
-        if (!hasClauses()) {
-            return new MatchAllDocsQuery();
-        }
-
         BooleanQuery booleanQuery = new BooleanQuery(disableCoord);
         addBooleanClauses(parseContext, booleanQuery, mustClauses, BooleanClause.Occur.MUST);
         addBooleanClauses(parseContext, booleanQuery, mustNotClauses, BooleanClause.Occur.MUST_NOT);
         addBooleanClauses(parseContext, booleanQuery, shouldClauses, BooleanClause.Occur.SHOULD);
         addBooleanClauses(parseContext, booleanQuery, filterClauses, BooleanClause.Occur.FILTER);
+
+        if (booleanQuery.clauses().isEmpty()) {
+            return new MatchAllDocsQuery();
+        }
 
         Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
         return adjustPureNegative ? fixNegativeQueryIfNeeded(booleanQuery) : booleanQuery;

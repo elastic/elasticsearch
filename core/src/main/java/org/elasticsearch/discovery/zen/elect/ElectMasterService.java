@@ -22,6 +22,7 @@ package org.elasticsearch.discovery.zen.elect;
 import com.carrotsearch.hppc.ObjectContainer;
 import com.google.common.collect.Lists;
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -36,13 +37,17 @@ public class ElectMasterService extends AbstractComponent {
 
     public static final String DISCOVERY_ZEN_MINIMUM_MASTER_NODES = "discovery.zen.minimum_master_nodes";
 
+    // This is the minimum version a master needs to be on, otherwise it gets ignored
+    // This is based on the minimum compatible version of the current version this node is on
+    private final Version minMasterVersion;
     private final NodeComparator nodeComparator = new NodeComparator();
 
     private volatile int minimumMasterNodes;
 
     @Inject
-    public ElectMasterService(Settings settings) {
+    public ElectMasterService(Settings settings, Version version) {
         super(settings);
+        this.minMasterVersion = version.minimumCompatibilityVersion();
         this.minimumMasterNodes = settings.getAsInt(DISCOVERY_ZEN_MINIMUM_MASTER_NODES, -1);
         logger.debug("using minimum_master_nodes [{}]", minimumMasterNodes);
     }
@@ -108,7 +113,14 @@ public class ElectMasterService extends AbstractComponent {
         if (sortedNodes == null || sortedNodes.isEmpty()) {
             return null;
         }
-        return sortedNodes.get(0);
+        DiscoveryNode masterNode = sortedNodes.get(0);
+        // Sanity check: maybe we don't end up here, because serialization may have failed.
+        if (masterNode.getVersion().before(minMasterVersion)) {
+            logger.warn("ignoring master [{}], because the version [{}] is lower than the minimum compatible version [{}]", masterNode, masterNode.getVersion(), minMasterVersion);
+            return null;
+        } else {
+            return masterNode;
+        }
     }
 
     private List<DiscoveryNode> sortedMasterNodes(Iterable<DiscoveryNode> nodes) {

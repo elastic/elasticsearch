@@ -21,6 +21,7 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.bootstrap.Elasticsearch;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -94,8 +95,8 @@ public class BytesRestResponse extends RestResponse {
             this.content = builder.bytes();
             this.contentType = builder.contentType().restContentType();
         }
-        if (t instanceof HasRestHeaders) {
-            addHeaders(((HasRestHeaders) t).getHeaders());
+        if (t instanceof ElasticsearchException) {
+            copyHeaders(((ElasticsearchException) t));
         }
     }
 

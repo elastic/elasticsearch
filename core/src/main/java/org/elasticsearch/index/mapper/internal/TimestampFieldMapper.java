@@ -249,7 +249,7 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
 
     protected TimestampFieldMapper(MappedFieldType fieldType, Boolean docValues, EnabledAttributeMapper enabledState, String path,
                                    String defaultTimestamp, Boolean ignoreMissing, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(fieldType, docValues, fieldDataSettings, indexSettings);
+        super(NAME, fieldType, docValues, fieldDataSettings, indexSettings);
         this.enabledState = enabledState;
         this.path = path;
         this.defaultTimestamp = defaultTimestamp;

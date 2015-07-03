@@ -88,7 +88,7 @@ public class UidFieldMapper extends MetadataFieldMapper {
 
         @Override
         public UidFieldMapper build(BuilderContext context) {
-            fieldType.setNames(new MappedFieldType.Names(name, indexName, indexName, name));
+            fieldType.setNames(new MappedFieldType.Names(indexName, indexName, name));
             return new UidFieldMapper(fieldType, docValues, fieldDataSettings, context.indexSettings());
         }
     }
@@ -139,7 +139,7 @@ public class UidFieldMapper extends MetadataFieldMapper {
     }
 
     protected UidFieldMapper(MappedFieldType fieldType, Boolean docValues, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(fieldType, docValuesEnabled(docValues, indexSettings), fieldDataSettings, indexSettings);
+        super(NAME, fieldType, docValuesEnabled(docValues, indexSettings), fieldDataSettings, indexSettings);
     }
     
     static Boolean docValuesEnabled(Boolean docValues, Settings indexSettings) {

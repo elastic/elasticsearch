@@ -116,7 +116,7 @@ public class DateFieldMapper extends NumberFieldMapper {
         public DateFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             fieldType.setNullValue(nullValue);
-            DateFieldMapper fieldMapper = new DateFieldMapper(fieldType,
+            DateFieldMapper fieldMapper = new DateFieldMapper(name, fieldType,
                     docValues, ignoreMalformed(context), coerce(context),
                     fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
@@ -224,8 +224,8 @@ public class DateFieldMapper extends NumberFieldMapper {
                 if (lowerTerm != null ? !lowerTerm.equals(that.lowerTerm) : that.lowerTerm != null) return false;
                 if (upperTerm != null ? !upperTerm.equals(that.upperTerm) : that.upperTerm != null) return false;
                 if (timeZone != null ? !timeZone.equals(that.timeZone) : that.timeZone != null) return false;
-                return !(forcedDateParser != null ? !forcedDateParser.equals(that.forcedDateParser) : that.forcedDateParser != null);
 
+                return true;
             }
 
             @Override
@@ -236,7 +236,6 @@ public class DateFieldMapper extends NumberFieldMapper {
                 result = 31 * result + (includeLower ? 1 : 0);
                 result = 31 * result + (includeUpper ? 1 : 0);
                 result = 31 * result + (timeZone != null ? timeZone.hashCode() : 0);
-                result = 31 * result + (forcedDateParser != null ? forcedDateParser.hashCode() : 0);
                 return result;
             }
 
@@ -437,9 +436,9 @@ public class DateFieldMapper extends NumberFieldMapper {
         }
     }
 
-    protected DateFieldMapper(MappedFieldType fieldType, Boolean docValues, Explicit<Boolean> ignoreMalformed,Explicit<Boolean> coerce,
+    protected DateFieldMapper(String simpleName, MappedFieldType fieldType, Boolean docValues, Explicit<Boolean> ignoreMalformed,Explicit<Boolean> coerce,
                               @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(fieldType, docValues, ignoreMalformed, coerce, fieldDataSettings, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, docValues, ignoreMalformed, coerce, fieldDataSettings, indexSettings, multiFields, copyTo);
     }
 
     @Override

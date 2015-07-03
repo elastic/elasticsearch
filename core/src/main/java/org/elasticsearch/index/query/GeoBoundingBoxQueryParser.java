@@ -169,7 +169,7 @@ public class GeoBoundingBoxQueryParser extends BaseQueryParserTemp {
             throw new QueryParsingException(parseContext, "failed to parse [{}] query. could not find [{}] field [{}]", NAME, GeoPointFieldMapper.CONTENT_TYPE, fieldName);
         }
         if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
-            throw new QueryParsingException(parseContext, "failed to parse [{}] query. field [{}] is expected to be of type [{}], but is of [{}] type instead", NAME, fieldName, GeoPointFieldMapper.CONTENT_TYPE, fieldType.names().shortName());
+            throw new QueryParsingException(parseContext, "failed to parse [{}] query. field [{}] is expected to be of type [{}], but is of [{}] type instead", NAME, fieldName, GeoPointFieldMapper.CONTENT_TYPE, fieldType.typeName());
         }
         GeoPointFieldMapper.GeoPointFieldType geoFieldType = ((GeoPointFieldMapper.GeoPointFieldType) fieldType);
 

@@ -249,7 +249,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
         AnalyzingCompletionLookupProvider currentProvider = new AnalyzingCompletionLookupProvider(preserveSeparators, false, preservePositionIncrements, usePayloads);
         CompletionFieldMapper.CompletionFieldType fieldType = FIELD_TYPE.clone();
         fieldType.setProvider(currentProvider);
-        final CompletionFieldMapper mapper = new CompletionFieldMapper(fieldType, Integer.MAX_VALUE, indexSettings, AbstractFieldMapper.MultiFields.empty(), null);
+        final CompletionFieldMapper mapper = new CompletionFieldMapper("foo", fieldType, Integer.MAX_VALUE, indexSettings, AbstractFieldMapper.MultiFields.empty(), null);
         Lookup buildAnalyzingLookup = buildAnalyzingLookup(mapper, titles, titles, weights);
         Field field = buildAnalyzingLookup.getClass().getDeclaredField("maxAnalyzedPathsForOneInput");
         field.setAccessible(true);

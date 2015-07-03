@@ -32,7 +32,7 @@ import java.util.*;
 public class ElectMasterServiceTest extends ElasticsearchTestCase {
 
     ElectMasterService electMasterService() {
-        return new ElectMasterService(Settings.EMPTY);
+        return new ElectMasterService(Settings.EMPTY, Version.CURRENT);
     }
 
     List<DiscoveryNode> generateRandomNodes() {

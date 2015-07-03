@@ -167,7 +167,7 @@ public class TTLFieldMapper extends MetadataFieldMapper {
 
     protected TTLFieldMapper(MappedFieldType fieldType, EnabledAttributeMapper enabled, long defaultTTL,
                              @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(fieldType, false, fieldDataSettings, indexSettings);
+        super(NAME, fieldType, false, fieldDataSettings, indexSettings);
         this.enabledState = enabled;
         this.defaultTTL = defaultTTL;
     }

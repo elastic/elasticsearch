@@ -90,7 +90,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
         @Override
         public IndexFieldMapper build(BuilderContext context) {
-            fieldType.setNames(new MappedFieldType.Names(name, indexName, indexName, name));
+            fieldType.setNames(new MappedFieldType.Names(indexName, indexName, name));
             return new IndexFieldMapper(fieldType, enabledState, fieldDataSettings, context.indexSettings());
         }
     }
@@ -154,7 +154,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
     public IndexFieldMapper(MappedFieldType fieldType, EnabledAttributeMapper enabledState,
                             @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(fieldType, false, fieldDataSettings, indexSettings);
+        super(NAME, fieldType, false, fieldDataSettings, indexSettings);
         this.enabledState = enabledState;
     }
 

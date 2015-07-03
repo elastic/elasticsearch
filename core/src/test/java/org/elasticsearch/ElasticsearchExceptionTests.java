@@ -265,7 +265,7 @@ public class ElasticsearchExceptionTests extends ElasticsearchTestCase {
                 new IllegalArgumentException("alalaal"),
                 new NullPointerException("boom"),
                 new EOFException("dadada"),
-                new SecurityException("nono!"),
+                new ElasticsearchSecurityException("nono!"),
                 new NumberFormatException("not a number"),
                 new CorruptIndexException("baaaam", "this is my resource"),
                 new IndexFormatTooNewException("tooo new", 1, 1, 1),

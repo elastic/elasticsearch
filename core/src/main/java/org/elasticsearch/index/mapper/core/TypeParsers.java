@@ -48,7 +48,6 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeFl
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIntegerValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeMapValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringValue;
-import static org.elasticsearch.index.mapper.FieldMapper.DOC_VALUES_FORMAT;
 
 /**
  *
@@ -273,7 +272,7 @@ public class TypeParsers {
             } else if (propName.equals("postings_format") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
                 // ignore for old indexes
                 iterator.remove();
-            } else if (propName.equals(DOC_VALUES_FORMAT) && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+            } else if (propName.equals("doc_values_format") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
                 // ignore for old indexes
                 iterator.remove();
             } else if (propName.equals("similarity")) {

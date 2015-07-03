@@ -179,11 +179,11 @@ public class FieldTypeLookupTests extends ElasticsearchTestCase {
     static class FakeFieldMapper extends AbstractFieldMapper {
         static Settings dummySettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         public FakeFieldMapper(String fullName, String indexName) {
-            super(makeFieldType(fullName, indexName), null, null, dummySettings, null, null);
+            super(fullName, makeFieldType(fullName, indexName), null, null, dummySettings, null, null);
         }
         static MappedFieldType makeFieldType(String fullName, String indexName) {
             FakeFieldType fieldType = new FakeFieldType();
-            fieldType.setNames(new MappedFieldType.Names(fullName, indexName, indexName, fullName));
+            fieldType.setNames(new MappedFieldType.Names(indexName, indexName, fullName));
             return fieldType;
         }
         static class FakeFieldType extends MappedFieldType {

@@ -108,7 +108,7 @@ public class ExternalMapper extends AbstractFieldMapper {
             context.path().pathType(origPathType);
             setupFieldType(context);
 
-            return new ExternalMapper(fieldType, generatedValue, mapperName, binMapper, boolMapper, pointMapper, shapeMapper, stringMapper,
+            return new ExternalMapper(name, fieldType, generatedValue, mapperName, binMapper, boolMapper, pointMapper, shapeMapper, stringMapper,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
@@ -170,11 +170,11 @@ public class ExternalMapper extends AbstractFieldMapper {
     private final GeoShapeFieldMapper shapeMapper;
     private final FieldMapper stringMapper;
 
-    public ExternalMapper(MappedFieldType fieldType,
+    public ExternalMapper(String simpleName, MappedFieldType fieldType,
                           String generatedValue, String mapperName,
                           BinaryFieldMapper binMapper, BooleanFieldMapper boolMapper, GeoPointFieldMapper pointMapper,
                           GeoShapeFieldMapper shapeMapper, FieldMapper stringMapper, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(fieldType, false, null, indexSettings,
+        super(simpleName, fieldType, false, null, indexSettings,
                 multiFields, copyTo);
         this.generatedValue = generatedValue;
         this.mapperName = mapperName;
@@ -238,7 +238,7 @@ public class ExternalMapper extends AbstractFieldMapper {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(fieldType().names().shortName());
+        builder.startObject(simpleName());
         builder.field("type", mapperName);
         multiFields.toXContent(builder, params);
         builder.endObject();

@@ -131,7 +131,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper {
             }
             setupFieldType(context);
 
-            return new GeoShapeFieldMapper(fieldType, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+            return new GeoShapeFieldMapper(name, fieldType, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -358,8 +358,8 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper {
 
     }
 
-    public GeoShapeFieldMapper(MappedFieldType fieldType, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(fieldType, false, null, indexSettings, multiFields, copyTo);
+    public GeoShapeFieldMapper(String simpleName, MappedFieldType fieldType, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+        super(simpleName, fieldType, false, null, indexSettings, multiFields, copyTo);
     }
 
     @Override

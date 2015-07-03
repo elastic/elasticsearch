@@ -66,7 +66,7 @@ public class GlobalOrdinalsBenchmark {
 
     public static void main(String[] args) throws Exception {
         System.setProperty("es.logger.prefix", "");
-        Bootstrap.initializeNatives(true, false, false);
+        Bootstrap.initializeNatives(true, false);
         Random random = new Random();
 
         Settings settings = settingsBuilder()

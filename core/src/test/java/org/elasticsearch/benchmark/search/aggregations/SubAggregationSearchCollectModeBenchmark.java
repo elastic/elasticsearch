@@ -71,7 +71,7 @@ public class SubAggregationSearchCollectModeBenchmark {
     static Node[] nodes;
 
     public static void main(String[] args) throws Exception {
-        Bootstrap.initializeNatives(true, false, false);
+        Bootstrap.initializeNatives(true, false);
         Random random = new Random();
 
         Settings settings = settingsBuilder()

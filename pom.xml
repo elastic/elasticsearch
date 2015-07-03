@@ -430,24 +430,6 @@
                 <optional>true</optional>
             </dependency>
 
-            <dependency>
-                <groupId>org.fusesource</groupId>
-                <artifactId>sigar</artifactId>
-                <version>1.6.4</version>
-            </dependency>
-
-            <!-- We don't use this since the publish pom is then messed up -->
-            <!--
-            <dependency>
-                <groupId>sigar</groupId>
-                <artifactId>sigar</artifactId>
-                <version>1.6.4</version>
-                <scope>system</scope>
-                <systemPath>${basedir}/lib/sigar/sigar-1.6.4.jar</systemPath>
-                <optional>true</optional>
-            </dependency>
-            -->
-
             <!-- For coverage analysis -->
             <dependency>
                 <groupId>org.jacoco</groupId>
@@ -624,7 +606,6 @@
                                     <param>-Xmx${tests.heap.size}</param>
                                     <param>-Xms${tests.heap.size}</param>
                                     <param>${java.permGenSpace}</param>
-                                    <param>-Djava.library.path=${project.basedir}/lib/sigar</param>
                                     <param>-XX:MaxDirectMemorySize=512m</param>
                                     <param>-Des.logger.prefix=</param>
                                     <param>-XX:+HeapDumpOnOutOfMemoryError</param>

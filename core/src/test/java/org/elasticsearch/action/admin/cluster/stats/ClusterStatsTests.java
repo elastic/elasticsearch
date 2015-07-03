@@ -26,7 +26,6 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.monitor.sigar.SigarService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.hamcrest.Matchers;
@@ -134,7 +133,6 @@ public class ClusterStatsTests extends ElasticsearchIntegrationTest {
     public void testValuesSmokeScreen() throws IOException {
         internalCluster().ensureAtMostNumDataNodes(5);
         internalCluster().ensureAtLeastNumDataNodes(1);
-        SigarService sigarService = internalCluster().getInstance(SigarService.class);
         assertAcked(prepareCreate("test1").setSettings(settingsBuilder().put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL, 0).build()));
         index("test1", "type", "1", "f", "f");
         /*
@@ -150,12 +148,7 @@ public class ClusterStatsTests extends ElasticsearchIntegrationTest {
 
         assertThat(msg, response.nodesStats.getFs().getTotal().bytes(), Matchers.greaterThan(0l));
         assertThat(msg, response.nodesStats.getJvm().getVersions().size(), Matchers.greaterThan(0));
-        if (sigarService.sigarAvailable()) {
-            // We only get those if we have sigar
-            assertThat(msg, response.nodesStats.getOs().getAvailableProcessors(), Matchers.greaterThan(0));
-            assertThat(msg, response.nodesStats.getOs().getAvailableMemory().bytes(), Matchers.greaterThan(0l));
-            assertThat(msg, response.nodesStats.getOs().getCpus().size(), Matchers.greaterThan(0));
-        }
+
         assertThat(msg, response.nodesStats.getVersions().size(), Matchers.greaterThan(0));
         assertThat(msg, response.nodesStats.getVersions().contains(Version.CURRENT), Matchers.equalTo(true));
         assertThat(msg, response.nodesStats.getPlugins().size(), Matchers.greaterThanOrEqualTo(0));

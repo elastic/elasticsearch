@@ -10,10 +10,10 @@
           "type" : "string",
           "description" : "Default index for items which don't provide one"
         },
-        "type": {
-          "type" : "string",
-          "description" : "Default document type for items which don't provide one"
-        }
+          "type": {
+           "type" : "string",
+           "description" : "Default document type for items which don't provide one"
+         }
       },
       "params": {
         "consistency": {

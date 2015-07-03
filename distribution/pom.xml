@@ -80,7 +80,7 @@
             <artifactId>jna</artifactId>
         </dependency>
 
-        </dependencies>
+    </dependencies>
 
     <build>
         <finalName>elasticsearch-${project.version}</finalName>

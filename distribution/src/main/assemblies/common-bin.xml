@@ -25,6 +25,7 @@
                 <include>com.tdunning:t-digest</include>
                 <include>org.apache.commons:commons-lang3</include>
                 <include>commons-cli:commons-cli</include>
+                <include>com.twitter:jsr166e</include>
             </includes>
         </dependencySet>
         <dependencySet>

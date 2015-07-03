@@ -256,7 +256,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     protected SourceFieldMapper(boolean enabled, String format, Boolean compress, long compressThreshold,
                                 String[] includes, String[] excludes, Settings indexSettings) {
-        super(NAME, Defaults.FIELD_TYPE.clone(), false, null, indexSettings); // Only stored.
+        super(NAME, Defaults.FIELD_TYPE.clone(), Defaults.FIELD_TYPE, indexSettings); // Only stored.
         this.enabled = enabled;
         this.compress = compress;
         this.compressThreshold = compressThreshold;
@@ -282,16 +282,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     public boolean isComplete() {
         return complete;
-    }
-
-    @Override
-    public MappedFieldType defaultFieldType() {
-        return Defaults.FIELD_TYPE;
-    }
-
-    @Override
-    public FieldDataType defaultFieldDataType() {
-        return null;
     }
 
     @Override

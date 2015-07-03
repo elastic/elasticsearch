@@ -116,7 +116,6 @@ public class StringFieldMapper extends AbstractFieldMapper implements AllFieldMa
             // if they are set explicitly, we will use those values
             // we also change the values on the default field type so that toXContent emits what
             // differs from the defaults
-            MappedFieldType defaultFieldType = Defaults.FIELD_TYPE.clone();
             if (fieldType.indexOptions() != IndexOptions.NONE && !fieldType.tokenized()) {
                 defaultFieldType.setOmitNorms(true);
                 defaultFieldType.setIndexOptions(IndexOptions.DOCS);
@@ -127,11 +126,10 @@ public class StringFieldMapper extends AbstractFieldMapper implements AllFieldMa
                     fieldType.setIndexOptions(IndexOptions.DOCS);
                 }
             }
-            defaultFieldType.freeze();
             setupFieldType(context);
             StringFieldMapper fieldMapper = new StringFieldMapper(
-                    name, fieldType, defaultFieldType, docValues, positionOffsetGap, ignoreAbove,
-                    fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                    name, fieldType, defaultFieldType, positionOffsetGap, ignoreAbove,
+                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -221,28 +219,16 @@ public class StringFieldMapper extends AbstractFieldMapper implements AllFieldMa
     private Boolean includeInAll;
     private int positionOffsetGap;
     private int ignoreAbove;
-    private final MappedFieldType defaultFieldType;
 
-    protected StringFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Boolean docValues,
-                                int positionOffsetGap, int ignoreAbove, @Nullable Settings fieldDataSettings,
+    protected StringFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
+                                int positionOffsetGap, int ignoreAbove,
                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, docValues, fieldDataSettings, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         if (fieldType.tokenized() && fieldType.indexOptions() != NONE && fieldType().hasDocValues()) {
             throw new MapperParsingException("Field [" + fieldType.names().fullName() + "] cannot be analyzed and have doc values");
         }
-        this.defaultFieldType = defaultFieldType;
         this.positionOffsetGap = positionOffsetGap;
         this.ignoreAbove = ignoreAbove;
-    }
-
-    @Override
-    public MappedFieldType defaultFieldType() {
-        return defaultFieldType;
-    }
-
-    @Override
-    public FieldDataType defaultFieldDataType() {
-        return new FieldDataType("string");
     }
 
     @Override

@@ -77,7 +77,6 @@ public class ParentFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
-            FIELD_TYPE.setFieldDataType(new FieldDataType("_parent", settingsBuilder().put(MappedFieldType.Loading.KEY, MappedFieldType.Loading.LAZY_VALUE)));
             FIELD_TYPE.freeze();
         }
     }
@@ -87,7 +86,6 @@ public class ParentFieldMapper extends MetadataFieldMapper {
         protected String indexName;
 
         private String type;
-        protected Settings fieldDataSettings;
 
         public Builder() {
             super(Defaults.NAME, Defaults.FIELD_TYPE);
@@ -100,18 +98,14 @@ public class ParentFieldMapper extends MetadataFieldMapper {
             return builder;
         }
 
-        public Builder fieldDataSettings(Settings settings) {
-            this.fieldDataSettings = settings;
-            return builder;
-        }
-
         @Override
         public ParentFieldMapper build(BuilderContext context) {
             if (type == null) {
                 throw new MapperParsingException("[_parent] field mapping must contain the [type] option");
             }
             setupFieldType(context);
-            return new ParentFieldMapper(fieldType, type, fieldDataSettings, context.indexSettings());
+            fieldType.setHasDocValues(context.indexCreatedVersion().onOrAfter(Version.V_2_0_0));
+            return new ParentFieldMapper(fieldType, type, context.indexSettings());
         }
     }
 
@@ -145,7 +139,9 @@ public class ParentFieldMapper extends MetadataFieldMapper {
 
     static final class ParentFieldType extends MappedFieldType {
 
-        public ParentFieldType() {}
+        public ParentFieldType() {
+            setFieldDataType(new FieldDataType("_parent", settingsBuilder().put(MappedFieldType.Loading.KEY, Loading.EAGER_VALUE)));
+        }
 
         protected ParentFieldType(ParentFieldType ref) {
             super(ref);
@@ -229,30 +225,23 @@ public class ParentFieldMapper extends MetadataFieldMapper {
 
     private final String type;
 
-    protected ParentFieldMapper(MappedFieldType fieldType, String type, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(NAME, fieldType, Version.indexCreated(indexSettings).onOrAfter(Version.V_2_0_0), fieldDataSettings, indexSettings);
+    protected ParentFieldMapper(MappedFieldType fieldType, String type, Settings indexSettings) {
+        super(NAME, setupDocValues(indexSettings, fieldType), setupDocValues(indexSettings, Defaults.FIELD_TYPE), indexSettings);
         this.type = type;
     }
 
     public ParentFieldMapper(Settings indexSettings, MappedFieldType existing) {
-        this(existing == null ? Defaults.FIELD_TYPE.clone() : existing.clone(),
-             null,
-             existing == null ? null : (existing.fieldDataType() == null ? null : existing.fieldDataType().getSettings()),
-             indexSettings);
+        this(existing == null ? Defaults.FIELD_TYPE.clone() : existing.clone(), null, indexSettings);
+    }
+
+    static MappedFieldType setupDocValues(Settings indexSettings, MappedFieldType fieldType) {
+        fieldType = fieldType.clone();
+        fieldType.setHasDocValues(Version.indexCreated(indexSettings).onOrAfter(Version.V_2_0_0));
+        return fieldType;
     }
 
     public String type() {
         return type;
-    }
-
-    @Override
-    public MappedFieldType defaultFieldType() {
-        return Defaults.FIELD_TYPE;
-    }
-
-    @Override
-    public FieldDataType defaultFieldDataType() {
-        return new FieldDataType("_parent", settingsBuilder().put(MappedFieldType.Loading.KEY, MappedFieldType.Loading.EAGER_VALUE));
     }
 
     @Override
@@ -328,9 +317,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
 
         builder.startObject(CONTENT_TYPE);
         builder.field("type", type);
-        if (hasCustomFieldDataSettings()) {
-            builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
-        } else if (includeDefaults) {
+        if (includeDefaults || hasCustomFieldDataSettings()) {
             builder.field("fielddata", (Map) fieldType().fieldDataType().getSettings().getAsMap());
         }
         builder.endObject();

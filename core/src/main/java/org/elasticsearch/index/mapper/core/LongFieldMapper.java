@@ -89,8 +89,8 @@ public class LongFieldMapper extends NumberFieldMapper {
         @Override
         public LongFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            LongFieldMapper fieldMapper = new LongFieldMapper(name, fieldType, docValues,
-                    ignoreMalformed(context), coerce(context), fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+            LongFieldMapper fieldMapper = new LongFieldMapper(name, fieldType, defaultFieldType,
+                    ignoreMalformed(context), coerce(context), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -201,26 +201,15 @@ public class LongFieldMapper extends NumberFieldMapper {
         }
     }
 
-    protected LongFieldMapper(String simpleName, MappedFieldType fieldType, Boolean docValues,
+    protected LongFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                               Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-                              @Nullable Settings fieldDataSettings,
                               Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, docValues, ignoreMalformed, coerce, fieldDataSettings, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, indexSettings, multiFields, copyTo);
     }
 
     @Override
     public LongFieldType fieldType() {
         return (LongFieldType) super.fieldType();
-    }
-
-    @Override
-    public MappedFieldType defaultFieldType() {
-        return Defaults.FIELD_TYPE;
-    }
-
-    @Override
-    public FieldDataType defaultFieldDataType() {
-        return new FieldDataType("long");
     }
 
     @Override

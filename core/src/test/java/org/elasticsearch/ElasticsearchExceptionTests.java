@@ -32,14 +32,17 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexException;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.query.TestQueryParsingException;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -178,6 +181,16 @@ public class ElasticsearchExceptionTests extends ElasticsearchTestCase {
 
     public void testToXContent() throws IOException {
         {
+            ElasticsearchException ex = new SearchParseException(new TestSearchContext(), "foo", new XContentLocation(1,0));
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            builder.startObject();
+            ex.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
+
+            String expected = "{\"type\":\"search_parse_exception\",\"reason\":\"foo\",\"line\":1,\"col\":0}";
+            assertEquals(expected, builder.string());
+        }
+        {
             ElasticsearchException ex = new ElasticsearchException("foo", new ElasticsearchException("bar", new IllegalArgumentException("index is closed", new RuntimeException("foobar"))));
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
@@ -226,6 +239,7 @@ public class ElasticsearchExceptionTests extends ElasticsearchTestCase {
             ex.toXContent(otherBuilder, ToXContent.EMPTY_PARAMS);
             otherBuilder.endObject();
             assertEquals(otherBuilder.string(), builder.string());
+            assertEquals("{\"type\":\"file_not_found_exception\",\"reason\":\"foo not found\"}", builder.string());
         }
     }
 

@@ -12,9 +12,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.shield.authc.ldap.support.LdapSession.GroupsResolver;
+import org.elasticsearch.shield.support.Exceptions;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -44,8 +44,7 @@ public class ActiveDirectoryGroupsResolver implements GroupsResolver {
         try {
             results = search(connection, searchRequest, logger);
         } catch (LDAPException e) {
-            // TODO parameterize
-            throw new AuthenticationException("failed to fetch AD groups for DN [" + userDn + "]", e);
+            throw Exceptions.authenticationError("failed to fetch AD groups for DN [{}]", e, userDn);
         }
 
         ImmutableList.Builder<String> groups = ImmutableList.builder();
@@ -72,7 +71,7 @@ public class ActiveDirectoryGroupsResolver implements GroupsResolver {
             }
             return Filter.createORFilter(orFilters);
         } catch (LDAPException e) {
-            throw new AuthenticationException("failed to fetch AD groups for DN [" + userDn + "]", e);
+            throw Exceptions.authenticationError("failed to fetch AD groups for DN [{}]", e, userDn);
         }
     }
 

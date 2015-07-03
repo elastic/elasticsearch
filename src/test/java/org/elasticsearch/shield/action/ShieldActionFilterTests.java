@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.action;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
@@ -13,7 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationService;
-import org.elasticsearch.shield.authz.AuthorizationException;
 import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.shield.crypto.CryptoService;
 import org.elasticsearch.shield.license.LicenseEventsNotifier;
@@ -101,7 +101,7 @@ public class ShieldActionFilterTests extends ElasticsearchTestCase {
         when(cryptoService.signed("scroll_id")).thenReturn(true);
         doThrow(sigException).when(cryptoService).unsignAndVerify("scroll_id");
         filter.apply("_action", request, listener, chain);
-        verify(listener).onFailure(isA(AuthorizationException.class));
+        verify(listener).onFailure(isA(ElasticsearchSecurityException.class));
         verify(auditTrail).tamperedRequest(user, "_action", request);
         verifyNoMoreInteractions(chain);
     }

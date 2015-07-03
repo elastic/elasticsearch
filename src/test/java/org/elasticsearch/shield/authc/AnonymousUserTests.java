@@ -60,12 +60,12 @@ public class AnonymousUserTests extends ShieldIntegrationTest {
             if (authorizationExceptionsEnabled) {
                 assertThat(statusCode, is(403));
                 assertThat(response.getFirstHeader("WWW-Authenticate"), nullValue());
-                assertThat(data, containsString("authorization_exception"));
+                assertThat(data, containsString("security_exception"));
             } else {
                 assertThat(statusCode, is(401));
                 assertThat(response.getFirstHeader("WWW-Authenticate"), notNullValue());
                 assertThat(response.getFirstHeader("WWW-Authenticate").getValue(), containsString("Basic"));
-                assertThat(data, containsString("authentication_exception"));
+                assertThat(data, containsString("security_exception"));
             }
         }
     }

@@ -21,7 +21,6 @@ import org.elasticsearch.license.plugin.core.LicenseUtils;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationService;
-import org.elasticsearch.shield.authz.AuthorizationException;
 import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.shield.authz.Privilege;
 import org.elasticsearch.shield.crypto.CryptoService;
@@ -30,6 +29,8 @@ import org.elasticsearch.shield.license.LicenseService;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.elasticsearch.shield.support.Exceptions.authorizationError;
 
 /**
  *
@@ -141,9 +142,9 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
 
             return request;
 
-        } catch (IllegalArgumentException|IllegalStateException e) {
+        } catch (IllegalArgumentException | IllegalStateException e) {
             auditTrail.tamperedRequest(user, action, request);
-            throw new AuthorizationException("invalid request: " + e.getMessage());
+            throw authorizationError("invalid request. {}", e.getMessage());
         }
     }
 

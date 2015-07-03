@@ -64,7 +64,7 @@ public class FileUserPasswdStore {
         try {
             watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
         } catch (IOException e) {
-            throw new ElasticsearchException("failed to start watching users file [" + file.toAbsolutePath() + "]", e);
+            throw new ElasticsearchException("failed to start watching users file [{}]", e, file.toAbsolutePath());
         }
 
         listeners = new CopyOnWriteArrayList<>();
@@ -167,7 +167,7 @@ public class FileUserPasswdStore {
                 writer.printf(Locale.ROOT, "%s:%s%s", entry.getKey(), new String(entry.getValue()), System.lineSeparator());
             }
         } catch (IOException ioe) {
-            throw new ElasticsearchException("could not write file [" + path.toAbsolutePath() + "], please check file permissions", ioe);
+            throw new ElasticsearchException("could not write file [{}], please check file permissions", ioe, path.toAbsolutePath());
         }
     }
 

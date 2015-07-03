@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.authc;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.transport.TransportMessage;
@@ -21,10 +22,10 @@ public interface AuthenticationService {
      *
      * @param request   The request to be authenticated
      * @return          The authenticated user
-     * @throws AuthenticationException  If no user was associated with the request or if the associated user credentials
-     *                                  were found to be invalid
+     * @throws ElasticsearchSecurityException   If no user was associated with the request or if the associated
+     *                                          user credentials were found to be invalid
      */
-    User authenticate(RestRequest request) throws AuthenticationException;
+    User authenticate(RestRequest request) throws ElasticsearchSecurityException;
 
     /**
      * Authenticates the user that is associated with the given message. If the user was authenticated successfully (i.e.
@@ -41,9 +42,9 @@ public interface AuthenticationService {
      *
      * @return              The authenticated user (either the attached one or if there isn't the fallback one if provided)
      *
-     * @throws AuthenticationException  If the associated user credentials were found to be invalid or in the case where
-     *                                  there was no user associated with the request, if the defautl token could not be
-     *                                  authenticated.
+     * @throws ElasticsearchSecurityException   If the associated user credentials were found to be invalid or in the
+     *                                          case where there was no user associated with the request, if the defautl
+ *                                              token could not be authenticated.
      */
     User authenticate(String action, TransportMessage message, User fallbackUser);
 

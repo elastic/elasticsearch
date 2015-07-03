@@ -9,6 +9,7 @@ import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -24,7 +25,6 @@ import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AnonymousService;
-import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.shield.authz.indicesresolver.DefaultIndicesResolver;
 import org.elasticsearch.shield.authz.indicesresolver.IndicesResolver;
 import org.elasticsearch.shield.authz.store.RolesStore;
@@ -32,6 +32,9 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.util.Iterator;
 import java.util.Set;
+
+import static org.elasticsearch.shield.support.Exceptions.authenticationError;
+import static org.elasticsearch.shield.support.Exceptions.authorizationError;
 
 /**
  *
@@ -88,7 +91,7 @@ public class InternalAuthorizationService extends AbstractComponent implements A
     }
 
     @Override
-    public void authorize(User user, String action, TransportRequest request) throws AuthorizationException {
+    public void authorize(User user, String action, TransportRequest request) throws ElasticsearchSecurityException {
 
         // first we need to check if the user is the system. If it is, we'll just authorize the system access
         if (user.isSystem()) {
@@ -233,15 +236,15 @@ public class InternalAuthorizationService extends AbstractComponent implements A
                 action.equals(SearchServiceTransportAction.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
     }
 
-    private AuthorizationException denial(User user, String action, TransportRequest request) {
+    private ElasticsearchSecurityException denial(User user, String action, TransportRequest request) {
         auditTrail.accessDenied(user, action, request);
         // Special case for anonymous user
         if (anonymousService.isAnonymous(user)) {
             if (!anonymousService.authorizationExceptionsEnabled()) {
-                throw new AuthenticationException("action [" + action + "] requires authentication");
+                throw authenticationError("action [{}] requires authentication", action);
             }
         }
-        return new AuthorizationException("action [" + action + "] is unauthorized for user [" + user.principal() + "]");
+        return authorizationError("action [{}] is unauthorized for user [{}]", action, user.principal());
     }
 
     private void grant(User user, String action, TransportRequest request) {

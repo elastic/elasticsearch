@@ -5,18 +5,19 @@
  */
 package org.elasticsearch.shield.rest;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestFilterChain;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
-import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
+import static org.elasticsearch.shield.support.Exceptions.authenticationError;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.*;
 
@@ -53,11 +54,11 @@ public class ShieldRestFilterTests extends ElasticsearchTestCase {
     @Test
     public void testProcess_AuthenticationError() throws Exception {
         RestRequest request = mock(RestRequest.class);
-        when(authcService.authenticate(request)).thenThrow(new AuthenticationException("failed authc"));
+        when(authcService.authenticate(request)).thenThrow(authenticationError("failed authc"));
         try {
             filter.process(request, channel, chain);
             fail("expected rest filter process to throw an authentication exception when authentication fails");
-        } catch (AuthenticationException e) {
+        } catch (ElasticsearchSecurityException e) {
             assertThat(e.getMessage(), equalTo("failed authc"));
         }
         verifyZeroInteractions(channel);

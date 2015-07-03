@@ -6,11 +6,11 @@
 package org.elasticsearch.integration;
 
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.shield.authz.AuthorizationException;
 import org.elasticsearch.shield.crypto.CryptoService;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.test.ShieldIntegrationTest;
@@ -19,6 +19,7 @@ import org.junit.Test;
 import java.util.Locale;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.ShieldTestsUtils.assertAuthorizationException;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
@@ -72,7 +73,9 @@ public class ScrollIdSigningTests extends ShieldIntegrationTest {
             client().prepareSearchScroll(tamperedScrollId).setScroll(TimeValue.timeValueMinutes(2)).get();
             fail("Expected an authorization exception to be thrown when scroll id is tampered");
         } catch (Exception e) {
-            assertThat(ExceptionsHelper.unwrap(e, AuthorizationException.class), notNullValue());
+            ElasticsearchSecurityException ese = (ElasticsearchSecurityException) ExceptionsHelper.unwrap(e, ElasticsearchSecurityException.class);
+            assertThat(ese, notNullValue());
+            assertAuthorizationException(ese);
         } finally {
             clearScroll(scrollId);
         }
@@ -95,7 +98,9 @@ public class ScrollIdSigningTests extends ShieldIntegrationTest {
             client().prepareClearScroll().addScrollId(tamperedScrollId).get();
             fail("Expected an authorization exception to be thrown when scroll id is tampered");
         } catch (Exception e) {
-            assertThat(ExceptionsHelper.unwrap(e, AuthorizationException.class), notNullValue());
+            ElasticsearchSecurityException ese = (ElasticsearchSecurityException) ExceptionsHelper.unwrap(e, ElasticsearchSecurityException.class);
+            assertThat(ese, notNullValue());
+            assertAuthorizationException(ese);
         } finally {
             clearScroll(scrollId);
         }

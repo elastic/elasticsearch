@@ -92,7 +92,11 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
 
         keyFile = resolveSystemKey(settings, env);
         systemKey = readSystemKey(keyFile);
-        encryptionKey = encryptionKey(systemKey, keyLength, keyAlgorithm);
+        try {
+            encryptionKey = encryptionKey(systemKey, keyLength, keyAlgorithm);
+        } catch (NoSuchAlgorithmException nsae) {
+            throw new ElasticsearchException("failed to start crypto service. could not load encryption key", nsae);
+        }
         FileWatcher watcher = new FileWatcher(keyFile.getParent());
         watcher.addListener(new FileListener(listeners));
         try {
@@ -306,6 +310,7 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
     private byte[] decryptInternal(byte[] bytes, SecretKey key) {
         if (bytes.length < ivLength) {
             logger.error("received data for decryption with size [{}] that is less than IV length [{}]", bytes.length, ivLength);
+            // TODO consider changing to IllegalArgumentException
             throw new ElasticsearchException("invalid data to decrypt");
         }
 
@@ -317,8 +322,8 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
         Cipher cipher = cipher(Cipher.DECRYPT_MODE, encryptionAlgorithm, key, iv);
         try {
             return cipher.doFinal(data);
-        } catch (BadPaddingException|IllegalBlockSizeException e) {
-            throw new ElasticsearchException("error decrypting data", e);
+        } catch (BadPaddingException | IllegalBlockSizeException e) {
+            throw new IllegalStateException("error decrypting data", e);
         }
     }
 
@@ -338,6 +343,7 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
         try {
             return Base64.encodeBytes(sig, 0, sig.length, Base64.URL_SAFE);
         } catch (IOException e) {
+            // TODO consider bubbling the IOException up
             throw new IllegalArgumentException("unable to encode signed data", e);
         }
     }
@@ -353,30 +359,26 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
         }
     }
 
-    static SecretKey encryptionKey(SecretKey systemKey, int keyLength, String algorithm) {
+    static SecretKey encryptionKey(SecretKey systemKey, int keyLength, String algorithm) throws NoSuchAlgorithmException {
         if (systemKey == null) {
             return null;
         }
 
-        try {
-            byte[] bytes = systemKey.getEncoded();
-            if ((bytes.length * 8) < keyLength) {
-                throw new IllegalArgumentException("at least " + keyLength +" bits should be provided as key data");
-            }
-
-            MessageDigest messageDigest = MessageDigest.getInstance("SHA-256");
-            byte[] digest = messageDigest.digest(bytes);
-            assert digest.length == (256 / 8);
-
-            if ((digest.length * 8) < keyLength) {
-                throw new IllegalArgumentException("requested key length is too large");
-            }
-            byte[] truncatedDigest = Arrays.copyOfRange(digest, 0, (keyLength / 8));
-
-            return new SecretKeySpec(truncatedDigest, algorithm);
-        } catch (NoSuchAlgorithmException e) {
-            throw new ElasticsearchException("error getting encryption key", e);
+        byte[] bytes = systemKey.getEncoded();
+        if ((bytes.length * 8) < keyLength) {
+            throw new IllegalArgumentException("at least " + keyLength +" bits should be provided as key data");
         }
+
+        MessageDigest messageDigest = MessageDigest.getInstance("SHA-256");
+        byte[] digest = messageDigest.digest(bytes);
+        assert digest.length == (256 / 8);
+
+        if ((digest.length * 8) < keyLength) {
+            throw new IllegalArgumentException("requested key length is too large");
+        }
+        byte[] truncatedDigest = Arrays.copyOfRange(digest, 0, (keyLength / 8));
+
+        return new SecretKeySpec(truncatedDigest, algorithm);
     }
 
     private static boolean bytesBeginsWith(byte[] prefix, byte[] bytes) {
@@ -412,9 +414,13 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
                 final SecretKey oldEncryptionKey = encryptionKey;
 
                 systemKey = readSystemKey(file);
-                encryptionKey = encryptionKey(systemKey, keyLength, keyAlgorithm);
+                try {
+                    encryptionKey = encryptionKey(systemKey, keyLength, keyAlgorithm);
+                } catch (NoSuchAlgorithmException nsae) {
+                    logger.error("could not load encryption key", nsae);
+                    encryptionKey = null;
+                }
                 logger.info("system key [{}] has been loaded", file.toAbsolutePath());
-
                 callListeners(oldSystemKey, oldEncryptionKey);
             }
         }
@@ -441,7 +447,12 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
 
                 logger.warn("system key file changed!");
                 systemKey = readSystemKey(file);
-                encryptionKey = encryptionKey(systemKey, keyLength, keyAlgorithm);
+                try {
+                    encryptionKey = encryptionKey(systemKey, keyLength, keyAlgorithm);
+                } catch (NoSuchAlgorithmException nsae) {
+                    logger.error("could not load encryption key", nsae);
+                    encryptionKey = null;
+                }
 
                 callListeners(oldSystemKey, oldEncryptionKey);
             }

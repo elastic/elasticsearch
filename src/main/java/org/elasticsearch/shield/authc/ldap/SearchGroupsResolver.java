@@ -11,9 +11,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.shield.authc.ldap.support.LdapSession.GroupsResolver;
+import org.elasticsearch.shield.support.Exceptions;
 
 import java.util.LinkedList;
 import java.util.List;
@@ -57,7 +57,7 @@ class SearchGroupsResolver implements GroupsResolver {
                 groups.add(entry.getDN());
             }
         } catch (LDAPException e) {
-            throw new AuthenticationException("could not search for LDAP groups for DN [" + userDn + "]", e);
+            throw Exceptions.authenticationError("could not search for LDAP groups for DN [{}]", e, userDn);
         }
 
         return groups;
@@ -70,11 +70,11 @@ class SearchGroupsResolver implements GroupsResolver {
             SearchResultEntry results = searchForEntry(connection, request, logger);
             Attribute attribute = results.getAttribute(userAttribute);
             if (attribute == null) {
-                throw new AuthenticationException("no results returned for DN [" + userDn + "] attribute [" + userAttribute + "]");
+                throw Exceptions.authenticationError("no results returned for DN [{}] attribute [{}]", userDn, userAttribute);
             }
             return attribute.getValue();
         } catch (LDAPException e) {
-            throw new AuthenticationException("could not retrieve attribute [" + userAttribute + "] for DN [" + userDn + "]", e);
+            throw Exceptions.authenticationError("could not retrieve attribute [{}] for DN [{}]", e, userAttribute, userDn);
         }
     }
 }

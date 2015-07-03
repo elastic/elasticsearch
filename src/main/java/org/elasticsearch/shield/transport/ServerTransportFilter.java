@@ -9,7 +9,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.action.ShieldActionMapper;
-import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authc.pki.PkiRealm;
 import org.elasticsearch.shield.authz.AuthorizationService;
@@ -22,6 +21,8 @@ import org.jboss.netty.handler.ssl.SslHandler;
 import javax.net.ssl.SSLPeerUnverifiedException;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
+
+import static org.elasticsearch.shield.support.Exceptions.authenticationError;
 
 /**
  * This interface allows to intercept messages as they come in and execute logic
@@ -42,7 +43,7 @@ public interface ServerTransportFilter {
      * The server trasnport filter that should be used in nodes as it ensures that an incoming
      * request is properly authenticated and authorized
      */
-    public static class NodeProfile implements ServerTransportFilter {
+    class NodeProfile implements ServerTransportFilter {
         private static final ESLogger logger = Loggers.getLogger(NodeProfile.class);
 
         private final AuthenticationService authcService;
@@ -100,7 +101,7 @@ public interface ServerTransportFilter {
      * or shard level actions. As it extends the NodeProfile the authentication/authorization is
      * done as well
      */
-    public static class ClientProfile extends NodeProfile {
+    class ClientProfile extends NodeProfile {
 
         public ClientProfile(AuthenticationService authcService, AuthorizationService authzService, ShieldActionMapper actionMapper, boolean extractClientCert) {
             super(authcService, authzService, actionMapper, extractClientCert);
@@ -111,7 +112,7 @@ public interface ServerTransportFilter {
             // TODO is ']' sufficient to mark as shard action?
             boolean isInternalOrShardAction = action.startsWith("internal:") || action.endsWith("]");
             if (isInternalOrShardAction) {
-                throw new AuthenticationException("executing internal/shard actions is considered malicious and forbidden");
+                throw authenticationError("executing internal/shard actions is considered malicious and forbidden");
             }
             super.inbound(action, request, transportChannel);
         }

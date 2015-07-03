@@ -6,6 +6,7 @@
 package org.elasticsearch.integration;
 
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.ClearScrollResponse;
@@ -14,7 +15,6 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
-import org.elasticsearch.shield.authz.AuthorizationException;
 import org.elasticsearch.test.ShieldIntegrationTest;
 import org.junit.After;
 import org.junit.Before;
@@ -107,7 +107,7 @@ public class ShieldClearScrollTests extends ShieldIntegrationTest {
         assertThrows(internalTestCluster().transportClient().prepareClearScroll()
                 .putHeader("shield.user", shieldUser)
                 .putHeader("Authorization", basicAuth)
-                .addScrollId("_all"), AuthorizationException.class, "action [cluster:admin/indices/scroll/clear_all] is unauthorized for user [denied_user]");
+                .addScrollId("_all"), ElasticsearchSecurityException.class, "action [cluster:admin/indices/scroll/clear_all] is unauthorized for user [denied_user]");
 
         // deletion of scroll ids should work
         ClearScrollResponse clearByIdScrollResponse = client().prepareClearScroll().setScrollIds(scrollIds).get();

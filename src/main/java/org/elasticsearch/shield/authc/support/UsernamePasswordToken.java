@@ -7,7 +7,6 @@ package org.elasticsearch.shield.authc.support;
 
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.transport.TransportRequest;
@@ -18,6 +17,8 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import static org.elasticsearch.shield.support.Exceptions.authenticationError;
 
 /**
  *
@@ -87,19 +88,19 @@ public class UsernamePasswordToken implements AuthenticationToken {
     static UsernamePasswordToken extractToken(String token) {
         Matcher matcher = BASIC_AUTH_PATTERN.matcher(token.trim());
         if (!matcher.matches()) {
-            throw new AuthenticationException("invalid basic authentication header value");
+            throw authenticationError("invalid basic authentication header value");
         }
 
         char[] userpasswd;
         try {
             userpasswd = CharArrays.utf8BytesToChars(Base64.decode(matcher.group(1)));
         } catch (IllegalArgumentException|IOException e) {
-            throw new AuthenticationException("invalid basic authentication header encoding", e);
+            throw authenticationError("invalid basic authentication header encoding", e);
         }
 
         int i = CharArrays.indexOf(userpasswd, ':');
         if (i < 0) {
-            throw new AuthenticationException("invalid basic authentication header value");
+            throw authenticationError("invalid basic authentication header value");
         }
 
         return new UsernamePasswordToken(

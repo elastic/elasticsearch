@@ -6,6 +6,7 @@
 package org.elasticsearch.shield.authz;
 
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
@@ -19,6 +20,7 @@ import org.junit.Test;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.test.ShieldTestsUtils.assertAuthorizationException;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.*;
 
@@ -92,8 +94,8 @@ public class IndexAliasesTests extends ShieldIntegrationTest {
             client().admin().indices().prepareAliases().addAlias("test_1", "test_alias")
                     .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_only", new SecuredString("test123".toCharArray()))).get();
             fail("add alias should have failed due to missing manage_aliases privileges");
-        } catch(AuthorizationException e) {
-            assertThat(e.getMessage(), containsString("action [indices:admin/aliases] is unauthorized for user [create_only]"));
+        } catch(ElasticsearchSecurityException e) {
+            assertAuthorizationException(e, containsString("action [indices:admin/aliases] is unauthorized for user [create_only]"));
         }
 
         try {
@@ -112,8 +114,8 @@ public class IndexAliasesTests extends ShieldIntegrationTest {
             client().admin().indices().prepareCreate("test_1").addAlias(new Alias("test_2"))
                     .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_only", new SecuredString("test123".toCharArray()))).get();
             fail("create index should have failed due to missing manage_aliases privileges");
-        } catch(AuthorizationException e) {
-            assertThat(e.getMessage(), containsString("action [indices:admin/aliases] is unauthorized for user [create_only]"));
+        } catch(ElasticsearchSecurityException e) {
+            assertAuthorizationException(e, containsString("action [indices:admin/aliases] is unauthorized for user [create_only]"));
         }
     }
 
@@ -124,8 +126,8 @@ public class IndexAliasesTests extends ShieldIntegrationTest {
             client().admin().indices().prepareAliases().removeAlias("test_1", "alias_1")
                     .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_only", new SecuredString("test123".toCharArray()))).get();
             fail("remove alias should have failed due to missing manage_aliases privileges");
-        } catch(AuthorizationException e) {
-            assertThat(e.getMessage(), containsString("action [indices:admin/aliases] is unauthorized for user [create_only]"));
+        } catch(ElasticsearchSecurityException e) {
+            assertAuthorizationException(e, containsString("action [indices:admin/aliases] is unauthorized for user [create_only]"));
         }
 
         try {
@@ -152,8 +154,8 @@ public class IndexAliasesTests extends ShieldIntegrationTest {
             client().admin().indices().prepareGetAliases("test_1").setIndices("test_1").setIndicesOptions(IndicesOptions.lenientExpandOpen())
                     .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_only", new SecuredString("test123".toCharArray()))).get();
             fail("get alias should have failed due to missing manage_aliases privileges");
-        } catch(AuthorizationException e) {
-            assertThat(e.getMessage(), containsString("action [indices:admin/aliases/get] is unauthorized for user [create_only]"));
+        } catch(ElasticsearchSecurityException e) {
+            assertAuthorizationException(e, containsString("action [indices:admin/aliases/get] is unauthorized for user [create_only]"));
         }
 
         try {
@@ -208,8 +210,8 @@ public class IndexAliasesTests extends ShieldIntegrationTest {
             client().admin().indices().prepareAliases().addAlias("test_1", "alias_1").addAlias("test_1", "test_alias")
                     .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test", new SecuredString("test123".toCharArray()))).get();
             fail("add alias should have failed due to missing manage_aliases privileges on alias_1");
-        } catch(AuthorizationException e) {
-            assertThat(e.getMessage(), containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_test]"));
+        } catch(ElasticsearchSecurityException e) {
+            assertAuthorizationException(e, containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_test]"));
         }
     }
 
@@ -225,8 +227,8 @@ public class IndexAliasesTests extends ShieldIntegrationTest {
             client().admin().indices().prepareCreate("test_2").addAlias(new Alias("test_alias")).addAlias(new Alias("alias_2"))
                     .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test", new SecuredString("test123".toCharArray()))).get();
             fail("create index should have failed due to missing manage_aliases privileges on alias_2");
-        } catch(AuthorizationException e) {
-            assertThat(e.getMessage(), containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_test]"));
+        } catch(ElasticsearchSecurityException e) {
+            assertAuthorizationException(e, containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_test]"));
         }
     }
 
@@ -270,8 +272,8 @@ public class IndexAliasesTests extends ShieldIntegrationTest {
             client().admin().indices().prepareAliases().removeAlias("test_1", "alias_1")
                     .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test", new SecuredString("test123".toCharArray()))).get();
             fail("remove alias should have failed due to missing manage_aliases privileges on alias_1");
-        } catch(AuthorizationException e) {
-            assertThat(e.getMessage(), containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_test]"));
+        } catch(ElasticsearchSecurityException e) {
+            assertAuthorizationException(e, containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_test]"));
         }
 
         try {
@@ -279,8 +281,8 @@ public class IndexAliasesTests extends ShieldIntegrationTest {
             client().admin().indices().prepareAliases().removeAlias("test_1", new String[]{"_all", "alias_1"})
                     .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test", new SecuredString("test123".toCharArray()))).get();
             fail("remove alias should have failed due to missing manage_aliases privileges on alias_1");
-        } catch(AuthorizationException e) {
-            assertThat(e.getMessage(), containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_test]"));
+        } catch(ElasticsearchSecurityException e) {
+            assertAuthorizationException(e, containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_test]"));
         }
     }
 
@@ -336,8 +338,8 @@ public class IndexAliasesTests extends ShieldIntegrationTest {
             client().admin().indices().prepareGetAliases().setAliases("_all", "alias_1")
                     .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test", new SecuredString("test123".toCharArray()))).get();
             fail("get alias should have failed due to missing manage_aliases privileges on alias_1");
-        } catch(AuthorizationException e) {
-            assertThat(e.getMessage(), containsString("action [indices:admin/aliases/get] is unauthorized for user [create_test_aliases_test]"));
+        } catch(ElasticsearchSecurityException e) {
+            assertAuthorizationException(e, containsString("action [indices:admin/aliases/get] is unauthorized for user [create_test_aliases_test]"));
         }
 
         try {
@@ -345,8 +347,8 @@ public class IndexAliasesTests extends ShieldIntegrationTest {
             client().admin().indices().prepareGetAliases().setAliases("alias_1")
                     .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test", new SecuredString("test123".toCharArray()))).get();
             fail("get alias should have failed due to missing manage_aliases privileges on alias_1");
-        } catch(AuthorizationException e) {
-            assertThat(e.getMessage(), containsString("action [indices:admin/aliases/get] is unauthorized for user [create_test_aliases_test]"));
+        } catch(ElasticsearchSecurityException e) {
+            assertAuthorizationException(e, containsString("action [indices:admin/aliases/get] is unauthorized for user [create_test_aliases_test]"));
         }
     }
 
@@ -361,8 +363,8 @@ public class IndexAliasesTests extends ShieldIntegrationTest {
             client().admin().indices().prepareAliases().addAlias("test_1", "test_alias")
                     .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_alias", new SecuredString("test123".toCharArray()))).get();
             fail("add alias should have failed due to missing manage_aliases privileges on test_alias and test_1");
-        } catch(AuthorizationException e) {
-            assertThat(e.getMessage(), containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_alias]"));
+        } catch(ElasticsearchSecurityException e) {
+            assertAuthorizationException(e, containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_alias]"));
         }
 
         try {
@@ -370,8 +372,8 @@ public class IndexAliasesTests extends ShieldIntegrationTest {
             client().admin().indices().prepareAliases().addAlias("test_1", "alias_1")
                     .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_alias", new SecuredString("test123".toCharArray()))).get();
             fail("add alias should have failed due to missing manage_aliases privileges on test_1");
-        } catch(AuthorizationException e) {
-            assertThat(e.getMessage(), containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_alias]"));
+        } catch(ElasticsearchSecurityException e) {
+            assertAuthorizationException(e, containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_alias]"));
         }
 
         try {
@@ -392,8 +394,8 @@ public class IndexAliasesTests extends ShieldIntegrationTest {
             client().admin().indices().prepareCreate("test_1").addAlias(new Alias("test_alias"))
                     .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_alias", new SecuredString("test123".toCharArray()))).get();
             fail("create index should have failed due to missing manage_aliases privileges on test_1 and test_alias");
-        } catch(AuthorizationException e) {
-            assertThat(e.getMessage(), containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_alias]"));
+        } catch(ElasticsearchSecurityException e) {
+            assertAuthorizationException(e, containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_alias]"));
         }
 
         try {
@@ -401,8 +403,8 @@ public class IndexAliasesTests extends ShieldIntegrationTest {
             client().admin().indices().prepareCreate("test_1").addAlias(new Alias("test_alias")).addAlias(new Alias("alias_1"))
                     .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_alias", new SecuredString("test123".toCharArray()))).get();
             fail("create index should have failed due to missing manage_aliases privileges on test_1 and test_alias");
-        } catch(AuthorizationException e) {
-            assertThat(e.getMessage(), containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_alias]"));
+        } catch(ElasticsearchSecurityException e) {
+            assertAuthorizationException(e, containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_alias]"));
         }
     }
 
@@ -414,8 +416,8 @@ public class IndexAliasesTests extends ShieldIntegrationTest {
             client().admin().indices().prepareAliases().removeAlias("test_1", "test_alias")
                     .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_alias", new SecuredString("test123".toCharArray()))).get();
             fail("remove alias should have failed due to missing manage_aliases privileges on test_alias and test_1");
-        } catch(AuthorizationException e) {
-            assertThat(e.getMessage(), containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_alias]"));
+        } catch(ElasticsearchSecurityException e) {
+            assertAuthorizationException(e, containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_alias]"));
         }
 
         try {
@@ -423,8 +425,8 @@ public class IndexAliasesTests extends ShieldIntegrationTest {
             client().admin().indices().prepareAliases().removeAlias("test_1", "alias_1")
                     .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_alias", new SecuredString("test123".toCharArray()))).get();
             fail("remove alias should have failed due to missing manage_aliases privileges on test_1");
-        } catch(AuthorizationException e) {
-            assertThat(e.getMessage(), containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_alias]"));
+        } catch(ElasticsearchSecurityException e) {
+            assertAuthorizationException(e, containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_alias]"));
         }
 
         try {
@@ -448,8 +450,8 @@ public class IndexAliasesTests extends ShieldIntegrationTest {
             client().admin().indices().prepareGetAliases().setAliases("test_alias").setIndices("test_1")
                     .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_alias", new SecuredString("test123".toCharArray()))).get();
             fail("get alias should have failed due to missing manage_aliases privileges on test_alias and test_1");
-        } catch(AuthorizationException e) {
-            assertThat(e.getMessage(), containsString("action [indices:admin/aliases/get] is unauthorized for user [create_test_aliases_alias]"));
+        } catch(ElasticsearchSecurityException e) {
+            assertAuthorizationException(e, containsString("action [indices:admin/aliases/get] is unauthorized for user [create_test_aliases_alias]"));
         }
 
         try {
@@ -545,8 +547,8 @@ public class IndexAliasesTests extends ShieldIntegrationTest {
             client().admin().indices().prepareAliases().removeAlias("test_1", "non_authorized").removeAlias("test_1", "test_alias")
                     .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test_alias", new SecuredString("test123".toCharArray()))).get();
             fail("remove alias should have failed due to missing manage_aliases privileges on non_authorized");
-        } catch(AuthorizationException e) {
-            assertThat(e.getMessage(), containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_test_alias]"));
+        } catch(ElasticsearchSecurityException e) {
+            assertAuthorizationException(e, containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_test_alias]"));
         }
 
         assertAcked(client().admin().indices().prepareAliases().removeAlias("test_1", "alias_1")
@@ -609,7 +611,7 @@ public class IndexAliasesTests extends ShieldIntegrationTest {
                 "test_1", "alias_1");
     }
 
-    @Test(expected = AuthorizationException.class)
+    @Test(expected = ElasticsearchSecurityException.class)
     public void testCreateIndexAliasesOnlyPermission() {
         client().admin().indices().prepareCreate("test_1")
                 .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("aliases_only", new SecuredString("test123".toCharArray()))).get();
@@ -628,16 +630,16 @@ public class IndexAliasesTests extends ShieldIntegrationTest {
             //fails: no manage_aliases privilege on non_authorized alias
             client().admin().indices().prepareGetAliases("non_authorized").addIndices("test_1").setIndicesOptions(IndicesOptions.lenientExpandOpen())
                     .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("aliases_only", new SecuredString("test123".toCharArray()))).get();
-        } catch(AuthorizationException e) {
-            assertThat(e.getMessage(), containsString("action [indices:admin/aliases/get] is unauthorized for user [aliases_only]"));
+        } catch(ElasticsearchSecurityException e) {
+            assertAuthorizationException(e, containsString("action [indices:admin/aliases/get] is unauthorized for user [aliases_only]"));
         }
 
         try {
             //fails: no manage_aliases privilege on non_authorized index
             client().admin().indices().prepareGetAliases("alias_1").addIndices("non_authorized").setIndicesOptions(IndicesOptions.lenientExpandOpen())
                     .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("aliases_only", new SecuredString("test123".toCharArray()))).get();
-        } catch(AuthorizationException e) {
-            assertThat(e.getMessage(), containsString("action [indices:admin/aliases/get] is unauthorized for user [aliases_only]"));
+        } catch(ElasticsearchSecurityException e) {
+            assertAuthorizationException(e, containsString("action [indices:admin/aliases/get] is unauthorized for user [aliases_only]"));
         }
     }
 

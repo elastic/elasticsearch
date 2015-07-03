@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.shield.authc.ldap;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.shield.authc.ldap.support.LdapSession;
@@ -54,7 +54,7 @@ public class LdapSessionFactoryTests extends LdapTest {
         try (LdapSession session = sessionFactory.session(user, userPass)) {
             fail("expected connection timeout error here");
         } catch (Throwable t) {
-            assertThat(t, instanceOf(AuthenticationException.class));
+            assertThat(t, instanceOf(ElasticsearchSecurityException.class));
             assertThat(t.getCause().getMessage(), containsString("A client-side timeout was encountered while waiting "));
         } finally {
             ldapServer.setProcessingDelayMillis(0L);
@@ -114,7 +114,7 @@ public class LdapSessionFactoryTests extends LdapTest {
     }
 
 
-    @Test(expected = AuthenticationException.class)
+    @Test(expected = ElasticsearchSecurityException.class)
     public void testBindWithBogusTemplates() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         String[] userTemplates = new String[] {

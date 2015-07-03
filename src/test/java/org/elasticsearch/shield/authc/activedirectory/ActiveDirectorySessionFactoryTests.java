@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.shield.authc.activedirectory;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.ldap.LdapSessionFactory;
 import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 
+import static org.elasticsearch.test.ShieldTestsUtils.assertAuthenticationException;
 import static org.hamcrest.Matchers.*;
 
 @Network
@@ -90,7 +91,8 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
             // In certain cases we may have a successful bind, but a search should take longer and cause a timeout
             ldap.groups();
             fail("The TCP connection should timeout before getting groups back");
-        } catch (AuthenticationException e) {
+        } catch (ElasticsearchSecurityException e) {
+            assertAuthenticationException(e);
             assertThat(e.getCause().getMessage(), containsString("A client-side timeout was encountered while waiting"));
         }
     }

@@ -10,8 +10,8 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.util.concurrent.UncheckedExecutionException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.shield.User;
-import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.shield.authc.RealmConfig;
+import org.elasticsearch.shield.support.Exceptions;
 
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -77,7 +77,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                 }
                 User user = doAuthenticate(token);
                 if (user == null) {
-                    throw new AuthenticationException("could not authenticate [" + token.principal() + "]");
+                    throw Exceptions.authenticationError("could not authenticate [{}]", token.principal());
                 }
                 return new UserWithHash(user, token.credentials(), hasher);
             }

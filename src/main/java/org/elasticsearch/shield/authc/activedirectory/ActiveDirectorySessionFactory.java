@@ -10,7 +10,6 @@ import com.unboundid.ldap.sdk.*;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.ShieldSettingsFilter;
-import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.shield.authc.ldap.support.LdapSession;
@@ -20,11 +19,11 @@ import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.ssl.ClientSSLService;
 
 import javax.net.SocketFactory;
-
 import java.io.IOException;
 
 import static org.elasticsearch.shield.authc.ldap.support.LdapUtils.createFilter;
 import static org.elasticsearch.shield.authc.ldap.support.LdapUtils.search;
+import static org.elasticsearch.shield.support.Exceptions.authenticationError;
 
 /**
  * This Class creates LdapSessions authenticating via the custom Active Directory protocol.  (that being
@@ -121,7 +120,7 @@ public class ActiveDirectorySessionFactory extends SessionFactory {
         } catch (LDAPException e) {
             connection.close();
             // TODO think more about this exception...
-            throw new AuthenticationException("unable to authenticate user [" + userName + "] to active directory domain [" + domainName + "]", e);
+            throw authenticationError("unable to authenticate user [{}] to active directory domain [{}]", e, userName, domainName);
         }
     }
 

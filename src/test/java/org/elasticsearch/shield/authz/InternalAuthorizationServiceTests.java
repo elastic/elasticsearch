@@ -6,6 +6,7 @@
 package org.elasticsearch.shield.authz;
 
 import com.google.common.collect.ImmutableList;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
@@ -23,19 +24,17 @@ import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AnonymousService;
-import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.shield.authz.store.RolesStore;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.junit.Before;
 import org.junit.Test;
 
+import static org.elasticsearch.test.ShieldTestsUtils.assertAuthenticationException;
+import static org.elasticsearch.test.ShieldTestsUtils.assertAuthorizationException;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.*;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 public class InternalAuthorizationServiceTests extends ElasticsearchTestCase {
 
@@ -71,8 +70,8 @@ public class InternalAuthorizationServiceTests extends ElasticsearchTestCase {
         try {
             internalAuthorizationService.authorize(User.SYSTEM, "indices:", request);
             fail("action beginning with indices should have failed");
-        } catch (AuthorizationException e) {
-            assertThat(e.getMessage(), containsString("action [indices:] is unauthorized for user [" + User.SYSTEM.principal() + "]"));
+        } catch (ElasticsearchSecurityException e) {
+            assertAuthorizationException(e, containsString("action [indices:] is unauthorized for user [" + User.SYSTEM.principal() + "]"));
             verify(auditTrail).accessDenied(User.SYSTEM, "indices:", request);
         }
     }
@@ -83,8 +82,8 @@ public class InternalAuthorizationServiceTests extends ElasticsearchTestCase {
         try {
             internalAuthorizationService.authorize(User.SYSTEM, "cluster:admin/whatever", request);
             fail("action beginning with cluster:admin/whatever should have failed");
-        } catch (AuthorizationException e) {
-            assertThat(e.getMessage(), containsString("action [cluster:admin/whatever] is unauthorized for user [" + User.SYSTEM.principal() + "]"));
+        } catch (ElasticsearchSecurityException e) {
+            assertAuthorizationException(e, containsString("action [cluster:admin/whatever] is unauthorized for user [" + User.SYSTEM.principal() + "]"));
             verify(auditTrail).accessDenied(User.SYSTEM, "cluster:admin/whatever", request);
         }
     }
@@ -95,8 +94,8 @@ public class InternalAuthorizationServiceTests extends ElasticsearchTestCase {
         try {
             internalAuthorizationService.authorize(User.SYSTEM, "cluster:admin/snapshot/status", request);
             fail("action beginning with cluster:admin/snapshot/status should have failed");
-        } catch (AuthorizationException e) {
-            assertThat(e.getMessage(), containsString("action [cluster:admin/snapshot/status] is unauthorized for user [" + User.SYSTEM.principal() + "]"));
+        } catch (ElasticsearchSecurityException e) {
+            assertAuthorizationException(e, containsString("action [cluster:admin/snapshot/status] is unauthorized for user [" + User.SYSTEM.principal() + "]"));
             verify(auditTrail).accessDenied(User.SYSTEM, "cluster:admin/snapshot/status", request);
         }
     }
@@ -108,8 +107,8 @@ public class InternalAuthorizationServiceTests extends ElasticsearchTestCase {
         try {
             internalAuthorizationService.authorize(user, "indices:a", request);
             fail("user without roles should be denied");
-        } catch (AuthorizationException e) {
-            assertThat(e.getMessage(), containsString("action [indices:a] is unauthorized for user [test user]"));
+        } catch (ElasticsearchSecurityException e) {
+            assertAuthorizationException(e, containsString("action [indices:a] is unauthorized for user [test user]"));
             verify(auditTrail).accessDenied(user, "indices:a", request);
         }
     }
@@ -121,8 +120,8 @@ public class InternalAuthorizationServiceTests extends ElasticsearchTestCase {
         try {
             internalAuthorizationService.authorize(user, "indices:a", request);
             fail("user with unknown role only should have been denied");
-        } catch (AuthorizationException e) {
-            assertThat(e.getMessage(), containsString("action [indices:a] is unauthorized for user [test user]"));
+        } catch (ElasticsearchSecurityException e) {
+            assertAuthorizationException(e, containsString("action [indices:a] is unauthorized for user [test user]"));
             verify(auditTrail).accessDenied(user, "indices:a", request);
         }
     }
@@ -136,8 +135,8 @@ public class InternalAuthorizationServiceTests extends ElasticsearchTestCase {
         try {
             internalAuthorizationService.authorize(user, "whatever", request);
             fail("non indices and non cluster requests should be denied");
-        } catch (AuthorizationException e) {
-            assertThat(e.getMessage(), containsString("action [whatever] is unauthorized for user [test user]"));
+        } catch (ElasticsearchSecurityException e) {
+            assertAuthorizationException(e, containsString("action [whatever] is unauthorized for user [test user]"));
             verify(auditTrail).accessDenied(user, "whatever", request);
         }
     }
@@ -151,8 +150,8 @@ public class InternalAuthorizationServiceTests extends ElasticsearchTestCase {
         try {
             internalAuthorizationService.authorize(user, "indices:a", request);
             fail("user only has cluster roles so indices requests should fail");
-        } catch (AuthorizationException e) {
-            assertThat(e.getMessage(), containsString("action [indices:a] is unauthorized for user [test user]"));
+        } catch (ElasticsearchSecurityException e) {
+            assertAuthorizationException(e, containsString("action [indices:a] is unauthorized for user [test user]"));
             verify(auditTrail).accessDenied(user, "indices:a", request);
         }
     }
@@ -203,8 +202,8 @@ public class InternalAuthorizationServiceTests extends ElasticsearchTestCase {
         try {
             internalAuthorizationService.authorize(user, "indices:a", request);
             fail("indices request for b should be denied since there is no such index");
-        } catch (AuthorizationException e) {
-            assertThat(e.getMessage(), containsString("action [indices:a] is unauthorized for user [test user]"));
+        } catch (ElasticsearchSecurityException e) {
+            assertAuthorizationException(e, containsString("action [indices:a] is unauthorized for user [test user]"));
             verify(auditTrail).accessDenied(user, "indices:a", request);
             verify(clusterService, times(2)).state();
             verify(state, times(2)).metaData();
@@ -224,8 +223,8 @@ public class InternalAuthorizationServiceTests extends ElasticsearchTestCase {
         try {
             internalAuthorizationService.authorize(user, CreateIndexAction.NAME, request);
             fail("indices creation request with alias should be denied since user does not have permission to alias");
-        } catch (AuthorizationException e) {
-            assertThat(e.getMessage(), containsString("action [" + IndicesAliasesAction.NAME + "] is unauthorized for user [test user]"));
+        } catch (ElasticsearchSecurityException e) {
+            assertAuthorizationException(e, containsString("action [" + IndicesAliasesAction.NAME + "] is unauthorized for user [test user]"));
             verify(auditTrail).accessDenied(user, IndicesAliasesAction.NAME, request);
             verify(clusterService).state();
             verify(state).metaData();
@@ -282,8 +281,8 @@ public class InternalAuthorizationServiceTests extends ElasticsearchTestCase {
 
         ImmutableList<String> list = internalAuthorizationService.authorizedIndicesAndAliases(user, SearchAction.NAME);
         assertThat(list, containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab"));
-        assertThat(list, not(contains("bbbbb")));
-        assertThat(list, not(contains("ba")));
+        assertThat(list.contains("bbbbb"), is(false));
+        assertThat(list.contains("ba"), is(false));
     }
 
     @Test
@@ -300,8 +299,8 @@ public class InternalAuthorizationServiceTests extends ElasticsearchTestCase {
         try {
             internalAuthorizationService.authorize(anonymousService.anonymousUser(), "indices:a", request);
             fail("indices request for b should be denied since there is no such index");
-        } catch (AuthorizationException e) {
-            assertThat(e.getMessage(), containsString("action [indices:a] is unauthorized for user [" + anonymousService.anonymousUser().principal() + "]"));
+        } catch (ElasticsearchSecurityException e) {
+            assertAuthorizationException(e, containsString("action [indices:a] is unauthorized for user [" + anonymousService.anonymousUser().principal() + "]"));
             verify(auditTrail).accessDenied(anonymousService.anonymousUser(), "indices:a", request);
             verify(clusterService, times(2)).state();
             verify(state, times(2)).metaData();
@@ -325,8 +324,8 @@ public class InternalAuthorizationServiceTests extends ElasticsearchTestCase {
         try {
             internalAuthorizationService.authorize(anonymousService.anonymousUser(), "indices:a", request);
             fail("indices request for b should be denied since there is no such index");
-        } catch (AuthenticationException e) {
-            assertThat(e.getMessage(), containsString("action [indices:a] requires authentication"));
+        } catch (ElasticsearchSecurityException e) {
+            assertAuthenticationException(e, containsString("action [indices:a] requires authentication"));
             verify(auditTrail).accessDenied(anonymousService.anonymousUser(), "indices:a", request);
             verify(clusterService, times(2)).state();
             verify(state, times(2)).metaData();

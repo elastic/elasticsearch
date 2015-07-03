@@ -7,13 +7,13 @@ package org.elasticsearch.shield.authc.ldap;
 
 import com.unboundid.ldap.sdk.*;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.ldap.support.LdapSession;
 import org.elasticsearch.shield.authc.ldap.support.LdapSession.GroupsResolver;
 import org.elasticsearch.shield.authc.ldap.support.SessionFactory;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.ssl.ClientSSLService;
+import org.elasticsearch.shield.support.Exceptions;
 
 import javax.net.SocketFactory;
 import java.io.IOException;
@@ -107,7 +107,7 @@ public class LdapSessionFactory extends SessionFactory {
         }
 
         connection.close();
-        throw new AuthenticationException("failed LDAP authentication", lastException);
+        throw Exceptions.authenticationError("failed LDAP authentication", lastException);
     }
 
     /**

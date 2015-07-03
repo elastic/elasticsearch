@@ -5,11 +5,10 @@
  */
 package org.elasticsearch.shield.transport;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.action.ShieldActionMapper;
-import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.shield.authc.AuthenticationService;
-import org.elasticsearch.shield.authz.AuthorizationException;
 import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.transport.TransportRequest;
@@ -18,6 +17,8 @@ import org.elasticsearch.transport.netty.NettyTransportChannel;
 import org.junit.Before;
 import org.junit.Test;
 
+import static org.elasticsearch.shield.support.Exceptions.authenticationError;
+import static org.elasticsearch.shield.support.Exceptions.authorizationError;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.*;
 
@@ -52,11 +53,11 @@ public class ServerTransportFilterTests extends ElasticsearchTestCase {
     @Test
     public void testInbound_AuthenticationException() throws Exception {
         TransportRequest request = mock(TransportRequest.class);
-        doThrow(new AuthenticationException("authc failed")).when(authcService).authenticate("_action", request, null);
+        doThrow(authenticationError("authc failed")).when(authcService).authenticate("_action", request, null);
         try {
             filter.inbound("_action", request, channel);
             fail("expected filter inbound to throw an authentication exception on authentication error");
-        } catch (AuthenticationException e) {
+        } catch (ElasticsearchSecurityException e) {
             assertThat(e.getMessage(), equalTo("authc failed"));
         }
         verifyZeroInteractions(authzService);
@@ -67,11 +68,11 @@ public class ServerTransportFilterTests extends ElasticsearchTestCase {
         TransportRequest request = mock(TransportRequest.class);
         User user = mock(User.class);
         when(authcService.authenticate("_action", request, null)).thenReturn(user);
-        doThrow(new AuthorizationException("authz failed")).when(authzService).authorize(user, "_action", request);
+        doThrow(authorizationError("authz failed")).when(authzService).authorize(user, "_action", request);
         try {
             filter.inbound("_action", request, channel);
             fail("expected filter inbound to throw an authorization exception on authorization error");
-        } catch (AuthorizationException e) {
+        } catch (ElasticsearchSecurityException e) {
             assertThat(e.getMessage(), equalTo("authz failed"));
         }
     }

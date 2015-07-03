@@ -7,6 +7,7 @@ package org.elasticsearch.shield.authc;
 
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -29,13 +30,9 @@ import org.junit.rules.ExpectedException;
 import java.util.Collections;
 import java.util.List;
 
-import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
+import static org.elasticsearch.shield.support.Exceptions.authenticationError;
+import static org.elasticsearch.test.ShieldTestsUtils.assertAuthenticationException;
+import static org.hamcrest.Matchers.*;
 import static org.mockito.Mockito.*;
 
 
@@ -179,8 +176,8 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         try {
             service.authenticate(restRequest);
             fail("Authentication was successful but should not");
-        } catch (AuthenticationException e) {
-            assertThat(e.getMessage(), containsString("unable to authenticate user [idonotexist] for REST request [/]"));
+        } catch (ElasticsearchSecurityException e) {
+            assertAuthenticationException(e, containsString("unable to authenticate user [idonotexist] for REST request [/]"));
         }
     }
 
@@ -238,8 +235,9 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         try {
             service.authenticate("_action", message, null);
             fail("expected an authentication exception when trying to authenticate an anonymous message");
-        } catch (AuthenticationException ae) {
+        } catch (ElasticsearchSecurityException e) {
             // expected
+            assertAuthenticationException(e);
         }
         verify(auditTrail).anonymousAccessDenied("_action", message);
     }
@@ -251,8 +249,9 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         try {
             service.authenticate(restRequest);
             fail("expected an authentication exception when trying to authenticate an anonymous message");
-        } catch (AuthenticationException ae) {
+        } catch (ElasticsearchSecurityException e) {
             // expected
+            assertAuthenticationException(e);
         }
         verify(auditTrail).anonymousAccessDenied(restRequest);
     }
@@ -462,7 +461,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testRealmTokenThrowingException() throws Exception {
-        when(firstRealm.token(message)).thenThrow(new AuthenticationException("realm doesn't like tokens"));
+        when(firstRealm.token(message)).thenThrow(authenticationError("realm doesn't like tokens"));
         try {
             service.authenticate("_action", message, null);
             fail("exception should bubble out");
@@ -474,7 +473,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testRealmTokenThrowingException_Rest() throws Exception {
-        when(firstRealm.token(restRequest)).thenThrow(new AuthenticationException("realm doesn't like tokens"));
+        when(firstRealm.token(restRequest)).thenThrow(authenticationError("realm doesn't like tokens"));
         try {
             service.authenticate(restRequest);
             fail("exception should bubble out");
@@ -488,7 +487,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
     public void testRealmSupportsMethodThrowingException() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
         when(secondRealm.token(message)).thenReturn(token);
-        when(secondRealm.supports(token)).thenThrow(new AuthenticationException("realm doesn't like supports"));
+        when(secondRealm.supports(token)).thenThrow(authenticationError("realm doesn't like supports"));
         try {
             service.authenticate("_action", message, null);
             fail("exception should bubble out");
@@ -502,7 +501,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
     public void testRealmSupportsMethodThrowingException_Rest() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
         when(secondRealm.token(restRequest)).thenReturn(token);
-        when(secondRealm.supports(token)).thenThrow(new AuthenticationException("realm doesn't like supports"));
+        when(secondRealm.supports(token)).thenThrow(authenticationError("realm doesn't like supports"));
         try {
             service.authenticate(restRequest);
             fail("exception should bubble out");
@@ -517,7 +516,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         AuthenticationToken token = mock(AuthenticationToken.class);
         when(secondRealm.token(message)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
-        when(secondRealm.authenticate(token)).thenThrow(new AuthenticationException("realm doesn't like authenticate"));
+        when(secondRealm.authenticate(token)).thenThrow(authenticationError("realm doesn't like authenticate"));
         try {
             service.authenticate("_action", message, null);
             fail("exception should bubble out");
@@ -532,7 +531,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         AuthenticationToken token = mock(AuthenticationToken.class);
         when(secondRealm.token(restRequest)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
-        when(secondRealm.authenticate(token)).thenThrow(new AuthenticationException("realm doesn't like authenticate"));
+        when(secondRealm.authenticate(token)).thenThrow(authenticationError("realm doesn't like authenticate"));
         try {
             service.authenticate(restRequest);
             fail("exception should bubble out");

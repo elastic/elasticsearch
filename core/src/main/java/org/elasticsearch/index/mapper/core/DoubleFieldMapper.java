@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper.core;
 
 import com.carrotsearch.hppc.DoubleArrayList;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
@@ -178,8 +177,8 @@ public class DoubleFieldMapper extends NumberFieldMapper {
         }
 
         @Override
-        public Query fuzzyQuery(String value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-            double iValue = Double.parseDouble(value);
+        public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
+            double iValue = parseDoubleValue(value);
             double iSim = fuzziness.asDouble();
             return NumericRangeQuery.newDoubleRange(names().indexName(), numericPrecisionStep(),
                 iValue - iSim,

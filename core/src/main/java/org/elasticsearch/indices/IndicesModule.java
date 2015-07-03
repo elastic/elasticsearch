@@ -114,6 +114,7 @@ public class IndicesModule extends AbstractModule {
         registerQueryParser(NotQueryParser.class);
         registerQueryParser(ExistsQueryParser.class);
         registerQueryParser(MissingQueryParser.class);
+        registerQueryParser(MatchNoneQueryParser.class);
 
         if (ShapesAvailability.JTS_AVAILABLE) {
             registerQueryParser(GeoShapeQueryParser.class);

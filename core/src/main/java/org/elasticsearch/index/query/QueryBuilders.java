@@ -40,7 +40,7 @@ import java.util.Map;
 public abstract class QueryBuilders {
 
     /**
-     * A query that match on all documents.
+     * A query that matches on all documents.
      */
     public static MatchAllQueryBuilder matchAllQuery() {
         return new MatchAllQueryBuilder();

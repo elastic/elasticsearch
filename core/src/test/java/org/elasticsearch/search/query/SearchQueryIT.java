@@ -1892,7 +1892,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertSearchHits(searchResponse, "1", "2", "3");
         searchResponse = client().prepareSearch("index1", "index2", "index3")
                 .setQuery(indicesQuery(matchQuery("text", "value1"), "index1")
-                        .noMatchQuery("all")).get();
+                        .noMatchQuery(QueryBuilders.matchAllQuery())).get();
         assertHitCount(searchResponse, 3l);
         assertSearchHits(searchResponse, "1", "2", "3");
 
@@ -1903,6 +1903,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertFirstHit(searchResponse, hasId("1"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/12822")
     @Test // https://github.com/elasticsearch/elasticsearch/issues/2416
     public void testIndicesQuerySkipParsing() throws Exception {
         createIndex("simple");

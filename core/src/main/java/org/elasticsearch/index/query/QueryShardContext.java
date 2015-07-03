@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
@@ -38,11 +37,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperBuilders;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.support.NestedScope;
@@ -233,7 +228,8 @@ public class QueryShardContext {
         return indexQueryParser.mapperService.getObjectMapper(name, getTypes());
     }
 
-    /** Gets the search analyzer for the given field, or the default if there is none present for the field
+    /**
+     * Gets the search analyzer for the given field, or the default if there is none present for the field
      * TODO: remove this by moving defaults into mappers themselves
      */
     public Analyzer getSearchAnalyzer(MappedFieldType fieldType) {
@@ -243,7 +239,8 @@ public class QueryShardContext {
         return mapperService().searchAnalyzer();
     }
 
-    /** Gets the search quote nalyzer for the given field, or the default if there is none present for the field
+    /**
+     * Gets the search quote analyzer for the given field, or the default if there is none present for the field
      * TODO: remove this by moving defaults into mappers themselves
      */
     public Analyzer getSearchQuoteAnalyzer(MappedFieldType fieldType) {
@@ -264,7 +261,7 @@ public class QueryShardContext {
     private MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {
         if (allowUnmappedFields) {
             return fieldMapping;
-        } else if (mapUnmappedFieldAsString){
+        } else if (mapUnmappedFieldAsString) {
             StringFieldMapper.Builder builder = MapperBuilders.stringField(name);
             // it would be better to pass the real index settings, but they are not easily accessible from here...
             Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, indexQueryParser.getIndexCreatedVersion()).build();
@@ -326,4 +323,9 @@ public class QueryShardContext {
     public QueryParseContext parseContext() {
         return this.parseContext;
     }
+
+    public boolean matchesIndices(String... indices) {
+        return this.indexQueryParserService().matchesIndices(indices);
+    }
+
 }

@@ -22,11 +22,15 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -72,6 +76,10 @@ public class IndexQueryParserService extends AbstractIndexComponent {
 
     final IndexFieldDataService fieldDataService;
 
+    final ClusterService clusterService;
+
+    final IndexNameExpressionResolver indexNameExpressionResolver;
+
     final BitsetFilterCache bitsetFilterCache;
 
     private final IndicesQueriesRegistry indicesQueriesRegistry;
@@ -87,7 +95,8 @@ public class IndexQueryParserService extends AbstractIndexComponent {
                                    ScriptService scriptService, AnalysisService analysisService,
                                    MapperService mapperService, IndexCache indexCache, IndexFieldDataService fieldDataService,
                                    BitsetFilterCache bitsetFilterCache,
-                                   @Nullable SimilarityService similarityService) {
+                                   @Nullable SimilarityService similarityService, ClusterService clusterService,
+                                   IndexNameExpressionResolver indexNameExpressionResolver) {
         super(index, indexSettings);
         this.scriptService = scriptService;
         this.analysisService = analysisService;
@@ -96,6 +105,8 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         this.indexCache = indexCache;
         this.fieldDataService = fieldDataService;
         this.bitsetFilterCache = bitsetFilterCache;
+        this.clusterService = clusterService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
 
         this.defaultField = indexSettings.get(DEFAULT_FIELD, AllFieldMapper.NAME);
         this.queryStringLenient = indexSettings.getAsBoolean(QUERY_STRING_LENIENT, false);
@@ -317,5 +328,15 @@ public class IndexQueryParserService extends AbstractIndexComponent {
 
     public ParseFieldMatcher parseFieldMatcher() {
         return parseFieldMatcher;
+    }
+
+    public boolean matchesIndices(String... indices) {
+        final String[] concreteIndices = indexNameExpressionResolver.concreteIndices(clusterService.state(), IndicesOptions.lenientExpandOpen(), indices);
+        for (String index : concreteIndices) {
+            if (Regex.simpleMatch(index, this.index.name())) {
+                return true;
+            }
+        }
+        return false;
     }
 }

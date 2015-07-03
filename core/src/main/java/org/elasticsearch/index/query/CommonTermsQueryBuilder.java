@@ -198,7 +198,6 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.startObject(fieldName);
-
         builder.field("query", text);
         builder.field("disable_coord", disableCoord);
         builder.field("high_freq_operator", highFreqOperator.toString());

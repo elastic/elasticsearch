@@ -375,17 +375,22 @@ public abstract class ESTestCase extends LuceneTestCase {
         return RandomizedTest.randomRealisticUnicodeOfCodepointLength(codePoints);
     }
 
-    public static String[] generateRandomStringArray(int maxArraySize, int maxStringSize, boolean allowNull) {
+    public static String[] generateRandomStringArray(int maxArraySize, int maxStringSize, boolean allowNull, boolean allowEmpty) {
         if (allowNull && random().nextBoolean()) {
             return null;
         }
-        String[] array = new String[random().nextInt(maxArraySize)]; // allow empty arrays
-        for (int i = 0; i < array.length; i++) {
+        int arraySize = randomIntBetween(allowEmpty ? 0 : 1, maxArraySize);
+        String[] array = new String[arraySize];
+        for (int i = 0; i < arraySize; i++) {
             array[i] = RandomStrings.randomAsciiOfLength(random(), maxStringSize);
         }
         return array;
     }
-    
+
+    public static String[] generateRandomStringArray(int maxArraySize, int maxStringSize, boolean allowNull) {
+        return generateRandomStringArray(maxArraySize, maxStringSize, allowNull, true);
+    }
+
     public static String randomTimeValue() {
         final String[] values = new String[]{"d", "H", "ms", "s", "S", "w"};
         return randomIntBetween(0, 1000) + randomFrom(values);

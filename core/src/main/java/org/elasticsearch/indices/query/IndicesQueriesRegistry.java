@@ -21,7 +21,6 @@ package org.elasticsearch.indices.query;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;

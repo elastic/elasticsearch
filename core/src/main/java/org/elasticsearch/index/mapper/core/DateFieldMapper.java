@@ -224,8 +224,8 @@ public class DateFieldMapper extends NumberFieldMapper {
                 if (lowerTerm != null ? !lowerTerm.equals(that.lowerTerm) : that.lowerTerm != null) return false;
                 if (upperTerm != null ? !upperTerm.equals(that.upperTerm) : that.upperTerm != null) return false;
                 if (timeZone != null ? !timeZone.equals(that.timeZone) : that.timeZone != null) return false;
-                return !(forcedDateParser != null ? !forcedDateParser.equals(that.forcedDateParser) : that.forcedDateParser != null);
 
+                return true;
             }
 
             @Override
@@ -236,7 +236,6 @@ public class DateFieldMapper extends NumberFieldMapper {
                 result = 31 * result + (includeLower ? 1 : 0);
                 result = 31 * result + (includeUpper ? 1 : 0);
                 result = 31 * result + (timeZone != null ? timeZone.hashCode() : 0);
-                result = 31 * result + (forcedDateParser != null ? forcedDateParser.hashCode() : 0);
                 return result;
             }
 

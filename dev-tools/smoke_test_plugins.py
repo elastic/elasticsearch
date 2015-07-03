@@ -79,10 +79,10 @@ def readServerOutput(p, startupEvent, failureEvent):
           startupEvent.set()
         print('ES: **process exit**\n')
         break
-      line = line.decode('utf-8')
+      line = line.decode('utf-8').rstrip()
       if line.endswith('started') and not startupEvent.isSet():
         startupEvent.set()
-      print('ES: %s' % line.rstrip())
+      print('ES: %s' % line)
   except:
     print()
     print('Exception reading Elasticsearch output:')
@@ -109,14 +109,14 @@ if __name__ == '__main__':
     run('tar -xzf core/target/releases/%s -C %s' % (artifact, tmp_dir))
     es_install_dir = os.path.join(tmp_dir, artifact[:-7])
     es_plugin_path = os.path.join(es_install_dir, 'bin/plugin')
-    plugin_names = set()
+    installed_plugin_names = set()
     print('Find plugins:')
     for name in os.listdir('plugins'):
       if name not in ('target', 'pom.xml'):
         url = 'file://%s/plugins/%s/target/releases/elasticsearch-%s-2.0.0-SNAPSHOT.zip' % (os.path.abspath('.'), name, name)
         print('  install plugin %s...' % name)
         run('%s; %s --url %s -install %s' % (JAVA_ENV, es_plugin_path, url, name))
-        plugin_names.add(name)
+        installed_plugin_names.add(name)
 
     print('Start Elasticsearch')
 
@@ -153,11 +153,12 @@ if __name__ == '__main__':
       for _, node in nodes.items():
         node_plugins = node['plugins']
         for node_plugin in node_plugins:
-          if not plugin_names.get(node_plugin['name'], False):
-            raise RuntimeError('Unexpeced plugin %s' % node_plugin['name'])
-          del plugin_names[node_plugin['name']]
-      if plugin_names:
-        raise RuntimeError('Plugins not loaded %s' % list(plugin_names.keys()))
+          plugin_name = node_plugin['name']
+          if plugin_name not in installed_plugin_names:
+            raise RuntimeError('Unexpeced plugin %s' % plugin_name)
+          installed_plugin_names.remove(plugin_name)
+      if len(installed_plugin_names) > 0:
+        raise RuntimeError('Plugins not loaded %s' % installed_plugin_names)
     else:
       raise RuntimeError('Expected HTTP 200 but got %s' % res.status)
   finally:

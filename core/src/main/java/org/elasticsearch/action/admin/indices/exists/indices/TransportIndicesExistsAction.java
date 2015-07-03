@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -70,7 +70,7 @@ public class TransportIndicesExistsAction extends TransportMasterNodeReadAction<
             // Similar as the previous behaviour, but now also aliases and wildcards are supported.
             indexNameExpressionResolver.concreteIndices(state, request);
             exists = true;
-        } catch (IndexMissingException e) {
+        } catch (IndexNotFoundException e) {
             exists = false;
         }
         listener.onResponse(new IndicesExistsResponse(exists));

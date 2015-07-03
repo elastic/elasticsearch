@@ -90,12 +90,13 @@ public class TranslogRecoveryPerformer {
         return numOps;
     }
 
-    public static class BatchOperationException extends IndexShardException {
+    public static class BatchOperationException extends ElasticsearchException {
 
         private final int completedOperations;
 
         public BatchOperationException(ShardId shardId, String msg, int completedOperations, Throwable cause) {
-            super(shardId, msg, cause);
+            super(msg, cause);
+            setShard(shardId);
             this.completedOperations = completedOperations;
         }
 

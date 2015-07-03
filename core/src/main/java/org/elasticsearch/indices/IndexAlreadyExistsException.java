@@ -19,9 +19,9 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexException;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -29,14 +29,15 @@ import java.io.IOException;
 /**
  *
  */
-public class IndexAlreadyExistsException extends IndexException {
+public class IndexAlreadyExistsException extends ElasticsearchException {
 
     public IndexAlreadyExistsException(Index index) {
         this(index, "already exists");
     }
 
     public IndexAlreadyExistsException(Index index, String message) {
-        super(index, message);
+        super(message);
+        setIndex(index);
     }
 
     public IndexAlreadyExistsException(StreamInput in) throws IOException{

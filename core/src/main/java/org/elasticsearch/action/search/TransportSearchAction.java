@@ -28,8 +28,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
-import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -86,7 +86,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     // if we only have one group, then we always want Q_A_F, no need for DFS, and no need to do THEN since we hit one shard
                     searchRequest.searchType(QUERY_AND_FETCH);
                 }
-            } catch (IndexMissingException|IndexClosedException e) {
+            } catch (IndexNotFoundException | IndexClosedException e) {
                 // ignore these failures, we will notify the search response if its really the case from the actual action
             } catch (Exception e) {
                 logger.debug("failed to optimize search type, continue as normal", e);

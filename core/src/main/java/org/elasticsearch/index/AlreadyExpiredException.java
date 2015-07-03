@@ -36,7 +36,7 @@ public class AlreadyExpiredException extends ElasticsearchException implements I
 
     public AlreadyExpiredException(String index, String type, String id, long timestamp, long ttl, long now) {
         super("already expired [" + index + "]/[" + type + "]/[" + id + "] due to expire at [" + (timestamp + ttl) + "] and was processed at [" + now + "]");
-        this.index = index;
+        this.setIndex(index);
         this.type = type;
         this.id = id;
         this.timestamp = timestamp;

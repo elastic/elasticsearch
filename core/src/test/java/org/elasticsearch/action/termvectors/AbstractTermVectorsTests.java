@@ -40,7 +40,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.inject.internal.Join;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.index.*;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
 import java.io.IOException;
@@ -262,7 +262,7 @@ public abstract class AbstractTermVectorsTests extends ElasticsearchIntegrationT
         }
         // always adds a test that fails
         configs.add(new TestConfig(new TestDoc("doesnt_exist", new TestFieldSetting[]{}, new String[]{}).index("doesn't_exist").alias("doesn't_exist"),
-                new String[]{"doesnt_exist"}, true, true, true).expectedException(IndexMissingException.class));
+                new String[]{"doesnt_exist"}, true, true, true).expectedException(org.elasticsearch.index.IndexNotFoundException.class));
 
         refresh();
 

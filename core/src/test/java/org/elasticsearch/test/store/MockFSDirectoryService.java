@@ -136,7 +136,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
         throw new UnsupportedOperationException();
     }
 
-    public void checkIndex(Store store, ShardId shardId) throws IndexShardException {
+    public void checkIndex(Store store, ShardId shardId) {
         if (store.tryIncRef()) {
             logger.info("start check index");
             try {
@@ -159,7 +159,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
                         logger.warn("check index [failure] index files={}\n{}",
                                 Arrays.toString(dir.listAll()),
                                 new String(os.bytes().toBytes(), Charsets.UTF_8));
-                        throw new IndexShardException(shardId, "index check failure");
+                        throw new IOException("index check failure");
                     } else {
                         if (logger.isDebugEnabled()) {
                             logger.debug("check index [success]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));

@@ -34,7 +34,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.action.admin.indices.alias.delete.AliasesMissingException;
+import org.elasticsearch.rest.action.admin.indices.alias.delete.AliasesNotFoundException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -102,7 +102,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
             }
         }
         if (hasOnlyDeletesButNoneCanBeDone && actions.size() != 0) {
-            throw new AliasesMissingException(aliases.toArray(new String[aliases.size()]));
+            throw new AliasesNotFoundException(aliases.toArray(new String[aliases.size()]));
         }
         request.aliasActions().clear();
         IndicesAliasesClusterStateUpdateRequest updateRequest = new IndicesAliasesClusterStateUpdateRequest()

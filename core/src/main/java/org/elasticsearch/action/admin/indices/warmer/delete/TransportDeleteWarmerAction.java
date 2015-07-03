@@ -33,8 +33,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.warmer.IndexWarmerMissingException;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -96,7 +95,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeAction<Delet
                 for (String index : concreteIndices) {
                     IndexMetaData indexMetaData = currentState.metaData().index(index);
                     if (indexMetaData == null) {
-                        throw new IndexMissingException(new Index(index));
+                        throw new IndexNotFoundException(index);
                     }
                     IndexWarmersMetaData warmers = indexMetaData.custom(IndexWarmersMetaData.TYPE);
                     if (warmers != null) {
@@ -132,7 +131,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeAction<Delet
                     for (String index : concreteIndices) {
                         IndexMetaData indexMetaData = currentState.metaData().index(index);
                         if (indexMetaData == null) {
-                            throw new IndexMissingException(new Index(index));
+                            throw new IndexNotFoundException(index);
                         }
                         IndexWarmersMetaData warmers = indexMetaData.custom(IndexWarmersMetaData.TYPE);
                         if (warmers != null) {

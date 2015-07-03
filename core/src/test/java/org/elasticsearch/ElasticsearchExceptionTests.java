@@ -34,10 +34,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexException;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.query.TestQueryParsingException;
-import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchShardTarget;
@@ -65,10 +64,10 @@ public class ElasticsearchExceptionTests extends ElasticsearchTestCase {
         exception = new ElasticsearchException("test", new RuntimeException());
         assertThat(exception.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
 
-        exception = new ElasticsearchException("test", new IndexMissingException(new Index("test")));
+        exception = new ElasticsearchException("test", new ResourceNotFoundException("test"));
         assertThat(exception.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
 
-        exception = new RemoteTransportException("test", new IndexMissingException(new Index("test")));
+        exception = new RemoteTransportException("test", new ResourceNotFoundException("test"));
         assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
 
         exception = new RemoteTransportException("test", new IllegalArgumentException("foobar"));
@@ -80,11 +79,11 @@ public class ElasticsearchExceptionTests extends ElasticsearchTestCase {
 
     public void testGuessRootCause() {
         {
-            ElasticsearchException exception = new ElasticsearchException("foo", new ElasticsearchException("bar", new IndexException(new Index("foo"), "index is closed", new RuntimeException("foobar"))));
+            ElasticsearchException exception = new ElasticsearchException("foo", new ElasticsearchException("bar", new IndexNotFoundException("foo", new RuntimeException("foobar"))));
             ElasticsearchException[] rootCauses = exception.guessRootCauses();
             assertEquals(rootCauses.length, 1);
-            assertEquals(ElasticsearchException.getExceptionName(rootCauses[0]), "index_exception");
-            assertEquals(rootCauses[0].getMessage(), "index is closed");
+            assertEquals(ElasticsearchException.getExceptionName(rootCauses[0]), "index_not_found_exception");
+            assertEquals(rootCauses[0].getMessage(), "no such index");
             ShardSearchFailure failure = new ShardSearchFailure(new TestQueryParsingException(new Index("foo"), "foobar", null),
                     new SearchShardTarget("node_1", "foo", 1));
             ShardSearchFailure failure1 = new ShardSearchFailure(new TestQueryParsingException(new Index("foo"), "foobar", null),
@@ -116,7 +115,7 @@ public class ElasticsearchExceptionTests extends ElasticsearchTestCase {
             assertEquals(rootCauses.length, 2);
             assertEquals(ElasticsearchException.getExceptionName(rootCauses[0]), "test_query_parsing_exception");
             assertEquals(rootCauses[0].getMessage(), "foobar");
-            assertEquals(((QueryParsingException)rootCauses[0]).index().name(), "foo");
+            assertEquals(((QueryParsingException)rootCauses[0]).getIndex(), "foo");
             assertEquals(ElasticsearchException.getExceptionName(rootCauses[1]), "test_query_parsing_exception");
             assertEquals(rootCauses[1].getMessage(), "foobar");
             assertEquals(((QueryParsingException) rootCauses[1]).getLineNumber(), 1);
@@ -222,7 +221,7 @@ public class ElasticsearchExceptionTests extends ElasticsearchTestCase {
             builder.startObject();
             ElasticsearchException.toXContent(builder, ToXContent.EMPTY_PARAMS, ex);
             builder.endObject();
-            String expected = "{\"type\":\"test_query_parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2,\"index\":\"foo\"}";
+            String expected = "{\"type\":\"test_query_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo\",\"line\":1,\"col\":2}";
             assertEquals(expected, builder.string());
         }
 
@@ -241,6 +240,18 @@ public class ElasticsearchExceptionTests extends ElasticsearchTestCase {
             assertEquals(otherBuilder.string(), builder.string());
             assertEquals("{\"type\":\"file_not_found_exception\",\"reason\":\"foo not found\"}", builder.string());
         }
+
+        { // render header
+            QueryParsingException ex = new TestQueryParsingException(new Index("foo"), 1, 2, "foobar", null);
+            ex.addHeader("test", "some value");
+            ex.addHeader("test_multi", "some value", "another value");
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            builder.startObject();
+            ElasticsearchException.toXContent(builder, ToXContent.EMPTY_PARAMS, ex);
+            builder.endObject();
+            String expected = "{\"type\":\"test_query_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo\",\"line\":1,\"col\":2,\"header\":{\"test_multi\":[\"some value\",\"another value\"],\"test\":\"some value\"}}";
+            assertEquals(expected, builder.string());
+        }
     }
 
     public void testSerializeElasticsearchException() throws IOException {
@@ -250,7 +261,7 @@ public class ElasticsearchExceptionTests extends ElasticsearchTestCase {
 
         StreamInput in = StreamInput.wrap(out.bytes());
         QueryParsingException e = in.readThrowable();
-        assertEquals(ex.index(), e.index());
+        assertEquals(ex.getIndex(), e.getIndex());
         assertEquals(ex.getMessage(), e.getMessage());
         assertEquals(ex.getLineNumber(), e.getLineNumber());
         assertEquals(ex.getColumnNumber(), e.getColumnNumber());
@@ -267,7 +278,7 @@ public class ElasticsearchExceptionTests extends ElasticsearchTestCase {
         assertEquals("wtf", throwable.getMessage());
         assertTrue(throwable instanceof ElasticsearchException);
         QueryParsingException e = (QueryParsingException)throwable.getCause();
-                assertEquals(queryParsingException.index(), e.index());
+                assertEquals(queryParsingException.getIndex(), e.getIndex());
         assertEquals(queryParsingException.getMessage(), e.getMessage());
         assertEquals(queryParsingException.getLineNumber(), e.getLineNumber());
         assertEquals(queryParsingException.getColumnNumber(), e.getColumnNumber());

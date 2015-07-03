@@ -26,7 +26,7 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptResponse;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -79,7 +79,7 @@ public class ScriptIndexSettingsTest extends ElasticsearchIntegrationTest{
         try {
             GetIndexedScriptResponse response = client().prepareGetIndexedScript("groovy","foobar").get();
             assertTrue(false); //This should not happen
-        } catch (IndexMissingException ime) {
+        } catch (IndexNotFoundException ime) {
             assertTrue(true);
         }
     }

@@ -30,7 +30,6 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
-import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
@@ -82,7 +81,7 @@ public class ShadowEngine extends Engine {
                     this.lastCommittedSegmentInfos = readLastCommittedSegmentInfos(searcherManager, store);
                     success = true;
                 } else {
-                    throw new IndexShardException(shardId, "failed to open a shadow engine after" +
+                    throw new IllegalStateException("failed to open a shadow engine after" +
                             nonexistentRetryTime + "ms, " +
                             "directory is not an index");
                 }

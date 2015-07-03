@@ -53,7 +53,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
@@ -336,7 +335,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
                             ShardId shardId = new ShardId(index, i);
                             try {
                                 indexShardRepository.delete(snapshotId, shardId);
-                            } catch (IndexShardException | SnapshotException ex) {
+                            } catch (SnapshotException ex) {
                                 logger.warn("[{}] failed to delete shard data for shard [{}]", ex, snapshotId, shardId);
                             }
                         }

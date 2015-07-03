@@ -191,7 +191,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
                             CheckIndex.Status status = checkIndex.checkIndex();
                             if (!status.clean) {
                                 logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
-                                throw new IndexShardException(sid, "index check failure");
+                                throw new IOException("index check failure");
                             }
                         }
                     } catch (Throwable t) {

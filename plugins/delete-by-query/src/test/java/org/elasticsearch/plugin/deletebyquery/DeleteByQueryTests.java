@@ -33,9 +33,9 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.junit.Test;
@@ -151,7 +151,7 @@ public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
         try {
             delete.get();
             fail("should have thrown an exception because of a missing index");
-        } catch (IndexMissingException e) {
+        } catch (IndexNotFoundException e) {
             // Ok
         }
 

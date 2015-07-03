@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionWriteResponse;
@@ -58,7 +59,6 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
@@ -242,10 +242,11 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         }
     }
 
-    public static class RetryOnReplicaException extends IndexShardException {
+    public static class RetryOnReplicaException extends ElasticsearchException {
 
         public RetryOnReplicaException(ShardId shardId, String msg) {
-            super(shardId, msg);
+            super(msg);
+            setShard(shardId);
         }
 
         public RetryOnReplicaException(StreamInput in) throws IOException{
@@ -325,9 +326,10 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         }
     }
 
-    public static class RetryOnPrimaryException extends IndexShardException {
+    public static class RetryOnPrimaryException extends ElasticsearchException {
         public RetryOnPrimaryException(ShardId shardId, String msg) {
-            super(shardId, msg);
+            super(msg);
+            setShard(shardId);
         }
 
         public RetryOnPrimaryException(StreamInput in) throws IOException{

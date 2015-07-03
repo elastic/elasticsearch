@@ -226,7 +226,6 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
         boolean tv_offsets = false;
         boolean tv_positions = false;
         String similarity = null;
-        boolean fieldData = false;
         XContentBuilder mappingBuilder = jsonBuilder();
         mappingBuilder.startObject().startObject("test");
         List<Tuple<String, Boolean>> booleanOptionList = new ArrayList<>();
@@ -262,12 +261,6 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
             tv_stored |= tv_positions || tv_payloads || tv_offsets;
             if (randomBoolean()) {
                 mappingBuilder.field("similarity", similarity = randomBoolean() ? "BM25" : "TF/IDF");
-            }
-            if (randomBoolean()) {
-                fieldData = true;
-                mappingBuilder.startObject("fielddata");
-                mappingBuilder.field("foo", "bar");
-                mappingBuilder.endObject();
             }
             mappingBuilder.endObject();
         }
@@ -310,7 +303,6 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
         }   else {
             assertThat(similarity, equalTo(builtDocMapper.allFieldMapper().fieldType().similarity().name()));
         }
-        assertThat(builtMapping.contains("fielddata"), is(fieldData));
         if (allDefault) {
             BytesStreamOutput bytesStreamOutput = new BytesStreamOutput(0);
             XContentBuilder b =  new XContentBuilder(XContentType.JSON.xContent(), bytesStreamOutput);

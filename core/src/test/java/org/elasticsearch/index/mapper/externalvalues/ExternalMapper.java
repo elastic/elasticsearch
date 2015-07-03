@@ -174,8 +174,7 @@ public class ExternalMapper extends AbstractFieldMapper {
                           String generatedValue, String mapperName,
                           BinaryFieldMapper binMapper, BooleanFieldMapper boolMapper, GeoPointFieldMapper pointMapper,
                           GeoShapeFieldMapper shapeMapper, FieldMapper stringMapper, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, false, null, indexSettings,
-                multiFields, copyTo);
+        super(simpleName, fieldType, new ExternalFieldType(), indexSettings, multiFields, copyTo);
         this.generatedValue = generatedValue;
         this.mapperName = mapperName;
         this.binMapper = binMapper;
@@ -183,16 +182,6 @@ public class ExternalMapper extends AbstractFieldMapper {
         this.pointMapper = pointMapper;
         this.shapeMapper = shapeMapper;
         this.stringMapper = stringMapper;
-    }
-
-    @Override
-    public MappedFieldType defaultFieldType() {
-        return new ExternalFieldType();
-    }
-
-    @Override
-    public FieldDataType defaultFieldDataType() {
-        return null;
     }
 
     @Override

@@ -81,7 +81,7 @@ public final class Settings implements ToXContent {
     private transient ClassLoader classLoader;
 
     Settings(Map<String, String> settings, ClassLoader classLoader) {
-        this.settings = ImmutableMap.copyOf(settings);
+        this.settings = ImmutableMap.copyOf(new TreeMap<>(settings));
         Map<String, String> forcedUnderscoreSettings = null;
         for (Map.Entry<String, String> entry : settings.entrySet()) {
             String toUnderscoreCase = Strings.toUnderscoreCase(entry.getKey());

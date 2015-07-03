@@ -70,12 +70,13 @@ public abstract class AbstractFieldMapper extends FieldMapper {
     public abstract static class Builder<T extends Builder, Y extends AbstractFieldMapper> extends Mapper.Builder<T, Y> {
 
         protected final MappedFieldType fieldType;
+        protected final MappedFieldType defaultFieldType;
         private final IndexOptions defaultOptions;
-        protected Boolean docValues;
         protected boolean omitNormsSet = false;
         protected String indexName;
         protected Boolean includeInAll;
         protected boolean indexOptionsSet = false;
+        protected boolean docValuesSet = false;
         @Nullable
         protected Settings fieldDataSettings;
         protected final MultiFields.Builder multiFieldsBuilder;
@@ -84,6 +85,7 @@ public abstract class AbstractFieldMapper extends FieldMapper {
         protected Builder(String name, MappedFieldType fieldType) {
             super(name);
             this.fieldType = fieldType.clone();
+            this.defaultFieldType = fieldType.clone();
             this.defaultOptions = fieldType.indexOptions(); // we have to store it the fieldType is mutable
             multiFieldsBuilder = new MultiFields.Builder();
         }
@@ -116,7 +118,8 @@ public abstract class AbstractFieldMapper extends FieldMapper {
         }
 
         public T docValues(boolean docValues) {
-            this.docValues = docValues;
+            this.fieldType.setHasDocValues(docValues);
+            this.docValuesSet = true;
             return builder;
         }
 
@@ -253,75 +256,52 @@ public abstract class AbstractFieldMapper extends FieldMapper {
 
         protected void setupFieldType(BuilderContext context) {
             fieldType.setNames(buildNames(context));
+            if (fieldType.indexAnalyzer() == null && fieldType.tokenized() == false && fieldType.indexOptions() != IndexOptions.NONE) {
+                fieldType.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+                fieldType.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
+            }
+            if (fieldDataSettings != null) {
+                Settings settings = Settings.builder().put(fieldType.fieldDataType().getSettings()).put(fieldDataSettings).build();
+                fieldType.setFieldDataType(new FieldDataType(fieldType.fieldDataType().getType(), settings));
+            }
+            boolean defaultDocValues = false; // pre 2.0
+            if (context.indexCreatedVersion().onOrAfter(Version.V_2_0_0)) {
+                defaultDocValues = fieldType.tokenized() == false && fieldType.indexOptions() != IndexOptions.NONE;
+            }
+            // backcompat for "fielddata: format: docvalues" for now...
+            boolean fieldDataDocValues = fieldType.fieldDataType() != null
+                && FieldDataType.DOC_VALUES_FORMAT_VALUE.equals(fieldType.fieldDataType().getFormat(context.indexSettings()));
+            if (fieldDataDocValues && docValuesSet && fieldType.hasDocValues() == false) {
+                // this forces the doc_values setting to be written, so fielddata does not mask the original setting
+                defaultDocValues = true;
+            }
+            defaultFieldType.setHasDocValues(defaultDocValues);
+            if (docValuesSet == false) {
+                fieldType.setHasDocValues(defaultDocValues || fieldDataDocValues);
+            }
         }
     }
 
     protected MappedFieldTypeReference fieldTypeRef;
-    protected final boolean hasDefaultDocValues;
-    protected Settings customFieldDataSettings;
+    protected final MappedFieldType defaultFieldType;
     protected final MultiFields multiFields;
     protected CopyTo copyTo;
     protected final boolean indexCreatedBefore2x;
 
-    protected AbstractFieldMapper(String simpleName, MappedFieldType fieldType, Boolean docValues, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        this(simpleName, fieldType, docValues, fieldDataSettings, indexSettings, MultiFields.empty(), null);
-    }
-
-    protected AbstractFieldMapper(String simpleName, MappedFieldType fieldType, Boolean docValues, @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+    protected AbstractFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName);
         assert indexSettings != null;
         this.indexCreatedBefore2x = Version.indexCreated(indexSettings).before(Version.V_2_0_0);
-        this.customFieldDataSettings = fieldDataSettings;
-        FieldDataType fieldDataType;
-        if (fieldDataSettings == null) {
-            fieldDataType = defaultFieldDataType();
-        } else {
-            // create a new field data type, with the default settings as well as the "new ones"
-            fieldDataType = new FieldDataType(defaultFieldDataType().getType(),
-                Settings.builder().put(defaultFieldDataType().getSettings()).put(fieldDataSettings)
-            );
-        }
-
-        // TODO: hasDocValues should just be set directly on the field type by callers of this ctor, but
-        // then we need to eliminate defaultDocValues() (only needed by geo, which needs to be fixed with passing
-        // doc values setting down to lat/lon) and get rid of specifying doc values in fielddata (which
-        // complicates whether we can just compare to the default value to know whether to write the setting)
-        if (docValues == null && fieldDataType != null && FieldDataType.DOC_VALUES_FORMAT_VALUE.equals(fieldDataType.getFormat(indexSettings))) {
-            docValues = true;
-        }
-        hasDefaultDocValues = docValues == null;
-
-        this.fieldTypeRef = new MappedFieldTypeReference(fieldType); // must init first so defaultDocValues() can be called
-        fieldType = fieldType.clone();
-        if (fieldType.indexAnalyzer() == null && fieldType.tokenized() == false && fieldType.indexOptions() != IndexOptions.NONE) {
-            fieldType.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            fieldType.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-        }
-        fieldType.setHasDocValues(docValues == null ? defaultDocValues() : docValues);
-        fieldType.setFieldDataType(fieldDataType);
-        fieldType.freeze();
-        this.fieldTypeRef.set(fieldType); // now reset ref once extra settings have been initialized
-
+        this.fieldTypeRef = new MappedFieldTypeReference(fieldType);
+        this.defaultFieldType = defaultFieldType;
         this.multiFields = multiFields;
         this.copyTo = copyTo;
-    }
-    
-    protected boolean defaultDocValues() {
-        if (indexCreatedBefore2x) {
-            return false;
-        } else {
-            return fieldType().tokenized() == false && fieldType().indexOptions() != IndexOptions.NONE;
-        }
     }
 
     @Override
     public String name() {
         return fieldType().names().fullName();
     }
-
-    public abstract MappedFieldType defaultFieldType();
-
-    public abstract FieldDataType defaultFieldDataType();
 
     @Override
     public MappedFieldType fieldType() {
@@ -417,7 +397,6 @@ public abstract class AbstractFieldMapper extends FieldMapper {
             MappedFieldType fieldType = fieldMergeWith.fieldType().clone();
             fieldType.freeze();
             fieldTypeRef.set(fieldType);
-            this.customFieldDataSettings = fieldMergeWith.customFieldDataSettings;
             this.copyTo = fieldMergeWith.copyTo;
         }
     }
@@ -441,7 +420,6 @@ public abstract class AbstractFieldMapper extends FieldMapper {
             builder.field("boost", fieldType().boost());
         }
 
-        FieldType defaultFieldType = defaultFieldType();
         boolean indexed =  fieldType().indexOptions() != IndexOptions.NONE;
         boolean defaultIndexed = defaultFieldType.indexOptions() != IndexOptions.NONE;
         if (includeDefaults || indexed != defaultIndexed ||
@@ -477,13 +455,8 @@ public abstract class AbstractFieldMapper extends FieldMapper {
             builder.field("similarity", SimilarityLookupService.DEFAULT_SIMILARITY);
         }
 
-        TreeMap<String, Object> orderedFielddataSettings = new TreeMap<>();
-        if (hasCustomFieldDataSettings()) {
-            orderedFielddataSettings.putAll(customFieldDataSettings.getAsMap());
-            builder.field("fielddata", orderedFielddataSettings);
-        } else if (includeDefaults) {
-            orderedFielddataSettings.putAll(fieldType().fieldDataType().getSettings().getAsMap());
-            builder.field("fielddata", orderedFielddataSettings);
+        if (includeDefaults || hasCustomFieldDataSettings()) {
+            builder.field("fielddata", fieldType().fieldDataType().getSettings().getAsMap());
         }
         multiFields.toXContent(builder, params);
 
@@ -506,7 +479,7 @@ public abstract class AbstractFieldMapper extends FieldMapper {
     }
     
     protected void doXContentDocValues(XContentBuilder builder, boolean includeDefaults) throws IOException {
-        if (includeDefaults || hasDefaultDocValues == false) {
+        if (includeDefaults || defaultFieldType.hasDocValues() != fieldType().hasDocValues()) {
             builder.field(DOC_VALUES, fieldType().hasDocValues());
         }
     }
@@ -559,7 +532,7 @@ public abstract class AbstractFieldMapper extends FieldMapper {
     }
 
     protected boolean hasCustomFieldDataSettings() {
-        return customFieldDataSettings != null && customFieldDataSettings.equals(Settings.EMPTY) == false;
+        return fieldType().fieldDataType() != null && fieldType().fieldDataType().equals(defaultFieldType.fieldDataType()) == false;
     }
 
     protected abstract String contentType();

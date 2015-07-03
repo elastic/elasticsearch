@@ -108,8 +108,8 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
         @Override
         public IdFieldMapper build(BuilderContext context) {
-            fieldType.setNames(new MappedFieldType.Names(indexName, indexName, name));
-            return new IdFieldMapper(fieldType, docValues, path, fieldDataSettings, context.indexSettings());
+            setupFieldType(context);
+            return new IdFieldMapper(fieldType, path, context.indexSettings());
         }
     }
 
@@ -136,7 +136,9 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
     static final class IdFieldType extends MappedFieldType {
 
-        public IdFieldType() {}
+        public IdFieldType() {
+            setFieldDataType(new FieldDataType("string"));
+        }
 
         protected IdFieldType(IdFieldType ref) {
             super(ref);
@@ -228,14 +230,11 @@ public class IdFieldMapper extends MetadataFieldMapper {
     private final String path;
 
     public IdFieldMapper(Settings indexSettings, MappedFieldType existing) {
-        this(idFieldType(indexSettings, existing), null, Defaults.PATH,
-             existing == null ? null : (existing.fieldDataType() == null ? null : existing.fieldDataType().getSettings()),
-             indexSettings);
+        this(idFieldType(indexSettings, existing), Defaults.PATH, indexSettings);
     }
 
-    protected IdFieldMapper(MappedFieldType fieldType, Boolean docValues, String path,
-                            @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(NAME, fieldType, docValues, fieldDataSettings, indexSettings);
+    protected IdFieldMapper(MappedFieldType fieldType, String path, Settings indexSettings) {
+        super(NAME, fieldType, Defaults.FIELD_TYPE, indexSettings);
         this.path = path;
     }
     
@@ -253,16 +252,6 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
     public String path() {
         return this.path;
-    }
-
-    @Override
-    public MappedFieldType defaultFieldType() {
-        return Defaults.FIELD_TYPE;
-    }
-
-    @Override
-    public FieldDataType defaultFieldDataType() {
-        return new FieldDataType("string");
     }
 
     @Override
@@ -331,9 +320,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
             builder.field("path", path);
         }
 
-        if (hasCustomFieldDataSettings()) {
-            builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
-        } else if (includeDefaults) {
+        if (includeDefaults || hasCustomFieldDataSettings()) {
             builder.field("fielddata", (Map) fieldType().fieldDataType().getSettings().getAsMap());
         }
         builder.endObject();

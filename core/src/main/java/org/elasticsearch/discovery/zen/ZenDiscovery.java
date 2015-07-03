@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.InternalClusterService;
@@ -778,6 +779,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                             long count = clusterJoinsCounter.incrementAndGet();
                             logger.trace("updated cluster join cluster to [{}]", count);
 
+                            // check that the initial state doesn't have any shards assigned to us.
+                            // this currently important - see https://github.com/elastic/elasticsearch/pull/11960
+                            // note: routingNode is null for master only/client nodes.
+                            final RoutingNode routingNode = updatedState.getRoutingNodes().node(updatedState.nodes().localNodeId());
+                            assert routingNode == null || routingNode.size() == 0 : "no shard should be assigned after join. see #11960. got: \n" + updatedState.prettyPrint();
+
                             return updatedState;
                         }
 
@@ -939,14 +946,15 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         }
                     }
 
-                    ClusterState.Builder stateBuilder = ClusterState.builder(currentState);
+
+                    // we must return a new cluster state instant to force a publish in order for the joining
+                    // node to receive a new state.
+                    final ClusterState.Builder newState = ClusterState.builder(currentState);
                     if (nodeAdded) {
-                        stateBuilder.nodes(nodesBuilder);
+                        newState.nodes(nodesBuilder);
                     }
-                    currentState = stateBuilder.build();
-                    // eagerly run reroute to apply the node addition
-                    RoutingAllocation.Result result = routingService.getAllocationService().reroute(currentState);
-                    return ClusterState.builder(currentState).routingResult(result).build();
+
+                    return newState.build();
                 }
 
                 @Override

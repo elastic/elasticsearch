@@ -1,0 +1,117 @@
+Copyright (c) 2004-2011 VMware, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+ADDITIONAL LICENSE INFORMATION:
+
+Hyperic SIGAR includes some third-party open source components 
+in its distribution. The list below identifies the community or 
+organization and links to their appropriate license terms.
+
+The Hyperic team would like to thank all the communities 
+of the projects listed below for their contributions.
+
+----------------------------------------------------------
+Components under the Apache License 2.0:
+----------------------------------------------------------
+
+The following components are included without modification:
+
+- log4j -
+Information: http://logging.apache.org/
+License: http://www.apache.org/licenses/LICENSE-2.0
+
+The following components are included with modification:
+
+- cpptasks -
+Information: http://ant-contrib.sourceforge.net/
+License: http://www.apache.org/licenses/LICENSE-2.0
+
+- (portions of) APR -
+Information: http://apr.apache.org/
+License: http://www.apache.org/licenses/LICENSE-2.0
+
+----------------------------------------------------------
+Components under BSD/MIT Style Licenses: 
+----------------------------------------------------------
+
+The following components are included with modification:
+
+- solaris get_mib2 -
+Information: ftp://vic.cc.purdue.edu/pub/tools/unix/solaris/get_mib2/
+License: within src/os/solaris/get_mib2.[ch]
+
+Copyright 1995 Purdue Research Foundation, West Lafayette, Indiana
+47907.  All rights reserved.
+
+Written by Victor A. Abell <abe@cc.purdue.edu>
+
+This software is not subject to any license of the American Telephone
+and Telegraph Company or the Regents of the University of California.
+
+Permission is granted to anyone to use this software for any purpose on
+any computer system, and to alter it and redistribute it freely, subject
+to the following restrictions:
+
+1. Neither Victor A  Abell nor Purdue University are responsible for
+   any consequences of the use of this software.
+
+2. The origin of this software must not be misrepresented, either by
+   explicit claim or by omission.  Credit to Victor A. Abell and Purdue
+   University must appear in documentation and sources.
+
+3. Altered versions must be plainly marked as such, and must not be
+   misrepresented as being the original software.
+
+4. This notice may not be removed or altered.
+
+- getline by Chris Thewalt -
+Information: http://tinyurl.com/r438r
+License: within src/sigar_getline.c
+
+Copyright (C) 1991, 1992 by Chris Thewalt (thewalt@ce.berkeley.edu)
+
+Permission to use, copy, modify, and distribute this software
+for any purpose and without fee is hereby granted, provided
+that the above copyright notices appear in all copies and that both the
+copyright notice and this permission notice appear in supporting
+documentation.  This software is provided "as is" without express or
+implied warranty.
+
+- PrintfFormat.java -
+Information: http://java.sun.com/developer/technicalArticles/Programming/sprintf/PrintfFormat.java
+License: within bindings/java/src/org/hyperic/sigar/util/PrintfFormat.java
+
+(c) 2000 Sun Microsystems, Inc.
+ALL RIGHTS RESERVED
+
+License Grant-
+
+Permission to use, copy, modify, and distribute this Software and its
+documentation for NON-COMMERCIAL or COMMERCIAL purposes and without fee is
+hereby granted.
+
+This Software is provided "AS IS".  All express warranties, including any
+implied warranty of merchantability, satisfactory quality, fitness for a
+particular purpose, or non-infringement, are disclaimed, except to the extent
+that such disclaimers are held to be legally invalid.
+
+You acknowledge that Software is not designed, licensed or intended for use in
+the design, construction, operation or maintenance of any nuclear facility
+("High Risk Activities").  Sun disclaims any express or implied warranty of
+fitness for such uses.
+
+Please refer to the file http://www.sun.com/policies/trademarks/ for further
+important trademark information and to
+http://java.sun.com/nav/business/index.html for further important licensing
+information for the Java Technology.

@@ -323,5 +323,6 @@
         <module>lang-python</module>
         <module>lang-javascript</module>
         <module>delete-by-query</module>
+        <module>probe-sigar</module>
     </modules>
 </project>

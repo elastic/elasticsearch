@@ -563,29 +563,5 @@
             </activation>
             <!-- not including license-maven-plugin is sufficent to expose default license -->
         </profile>
-        <profile>
-            <id>sign-rpm</id>
-            <activation>
-                <property>
-                    <name>rpm.sign</name>
-                    <value>true</value>
-                </property>
-            </activation>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.codehaus.mojo</groupId>
-                        <artifactId>rpm-maven-plugin</artifactId>
-                        <configuration>
-                            <keyname>${gpg.key}</keyname>
-                            <keypath>${gpg.keyring}</keypath>
-                            <keyPassphrase>
-                                <passphrase>${gpg.passphrase}</passphrase>
-                            </keyPassphrase>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
     </profiles>
 </project>

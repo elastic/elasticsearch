@@ -17,7 +17,7 @@ import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.plugin.core.LicenseExpiredException;
+import org.elasticsearch.license.plugin.core.LicenseUtils;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationService;
@@ -80,7 +80,7 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
             logger.error("blocking [{}] operation due to expired license. Cluster health, cluster stats and indices stats \n" +
                     "operations are blocked on shield license expiration. All data operations (read and write) continue to work. \n" +
                     "If you have a new license, please update it. Otherwise, please reach out to your support contact.", action);
-            throw new LicenseExpiredException(LicenseService.FEATURE_NAME);
+            throw LicenseUtils.newExpirationException(LicenseService.FEATURE_NAME);
         }
 
         try {

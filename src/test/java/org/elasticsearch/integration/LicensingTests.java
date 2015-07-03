@@ -7,6 +7,7 @@ package org.elasticsearch.integration;
 
 import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsIndices;
@@ -20,10 +21,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.core.License;
-import org.elasticsearch.license.plugin.core.LicenseExpiredException;
 import org.elasticsearch.license.plugin.core.LicensesClientService;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.shield.license.LicenseService;
 import org.elasticsearch.test.ShieldIntegrationTest;
 import org.elasticsearch.test.ShieldSettingsSource;
@@ -119,33 +120,41 @@ public class LicensingTests extends ShieldIntegrationTest {
         try {
             client.admin().indices().prepareStats().get();
             fail("expected an license expired exception when executing an index stats action");
-        } catch (LicenseExpiredException lee) {
+        } catch (ElasticsearchException ee) {
             // expected
-            assertThat(lee.feature(), equalTo(LicenseService.FEATURE_NAME));
+            assertThat(ee, instanceOf(ElasticsearchException.WithRestHeadersException.class));
+            assertThat(((ElasticsearchException.WithRestHeadersException) ee).getHeaders().get("es.license.expired.feature"), hasItem(LicenseService.FEATURE_NAME));
+            assertThat(ee.status(), is(RestStatus.UNAUTHORIZED));
         }
 
         try {
             client.admin().cluster().prepareClusterStats().get();
             fail("expected an license expired exception when executing cluster stats action");
-        } catch (LicenseExpiredException lee) {
+        } catch (ElasticsearchException ee) {
             // expected
-            assertThat(lee.feature(), equalTo(LicenseService.FEATURE_NAME));
+            assertThat(ee, instanceOf(ElasticsearchException.WithRestHeadersException.class));
+            assertThat(((ElasticsearchException.WithRestHeadersException) ee).getHeaders().get("es.license.expired.feature"), hasItem(LicenseService.FEATURE_NAME));
+            assertThat(ee.status(), is(RestStatus.UNAUTHORIZED));
         }
 
         try {
             client.admin().cluster().prepareHealth().get();
             fail("expected an license expired exception when executing cluster health action");
-        } catch (LicenseExpiredException lee) {
+        } catch (ElasticsearchException ee) {
             // expected
-            assertThat(lee.feature(), equalTo(LicenseService.FEATURE_NAME));
+            assertThat(ee, instanceOf(ElasticsearchException.WithRestHeadersException.class));
+            assertThat(((ElasticsearchException.WithRestHeadersException) ee).getHeaders().get("es.license.expired.feature"), hasItem(LicenseService.FEATURE_NAME));
+            assertThat(ee.status(), is(RestStatus.UNAUTHORIZED));
         }
 
         try {
             client.admin().cluster().prepareNodesStats().get();
             fail("expected an license expired exception when executing cluster health action");
-        } catch (LicenseExpiredException lee) {
+        } catch (ElasticsearchException ee) {
             // expected
-            assertThat(lee.feature(), equalTo(LicenseService.FEATURE_NAME));
+            assertThat(ee, instanceOf(ElasticsearchException.WithRestHeadersException.class));
+            assertThat(((ElasticsearchException.WithRestHeadersException) ee).getHeaders().get("es.license.expired.feature"), hasItem(LicenseService.FEATURE_NAME));
+            assertThat(ee.status(), is(RestStatus.UNAUTHORIZED));
         }
 
         enableLicensing();

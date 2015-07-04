@@ -158,7 +158,7 @@ public abstract class NumberFieldMapper extends AbstractFieldMapper implements A
         }
 
         @Override
-        public abstract Query fuzzyQuery(String value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions);
+        public abstract Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions);
 
         @Override
         public boolean useTermQueryWithQueryString() {

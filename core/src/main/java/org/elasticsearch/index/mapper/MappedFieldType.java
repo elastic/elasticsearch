@@ -461,8 +461,8 @@ public abstract class MappedFieldType extends FieldType {
             includeLower, includeUpper);
     }
 
-    public Query fuzzyQuery(String value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-        return new FuzzyQuery(createTerm(value), fuzziness.asDistance(value), prefixLength, maxExpansions, transpositions);
+    public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
+        return new FuzzyQuery(createTerm(value), fuzziness.asDistance(value.toString()), prefixLength, maxExpansions, transpositions);
     }
 
     public Query prefixQuery(Object value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {

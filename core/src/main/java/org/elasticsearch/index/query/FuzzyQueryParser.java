@@ -115,12 +115,11 @@ public class FuzzyQueryParser implements QueryParser {
         
         Query query = null;
         MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
-        String valueString = value.toString();
         if (fieldType != null) {
-            query = fieldType.fuzzyQuery(valueString, fuzziness, prefixLength, maxExpansions, transpositions);
+            query = fieldType.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions);
         }
         if (query == null) {
-            query = new FuzzyQuery(new Term(fieldName, valueString), fuzziness.asDistance(valueString), prefixLength, maxExpansions, transpositions);
+            query = new FuzzyQuery(new Term(fieldName, value.toString()), fuzziness.asDistance(value.toString()), prefixLength, maxExpansions, transpositions);
         }
         if (query instanceof MultiTermQuery) {
             QueryParsers.setRewriteMethod((MultiTermQuery) query, rewriteMethod);

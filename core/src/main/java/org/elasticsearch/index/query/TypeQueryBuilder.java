@@ -19,24 +19,44 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
 
     public static final String NAME = "type";
-    private final String type;
-    static final TypeQueryBuilder PROTOTYPE = new TypeQueryBuilder(null);
+
+    private final BytesRef type;
+
+    static final TypeQueryBuilder PROTOTYPE = new TypeQueryBuilder((BytesRef) null);
 
     public TypeQueryBuilder(String type) {
+        this.type = BytesRefs.toBytesRef(type);
+    }
+
+    TypeQueryBuilder(BytesRef type) {
         this.type = type;
     }
+    
+    public BytesRef type() {
+        return this.type;
+    } 
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field("value", type);
+        builder.field("value", type.utf8ToString());
         printBoostAndQueryName(builder);
         builder.endObject();
     }
@@ -44,5 +64,47 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
     @Override
     public String getName() {
         return NAME;
+    }
+
+    @Override
+    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
+        Query filter;
+        //LUCENE 4 UPGRADE document mapper should use bytesref as well?
+        DocumentMapper documentMapper = parseContext.mapperService().documentMapper(type.utf8ToString());
+        if (documentMapper == null) {
+            filter = new TermQuery(new Term(TypeFieldMapper.NAME, type));
+        } else {
+            filter = documentMapper.typeFilter();
+        }
+        return filter;
+    }
+
+    @Override
+    public QueryValidationException validate() {
+        QueryValidationException validationException = null;
+        if (type == null) {
+            validationException = addValidationError("[type] cannot be null", validationException);
+        }
+        return validationException;
+    }
+
+    @Override
+    protected TypeQueryBuilder doReadFrom(StreamInput in) throws IOException {
+        return new TypeQueryBuilder(in.readBytesRef());
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeBytesRef(type);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(type);
+    }
+
+    @Override
+    protected boolean doEquals(TypeQueryBuilder other) {
+        return Objects.equals(type, other.type);
     }
 }

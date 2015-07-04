@@ -160,20 +160,7 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
     @Before
     public void beforeTest() {
         //set some random types to be queried as part the search request, before each test
-        String[] types;
-        if (currentTypes.length > 0 && randomBoolean()) {
-            int numberOfQueryTypes = randomIntBetween(1, currentTypes.length);
-            types = new String[numberOfQueryTypes];
-            for (int i = 0; i < numberOfQueryTypes; i++) {
-                types[i] = randomFrom(currentTypes);
-            }
-        } else {
-            if (randomBoolean()) {
-                types = new String[] { MetaData.ALL };
-            } else {
-                types = new String[0];
-            }
-        }
+        String[] types = getRandomTypes();
         //some query (e.g. range query) have a different behaviour depending on whether the current search context is set or not
         //which is why we randomly set the search context, which will internally also do QueryParseContext.setTypes(types)
         if (randomBoolean()) {
@@ -347,5 +334,27 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
                     QueryParsers.TOP_TERMS_BLENDED_FREQS}).getPreferredName() + "1";
         }
         return rewrite;
+    }
+
+    protected String[] getRandomTypes() {
+        String[] types;
+        if (currentTypes.length > 0 && randomBoolean()) {
+            int numberOfQueryTypes = randomIntBetween(1, currentTypes.length);
+            types = new String[numberOfQueryTypes];
+            for (int i = 0; i < numberOfQueryTypes; i++) {
+                types[i] = randomFrom(currentTypes);
+            }
+        } else {
+            if (randomBoolean()) {
+                types = new String[] { MetaData.ALL };
+            } else {
+                types = new String[0];
+            }
+        }
+        return types;
+    }
+
+    protected String getRandomType() {
+        return (currentTypes.length == 0) ? MetaData.ALL : randomFrom(currentTypes);  
     }
 }

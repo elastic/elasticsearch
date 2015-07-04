@@ -31,6 +31,16 @@ governing permissions and limitations under the License. -->
         <tests.rest.load_packaged>false</tests.rest.load_packaged>
     </properties>
 
+    <dependencies>
+        <!-- Required by the REST test framework -->
+        <!-- Note that we should have this as a transient dependency coming from test module if any -->
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
     <build>
         <plugins>
             <plugin>

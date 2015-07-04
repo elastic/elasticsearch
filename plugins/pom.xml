@@ -214,12 +214,6 @@
             <artifactId>jna</artifactId>
             <scope>provided</scope>
         </dependency>
-        <!-- Required by the REST test framework -->
-        <dependency>
-            <groupId>org.apache.httpcomponents</groupId>
-            <artifactId>httpclient</artifactId>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
 
     <!-- typical layout for plugins -->

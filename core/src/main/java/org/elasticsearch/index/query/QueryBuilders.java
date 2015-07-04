@@ -556,8 +556,8 @@ public abstract class QueryBuilders {
     /**
      * A Query builder which allows building a query thanks to a JSON string or binary data.
      */
-    public static WrapperQueryBuilder wrapperQuery(byte[] source, int offset, int length) {
-        return new WrapperQueryBuilder(source, offset, length);
+    public static WrapperQueryBuilder wrapperQuery(byte[] source) {
+        return new WrapperQueryBuilder(source);
     }
 
     /**

@@ -147,7 +147,7 @@ public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> 
 
     @Override
     protected final int doHashCode() {
-        return Objects.hash(getClass(), fieldName, value);
+        return Objects.hash(fieldName, value);
     }
 
     @Override

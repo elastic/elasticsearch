@@ -19,22 +19,15 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.PrefixQuery;
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 
 /**
  *
  */
-public class PrefixQueryParser extends BaseQueryParserTemp {
+public class PrefixQueryParser extends BaseQueryParser {
 
     @Inject
     public PrefixQueryParser() {
@@ -46,14 +39,14 @@ public class PrefixQueryParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = parser.currentName();
-        String rewriteMethod = null;
-        String queryName = null;
-
         String value = null;
+        String rewrite = null;
+
+        String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String currentFieldName = null;
         XContentParser.Token token;
@@ -75,7 +68,7 @@ public class PrefixQueryParser extends BaseQueryParserTemp {
                         } else if ("boost".equals(currentFieldName)) {
                             boost = parser.floatValue();
                         } else if ("rewrite".equals(currentFieldName)) {
-                            rewriteMethod = parser.textOrNull();
+                            rewrite = parser.textOrNull();
                         } else {
                             throw new QueryParsingException(parseContext, "[regexp] query does not support [" + currentFieldName + "]");
                         }
@@ -94,26 +87,10 @@ public class PrefixQueryParser extends BaseQueryParserTemp {
         if (value == null) {
             throw new QueryParsingException(parseContext, "No value specified for prefix query");
         }
-
-        MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(parseContext.parseFieldMatcher(), rewriteMethod, null);
-
-        Query query = null;
-        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
-        if (fieldType != null) {
-            query = fieldType.prefixQuery(value, method, parseContext);
-        }
-        if (query == null) {
-            PrefixQuery prefixQuery = new PrefixQuery(new Term(fieldName, BytesRefs.toBytesRef(value)));
-            if (method != null) {
-                prefixQuery.setRewriteMethod(method);
-            }
-            query = prefixQuery;
-        }
-        query.setBoost(boost);
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
-        }
-        return  query;
+        return new PrefixQueryBuilder(fieldName, value)
+                .rewrite(rewrite)
+                .boost(boost)
+                .queryName(queryName);
     }
 
     @Override

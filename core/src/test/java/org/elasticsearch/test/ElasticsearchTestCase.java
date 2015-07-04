@@ -435,18 +435,20 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
         return awaitBusy(breakPredicate, 10, TimeUnit.SECONDS);
     }
 
+    // After 1s, we stop growing the sleep interval exponentially and just sleep 1s until maxWaitTime
+    private static final long AWAIT_BUSY_THRESHOLD = 1000L;
+
     public static boolean awaitBusy(Predicate<?> breakPredicate, long maxWaitTime, TimeUnit unit) throws InterruptedException {
         long maxTimeInMillis = TimeUnit.MILLISECONDS.convert(maxWaitTime, unit);
-        long iterations = Math.max(Math.round(Math.log10(maxTimeInMillis) / Math.log10(2)), 1);
         long timeInMillis = 1;
         long sum = 0;
-        for (int i = 0; i < iterations; i++) {
+        while (sum + timeInMillis < maxTimeInMillis) {
             if (breakPredicate.apply(null)) {
                 return true;
             }
-            sum += timeInMillis;
             Thread.sleep(timeInMillis);
-            timeInMillis *= 2;
+            sum += timeInMillis;
+            timeInMillis = Math.min(AWAIT_BUSY_THRESHOLD, timeInMillis * 2);
         }
         timeInMillis = maxTimeInMillis - sum;
         Thread.sleep(Math.max(timeInMillis, 0));

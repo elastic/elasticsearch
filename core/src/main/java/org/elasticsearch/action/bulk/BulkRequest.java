@@ -116,6 +116,15 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     }
 
     BulkRequest internalAdd(IndexRequest request, @Nullable Object payload) {
+        if (request == null) {
+            ActionRequestValidationException e = new ActionRequestValidationException();
+            e.addValidationError("request must not be null");
+            throw e;
+        }
+        ActionRequestValidationException validationException = request.validate();
+        if (validationException != null) {
+            throw validationException;
+        }
         requests.add(request);
         addPayload(payload);
         sizeInBytes += request.source().length() + REQUEST_OVERHEAD;
@@ -459,12 +468,16 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
             validationException = addValidationError("no requests added", validationException);
         }
         for (int i = 0; i < requests.size(); i++) {
-            ActionRequestValidationException ex = requests.get(i).validate();
-            if (ex != null) {
-                if (validationException == null) {
-                    validationException = new ActionRequestValidationException();
+            if (requests.get(i) == null) {
+                validationException = addValidationError("request must not be null", null);
+            } else {
+                ActionRequestValidationException ex = requests.get(i).validate();
+                if (ex != null) {
+                    if (validationException == null) {
+                        validationException = new ActionRequestValidationException();
+                    }
+                    validationException.addValidationErrors(ex.validationErrors());
                 }
-                validationException.addValidationErrors(ex.validationErrors());
             }
         }
 

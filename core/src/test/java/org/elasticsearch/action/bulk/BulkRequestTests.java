@@ -23,6 +23,7 @@ import com.google.common.base.Charsets;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -63,7 +64,7 @@ public class BulkRequestTests extends ElasticsearchTestCase {
     public void testSimpleBulk2() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk2.json");
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(Charsets.UTF_8), 0, bulkAction.length(), null, null);
+        bulkRequest.add(bulkAction.getBytes(Charsets.UTF_8), 0, bulkAction.length(), "test", "test");
         assertThat(bulkRequest.numberOfActions(), equalTo(3));
     }
 
@@ -71,7 +72,7 @@ public class BulkRequestTests extends ElasticsearchTestCase {
     public void testSimpleBulk3() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk3.json");
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(Charsets.UTF_8), 0, bulkAction.length(), null, null);
+        bulkRequest.add(bulkAction.getBytes(Charsets.UTF_8), 0, bulkAction.length(), "test", "test");
         assertThat(bulkRequest.numberOfActions(), equalTo(3));
     }
 
@@ -79,7 +80,7 @@ public class BulkRequestTests extends ElasticsearchTestCase {
     public void testSimpleBulk4() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk4.json");
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(Charsets.UTF_8), 0, bulkAction.length(), null, null);
+        bulkRequest.add(bulkAction.getBytes(Charsets.UTF_8), 0, bulkAction.length(), "test", "test");
         assertThat(bulkRequest.numberOfActions(), equalTo(4));
         assertThat(((UpdateRequest) bulkRequest.requests().get(0)).id(), equalTo("1"));
         assertThat(((UpdateRequest) bulkRequest.requests().get(0)).retryOnConflict(), equalTo(2));
@@ -170,7 +171,7 @@ public class BulkRequestTests extends ElasticsearchTestCase {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk9.json");
         BulkRequest bulkRequest = new BulkRequest();
         try {
-            bulkRequest.add(bulkAction.getBytes(Charsets.UTF_8), 0, bulkAction.length(), null, null);
+            bulkRequest.add(bulkAction.getBytes(Charsets.UTF_8), 0, bulkAction.length(), "test", "test");
             fail("should have thrown an exception about the wrong format of line 3");
         } catch (IllegalArgumentException e) {
             assertThat("message contains error about the wrong format of line 3: " + e.getMessage(),
@@ -182,7 +183,36 @@ public class BulkRequestTests extends ElasticsearchTestCase {
     public void testSimpleBulk10() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk10.json");
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(Charsets.UTF_8), 0, bulkAction.length(), null, null);
+        bulkRequest.add(bulkAction.getBytes(Charsets.UTF_8), 0, bulkAction.length(), "test", "test");
         assertThat(bulkRequest.numberOfActions(), equalTo(9));
     }
+
+    @Test(expected = ActionRequestValidationException.class)
+    public void testInvalidBulk1() {
+        IndexRequest r = null;
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(r);
+    }
+
+    @Test(expected = ActionRequestValidationException.class)
+    public void testInvalidBulk2() {
+        IndexRequest r = Requests.indexRequest();
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(r);
+    }
+
+    @Test(expected = ActionRequestValidationException.class)
+    public void testInvalidBulk3() {
+        IndexRequest r = Requests.indexRequest().index(null);
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(r);
+    }
+
+    @Test(expected = ActionRequestValidationException.class)
+    public void testInvalidBulk4() {
+        IndexRequest r = Requests.indexRequest().source((String)null);
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(r);
+    }
+
 }

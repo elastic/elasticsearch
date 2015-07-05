@@ -28,8 +28,8 @@ my $User_Repo  = 'elastic/elasticsearch/';
 my $Issue_URL  = "http://github.com/${User_Repo}issues/";
 
 my @Groups = qw(
-    breaking    deprecation feature
-    enhancement bug regression doc test
+    breaking deprecation feature
+    enhancement bug regression build doc test
 );
 my %Group_Labels = (
     breaking    => 'Breaking changes',
@@ -41,7 +41,7 @@ my %Group_Labels = (
     bug         => 'Bug fixes',
     regression  => 'Regression',
     test        => 'Tests',
-    other       => 'Not classified',
+    other       => 'NOT CLASSIFIED',
 );
 
 use JSON();

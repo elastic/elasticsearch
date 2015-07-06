@@ -65,4 +65,10 @@ public class PercentilesParser extends AbstractPercentilesParser {
         }
     }
 
+    // NORELEASE implement this method when refactoring this aggregation
+    @Override
+    public AggregatorFactory getFactoryPrototype() {
+        return null;
+    }
+
 }

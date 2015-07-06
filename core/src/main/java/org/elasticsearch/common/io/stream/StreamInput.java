@@ -37,6 +37,8 @@ import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -620,6 +622,20 @@ public abstract class StreamInput extends InputStream {
      */
     <C> C readNamedWriteable(@SuppressWarnings("unused") Class<C> categoryClass) throws IOException {
         throw new UnsupportedOperationException("can't read named writeable from StreamInput");
+    }
+
+    /**
+     * Reads a {@link AggregatorFactory} from the current stream
+     */
+    public AggregatorFactory readAggregatorFactory() throws IOException {
+        return readNamedWriteable(AggregatorFactory.class);
+    }
+
+    /**
+     * Reads a {@link PipelineAggregatorFactory} from the current stream
+     */
+    public PipelineAggregatorFactory readPipelineAggregatorFactory() throws IOException {
+        return readNamedWriteable(PipelineAggregatorFactory.class);
     }
 
     /**

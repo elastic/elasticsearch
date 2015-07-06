@@ -45,19 +45,21 @@ public class ValuesSourceParser<VS extends ValuesSource> {
     static final ParseField TIME_ZONE = new ParseField("time_zone");
 
     public static Builder any(String aggName, InternalAggregation.Type aggType, SearchContext context) {
-        return new Builder<>(aggName, aggType, context, ValuesSource.class);
+        return new Builder<>(aggName, aggType, context, ValuesSource.class, ValuesSourceType.ANY);
     }
 
     public static Builder<ValuesSource.Numeric> numeric(String aggName, InternalAggregation.Type aggType, SearchContext context) {
-        return new Builder<>(aggName, aggType, context, ValuesSource.Numeric.class).targetValueType(ValueType.NUMERIC);
+        return new Builder<>(aggName, aggType, context, ValuesSource.Numeric.class, ValuesSourceType.NUMERIC)
+                .targetValueType(ValueType.NUMERIC);
     }
 
     public static Builder<ValuesSource.Bytes> bytes(String aggName, InternalAggregation.Type aggType, SearchContext context) {
-        return new Builder<>(aggName, aggType, context, ValuesSource.Bytes.class).targetValueType(ValueType.STRING);
+        return new Builder<>(aggName, aggType, context, ValuesSource.Bytes.class, ValuesSourceType.BYTES).targetValueType(ValueType.STRING);
     }
 
     public static Builder<ValuesSource.GeoPoint> geoPoint(String aggName, InternalAggregation.Type aggType, SearchContext context) {
-        return new Builder<>(aggName, aggType, context, ValuesSource.GeoPoint.class).targetValueType(ValueType.GEOPOINT).scriptable(false);
+        return new Builder<>(aggName, aggType, context, ValuesSource.GeoPoint.class, ValuesSourceType.GEOPOINT).targetValueType(
+                ValueType.GEOPOINT).scriptable(false);
     }
 
     // NORELEASE remove this class when aggs refactoring complete
@@ -74,7 +76,7 @@ public class ValuesSourceParser<VS extends ValuesSource> {
         ValueType valueType = null;
         String format = null;
         Object missing = null;
-        Class<VS> valuesSourceType = null;
+        ValuesSourceType valuesSourceType = null;
         ValueType targetValueType = null;
         DateTimeZone timezone = DateTimeZone.UTC;
 
@@ -98,7 +100,7 @@ public class ValuesSourceParser<VS extends ValuesSource> {
 
     private Input<VS> input = new Input<VS>();
 
-    private ValuesSourceParser(String aggName, InternalAggregation.Type aggType, SearchContext context, Class<VS> valuesSourceType) {
+    private ValuesSourceParser(String aggName, InternalAggregation.Type aggType, SearchContext context, ValuesSourceType valuesSourceType) {
         this.aggName = aggName;
         this.aggType = aggType;
         this.context = context;
@@ -169,7 +171,7 @@ public class ValuesSourceParser<VS extends ValuesSource> {
         }
 
         return input;
-            }
+    }
 
     // NORELEASE remove this class when aggs refactoring complete
     /**
@@ -181,7 +183,8 @@ public class ValuesSourceParser<VS extends ValuesSource> {
 
         private final ValuesSourceParser<VS> parser;
 
-        private Builder(String aggName, InternalAggregation.Type aggType, SearchContext context, Class<VS> valuesSourceType) {
+        private Builder(String aggName, InternalAggregation.Type aggType, SearchContext context, Class<VS> valuesSourcecClass,
+                ValuesSourceType valuesSourceType) {
             parser = new ValuesSourceParser<>(aggName, aggType, context, valuesSourceType);
         }
 

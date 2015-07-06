@@ -58,6 +58,12 @@ public class GeoCentroidParser implements Aggregator.Parser {
                         + currentFieldName + "].", parser.getTokenLocation());
             }
         }
-        return new GeoCentroidAggregator.Factory(aggregationName, vsParser.config());
+        return new GeoCentroidAggregator.Factory(aggregationName, vsParser.input());
+    }
+
+    // NORELEASE implement this method when refactoring this aggregation
+    @Override
+    public AggregatorFactory getFactoryPrototype() {
+        return null;
     }
 }

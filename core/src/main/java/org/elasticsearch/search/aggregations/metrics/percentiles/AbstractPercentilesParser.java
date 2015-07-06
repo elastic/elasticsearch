@@ -50,16 +50,16 @@ public abstract class AbstractPercentilesParser implements Aggregator.Parser {
 
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
-    
+
         ValuesSourceParser<ValuesSource.Numeric> vsParser = ValuesSourceParser.numeric(aggregationName, InternalTDigestPercentiles.TYPE, context)
                 .formattable(formattable).build();
-    
+
         double[] keys = null;
         boolean keyed = true;
         Double compression = null;
         Integer numberOfSignificantValueDigits = null;
         PercentilesMethod method = null;
-    
+
         XContentParser.Token token;
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -103,17 +103,17 @@ public abstract class AbstractPercentilesParser implements Aggregator.Parser {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {
                                 currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                            } else if (token == XContentParser.Token.VALUE_NUMBER) {
                                 if (context.parseFieldMatcher().match(currentFieldName, COMPRESSION_FIELD)) {
-                    compression = parser.doubleValue();
-                } else {
+                                    compression = parser.doubleValue();
+                                } else {
                                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName
                                             + "]: [" + currentFieldName + "].", parser.getTokenLocation());
                                 }
                             } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
-                            + currentFieldName + "].", parser.getTokenLocation());
-                }
+                                throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
+                                        + currentFieldName + "].", parser.getTokenLocation());
+                            }
                         }
                         break;
                     case HDR:
@@ -123,7 +123,7 @@ public abstract class AbstractPercentilesParser implements Aggregator.Parser {
                             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                                 if (context.parseFieldMatcher().match(currentFieldName, NUMBER_SIGNIFICANT_DIGITS_FIELD)) {
                                     numberOfSignificantValueDigits = parser.intValue();
-            } else {
+                                } else {
                                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName
                                             + "]: [" + currentFieldName + "].", parser.getTokenLocation());
                                 }

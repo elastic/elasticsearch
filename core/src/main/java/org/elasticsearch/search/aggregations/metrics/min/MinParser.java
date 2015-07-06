@@ -36,4 +36,10 @@ public class MinParser extends NumericValuesSourceMetricsAggregatorParser<Intern
     protected AggregatorFactory createFactory(String aggregationName, ValuesSourceParser.Input<ValuesSource.Numeric> input) {
         return new MinAggregator.Factory(aggregationName, input);
     }
+
+    // NORELEASE implement this method when refactoring this aggregation
+    @Override
+    public AggregatorFactory getFactoryPrototype() {
+        return null;
+    }
 }

@@ -54,4 +54,10 @@ public class ExtendedStatsBucketParser extends BucketMetricsParser {
         }
         return new ExtendedStatsBucketPipelineAggregator.Factory(pipelineAggregatorName, bucketsPaths, sigma, gapPolicy, formatter);
     }
+
+    // NORELEASE implement this method when refactoring this aggregation
+    @Override
+    public PipelineAggregatorFactory getFactoryPrototype() {
+        return null;
+    }
 }

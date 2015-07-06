@@ -53,6 +53,12 @@ public class AggregatorFactories {
         this.pipelineAggregatorFactories = pipelineAggregators;
     }
 
+    public void init(AggregationContext context) {
+        for (AggregatorFactory factory : factories) {
+            factory.init(context);
+        }
+    }
+
     public List<PipelineAggregator> createPipelineAggregators() throws IOException {
         List<PipelineAggregator> pipelineAggregators = new ArrayList<>();
         for (PipelineAggregatorFactory factory : this.pipelineAggregatorFactories) {
@@ -73,18 +79,18 @@ public class AggregatorFactories {
             // propagate the fact that only bucket 0 will be collected with single-bucket
             // aggs
             final boolean collectsFromSingleBucket = false;
-            aggregators[i] = factories[i].create(parent.context(), parent, collectsFromSingleBucket);
+            aggregators[i] = factories[i].create(parent, collectsFromSingleBucket);
         }
         return aggregators;
     }
 
-    public Aggregator[] createTopLevelAggregators(AggregationContext ctx) throws IOException {
+    public Aggregator[] createTopLevelAggregators() throws IOException {
         // These aggregators are going to be used with a single bucket ordinal, no need to wrap the PER_BUCKET ones
         Aggregator[] aggregators = new Aggregator[factories.length];
         for (int i = 0; i < factories.length; i++) {
             // top-level aggs only get called with bucket 0
             final boolean collectsFromSingleBucket = true;
-            aggregators[i] = factories[i].create(ctx, null, collectsFromSingleBucket);
+            aggregators[i] = factories[i].create(null, collectsFromSingleBucket);
         }
         return aggregators;
     }
@@ -125,7 +131,7 @@ public class AggregatorFactories {
         }
 
         @Override
-        public Aggregator[] createTopLevelAggregators(AggregationContext ctx) {
+        public Aggregator[] createTopLevelAggregators() {
             return EMPTY_AGGREGATORS;
         }
 

@@ -115,6 +115,6 @@ public class DateRangeParser implements Aggregator.Parser {
                     parser.getTokenLocation());
         }
 
-        return new RangeAggregator.Factory(aggregationName, vsParser.config(), InternalDateRange.FACTORY, ranges, keyed);
+        return new RangeAggregator.Factory(aggregationName, vsParser.input(), InternalDateRange.FACTORY, ranges, keyed);
     }
 }

@@ -19,10 +19,7 @@
 
 package org.elasticsearch.common.io;
 
-import java.io.IOException;
-import java.io.ObjectOutputStream;
-import java.io.ObjectStreamClass;
-import java.io.OutputStream;
+import java.io.*;
 
 /**
  *
@@ -63,6 +60,32 @@ public class ThrowableObjectOutputStream extends ObjectOutputStream {
                 write(TYPE_THIN_DESCRIPTOR);
                 writeUTF(desc.getName());
             }
+        }
+    }
+
+    /**
+     * Simple helper method to roundtrip a serializable object within the ThrowableObjectInput/Output stream
+     */
+    public static <T extends Serializable> T serialize(T t) throws IOException, ClassNotFoundException {
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        try (ThrowableObjectOutputStream outputStream = new ThrowableObjectOutputStream(stream)) {
+            outputStream.writeObject(t);
+        }
+        try (ThrowableObjectInputStream in = new ThrowableObjectInputStream(new ByteArrayInputStream(stream.toByteArray()))) {
+            return (T) in.readObject();
+        }
+    }
+
+    /**
+     * Returns <code>true</code> iff the exception can be serialized and deserialized using
+     * {@link ThrowableObjectOutputStream} and {@link ThrowableObjectInputStream}. Otherwise <code>false</code>
+     */
+    public static boolean canSerialize(Throwable t) {
+        try {
+            serialize(t);
+            return true;
+        } catch (Throwable throwable) {
+            return false;
         }
     }
 }

@@ -117,6 +117,10 @@ public class NettyTransportChannel implements TransportChannel {
     @Override
     public void sendResponse(Throwable error) throws IOException {
         BytesStreamOutput stream = new BytesStreamOutput();
+        if (ThrowableObjectOutputStream.canSerialize(error) == false) {
+            assert false : "Can not serialize exception: " + error; // make sure tests fail
+            error = new NotSerializableTransportException(error);
+        }
         try {
             stream.skip(NettyHeader.HEADER_SIZE);
             RemoteTransportException tx = new RemoteTransportException(transport.nodeName(), transport.wrapAddress(channel.getLocalAddress()), action, error);

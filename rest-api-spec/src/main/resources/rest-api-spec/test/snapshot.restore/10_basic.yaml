@@ -3,11 +3,11 @@ setup:
 
   - do:
       snapshot.create_repository:
-        repository: test_repo1
+        repository: test_repo_restore_1
         body:
           type: fs
           settings:
-            location: "test_repo1"
+            location: "test_repo_restore_1_loc"
 
   - do:
       indices.create:
@@ -26,7 +26,7 @@ setup:
 
   - do:
       snapshot.create:
-        repository: test_repo1
+        repository: test_repo_restore_1
         snapshot: test_snapshot
         wait_for_completion: true
 
@@ -41,7 +41,7 @@ setup:
 
   - do:
       snapshot.restore:
-        repository: test_repo1
+        repository: test_repo_restore_1
         snapshot: test_snapshot
         wait_for_completion: true
 

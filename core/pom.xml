@@ -1046,11 +1046,13 @@
 
                               <property name="integ.home" location="${integ.scratch}/${integ.finalname}"/>
 
+                              <property name="integ.repo.home" location="${integ.home}/repo"/>
+
                               <!-- execute -->
                               <property name="integ.args"
                                         value="-Des.node.name=smoke_tester -Des.cluster.name=prepare_release
                                                -Des.discovery.zen.ping.multicast.enabled=false -Des.script.inline=on
-                                               -Des.script.indexed=on"/>
+                                               -Des.script.indexed=on -Des.path.repo=${integ.repo.home}"/>
 
                               <echo>Starting up external cluster...</echo>
                               <exec executable="cmd" osfamily="winnt" dir="${integ.home}" spawn="true">

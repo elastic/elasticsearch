@@ -141,11 +141,11 @@ public class MockDiskUsagesTests extends ElasticsearchIntegrationTest {
 
     /** Create a fake NodeStats for the given node and usage */
     public static NodeStats makeStats(String nodeName, DiskUsage usage) {
-        FsStats.Info[] infos = new FsStats.Info[1];
-        FsStats.Info info = new FsStats.Info("/path.data", null, null,
-                usage.getTotalBytes(), usage.getFreeBytes(), usage.getFreeBytes(), -1, -1, -1, -1, -1, -1);
-        infos[0] = info;
-        FsStats fsStats = new FsStats(System.currentTimeMillis(), infos);
+        FsStats.Path[] paths = new FsStats.Path[1];
+        FsStats.Path path = new FsStats.Path("/path.data", null,
+                usage.getTotalBytes(), usage.getFreeBytes(), usage.getFreeBytes());
+        paths[0] = path;
+        FsStats fsStats = new FsStats(System.currentTimeMillis(), paths);
         return new NodeStats(new DiscoveryNode(nodeName, null, Version.V_2_0_0),
                 System.currentTimeMillis(),
                 null, null, null, null, null,

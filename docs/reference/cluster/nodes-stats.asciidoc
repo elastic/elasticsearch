@@ -69,6 +69,55 @@ curl -XGET 'http://localhost:9200/_nodes/10.0.0.1/stats/process'
 
 The `all` flag can be set to return all the stats.
 
+[[fs-stats]]
+==== File Store statistics
+
+A file store represents a storage pool, device,
+partition, volume, concrete file system or other implementation
+specific means of file storage.
+
+The `fs` flag can be set to retrieve
+statistics that concern the file stores:
+
+`fs.timestamp`::
+	Last time the file stores statistics have been refreshed
+
+`os.total.total_in_bytes`::
+	Total size (in bytes) of all file stores
+
+`os.total.free_in_bytes`::
+	Total number of unallocated bytes in all file stores
+
+`os.total.available_in_bytes`::
+	Totalnumber of bytes available to this Java virtual machine on all file stores
+
+`os.data`::
+	List of all file stores
+
+`os.data.path`::
+	Path to the file store
+
+`os.data.mount`::
+	Mount point of the file store (ex: /dev/sda2)
+
+`os.data.type`::
+	Type of the file store (ex: ext4)
+
+`os.data.total_in_bytes`::
+	Total size (in bytes) of thefile store
+
+`os.data.free_in_bytes`::
+	Total number of unallocated bytes in the file store
+
+`os.data.available_in_bytes`::
+	Totalnumber of bytes available to this Java virtual machine on this file store
+
+`os.data.spins` (Linux only)::
+	Indicates if the file store is backed by spinning storage.
+	`null` means we could not determine it, `true` means the device possibly spins
+	 and `false` means it does not (ex: solid-state disks).
+
+
 [float]
 [[field-data]]
 === Field data statistics

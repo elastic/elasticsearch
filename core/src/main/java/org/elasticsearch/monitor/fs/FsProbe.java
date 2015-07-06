@@ -19,11 +19,49 @@
 
 package org.elasticsearch.monitor.fs;
 
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.NodeEnvironment.NodePath;
+
 import java.io.IOException;
 
-/**
- */
-public interface FsProbe {
+public class FsProbe extends AbstractComponent {
 
-    FsStats stats() throws IOException;
+    private final NodeEnvironment nodeEnv;
+
+    @Inject
+    public FsProbe(Settings settings, NodeEnvironment nodeEnv) {
+        super(settings);
+        this.nodeEnv = nodeEnv;
+    }
+
+    public FsStats stats() throws IOException {
+        if (!nodeEnv.hasNodeFile()) {
+            return new FsStats(System.currentTimeMillis(), new FsStats.Path[0]);
+        }
+        NodePath[] dataLocations = nodeEnv.nodePaths();
+        FsStats.Path[] paths = new FsStats.Path[dataLocations.length];
+        for (int i = 0; i < dataLocations.length; i++) {
+            paths[i] = getFSInfo(dataLocations[i]);
+        }
+        return new FsStats(System.currentTimeMillis(), paths);
+    }
+
+    public static FsStats.Path getFSInfo(NodePath nodePath) throws IOException {
+        FsStats.Path fsPath = new FsStats.Path();
+        fsPath.path = nodePath.path.toAbsolutePath().toString();
+
+        // NOTE: we use already cached (on node startup) FileStore and spins
+        // since recomputing these once per second (default) could be costly,
+        // and they should not change:
+        fsPath.total = nodePath.fileStore.getTotalSpace();
+        fsPath.free = nodePath.fileStore.getUnallocatedSpace();
+        fsPath.available = nodePath.fileStore.getUsableSpace();
+        fsPath.type = nodePath.fileStore.type();
+        fsPath.mount = nodePath.fileStore.toString();
+        fsPath.spins = nodePath.spins;
+        return fsPath;
+    }
 }

@@ -19,26 +19,14 @@
 
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
-import org.elasticsearch.index.mapper.core.DateFieldMapper;
-import org.elasticsearch.index.mapper.core.NumberFieldMapper;
-import org.elasticsearch.index.mapper.ip.IpFieldMapper;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
-import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 import org.elasticsearch.search.internal.SearchContext;
 import org.joda.time.DateTimeZone;
 
@@ -69,39 +57,43 @@ public class ValuesSourceParser<VS extends ValuesSource> {
         return new Builder<>(aggName, aggType, context, ValuesSource.GeoPoint.class).targetValueType(ValueType.GEOPOINT).scriptable(false);
     }
 
-    public static class Input {
-        private String field = null;
-        private Script script = null;
+    public static class Input<VS> {
+        String field = null;
+        Script script = null;
         @Deprecated
-        private Map<String, Object> params = null; // TODO Remove in 3.0
-        private ValueType valueType = null;
-        private String format = null;
-        private Object missing = null;
-        private DateTimeZone timezone = DateTimeZone.UTC;
+        Map<String, Object> params = null; // TODO Remove in 3.0
+        ValueType valueType = null;
+        String format = null;
+        Object missing = null;
+        Class<VS> valuesSourceType = null;
+        ValueType targetValueType = null;
+
+        public boolean valid() {
+            return field != null || script != null;
+        }
 
         public DateTimeZone timezone() {
             return this.timezone;
         }
     }
+    }
 
     private final String aggName;
     private final InternalAggregation.Type aggType;
     private final SearchContext context;
-    private final Class<VS> valuesSourceType;
 
     private boolean scriptable = true;
     private boolean formattable = false;
     private boolean timezoneAware = false;
-    private ValueType targetValueType = null;
     private ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
 
-    private Input input = new Input();
+    private Input<VS> input = new Input<VS>();
 
     private ValuesSourceParser(String aggName, InternalAggregation.Type aggType, SearchContext context, Class<VS> valuesSourceType) {
         this.aggName = aggName;
         this.aggType = aggType;
         this.context = context;
-        this.valuesSourceType = valuesSourceType;
+        input.valuesSourceType = valuesSourceType;
     }
 
     public boolean token(String currentFieldName, XContentParser.Token token, XContentParser parser) throws IOException {
@@ -119,11 +111,10 @@ public class ValuesSourceParser<VS extends ValuesSource> {
             } else if (scriptable) {
                 if ("value_type".equals(currentFieldName) || "valueType".equals(currentFieldName)) {
                     input.valueType = ValueType.resolveForScript(parser.text());
-                    if (targetValueType != null && input.valueType.isNotA(targetValueType)) {
-                        throw new SearchParseException(context, aggType.name() + " aggregation [" + aggName +
-                                "] was configured with an incompatible value type [" + input.valueType + "]. [" + aggType +
-                                "] aggregation can only work on value of type [" + targetValueType + "]",
-                                parser.getTokenLocation());
+                    if (input.targetValueType != null && input.valueType.isNotA(input.targetValueType)) {
+                        throw new SearchParseException(context, aggType.name() + " aggregation [" + aggName
+                                + "] was configured with an incompatible value type [" + input.valueType + "]. [" + aggType
+                                + "] aggregation can only work on value of type [" + input.targetValueType + "]", parser.getTokenLocation());
                     }
                 } else if (!scriptParameterParser.token(currentFieldName, token, parser, context.parseFieldMatcher())) {
                     return false;
@@ -156,9 +147,9 @@ public class ValuesSourceParser<VS extends ValuesSource> {
         return false;
     }
 
-    public ValuesSourceConfig<VS> config() {
-
-        if (input.script == null) { // Didn't find anything using the new API so try using the old one instead
+    public Input<VS> input() {
+        if (input.script == null) { // Didn't find anything using the new API so
+                                    // try using the old one instead
             ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
             if (scriptValue != null) {
                 if (input.params == null) {
@@ -168,98 +159,8 @@ public class ValuesSourceParser<VS extends ValuesSource> {
             }
         }
 
-        ValueType valueType = input.valueType != null ? input.valueType : targetValueType;
-
-        if (input.field == null) {
-            if (input.script == null) {
-                ValuesSourceConfig<VS> config = new ValuesSourceConfig(ValuesSource.class);
-                config.format = resolveFormat(null, valueType);
-                return config;
+        return input;
             }
-            Class valuesSourceType = valueType != null ? (Class<VS>) valueType.getValuesSourceType() : this.valuesSourceType;
-            if (valuesSourceType == null || valuesSourceType == ValuesSource.class) {
-                // the specific value source type is undefined, but for scripts, we need to have a specific value source
-                // type to know how to handle the script values, so we fallback on Bytes
-                valuesSourceType = ValuesSource.Bytes.class;
-            }
-            ValuesSourceConfig<VS> config = new ValuesSourceConfig<VS>(valuesSourceType);
-            config.missing = input.missing;
-            config.format = resolveFormat(input.format, valueType);
-            config.script = createScript();
-            config.scriptValueType = valueType;
-            return config;
-        }
-
-        MappedFieldType fieldType = context.smartNameFieldTypeFromAnyType(input.field);
-        if (fieldType == null) {
-            Class<VS> valuesSourceType = valueType != null ? (Class<VS>) valueType.getValuesSourceType() : this.valuesSourceType;
-            ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
-            config.missing = input.missing;
-            config.format = resolveFormat(input.format, valueType);
-            config.unmapped = true;
-            if (valueType != null) {
-                // todo do we really need this for unmapped?
-                config.scriptValueType = valueType;
-            }
-            return config;
-        }
-
-        IndexFieldData<?> indexFieldData = context.fieldData().getForField(fieldType);
-
-        ValuesSourceConfig config;
-        if (valuesSourceType == ValuesSource.class) {
-            if (indexFieldData instanceof IndexNumericFieldData) {
-                config = new ValuesSourceConfig<>(ValuesSource.Numeric.class);
-            } else if (indexFieldData instanceof IndexGeoPointFieldData) {
-                config = new ValuesSourceConfig<>(ValuesSource.GeoPoint.class);
-            } else {
-                config = new ValuesSourceConfig<>(ValuesSource.Bytes.class);
-            }
-        } else {
-            config = new ValuesSourceConfig(valuesSourceType);
-        }
-
-        config.fieldContext = new FieldContext(input.field, indexFieldData, fieldType);
-        config.missing = input.missing;
-        config.script = createScript();
-        config.format = resolveFormat(input.format, input.timezone, fieldType);
-        return config;
-    }
-
-    private SearchScript createScript() {
-        return input.script == null ? null : context.scriptService().search(context.lookup(), input.script, ScriptContext.Standard.AGGS);
-    }
-
-    private static ValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType) {
-        if (valueType == null) {
-            return ValueFormat.RAW; // we can't figure it out
-        }
-        ValueFormat valueFormat = valueType.defaultFormat;
-        if (valueFormat != null && valueFormat instanceof ValueFormat.Patternable && format != null) {
-            return ((ValueFormat.Patternable) valueFormat).create(format);
-        }
-        return valueFormat;
-    }
-
-    private static ValueFormat resolveFormat(@Nullable String format, @Nullable DateTimeZone timezone,  MappedFieldType fieldType) {
-        if (fieldType instanceof  DateFieldMapper.DateFieldType) {
-            return format != null ? ValueFormat.DateTime.format(format, timezone) : ValueFormat.DateTime.mapper((DateFieldMapper.DateFieldType) fieldType, timezone);
-        }
-        if (fieldType instanceof IpFieldMapper.IpFieldType) {
-            return ValueFormat.IPv4;
-        }
-        if (fieldType instanceof BooleanFieldMapper.BooleanFieldType) {
-            return ValueFormat.BOOLEAN;
-        }
-        if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
-            return format != null ? ValueFormat.Number.format(format) : ValueFormat.RAW;
-        }
-        return ValueFormat.RAW;
-    }
-
-    public Input input() {
-        return this.input;
-    }
 
     public static class Builder<VS extends ValuesSource> {
 
@@ -285,7 +186,7 @@ public class ValuesSourceParser<VS extends ValuesSource> {
         }
 
         public Builder<VS> targetValueType(ValueType valueType) {
-            parser.targetValueType = valueType;
+            parser.input.targetValueType = valueType;
             return this;
         }
 

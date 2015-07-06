@@ -578,14 +578,15 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
         logger.info("Indexing a single document ...");
         XContentBuilder doc = jsonBuilder().startObject();
         for (int i = 0; i < numFields; i++) {
-            doc.field("field"+i, generateRandomStringArray(5, 10));
+            doc.field("field"+i, generateRandomStringArray(5, 10)+"a"); // make sure they are not all empty
         }
         doc.endObject();
-        indexRandom(true, client().prepareIndex("test", "type1", "0").setSource(doc));
+        client().prepareIndex("test", "type1", "0").setSource(doc).get();
+        refresh();
 
         logger.info("Checking the document matches ...");
         MoreLikeThisQueryBuilder mltQuery = moreLikeThisQuery()
-                .docs((Item) new Item().doc(doc).index("test").type("type1"))
+                .docs((Item) new Item().doc(doc).index("test").type("type1").routing("0"))  // routing to ensure we hit the shard with the doc
                 .minTermFreq(0)
                 .minDocFreq(0)
                 .maxQueryTerms(100)

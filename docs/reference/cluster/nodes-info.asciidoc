@@ -32,6 +32,27 @@ curl -XGET 'http://localhost:9200/_nodes/nodeId1,nodeId2/_all
 
 The `_all` flag can be set to return all the information - or you can simply omit it.
 
+[float]
+[[os-info]]
+==== Operating System information
+
+The `os` flag can be set to retrieve information that concern
+the operating system:
+
+`os.refresh_interval_in_millis`::
+	Refresh interval for the OS statistics
+
+`os.name`::
+	Name of the operating system (ex: Linux, Windows, Mac OS X)
+
+`os.arch`::
+	Name of the JVM architecture (ex: amd64, x86)
+
+`os.version`::
+	Version of the operating system
+
+`os.available_processors`::
+	Number of processors available to the Java virtual machine
 
 [float]
 [[process-info]]
@@ -41,14 +62,13 @@ The `process` flag can be set to retrieve information that concern
 the current running process:
 
 `process.refresh_interval_in_millis`::
-	Refresh interval for the process statistics.
+	Refresh interval for the process statistics
 
 `process.id`::
 	Process identifier (PID)
 
 `process.mlockall`::
 	Indicates if the process address space has been successfully locked in memory
-
 
 [float]
 [[plugins-info]]

@@ -36,4 +36,10 @@ public class StatsParser extends NumericValuesSourceMetricsAggregatorParser<Inte
     protected AggregatorFactory createFactory(String aggregationName, ValuesSourceParser.Input<ValuesSource.Numeric> input) {
         return new StatsAggregator.Factory(aggregationName, input);
     }
+
+    // NORELEASE implement this method when refactoring this aggregation
+    @Override
+    public AggregatorFactory getFactoryPrototype() {
+        return null;
+    }
 }

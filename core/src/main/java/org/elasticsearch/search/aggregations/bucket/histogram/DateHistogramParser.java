@@ -212,4 +212,10 @@ public class DateHistogramParser implements Aggregator.Parser {
         int beginIndex = offset.charAt(0) == '+' ? 1 : 0;
         return TimeValue.parseTimeValue(offset.substring(beginIndex), null, getClass().getSimpleName() + ".parseOffset").millis();
     }
+
+    // NORELEASE implement this method when refactoring this aggregation
+    @Override
+    public AggregatorFactory getFactoryPrototype() {
+        return null;
+    }
 }

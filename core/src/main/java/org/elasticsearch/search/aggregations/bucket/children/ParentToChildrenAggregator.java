@@ -34,7 +34,6 @@ import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
-import org.elasticsearch.index.search.child.ConstantScorer;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -49,6 +48,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -185,8 +185,8 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
 
         private String parentType;
         private final String childType;
-        private Filter parentFilter;
-        private Filter childFilter;
+        private Query parentFilter;
+        private Query childFilter;
 
         public Factory(String name, String childType) {
             super(name, InternalChildren.TYPE.name(), new ValuesSourceParser.Input<ValuesSource.Bytes.WithOrdinals.ParentChild>());
@@ -221,7 +221,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
         }
 
         private void resolveConfig(AggregationContext aggregationContext) {
-            config = new ValuesSourceConfig<>(ValuesSource.Bytes.WithOrdinals.ParentChild.class);
+            config = new ValuesSourceConfig<>(ValuesSourceType.BYTES);
             DocumentMapper childDocMapper = aggregationContext.searchContext().mapperService().documentMapper(childType);
 
             if (childDocMapper != null) {
@@ -233,9 +233,8 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
                 parentType = parentFieldMapper.type();
                 DocumentMapper parentDocMapper = aggregationContext.searchContext().mapperService().documentMapper(parentType);
                 if (parentDocMapper != null) {
-                    // TODO: use the query API
-                    parentFilter = new QueryWrapperFilter(parentDocMapper.typeFilter());
-                    childFilter = new QueryWrapperFilter(childDocMapper.typeFilter());
+                    parentFilter = parentDocMapper.typeFilter();
+                    childFilter = childDocMapper.typeFilter();
                     ParentChildIndexFieldData parentChildIndexFieldData = aggregationContext.searchContext().fieldData()
                             .getForField(parentFieldMapper.fieldType());
                     config.fieldContext(new FieldContext(parentFieldMapper.fieldType().names().indexName(), parentChildIndexFieldData,

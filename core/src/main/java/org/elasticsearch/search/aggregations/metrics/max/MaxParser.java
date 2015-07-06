@@ -37,4 +37,10 @@ public class MaxParser extends NumericValuesSourceMetricsAggregatorParser<Intern
         return new MaxAggregator.Factory(aggregationName, input);
     }
 
+    // NORELEASE implement this method when refactoring this aggregation
+    @Override
+    public AggregatorFactory getFactoryPrototype() {
+        return null;
+    }
+
 }

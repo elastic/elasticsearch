@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.validate.template;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -38,8 +39,8 @@ public class TransportRenderSearchTemplateAction extends HandledTransportAction<
 
     @Inject
     protected TransportRenderSearchTemplateAction(ScriptService scriptService, Settings settings, ThreadPool threadPool,
-            TransportService transportService, ActionFilters actionFilters) {
-        super(settings, RenderSearchTemplateAction.NAME, threadPool, transportService, actionFilters, RenderSearchTemplateRequest.class);
+            TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, RenderSearchTemplateAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, RenderSearchTemplateRequest.class);
         this.scriptService = scriptService;
     }
 

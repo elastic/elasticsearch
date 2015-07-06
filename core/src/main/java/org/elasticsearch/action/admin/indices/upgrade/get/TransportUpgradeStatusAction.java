@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
@@ -56,8 +57,8 @@ public class TransportUpgradeStatusAction extends TransportBroadcastAction<Upgra
 
     @Inject
     public TransportUpgradeStatusAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                        IndicesService indicesService, ActionFilters actionFilters) {
-        super(settings, UpgradeStatusAction.NAME, threadPool, clusterService, transportService, actionFilters,
+                                        IndicesService indicesService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, UpgradeStatusAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 UpgradeStatusRequest.class, IndexShardUpgradeStatusRequest.class, ThreadPool.Names.MANAGEMENT);
         this.indicesService = indicesService;
     }

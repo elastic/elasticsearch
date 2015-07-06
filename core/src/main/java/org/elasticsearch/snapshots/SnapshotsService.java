@@ -28,10 +28,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.metadata.*;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -82,6 +79,8 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
 
     private final ClusterService clusterService;
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
+
     private final RepositoriesService repositoriesService;
 
     private final ThreadPool threadPool;
@@ -89,9 +88,10 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
     private final CopyOnWriteArrayList<SnapshotCompletionListener> snapshotCompletionListeners = new CopyOnWriteArrayList<>();
 
     @Inject
-    public SnapshotsService(Settings settings, ClusterService clusterService, RepositoriesService repositoriesService, ThreadPool threadPool) {
+    public SnapshotsService(Settings settings, ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver, RepositoriesService repositoriesService, ThreadPool threadPool) {
         super(settings);
         this.clusterService = clusterService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.repositoriesService = repositoriesService;
         this.threadPool = threadPool;
 
@@ -175,11 +175,10 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
             public ClusterState execute(ClusterState currentState) {
                 validate(request, currentState);
 
-                MetaData metaData = currentState.metaData();
                 SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
                 if (snapshots == null || snapshots.entries().isEmpty()) {
                     // Store newSnapshot here to be processed in clusterStateProcessed
-                    ImmutableList<String> indices = ImmutableList.copyOf(metaData.concreteIndices(request.indicesOptions(), request.indices()));
+                    ImmutableList<String> indices = ImmutableList.copyOf(indexNameExpressionResolver.concreteIndices(currentState, request.indicesOptions(), request.indices()));
                     logger.trace("[{}][{}] creating snapshot for indices [{}]", request.repository(), request.name(), indices);
                     newSnapshot = new SnapshotsInProgress.Entry(snapshotId, request.includeGlobalState(), State.INIT, indices, System.currentTimeMillis(), null);
                     snapshots = new SnapshotsInProgress(newSnapshot);

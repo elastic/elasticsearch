@@ -30,6 +30,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedE
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
@@ -59,8 +60,8 @@ public class TransportMultiPercolateAction extends HandledTransportAction<MultiP
     @Inject
     public TransportMultiPercolateAction(Settings settings, ThreadPool threadPool, TransportShardMultiPercolateAction shardMultiPercolateAction,
                                          ClusterService clusterService, TransportService transportService, PercolatorService percolatorService,
-                                         TransportMultiGetAction multiGetAction, ActionFilters actionFilters) {
-        super(settings, MultiPercolateAction.NAME, threadPool, transportService, actionFilters, MultiPercolateRequest.class);
+                                         TransportMultiGetAction multiGetAction, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, MultiPercolateAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, MultiPercolateRequest.class);
         this.shardMultiPercolateAction = shardMultiPercolateAction;
         this.clusterService = clusterService;
         this.percolatorService = percolatorService;
@@ -164,17 +165,17 @@ public class TransportMultiPercolateAction extends HandledTransportAction<MultiP
                     PercolateRequest percolateRequest = (PercolateRequest) element;
                     String[] concreteIndices;
                     try {
-                         concreteIndices = clusterState.metaData().concreteIndices(percolateRequest.indicesOptions(), percolateRequest.indices());
+                         concreteIndices = indexNameExpressionResolver.concreteIndices(clusterState, percolateRequest);
                     } catch (IndexMissingException e) {
                         reducedResponses.set(slot, e);
                         responsesByItemAndShard.set(slot, new AtomicReferenceArray(0));
                         expectedOperationsPerItem.set(slot, new AtomicInteger(0));
                         continue;
                     }
-                    Map<String, Set<String>> routing = clusterState.metaData().resolveSearchRouting(percolateRequest.routing(), percolateRequest.indices());
+                    Map<String, Set<String>> routing = indexNameExpressionResolver.resolveSearchRouting(clusterState, percolateRequest.routing(), percolateRequest.indices());
                     // TODO: I only need shardIds, ShardIterator(ShardRouting) is only needed in TransportShardMultiPercolateAction
                     GroupShardsIterator shards = clusterService.operationRouting().searchShards(
-                            clusterState, percolateRequest.indices(), concreteIndices, routing, percolateRequest.preference()
+                            clusterState, concreteIndices, routing, percolateRequest.preference()
                     );
                     if (shards.size() == 0) {
                         reducedResponses.set(slot, new UnavailableShardsException(null, "No shards available"));
@@ -184,7 +185,7 @@ public class TransportMultiPercolateAction extends HandledTransportAction<MultiP
                     }
 
                     // The shard id is used as index in the atomic ref array, so we need to find out how many shards there are regardless of routing:
-                    int numShards = clusterService.operationRouting().searchShardsCount(clusterState, percolateRequest.indices(), concreteIndices, null, null);
+                    int numShards = clusterService.operationRouting().searchShardsCount(clusterState, concreteIndices, null);
                     responsesByItemAndShard.set(slot, new AtomicReferenceArray(numShards));
                     expectedOperationsPerItem.set(slot, new AtomicInteger(shards.size()));
                     for (ShardIterator shard : shards) {

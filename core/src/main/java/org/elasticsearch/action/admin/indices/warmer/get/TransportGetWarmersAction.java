@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -42,8 +43,9 @@ import org.elasticsearch.transport.TransportService;
 public class TransportGetWarmersAction extends TransportClusterInfoAction<GetWarmersRequest, GetWarmersResponse> {
 
     @Inject
-    public TransportGetWarmersAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, GetWarmersAction.NAME, transportService, clusterService, threadPool, actionFilters, GetWarmersRequest.class);
+    public TransportGetWarmersAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                     ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, GetWarmersAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, GetWarmersRequest.class);
     }
 
     @Override
@@ -54,7 +56,7 @@ public class TransportGetWarmersAction extends TransportClusterInfoAction<GetWar
 
     @Override
     protected ClusterBlockException checkBlock(GetWarmersRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndices(state, request));
     }
 
     @Override

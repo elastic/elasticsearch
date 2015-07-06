@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
@@ -50,8 +51,10 @@ public class TransportFlushAction extends TransportBroadcastAction<FlushRequest,
     private final IndicesService indicesService;
 
     @Inject
-    public TransportFlushAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService, ActionFilters actionFilters) {
-        super(settings, FlushAction.NAME, threadPool, clusterService, transportService, actionFilters,
+    public TransportFlushAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                                TransportService transportService, IndicesService indicesService,
+                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, FlushAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 FlushRequest.class, ShardFlushRequest.class, ThreadPool.Names.FLUSH);
         this.indicesService = indicesService;
     }

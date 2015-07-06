@@ -19,6 +19,8 @@
 
 package org.elasticsearch.routing;
 
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -90,36 +92,38 @@ public class AliasResolveRoutingTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test1", "alias0").routing("0")).execute().actionGet();
         client().admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test2", "alias0").routing("0")).execute().actionGet();
 
-        assertThat(clusterService().state().metaData().resolveSearchRouting(null, "alias"), nullValue());
-        assertThat(clusterService().state().metaData().resolveSearchRouting("0,1", "alias"), equalTo(newMap("test1", newSet("0", "1"))));
-        assertThat(clusterService().state().metaData().resolveSearchRouting(null, "alias10"), equalTo(newMap("test1", newSet("0"))));
-        assertThat(clusterService().state().metaData().resolveSearchRouting(null, "alias10"), equalTo(newMap("test1", newSet("0"))));
-        assertThat(clusterService().state().metaData().resolveSearchRouting("0", "alias10"), equalTo(newMap("test1", newSet("0"))));
-        assertThat(clusterService().state().metaData().resolveSearchRouting("1", "alias10"), nullValue());
-        assertThat(clusterService().state().metaData().resolveSearchRouting(null, "alias0"), equalTo(newMap("test1", newSet("0"), "test2", newSet("0"))));
+        ClusterState state = clusterService().state();
+        IndexNameExpressionResolver indexNameExpressionResolver = internalCluster().getInstance(IndexNameExpressionResolver.class);
+        assertThat(indexNameExpressionResolver.resolveSearchRouting(state, null, "alias"), nullValue());
+        assertThat(indexNameExpressionResolver.resolveSearchRouting(state, "0,1", "alias"), equalTo(newMap("test1", newSet("0", "1"))));
+        assertThat(indexNameExpressionResolver.resolveSearchRouting(state, null, "alias10"), equalTo(newMap("test1", newSet("0"))));
+        assertThat(indexNameExpressionResolver.resolveSearchRouting(state, null, "alias10"), equalTo(newMap("test1", newSet("0"))));
+        assertThat(indexNameExpressionResolver.resolveSearchRouting(state, "0", "alias10"), equalTo(newMap("test1", newSet("0"))));
+        assertThat(indexNameExpressionResolver.resolveSearchRouting(state, "1", "alias10"), nullValue());
+        assertThat(indexNameExpressionResolver.resolveSearchRouting(state, null, "alias0"), equalTo(newMap("test1", newSet("0"), "test2", newSet("0"))));
 
-        assertThat(clusterService().state().metaData().resolveSearchRouting(null, new String[]{"alias10", "alias20"}),
+        assertThat(indexNameExpressionResolver.resolveSearchRouting(state, null, new String[]{"alias10", "alias20"}),
                 equalTo(newMap("test1", newSet("0"), "test2", newSet("0"))));
-        assertThat(clusterService().state().metaData().resolveSearchRouting(null, new String[]{"alias10", "alias21"}),
+        assertThat(indexNameExpressionResolver.resolveSearchRouting(state, null, new String[]{"alias10", "alias21"}),
                 equalTo(newMap("test1", newSet("0"), "test2", newSet("1"))));
-        assertThat(clusterService().state().metaData().resolveSearchRouting(null, new String[]{"alias20", "alias21"}),
+        assertThat(indexNameExpressionResolver.resolveSearchRouting(state, null, new String[]{"alias20", "alias21"}),
                 equalTo(newMap("test2", newSet("0", "1"))));
-        assertThat(clusterService().state().metaData().resolveSearchRouting(null, new String[]{"test1", "alias10"}), nullValue());
-        assertThat(clusterService().state().metaData().resolveSearchRouting(null, new String[]{"alias10", "test1"}), nullValue());
+        assertThat(indexNameExpressionResolver.resolveSearchRouting(state, null, new String[]{"test1", "alias10"}), nullValue());
+        assertThat(indexNameExpressionResolver.resolveSearchRouting(state, null, new String[]{"alias10", "test1"}), nullValue());
 
 
-        assertThat(clusterService().state().metaData().resolveSearchRouting("0", new String[]{"alias10", "alias20"}),
+        assertThat(indexNameExpressionResolver.resolveSearchRouting(state, "0", new String[]{"alias10", "alias20"}),
                 equalTo(newMap("test1", newSet("0"), "test2", newSet("0"))));
-        assertThat(clusterService().state().metaData().resolveSearchRouting("0,1", new String[]{"alias10", "alias20"}),
+        assertThat(indexNameExpressionResolver.resolveSearchRouting(state, "0,1", new String[]{"alias10", "alias20"}),
                 equalTo(newMap("test1", newSet("0"), "test2", newSet("0"))));
-        assertThat(clusterService().state().metaData().resolveSearchRouting("1", new String[]{"alias10", "alias20"}), nullValue());
-        assertThat(clusterService().state().metaData().resolveSearchRouting("0", new String[]{"alias10", "alias21"}),
+        assertThat(indexNameExpressionResolver.resolveSearchRouting(state, "1", new String[]{"alias10", "alias20"}), nullValue());
+        assertThat(indexNameExpressionResolver.resolveSearchRouting(state, "0", new String[]{"alias10", "alias21"}),
                 equalTo(newMap("test1", newSet("0"))));
-        assertThat(clusterService().state().metaData().resolveSearchRouting("1", new String[]{"alias10", "alias21"}),
+        assertThat(indexNameExpressionResolver.resolveSearchRouting(state, "1", new String[]{"alias10", "alias21"}),
                 equalTo(newMap("test2", newSet("1"))));
-        assertThat(clusterService().state().metaData().resolveSearchRouting("0,1,2", new String[]{"alias10", "alias21"}),
+        assertThat(indexNameExpressionResolver.resolveSearchRouting(state, "0,1,2", new String[]{"alias10", "alias21"}),
                 equalTo(newMap("test1", newSet("0"), "test2", newSet("1"))));
-        assertThat(clusterService().state().metaData().resolveSearchRouting("0,1,2", new String[]{"test1", "alias10", "alias21"}),
+        assertThat(indexNameExpressionResolver.resolveSearchRouting(state, "0,1,2", new String[]{"test1", "alias10", "alias21"}),
                 equalTo(newMap("test1", newSet("0", "1", "2"), "test2", newSet("1"))));
     }
 

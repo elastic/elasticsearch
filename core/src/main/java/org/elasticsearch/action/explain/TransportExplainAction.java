@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -70,8 +71,8 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     public TransportExplainAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                   TransportService transportService, IndicesService indicesService,
                                   ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
-                                  BigArrays bigArrays, ActionFilters actionFilters) {
-        super(settings, ExplainAction.NAME, threadPool, clusterService, transportService, actionFilters,
+                                  BigArrays bigArrays, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, ExplainAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 ExplainRequest.class, ThreadPool.Names.GET);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
@@ -92,7 +93,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
 
     @Override
     protected void resolveRequest(ClusterState state, InternalRequest request) {
-        request.request().filteringAlias(state.metaData().filteringAliases(request.concreteIndex(), request.request().index()));
+        request.request().filteringAlias(indexNameExpressionResolver.filteringAliases(state, request.concreteIndex(), request.request().index()));
         // Fail fast on the node that received the request.
         if (request.request().routing() == null && state.getMetaData().routingRequired(request.concreteIndex(), request.request().type())) {
             throw new RoutingMissingException(request.concreteIndex(), request.request().type(), request.request().id());

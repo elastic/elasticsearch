@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.Nullable;
@@ -92,8 +93,9 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                                          ClusterService clusterService, IndicesService indicesService,
                                          ThreadPool threadPool, ShardStateAction shardStateAction,
                                          MappingUpdatedAction mappingUpdatedAction, ActionFilters actionFilters,
-                                         Class<Request> request, Class<ReplicaRequest> replicaRequest, String executor) {
-        super(settings, actionName, threadPool, actionFilters);
+                                         IndexNameExpressionResolver indexNameExpressionResolver, Class<Request> request,
+                                         Class<ReplicaRequest> replicaRequest, String executor) {
+        super(settings, actionName, threadPool, actionFilters, indexNameExpressionResolver);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
@@ -398,7 +400,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 return false;
             }
             if (resolveIndex()) {
-                internalRequest.concreteIndex(observer.observedState().metaData().concreteSingleIndex(internalRequest.request().index(), internalRequest.request().indicesOptions()));
+                internalRequest.concreteIndex(indexNameExpressionResolver.concreteSingleIndex(observer.observedState(), internalRequest.request()));
             } else {
                 internalRequest.concreteIndex(internalRequest.request().index());
             }

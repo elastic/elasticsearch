@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -60,9 +61,9 @@ public class TransportPercolateAction extends TransportBroadcastAction<Percolate
     @Inject
     public TransportPercolateAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                     TransportService transportService, PercolatorService percolatorService,
-                                    TransportGetAction getAction, ActionFilters actionFilters) {
+                                    TransportGetAction getAction, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, PercolateAction.NAME, threadPool, clusterService, transportService, actionFilters,
-                PercolateRequest.class, PercolateShardRequest.class, ThreadPool.Names.PERCOLATE);
+                indexNameExpressionResolver, PercolateRequest.class, PercolateShardRequest.class, ThreadPool.Names.PERCOLATE);
         this.percolatorService = percolatorService;
         this.getAction = getAction;
     }
@@ -167,8 +168,8 @@ public class TransportPercolateAction extends TransportBroadcastAction<Percolate
 
     @Override
     protected GroupShardsIterator shards(ClusterState clusterState, PercolateRequest request, String[] concreteIndices) {
-        Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(request.routing(), request.indices());
-        return clusterService.operationRouting().searchShards(clusterState, request.indices(), concreteIndices, routingMap, request.preference());
+        Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, request.routing(), request.indices());
+        return clusterService.operationRouting().searchShards(clusterState, concreteIndices, routingMap, request.preference());
     }
 
     @Override

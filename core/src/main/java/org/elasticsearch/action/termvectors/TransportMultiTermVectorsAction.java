@@ -21,11 +21,13 @@ package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -45,8 +47,9 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
 
     @Inject
     public TransportMultiTermVectorsAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                           ClusterService clusterService, TransportShardMultiTermsVectorAction shardAction, ActionFilters actionFilters) {
-        super(settings, MultiTermVectorsAction.NAME, threadPool, transportService, actionFilters, MultiTermVectorsRequest.class);
+                                           ClusterService clusterService, TransportShardMultiTermsVectorAction shardAction,
+                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, MultiTermVectorsAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, MultiTermVectorsRequest.class);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
     }
@@ -69,7 +72,7 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
                         termVectorsRequest.type(), termVectorsRequest.id(), "[" + termVectorsRequest.index() + "] missing")));
                 continue;
             }
-            String concreteSingleIndex = clusterState.metaData().concreteSingleIndex(termVectorsRequest.index(), termVectorsRequest.indicesOptions());
+            String concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, (DocumentRequest) termVectorsRequest);
             if (termVectorsRequest.routing() == null && clusterState.getMetaData().routingRequired(concreteSingleIndex, termVectorsRequest.type())) {
                 responses.set(i, new MultiTermVectorsItemResponse(null, new MultiTermVectorsResponse.Failure(concreteSingleIndex, termVectorsRequest.type(), termVectorsRequest.id(),
                         "routing is required for [" + concreteSingleIndex + "]/[" + termVectorsRequest.type() + "]/[" + termVectorsRequest.id() + "]")));

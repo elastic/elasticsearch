@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -42,8 +42,10 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     private final TransportSearchAction searchAction;
 
     @Inject
-    public TransportMultiSearchAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService, TransportSearchAction searchAction, ActionFilters actionFilters) {
-        super(settings, MultiSearchAction.NAME, threadPool, transportService, actionFilters, MultiSearchRequest.class);
+    public TransportMultiSearchAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+                                      ClusterService clusterService, TransportSearchAction searchAction,
+                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, MultiSearchAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, MultiSearchRequest.class);
         this.clusterService = clusterService;
         this.searchAction = searchAction;
     }

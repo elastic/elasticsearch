@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.type.TransportSearchScrollQueryThenFetchA
 import org.elasticsearch.action.search.type.TransportSearchScrollScanAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -47,8 +48,9 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
     public TransportSearchScrollAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                        TransportSearchScrollQueryThenFetchAction queryThenFetchAction,
                                        TransportSearchScrollQueryAndFetchAction queryAndFetchAction,
-                                       TransportSearchScrollScanAction scanAction, ActionFilters actionFilters) {
-        super(settings, SearchScrollAction.NAME, threadPool, transportService, actionFilters, SearchScrollRequest.class);
+                                       TransportSearchScrollScanAction scanAction, ActionFilters actionFilters,
+                                       IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, SearchScrollAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, SearchScrollRequest.class);
         this.queryThenFetchAction = queryThenFetchAction;
         this.queryAndFetchAction = queryAndFetchAction;
         this.scanAction = scanAction;

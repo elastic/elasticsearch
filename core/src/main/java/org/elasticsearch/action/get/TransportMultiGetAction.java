@@ -26,6 +26,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -44,8 +45,10 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
     private final TransportShardMultiGetAction shardAction;
 
     @Inject
-    public TransportMultiGetAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService, TransportShardMultiGetAction shardAction, ActionFilters actionFilters) {
-        super(settings, MultiGetAction.NAME, threadPool, transportService, actionFilters, MultiGetRequest.class);
+    public TransportMultiGetAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+                                   ClusterService clusterService, TransportShardMultiGetAction shardAction,
+                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, MultiGetAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, MultiGetRequest.class);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
     }
@@ -66,7 +69,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
                 continue;
             }
             item.routing(clusterState.metaData().resolveIndexRouting(item.routing(), item.index()));
-            String concreteSingleIndex = clusterState.metaData().concreteSingleIndex(item.index(), item.indicesOptions());
+            String concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, item);
             if (item.routing() == null && clusterState.getMetaData().routingRequired(concreteSingleIndex, item.type())) {
                 responses.set(i, new MultiGetItemResponse(null, new MultiGetResponse.Failure(concreteSingleIndex, item.type(), item.id(),
                         "routing is required for [" + concreteSingleIndex + "]/[" + item.type() + "]/[" + item.id() + "]")));

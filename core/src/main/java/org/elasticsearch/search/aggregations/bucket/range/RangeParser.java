@@ -110,6 +110,6 @@ public class RangeParser implements Aggregator.Parser {
                     parser.getTokenLocation());
         }
 
-        return new RangeAggregator.Factory(aggregationName, vsParser.config(), InternalRange.FACTORY, ranges, keyed);
+        return new RangeAggregator.Factory(aggregationName, vsParser.input(), InternalRange.FACTORY, ranges, keyed);
     }
 }

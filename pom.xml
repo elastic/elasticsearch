@@ -33,6 +33,7 @@
     </scm>
 
     <properties>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <!-- elasticsearch stack -->
         <elasticsearch.version>2.0.0-SNAPSHOT</elasticsearch.version>
         <jvm.executable>${java.home}${file.separator}bin${file.separator}java</jvm.executable>
@@ -101,6 +102,8 @@
         <tests.security.manager>true</tests.security.manager>
         <tests.compatibility></tests.compatibility>
         <tests.ifNoTests>fail</tests.ifNoTests>
+        <skip.unit.tests>${skipTests}</skip.unit.tests>
+        <skip.integ.tests>${skipTests}</skip.integ.tests>
     </properties>
 
     <repositories>
@@ -552,6 +555,7 @@
                             <configuration>
                                 <jvm>${jvm.executable}</jvm>
                                 <argLine>${tests.jvm.argline}</argLine>
+                                <skipTests>${skip.unit.tests}</skipTests>
                                 <heartbeat>10</heartbeat>
                                 <jvmOutputAction>warn</jvmOutputAction>
                                 <leaveTemporary>true</leaveTemporary>
@@ -681,6 +685,31 @@
                     <configuration>
                         <skip>true</skip>
                     </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-failsafe-plugin</artifactId>
+                    <version>2.18.1</version>
+                    <configuration>
+                       <skipTests>${skip.integ.tests}</skipTests>
+                       <systemPropertyVariables>
+                           <es.logger.level>${es.logger.level}</es.logger.level>
+                       </systemPropertyVariables>
+                    </configuration>
+                    <executions>
+                        <execution>
+                            <id>integration-test</id>
+                            <goals>
+                                <goal>integration-test</goal>
+                            </goals>
+                        </execution>
+                        <execution>
+                            <id>verify</id>
+                            <goals>
+                                <goal>verify</goal>
+                            </goals>
+                        </execution>
+                    </executions>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -1220,7 +1249,7 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                             <id>tests-top-hints</id>
                             <phase>test</phase>
                             <configuration>
-                                <skip>${skipTests}</skip>
+                                <skip>${skip.unit.tests}</skip>
                                 <!-- don't run if we skip the tests -->
                                 <failOnError>false</failOnError>
                                 <target>

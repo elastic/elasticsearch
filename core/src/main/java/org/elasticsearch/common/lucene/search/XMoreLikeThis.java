@@ -39,10 +39,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.*;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.similarities.DefaultSimilarity;
 import org.apache.lucene.search.similarities.TFIDFSimilarity;
 import org.apache.lucene.util.BytesRef;
@@ -855,9 +852,12 @@ public final class XMoreLikeThis {
                 continue;
             }
 
-            PostingsEnum docs = termsEnum.postings(null, null);
-            final int freq = docs.freq();
-
+            final PostingsEnum docs = termsEnum.postings(null, null);
+            int freq = 0;
+            while(docs != null && docs.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                freq += docs.freq();
+            }
+            
             // increment frequency
             Int cnt = termFreqMap.get(term);
             if (cnt == null) {

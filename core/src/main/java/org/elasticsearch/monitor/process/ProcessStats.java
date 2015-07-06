@@ -30,14 +30,12 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class ProcessStats implements Streamable, ToXContent {
 
     long timestamp = -1;
 
-    long openFileDescriptors;
+    long openFileDescriptors = -1;
+    long maxFileDescriptors = -1;
 
     Cpu cpu = null;
 
@@ -46,57 +44,38 @@ public class ProcessStats implements Streamable, ToXContent {
     ProcessStats() {
     }
 
-    public long timestamp() {
-        return this.timestamp;
-    }
-
     public long getTimestamp() {
-        return timestamp();
-    }
-
-    public long openFileDescriptors() {
-        return this.openFileDescriptors;
+        return timestamp;
     }
 
     public long getOpenFileDescriptors() {
         return openFileDescriptors;
     }
 
-    public Cpu cpu() {
-        return cpu;
+    public long getMaxFileDescriptors() {
+        return maxFileDescriptors;
     }
 
     public Cpu getCpu() {
-        return cpu();
-    }
-
-    public Mem mem() {
-        return mem;
+        return cpu;
     }
 
     public Mem getMem() {
-        return mem();
+        return mem;
     }
 
     static final class Fields {
         static final XContentBuilderString PROCESS = new XContentBuilderString("process");
         static final XContentBuilderString TIMESTAMP = new XContentBuilderString("timestamp");
         static final XContentBuilderString OPEN_FILE_DESCRIPTORS = new XContentBuilderString("open_file_descriptors");
+        static final XContentBuilderString MAX_FILE_DESCRIPTORS = new XContentBuilderString("max_file_descriptors");
 
         static final XContentBuilderString CPU = new XContentBuilderString("cpu");
         static final XContentBuilderString PERCENT = new XContentBuilderString("percent");
-        static final XContentBuilderString SYS = new XContentBuilderString("sys");
-        static final XContentBuilderString SYS_IN_MILLIS = new XContentBuilderString("sys_in_millis");
-        static final XContentBuilderString USER = new XContentBuilderString("user");
-        static final XContentBuilderString USER_IN_MILLIS = new XContentBuilderString("user_in_millis");
         static final XContentBuilderString TOTAL = new XContentBuilderString("total");
         static final XContentBuilderString TOTAL_IN_MILLIS = new XContentBuilderString("total_in_millis");
 
         static final XContentBuilderString MEM = new XContentBuilderString("mem");
-        static final XContentBuilderString RESIDENT = new XContentBuilderString("resident");
-        static final XContentBuilderString RESIDENT_IN_BYTES = new XContentBuilderString("resident_in_bytes");
-        static final XContentBuilderString SHARE = new XContentBuilderString("share");
-        static final XContentBuilderString SHARE_IN_BYTES = new XContentBuilderString("share_in_bytes");
         static final XContentBuilderString TOTAL_VIRTUAL = new XContentBuilderString("total_virtual");
         static final XContentBuilderString TOTAL_VIRTUAL_IN_BYTES = new XContentBuilderString("total_virtual_in_bytes");
     }
@@ -106,18 +85,15 @@ public class ProcessStats implements Streamable, ToXContent {
         builder.startObject(Fields.PROCESS);
         builder.field(Fields.TIMESTAMP, timestamp);
         builder.field(Fields.OPEN_FILE_DESCRIPTORS, openFileDescriptors);
+        builder.field(Fields.MAX_FILE_DESCRIPTORS, maxFileDescriptors);
         if (cpu != null) {
             builder.startObject(Fields.CPU);
-            builder.field(Fields.PERCENT, cpu.percent());
-            builder.timeValueField(Fields.SYS_IN_MILLIS, Fields.SYS, cpu.sys);
-            builder.timeValueField(Fields.USER_IN_MILLIS, Fields.USER, cpu.user);
+            builder.field(Fields.PERCENT, cpu.percent);
             builder.timeValueField(Fields.TOTAL_IN_MILLIS, Fields.TOTAL, cpu.total);
             builder.endObject();
         }
         if (mem != null) {
             builder.startObject(Fields.MEM);
-            builder.byteSizeField(Fields.RESIDENT_IN_BYTES, Fields.RESIDENT, mem.resident);
-            builder.byteSizeField(Fields.SHARE_IN_BYTES, Fields.SHARE, mem.share);
             builder.byteSizeField(Fields.TOTAL_VIRTUAL_IN_BYTES, Fields.TOTAL_VIRTUAL, mem.totalVirtual);
             builder.endObject();
         }
@@ -135,6 +111,7 @@ public class ProcessStats implements Streamable, ToXContent {
     public void readFrom(StreamInput in) throws IOException {
         timestamp = in.readVLong();
         openFileDescriptors = in.readLong();
+        maxFileDescriptors = in.readLong();
         if (in.readBoolean()) {
             cpu = Cpu.readCpu(in);
         }
@@ -147,6 +124,7 @@ public class ProcessStats implements Streamable, ToXContent {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(timestamp);
         out.writeLong(openFileDescriptors);
+        out.writeLong(maxFileDescriptors);
         if (cpu == null) {
             out.writeBoolean(false);
         } else {
@@ -164,8 +142,6 @@ public class ProcessStats implements Streamable, ToXContent {
     public static class Mem implements Streamable {
 
         long totalVirtual = -1;
-        long resident = -1;
-        long share = -1;
 
         Mem() {
         }
@@ -179,47 +155,21 @@ public class ProcessStats implements Streamable, ToXContent {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             totalVirtual = in.readLong();
-            resident = in.readLong();
-            share = in.readLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeLong(totalVirtual);
-            out.writeLong(resident);
-            out.writeLong(share);
-        }
-
-        public ByteSizeValue totalVirtual() {
-            return new ByteSizeValue(totalVirtual);
         }
 
         public ByteSizeValue getTotalVirtual() {
-            return totalVirtual();
-        }
-
-        public ByteSizeValue resident() {
-            return new ByteSizeValue(resident);
-        }
-
-        public ByteSizeValue getResident() {
-            return resident();
-        }
-
-        public ByteSizeValue share() {
-            return new ByteSizeValue(share);
-        }
-
-        public ByteSizeValue getShare() {
-            return share();
+            return new ByteSizeValue(totalVirtual);
         }
     }
 
     public static class Cpu implements Streamable {
 
         short percent = -1;
-        long sys = -1;
-        long user = -1;
         long total = -1;
 
         Cpu() {
@@ -235,90 +185,31 @@ public class ProcessStats implements Streamable, ToXContent {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             percent = in.readShort();
-            sys = in.readLong();
-            user = in.readLong();
             total = in.readLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeShort(percent);
-            out.writeLong(sys);
-            out.writeLong(user);
             out.writeLong(total);
         }
 
         /**
          * Get the Process cpu usage.
-         * <p/>
+         * <p>
          * <p>Supported Platforms: All.
          */
-        public short percent() {
+        public short getPercent() {
             return percent;
         }
 
         /**
-         * Get the Process cpu usage.
-         * <p/>
-         * <p>Supported Platforms: All.
-         */
-        public short getPercent() {
-            return percent();
-        }
-
-        /**
-         * Get the Process cpu kernel time.
-         * <p/>
-         * <p>Supported Platforms: All.
-         */
-        public TimeValue sys() {
-            return new TimeValue(sys);
-        }
-
-        /**
-         * Get the Process cpu kernel time.
-         * <p/>
-         * <p>Supported Platforms: All.
-         */
-        public TimeValue getSys() {
-            return sys();
-        }
-
-        /**
-         * Get the Process cpu user time.
-         * <p/>
-         * <p>Supported Platforms: All.
-         */
-        public TimeValue user() {
-            return new TimeValue(user);
-        }
-
-        /**
          * Get the Process cpu time (sum of User and Sys).
-         * <p/>
-         * Supported Platforms: All.
-         */
-        public TimeValue total() {
-            return new TimeValue(total);
-        }
-
-        /**
-         * Get the Process cpu time (sum of User and Sys).
-         * <p/>
+         * <p>
          * Supported Platforms: All.
          */
         public TimeValue getTotal() {
-            return total();
+            return new TimeValue(total);
         }
-
-        /**
-         * Get the Process cpu user time.
-         * <p/>
-         * <p>Supported Platforms: All.
-         */
-        public TimeValue getUser() {
-            return user();
-        }
-
     }
 }

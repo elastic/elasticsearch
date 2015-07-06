@@ -19,7 +19,6 @@
 
 package org.elasticsearch.monitor.process;
 
-import org.elasticsearch.bootstrap.Bootstrap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -29,27 +28,20 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class ProcessInfo implements Streamable, ToXContent {
 
     long refreshInterval;
 
     private long id;
 
-    private long maxFileDescriptors = -1;
-
     private boolean mlockall;
 
     ProcessInfo() {
-
     }
 
-    public ProcessInfo(long id, long maxFileDescriptors) {
+    public ProcessInfo(long id, boolean mlockall) {
         this.id = id;
-        this.maxFileDescriptors = maxFileDescriptors;
-        this.mlockall = Bootstrap.isMemoryLocked();
+        this.mlockall = mlockall;
     }
 
     public long refreshInterval() {
@@ -63,27 +55,8 @@ public class ProcessInfo implements Streamable, ToXContent {
     /**
      * The process id.
      */
-    public long id() {
-        return this.id;
-    }
-
-    /**
-     * The process id.
-     */
     public long getId() {
-        return id();
-    }
-
-    public long maxFileDescriptors() {
-        return this.maxFileDescriptors;
-    }
-
-    public long getMaxFileDescriptors() {
-        return maxFileDescriptors;
-    }
-
-    public boolean mlockAll() {
-        return mlockall;
+        return id;
     }
 
     public boolean isMlockall() {
@@ -95,7 +68,6 @@ public class ProcessInfo implements Streamable, ToXContent {
         static final XContentBuilderString REFRESH_INTERVAL = new XContentBuilderString("refresh_interval");
         static final XContentBuilderString REFRESH_INTERVAL_IN_MILLIS = new XContentBuilderString("refresh_interval_in_millis");
         static final XContentBuilderString ID = new XContentBuilderString("id");
-        static final XContentBuilderString MAX_FILE_DESCRIPTORS = new XContentBuilderString("max_file_descriptors");
         static final XContentBuilderString MLOCKALL = new XContentBuilderString("mlockall");
     }
 
@@ -104,7 +76,6 @@ public class ProcessInfo implements Streamable, ToXContent {
         builder.startObject(Fields.PROCESS);
         builder.timeValueField(Fields.REFRESH_INTERVAL_IN_MILLIS, Fields.REFRESH_INTERVAL, refreshInterval);
         builder.field(Fields.ID, id);
-        builder.field(Fields.MAX_FILE_DESCRIPTORS, maxFileDescriptors);
         builder.field(Fields.MLOCKALL, mlockall);
         builder.endObject();
         return builder;
@@ -120,7 +91,6 @@ public class ProcessInfo implements Streamable, ToXContent {
     public void readFrom(StreamInput in) throws IOException {
         refreshInterval = in.readLong();
         id = in.readLong();
-        maxFileDescriptors = in.readLong();
         mlockall = in.readBoolean();
     }
 
@@ -128,7 +98,6 @@ public class ProcessInfo implements Streamable, ToXContent {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(refreshInterval);
         out.writeLong(id);
-        out.writeLong(maxFileDescriptors);
         out.writeBoolean(mlockall);
     }
 }

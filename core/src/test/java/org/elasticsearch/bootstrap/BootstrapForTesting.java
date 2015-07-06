@@ -51,6 +51,9 @@ public class BootstrapForTesting {
     static {
         // just like bootstrap, initialize natives, then SM
         Bootstrap.initializeNatives(true, true);
+
+        // initialize probes
+        Bootstrap.initializeProbes();
         
         // check for jar hell
         try {

@@ -430,11 +430,11 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
                 return;
             }
             count++;
-            if (nodeStats.getProcess().cpu() != null) {
+            if (nodeStats.getProcess().getCpu() != null) {
                 // with no sigar, this may not be available
-                cpuPercent += nodeStats.getProcess().cpu().getPercent();
+                cpuPercent += nodeStats.getProcess().getCpu().getPercent();
             }
-            long fd = nodeStats.getProcess().openFileDescriptors();
+            long fd = nodeStats.getProcess().getOpenFileDescriptors();
             if (fd > 0) {
                 // fd can be -1 if not supported on platform
                 totalOpenFileDescriptors += fd;

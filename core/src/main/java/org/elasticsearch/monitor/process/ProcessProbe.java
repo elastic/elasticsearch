@@ -19,12 +19,156 @@
 
 package org.elasticsearch.monitor.process;
 
-/**
- *
- */
-public interface ProcessProbe {
+import org.elasticsearch.bootstrap.Bootstrap;
 
-    ProcessInfo processInfo();
+import java.lang.management.ManagementFactory;
+import java.lang.management.OperatingSystemMXBean;
+import java.lang.reflect.Method;
 
-    ProcessStats processStats();
+import static org.elasticsearch.monitor.jvm.JvmInfo.jvmInfo;
+
+public class ProcessProbe {
+
+    private static final OperatingSystemMXBean osMxBean = ManagementFactory.getOperatingSystemMXBean();
+
+    private static final Method getMaxFileDescriptorCountField;
+    private static final Method getOpenFileDescriptorCountField;
+    private static final Method getProcessCpuLoad;
+    private static final Method getProcessCpuTime;
+    private static final Method getCommittedVirtualMemorySize;
+
+    static {
+        getMaxFileDescriptorCountField = getMethod("getMaxFileDescriptorCount");
+        getOpenFileDescriptorCountField = getMethod("getOpenFileDescriptorCount");
+        getProcessCpuLoad = getMethod("getProcessCpuLoad");
+        getProcessCpuTime = getMethod("getProcessCpuTime");
+        getCommittedVirtualMemorySize = getMethod("getCommittedVirtualMemorySize");
+    }
+
+    private static class ProcessProbeHolder {
+        private final static ProcessProbe INSTANCE = new ProcessProbe();
+    }
+
+    public static ProcessProbe getInstance() {
+        return ProcessProbeHolder.INSTANCE;
+    }
+
+    private ProcessProbe() {
+    }
+
+    /**
+     * Returns the maximum number of file descriptors allowed on the system, or -1 if not supported.
+     */
+    public long getMaxFileDescriptorCount() {
+        if (getMaxFileDescriptorCountField == null) {
+            return -1;
+        }
+        try {
+            return (Long) getMaxFileDescriptorCountField.invoke(osMxBean);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    /**
+     * Returns the number of opened file descriptors associated with the current process, or -1 if not supported.
+     */
+    public long getOpenFileDescriptorCount() {
+        if (getOpenFileDescriptorCountField == null) {
+            return -1;
+        }
+        try {
+            return (Long) getOpenFileDescriptorCountField.invoke(osMxBean);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    /**
+     * Returns the process CPU usage in percent
+     */
+    public short getProcessCpuPercent() {
+        if (getProcessCpuLoad != null) {
+            try {
+                double load = (double) getProcessCpuLoad.invoke(osMxBean);
+                if (load >= 0) {
+                    return (short) (load * 100);
+                }
+            } catch (Throwable t) {
+                return -1;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Returns the CPU time (in milliseconds) used by the process on which the Java virtual machine is running, or -1 if not supported.
+     */
+    public long getProcessCpuTotalTime() {
+        if (getProcessCpuTime != null) {
+            try {
+                long time = (long) getProcessCpuTime.invoke(osMxBean);
+                if (time >= 0) {
+                    return (time / 1_000_000L);
+                }
+            } catch (Throwable t) {
+                return -1;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Returns the size (in bytes) of virtual memory that is guaranteed to be available to the running process
+     */
+    public long getTotalVirtualMemorySize() {
+        if (getCommittedVirtualMemorySize != null) {
+            try {
+                long virtual = (long) getCommittedVirtualMemorySize.invoke(osMxBean);
+                if (virtual >= 0) {
+                    return virtual;
+                }
+            } catch (Throwable t) {
+                return -1;
+            }
+        }
+        return -1;
+    }
+
+    public ProcessInfo processInfo() {
+        return new ProcessInfo(jvmInfo().pid(), Bootstrap.isMemoryLocked());
+    }
+
+    public ProcessStats processStats() {
+        ProcessStats stats = new ProcessStats();
+        stats.timestamp = System.currentTimeMillis();
+        stats.openFileDescriptors = getOpenFileDescriptorCount();
+        stats.maxFileDescriptors = getMaxFileDescriptorCount();
+
+        ProcessStats.Cpu cpu = new ProcessStats.Cpu();
+        cpu.percent = getProcessCpuPercent();
+        cpu.total = getProcessCpuTotalTime();
+        stats.cpu = cpu;
+
+        ProcessStats.Mem mem = new ProcessStats.Mem();
+        mem.totalVirtual = getTotalVirtualMemorySize();
+        stats.mem = mem;
+
+        return stats;
+    }
+
+    /**
+     * Returns a given method of the OperatingSystemMXBean,
+     * or null if the method is not found or unavailable.
+     */
+    private static Method getMethod(String methodName) {
+        try {
+            Method method = osMxBean.getClass().getDeclaredMethod(methodName);
+            method.setAccessible(true);
+            return method;
+        } catch (Throwable t) {
+            // not available
+        }
+        return null;
+    }
 }

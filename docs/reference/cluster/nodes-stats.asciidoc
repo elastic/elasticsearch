@@ -23,33 +23,33 @@ of `indices`, `os`, `process`, `jvm`, `transport`, `http`,
 `fs`, `breaker` and `thread_pool`. For example:
 
 [horizontal]
-`indices`:: 
+`indices`::
 	Indices stats about size, document count, indexing and
 	deletion times, search times, field cache size, merges and flushes
 
-`fs`:: 
+`fs`::
 	File system information, data path, free disk space, read/write
 	stats (see <<fs-info,FS information>>)
 
-`http`:: 
+`http`::
 	HTTP connection information
 
-`jvm`:: 
+`jvm`::
 	JVM stats, memory pool information, garbage collection, buffer
 	pools
 
-`os`:: 
+`os`::
 	Operating system stats, load average, cpu, mem, swap
 
-`process`:: 
+`process`::
 	Process statistics, memory consumption, cpu usage, open
-	file descriptors
+	file descriptors (see <<process-stats,Process statistics>>)
 
-`thread_pool`:: 
+`thread_pool`::
 	Statistics about each thread pool, including current
 	size, queue and rejected tasks
 
-`transport`:: 
+`transport`::
 	Transport statistics about sent and received bytes in
 	cluster communication
 
@@ -113,6 +113,31 @@ information that concern the file system:
 	Indicates if the file store is backed by spinning storage.
 	`null` means we could not determine it, `true` means the device possibly spins
 	 and `false` means it does not (ex: solid-state disks).
+
+[float]
+[[process-stats]]
+==== Process statistics
+
+The `process` flag can be set to retrieve statistics that concern
+the current running process:
+
+`process.timestamp`::
+	Last time the process statistics have been refreshed
+
+`process.open_file_descriptors`::
+	Number of opened file descriptors associated with the current process, or -1 if not supported
+
+`process.max_file_descriptors`::
+	Maximum number of file descriptors allowed on the system, or -1 if not supported
+
+`process.cpu.percent`::
+	CPU usage in percent
+
+`process.cpu.total_in_millis`::
+	CPU time (in milliseconds) used by the process on which the Java virtual machine is running, or -1 if not supported
+
+`process.mem.total_virtual_in_bytes`::
+	Size in bytes of virtual memory that is guaranteed to be available to the running process
 
 
 [float]

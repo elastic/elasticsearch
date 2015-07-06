@@ -71,7 +71,7 @@ public class TermsAggregationSearchAndIndexingBenchmark {
     static Node[] nodes;
 
     public static void main(String[] args) throws Exception {
-        Bootstrap.initializeNatives(true, false, false);
+        Bootstrap.initializeNatives(true, false);
         Settings settings = settingsBuilder()
                 .put("refresh_interval", "-1")
                 .put(SETTING_NUMBER_OF_SHARDS, 1)

@@ -699,6 +699,58 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void term_indexQueryTestsIndexed() throws Exception {
+        term_indexQueryTests("not_analyzed");
+    }
+
+    @Test
+    public void term_indexQueryTestsNotIndexed() throws Exception {
+        term_indexQueryTests("no");
+    }
+
+    private void term_indexQueryTests(String index) throws Exception {
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        String[] indexNames = { "test1", "test2" };
+        for (String indexName : indexNames) {
+            assertAcked(client()
+                    .admin()
+                    .indices()
+                    .prepareCreate(indexName)
+                    .setSettings(indexSettings)
+                    .addMapping(
+                            "type1",
+                            jsonBuilder().startObject().startObject("type1").startObject("_index").field("index", index).endObject()
+                                    .endObject().endObject()));
+
+            indexRandom(true, client().prepareIndex(indexName, "type1", indexName + "1").setSource("field1", "value1"));
+
+        }
+        for (String indexName : indexNames) {
+            SearchResponse request = client().prepareSearch().setQuery(constantScoreQuery(termQuery("_index", indexName))).get();
+            SearchResponse searchResponse = assertSearchResponse(request);
+            assertHitCount(searchResponse, 1l);
+            assertSearchHits(searchResponse, indexName + "1");
+        }
+        for (String indexName : indexNames) {
+            SearchResponse request = client().prepareSearch().setQuery(constantScoreQuery(termsQuery("_index", indexName))).get();
+            SearchResponse searchResponse = assertSearchResponse(request);
+            assertHitCount(searchResponse, 1l);
+            assertSearchHits(searchResponse, indexName + "1");
+        }
+        for (String indexName : indexNames) {
+            SearchResponse request = client().prepareSearch().setQuery(constantScoreQuery(matchQuery("_index", indexName))).get();
+            SearchResponse searchResponse = assertSearchResponse(request);
+            assertHitCount(searchResponse, 1l);
+            assertSearchHits(searchResponse, indexName + "1");
+        }
+        {
+            SearchResponse request = client().prepareSearch().setQuery(constantScoreQuery(termsQuery("_index", indexNames))).get();
+            SearchResponse searchResponse = assertSearchResponse(request);
+            assertHitCount(searchResponse, indexNames.length);
+        }
+    }
+
+    @Test
     public void testLimitFilter() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
 

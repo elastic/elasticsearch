@@ -50,7 +50,7 @@ public class BootstrapForTesting {
 
     static {
         // just like bootstrap, initialize natives, then SM
-        Bootstrap.initializeNatives(true, true, true);
+        Bootstrap.initializeNatives(true, true);
         
         // check for jar hell
         try {
@@ -85,8 +85,6 @@ public class BootstrapForTesting {
                 // target/classes, target/test-classes
                 Security.addPath(perms, basedir.resolve("target").resolve("classes"), "read,readlink");
                 Security.addPath(perms, basedir.resolve("target").resolve("test-classes"), "read,readlink");
-                // lib/sigar
-                Security.addPath(perms, basedir.resolve("lib").resolve("sigar"), "read,readlink");
                 // .m2/repository
                 Path m2repoDir = PathUtils.get(Objects.requireNonNull(System.getProperty("m2.repository"), 
                                                                      "please set ${m2.repository} in pom.xml"));

@@ -1,8 +1,9 @@
 [[query-dsl-match-query]]
 === Match Query
 
-A family of `match` queries that accept text/numerics/dates, analyzes
-it, and constructs a query out of it. For example:
+
+A family of `match` queries that accepts text/numerics/dates, analyzes
+them, and constructs a query. For example:
 
 [source,js]
 --------------------------------------------------

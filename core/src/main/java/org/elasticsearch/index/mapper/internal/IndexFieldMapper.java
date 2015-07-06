@@ -22,10 +22,13 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -34,9 +37,10 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
+import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -133,6 +137,62 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public boolean useTermQueryWithQueryString() {
+            // As we spoof the presence of an indexed field we have to override
+            // the default of returning false which otherwise leads MatchQuery
+            // et al to run an analyzer over the query string and then try to
+            // hit the search index. We need them to use our termQuery(..)
+            // method which checks index names
+            return true;
+        }
+
+        /**
+         * This termQuery impl looks at the context to determine the index that
+         * is being queried and then returns a MATCH_ALL_QUERY or MATCH_NO_QUERY
+         * if the value matches this index. This can be useful if aliases or
+         * wildcards are used but the aim is to restrict the query to specific
+         * indices
+         */
+        @Override
+        public Query termQuery(Object value, @Nullable QueryParseContext context) {
+            if (context == null) {
+                return super.termQuery(value, context);
+            }
+            if (isSameIndex(value, context.index().getName())) {
+                return Queries.newMatchAllQuery();
+            } else {
+                return Queries.newMatchNoDocsQuery();
+            }
+        }
+        
+        
+
+        @Override
+        public Query termsQuery(List values, QueryParseContext context) {
+            if (context == null) {
+                return super.termsQuery(values, context);
+            }
+            for (Object value : values) {
+                if (isSameIndex(value, context.index().getName())) {
+                    // No need to OR these clauses - we can only logically be
+                    // running in the context of just one of these index names.
+                    return Queries.newMatchAllQuery();
+                }
+            }
+            // None of the listed index names are this one
+            return Queries.newMatchNoDocsQuery();
+        }
+
+        private boolean isSameIndex(Object value, String indexName) {
+            if (value instanceof BytesRef) {
+                BytesRef indexNameRef = new BytesRef(indexName);
+                return (indexNameRef.bytesEquals((BytesRef) value));
+            } else {
+                return indexName.equals(value.toString());
+            }
         }
 
         @Override

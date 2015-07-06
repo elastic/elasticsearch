@@ -148,7 +148,7 @@ public class MockDiskUsagesTests extends ElasticsearchIntegrationTest {
         FsStats fsStats = new FsStats(System.currentTimeMillis(), infos);
         return new NodeStats(new DiscoveryNode(nodeName, null, Version.V_2_0_0),
                 System.currentTimeMillis(),
-                null, null, null, null, null, null,
+                null, null, null, null, null,
                 fsStats,
                 null, null, null);
     }

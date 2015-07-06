@@ -21,7 +21,6 @@ package org.elasticsearch.stresstest.leaks;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.jvm.JvmService;
-import org.elasticsearch.monitor.network.NetworkService;
 import org.elasticsearch.monitor.os.OsService;
 import org.elasticsearch.monitor.process.ProcessService;
 import org.elasticsearch.node.Node;
@@ -39,13 +38,11 @@ public class GenericStatsLeak {
         JvmService jvmService = node.injector().getInstance(JvmService.class);
         OsService osService = node.injector().getInstance(OsService.class);
         ProcessService processService = node.injector().getInstance(ProcessService.class);
-        NetworkService networkService = node.injector().getInstance(NetworkService.class);
 
         while (true) {
             jvmService.stats();
             osService.stats();
             processService.stats();
-            networkService.stats();
         }
     }
 }

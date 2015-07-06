@@ -30,7 +30,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.monitor.network.NetworkInfo;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
@@ -66,9 +65,6 @@ public class NodeInfo extends BaseNodeResponse {
     private ThreadPoolInfo threadPool;
 
     @Nullable
-    private NetworkInfo network;
-
-    @Nullable
     private TransportInfo transport;
 
     @Nullable
@@ -81,7 +77,7 @@ public class NodeInfo extends BaseNodeResponse {
     }
 
     public NodeInfo(Version version, Build build, DiscoveryNode node, @Nullable ImmutableMap<String, String> serviceAttributes, @Nullable Settings settings,
-                    @Nullable OsInfo os, @Nullable ProcessInfo process, @Nullable JvmInfo jvm, @Nullable ThreadPoolInfo threadPool, @Nullable NetworkInfo network,
+                    @Nullable OsInfo os, @Nullable ProcessInfo process, @Nullable JvmInfo jvm, @Nullable ThreadPoolInfo threadPool,
                     @Nullable TransportInfo transport, @Nullable HttpInfo http, @Nullable PluginsInfo plugins) {
         super(node);
         this.version = version;
@@ -92,7 +88,6 @@ public class NodeInfo extends BaseNodeResponse {
         this.process = process;
         this.jvm = jvm;
         this.threadPool = threadPool;
-        this.network = network;
         this.transport = transport;
         this.http = http;
         this.plugins = plugins;
@@ -165,14 +160,6 @@ public class NodeInfo extends BaseNodeResponse {
         return this.threadPool;
     }
 
-    /**
-     * Network level information.
-     */
-    @Nullable
-    public NetworkInfo getNetwork() {
-        return network;
-    }
-
     @Nullable
     public TransportInfo getTransport() {
         return transport;
@@ -221,9 +208,6 @@ public class NodeInfo extends BaseNodeResponse {
         }
         if (in.readBoolean()) {
             threadPool = ThreadPoolInfo.readThreadPoolInfo(in);
-        }
-        if (in.readBoolean()) {
-            network = NetworkInfo.readNetworkInfo(in);
         }
         if (in.readBoolean()) {
             transport = TransportInfo.readTransportInfo(in);
@@ -281,12 +265,6 @@ public class NodeInfo extends BaseNodeResponse {
             out.writeBoolean(true);
             threadPool.writeTo(out);
         }
-        if (network == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            network.writeTo(out);
-        }
         if (transport == null) {
             out.writeBoolean(false);
         } else {
@@ -306,5 +284,4 @@ public class NodeInfo extends BaseNodeResponse {
             plugins.writeTo(out);
         }
     }
-
 }

@@ -15,7 +15,7 @@
       "parts": {
         "metric" : {
           "type" : "list",
-          "options" : ["_all", "breaker", "fs", "http", "indices", "jvm", "network", "os", "process", "thread_pool", "transport"],
+          "options" : ["_all", "breaker", "fs", "http", "indices", "jvm", "os", "process", "thread_pool", "transport"],
           "description" : "Limit the information returned to the specified metrics"
         },
         "index_metric" : {

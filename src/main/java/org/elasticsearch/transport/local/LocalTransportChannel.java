@@ -86,6 +86,10 @@ public class LocalTransportChannel implements TransportChannel {
     @Override
     public void sendResponse(Throwable error) throws IOException {
         BytesStreamOutput stream = new BytesStreamOutput();
+        if (ThrowableObjectOutputStream.canSerialize(error) == false) {
+            assert false : "Can not serialize exception: " + error; // make sure tests fail
+            error = new NotSerializableTransportException(error);
+        }
         try {
             writeResponseExceptionHeader(stream);
             RemoteTransportException tx = new RemoteTransportException(targetTransport.nodeName(), targetTransport.boundAddress().boundAddress(), action, error);

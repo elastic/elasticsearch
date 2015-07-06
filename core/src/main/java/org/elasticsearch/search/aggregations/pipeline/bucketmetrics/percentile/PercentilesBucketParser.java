@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
@@ -27,8 +28,6 @@ import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import java.text.ParseException;
 import java.util.List;
 import java.util.Map;
-
-import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
 
 public class PercentilesBucketParser extends BucketMetricsParser {
@@ -68,5 +67,11 @@ public class PercentilesBucketParser extends BucketMetricsParser {
         }
 
         return new PercentilesBucketPipelineAggregator.Factory(pipelineAggregatorName, bucketsPaths, gapPolicy, formatter, percents);
+    }
+
+    // NORELEASE implement this method when refactoring this aggregation
+    @Override
+    public PipelineAggregatorFactory getFactoryPrototype() {
+        return null;
     }
 }

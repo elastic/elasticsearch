@@ -37,4 +37,10 @@ public class StatsBucketParser extends BucketMetricsParser {
             ValueFormatter formatter, Map<String, Object> unparsedParams) {
         return new StatsBucketPipelineAggregator.Factory(pipelineAggregatorName, bucketsPaths, gapPolicy, formatter);
     }
+
+    // NORELEASE implement this method when refactoring this aggregation
+    @Override
+    public PipelineAggregatorFactory getFactoryPrototype() {
+        return null;
+    }
 }

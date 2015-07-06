@@ -1344,10 +1344,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         Query expectedQuery = new SpanContainingQuery(new SpanTermQuery(new Term("age", longToPrefixCoded(34, 0))),
                                                       new SpanTermQuery(new Term("age", longToPrefixCoded(35, 0))));
-        Query actualQuery = queryParser.parse(spanContainingQuery()
-                                              .big(spanTermQuery("age", 34))
-                                              .little(spanTermQuery("age", 35)))
-                                              .query();
+        Query actualQuery = queryParser.parse(spanContainingQuery(spanTermQuery("age", 34), spanTermQuery("age", 35))).query();
         assertEquals(expectedQuery, actualQuery);
     }
 

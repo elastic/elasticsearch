@@ -96,6 +96,8 @@ MAX_MAP_COUNT=262144
 
 # Elasticsearch PID file directory
 PID_DIR="${packaging.elasticsearch.pid.dir}"
+# Create $PID_DIR if not exists
+mkdir -p $PID_DIR
 
 # End of variables that can be overwritten in $DEFAULT
 

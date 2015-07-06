@@ -133,11 +133,11 @@ public class BoolQueryBuilder extends QueryBuilder implements BoostableQueryBuil
     }
 
     /**
-     * Returns <code>true</code> iff this query builder has at least one should, must or mustNot clause.
+     * Returns <code>true</code> iff this query builder has at least one should, must, must not or filter clause.
      * Otherwise <code>false</code>.
      */
     public boolean hasClauses() {
-        return !(mustClauses.isEmpty() && shouldClauses.isEmpty() && mustNotClauses.isEmpty());
+        return !(mustClauses.isEmpty() && shouldClauses.isEmpty() && mustNotClauses.isEmpty() && filterClauses.isEmpty());
     }
     
     /**

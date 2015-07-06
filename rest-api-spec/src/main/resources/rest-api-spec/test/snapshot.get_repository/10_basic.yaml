@@ -3,7 +3,7 @@ setup:
 
   - do:
       snapshot.create_repository:
-        repository: test_repo1
+        repository: test_repo_get_1
         body:
           type: url
           settings:
@@ -11,7 +11,7 @@ setup:
 
   - do:
       snapshot.create_repository:
-        repository: test_repo2
+        repository: test_repo_get_2
         body:
           type: url
           settings:
@@ -22,23 +22,23 @@ setup:
   - do:
       snapshot.get_repository: {}
 
-  - is_true: test_repo1
-  - is_true: test_repo2
+  - is_true: test_repo_get_1
+  - is_true: test_repo_get_2
 
 ---
 "Get repository by name":
   - do:
       snapshot.get_repository:
-        repository: test_repo1
+        repository: test_repo_get_1
 
-  - is_true: test_repo1
-  - is_false: test_repo2
+  - is_true: test_repo_get_1
+  - is_false: test_repo_get_2
 
 ---
 "Get missing repository by name":
   - do:
       snapshot.get_repository:
-        repository: test_repo2
+        repository: test_repo_get_2
 
 ---
 "Get all repositories with local flag":
@@ -46,13 +46,13 @@ setup:
       snapshot.get_repository:
         local: true
 
-  - is_true: test_repo1
-  - is_true: test_repo2
+  - is_true: test_repo_get_1
+  - is_true: test_repo_get_2
 
 ---
 "Verify created repository":
   - do:
       snapshot.verify_repository:
-        repository: test_repo2
+        repository: test_repo_get_2
 
   - is_true: nodes

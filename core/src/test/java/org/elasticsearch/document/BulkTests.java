@@ -725,5 +725,39 @@ public class BulkTests extends ElasticsearchIntegrationTest {
         assertThat(bulkResponse.hasFailures(), is(true));
         assertThat(bulkResponse.getItems().length, is(5));
     }
+
+    @Test // issue 9821
+    public void testFailedRequestsOnClosedIndex() throws Exception {
+        createIndex("bulkindex1");
+        ensureYellow();
+
+        client().prepareIndex("bulkindex1", "index1_type", "1").setSource("text", "test").get();
+        assertAcked(client().admin().indices().prepareClose("bulkindex1"));
+
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new IndexRequest("bulkindex1", "index1_type", "1").source("text", "hallo1"))
+                .add(new UpdateRequest("bulkindex1", "index1_type", "1").doc("foo", "bar"))
+                .add(new DeleteRequest("bulkindex1", "index1_type", "1")).refresh(true);
+
+        BulkResponse bulkResponse = client().bulk(bulkRequest).get();
+        assertThat(bulkResponse.hasFailures(), is(true));
+        BulkItemResponse[] responseItems = bulkResponse.getItems();
+        assertThat(responseItems.length, is(3));
+        assertThat(responseItems[0].getOpType(), is("index"));
+        assertThat(responseItems[1].getOpType(), is("update"));
+        assertThat(responseItems[2].getOpType(), is("delete"));
+    }
+
+    @Test // issue 9821
+    public void testInvalidIndexNamesCorrectOpType() {
+        BulkResponse bulkResponse = client().prepareBulk()
+                .add(client().prepareIndex().setIndex("INVALID.NAME").setType("type1").setId("1").setSource("field", 1))
+                .add(client().prepareUpdate().setIndex("INVALID.NAME").setType("type1").setId("1").setDoc("field", randomInt()))
+                .add(client().prepareDelete().setIndex("INVALID.NAME").setType("type1").setId("1")).get();
+        assertThat(bulkResponse.getItems().length, is(3));
+        assertThat(bulkResponse.getItems()[0].getOpType(), is("index"));
+        assertThat(bulkResponse.getItems()[1].getOpType(), is("update"));
+        assertThat(bulkResponse.getItems()[2].getOpType(), is("delete"));
+    }
 }
 

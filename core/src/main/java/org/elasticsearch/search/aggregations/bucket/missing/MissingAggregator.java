@@ -30,7 +30,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -83,8 +83,8 @@ public class MissingAggregator extends SingleBucketAggregator {
 
     public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource>  {
 
-        public Factory(String name, ValuesSourceConfig valueSourceConfig) {
-            super(name, InternalMissing.TYPE.name(), valueSourceConfig);
+        public Factory(String name, ValuesSourceParser.Input valueSourceInput) {
+            super(name, InternalMissing.TYPE.name(), valueSourceInput);
         }
 
         @Override

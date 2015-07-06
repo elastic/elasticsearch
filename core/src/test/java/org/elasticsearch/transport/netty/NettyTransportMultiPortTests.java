@@ -20,6 +20,7 @@ package org.elasticsearch.transport.netty;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.google.common.base.Charsets;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.component.Lifecycle;
@@ -30,8 +31,8 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.test.junit.rule.RepeatOnExceptionRule;
 import org.elasticsearch.test.cache.recycler.MockBigArrays;
+import org.elasticsearch.test.junit.rule.RepeatOnExceptionRule;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.TransportService;
@@ -42,6 +43,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.ServerSocket;
 import java.net.Socket;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -181,14 +183,30 @@ public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
     private int[] getRandomPorts(int numberOfPorts) {
         IntHashSet ports = new IntHashSet();
 
+        int nextPort = randomIntBetween(49152, 65535);
         for (int i = 0; i < numberOfPorts; i++) {
-            int port = randomIntBetween(49152, 65535);
-            while (ports.contains(port)) {
-                port = randomIntBetween(49152, 65535);
-            }
-            ports.add(port);
-        }
+            boolean foundPortInRange = false;
+            while (!foundPortInRange) {
+                if (!ports.contains(nextPort)) {
+                    logger.debug("looking to see if port [{}]is available", nextPort);
+                    try (ServerSocket serverSocket = new ServerSocket()) {
+                        // Set SO_REUSEADDR as we may bind here and not be able
+                        // to reuse the address immediately without it.
+                        serverSocket.setReuseAddress(NetworkUtils.defaultReuseAddress());
+                        serverSocket.bind(new InetSocketAddress(nextPort));
 
+                        // bind was a success
+                        logger.debug("port [{}] available.", nextPort);
+                        foundPortInRange = true;
+                        ports.add(nextPort);
+                    } catch (IOException e) {
+                        // Do nothing
+                        logger.debug("port [{}] not available.", e, nextPort);
+                    }
+                }
+                nextPort = randomIntBetween(49152, 65535);
+            }
+        }
         return ports.toArray();
     }
 

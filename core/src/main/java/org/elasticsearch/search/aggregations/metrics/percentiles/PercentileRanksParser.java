@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.metrics.percentiles;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 /**
@@ -42,13 +42,14 @@ public class PercentileRanksParser extends AbstractPercentilesParser {
     protected String keysFieldName() {
         return "values";
     }
-    
+
     @Override
-    protected AggregatorFactory buildFactory(SearchContext context, String aggregationName, ValuesSourceConfig<Numeric> valuesSourceConfig, double[] keys, double compression, boolean keyed) {
+    protected AggregatorFactory buildFactory(SearchContext context, String aggregationName,
+            ValuesSourceParser.Input<Numeric> valuesSourceInput, double[] keys, double compression, boolean keyed) {
         if (keys == null) {
             throw new SearchParseException(context, "Missing token values in [" + aggregationName + "].", null);
         }
-        return new PercentileRanksAggregator.Factory(aggregationName, valuesSourceConfig, keys, compression, keyed);
+        return new PercentileRanksAggregator.Factory(aggregationName, valuesSourceInput, keys, compression, keyed);
     }
 
 }

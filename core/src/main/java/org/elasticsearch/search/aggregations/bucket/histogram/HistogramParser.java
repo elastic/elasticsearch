@@ -127,7 +127,7 @@ public class HistogramParser implements Aggregator.Parser {
 
         Rounding rounding = new Rounding.Interval(interval);
         if (offset != 0) {
-            rounding = new Rounding.OffsetRounding((Rounding.Interval) rounding, offset);
+            rounding = new Rounding.OffsetRounding(rounding, offset);
         }
 
         if (extendedBounds != null) {
@@ -135,7 +135,7 @@ public class HistogramParser implements Aggregator.Parser {
             extendedBounds.processAndValidate(aggregationName, context, ValueParser.RAW);
         }
 
-        return new HistogramAggregator.Factory(aggregationName, vsParser.config(), rounding, order, keyed, minDocCount, extendedBounds,
+        return new HistogramAggregator.Factory(aggregationName, vsParser.input(), rounding, order, keyed, minDocCount, extendedBounds,
                 new InternalHistogram.Factory());
 
     }

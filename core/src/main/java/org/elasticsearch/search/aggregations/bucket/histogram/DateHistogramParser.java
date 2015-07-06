@@ -31,9 +31,7 @@ import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter.DateTime;
 import org.elasticsearch.search.internal.SearchContext;
 import org.joda.time.DateTimeZone;
 
@@ -196,12 +194,9 @@ public class DateHistogramParser implements Aggregator.Parser {
                 .timeZone(timeZone)
                 .offset(offset).build();
 
-        ValuesSourceConfig config = vsParser.config();
-        if (config.formatter()!=null) {
-            ((DateTime) config.formatter()).setTimeZone(timeZone);
-        }
-        return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, extendedBounds,
-                new InternalDateHistogram.Factory());
+        ValuesSourceParser.Input input = vsParser.input();
+        return new HistogramAggregator.DateHistogramFactory(aggregationName, input, rounding, order, keyed, minDocCount, extendedBounds,
+                new InternalDateHistogram.Factory(), timeZone);
 
     }
 

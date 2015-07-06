@@ -21,14 +21,18 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.search.aggregations.*;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -158,10 +162,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
     private final boolean showTermDocCountError;
 
-    public TermsAggregatorFactory(String name, ValuesSourceConfig config, Terms.Order order,
+    public TermsAggregatorFactory(String name, ValuesSourceParser.Input input, Terms.Order order,
             TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude, String executionHint,
             SubAggCollectionMode executionMode, boolean showTermDocCountError) {
-        super(name, StringTerms.TYPE.name(), config);
+        super(name, StringTerms.TYPE.name(), input);
         this.order = order;
         this.includeExclude = includeExclude;
         this.executionHint = executionHint;

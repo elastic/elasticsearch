@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -44,14 +43,14 @@ public abstract class AbstractPercentilesParser implements Aggregator.Parser {
 
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
-    
+
         ValuesSourceParser<ValuesSource.Numeric> vsParser = ValuesSourceParser.numeric(aggregationName, InternalPercentiles.TYPE, context)
                 .formattable(formattable).build();
-    
+
         double[] keys = null;
         boolean keyed = true;
         double compression = 100;
-    
+
         XContentParser.Token token;
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -91,10 +90,11 @@ public abstract class AbstractPercentilesParser implements Aggregator.Parser {
                         parser.getTokenLocation());
             }
         }
-        return buildFactory(context, aggregationName, vsParser.config(), keys, compression, keyed);
+        return buildFactory(context, aggregationName, vsParser.input(), keys, compression, keyed);
     }
 
-    protected abstract AggregatorFactory buildFactory(SearchContext context, String aggregationName, ValuesSourceConfig<Numeric> config, double[] cdfValues,
+    protected abstract AggregatorFactory buildFactory(SearchContext context, String aggregationName,
+            ValuesSourceParser.Input<Numeric> config, double[] cdfValues,
             double compression, boolean keyed);
 
     protected abstract String keysFieldName();

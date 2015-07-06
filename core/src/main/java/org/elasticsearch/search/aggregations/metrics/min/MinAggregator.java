@@ -34,7 +34,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
@@ -115,8 +115,8 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
 
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
 
-        public Factory(String name, ValuesSourceConfig<ValuesSource.Numeric> valuesSourceConfig) {
-            super(name, InternalMin.TYPE.name(), valuesSourceConfig);
+        public Factory(String name, ValuesSourceParser.Input<ValuesSource.Numeric> valuesSourceInput) {
+            super(name, InternalMin.TYPE.name(), valuesSourceInput);
         }
 
         @Override

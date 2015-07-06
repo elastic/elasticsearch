@@ -26,7 +26,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
@@ -76,9 +76,9 @@ public class PercentilesAggregator extends AbstractPercentilesAggregator {
         private final double compression;
         private final boolean keyed;
 
-        public Factory(String name, ValuesSourceConfig<ValuesSource.Numeric> valuesSourceConfig,
+        public Factory(String name, ValuesSourceParser.Input<ValuesSource.Numeric> valuesSourceInput,
                 double[] percents, double compression, boolean keyed) {
-            super(name, InternalPercentiles.TYPE.name(), valuesSourceConfig);
+            super(name, InternalPercentiles.TYPE.name(), valuesSourceInput);
             this.percents = percents;
             this.compression = compression;
             this.keyed = keyed;

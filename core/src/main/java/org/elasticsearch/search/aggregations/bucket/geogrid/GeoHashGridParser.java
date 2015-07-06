@@ -29,7 +29,6 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortingNumericDocValues;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorBase;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
@@ -38,7 +37,6 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -65,7 +63,8 @@ public class GeoHashGridParser implements Aggregator.Parser {
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
 
-        ValuesSourceParser vsParser = ValuesSourceParser.geoPoint(aggregationName, InternalGeoHashGrid.TYPE, context).build();
+        ValuesSourceParser<ValuesSource.GeoPoint> vsParser = ValuesSourceParser
+                .geoPoint(aggregationName, InternalGeoHashGrid.TYPE, context).build();
 
         int precision = DEFAULT_PRECISION;
         int requiredSize = DEFAULT_MAX_NUM_CELLS;
@@ -98,7 +97,7 @@ public class GeoHashGridParser implements Aggregator.Parser {
         }
 
         if (shardSize < 0) {
-            //Use default heuristic to avoid any wrong-ranking caused by distributed counting            
+            //Use default heuristic to avoid any wrong-ranking caused by distributed counting
             shardSize = BucketUtils.suggestShardSideQueueSize(requiredSize, context.numberOfShards());
         }
 
@@ -106,7 +105,7 @@ public class GeoHashGridParser implements Aggregator.Parser {
             shardSize = requiredSize;
         }
 
-        return new GeoGridFactory(aggregationName, vsParser.config(), precision, requiredSize, shardSize);
+        return new GeoGridFactory(aggregationName, vsParser.input(), precision, requiredSize, shardSize);
 
     }
 
@@ -117,8 +116,9 @@ public class GeoHashGridParser implements Aggregator.Parser {
         private int requiredSize;
         private int shardSize;
 
-        public GeoGridFactory(String name, ValuesSourceConfig<ValuesSource.GeoPoint> config, int precision, int requiredSize, int shardSize) {
-            super(name, InternalGeoHashGrid.TYPE.name(), config);
+        public GeoGridFactory(String name, ValuesSourceParser.Input<ValuesSource.GeoPoint> input, int precision, int requiredSize,
+                int shardSize) {
+            super(name, InternalGeoHashGrid.TYPE.name(), input);
             this.precision = precision;
             this.requiredSize = requiredSize;
             this.shardSize = shardSize;
@@ -130,6 +130,7 @@ public class GeoHashGridParser implements Aggregator.Parser {
             final InternalAggregation aggregation = new InternalGeoHashGrid(name, requiredSize,
                     Collections.<InternalGeoHashGrid.Bucket> emptyList(), pipelineAggregators, metaData);
             return new NonCollectingAggregator(name, aggregationContext, parent, pipelineAggregators, metaData) {
+                @Override
                 public InternalAggregation buildEmptyAggregation() {
                     return aggregation;
                 }

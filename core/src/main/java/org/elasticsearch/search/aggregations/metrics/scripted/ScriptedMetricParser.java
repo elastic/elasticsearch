@@ -35,7 +35,7 @@ import java.util.Map;
 import java.util.Set;
 
 public class ScriptedMetricParser implements Aggregator.Parser {
-    
+
     public static final String INIT_SCRIPT = "init_script";
     public static final String MAP_SCRIPT = "map_script";
     public static final String COMBINE_SCRIPT = "combine_script";
@@ -143,11 +143,17 @@ public class ScriptedMetricParser implements Aggregator.Parser {
                 reduceScript = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), reduceParams);
             }
         }
-        
+
         if (mapScript == null) {
             throw new SearchParseException(context, "map_script field is required in [" + aggregationName + "].", parser.getTokenLocation());
         }
         return new ScriptedMetricAggregator.Factory(aggregationName, initScript, mapScript, combineScript, reduceScript, params);
+    }
+
+    // NORELEASE implement this method when refactoring this aggregation
+    @Override
+    public AggregatorFactory getFactoryPrototype() {
+        return null;
     }
 
 }

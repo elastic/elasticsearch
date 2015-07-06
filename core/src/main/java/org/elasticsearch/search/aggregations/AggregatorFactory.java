@@ -41,6 +41,7 @@ public abstract class AggregatorFactory {
     protected AggregatorFactory parent;
     protected AggregatorFactories factories = AggregatorFactories.EMPTY;
     protected Map<String, Object> metaData;
+    private AggregationContext context;
 
     /**
      * Constructs a new aggregator factory.
@@ -51,6 +52,19 @@ public abstract class AggregatorFactory {
     public AggregatorFactory(String name, String type) {
         this.name = name;
         this.type = type;
+    }
+
+    /**
+     * Initializes this factory with the given {@link AggregationContext} ready
+     * to create {@link Aggregator}s
+     */
+    public final void init(AggregationContext context) {
+        this.context = context;
+        doInit(context);
+        this.factories.init(context);
+    }
+
+    protected void doInit(AggregationContext context) {
     }
 
     /**
@@ -98,7 +112,7 @@ public abstract class AggregatorFactory {
      *
      * @return                      The created aggregator
      */
-    public final Aggregator create(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket) throws IOException {
+    public final Aggregator create(Aggregator parent, boolean collectsFromSingleBucket) throws IOException {
         return createInternal(context, parent, collectsFromSingleBucket, this.factories.createPipelineAggregators(), this.metaData);
     }
 
@@ -116,7 +130,7 @@ public abstract class AggregatorFactory {
      * to collect bucket <tt>0</tt>, this returns an aggregator that can collect any bucket.
      */
     protected static Aggregator asMultiBucketAggregator(final AggregatorFactory factory, final AggregationContext context, final Aggregator parent) throws IOException {
-        final Aggregator first = factory.create(context, parent, true);
+        final Aggregator first = factory.create(parent, true);
         final BigArrays bigArrays = context.bigArrays();
         return new Aggregator() {
 
@@ -197,7 +211,7 @@ public abstract class AggregatorFactory {
                         if (collector == null) {
                             Aggregator aggregator = aggregators.get(bucket);
                             if (aggregator == null) {
-                                aggregator = factory.create(context, parent, true);
+                                aggregator = factory.create(parent, true);
                                 aggregator.preCollection();
                                 aggregators.set(bucket, aggregator);
                             }

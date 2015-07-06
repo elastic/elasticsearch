@@ -53,7 +53,6 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.os.OsStats;
-import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActionListener;
@@ -221,7 +220,6 @@ public class RestNodesAction extends AbstractCatAction {
 
             JvmInfo jvmInfo = info == null ? null : info.getJvm();
             OsInfo osInfo = info == null ? null : info.getOs();
-            ProcessInfo processInfo = info == null ? null : info.getProcess();
 
             JvmStats jvmStats = stats == null ? null : stats.getJvm();
             FsInfo fsInfo = stats == null ? null : stats.getFs();
@@ -232,7 +230,7 @@ public class RestNodesAction extends AbstractCatAction {
             table.startRow();
 
             table.addCell(fullId ? node.id() : Strings.substring(node.getId(), 0, 4));
-            table.addCell(info == null ? null : info.getProcess().id());
+            table.addCell(info == null ? null : info.getProcess().getId());
             table.addCell(node.getHostName());
             table.addCell(node.getHostAddress());
             if (node.address() instanceof InetSocketTransportAddress) {
@@ -252,9 +250,8 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(osStats == null ? null : osStats.getMem() == null ? null : osStats.getMem().usedPercent());
             table.addCell(osInfo == null ? null : osInfo.getMem() == null ? null : osInfo.getMem().total()); // sigar fails to load in IntelliJ
             table.addCell(processStats == null ? null : processStats.getOpenFileDescriptors());
-            table.addCell(processStats == null || processInfo == null ? null :
-                          calculatePercentage(processStats.getOpenFileDescriptors(), processInfo.getMaxFileDescriptors()));
-            table.addCell(processInfo == null ? null : processInfo.getMaxFileDescriptors());
+            table.addCell(processStats == null ? null : calculatePercentage(processStats.getOpenFileDescriptors(), processStats.getMaxFileDescriptors()));
+            table.addCell(processStats == null ? null : processStats.getMaxFileDescriptors());
 
             table.addCell(osStats == null ? null : osStats.getLoadAverage().length < 1 ? null : String.format(Locale.ROOT, "%.2f", osStats.getLoadAverage()[0]));
             table.addCell(jvmStats == null ? null : jvmStats.getUptime());

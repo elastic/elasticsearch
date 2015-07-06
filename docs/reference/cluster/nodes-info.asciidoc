@@ -32,6 +32,28 @@ curl -XGET 'http://localhost:9200/_nodes/nodeId1,nodeId2/_all
 
 The `_all` flag can be set to return all the information - or you can simply omit it.
 
+
+[float]
+[[process-info]]
+==== Process information
+
+The `process` flag can be set to retrieve information that concern
+the current running process:
+
+`process.refresh_interval_in_millis`::
+	Refresh interval for the process statistics.
+
+`process.id`::
+	Process identifier (PID)
+
+`process.mlockall`::
+	Indicates if the process address space has been successfully locked in memory
+
+
+[float]
+[[plugins-info]]
+==== Plugins information
+
 `plugins` - if set, the result will contain details about the loaded
 plugins per node:
 

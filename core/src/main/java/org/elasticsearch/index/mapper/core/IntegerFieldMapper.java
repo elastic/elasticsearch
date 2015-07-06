@@ -89,8 +89,8 @@ public class IntegerFieldMapper extends NumberFieldMapper {
         @Override
         public IntegerFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            IntegerFieldMapper fieldMapper = new IntegerFieldMapper(name, fieldType, docValues,
-                    ignoreMalformed(context), coerce(context), fieldDataSettings,
+            IntegerFieldMapper fieldMapper = new IntegerFieldMapper(name, fieldType, defaultFieldType,
+                    ignoreMalformed(context), coerce(context),
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -145,7 +145,8 @@ public class IntegerFieldMapper extends NumberFieldMapper {
 
         @Override
         public String typeName() {
-            return CONTENT_TYPE;
+            // TODO: this should be the same as the mapper type name, except fielddata expects int...
+            return "int";
         }
 
         @Override
@@ -202,26 +203,15 @@ public class IntegerFieldMapper extends NumberFieldMapper {
         }
     }
 
-    protected IntegerFieldMapper(String simpleName, MappedFieldType fieldType, Boolean docValues,
+    protected IntegerFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                  Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-                                 @Nullable Settings fieldDataSettings,
                                  Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, docValues, ignoreMalformed, coerce, fieldDataSettings, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, indexSettings, multiFields, copyTo);
     }
 
     @Override
     public IntegerFieldType fieldType() {
         return (IntegerFieldType) super.fieldType();
-    }
-
-    @Override
-    public MappedFieldType defaultFieldType() {
-        return Defaults.FIELD_TYPE;
-    }
-
-    @Override
-    public FieldDataType defaultFieldDataType() {
-        return new FieldDataType("int");
     }
 
     private static int parseValue(Object value) {

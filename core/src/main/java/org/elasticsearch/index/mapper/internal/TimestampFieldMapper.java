@@ -77,9 +77,11 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setDateTimeFormatter(DATE_TIME_FORMATTER);
             FIELD_TYPE.setIndexAnalyzer(NumericDateAnalyzer.buildNamedAnalyzer(DATE_TIME_FORMATTER, Defaults.PRECISION_STEP_64_BIT));
             FIELD_TYPE.setSearchAnalyzer(NumericDateAnalyzer.buildNamedAnalyzer(DATE_TIME_FORMATTER, Integer.MAX_VALUE));
+            FIELD_TYPE.setHasDocValues(true);
             FIELD_TYPE.freeze();
             PRE_20_FIELD_TYPE = FIELD_TYPE.clone();
             PRE_20_FIELD_TYPE.setStored(false);
+            PRE_20_FIELD_TYPE.setHasDocValues(false);
             PRE_20_FIELD_TYPE.freeze();
         }
 
@@ -145,8 +147,7 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
                 fieldType.setStored(false);
             }
             setupFieldType(context);
-            return new TimestampFieldMapper(fieldType, docValues, enabledState, path, defaultTimestamp,
-                    ignoreMissing, fieldDataSettings, context.indexSettings());
+            return new TimestampFieldMapper(fieldType, defaultFieldType, enabledState, path, defaultTimestamp, ignoreMissing, context.indexSettings());
         }
     }
 
@@ -227,7 +228,7 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private static MappedFieldType defaultFieldType(Settings settings, MappedFieldType existing) {
+    private static MappedFieldType chooseFieldType(Settings settings, MappedFieldType existing) {
         if (existing != null) {
             return existing;
         }
@@ -238,38 +239,24 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
 
     private final String path;
     private final String defaultTimestamp;
-    private final MappedFieldType defaultFieldType;
     private final Boolean ignoreMissing;
 
     public TimestampFieldMapper(Settings indexSettings, MappedFieldType existing) {
-        this(defaultFieldType(indexSettings, existing).clone(), null, Defaults.ENABLED, Defaults.PATH, Defaults.DEFAULT_TIMESTAMP, null,
-             existing == null ? null : (existing.fieldDataType() == null ? null : existing.fieldDataType().getSettings()),
-             indexSettings);
+        this(chooseFieldType(indexSettings, existing).clone(), chooseFieldType(indexSettings, null), Defaults.ENABLED, Defaults.PATH, Defaults.DEFAULT_TIMESTAMP, null, indexSettings);
     }
 
-    protected TimestampFieldMapper(MappedFieldType fieldType, Boolean docValues, EnabledAttributeMapper enabledState, String path,
-                                   String defaultTimestamp, Boolean ignoreMissing, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(NAME, fieldType, docValues, fieldDataSettings, indexSettings);
+    protected TimestampFieldMapper(MappedFieldType fieldType, MappedFieldType defaultFieldType, EnabledAttributeMapper enabledState, String path,
+                                   String defaultTimestamp, Boolean ignoreMissing, Settings indexSettings) {
+        super(NAME, fieldType, defaultFieldType, indexSettings);
         this.enabledState = enabledState;
         this.path = path;
         this.defaultTimestamp = defaultTimestamp;
-        this.defaultFieldType = defaultFieldType(indexSettings, null);
         this.ignoreMissing = ignoreMissing;
     }
 
     @Override
     public TimestampFieldType fieldType() {
         return (TimestampFieldType)super.fieldType();
-    }
-
-    @Override
-    public MappedFieldType defaultFieldType() {
-        return defaultFieldType;
-    }
-
-    @Override
-    public FieldDataType defaultFieldDataType() {
-        return new FieldDataType("long");
     }
 
     public boolean enabled() {
@@ -335,7 +322,7 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
             fieldType().stored() == Defaults.FIELD_TYPE.stored() && enabledState == Defaults.ENABLED && path == Defaults.PATH
                 && fieldType().dateTimeFormatter().format().equals(Defaults.DATE_TIME_FORMATTER.format())
                 && Defaults.DEFAULT_TIMESTAMP.equals(defaultTimestamp)
-                && defaultDocValues() == fieldType().hasDocValues()) {
+                && defaultFieldType.hasDocValues() == fieldType().hasDocValues()) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
@@ -363,12 +350,8 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
         if (includeDefaults || ignoreMissing != null) {
             builder.field("ignore_missing", ignoreMissing);
         }
-        if (indexCreatedBefore2x) {
-            if (hasCustomFieldDataSettings()) {
-                builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
-            } else if (includeDefaults) {
-                builder.field("fielddata", (Map) fieldType().fieldDataType().getSettings().getAsMap());
-            }
+        if (indexCreatedBefore2x && (includeDefaults || hasCustomFieldDataSettings())) {
+            builder.field("fielddata", fieldType().fieldDataType().getSettings().getAsMap());
         }
 
         builder.endObject();

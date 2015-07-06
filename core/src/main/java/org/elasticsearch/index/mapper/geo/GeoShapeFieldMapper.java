@@ -359,22 +359,12 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper {
     }
 
     public GeoShapeFieldMapper(String simpleName, MappedFieldType fieldType, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, false, null, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, multiFields, copyTo);
     }
 
     @Override
     public GeoShapeFieldType fieldType() {
         return (GeoShapeFieldType) super.fieldType();
-    }
-
-    @Override
-    public MappedFieldType defaultFieldType() {
-        return Defaults.FIELD_TYPE;
-    }
-
-    @Override
-    public FieldDataType defaultFieldDataType() {
-        return null;
     }
 
     @Override

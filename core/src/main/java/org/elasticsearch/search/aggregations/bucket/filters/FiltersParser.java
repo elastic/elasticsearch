@@ -117,4 +117,10 @@ public class FiltersParser implements Aggregator.Parser {
         return new FiltersAggregator.Factory(aggregationName, filters, keyed, otherBucketKey);
     }
 
+    // NORELEASE implement this method when refactoring this aggregation
+    @Override
+    public AggregatorFactory getFactoryPrototype() {
+        return null;
+    }
+
 }

@@ -56,4 +56,10 @@ public class ValueCountParser implements Aggregator.Parser {
 
         return new ValueCountAggregator.Factory(aggregationName, vsParser.input());
     }
+
+    // NORELEASE implement this method when refactoring this aggregation
+    @Override
+    public AggregatorFactory getFactoryPrototype() {
+        return null;
+    }
 }

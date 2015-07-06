@@ -138,4 +138,10 @@ public class TopHitsParser implements Aggregator.Parser {
         return new TopHitsAggregator.Factory(aggregationName, fetchPhase, subSearchContext);
     }
 
+    // NORELEASE implement this method when refactoring this aggregation
+    @Override
+    public AggregatorFactory getFactoryPrototype() {
+        return null;
+    }
+
 }

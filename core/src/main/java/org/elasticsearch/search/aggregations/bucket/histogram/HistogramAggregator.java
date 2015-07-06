@@ -181,13 +181,16 @@ public class HistogramAggregator extends BucketsAggregator {
 
         @Override
         protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent,
-                boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+                boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+                throws IOException {
             if (collectsFromSingleBucket == false) {
                 return asMultiBucketAggregator(this, aggregationContext, parent);
             }
-            // we need to round the bounds given by the user and we have to do it for every aggregator we crate
+            // we need to round the bounds given by the user and we have to do
+            // it for every aggregator we create
             // as the rounding is not necessarily an idempotent operation.
-            // todo we need to think of a better structure to the factory/agtor code so we won't need to do that
+            // todo we need to think of a better structure to the factory/agtor
+            // code so we won't need to do that
             ExtendedBounds roundedBounds = null;
             if (extendedBounds != null) {
                 // we need to process & validate here using the parser

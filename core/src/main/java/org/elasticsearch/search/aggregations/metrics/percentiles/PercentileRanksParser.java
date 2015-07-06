@@ -25,7 +25,7 @@ import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.HDRPercenti
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.InternalTDigestPercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestPercentileRanksAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 /**
@@ -48,17 +48,17 @@ public class PercentileRanksParser extends AbstractPercentilesParser {
     protected ParseField keysField() {
         return VALUES_FIELD;
     }
-
+    
     @Override
-    protected AggregatorFactory buildFactory(SearchContext context, String aggregationName, ValuesSourceConfig<Numeric> valuesSourceConfig,
+    protected AggregatorFactory buildFactory(SearchContext context, String aggregationName, ValuesSourceParser.Input<Numeric> valuesSourceInput,
             double[] keys, PercentilesMethod method, Double compression, Integer numberOfSignificantValueDigits, boolean keyed) {
         if (keys == null) {
             throw new SearchParseException(context, "Missing token values in [" + aggregationName + "].", null);
         }
         if (method == PercentilesMethod.TDIGEST) {
-            return new TDigestPercentileRanksAggregator.Factory(aggregationName, valuesSourceConfig, keys, compression, keyed);
+            return new TDigestPercentileRanksAggregator.Factory(aggregationName, valuesSourceInput, keys, compression, keyed);
         } else if (method == PercentilesMethod.HDR) {
-            return new HDRPercentileRanksAggregator.Factory(aggregationName, valuesSourceConfig, keys, numberOfSignificantValueDigits,
+            return new HDRPercentileRanksAggregator.Factory(aggregationName, valuesSourceInput, keys, numberOfSignificantValueDigits,
                     keyed);
         } else {
             throw new AssertionError();

@@ -57,6 +57,6 @@ public class MissingParser implements Aggregator.Parser {
             }
         }
 
-        return new MissingAggregator.Factory(aggregationName, vsParser.config());
+        return new MissingAggregator.Factory(aggregationName, vsParser.input());
     }
 }

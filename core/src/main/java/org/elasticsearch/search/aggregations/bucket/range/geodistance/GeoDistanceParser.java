@@ -40,7 +40,6 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.GeoPointParser;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -161,7 +160,8 @@ public class GeoDistanceParser implements Aggregator.Parser {
                     parser.getTokenLocation());
         }
 
-        return new GeoDistanceFactory(aggregationName, vsParser.config(), InternalGeoDistance.FACTORY, origin, unit, distanceType, ranges, keyed);
+        return new GeoDistanceFactory(aggregationName, vsParser.input(), InternalGeoDistance.FACTORY, origin, unit, distanceType, ranges,
+                keyed);
     }
 
     private static class GeoDistanceFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
@@ -173,10 +173,10 @@ public class GeoDistanceParser implements Aggregator.Parser {
         private final List<RangeAggregator.Range> ranges;
         private final boolean keyed;
 
-        public GeoDistanceFactory(String name, ValuesSourceConfig<ValuesSource.GeoPoint> valueSourceConfig,
+        public GeoDistanceFactory(String name, ValuesSourceParser.Input<ValuesSource.GeoPoint> valueSourceInput,
                                   InternalRange.Factory rangeFactory, GeoPoint origin, DistanceUnit unit, GeoDistance distanceType,
                                   List<RangeAggregator.Range> ranges, boolean keyed) {
-            super(name, rangeFactory.type(), valueSourceConfig);
+            super(name, rangeFactory.type(), valueSourceInput);
             this.origin = origin;
             this.unit = unit;
             this.distanceType = distanceType;

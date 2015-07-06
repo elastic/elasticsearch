@@ -22,7 +22,13 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.search.aggregations.*;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BestDocsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
@@ -31,7 +37,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -39,7 +45,7 @@ import java.util.Map;
 
 /**
  * Aggregate on only the top-scoring docs on a shard.
- * 
+ *
  * TODO currently the diversity feature of this agg offers only 'script' and
  * 'field' as a means of generating a de-dup value. In future it would be nice
  * if users could use any of the "bucket" aggs syntax (geo, date histogram...)
@@ -131,8 +137,8 @@ public class SamplerAggregator extends SingleBucketAggregator {
         public String toString() {
             return parseField.getPreferredName();
         }
-    }    
-    
+    }
+
 
     protected final int shardSize;
     protected BestDocsDeferringCollector bdd;
@@ -197,8 +203,8 @@ public class SamplerAggregator extends SingleBucketAggregator {
         private int maxDocsPerValue;
         private String executionHint;
 
-        public DiversifiedFactory(String name, int shardSize, String executionHint, ValuesSourceConfig vsConfig, int maxDocsPerValue) {
-            super(name, InternalSampler.TYPE.name(), vsConfig);
+        public DiversifiedFactory(String name, int shardSize, String executionHint, ValuesSourceParser.Input vsInput, int maxDocsPerValue) {
+            super(name, InternalSampler.TYPE.name(), vsInput);
             this.shardSize = shardSize;
             this.maxDocsPerValue = maxDocsPerValue;
             this.executionHint = executionHint;
@@ -213,7 +219,7 @@ public class SamplerAggregator extends SingleBucketAggregator {
                 return new DiversifiedNumericSamplerAggregator(name, shardSize, factories, context, parent, pipelineAggregators, metaData,
                         (Numeric) valuesSource, maxDocsPerValue);
             }
-            
+
             if (valuesSource instanceof ValuesSource.Bytes) {
                 ExecutionMode execution = null;
                 if (executionHint != null) {
@@ -231,7 +237,7 @@ public class SamplerAggregator extends SingleBucketAggregator {
                 return execution.create(name, factories, shardSize, maxDocsPerValue, valuesSource, context, parent, pipelineAggregators,
                         metaData);
             }
-            
+
             throw new AggregationExecutionException("Sampler aggregation cannot be applied to field [" + config.fieldContext().field() +
                     "]. It can only be applied to numeric or string fields.");
         }

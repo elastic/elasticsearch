@@ -20,7 +20,6 @@
 package org.elasticsearch.index.search.morelikethis;
 
 import org.apache.lucene.index.Fields;
-import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.termvector.MultiTermVectorsItemResponse;
 import org.elasticsearch.action.termvector.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvector.MultiTermVectorsResponse;

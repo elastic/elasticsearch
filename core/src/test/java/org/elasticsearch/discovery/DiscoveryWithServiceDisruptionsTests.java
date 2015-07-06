@@ -240,12 +240,16 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
     /** Verify that nodes fault detection works after master (re) election */
     @Test
     public void testNodesFDAfterMasterReelection() throws Exception {
-        startCluster(3);
+        startCluster(4);
 
-        logger.info("stopping current master");
+        logger.info("--> stopping current master");
         internalCluster().stopCurrentMasterNode();
 
-        ensureStableCluster(2);
+        ensureStableCluster(3);
+
+        logger.info("--> reducing min master nodes to 2");
+        assertAcked(client().admin().cluster().prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, 2)).get());
 
         String master = internalCluster().getMasterName();
         String nonMaster = null;
@@ -259,7 +263,7 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
         addRandomIsolation(nonMaster).startDisrupting();
 
         logger.info("--> waiting for master to remove it");
-        ensureStableCluster(1, master);
+        ensureStableCluster(2, master);
     }
 
     /**
@@ -703,12 +707,13 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
     }
 
     /**
-     * Test that a document which is indexed on the majority side of a partition, is available from the minory side,
+     * Test that a document which is indexed on the majority side of a partition, is available from the minority side,
      * once the partition is healed
      *
      * @throws Exception
      */
     @Test
+    @TestLogging(value = "cluster.service:TRACE")
     public void testRejoinDocumentExistsInAllShardCopies() throws Exception {
         List<String> nodes = startCluster(3);
 

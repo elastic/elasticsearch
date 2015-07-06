@@ -70,13 +70,11 @@ public class AggregationContext {
             if (config.missing == null) {
                 // otherwise we will have values because of the missing value
                 vs = null;
-            } else if (ValuesSource.Numeric.class.isAssignableFrom(config.valueSourceType)) {
+            } else if (config.valueSourceType == ValuesSourceType.NUMERIC) {
                 vs = (VS) ValuesSource.Numeric.EMPTY;
-            } else if (ValuesSource.GeoPoint.class.isAssignableFrom(config.valueSourceType)) {
+            } else if (config.valueSourceType == ValuesSourceType.GEOPOINT) {
                 vs = (VS) ValuesSource.GeoPoint.EMPTY;
-            } else if (ValuesSource.class.isAssignableFrom(config.valueSourceType)
-                    || ValuesSource.Bytes.class.isAssignableFrom(config.valueSourceType)
-                    || ValuesSource.Bytes.WithOrdinals.class.isAssignableFrom(config.valueSourceType)) {
+            } else if (config.valueSourceType == ValuesSourceType.ANY || config.valueSourceType == ValuesSourceType.BYTES) {
                 vs = (VS) ValuesSource.Bytes.EMPTY;
             } else {
                 throw new SearchParseException(searchContext, "Can't deal with unmapped ValuesSource type " + config.valueSourceType, null);
@@ -132,19 +130,20 @@ public class AggregationContext {
      */
     private <VS extends ValuesSource> VS originalValuesSource(ValuesSourceConfig<VS> config) throws IOException {
         if (config.fieldContext == null) {
-            if (ValuesSource.Numeric.class.isAssignableFrom(config.valueSourceType)) {
+            if (config.valueSourceType == ValuesSourceType.NUMERIC) {
                 return (VS) numericScript(config);
             }
-            if (ValuesSource.Bytes.class.isAssignableFrom(config.valueSourceType)) {
+            if (config.valueSourceType == ValuesSourceType.BYTES) {
                 return (VS) bytesScript(config);
             }
-            throw new AggregationExecutionException("value source of type [" + config.valueSourceType.getSimpleName() + "] is not supported by scripts");
+            throw new AggregationExecutionException("value source of type [" + config.valueSourceType.name()
+                    + "] is not supported by scripts");
         }
 
-        if (ValuesSource.Numeric.class.isAssignableFrom(config.valueSourceType)) {
+        if (config.valueSourceType == ValuesSourceType.NUMERIC) {
             return (VS) numericField(config);
         }
-        if (ValuesSource.GeoPoint.class.isAssignableFrom(config.valueSourceType)) {
+        if (config.valueSourceType == ValuesSourceType.GEOPOINT) {
             return (VS) geoPointField(config);
         }
         // falling back to bytes values

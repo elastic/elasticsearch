@@ -48,7 +48,7 @@ public class PercentileRanksParser extends AbstractPercentilesParser {
     protected ParseField keysField() {
         return VALUES_FIELD;
     }
-    
+
     @Override
     protected AggregatorFactory buildFactory(SearchContext context, String aggregationName, ValuesSourceParser.Input<Numeric> valuesSourceInput,
             double[] keys, PercentilesMethod method, Double compression, Integer numberOfSignificantValueDigits, boolean keyed) {
@@ -63,6 +63,12 @@ public class PercentileRanksParser extends AbstractPercentilesParser {
         } else {
             throw new AssertionError();
         }
+    }
+
+    // NORELEASE implement this method when refactoring this aggregation
+    @Override
+    public AggregatorFactory getFactoryPrototype() {
+        return null;
     }
 
 }

@@ -88,8 +88,8 @@ public class DoubleFieldMapper extends NumberFieldMapper {
         @Override
         public DoubleFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            DoubleFieldMapper fieldMapper = new DoubleFieldMapper(name, fieldType, docValues, ignoreMalformed(context), coerce(context),
-                    fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+            DoubleFieldMapper fieldMapper = new DoubleFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context), coerce(context),
+                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -201,24 +201,14 @@ public class DoubleFieldMapper extends NumberFieldMapper {
         }
     }
 
-    protected DoubleFieldMapper(String simpleName, MappedFieldType fieldType, Boolean docValues, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-                                @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, docValues, ignoreMalformed, coerce, fieldDataSettings, indexSettings, multiFields, copyTo);
+    protected DoubleFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Explicit<Boolean> ignoreMalformed,
+                                Explicit<Boolean> coerce, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, indexSettings, multiFields, copyTo);
     }
 
     @Override
     public DoubleFieldType fieldType() {
         return (DoubleFieldType) super.fieldType();
-    }
-
-    @Override
-    public MappedFieldType defaultFieldType() {
-        return Defaults.FIELD_TYPE;
-    }
-
-    @Override
-    public FieldDataType defaultFieldDataType() {
-        return new FieldDataType("double");
     }
 
     @Override

@@ -85,8 +85,8 @@ public class ShortFieldMapper extends NumberFieldMapper {
         @Override
         public ShortFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            ShortFieldMapper fieldMapper = new ShortFieldMapper(name, fieldType, docValues,
-                    ignoreMalformed(context), coerce(context), fieldDataSettings,
+            ShortFieldMapper fieldMapper = new ShortFieldMapper(name, fieldType, defaultFieldType,
+                    ignoreMalformed(context), coerce(context),
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -199,27 +199,15 @@ public class ShortFieldMapper extends NumberFieldMapper {
         }
     }
 
-    protected ShortFieldMapper(String simpleName, MappedFieldType fieldType, Boolean docValues,
+    protected ShortFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-                               @Nullable Settings fieldDataSettings,
                                Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, docValues, ignoreMalformed, coerce,
-             fieldDataSettings, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, indexSettings, multiFields, copyTo);
     }
 
     @Override
     public ShortFieldType fieldType() {
         return (ShortFieldType) super.fieldType();
-    }
-
-    @Override
-    public MappedFieldType defaultFieldType() {
-        return Defaults.FIELD_TYPE;
-    }
-
-    @Override
-    public FieldDataType defaultFieldDataType() {
-        return new FieldDataType("short");
     }
 
     private static short parseValue(Object value) {

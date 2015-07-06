@@ -226,7 +226,9 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
         private AnalyzingCompletionLookupProvider analyzingSuggestLookupProvider;
         private SortedMap<String, ContextMapping> contextMapping = ContextMapping.EMPTY_MAPPING;
 
-        public CompletionFieldType() {}
+        public CompletionFieldType() {
+            setFieldDataType(null);
+        }
 
         protected CompletionFieldType(CompletionFieldType ref) {
             super(ref);
@@ -312,7 +314,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
     private int maxInputLength;
 
     public CompletionFieldMapper(String simpleName, MappedFieldType fieldType, int maxInputLength, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, false, null, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, multiFields, copyTo);
         this.maxInputLength = maxInputLength;
     }
 
@@ -536,16 +538,6 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public MappedFieldType defaultFieldType() {
-        return Defaults.FIELD_TYPE;
-    }
-
-    @Override
-    public FieldDataType defaultFieldDataType() {
-        return null;
     }
 
     public boolean isStoringPayloads() {

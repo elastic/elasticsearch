@@ -101,6 +101,7 @@ public class TTLFieldMapper extends MetadataFieldMapper {
         @Override
         public TTLFieldMapper build(BuilderContext context) {
             setupFieldType(context);
+            fieldType.setHasDocValues(false);
             return new TTLFieldMapper(fieldType, enabledState, defaultTTL, fieldDataSettings, context.indexSettings());
         }
     }
@@ -167,7 +168,7 @@ public class TTLFieldMapper extends MetadataFieldMapper {
 
     protected TTLFieldMapper(MappedFieldType fieldType, EnabledAttributeMapper enabled, long defaultTTL,
                              @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(NAME, fieldType, false, fieldDataSettings, indexSettings);
+        super(NAME, fieldType, Defaults.TTL_FIELD_TYPE, indexSettings);
         this.enabledState = enabled;
         this.defaultTTL = defaultTTL;
     }
@@ -192,16 +193,6 @@ public class TTLFieldMapper extends MetadataFieldMapper {
     @Override
     public void postParse(ParseContext context) throws IOException {
         super.parse(context);
-    }
-
-    @Override
-    public MappedFieldType defaultFieldType() {
-        return Defaults.TTL_FIELD_TYPE;
-    }
-
-    @Override
-    public FieldDataType defaultFieldDataType() {
-        return new FieldDataType("long");
     }
 
     @Override

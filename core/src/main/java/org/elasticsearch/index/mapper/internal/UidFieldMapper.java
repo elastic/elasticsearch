@@ -88,8 +88,9 @@ public class UidFieldMapper extends MetadataFieldMapper {
 
         @Override
         public UidFieldMapper build(BuilderContext context) {
-            fieldType.setNames(new MappedFieldType.Names(indexName, indexName, name));
-            return new UidFieldMapper(fieldType, docValues, fieldDataSettings, context.indexSettings());
+            setupFieldType(context);
+            fieldType.setHasDocValues(context.indexCreatedVersion().before(Version.V_2_0_0));
+            return new UidFieldMapper(fieldType, defaultFieldType, context.indexSettings());
         }
     }
 
@@ -107,7 +108,9 @@ public class UidFieldMapper extends MetadataFieldMapper {
 
     static final class UidFieldType extends MappedFieldType {
 
-        public UidFieldType() {}
+        public UidFieldType() {
+            setFieldDataType(new FieldDataType("string"));
+        }
 
         protected UidFieldType(UidFieldType ref) {
             super(ref);
@@ -133,30 +136,11 @@ public class UidFieldMapper extends MetadataFieldMapper {
     }
 
     public UidFieldMapper(Settings indexSettings, MappedFieldType existing) {
-        this(existing == null ? Defaults.FIELD_TYPE.clone() : existing, null,
-             existing == null ? null : (existing.fieldDataType() == null ? null : existing.fieldDataType().getSettings()),
-             indexSettings);
+        this(existing == null ? Defaults.FIELD_TYPE.clone() : existing, Defaults.FIELD_TYPE, indexSettings);
     }
 
-    protected UidFieldMapper(MappedFieldType fieldType, Boolean docValues, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(NAME, fieldType, docValuesEnabled(docValues, indexSettings), fieldDataSettings, indexSettings);
-    }
-    
-    static Boolean docValuesEnabled(Boolean docValues, Settings indexSettings) {
-        if (Version.indexCreated(indexSettings).onOrAfter(Version.V_2_0_0)) {
-            return false; // explicitly disable doc values for 2.0+, for now
-        }
-        return docValues;
-    }
-
-    @Override
-    public MappedFieldType defaultFieldType() {
-        return Defaults.FIELD_TYPE;
-    }
-
-    @Override
-    public FieldDataType defaultFieldDataType() {
-        return new FieldDataType("string");
+    protected UidFieldMapper(MappedFieldType fieldType, MappedFieldType defaultFieldType, Settings indexSettings) {
+        super(NAME, fieldType, defaultFieldType, indexSettings);
     }
 
     @Override
@@ -230,9 +214,7 @@ public class UidFieldMapper extends MetadataFieldMapper {
 
         builder.startObject(CONTENT_TYPE);
 
-        if (hasCustomFieldDataSettings()) {
-            builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
-        } else if (includeDefaults) {
+        if (includeDefaults || hasCustomFieldDataSettings()) {
             builder.field("fielddata", (Map) fieldType().fieldDataType().getSettings().getAsMap());
         }
 

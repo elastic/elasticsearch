@@ -185,11 +185,10 @@ public abstract class NumberFieldMapper extends AbstractFieldMapper implements A
      */
     protected final boolean useSortedNumericDocValues;
 
-    protected NumberFieldMapper(String simpleName, MappedFieldType fieldType, Boolean docValues,
-                                Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, @Nullable Settings fieldDataSettings, Settings indexSettings,
+    protected NumberFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
+                                Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, Settings indexSettings,
                                 MultiFields multiFields, CopyTo copyTo) {
-        // LUCENE 4 UPGRADE: Since we can't do anything before the super call, we have to push the boost check down to subclasses
-        super(simpleName, fieldType, docValues, fieldDataSettings, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
         this.coerce = coerce;
         this.useSortedNumericDocValues = Version.indexCreated(indexSettings).onOrAfter(Version.V_1_4_0_Beta1);

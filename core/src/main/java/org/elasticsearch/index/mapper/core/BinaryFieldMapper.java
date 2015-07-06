@@ -81,8 +81,8 @@ public class BinaryFieldMapper extends AbstractFieldMapper {
         public BinaryFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             ((BinaryFieldType)fieldType).setTryUncompressing(context.indexCreatedVersion().before(Version.V_2_0_0));
-            return new BinaryFieldMapper(name, fieldType, docValues,
-                    fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+            return new BinaryFieldMapper(name, fieldType, defaultFieldType,
+                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -181,19 +181,9 @@ public class BinaryFieldMapper extends AbstractFieldMapper {
         }
     }
 
-    protected BinaryFieldMapper(String simpleName, MappedFieldType fieldType, Boolean docValues,
-                                @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, docValues, fieldDataSettings, indexSettings, multiFields, copyTo);
-    }
-
-    @Override
-    public MappedFieldType defaultFieldType() {
-        return Defaults.FIELD_TYPE;
-    }
-
-    @Override
-    public FieldDataType defaultFieldDataType() {
-        return new FieldDataType("binary");
+    protected BinaryFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
+                                Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
     }
 
     @Override

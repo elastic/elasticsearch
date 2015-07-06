@@ -116,9 +116,8 @@ public class DateFieldMapper extends NumberFieldMapper {
         public DateFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             fieldType.setNullValue(nullValue);
-            DateFieldMapper fieldMapper = new DateFieldMapper(name, fieldType,
-                    docValues, ignoreMalformed(context), coerce(context),
-                    fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+            DateFieldMapper fieldMapper = new DateFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
+                coerce(context), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -259,6 +258,7 @@ public class DateFieldMapper extends NumberFieldMapper {
 
         public DateFieldType() {
             super(NumericType.LONG);
+            setFieldDataType(new FieldDataType("long"));
         }
 
         protected DateFieldType(DateFieldType ref) {
@@ -436,24 +436,14 @@ public class DateFieldMapper extends NumberFieldMapper {
         }
     }
 
-    protected DateFieldMapper(String simpleName, MappedFieldType fieldType, Boolean docValues, Explicit<Boolean> ignoreMalformed,Explicit<Boolean> coerce,
-                              @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, docValues, ignoreMalformed, coerce, fieldDataSettings, indexSettings, multiFields, copyTo);
+    protected DateFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Explicit<Boolean> ignoreMalformed,Explicit<Boolean> coerce,
+                              Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, indexSettings, multiFields, copyTo);
     }
 
     @Override
     public DateFieldType fieldType() {
         return (DateFieldType) super.fieldType();
-    }
-
-    @Override
-    public MappedFieldType defaultFieldType() {
-        return Defaults.FIELD_TYPE;
-    }
-
-    @Override
-    public FieldDataType defaultFieldDataType() {
-        return new FieldDataType("long");
     }
 
     private static Callable<Long> now() {

@@ -1024,6 +1024,99 @@
                     </execution>
                 </executions>
             </plugin>
+            <!-- integration tests -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <executions>
+                    <!-- start up external cluster -->
+                    <execution>
+                        <id>integ-setup</id>
+                        <phase>pre-integration-test</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                              <!-- unzip release artifact -->
+                              <property name="integ.finalname" value="${project.artifactId}-${project.version}"/>
+                              <property name="integ.scratch" location="${project.build.directory}/integ-tests"/>
+                              <unzip src="${project.build.directory}/releases/${integ.finalname}.zip"
+                                     dest="${integ.scratch}"/>
+
+                              <property name="integ.home" location="${integ.scratch}/${integ.finalname}"/>
+
+                              <!-- execute -->
+                              <property name="integ.args"
+                                        value="-Des.node.name=smoke_tester -Des.cluster.name=prepare_release
+                                               -Des.discovery.zen.ping.multicast.enabled=false -Des.script.inline=on
+                                               -Des.script.indexed=on"/>
+
+                              <echo>Starting up external cluster...</echo>
+                              <exec executable="cmd" osfamily="winnt" dir="${integ.home}" spawn="true">
+                                <arg value="/c"/>
+                                <arg value="${integ.home}/bin/elasticsearch.bat"/>
+                                <arg line="${integ.args}"/>
+                              </exec>
+                              <exec executable="sh" osfamily="unix" dir="${integ.home}" spawn="true">
+                                <arg value="${integ.home}/bin/elasticsearch"/>
+                                <arg line="${integ.args}"/>
+                              </exec>
+                              <waitfor maxwait="3" maxwaitunit="minute" checkevery="500">
+                                 <http url="http://127.0.0.1:9200"/>
+                              </waitfor>
+                              <echo>External cluster started</echo>
+                            </target>
+                        </configuration>
+                    </execution>
+                    <!-- shut down external cluster -->
+                    <execution>
+                        <id>integ-teardown</id>
+                        <phase>post-integration-test</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                              <!-- TODO: this is brutal, specify and read our pid file instead -->
+                              <!-- find ES processes with jps, then shoot them with 50 cal -->
+                              <exec executable="jps">
+                                <arg value="-l"/>
+                                <redirector outputproperty="process.pid">
+                                  <outputfilterchain>
+                                    <linecontains>
+                                      <contains value="org.elasticsearch.bootstrap.Elasticsearch"/>
+                                    </linecontains>
+                                    <replacestring from=" org.elasticsearch.bootstrap.Elasticsearch"/>
+                                  </outputfilterchain>
+                                </redirector>
+                              </exec>
+                              <echo>Shutting down external cluster</echo>
+                              <exec executable="taskkill" osfamily="winnt">
+                                <arg value="/F"/>
+                                <arg value="/PID"/>
+                                <arg value="${process.pid}"/>
+                              </exec>
+                              <exec executable="kill" osfamily="unix">
+                                <arg value="-9"/>
+                                <arg value="${process.pid}"/>
+                              </exec>
+                              <!-- best effort cleanup. 'clean' will take care in all cases -->
+                              <delete dir="${project.build.directory}/integ-tests" failonerror="false"/>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <configuration>
+                    <systemPropertyVariables>
+                        <tests.cluster>127.0.0.1:9300</tests.cluster>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
         </plugins>
       <pluginManagement>
         <plugins>

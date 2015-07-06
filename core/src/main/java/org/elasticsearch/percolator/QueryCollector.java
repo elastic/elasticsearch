@@ -76,8 +76,9 @@ abstract class QueryCollector extends SimpleCollector {
         if (context.aggregations() != null) {
             AggregationContext aggregationContext = new AggregationContext(context);
             context.aggregations().aggregationContext(aggregationContext);
+            context.aggregations().factories().init(aggregationContext);
 
-            Aggregator[] aggregators = context.aggregations().factories().createTopLevelAggregators(aggregationContext);
+            Aggregator[] aggregators = context.aggregations().factories().createTopLevelAggregators();
             for (int i = 0; i < aggregators.length; i++) {
                 if (!(aggregators[i] instanceof GlobalAggregator)) {
                     Aggregator aggregator = aggregators[i];

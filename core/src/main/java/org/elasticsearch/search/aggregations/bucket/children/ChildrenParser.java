@@ -20,15 +20,9 @@ package org.elasticsearch.search.aggregations.bucket.children;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.FieldContext;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -70,31 +64,7 @@ public class ChildrenParser implements Aggregator.Parser {
                     parser.getTokenLocation());
         }
 
-        ValuesSourceConfig<ValuesSource.Bytes.WithOrdinals.ParentChild> config = new ValuesSourceConfig<>(ValuesSource.Bytes.WithOrdinals.ParentChild.class);
-        DocumentMapper childDocMapper = context.mapperService().documentMapper(childType);
 
-        String parentType = null;
-        Query parentFilter = null;
-        Query childFilter = null;
-        if (childDocMapper != null) {
-            ParentFieldMapper parentFieldMapper = childDocMapper.parentFieldMapper();
-            if (!parentFieldMapper.active()) {
-                throw new SearchParseException(context, "[children] no [_parent] field not configured that points to a parent type", parser.getTokenLocation());
-            }
-            parentType = parentFieldMapper.type();
-            DocumentMapper parentDocMapper = context.mapperService().documentMapper(parentType);
-            if (parentDocMapper != null) {
-                // TODO: use the query API
-                parentFilter = parentDocMapper.typeFilter();
-                childFilter = childDocMapper.typeFilter();
-                ParentChildIndexFieldData parentChildIndexFieldData = context.fieldData().getForField(parentFieldMapper.fieldType());
-                config.fieldContext(new FieldContext(parentFieldMapper.fieldType().names().indexName(), parentChildIndexFieldData, parentFieldMapper.fieldType()));
-            } else {
-                config.unmapped(true);
-            }
-        } else {
-            config.unmapped(true);
-        }
-        return new ParentToChildrenAggregator.Factory(aggregationName, config, parentType, parentFilter, childFilter);
+        return new ParentToChildrenAggregator.Factory(aggregationName, childType);
     }
 }

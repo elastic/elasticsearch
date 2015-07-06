@@ -22,6 +22,7 @@ package org.elasticsearch.common.settings;
 import com.google.common.base.Charsets;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSortedMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -81,7 +82,9 @@ public final class Settings implements ToXContent {
     private transient ClassLoader classLoader;
 
     Settings(Map<String, String> settings, ClassLoader classLoader) {
-        this.settings = ImmutableMap.copyOf(settings);
+        // we use a sorted map for consistent serialization when using getAsMap()
+        // TODO: use Collections.unmodifiableMap with a TreeMap
+        this.settings = ImmutableSortedMap.copyOf(settings);
         Map<String, String> forcedUnderscoreSettings = null;
         for (Map.Entry<String, String> entry : settings.entrySet()) {
             String toUnderscoreCase = Strings.toUnderscoreCase(entry.getKey());

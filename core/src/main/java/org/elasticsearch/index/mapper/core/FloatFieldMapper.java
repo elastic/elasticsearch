@@ -89,8 +89,8 @@ public class FloatFieldMapper extends NumberFieldMapper {
         @Override
         public FloatFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            FloatFieldMapper fieldMapper = new FloatFieldMapper(name, fieldType, docValues, ignoreMalformed(context), coerce(context),
-                    fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+            FloatFieldMapper fieldMapper = new FloatFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context), coerce(context),
+                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -202,25 +202,15 @@ public class FloatFieldMapper extends NumberFieldMapper {
         }
     }
 
-    protected FloatFieldMapper(String simpleName, MappedFieldType fieldType, Boolean docValues,
+    protected FloatFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-                               @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, docValues, ignoreMalformed, coerce, fieldDataSettings, indexSettings, multiFields, copyTo);
+                               Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, indexSettings, multiFields, copyTo);
     }
 
     @Override
     public FloatFieldType fieldType() {
         return (FloatFieldType) super.fieldType();
-    }
-
-    @Override
-    public MappedFieldType defaultFieldType() {
-        return Defaults.FIELD_TYPE;
-    }
-
-    @Override
-    public FieldDataType defaultFieldDataType() {
-        return new FieldDataType("float");
     }
 
     private static float parseValue(Object value) {

@@ -128,7 +128,7 @@
         <dependencies>
             <dependency>
                 <groupId>org.elasticsearch</groupId>
-                <artifactId>dev-tools</artifactId>
+                <artifactId>elasticsearch-dev-tools</artifactId>
                 <version>${elasticsearch.version}</version>
             </dependency>
 
@@ -737,8 +737,8 @@
                     <version>1.5</version>
                     <configuration>
                         <resourceBundles>
-                            <resourceBundle>org.elasticsearch:dev-tools:${elasticsearch.version}</resourceBundle>
-                            <resourceBundle>org.elasticsearch:rest-api-spec:${elasticsearch.version}</resourceBundle>
+                            <resourceBundle>org.elasticsearch:elasticsearch-dev-tools:${elasticsearch.version}</resourceBundle>
+                            <resourceBundle>org.elasticsearch:elasticsearch-rest-api-spec:${elasticsearch.version}</resourceBundle>
                         </resourceBundles>
                         <outputDirectory>${elasticsearch.tools.directory}</outputDirectory>
                         <!-- don't include dev-tools in artifacts -->
@@ -1285,7 +1285,7 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                     <!-- We just declare which plugin version to use. Each project can have then its own settings -->
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-invoker-plugin</artifactId>
-                    <version>1.10</version>
+                    <version>2.0.0</version>
                 </plugin>
                 <plugin>
                     <!-- We just declare which plugin version to use. Each project can have then its own settings -->

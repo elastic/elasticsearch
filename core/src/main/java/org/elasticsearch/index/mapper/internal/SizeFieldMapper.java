@@ -83,6 +83,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         @Override
         public SizeFieldMapper build(BuilderContext context) {
             setupFieldType(context);
+            fieldType.setHasDocValues(false);
             return new SizeFieldMapper(enabledState, fieldType, context.indexSettings());
         }
     }
@@ -114,7 +115,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
     }
 
     public SizeFieldMapper(EnabledAttributeMapper enabled, MappedFieldType fieldType, Settings indexSettings) {
-        super(NAME, fieldType, false, null, indexSettings);
+        super(NAME, fieldType, Defaults.SIZE_FIELD_TYPE, indexSettings);
         this.enabledState = enabled;
 
     }
@@ -136,16 +137,6 @@ public class SizeFieldMapper extends MetadataFieldMapper {
     public void postParse(ParseContext context) throws IOException {
         // we post parse it so we get the size stored, possibly compressed (source will be preParse)
         super.parse(context);
-    }
-
-    @Override
-    public MappedFieldType defaultFieldType() {
-        return Defaults.SIZE_FIELD_TYPE;
-    }
-
-    @Override
-    public FieldDataType defaultFieldDataType() {
-        return new FieldDataType("int");
     }
 
     @Override

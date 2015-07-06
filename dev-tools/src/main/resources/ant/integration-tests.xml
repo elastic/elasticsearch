@@ -1,6 +1,11 @@
 <?xml version="1.0"?>
 <project name="elasticsearch-integration-tests">
 
+ <!-- this is all to not run tests for 'pom' packaging. maven you fail -->
+  <condition property="shouldskip">
+    <istrue value="${skip.integ.tests}"/>
+  </condition>
+
   <!-- runs an OS script -->
   <macrodef name="run-script">
       <attribute name="script"/>
@@ -22,7 +27,7 @@
   </macrodef>
 
   <!-- unzip core release artifact and start ES -->
-  <target name="start-external-cluster">
+  <target name="start-external-cluster" unless="${shouldskip}">
     <property name="integ.finalname" value="${project.artifactId}-${project.version}"/>
     <property name="integ.scratch" location="${project.build.directory}/integ-tests"/>
 
@@ -48,7 +53,7 @@
   </target>
 
   <!-- unzip core release artifact, install plugin, then start ES -->
-  <target name="start-external-cluster-with-plugin">
+  <target name="start-external-cluster-with-plugin" unless="${shouldskip}">
     <property name="integ.scratch" location="${project.build.directory}/integ-tests"/>
 
     <unzip src="${settings.localRepository}/org/elasticsearch/elasticsearch/${elasticsearch.version}/elasticsearch-${elasticsearch.version}.zip"

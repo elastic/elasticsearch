@@ -33,7 +33,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
@@ -192,8 +192,8 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
 
         private final double sigma;
 
-        public Factory(String name, ValuesSourceConfig<ValuesSource.Numeric> valuesSourceConfig, double sigma) {
-            super(name, InternalExtendedStats.TYPE.name(), valuesSourceConfig);
+        public Factory(String name, ValuesSourceParser.Input<ValuesSource.Numeric> valuesSourceInput, double sigma) {
+            super(name, InternalExtendedStats.TYPE.name(), valuesSourceInput);
 
             this.sigma = sigma;
         }

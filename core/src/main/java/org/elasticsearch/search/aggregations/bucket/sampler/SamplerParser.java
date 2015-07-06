@@ -23,7 +23,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -88,9 +87,9 @@ public class SamplerParser implements Aggregator.Parser {
             }
         }
 
-        ValuesSourceConfig vsConfig = vsParser.config();
-        if (vsConfig.valid()) {
-            return new SamplerAggregator.DiversifiedFactory(aggregationName, shardSize, executionHint, vsConfig, maxDocsPerValue);
+        ValuesSourceParser.Input vsInput = vsParser.input();
+        if (vsInput.valid()) {
+            return new SamplerAggregator.DiversifiedFactory(aggregationName, shardSize, executionHint, vsInput, maxDocsPerValue);
         } else {
             if (diversityChoiceMade) {
                 throw new SearchParseException(context, "Sampler aggregation has " + MAX_DOCS_PER_VALUE_FIELD.getPreferredName()

@@ -21,11 +21,10 @@ package org.elasticsearch.search.aggregations.metrics.cardinality;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.core.Murmur3FieldMapper;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -44,7 +43,8 @@ public class CardinalityParser implements Aggregator.Parser {
     @Override
     public AggregatorFactory parse(String name, XContentParser parser, SearchContext context) throws IOException {
 
-        ValuesSourceParser vsParser = ValuesSourceParser.any(name, InternalCardinality.TYPE, context).formattable(false).build();
+        ValuesSourceParser<ValuesSource> vsParser = ValuesSourceParser.any(name, InternalCardinality.TYPE, context).formattable(false)
+                .build();
 
         long precisionThreshold = -1;
         Boolean rehash = null;
@@ -70,15 +70,9 @@ public class CardinalityParser implements Aggregator.Parser {
             }
         }
 
-        ValuesSourceConfig<?> config = vsParser.config();
+        ValuesSourceParser.Input<ValuesSource> input = vsParser.input();
 
-        if (rehash == null && config.fieldContext() != null && config.fieldContext().fieldType() instanceof Murmur3FieldMapper.Murmur3FieldType) {
-            rehash = false;
-        } else if (rehash == null) {
-            rehash = true;
-        }
-
-        return new CardinalityAggregatorFactory(name, config, precisionThreshold, rehash);
+        return new CardinalityAggregatorFactory(name, input, precisionThreshold, rehash);
 
     }
 

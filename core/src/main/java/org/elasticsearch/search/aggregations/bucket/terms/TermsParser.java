@@ -73,7 +73,8 @@ public class TermsParser implements Aggregator.Parser {
                     context.numberOfShards()));
         }
         bucketCountThresholds.ensureValidity();
-        return new TermsAggregatorFactory(aggregationName, vsParser.config(), order, bucketCountThresholds, aggParser.getIncludeExclude(), aggParser.getExecutionHint(), aggParser.getCollectionMode(), aggParser.showTermDocCountError());
+        return new TermsAggregatorFactory(aggregationName, vsParser.input(), order, bucketCountThresholds, aggParser.getIncludeExclude(),
+                aggParser.getExecutionHint(), aggParser.getCollectionMode(), aggParser.showTermDocCountError());
     }
 
     static Terms.Order resolveOrder(String key, boolean asc) {

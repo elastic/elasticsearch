@@ -34,7 +34,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -83,8 +82,9 @@ abstract class QueryCollector extends SimpleCollector {
         if (context.aggregations() != null) {
             AggregationContext aggregationContext = new AggregationContext(context);
             context.aggregations().aggregationContext(aggregationContext);
+            context.aggregations().factories().init(aggregationContext);
 
-            Aggregator[] aggregators = context.aggregations().factories().createTopLevelAggregators(aggregationContext);
+            Aggregator[] aggregators = context.aggregations().factories().createTopLevelAggregators();
             for (int i = 0; i < aggregators.length; i++) {
                 if (!(aggregators[i] instanceof GlobalAggregator)) {
                     Aggregator aggregator = aggregators[i];

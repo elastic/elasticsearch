@@ -87,4 +87,10 @@ public class TermsParser implements Aggregator.Parser {
         return Order.aggregation(key, asc);
     }
 
+    // NORELEASE implement this method when refactoring this aggregation
+    @Override
+    public AggregatorFactory getFactoryPrototype() {
+        return null;
+    }
+
 }

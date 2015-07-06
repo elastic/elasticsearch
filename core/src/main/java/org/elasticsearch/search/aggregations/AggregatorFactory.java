@@ -18,11 +18,17 @@
  */
 package org.elasticsearch.search.aggregations;
 
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
+import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
@@ -34,7 +40,7 @@ import java.util.Map;
 /**
  * A factory that knows how to create an {@link Aggregator} of a specific type.
  */
-public abstract class AggregatorFactory {
+public abstract class AggregatorFactory extends ToXContentToBytes implements NamedWriteable<AggregatorFactory> {
 
     protected String name;
     protected String type;
@@ -123,13 +129,75 @@ public abstract class AggregatorFactory {
         this.metaData = metaData;
     }
 
+    @Override
+    public final AggregatorFactory readFrom(StreamInput in) throws IOException {
+        String name = in.readString();
+        AggregatorFactory factory = doReadFrom(name, in);
+        if (in.readBoolean()) {
+            factory.parent = in.readAggregatorFactory();
+        }
+        factory.factories = AggregatorFactories.EMPTY.readFrom(in);
+        factory.metaData = in.readMap();
+        return factory;
+    }
 
+    // NORELEASE make this abstract when agg refactor complete
+    protected AggregatorFactory doReadFrom(String name, StreamInput in) throws IOException {
+        return null;
+    }
+
+    @Override
+    public final void writeTo(StreamOutput out) throws IOException {
+        out.writeString(name);
+        doWriteTo(out);
+        boolean hasParent = parent != null;
+        out.writeBoolean(hasParent);
+        if (hasParent) {
+            out.writeAggregatorFactory(parent);
+        }
+        factories.writeTo(out);
+        out.writeMap(metaData);
+    }
+
+    // NORELEASE make this abstract when agg refactor complete
+    protected void doWriteTo(StreamOutput out) throws IOException {
+    }
+
+    @Override
+    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(name);
+
+        if (this.metaData != null) {
+            builder.field("meta", this.metaData);
+        }
+        builder.field(type);
+        internalXContent(builder, params);
+
+        if (factories != null && factories.count() > 0) {
+            builder.field("aggregations");
+            factories.toXContent(builder, params);
+
+        }
+
+        return builder.endObject();
+    }
+
+    // NORELEASE make this method abstract when agg refactor complete
+    protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder;
+    }
+
+    @Override
+    public String getWriteableName() {
+        return type;
+    }
 
     /**
      * Utility method. Given an {@link AggregatorFactory} that creates {@link Aggregator}s that only know how
      * to collect bucket <tt>0</tt>, this returns an aggregator that can collect any bucket.
      */
-    protected static Aggregator asMultiBucketAggregator(final AggregatorFactory factory, final AggregationContext context, final Aggregator parent) throws IOException {
+    protected static Aggregator asMultiBucketAggregator(final AggregatorFactory factory,
+            final AggregationContext context, final Aggregator parent) throws IOException {
         final Aggregator first = factory.create(parent, true);
         final BigArrays bigArrays = context.bigArrays();
         return new Aggregator() {
@@ -246,6 +314,70 @@ public abstract class AggregatorFactory {
                 Releasables.close(aggregators, collectors);
             }
         };
+    }
+
+    @Override
+    public int hashCode() {
+        final int prime = 31;
+        int result = 1;
+        result = prime * result + ((factories == null) ? 0 : factories.hashCode());
+        result = prime * result + ((metaData == null) ? 0 : metaData.hashCode());
+        result = prime * result + ((name == null) ? 0 : name.hashCode());
+        result = prime * result + ((parent == null) ? 0 : parent.hashCode());
+        result = prime * result + ((type == null) ? 0 : type.hashCode());
+        result = prime * result + doHashCode();
+        return result;
+    }
+
+    // NORELEASE make this method abstract here when agg refactor complete (so
+    // that subclasses are forced to implement it)
+    protected int doHashCode() {
+        throw new UnsupportedOperationException(
+                "This method should be implemented by a sub-class and should not rely on this method. When agg re-factoring is complete this method will be made abstract.");
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj)
+            return true;
+        if (obj == null)
+            return false;
+        if (getClass() != obj.getClass())
+            return false;
+        AggregatorFactory other = (AggregatorFactory) obj;
+        if (factories == null) {
+            if (other.factories != null)
+                return false;
+        } else if (!factories.equals(other.factories))
+            return false;
+        if (metaData == null) {
+            if (other.metaData != null)
+                return false;
+        } else if (!metaData.equals(other.metaData))
+            return false;
+        if (name == null) {
+            if (other.name != null)
+                return false;
+        } else if (!name.equals(other.name))
+            return false;
+        if (parent == null) {
+            if (other.parent != null)
+                return false;
+        } else if (!parent.equals(other.parent))
+            return false;
+        if (type == null) {
+            if (other.type != null)
+                return false;
+        } else if (!type.equals(other.type))
+            return false;
+        return doEquals(obj);
+    }
+
+    // NORELEASE make this method abstract here when agg refactor complete (so
+    // that subclasses are forced to implement it)
+    protected boolean doEquals(Object obj) {
+        throw new UnsupportedOperationException(
+                "This method should be implemented by a sub-class and should not rely on this method. When agg re-factoring is complete this method will be made abstract.");
     }
 
 }

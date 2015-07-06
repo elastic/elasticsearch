@@ -40,7 +40,7 @@ public abstract class PipelineAggregator implements Streamable {
     /**
      * Parses the pipeline aggregation request and creates the appropriate
      * pipeline aggregator factory for it.
-     * 
+     *
      * @see {@link PipelineAggregatorFactory}
      */
     public static interface Parser {
@@ -58,7 +58,7 @@ public abstract class PipelineAggregator implements Streamable {
         /**
          * Returns the pipeline aggregator factory with which this parser is
          * associated.
-         * 
+         *
          * @param pipelineAggregatorName
          *            The name of the pipeline aggregation
          * @param parser
@@ -70,6 +70,12 @@ public abstract class PipelineAggregator implements Streamable {
          *             When parsing fails
          */
         PipelineAggregatorFactory parse(String pipelineAggregatorName, XContentParser parser, SearchContext context) throws IOException;
+
+        /**
+         * @return an empty {@link PipelineAggregatorFactory} instance for this
+         *         parser that can be used for deserialization
+         */
+        PipelineAggregatorFactory getFactoryPrototype();
 
     }
 

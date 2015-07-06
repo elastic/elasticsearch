@@ -128,9 +128,9 @@ public abstract class AbstractPercentilesParser implements Aggregator.Parser {
                                             + "]: [" + currentFieldName + "].", parser.getTokenLocation());
                                 }
                             } else {
-                                throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
-                                        + currentFieldName + "].", parser.getTokenLocation());
-                            }
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
+                            + currentFieldName + "].", parser.getTokenLocation());
+                }
                         }
                         break;
                     }

@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.pipeline.serialdiff;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseException;
+import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
@@ -31,8 +32,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-
-import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
 public class SerialDiffParser implements PipelineAggregator.Parser {
 
@@ -111,6 +110,12 @@ public class SerialDiffParser implements PipelineAggregator.Parser {
         }
 
         return new SerialDiffPipelineAggregator.Factory(reducerName, bucketsPaths, formatter, gapPolicy, lag);
+    }
+
+    // NORELEASE implement this method when refactoring this aggregation
+    @Override
+    public PipelineAggregatorFactory getFactoryPrototype() {
+        return null;
     }
 
 }

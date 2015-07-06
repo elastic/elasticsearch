@@ -34,9 +34,12 @@ import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter.DateTime;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -153,11 +156,11 @@ public class HistogramAggregator extends BucketsAggregator {
         private final ExtendedBounds extendedBounds;
         private final InternalHistogram.Factory<?> histogramFactory;
 
-        public Factory(String name, ValuesSourceConfig<ValuesSource.Numeric> config,
+        public Factory(String name, ValuesSourceParser.Input<ValuesSource.Numeric> input,
                        Rounding rounding, InternalOrder order, boolean keyed, long minDocCount,
                        ExtendedBounds extendedBounds, InternalHistogram.Factory<?> histogramFactory) {
 
-            super(name, histogramFactory.type(), config);
+            super(name, histogramFactory.type(), input);
             this.rounding = rounding;
             this.order = order;
             this.keyed = keyed;
@@ -196,5 +199,39 @@ public class HistogramAggregator extends BucketsAggregator {
                     config.formatter(), histogramFactory, aggregationContext, parent, pipelineAggregators, metaData);
         }
 
+    }
+
+    public static class DateHistogramFactory extends Factory {
+
+        private DateTimeZone timeZone;
+
+        public DateHistogramFactory(String name, ValuesSourceParser.Input<Numeric> input, Rounding rounding, InternalOrder order,
+                boolean keyed, long minDocCount, ExtendedBounds extendedBounds,
+                org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.Factory<?> histogramFactory, DateTimeZone timeZone) {
+            super(name, input, rounding, order, keyed, minDocCount, extendedBounds, histogramFactory);
+            this.timeZone = timeZone;
+        }
+
+        @Override
+        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
+                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+            setFormatterTimeZone();
+            return super.createUnmapped(aggregationContext, parent, pipelineAggregators, metaData);
+        }
+
+        @Override
+        protected Aggregator doCreateInternal(Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent,
+                boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+                throws IOException {
+            setFormatterTimeZone();
+            return super
+                    .doCreateInternal(valuesSource, aggregationContext, parent, collectsFromSingleBucket, pipelineAggregators, metaData);
+        }
+
+        private void setFormatterTimeZone() {
+            if (config.formatter() instanceof ValueFormatter.DateTime) {
+                ((DateTime) config.formatter()).setTimeZone(timeZone);
+            }
+        }
     }
 }

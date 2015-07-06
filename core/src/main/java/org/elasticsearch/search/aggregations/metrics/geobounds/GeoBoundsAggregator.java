@@ -34,7 +34,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -160,7 +160,7 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
         return new InternalGeoBounds(name, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY,
                 Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, wrapLongitude, pipelineAggregators(), metaData());
     }
-    
+
     @Override
     public void doClose() {
         Releasables.close(tops, bottoms, posLefts, posRights, negLefts, negRights);
@@ -170,8 +170,8 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
 
         private final boolean wrapLongitude;
 
-        protected Factory(String name, ValuesSourceConfig<ValuesSource.GeoPoint> config, boolean wrapLongitude) {
-            super(name, InternalGeoBounds.TYPE.name(), config);
+        protected Factory(String name, ValuesSourceParser.Input<ValuesSource.GeoPoint> input, boolean wrapLongitude) {
+            super(name, InternalGeoBounds.TYPE.name(), input);
             this.wrapLongitude = wrapLongitude;
         }
 

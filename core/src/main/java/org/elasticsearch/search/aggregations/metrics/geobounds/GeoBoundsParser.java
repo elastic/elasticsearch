@@ -67,4 +67,10 @@ public class GeoBoundsParser implements Aggregator.Parser {
         return new GeoBoundsAggregator.Factory(aggregationName, vsParser.input(), wrapLongitude);
     }
 
+    // NORELEASE implement this method when refactoring this aggregation
+    @Override
+    public AggregatorFactory getFactoryPrototype() {
+        return null;
+    }
+
 }

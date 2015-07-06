@@ -117,4 +117,10 @@ public class DateRangeParser implements Aggregator.Parser {
 
         return new RangeAggregator.Factory(aggregationName, vsParser.input(), InternalDateRange.FACTORY, ranges, keyed);
     }
+
+    // NORELEASE implement this method when refactoring this aggregation
+    @Override
+    public AggregatorFactory getFactoryPrototype() {
+        return null;
+    }
 }

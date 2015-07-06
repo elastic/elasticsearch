@@ -128,4 +128,10 @@ public class BucketScriptParser implements PipelineAggregator.Parser {
         return new BucketScriptPipelineAggregator.Factory(reducerName, bucketsPathsMap, script, formatter, gapPolicy);
     }
 
+    // NORELEASE implement this method when refactoring this aggregation
+    @Override
+    public PipelineAggregatorFactory getFactoryPrototype() {
+        return null;
+    }
+
 }

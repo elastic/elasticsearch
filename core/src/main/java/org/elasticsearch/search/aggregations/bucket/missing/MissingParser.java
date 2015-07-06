@@ -59,4 +59,10 @@ public class MissingParser implements Aggregator.Parser {
 
         return new MissingAggregator.Factory(aggregationName, vsParser.input());
     }
+
+    // NORELEASE implement this method when refactoring this aggregation
+    @Override
+    public AggregatorFactory getFactoryPrototype() {
+        return null;
+    }
 }

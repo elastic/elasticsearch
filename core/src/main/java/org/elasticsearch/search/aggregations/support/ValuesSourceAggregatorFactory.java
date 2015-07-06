@@ -19,6 +19,9 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -43,6 +46,7 @@ import org.joda.time.DateTimeZone;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  *
@@ -72,8 +76,8 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
     private ValueType valueType = null;
     private String format = null;
     private Object missing = null;
-    protected ValuesSourceConfig<VS> config;
     private DateTimeZone timeZone;
+    protected ValuesSourceConfig<VS> config;
 
     // NORELEASE remove this method when aggs refactoring complete
     /**
@@ -270,5 +274,130 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
             parent = parent.parent();
         }
         throw new AggregationExecutionException("could not find the appropriate value context to perform aggregation [" + aggName + "]");
+    }
+
+    @Override
+    public void doWriteTo(StreamOutput out) throws IOException {
+        out.writeOptionalString(valuesSourceType.getName()); // NOCOMMIT write
+                                                             // this properly
+        boolean hasTargetValueType = valueType != null;
+        out.writeBoolean(hasTargetValueType);
+        if (hasTargetValueType) {
+            targetValueType.writeTo(out);
+        }
+        innerWriteTo(out);
+        out.writeOptionalString(field);
+        boolean hasScript = script != null;
+        out.writeBoolean(hasScript);
+        if (hasScript) {
+            script.writeTo(out);
+        }
+        boolean hasValueType = valueType != null;
+        out.writeBoolean(hasValueType);
+        if (hasValueType) {
+            valueType.writeTo(out);
+        }
+        out.writeOptionalString(format);
+        out.writeGenericValue(missing);
+    }
+
+    // NORELEASE make this abstract when agg refactor complete
+    protected void innerWriteTo(StreamOutput out) {
+    }
+
+    @Override
+    protected ValuesSourceAggregatorFactory<VS> doReadFrom(String name, StreamInput in) throws IOException {
+        Class<VS> valuesSourceType;
+        String valueSourceTypeClassName = in.readOptionalString(); // NOCOMMIT read this properly
+        try {
+            valuesSourceType = (Class<VS>) Class.forName(valueSourceTypeClassName);
+        } catch (ClassNotFoundException e) {
+            throw new IOException("Could not load targetValueSource [" + valueSourceTypeClassName + "] for aggregation [" + name + "]", e);
+        }
+        ValueType targetValueType = null;
+        if (in.readBoolean()) {
+            targetValueType = ValueType.STRING.readFrom(in);
+        }
+        ValuesSourceAggregatorFactory<VS> factory = innerReadFrom(name, valuesSourceType, targetValueType, in);
+        factory.field = in.readOptionalString();
+        if (in.readBoolean()) {
+            factory.script = Script.readScript(in);
+        }
+        if (in.readBoolean()) {
+            factory.valueType = ValueType.STRING.readFrom(in);
+        }
+        factory.format = in.readOptionalString();
+        factory.missing = in.readGenericValue();
+        return factory;
+    }
+
+    // NORELEASE make this abstract when agg refactor complete
+    protected ValuesSourceAggregatorFactory<VS> innerReadFrom(String name, Class<VS> valuesSourceType, ValueType targetValueType,
+            StreamInput in) {
+        return null;
+    }
+
+    @Override
+    protected final XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        if (field != null) {
+            builder.field("field", field);
+        }
+        if (script != null) {
+            builder.field("script", script);
+        }
+        if (missing != null) {
+            builder.field("missing", missing);
+        }
+        doXContentBody(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    // NORELEASE make this abstract when agg refactor complete
+    protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+        return builder;
+    }
+
+    @Override
+    public int doHashCode() {
+        return Objects.hash(field, format, missing, script, targetValueType, timeZone, valueType, valuesSourceType.getName(),
+                innerHashCode());
+    }
+
+    // NORELEASE make this method abstract here when agg refactor complete (so
+    // that subclasses are forced to implement it)
+    protected int innerHashCode() {
+        throw new UnsupportedOperationException(
+                "This method should be implemented by a sub-class and should not rely on this method. When agg re-factoring is complete this method will be made abstract.");
+    }
+
+    @Override
+    public boolean doEquals(Object obj) {
+        ValuesSourceAggregatorFactory<?> other = (ValuesSourceAggregatorFactory<?>) obj;
+        if (!Objects.equals(field, other.field))
+            return false;
+        if (!Objects.equals(format, other.format))
+            return false;
+        if (!Objects.equals(missing, other.missing))
+            return false;
+        if (!Objects.equals(script, other.script))
+            return false;
+        if (!Objects.equals(targetValueType, other.targetValueType))
+            return false;
+        if (!Objects.equals(timeZone, other.timeZone))
+            return false;
+        if (!Objects.equals(valueType, other.valueType))
+            return false;
+        if (!Objects.equals(valuesSourceType.getName(), other.valuesSourceType.getName()))
+            return false;
+        return innerEquals(obj);
+    }
+
+    // NORELEASE make this method abstract here when agg refactor complete (so
+    // that subclasses are forced to implement it)
+    protected boolean innerEquals(Object obj) {
+        throw new UnsupportedOperationException(
+                "This method should be implemented by a sub-class and should not rely on this method. When agg re-factoring is complete this method will be made abstract.");
     }
 }

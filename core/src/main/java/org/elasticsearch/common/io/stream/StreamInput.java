@@ -33,12 +33,24 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
-import java.io.*;
+import java.io.ByteArrayInputStream;
+import java.io.EOFException;
+import java.io.FileNotFoundException;
+import java.io.FilterInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.ElasticsearchException.readException;
 import static org.elasticsearch.ElasticsearchException.readStackTrace;
@@ -557,6 +569,20 @@ public abstract class StreamInput extends InputStream {
      */
     <C> C readNamedWriteable(@SuppressWarnings("unused") Class<C> categoryClass) throws IOException {
         throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Reads a {@link AggregatorFactory} from the current stream
+     */
+    public AggregatorFactory readAggregatorFactory() throws IOException {
+        return readNamedWriteable(AggregatorFactory.class);
+    }
+
+    /**
+     * Reads a {@link PipelineAggregatorFactory} from the current stream
+     */
+    public PipelineAggregatorFactory readPipelineAggregatorFactory() throws IOException {
+        return readNamedWriteable(PipelineAggregatorFactory.class);
     }
 
     public static StreamInput wrap(BytesReference reference) {

@@ -61,6 +61,11 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
          */
         AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException;
 
+        /**
+         * @return an empty {@link AggregatorFactory} instance for this parser
+         *         that can be used for deserialization
+         */
+        AggregatorFactory getFactoryPrototype();
     }
 
     /**

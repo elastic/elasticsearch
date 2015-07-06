@@ -22,6 +22,7 @@ import com.google.common.collect.ImmutableMap;
 
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseException;
@@ -54,15 +55,26 @@ public class AggregatorParsers {
      *            ).
      */
     @Inject
-    public AggregatorParsers(Set<Aggregator.Parser> aggParsers, Set<PipelineAggregator.Parser> pipelineAggregatorParsers) {
+    public AggregatorParsers(Set<Aggregator.Parser> aggParsers, Set<PipelineAggregator.Parser> pipelineAggregatorParsers,
+            NamedWriteableRegistry namedWriteableRegistry) {
         MapBuilder<String, Aggregator.Parser> aggParsersBuilder = MapBuilder.newMapBuilder();
         for (Aggregator.Parser parser : aggParsers) {
             aggParsersBuilder.put(parser.type(), parser);
+            AggregatorFactory factoryPrototype = parser.getFactoryPrototype();
+            // NORELEASE remove this check when agg refactoring complete
+            if (factoryPrototype != null) {
+                namedWriteableRegistry.registerPrototype(AggregatorFactory.class, factoryPrototype);
+            }
         }
         this.aggParsers = aggParsersBuilder.immutableMap();
         MapBuilder<String, PipelineAggregator.Parser> pipelineAggregatorParsersBuilder = MapBuilder.newMapBuilder();
         for (PipelineAggregator.Parser parser : pipelineAggregatorParsers) {
             pipelineAggregatorParsersBuilder.put(parser.type(), parser);
+            PipelineAggregatorFactory factoryPrototype = parser.getFactoryPrototype();
+            // NORELEASE remove this check when agg refactoring complete
+            if (factoryPrototype != null) {
+                namedWriteableRegistry.registerPrototype(PipelineAggregatorFactory.class, factoryPrototype);
+            }
         }
         this.pipelineAggregatorParsers = pipelineAggregatorParsersBuilder.immutableMap();
     }
@@ -80,7 +92,7 @@ public class AggregatorParsers {
     /**
      * Returns the parser that is registered under the given pipeline aggregator
      * type.
-     * 
+     *
      * @param type
      *            The pipeline aggregator type
      * @return The parser associated with the given pipeline aggregator type.

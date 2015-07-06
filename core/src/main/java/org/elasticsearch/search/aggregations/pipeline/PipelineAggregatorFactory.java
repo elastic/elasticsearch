@@ -18,17 +18,25 @@
  */
 package org.elasticsearch.search.aggregations.pipeline;
 
+import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * A factory that knows how to create an {@link PipelineAggregator} of a
  * specific type.
  */
-public abstract class PipelineAggregatorFactory {
+public abstract class PipelineAggregatorFactory extends ToXContentToBytes implements NamedWriteable<PipelineAggregatorFactory>, ToXContent {
 
     protected String name;
     protected String type;
@@ -105,4 +113,101 @@ public abstract class PipelineAggregatorFactory {
         return bucketsPaths;
     }
 
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(name);
+        doWriteTo(out);
+        out.writeStringArray(bucketsPaths);
+        out.writeMap(metaData);
+    }
+
+    // NORELEASE make this abstract when agg refactor complete
+    private void doWriteTo(StreamOutput out) {
+    }
+
+    // NORELEASE remove this method when agg refactor complete
+    @Override
+    public String getWriteableName() {
+        return type;
+    }
+
+    @Override
+    public PipelineAggregatorFactory readFrom(StreamInput in) throws IOException {
+        String name = in.readString();
+        String[] bucketsPaths = in.readStringArray();
+        PipelineAggregatorFactory factory = doReadFrom(name, bucketsPaths, in);
+        factory.metaData = in.readMap();
+        return factory;
+    }
+
+    // NORELEASE make this abstract when agg refactor complete
+    protected PipelineAggregatorFactory doReadFrom(String name, String[] bucketsPaths, StreamInput in) {
+        return null;
+    }
+
+    @Override
+    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(getName());
+
+        if (this.metaData != null) {
+            builder.field("meta", this.metaData);
+        }
+        builder.startObject(type);
+
+        if (bucketsPaths != null) {
+            builder.startArray(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName());
+            for (String path : bucketsPaths) {
+                builder.value(path);
+            }
+            builder.endArray();
+        }
+
+        internalXContent(builder, params);
+
+        builder.endObject();
+
+        return builder.endObject();
+    }
+
+    // NORELEASE make this method abstract when agg refactor complete
+    protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(Arrays.hashCode(bucketsPaths), metaData, name, type, doHashCode());
+    }
+
+    // NORELEASE make this method abstract here when agg refactor complete (so
+    // that subclasses are forced to implement it)
+    protected int doHashCode() {
+        throw new UnsupportedOperationException(
+                "This method should be implemented by a sub-class and should not rely on this method. When agg re-factoring is complete this method will be made abstract.");
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null)
+            return false;
+        if (getClass() != obj.getClass())
+            return false;
+        PipelineAggregatorFactory other = (PipelineAggregatorFactory) obj;
+        if (!Objects.equals(name, other.name))
+            return false;
+        if (!Objects.equals(type, other.type))
+            return false;
+        if (!Objects.deepEquals(bucketsPaths, other.bucketsPaths))
+            return false;
+        if (!Objects.equals(metaData, other.metaData))
+            return false;
+        return doEquals(obj);
+    }
+
+    // NORELEASE make this method abstract here when agg refactor complete (so
+    // that subclasses are forced to implement it)
+    protected boolean doEquals(Object obj) {
+        throw new UnsupportedOperationException(
+                "This method should be implemented by a sub-class and should not rely on this method. When agg re-factoring is complete this method will be made abstract.");
+    }
 }

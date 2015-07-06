@@ -37,4 +37,10 @@ public class AvgParser extends NumericValuesSourceMetricsAggregatorParser<Intern
         return new AvgAggregator.Factory(aggregationName, type(), input);
     }
 
+    // NORELEASE implement this method when refactoring this aggregation
+    @Override
+    public AggregatorFactory getFactoryPrototype() {
+        return null;
+    }
+
 }

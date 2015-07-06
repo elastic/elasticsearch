@@ -35,4 +35,10 @@ public class AvgBucketParser extends BucketMetricsParser {
             ValueFormatter formatter) {
         return new AvgBucketPipelineAggregator.Factory(pipelineAggregatorName, bucketsPaths, gapPolicy, formatter);
     }
+
+    // NORELEASE implement this method when refactoring this aggregation
+    @Override
+    public PipelineAggregatorFactory getFactoryPrototype() {
+        return null;
+    }
 }

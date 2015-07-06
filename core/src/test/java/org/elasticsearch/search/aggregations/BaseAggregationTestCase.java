@@ -119,6 +119,7 @@ public abstract class BaseAggregationTestCase<AF extends AggregatorFactory> exte
                     }
                 },
                 new IndexSettingsModule(index, settings),
+
                 new AbstractModule() {
                     @Override
                     protected void configure() {

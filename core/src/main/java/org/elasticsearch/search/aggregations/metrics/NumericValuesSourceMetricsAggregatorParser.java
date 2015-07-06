@@ -24,7 +24,6 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -63,8 +62,8 @@ public abstract class NumericValuesSourceMetricsAggregatorParser<S extends Inter
             }
         }
 
-        return createFactory(aggregationName, vsParser.config());
+        return createFactory(aggregationName, vsParser.input());
     }
 
-    protected abstract AggregatorFactory createFactory(String aggregationName, ValuesSourceConfig<ValuesSource.Numeric> config);
+    protected abstract AggregatorFactory createFactory(String aggregationName, ValuesSourceParser.Input<ValuesSource.Numeric> config);
 }

@@ -19,13 +19,15 @@
 
 package org.elasticsearch.search.aggregations.metrics.cardinality;
 
+import org.elasticsearch.index.mapper.core.Murmur3FieldMapper;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,8 +37,8 @@ final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory.L
 
     private final long precisionThreshold;
 
-    CardinalityAggregatorFactory(String name, ValuesSourceConfig config, long precisionThreshold) {
-        super(name, InternalCardinality.TYPE.name(), config);
+    CardinalityAggregatorFactory(String name, ValuesSourceParser.Input<ValuesSource> input, long precisionThreshold) {
+        super(name, InternalCardinality.TYPE.name(), input);
         this.precisionThreshold = precisionThreshold;
     }
 
@@ -47,7 +49,17 @@ final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory.L
     @Override
     protected Aggregator createUnmapped(AggregationContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
+        resolveRehash();
         return new CardinalityAggregator(name, null, precision(parent), config.formatter(), context, parent, pipelineAggregators, metaData);
+    }
+
+    private void resolveRehash() {
+        if (rehash == null && config.fieldContext() != null
+                && config.fieldContext().fieldType() instanceof Murmur3FieldMapper.Murmur3FieldType) {
+            rehash = false;
+        } else if (rehash == null) {
+            rehash = true;
+        }
     }
 
     @Override

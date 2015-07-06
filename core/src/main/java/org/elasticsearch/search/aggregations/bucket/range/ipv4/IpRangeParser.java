@@ -122,7 +122,7 @@ public class IpRangeParser implements Aggregator.Parser {
                     parser.getTokenLocation());
         }
 
-        return new RangeAggregator.Factory(aggregationName, vsParser.config(), InternalIPv4Range.FACTORY, ranges, keyed);
+        return new RangeAggregator.Factory(aggregationName, vsParser.input(), InternalIPv4Range.FACTORY, ranges, keyed);
     }
 
     private static void parseMaskRange(String cidr, RangeAggregator.Range range, String aggregationName, SearchContext ctx) {

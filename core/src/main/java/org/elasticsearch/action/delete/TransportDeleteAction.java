@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.collect.Tuple;
@@ -59,9 +60,9 @@ public class TransportDeleteAction extends TransportReplicationAction<DeleteRequ
     public TransportDeleteAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                  IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
                                  TransportCreateIndexAction createIndexAction, ActionFilters actionFilters,
-                                 MappingUpdatedAction mappingUpdatedAction) {
+                                 IndexNameExpressionResolver indexNameExpressionResolver, MappingUpdatedAction mappingUpdatedAction) {
         super(settings, DeleteAction.NAME, transportService, clusterService, indicesService, threadPool, shardStateAction,
-                mappingUpdatedAction, actionFilters,
+                mappingUpdatedAction, actionFilters, indexNameExpressionResolver,
                 DeleteRequest.class, DeleteRequest.class, ThreadPool.Names.INDEX);
         this.createIndexAction = createIndexAction;
         this.autoCreateIndex = new AutoCreateIndex(settings);

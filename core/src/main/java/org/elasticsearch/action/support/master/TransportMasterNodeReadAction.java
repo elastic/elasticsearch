@@ -22,6 +22,7 @@ package org.elasticsearch.action.support.master;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -36,8 +37,10 @@ public abstract class TransportMasterNodeReadAction<Request extends MasterNodeRe
 
     private Boolean forceLocal;
 
-    protected TransportMasterNodeReadAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters, Class<Request> request) {
-        super(settings, actionName, transportService, clusterService, threadPool, actionFilters,request);
+    protected TransportMasterNodeReadAction(Settings settings, String actionName, TransportService transportService,
+                                            ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
+                                            IndexNameExpressionResolver indexNameExpressionResolver, Class<Request> request) {
+        super(settings, actionName, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,request);
         this.forceLocal = settings.getAsBoolean(FORCE_LOCAL_SETTING, null);
     }
 

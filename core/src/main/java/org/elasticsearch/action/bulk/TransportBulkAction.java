@@ -36,12 +36,12 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
@@ -73,8 +73,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
     @Inject
     public TransportBulkAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService,
-                               TransportShardBulkAction shardBulkAction, TransportCreateIndexAction createIndexAction, ActionFilters actionFilters) {
-        super(settings, BulkAction.NAME, threadPool, transportService, actionFilters, BulkRequest.class);
+                               TransportShardBulkAction shardBulkAction, TransportCreateIndexAction createIndexAction,
+                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, BulkAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, BulkRequest.class);
         this.clusterService = clusterService;
         this.shardBulkAction = shardBulkAction;
         this.createIndexAction = createIndexAction;
@@ -204,7 +205,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         // TODO use timeout to wait here if its blocked...
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.WRITE);
 
-        final ConcreteIndices concreteIndices = new ConcreteIndices(clusterState.metaData());
+        final ConcreteIndices concreteIndices = new ConcreteIndices(clusterState, indexNameExpressionResolver);
         MetaData metaData = clusterState.metaData();
         for (int i = 0; i < bulkRequest.requests.size(); i++) {
             ActionRequest request = bulkRequest.requests.get(i);
@@ -215,7 +216,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     continue;
                 }
 
-                String concreteIndex = concreteIndices.resolveIfAbsent(req.index(), req.indicesOptions());
+                String concreteIndex = concreteIndices.resolveIfAbsent(req);
                 if (request instanceof IndexRequest) {
                     IndexRequest indexRequest = (IndexRequest) request;
                     MappingMetaData mappingMd = null;
@@ -232,7 +233,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         bulkRequest.requests.set(i, null);
                     }
                 } else {
-                    concreteIndices.resolveIfAbsent(req.index(), req.indicesOptions());
+                    concreteIndices.resolveIfAbsent(req);
                     req.routing(clusterState.metaData().resolveIndexRouting(req.routing(), req.index()));
                 }
             }
@@ -361,7 +362,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         Exception unavailableException = null;
         if (concreteIndex == null) {
             try {
-                concreteIndex = concreteIndices.resolveIfAbsent(request.index(), request.indicesOptions());
+                concreteIndex = concreteIndices.resolveIfAbsent(request);
             } catch (IndexClosedException ice) {
                 unavailableException = ice;
             } catch (IndexMissingException ime) {
@@ -398,22 +399,24 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
 
     private static class ConcreteIndices  {
+        private final ClusterState state;
+        private final IndexNameExpressionResolver indexNameExpressionResolver;
         private final Map<String, String> indices = new HashMap<>();
-        private final MetaData metaData;
 
-        ConcreteIndices(MetaData metaData) {
-            this.metaData = metaData;
+        ConcreteIndices(ClusterState state, IndexNameExpressionResolver indexNameExpressionResolver) {
+            this.state = state;
+            this.indexNameExpressionResolver = indexNameExpressionResolver;
         }
 
         String getConcreteIndex(String indexOrAlias) {
             return indices.get(indexOrAlias);
         }
 
-        String resolveIfAbsent(String indexOrAlias, IndicesOptions indicesOptions) {
-            String concreteIndex = indices.get(indexOrAlias);
+        String resolveIfAbsent(DocumentRequest request) {
+            String concreteIndex = indices.get(request.index());
             if (concreteIndex == null) {
-                concreteIndex = metaData.concreteSingleIndex(indexOrAlias, indicesOptions);
-                indices.put(indexOrAlias, concreteIndex);
+                concreteIndex = indexNameExpressionResolver.concreteSingleIndex(state, request);
+                indices.put(request.index(), concreteIndex);
             }
             return concreteIndex;
         }

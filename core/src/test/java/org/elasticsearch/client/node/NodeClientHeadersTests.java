@@ -19,8 +19,6 @@
 
 package org.elasticsearch.client.node;
 
-import com.google.common.collect.ImmutableSet;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.GenericAction;
@@ -63,7 +61,7 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTests {
     private static class InternalTransportAction extends TransportAction {
 
         private InternalTransportAction(Settings settings, String actionName, ThreadPool threadPool) {
-            super(settings, actionName, threadPool, EMPTY_FILTERS);
+            super(settings, actionName, threadPool, EMPTY_FILTERS, null);
         }
 
         @Override

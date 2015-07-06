@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
@@ -55,8 +56,10 @@ public class TransportFieldStatsTransportAction extends TransportBroadcastAction
     private final IndicesService indicesService;
 
     @Inject
-    public TransportFieldStatsTransportAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters, IndicesService indicesService) {
-        super(settings, FieldStatsAction.NAME, threadPool, clusterService, transportService, actionFilters, FieldStatsRequest.class, FieldStatsShardRequest.class, ThreadPool.Names.MANAGEMENT);
+    public TransportFieldStatsTransportAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                                              TransportService transportService, ActionFilters actionFilters,
+                                              IndexNameExpressionResolver indexNameExpressionResolver, IndicesService indicesService) {
+        super(settings, FieldStatsAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, FieldStatsRequest.class, FieldStatsShardRequest.class, ThreadPool.Names.MANAGEMENT);
         this.indicesService = indicesService;
     }
 
@@ -171,7 +174,7 @@ public class TransportFieldStatsTransportAction extends TransportBroadcastAction
 
     @Override
     protected GroupShardsIterator shards(ClusterState clusterState, FieldStatsRequest request, String[] concreteIndices) {
-        return clusterService.operationRouting().searchShards(clusterState, request.indices(), concreteIndices, null, null);
+        return clusterService.operationRouting().searchShards(clusterState, concreteIndices, null, null);
     }
 
     @Override

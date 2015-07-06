@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -53,9 +54,10 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
     final String transportShardAction;
     final String executor;
 
-    protected TransportSingleShardAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
+    protected TransportSingleShardAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService,
+                                         TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                          Class<Request> request, String executor) {
-        super(settings, actionName, threadPool, actionFilters);
+        super(settings, actionName, threadPool, actionFilters, indexNameExpressionResolver);
         this.clusterService = clusterService;
         this.transportService = transportService;
 
@@ -125,7 +127,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
 
             String concreteSingleIndex;
             if (resolveIndex()) {
-                concreteSingleIndex = clusterState.metaData().concreteSingleIndex(request.index(), request.indicesOptions());
+                concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, request);
             } else {
                 concreteSingleIndex = request.index();
             }

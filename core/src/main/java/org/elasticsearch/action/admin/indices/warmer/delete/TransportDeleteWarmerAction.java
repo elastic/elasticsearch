@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
@@ -50,8 +51,9 @@ import java.util.List;
 public class TransportDeleteWarmerAction extends TransportMasterNodeAction<DeleteWarmerRequest, DeleteWarmerResponse> {
 
     @Inject
-    public TransportDeleteWarmerAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, DeleteWarmerAction.NAME, transportService, clusterService, threadPool, actionFilters, DeleteWarmerRequest.class);
+    public TransportDeleteWarmerAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                       ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, DeleteWarmerAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, DeleteWarmerRequest.class);
     }
 
     @Override
@@ -67,12 +69,12 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeAction<Delet
 
     @Override
     protected ClusterBlockException checkBlock(DeleteWarmerRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, clusterService.state().metaData().concreteIndices(request.indicesOptions(), request.indices()));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndices(state, request));
     }
 
     @Override
     protected void masterOperation(final DeleteWarmerRequest request, final ClusterState state, final ActionListener<DeleteWarmerResponse> listener) {
-        final String[] concreteIndices = clusterService.state().metaData().concreteIndices(request.indicesOptions(), request.indices());
+        final String[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         clusterService.submitStateUpdateTask("delete_warmer [" + Arrays.toString(request.names()) + "]", new AckedClusterStateUpdateTask<DeleteWarmerResponse>(request, listener) {
 
             @Override

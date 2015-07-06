@@ -31,6 +31,7 @@ import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -59,8 +60,9 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
     protected TransportDeleteByQueryAction(Settings settings, ThreadPool threadPool, Client client,
                                            TransportSearchAction transportSearchAction,
                                            TransportSearchScrollAction transportSearchScrollAction,
-                                           TransportService transportService, ActionFilters actionFilters) {
-        super(settings, DeleteByQueryAction.NAME, threadPool, transportService, actionFilters, DeleteByQueryRequest.class);
+                                           TransportService transportService, ActionFilters actionFilters,
+                                           IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, DeleteByQueryAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, DeleteByQueryRequest.class);
         this.searchAction = transportSearchAction;
         this.scrollAction = transportSearchScrollAction;
         this.client = client;

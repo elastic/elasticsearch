@@ -27,6 +27,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
@@ -49,8 +50,9 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
 
     protected TransportNodesAction(Settings settings, String actionName, ClusterName clusterName, ThreadPool threadPool,
                                    ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
-                                   Class<NodesRequest> request, Class<NodeRequest> nodeRequest, String nodeExecutor) {
-        super(settings, actionName, threadPool, transportService, actionFilters, request);
+                                   IndexNameExpressionResolver indexNameExpressionResolver, Class<NodesRequest> request, Class<NodeRequest> nodeRequest,
+                                   String nodeExecutor) {
+        super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, request);
         this.clusterName = clusterName;
         this.clusterService = clusterService;
         this.transportService = transportService;

@@ -25,7 +25,7 @@ import org.elasticsearch.action.support.IndicesOptions;
  *
  * Forces this class return index/type/id getters
  */
-public interface DocumentRequest<T> {
+public interface DocumentRequest<T> extends IndicesRequest {
 
     /**
      * Get the index that this request operates on

@@ -27,6 +27,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.*;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
@@ -52,9 +53,11 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
     private GatewayMetaState metaState;
 
     @Inject
-    public TransportNodesListGatewayMetaState(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
+    public TransportNodesListGatewayMetaState(Settings settings, ClusterName clusterName, ThreadPool threadPool,
+                                              ClusterService clusterService, TransportService transportService,
+                                              ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
-                Request.class, NodeRequest.class, ThreadPool.Names.GENERIC);
+                indexNameExpressionResolver, Request.class, NodeRequest.class, ThreadPool.Names.GENERIC);
     }
 
     TransportNodesListGatewayMetaState init(GatewayMetaState metaState) {

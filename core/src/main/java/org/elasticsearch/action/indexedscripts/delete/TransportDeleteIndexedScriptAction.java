@@ -24,6 +24,7 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DelegatingActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService;
@@ -39,8 +40,8 @@ public class TransportDeleteIndexedScriptAction extends HandledTransportAction<D
 
     @Inject
     public TransportDeleteIndexedScriptAction(Settings settings, ThreadPool threadPool, ScriptService scriptService,
-                                              TransportService transportService, ActionFilters actionFilters) {
-        super(settings, DeleteIndexedScriptAction.NAME, threadPool, transportService, actionFilters, DeleteIndexedScriptRequest.class);
+                                              TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, DeleteIndexedScriptAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, DeleteIndexedScriptRequest.class);
         this.scriptService = scriptService;
     }
 

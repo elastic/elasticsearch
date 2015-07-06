@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -36,8 +37,9 @@ import org.elasticsearch.transport.TransportService;
 public class TransportAliasesExistAction extends TransportMasterNodeReadAction<GetAliasesRequest, AliasesExistResponse> {
 
     @Inject
-    public TransportAliasesExistAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, AliasesExistAction.NAME, transportService, clusterService, threadPool, actionFilters, GetAliasesRequest.class);
+    public TransportAliasesExistAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                       ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, AliasesExistAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, GetAliasesRequest.class);
     }
 
     @Override
@@ -48,7 +50,7 @@ public class TransportAliasesExistAction extends TransportMasterNodeReadAction<G
 
     @Override
     protected ClusterBlockException checkBlock(GetAliasesRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndices(state, request));
     }
 
     @Override
@@ -58,7 +60,7 @@ public class TransportAliasesExistAction extends TransportMasterNodeReadAction<G
 
     @Override
     protected void masterOperation(GetAliasesRequest request, ClusterState state, ActionListener<AliasesExistResponse> listener) {
-        String[] concreteIndices = state.metaData().concreteIndices(request.indicesOptions(), request.indices());
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         boolean result = state.metaData().hasAliases(request.aliases(), concreteIndices);
         listener.onResponse(new AliasesExistResponse(result));
     }

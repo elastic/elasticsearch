@@ -79,6 +79,7 @@ public class ClusterModule extends AbstractModule implements SpawnModules {
         bind(MetaDataIndexAliasesService.class).asEagerSingleton();
         bind(MetaDataUpdateSettingsService.class).asEagerSingleton();
         bind(MetaDataIndexTemplateService.class).asEagerSingleton();
+        bind(IndexNameExpressionResolver.class).asEagerSingleton();
 
         bind(RoutingService.class).asEagerSingleton();
 

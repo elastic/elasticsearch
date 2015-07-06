@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataDeleteIndexService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -46,8 +47,9 @@ public class TransportDeleteIndexAction extends TransportMasterNodeAction<Delete
     @Inject
     public TransportDeleteIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                       ThreadPool threadPool, MetaDataDeleteIndexService deleteIndexService,
-                                      NodeSettingsService nodeSettingsService, ActionFilters actionFilters) {
-        super(settings, DeleteIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, DeleteIndexRequest.class);
+                                      NodeSettingsService nodeSettingsService, ActionFilters actionFilters,
+                                      IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, DeleteIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, DeleteIndexRequest.class);
         this.deleteIndexService = deleteIndexService;
         this.destructiveOperations = new DestructiveOperations(logger, settings, nodeSettingsService);
     }
@@ -70,12 +72,12 @@ public class TransportDeleteIndexAction extends TransportMasterNodeAction<Delete
 
     @Override
     protected ClusterBlockException checkBlock(DeleteIndexRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndices(state, request));
     }
 
     @Override
     protected void masterOperation(final DeleteIndexRequest request, final ClusterState state, final ActionListener<DeleteIndexResponse> listener) {
-        String[] concreteIndices = state.metaData().concreteIndices(request.indicesOptions(), request.indices());
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         if (concreteIndices.length == 0) {
             listener.onResponse(new DeleteIndexResponse(true));
             return;

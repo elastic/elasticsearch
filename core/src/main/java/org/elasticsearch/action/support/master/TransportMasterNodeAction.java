@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -51,9 +52,10 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
 
     final String executor;
 
-    protected TransportMasterNodeAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
-                                        Class<Request> request) {
-        super(settings, actionName, threadPool, transportService, actionFilters, request);
+    protected TransportMasterNodeAction(Settings settings, String actionName, TransportService transportService,
+                                        ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
+                                        IndexNameExpressionResolver indexNameExpressionResolver, Class<Request> request) {
+        super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, request);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.executor = executor();

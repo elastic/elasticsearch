@@ -34,6 +34,7 @@ import org.elasticsearch.action.percolate.PercolateShardResponse;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -92,6 +93,7 @@ public class PercolatorService extends AbstractComponent {
     public final static float NO_SCORE = Float.NEGATIVE_INFINITY;
     public final static String TYPE_NAME = ".percolator";
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final IndicesService indicesService;
     private final IntObjectHashMap<PercolatorType> percolatorTypes;
     private final PageCacheRecycler pageCacheRecycler;
@@ -112,12 +114,13 @@ public class PercolatorService extends AbstractComponent {
     private final ParseFieldMatcher parseFieldMatcher;
 
     @Inject
-    public PercolatorService(Settings settings, IndicesService indicesService,
+    public PercolatorService(Settings settings, IndexNameExpressionResolver indexNameExpressionResolver, IndicesService indicesService,
                              PageCacheRecycler pageCacheRecycler, BigArrays bigArrays,
                              HighlightPhase highlightPhase, ClusterService clusterService,
                              AggregationPhase aggregationPhase, ScriptService scriptService,
                              MappingUpdatedAction mappingUpdatedAction) {
         super(settings);
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.parseFieldMatcher = new ParseFieldMatcher(settings);
         this.indicesService = indicesService;
         this.pageCacheRecycler = pageCacheRecycler;
@@ -164,7 +167,10 @@ public class PercolatorService extends AbstractComponent {
         shardPercolateService.prePercolate();
         long startTime = System.nanoTime();
 
-        String[] filteringAliases = clusterService.state().getMetaData().filteringAliases(
+        // TODO: The filteringAliases should be looked up at the coordinating node and serialized with all shard request,
+        // just like is done in other apis.
+        String[] filteringAliases = indexNameExpressionResolver.filteringAliases(
+                clusterService.state(),
                 indexShard.shardId().index().name(),
                 request.indices()
         );

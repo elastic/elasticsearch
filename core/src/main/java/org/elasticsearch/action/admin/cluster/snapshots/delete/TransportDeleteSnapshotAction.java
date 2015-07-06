@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -41,8 +42,9 @@ public class TransportDeleteSnapshotAction extends TransportMasterNodeAction<Del
 
     @Inject
     public TransportDeleteSnapshotAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                         ThreadPool threadPool, SnapshotsService snapshotsService, ActionFilters actionFilters) {
-        super(settings, DeleteSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters, DeleteSnapshotRequest.class);
+                                         ThreadPool threadPool, SnapshotsService snapshotsService, ActionFilters actionFilters,
+                                         IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, DeleteSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, DeleteSnapshotRequest.class);
         this.snapshotsService = snapshotsService;
     }
 

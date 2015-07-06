@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
@@ -46,8 +47,9 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadAction<Ge
 
     @Inject
     public TransportGetSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                      ThreadPool threadPool, SettingsFilter settingsFilter, ActionFilters actionFilters) {
-        super(settings, GetSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters, GetSettingsRequest.class);
+                                      ThreadPool threadPool, SettingsFilter settingsFilter, ActionFilters actionFilters,
+                                      IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, GetSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, GetSettingsRequest.class);
         this.settingsFilter = settingsFilter;
     }
 
@@ -59,7 +61,7 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadAction<Ge
 
     @Override
     protected ClusterBlockException checkBlock(GetSettingsRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndices(state, request));
     }
 
 
@@ -70,7 +72,7 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadAction<Ge
 
     @Override
     protected void masterOperation(GetSettingsRequest request, ClusterState state, ActionListener<GetSettingsResponse> listener) {
-        String[] concreteIndices = state.metaData().concreteIndices(request.indicesOptions(), request.indices());
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         ImmutableOpenMap.Builder<String, Settings> indexToSettingsBuilder = ImmutableOpenMap.builder();
         for (String concreteIndex : concreteIndices) {
             IndexMetaData indexMetaData = state.getMetaData().index(concreteIndex);

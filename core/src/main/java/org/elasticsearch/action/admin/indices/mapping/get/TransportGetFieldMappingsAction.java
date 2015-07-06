@@ -25,6 +25,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -42,8 +43,10 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
     private final TransportGetFieldMappingsIndexAction shardAction;
 
     @Inject
-    public TransportGetFieldMappingsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, TransportGetFieldMappingsIndexAction shardAction, ActionFilters actionFilters) {
-        super(settings, GetFieldMappingsAction.NAME, threadPool, transportService, actionFilters, GetFieldMappingsRequest.class);
+    public TransportGetFieldMappingsAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                           ThreadPool threadPool, TransportGetFieldMappingsIndexAction shardAction,
+                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, GetFieldMappingsAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, GetFieldMappingsRequest.class);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
     }
@@ -51,7 +54,7 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
     @Override
     protected void doExecute(GetFieldMappingsRequest request, final ActionListener<GetFieldMappingsResponse> listener) {
         ClusterState clusterState = clusterService.state();
-        String[] concreteIndices = clusterState.metaData().concreteIndices(request.indicesOptions(), request.indices());
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndices(clusterState, request);
         final AtomicInteger indexCounter = new AtomicInteger();
         final AtomicInteger completionCounter = new AtomicInteger(concreteIndices.length);
         final AtomicReferenceArray<Object> indexResponses = new AtomicReferenceArray<>(concreteIndices.length);

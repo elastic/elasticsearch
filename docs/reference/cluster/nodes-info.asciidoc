@@ -17,7 +17,7 @@ The second command selectively retrieves nodes information of only
 
 By default, it just returns all attributes and core settings for a node.
 It also allows to get only information on `settings`, `os`, `process`, `jvm`,
-`thread_pool`, `network`, `transport`, `http` and `plugins`:
+`thread_pool`, `transport`, `http` and `plugins`:
 
 [source,js]
 --------------------------------------------------

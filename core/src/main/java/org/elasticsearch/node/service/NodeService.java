@@ -102,7 +102,6 @@ public class NodeService extends AbstractComponent {
                 monitorService.processService().info(),
                 monitorService.jvmService().info(),
                 threadPool.info(),
-                monitorService.networkService().info(),
                 transportService.info(),
                 httpServer == null ? null : httpServer.info(),
                 pluginService == null ? null : pluginService.info()
@@ -117,7 +116,6 @@ public class NodeService extends AbstractComponent {
                 process ? monitorService.processService().info() : null,
                 jvm ? monitorService.jvmService().info() : null,
                 threadPool ? this.threadPool.info() : null,
-                network ? monitorService.networkService().info() : null,
                 transport ? transportService.info() : null,
                 http ? (httpServer == null ? null : httpServer.info()) : null,
                 plugin ? (pluginService == null ? null : pluginService.info()) : null
@@ -133,7 +131,6 @@ public class NodeService extends AbstractComponent {
                 monitorService.processService().stats(),
                 monitorService.jvmService().stats(),
                 threadPool.stats(),
-                monitorService.networkService().stats(),
                 monitorService.fsService().stats(),
                 transportService.stats(),
                 httpServer == null ? null : httpServer.stats(),
@@ -151,7 +148,6 @@ public class NodeService extends AbstractComponent {
                 process ? monitorService.processService().stats() : null,
                 jvm ? monitorService.jvmService().stats() : null,
                 threadPool ? this.threadPool.stats() : null,
-                network ? monitorService.networkService().stats() : null,
                 fs ? monitorService.fsService().stats() : null,
                 transport ? transportService.stats() : null,
                 http ? (httpServer == null ? null : httpServer.stats()) : null,

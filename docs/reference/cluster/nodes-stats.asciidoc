@@ -19,7 +19,7 @@ second command selectively retrieves nodes stats of only `nodeId1` and
 <<cluster-nodes,here>>.
 
 By default, all stats are returned. You can limit this by combining any
-of `indices`, `os`, `process`, `jvm`, `network`, `transport`, `http`,
+of `indices`, `os`, `process`, `jvm`, `transport`, `http`,
 `fs`, `breaker` and `thread_pool`. For example:
 
 [horizontal]
@@ -37,9 +37,6 @@ of `indices`, `os`, `process`, `jvm`, `network`, `transport`, `http`,
 `jvm`:: 
 	JVM stats, memory pool information, garbage collection, buffer
 	pools
-
-`network`:: 
-	TCP information
 
 `os`:: 
 	Operating system stats, load average, cpu, mem, swap

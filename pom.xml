@@ -94,10 +94,10 @@
         <tests.rest.suite></tests.rest.suite>
         <tests.rest.blacklist></tests.rest.blacklist>
         <tests.rest.spec></tests.rest.spec>
+        <tests.rest.load_packaged></tests.rest.load_packaged>
         <tests.network></tests.network>
         <tests.cluster></tests.cluster>
         <tests.filter></tests.filter>
-        <tests.rest.load_packaged></tests.rest.load_packaged>
         <env.ES_TEST_LOCAL></env.ES_TEST_LOCAL>
         <tests.security.manager>true</tests.security.manager>
         <tests.compatibility></tests.compatibility>
@@ -186,6 +186,13 @@
                 <artifactId>elasticsearch</artifactId>
                 <version>${elasticsearch.version}</version>
                 <type>test-jar</type>
+            </dependency>
+
+            <dependency>
+                <groupId>org.elasticsearch</groupId>
+                <artifactId>elasticsearch</artifactId>
+                <version>${elasticsearch.version}</version>
+                <type>zip</type>
             </dependency>
 
             <dependency>
@@ -694,6 +701,10 @@
                        <skipTests>${skip.integ.tests}</skipTests>
                        <systemPropertyVariables>
                            <es.logger.level>${es.logger.level}</es.logger.level>
+                           <tests.rest.suite>${tests.rest.suite}</tests.rest.suite>
+                           <tests.rest.blacklist>${tests.rest.blacklist}</tests.rest.blacklist>
+                           <tests.rest.spec>${tests.rest.spec}</tests.rest.spec>
+                           <tests.rest.load_packaged>${tests.rest.load_packaged}</tests.rest.load_packaged>
                        </systemPropertyVariables>
                     </configuration>
                     <executions>
@@ -1335,6 +1346,10 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                     <missing>${basedir}/src</missing>
                 </file>
             </activation>
+            <properties>
+                <skip.unit.tests>true</skip.unit.tests>
+                <skip.integ.tests>true</skip.integ.tests>
+            </properties>
             <build>
                 <plugins>
                     <plugin>

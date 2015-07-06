@@ -124,8 +124,8 @@ public class CorruptedTranslogTests extends ElasticsearchIntegrationTest {
         String nodeId = shardRouting.currentNodeId();
         NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(nodeId).setFs(true).get();
         Set<Path> files = new TreeSet<>(); // treeset makes sure iteration order is deterministic
-        for (FsStats.Info info : nodeStatses.getNodes()[0].getFs()) {
-            String path = info.getPath();
+        for (FsStats.Path fsPath : nodeStatses.getNodes()[0].getFs()) {
+            String path = fsPath.getPath();
             final String relativeDataLocationPath =  "indices/test/" + Integer.toString(shardRouting.getId()) + "/translog";
             Path file = PathUtils.get(path).resolve(relativeDataLocationPath);
             if (Files.exists(file)) {

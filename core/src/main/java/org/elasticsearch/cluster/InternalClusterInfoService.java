@@ -320,7 +320,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
                             long available = 0;
                             long total = 0;
 
-                            for (FsStats.Info info : nodeStats.getFs()) {
+                            for (FsStats.Path info : nodeStats.getFs()) {
                                 available += info.getAvailable().bytes();
                                 total += info.getTotal().bytes();
                             }

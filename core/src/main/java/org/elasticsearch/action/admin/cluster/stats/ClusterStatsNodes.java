@@ -52,7 +52,7 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
     private OsStats os;
     private ProcessStats process;
     private JvmStats jvm;
-    private FsStats.Info fs;
+    private FsStats.Path fs;
     private Set<PluginInfo> plugins;
 
     private ClusterStatsNodes() {
@@ -63,7 +63,7 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
         this.versions = new HashSet<>();
         this.os = new OsStats();
         this.jvm = new JvmStats();
-        this.fs = new FsStats.Info();
+        this.fs = new FsStats.Path();
         this.plugins = new HashSet<>();
         this.process = new ProcessStats();
 
@@ -116,7 +116,7 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
         return jvm;
     }
 
-    public FsStats.Info getFs() {
+    public FsStats.Path getFs() {
         return fs;
     }
 
@@ -138,7 +138,7 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
         os = OsStats.readOsStats(in);
         process = ProcessStats.readStats(in);
         jvm = JvmStats.readJvmStats(in);
-        fs = FsStats.Info.readInfoFrom(in);
+        fs = FsStats.Path.readInfoFrom(in);
 
         size = in.readVInt();
         plugins = new HashSet<>(size);

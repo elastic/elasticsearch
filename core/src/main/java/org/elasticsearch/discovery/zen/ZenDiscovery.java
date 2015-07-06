@@ -38,7 +38,6 @@ import org.elasticsearch.cluster.settings.ClusterDynamicSettings;
 import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.cluster.settings.Validator;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
@@ -93,6 +92,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     public final static String SETTING_MAX_PINGS_FROM_ANOTHER_MASTER = "discovery.zen.max_pings_from_another_master";
     public final static String SETTING_SEND_LEAVE_REQUEST = "discovery.zen.send_leave_request";
     public final static String SETTING_MASTER_ELECTION_FILTER_CLIENT = "discovery.zen.master_election.filter_client";
+    public final static String SETTING_MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT = "discovery.zen.master_election.wait_for_joins_timeout";
     public final static String SETTING_MASTER_ELECTION_FILTER_DATA = "discovery.zen.master_election.filter_data";
 
     public static final String DISCOVERY_REJOIN_ACTION_NAME = "internal:discovery/zen/rejoin";
@@ -126,6 +126,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     private final boolean masterElectionFilterClientNodes;
     private final boolean masterElectionFilterDataNodes;
+    private final TimeValue masterElectionWaitForJoinsTimeout;
 
 
     private final CopyOnWriteArrayList<InitialStateDiscoveryListener> initialStateListeners = new CopyOnWriteArrayList<>();
@@ -142,7 +143,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     @Nullable
     private NodeService nodeService;
 
-    private final BlockingQueue<Tuple<DiscoveryNode, MembershipAction.JoinCallback>> processJoinRequests = ConcurrentCollections.newBlockingQueue();
+
+    // must initialized in doStart(), when we have the routingService set
+    private volatile NodeJoinController nodeJoinController;
 
     @Inject
     public ZenDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool,
@@ -169,6 +172,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         this.masterElectionFilterClientNodes = settings.getAsBoolean(SETTING_MASTER_ELECTION_FILTER_CLIENT, true);
         this.masterElectionFilterDataNodes = settings.getAsBoolean(SETTING_MASTER_ELECTION_FILTER_DATA, false);
+        this.masterElectionWaitForJoinsTimeout = settings.getAsTime(SETTING_MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT, TimeValue.timeValueMillis(joinTimeout.millis() / 2));
         this.rejoinOnMasterGone = settings.getAsBoolean(SETTING_REJOIN_ON_MASTER_GONE, true);
 
         if (this.joinRetryAttempts < 1) {
@@ -230,6 +234,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         nodesFD.setLocalNode(clusterService.localNode());
         joinThreadControl.start();
         pingService.start();
+        this.nodeJoinController = new NodeJoinController(clusterService, routingService, discoverySettings, settings);
 
         // start the join thread from a cluster state update. See {@link JoinThreadControl} for details.
         clusterService.submitStateUpdateTask("initial_join", new ClusterStateNonMasterUpdateTask() {
@@ -353,6 +358,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     private void innerJoinCluster() {
         DiscoveryNode masterNode = null;
         final Thread currentThread = Thread.currentThread();
+        nodeJoinController.startAccumulatingJoins();
         while (masterNode == null && joinThreadControl.joinThreadActive(currentThread)) {
             masterNode = findMaster();
         }
@@ -363,52 +369,32 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
 
         if (clusterService.localNode().equals(masterNode)) {
-            clusterService.submitStateUpdateTask("zen-disco-join (elected_as_master)", Priority.IMMEDIATE, new ProcessedClusterStateNonMasterUpdateTask() {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    // Take into account the previous known nodes, if they happen not to be available
-                    // then fault detection will remove these nodes.
+            final int requiredJoins = Math.max(0, electMaster.minimumMasterNodes() - 1); // we count as one
+            logger.debug("elected as master, waiting for incoming joins ([{}] needed)", requiredJoins);
+            nodeJoinController.waitToBeElectedAsMaster(requiredJoins, masterElectionWaitForJoinsTimeout,
+                    new NodeJoinController.Callback() {
+                        @Override
+                        public void onElectedAsMaster(ClusterState state) {
+                            joinThreadControl.markThreadAsDone(currentThread);
+                            // we only starts nodesFD if we are master (it may be that we received a cluster state while pinging)
+                            nodesFD.updateNodesAndPing(state); // start the nodes FD
+                            sendInitialStateEventIfNeeded();
+                            long count = clusterJoinsCounter.incrementAndGet();
+                            logger.trace("cluster joins counter set to [{}] (elected as master)", count);
+                        }
 
-                    if (currentState.nodes().masterNode() != null) {
-                        // TODO can we tie break here? we don't have a remote master cluster state version to decide on
-                        logger.trace("join thread elected local node as master, but there is already a master in place: {}", currentState.nodes().masterNode());
-                        return currentState;
+                        @Override
+                        public void onFailure(Throwable t) {
+                            logger.trace("failed while waiting for nodes to join, rejoining", t);
+                            joinThreadControl.markThreadAsDoneAndStartNew(currentThread);
+                        }
                     }
 
-                    DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder(currentState.nodes()).masterNodeId(currentState.nodes().localNode().id());
-                    // update the fact that we are the master...
-                    ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(discoverySettings.getNoMasterBlock()).build();
-                    currentState = ClusterState.builder(currentState).nodes(builder).blocks(clusterBlocks).build();
-
-                    // eagerly run reroute to remove dead nodes from routing table
-                    RoutingAllocation.Result result = routingService.getAllocationService().reroute(currentState);
-                    return ClusterState.builder(currentState).routingResult(result).build();
-                }
-
-                @Override
-                public void onFailure(String source, Throwable t) {
-                    logger.error("unexpected failure during [{}]", t, source);
-                    joinThreadControl.markThreadAsDoneAndStartNew(currentThread);
-                }
-
-                @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    if (newState.nodes().localNodeMaster()) {
-                        // we only starts nodesFD if we are master (it may be that we received a cluster state while pinging)
-                        joinThreadControl.markThreadAsDone(currentThread);
-                        nodesFD.updateNodesAndPing(newState); // start the nodes FD
-                    } else {
-                        // if we're not a master it means another node published a cluster state while we were pinging
-                        // make sure we go through another pinging round and actively join it
-                        joinThreadControl.markThreadAsDoneAndStartNew(currentThread);
-                    }
-                    sendInitialStateEventIfNeeded();
-                    long count = clusterJoinsCounter.incrementAndGet();
-                    logger.trace("cluster joins counter set to [{}] (elected as master)", count);
-
-                }
-            });
+            );
         } else {
+            // process any incoming joins (they will fail because we are not the master)
+            nodeJoinController.stopAccumulatingJoins();
+
             // send join request
             final boolean success = joinElectedMaster(masterNode);
 
@@ -878,7 +864,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
         if (!currentState.nodes().masterNodeId().equals(newClusterState.nodes().masterNodeId())) {
             logger.warn("received a cluster state from a different master then the current one, rejecting (received {}, current {})", newClusterState.nodes().masterNode(), currentState.nodes().masterNode());
-            throw new IllegalStateException("cluster state from a different master then the current one, rejecting (received " + newClusterState.nodes().masterNode() + ", current " + currentState.nodes().masterNode() + ")");
+            throw new IllegalStateException("cluster state from a different master than the current one, rejecting (received " + newClusterState.nodes().masterNode() + ", current " + currentState.nodes().masterNode() + ")");
         } else if (newClusterState.version() < currentState.version()) {
             // if the new state has a smaller version, and it has the same master node, then no need to process it
             logger.debug("received a cluster state that has a lower version than the current one, ignoring (received {}, current {})", newClusterState.version(), currentState.version());
@@ -893,6 +879,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         if (!transportService.addressSupported(node.address().getClass())) {
             // TODO, what should we do now? Maybe inform that node that its crap?
             logger.warn("received a wrong address type from [{}], ignoring...", node);
+        } else if (nodeJoinController == null) {
+            throw new IllegalStateException("discovery module is not yet started");
         } else {
             // The minimum supported version for a node joining a master:
             Version minimumNodeJoinVersion = localNode().getVersion().minimumCompatibilityVersion();
@@ -910,88 +898,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             // validate the join request, will throw a failure if it fails, which will get back to the
             // node calling the join request
             membership.sendValidateJoinRequestBlocking(node, joinTimeout);
-            processJoinRequests.add(new Tuple<>(node, callback));
-            clusterService.submitStateUpdateTask("zen-disco-receive(join from node[" + node + "])", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
-
-                private final List<Tuple<DiscoveryNode, MembershipAction.JoinCallback>> drainedJoinRequests = new ArrayList<>();
-                private boolean nodeAdded = false;
-
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    processJoinRequests.drainTo(drainedJoinRequests);
-                    if (drainedJoinRequests.isEmpty()) {
-                        return currentState;
-                    }
-
-                    DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentState.nodes());
-                    for (Tuple<DiscoveryNode, MembershipAction.JoinCallback> task : drainedJoinRequests) {
-                        DiscoveryNode node = task.v1();
-                        if (currentState.nodes().nodeExists(node.id())) {
-                            logger.debug("received a join request for an existing node [{}]", node);
-                        } else {
-                            nodeAdded = true;
-                            nodesBuilder.put(node);
-                            for (DiscoveryNode existingNode : currentState.nodes()) {
-                                if (node.address().equals(existingNode.address())) {
-                                    nodesBuilder.remove(existingNode.id());
-                                    logger.warn("received join request from node [{}], but found existing node {} with same address, removing existing node", node, existingNode);
-                                }
-                            }
-                        }
-                    }
-
-
-                    // we must return a new cluster state instance to force publishing. This is important
-                    // for the joining node to finalize it's join and set us as a master
-                    final ClusterState.Builder newState = ClusterState.builder(currentState);
-                    if (nodeAdded) {
-                        newState.nodes(nodesBuilder);
-                    }
-
-                    return newState.build();
-                }
-
-                @Override
-                public void onNoLongerMaster(String source) {
-                    // we are rejected, so drain all pending task (execute never run)
-                    processJoinRequests.drainTo(drainedJoinRequests);
-                    Exception e = new NotMasterException("Node [" + clusterService.localNode() + "] not master for join request from [" + node + "]");
-                    innerOnFailure(e);
-                }
-
-                void innerOnFailure(Throwable t) {
-                    for (Tuple<DiscoveryNode, MembershipAction.JoinCallback> drainedTask : drainedJoinRequests) {
-                        try {
-                            drainedTask.v2().onFailure(t);
-                        } catch (Exception e) {
-                            logger.error("error during task failure", e);
-                        }
-                    }
-                }
-
-                @Override
-                public void onFailure(String source, Throwable t) {
-                    logger.error("unexpected failure during [{}]", t, source);
-                    innerOnFailure(t);
-                }
-
-                @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    if (nodeAdded) {
-                        // we reroute not in the same cluster state update since in certain areas we rely on
-                        // the node to be in the cluster state (sampled from ClusterService#state) to be there, also
-                        // shard transitions need to better be handled in such cases
-                        routingService.reroute("post_node_add");
-                    }
-                    for (Tuple<DiscoveryNode, MembershipAction.JoinCallback> drainedTask : drainedJoinRequests) {
-                        try {
-                            drainedTask.v2().onSuccess();
-                        } catch (Exception e) {
-                            logger.error("unexpected error during [{}]", e, source);
-                        }
-                    }
-                }
-            });
+            nodeJoinController.handleJoinRequest(node, callback);
         }
     }
 

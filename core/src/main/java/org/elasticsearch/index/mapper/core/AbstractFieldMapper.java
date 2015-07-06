@@ -292,7 +292,8 @@ public abstract class AbstractFieldMapper extends FieldMapper {
         super(simpleName);
         assert indexSettings != null;
         this.indexCreatedBefore2x = Version.indexCreated(indexSettings).before(Version.V_2_0_0);
-        this.fieldTypeRef = new MappedFieldTypeReference(fieldType);
+        this.fieldTypeRef = new MappedFieldTypeReference(fieldType); // the reference ctor freezes the field type
+        defaultFieldType.freeze();
         this.defaultFieldType = defaultFieldType;
         this.multiFields = multiFields;
         this.copyTo = copyTo;

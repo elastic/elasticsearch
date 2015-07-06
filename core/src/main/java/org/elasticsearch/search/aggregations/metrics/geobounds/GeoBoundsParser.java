@@ -51,7 +51,7 @@ public class GeoBoundsParser implements Aggregator.Parser {
                 currentFieldName = parser.currentName();
             } else if (vsParser.token(currentFieldName, token, parser)) {
                 continue;
-                
+
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if ("wrap_longitude".equals(currentFieldName) || "wrapLongitude".equals(currentFieldName)) {
                     wrapLongitude = parser.booleanValue();
@@ -64,7 +64,7 @@ public class GeoBoundsParser implements Aggregator.Parser {
                         + currentFieldName + "].", parser.getTokenLocation());
             }
         }
-        return new GeoBoundsAggregator.Factory(aggregationName, vsParser.config(), wrapLongitude);
+        return new GeoBoundsAggregator.Factory(aggregationName, vsParser.input(), wrapLongitude);
     }
 
 }

@@ -124,7 +124,9 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
     static final class RoutingFieldType extends MappedFieldType {
 
-        public RoutingFieldType() {}
+        public RoutingFieldType() {
+            setFieldDataType(new FieldDataType("string"));
+        }
 
         protected RoutingFieldType(RoutingFieldType ref) {
             super(ref);
@@ -157,19 +159,9 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     }
 
     protected RoutingFieldMapper(MappedFieldType fieldType, boolean required, String path, Settings indexSettings) {
-        super(NAME, fieldType, false, null, indexSettings);
+        super(NAME, fieldType, Defaults.FIELD_TYPE, indexSettings);
         this.required = required;
         this.path = path;
-    }
-
-    @Override
-    public MappedFieldType defaultFieldType() {
-        return Defaults.FIELD_TYPE;
-    }
-
-    @Override
-    public FieldDataType defaultFieldDataType() {
-        return new FieldDataType("string");
     }
 
     public void markAsRequired() {

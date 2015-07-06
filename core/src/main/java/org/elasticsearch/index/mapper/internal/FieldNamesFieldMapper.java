@@ -100,9 +100,10 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         @Override
         public FieldNamesFieldMapper build(BuilderContext context) {
             setupFieldType(context);
+            fieldType.setHasDocValues(false);
             FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldType)fieldType;
             fieldNamesFieldType.setEnabled(enabled);
-            return new FieldNamesFieldMapper(fieldType, fieldDataSettings, context.indexSettings());
+            return new FieldNamesFieldMapper(fieldType, context.indexSettings());
         }
     }
 
@@ -135,7 +136,9 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
         private boolean enabled = Defaults.ENABLED;
 
-        public FieldNamesFieldType() {}
+        public FieldNamesFieldType() {
+            setFieldDataType(new FieldDataType("string"));
+        }
 
         protected FieldNamesFieldType(FieldNamesFieldType ref) {
             super(ref);
@@ -197,18 +200,14 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private final MappedFieldType defaultFieldType;
     private final boolean pre13Index; // if the index was created before 1.3, _field_names is always disabled
 
     public FieldNamesFieldMapper(Settings indexSettings, MappedFieldType existing) {
-        this(existing == null ? Defaults.FIELD_TYPE.clone() : existing.clone(),
-             existing == null ? null : (existing.fieldDataType() == null ? null : existing.fieldDataType().getSettings()),
-             indexSettings);
+        this(existing == null ? Defaults.FIELD_TYPE.clone() : existing.clone(), indexSettings);
     }
 
-    public FieldNamesFieldMapper(MappedFieldType fieldType, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(NAME, fieldType, false, fieldDataSettings, indexSettings);
-        this.defaultFieldType = Defaults.FIELD_TYPE;
+    public FieldNamesFieldMapper(MappedFieldType fieldType, Settings indexSettings) {
+        super(NAME, fieldType, Defaults.FIELD_TYPE, indexSettings);
         this.pre13Index = Version.indexCreated(indexSettings).before(Version.V_1_3_0);
         if (this.pre13Index) {
             FieldNamesFieldType newFieldType = fieldType().clone();
@@ -221,16 +220,6 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     @Override
     public FieldNamesFieldType fieldType() {
         return (FieldNamesFieldType) super.fieldType();
-    }
-
-    @Override
-    public MappedFieldType defaultFieldType() {
-        return defaultFieldType;
-    }
-
-    @Override
-    public FieldDataType defaultFieldDataType() {
-        return new FieldDataType("string");
     }
 
     @Override

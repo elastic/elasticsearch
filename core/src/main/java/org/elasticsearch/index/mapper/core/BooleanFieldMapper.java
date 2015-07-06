@@ -90,8 +90,8 @@ public class BooleanFieldMapper extends AbstractFieldMapper {
         @Override
         public BooleanFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            return new BooleanFieldMapper(name, fieldType, docValues,
-                    fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+            return new BooleanFieldMapper(name, fieldType, defaultFieldType,
+                context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -194,25 +194,14 @@ public class BooleanFieldMapper extends AbstractFieldMapper {
         }
     }
 
-    protected BooleanFieldMapper(String simpleName, MappedFieldType fieldType, Boolean docValues,
-                                 @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, docValues, fieldDataSettings, indexSettings, multiFields, copyTo);
+    protected BooleanFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
+                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
     }
 
     @Override
     public BooleanFieldType fieldType() {
         return (BooleanFieldType) super.fieldType();
-    }
-
-    @Override
-    public MappedFieldType defaultFieldType() {
-        return Defaults.FIELD_TYPE;
-    }
-
-    @Override
-    public FieldDataType defaultFieldDataType() {
-        // TODO have a special boolean type?
-        return new FieldDataType(CONTENT_TYPE);
     }
 
     @Override

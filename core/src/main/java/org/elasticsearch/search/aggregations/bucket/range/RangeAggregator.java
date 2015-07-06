@@ -33,7 +33,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueParser;
@@ -282,8 +282,9 @@ public class RangeAggregator extends BucketsAggregator {
         private final List<Range> ranges;
         private final boolean keyed;
 
-        public Factory(String name, ValuesSourceConfig<ValuesSource.Numeric> valueSourceConfig, InternalRange.Factory rangeFactory, List<Range> ranges, boolean keyed) {
-            super(name, rangeFactory.type(), valueSourceConfig);
+        public Factory(String name, ValuesSourceParser.Input<ValuesSource.Numeric> valueSourceInput, InternalRange.Factory rangeFactory,
+                List<Range> ranges, boolean keyed) {
+            super(name, rangeFactory.type(), valueSourceInput);
             this.rangeFactory = rangeFactory;
             this.ranges = ranges;
             this.keyed = keyed;

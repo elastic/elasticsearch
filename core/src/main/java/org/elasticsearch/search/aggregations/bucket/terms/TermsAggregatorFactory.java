@@ -32,7 +32,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -162,10 +162,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
     private final boolean showTermDocCountError;
 
-    public TermsAggregatorFactory(String name, ValuesSourceConfig config, Terms.Order order,
+    public TermsAggregatorFactory(String name, ValuesSourceParser.Input input, Terms.Order order,
             TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude, String executionHint,
             SubAggCollectionMode executionMode, boolean showTermDocCountError) {
-        super(name, StringTerms.TYPE.name(), config);
+        super(name, StringTerms.TYPE.name(), input);
         this.order = order;
         this.includeExclude = includeExclude;
         this.executionHint = executionHint;

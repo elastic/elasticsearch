@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.metrics.stats;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.metrics.NumericValuesSourceMetricsAggregatorParser;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 
 /**
  *
@@ -33,7 +33,7 @@ public class StatsParser extends NumericValuesSourceMetricsAggregatorParser<Inte
     }
 
     @Override
-    protected AggregatorFactory createFactory(String aggregationName, ValuesSourceConfig<ValuesSource.Numeric> config) {
-        return new StatsAggregator.Factory(aggregationName, config);
+    protected AggregatorFactory createFactory(String aggregationName, ValuesSourceParser.Input<ValuesSource.Numeric> input) {
+        return new StatsAggregator.Factory(aggregationName, input);
     }
 }

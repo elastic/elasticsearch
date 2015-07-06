@@ -18,6 +18,18 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.mapper.core.NumberFieldMapper;
+import org.elasticsearch.index.mapper.ip.IpFieldMapper;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -25,6 +37,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -37,8 +50,8 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
 
     public static abstract class LeafOnly<VS extends ValuesSource> extends ValuesSourceAggregatorFactory<VS> {
 
-        protected LeafOnly(String name, String type, ValuesSourceConfig<VS> valuesSourceConfig) {
-            super(name, type, valuesSourceConfig);
+        protected LeafOnly(String name, String type, ValuesSourceParser.Input<VS> input) {
+            super(name, type, input);
         }
 
         @Override
@@ -48,10 +61,20 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
     }
 
     protected ValuesSourceConfig<VS> config;
+    private ValuesSourceParser.Input<VS> input;
 
-    protected ValuesSourceAggregatorFactory(String name, String type, ValuesSourceConfig<VS> config) {
+    protected ValuesSourceAggregatorFactory(String name, String type, ValuesSourceParser.Input<VS> input) {
         super(name, type);
-        this.config = config;
+        this.input = input;
+    }
+
+    @Override
+    public void doInit(AggregationContext context) {
+        this.config = config(input, context);
+        if (config == null || !config.valid()) {
+            resolveValuesSourceConfigFromAncestors(name, this.parent, config.valueSourceType());
+        }
+
     }
 
     @Override
@@ -66,9 +89,100 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
 
     @Override
     public void doValidate() {
-        if (config == null || !config.valid()) {
-            resolveValuesSourceConfigFromAncestors(name, parent, config.valueSourceType());
+    }
+
+    public ValuesSourceConfig<VS> config(ValuesSourceParser.Input<VS> input, AggregationContext context) {
+
+        ValueType valueType = input.valueType != null ? input.valueType : input.targetValueType;
+
+        if (input.field == null) {
+            if (input.script == null) {
+                ValuesSourceConfig<VS> config = new ValuesSourceConfig(ValuesSource.class);
+                config.format = resolveFormat(null, valueType);
+                return config;
+            }
+            Class valuesSourceType = valueType != null ? (Class<VS>) valueType.getValuesSourceType() : input.valuesSourceType;
+            if (valuesSourceType == null || valuesSourceType == ValuesSource.class) {
+                // the specific value source type is undefined, but for scripts,
+                // we need to have a specific value source
+                // type to know how to handle the script values, so we fallback
+                // on Bytes
+                valuesSourceType = ValuesSource.Bytes.class;
+            }
+            ValuesSourceConfig<VS> config = new ValuesSourceConfig<VS>(valuesSourceType);
+            config.missing = input.missing;
+            config.format = resolveFormat(input.format, valueType);
+            config.script = createScript(input.script, context.searchContext());
+            config.scriptValueType = valueType;
+            return config;
         }
+
+        MappedFieldType fieldType = context.searchContext().smartNameFieldTypeFromAnyType(input.field);
+        if (fieldType == null) {
+            Class<VS> valuesSourceType = valueType != null ? (Class<VS>) valueType.getValuesSourceType() : input.valuesSourceType;
+            ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
+            config.missing = input.missing;
+            config.format = resolveFormat(input.format, valueType);
+            config.unmapped = true;
+            if (valueType != null) {
+                // todo do we really need this for unmapped?
+                config.scriptValueType = valueType;
+            }
+            return config;
+        }
+
+        IndexFieldData<?> indexFieldData = context.searchContext().fieldData().getForField(fieldType);
+
+        ValuesSourceConfig config;
+        if (input.valuesSourceType == ValuesSource.class) {
+            if (indexFieldData instanceof IndexNumericFieldData) {
+                config = new ValuesSourceConfig<>(ValuesSource.Numeric.class);
+            } else if (indexFieldData instanceof IndexGeoPointFieldData) {
+                config = new ValuesSourceConfig<>(ValuesSource.GeoPoint.class);
+            } else {
+                config = new ValuesSourceConfig<>(ValuesSource.Bytes.class);
+            }
+        } else {
+            config = new ValuesSourceConfig(input.valuesSourceType);
+        }
+
+        config.fieldContext = new FieldContext(input.field, indexFieldData, fieldType);
+        config.missing = input.missing;
+        config.script = createScript(input.script, context.searchContext());
+        config.format = resolveFormat(input.format, fieldType);
+        return config;
+    }
+
+    private SearchScript createScript(Script script, SearchContext context) {
+        return script == null ? null : context.scriptService().search(context.lookup(), script, ScriptContext.Standard.AGGS);
+    }
+
+    private static ValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType) {
+        if (valueType == null) {
+            return ValueFormat.RAW; // we can't figure it out
+        }
+        ValueFormat valueFormat = valueType.defaultFormat;
+        if (valueFormat != null && valueFormat instanceof ValueFormat.Patternable && format != null) {
+            return ((ValueFormat.Patternable) valueFormat).create(format);
+        }
+        return valueFormat;
+    }
+
+    private static ValueFormat resolveFormat(@Nullable String format, MappedFieldType fieldType) {
+        if (fieldType instanceof DateFieldMapper.DateFieldType) {
+            return format != null ? ValueFormat.DateTime.format(format) : ValueFormat.DateTime
+                    .mapper((DateFieldMapper.DateFieldType) fieldType);
+        }
+        if (fieldType instanceof IpFieldMapper.IpFieldType) {
+            return ValueFormat.IPv4;
+        }
+        if (fieldType instanceof BooleanFieldMapper.BooleanFieldType) {
+            return ValueFormat.BOOLEAN;
+        }
+        if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
+            return format != null ? ValueFormat.Number.format(format) : ValueFormat.RAW;
+        }
+        return ValueFormat.RAW;
     }
 
     protected abstract Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,

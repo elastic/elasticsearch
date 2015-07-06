@@ -54,6 +54,6 @@ public class ValueCountParser implements Aggregator.Parser {
             }
         }
 
-        return new ValueCountAggregator.Factory(aggregationName, vsParser.config());
+        return new ValueCountAggregator.Factory(aggregationName, vsParser.input());
     }
 }

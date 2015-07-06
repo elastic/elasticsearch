@@ -37,7 +37,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -203,8 +203,8 @@ public class SamplerAggregator extends SingleBucketAggregator {
         private int maxDocsPerValue;
         private String executionHint;
 
-        public DiversifiedFactory(String name, int shardSize, String executionHint, ValuesSourceConfig vsConfig, int maxDocsPerValue) {
-            super(name, InternalSampler.TYPE.name(), vsConfig);
+        public DiversifiedFactory(String name, int shardSize, String executionHint, ValuesSourceParser.Input vsInput, int maxDocsPerValue) {
+            super(name, InternalSampler.TYPE.name(), vsInput);
             this.shardSize = shardSize;
             this.maxDocsPerValue = maxDocsPerValue;
             this.executionHint = executionHint;

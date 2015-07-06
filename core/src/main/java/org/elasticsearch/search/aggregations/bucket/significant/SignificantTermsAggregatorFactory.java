@@ -42,7 +42,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -143,25 +143,30 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         return new TermsAggregator.BucketCountThresholds(bucketCountThresholds);
     }
 
-    public SignificantTermsAggregatorFactory(String name, ValuesSourceConfig valueSourceConfig, TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
+    public SignificantTermsAggregatorFactory(String name, ValuesSourceParser.Input valueSourceInput,
+            TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
                                              String executionHint, Query filter, SignificanceHeuristic significanceHeuristic) {
 
-        super(name, SignificantStringTerms.TYPE.name(), valueSourceConfig);
+        super(name, SignificantStringTerms.TYPE.name(), valueSourceInput);
         this.bucketCountThresholds = bucketCountThresholds;
         this.includeExclude = includeExclude;
         this.executionHint = executionHint;
         this.significanceHeuristic = significanceHeuristic;
-        if (!valueSourceConfig.unmapped()) {
+        this.filter = filter;
+    }
+
+    private void setFieldInfo() {
+        if (!config.unmapped()) {
             this.indexedFieldName = config.fieldContext().field();
             fieldType = SearchContext.current().smartNameFieldType(indexedFieldName);
         }
-        this.filter = filter;
     }
 
     @Override
     protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
             List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) throws IOException {
+        setFieldInfo();
         final InternalAggregation aggregation = new UnmappedSignificantTerms(name, bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(), pipelineAggregators, metaData);
         return new NonCollectingAggregator(name, aggregationContext, parent, pipelineAggregators, metaData) {
@@ -176,6 +181,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     protected Aggregator doCreateInternal(ValuesSource valuesSource, AggregationContext aggregationContext, Aggregator parent,
             boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
+        setFieldInfo();
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, aggregationContext, parent);
         }

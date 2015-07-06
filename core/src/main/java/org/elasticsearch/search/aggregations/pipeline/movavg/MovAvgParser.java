@@ -177,5 +177,10 @@ public class MovAvgParser implements PipelineAggregator.Parser {
                 movAvgModel, minimize);
     }
 
+    // NORELEASE implement this method when refactoring this aggregation
+    @Override
+    public PipelineAggregatorFactory getFactoryPrototype() {
+        return null;
+    }
 
 }

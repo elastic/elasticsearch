@@ -66,4 +66,10 @@ public class NestedParser implements Aggregator.Parser {
 
         return new NestedAggregator.Factory(aggregationName, path);
     }
+
+    // NORELEASE implement this method when refactoring this aggregation
+    @Override
+    public AggregatorFactory getFactoryPrototype() {
+        return null;
+    }
 }

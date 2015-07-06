@@ -32,7 +32,7 @@ public class RegexpQueryBuilder extends MultiTermQueryBuilder implements Boostab
     private final String name;
     private final String regexp;
 
-    private int flags = -1;
+    private int flags = RegexpQueryParser.DEFAULT_FLAGS_VALUE;
     private float boost = -1;
     private String rewrite;
     private String queryName;

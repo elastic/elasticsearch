@@ -11,6 +11,12 @@ on the query-refactoring feature branch.
 Removed setters for mandatory positive/negative query. Both arguments now have
 to be supplied at construction time already and have to be non-null.
 
+==== SpanContainingQueryBuilder
+
+Removed setters for mandatory big/little inner span queries. Both arguments now have
+to be supplied at construction time already and have to be non-null. Updated
+static factory methods in QueryBuilders accordingly.
+
 ==== QueryFilterBuilder
 
 Removed the setter `queryName(String queryName)` since this field is not supported

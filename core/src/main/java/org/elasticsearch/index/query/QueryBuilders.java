@@ -329,9 +329,13 @@ public abstract class QueryBuilders {
         return new SpanWithinQueryBuilder();
     }
 
-    /** Creates a new {@code span_containing} builder. */
-    public static SpanContainingQueryBuilder spanContainingQuery() {
-        return new SpanContainingQueryBuilder();
+    /**
+     * Creates a new {@code span_containing} builder.
+     * @param big the big clause, it must enclose {@code little} for a match.
+     * @param little the little clause, it must be contained within {@code big} for a match.
+     */
+    public static SpanContainingQueryBuilder spanContainingQuery(SpanQueryBuilder big, SpanQueryBuilder little) {
+        return new SpanContainingQueryBuilder(big, little);
     }
 
     /**

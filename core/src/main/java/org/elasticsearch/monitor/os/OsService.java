@@ -19,7 +19,6 @@
 
 package org.elasticsearch.monitor.os;
 
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -46,8 +45,6 @@ public class OsService extends AbstractComponent {
 
         this.info = probe.osInfo();
         this.info.refreshInterval = refreshInterval.millis();
-        this.info.availableProcessors = Runtime.getRuntime().availableProcessors();
-        this.info.name = Constants.OS_NAME;
         osStatsCache = new OsStatsCache(refreshInterval, probe.osStats());
         logger.debug("Using probe [{}] with refresh_interval [{}]", probe, refreshInterval);
     }

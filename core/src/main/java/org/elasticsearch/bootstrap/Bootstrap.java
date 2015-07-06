@@ -40,6 +40,7 @@ import org.elasticsearch.common.logging.log4j.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
@@ -146,6 +147,7 @@ public class Bootstrap {
     static void initializeProbes() {
         // Force probes to be loaded
         ProcessProbe.getInstance();
+        OsProbe.getInstance();
     }
 
     public static boolean isMemoryLocked() {

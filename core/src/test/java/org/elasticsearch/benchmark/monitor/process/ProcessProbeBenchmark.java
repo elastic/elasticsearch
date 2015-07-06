@@ -19,6 +19,7 @@
 
 package org.elasticsearch.benchmark.monitor.process;
 
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.monitor.process.ProcessProbe;
@@ -26,6 +27,7 @@ import org.elasticsearch.monitor.process.ProcessProbe;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
 
+@SuppressForbidden(reason = "use of om.sun.management.ThreadMXBean to compare performance")
 public class ProcessProbeBenchmark {
 
     private static final int ITERATIONS = 100_000;
@@ -108,7 +110,6 @@ public class ProcessProbeBenchmark {
         logger.info("--> execution time [total: {} ms, avg: {} ms] for {} iterations with average result of {}",
                 elapsed, (elapsed / (double)ITERATIONS), ITERATIONS, (sum / (double)ITERATIONS));
 
-        /* Commented as com.sun.management is listed as forbidden usage
         if (threadMxBean instanceof com.sun.management.ThreadMXBean) {
             logger.info("--> calculating process CPU user time with 'getAllThreadIds + getThreadUserTime(long[])' methods...");
             final com.sun.management.ThreadMXBean threadMxBean2 = (com.sun.management.ThreadMXBean)threadMxBean;
@@ -125,6 +126,6 @@ public class ProcessProbeBenchmark {
             logger.info("--> execution time [total: {} ms, avg: {} ms] for {} iterations with average result of {}",
                     elapsed, (elapsed / (double)ITERATIONS), ITERATIONS, (sum / (double)ITERATIONS));
 
-        }*/
+        }
     }
 }

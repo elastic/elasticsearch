@@ -25,7 +25,6 @@ import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.monitor.fs.FsService;
 import org.elasticsearch.monitor.jvm.JvmMonitorService;
 import org.elasticsearch.monitor.jvm.JvmService;
-import org.elasticsearch.monitor.os.JmxOsProbe;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.os.OsService;
 import org.elasticsearch.monitor.process.ProcessProbe;
@@ -50,7 +49,7 @@ public class MonitorModule extends AbstractModule {
     protected void configure() {
         // bind default implementations
         bind(ProcessProbe.class).toInstance(ProcessProbe.getInstance());
-        bind(OsProbe.class).to(JmxOsProbe.class).asEagerSingleton();
+        bind(OsProbe.class).toInstance(OsProbe.getInstance());
         bind(FsProbe.class).asEagerSingleton();
 
         // bind other services

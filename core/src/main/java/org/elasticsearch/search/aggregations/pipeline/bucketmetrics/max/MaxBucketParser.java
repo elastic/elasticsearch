@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.max;
 
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
@@ -37,6 +37,12 @@ public class MaxBucketParser extends BucketMetricsParser {
     protected PipelineAggregatorFactory buildFactory(String pipelineAggregatorName, String[] bucketsPaths, GapPolicy gapPolicy,
                                                      ValueFormatter formatter, Map<String, Object> unparsedParams) {
         return new MaxBucketPipelineAggregator.Factory(pipelineAggregatorName, bucketsPaths, gapPolicy, formatter);
+    }
+
+    // NORELEASE implement this method when refactoring this aggregation
+    @Override
+    public PipelineAggregatorFactory getFactoryPrototype() {
+        return null;
     }
 
 }

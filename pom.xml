@@ -128,7 +128,7 @@
         <dependencies>
             <dependency>
                 <groupId>org.elasticsearch</groupId>
-                <artifactId>dev-tools</artifactId>
+                <artifactId>elasticsearch-dev-tools</artifactId>
                 <version>${elasticsearch.version}</version>
             </dependency>
 
@@ -730,8 +730,8 @@
                     <version>1.5</version>
                     <configuration>
                         <resourceBundles>
-                            <resourceBundle>org.elasticsearch:dev-tools:${elasticsearch.version}</resourceBundle>
-                            <resourceBundle>org.elasticsearch:rest-api-spec:${elasticsearch.version}</resourceBundle>
+                            <resourceBundle>org.elasticsearch:elasticsearch-dev-tools:${elasticsearch.version}</resourceBundle>
+                            <resourceBundle>org.elasticsearch:elasticsearch-rest-api-spec:${elasticsearch.version}</resourceBundle>
                         </resourceBundles>
                         <outputDirectory>${elasticsearch.tools.directory}</outputDirectory>
                         <!-- don't include dev-tools in artifacts -->

@@ -24,7 +24,6 @@ import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -42,8 +41,8 @@ public class ExtendedStatsParser  implements Aggregator.Parser {
         return InternalExtendedStats.TYPE.name();
     }
 
-    protected AggregatorFactory createFactory(String aggregationName, ValuesSourceConfig<ValuesSource.Numeric> config, double sigma) {
-        return new ExtendedStatsAggregator.Factory(aggregationName, config, sigma);
+    protected AggregatorFactory createFactory(String aggregationName, ValuesSourceParser.Input<ValuesSource.Numeric> input, double sigma) {
+        return new ExtendedStatsAggregator.Factory(aggregationName, input, sigma);
     }
 
     @Override
@@ -78,6 +77,6 @@ public class ExtendedStatsParser  implements Aggregator.Parser {
             throw new SearchParseException(context, "[sigma] must not be negative. Value provided was" + sigma, parser.getTokenLocation());
         }
 
-        return createFactory(aggregationName, vsParser.config(), sigma);
+        return createFactory(aggregationName, vsParser.input(), sigma);
     }
 }

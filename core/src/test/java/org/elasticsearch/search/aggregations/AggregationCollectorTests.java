@@ -34,7 +34,7 @@ public class AggregationCollectorTests extends ESSingleNodeTestCase {
         IndexService index = createIndex("idx");
         client().prepareIndex("idx", "type", "1").setSource("f", 5).execute().get();
         client().admin().indices().prepareRefresh("idx").get();
-        
+
         // simple field aggregation, no scores needed
         String fieldAgg = "{ \"my_terms\": {\"terms\": {\"field\": \"f\"}}}";
         assertFalse(needsScores(index, fieldAgg));
@@ -63,7 +63,8 @@ public class AggregationCollectorTests extends ESSingleNodeTestCase {
         SearchContext searchContext = createSearchContext(index);
         final AggregatorFactories factories = parser.parseAggregators(aggParser, searchContext);
         AggregationContext aggregationContext = new AggregationContext(searchContext);
-        final Aggregator[] aggregators = factories.createTopLevelAggregators(aggregationContext);
+        factories.init(aggregationContext);
+        final Aggregator[] aggregators = factories.createTopLevelAggregators();
         assertEquals(1, aggregators.length);
         return aggregators[0].needsScores();
     }

@@ -26,6 +26,11 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
+import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
+import org.elasticsearch.index.search.child.ConstantScorer;
+import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -34,9 +39,11 @@ import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -184,15 +191,19 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
 
     public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource.Bytes.WithOrdinals.ParentChild> {
 
-        private final String parentType;
-        private final Query parentFilter;
-        private final Query childFilter;
+        private String parentType;
+        private final String childType;
+        private Filter parentFilter;
+        private Filter childFilter;
 
-        public Factory(String name, ValuesSourceConfig<ValuesSource.Bytes.WithOrdinals.ParentChild> config, String parentType, Query parentFilter, Query childFilter) {
-            super(name, InternalChildren.TYPE.name(), config);
-            this.parentType = parentType;
-            this.parentFilter = parentFilter;
-            this.childFilter = childFilter;
+        public Factory(String name, String childType) {
+            super(name, InternalChildren.TYPE.name(), new ValuesSourceParser.Input<ValuesSource.Bytes.WithOrdinals.ParentChild>());
+            this.childType = childType;
+        }
+
+        @Override
+        public void doInit(AggregationContext context) {
+            resolveConfig(context);
         }
 
         @Override
@@ -215,6 +226,34 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
             long maxOrd = valuesSource.globalMaxOrd(aggregationContext.searchContext().searcher(), parentType);
             return new ParentToChildrenAggregator(name, factories, aggregationContext, parent, parentType, childFilter, parentFilter,
                     valuesSource, maxOrd, pipelineAggregators, metaData);
+        }
+
+        private void resolveConfig(AggregationContext aggregationContext) {
+            config = new ValuesSourceConfig<>(ValuesSource.Bytes.WithOrdinals.ParentChild.class);
+            DocumentMapper childDocMapper = aggregationContext.searchContext().mapperService().documentMapper(childType);
+
+            if (childDocMapper != null) {
+                ParentFieldMapper parentFieldMapper = childDocMapper.parentFieldMapper();
+                if (!parentFieldMapper.active()) {
+                    throw new SearchParseException(aggregationContext.searchContext(),
+                            "[children] no [_parent] field not configured that points to a parent type", null); // NOCOMMIT fix exception args
+                }
+                parentType = parentFieldMapper.type();
+                DocumentMapper parentDocMapper = aggregationContext.searchContext().mapperService().documentMapper(parentType);
+                if (parentDocMapper != null) {
+                    // TODO: use the query API
+                    parentFilter = new QueryWrapperFilter(parentDocMapper.typeFilter());
+                    childFilter = new QueryWrapperFilter(childDocMapper.typeFilter());
+                    ParentChildIndexFieldData parentChildIndexFieldData = aggregationContext.searchContext().fieldData()
+                            .getForField(parentFieldMapper.fieldType());
+                    config.fieldContext(new FieldContext(parentFieldMapper.fieldType().names().indexName(), parentChildIndexFieldData,
+                            parentFieldMapper.fieldType()));
+                } else {
+                    config.unmapped(true);
+                }
+            } else {
+                config.unmapped(true);
+            }
         }
 
     }

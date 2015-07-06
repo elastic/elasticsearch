@@ -1346,6 +1346,10 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                     <missing>${basedir}/src</missing>
                 </file>
             </activation>
+            <properties>
+                <skip.unit.tests>true</skip.unit.tests>
+                <skip.integ.tests>true</skip.integ.tests>
+            </properties>
             <build>
                 <plugins>
                     <plugin>

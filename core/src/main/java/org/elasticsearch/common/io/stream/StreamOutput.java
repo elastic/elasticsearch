@@ -36,6 +36,8 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.joda.time.ReadableInstant;
 
 import java.io.EOFException;
@@ -610,6 +612,20 @@ public abstract class StreamOutput extends OutputStream {
     void writeNamedWriteable(NamedWriteable namedWriteable) throws IOException {
         writeString(namedWriteable.getWriteableName());
         namedWriteable.writeTo(this);
+    }
+
+    /**
+     * Writes a {@link AggregatorFactory} to the current stream
+     */
+    public void writeAggregatorFactory(AggregatorFactory factory) throws IOException {
+        writeNamedWriteable(factory);
+    }
+
+    /**
+     * Writes a {@link PipelineAggregatorFactory} to the current stream
+     */
+    public void writePipelineAggregatorFactory(PipelineAggregatorFactory factory) throws IOException {
+        writeNamedWriteable(factory);
     }
 
     /**

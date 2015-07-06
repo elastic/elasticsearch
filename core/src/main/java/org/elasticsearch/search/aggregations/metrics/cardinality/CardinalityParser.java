@@ -76,4 +76,10 @@ public class CardinalityParser implements Aggregator.Parser {
 
     }
 
+    // NORELEASE implement this method when refactoring this aggregation
+    @Override
+    public AggregatorFactory getFactoryPrototype() {
+        return null;
+    }
+
 }

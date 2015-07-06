@@ -69,6 +69,12 @@ public abstract class PipelineAggregator implements Streamable {
          */
         PipelineAggregatorFactory parse(String pipelineAggregatorName, XContentParser parser, SearchContext context) throws IOException;
 
+        /**
+         * @return an empty {@link PipelineAggregatorFactory} instance for this
+         *         parser that can be used for deserialization
+         */
+        PipelineAggregatorFactory getFactoryPrototype();
+
     }
 
     private String name;

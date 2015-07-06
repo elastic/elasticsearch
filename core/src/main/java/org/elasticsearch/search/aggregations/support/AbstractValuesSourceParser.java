@@ -19,62 +19,64 @@
 
 package org.elasticsearch.search.aggregations.support;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
-import org.elasticsearch.script.ScriptParameterParser;
-import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.internal.SearchContext;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
-
-import static com.google.common.collect.Maps.newHashMap;
 
 /**
  *
  */
 public abstract class AbstractValuesSourceParser<VS extends ValuesSource> implements Aggregator.Parser {
+    static final ParseField TIME_ZONE = new ParseField("time_zone");
 
     public abstract static class AnyValuesSourceParser extends AbstractValuesSourceParser<ValuesSource> {
 
         protected AnyValuesSourceParser(boolean scriptable, boolean formattable) {
-            super(scriptable, formattable, ValuesSource.class, null);
+            super(scriptable, formattable, false, ValuesSourceType.ANY, null);
         }
     }
 
     public abstract static class NumericValuesSourceParser extends AbstractValuesSourceParser<ValuesSource.Numeric> {
 
-        protected NumericValuesSourceParser(boolean scriptable, boolean formattable) {
-            super(scriptable, formattable, ValuesSource.Numeric.class, ValueType.NUMERIC);
+        protected NumericValuesSourceParser(boolean scriptable, boolean formattable, boolean timezoneAware) {
+            super(scriptable, formattable, timezoneAware, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
         }
     }
 
     public abstract static class BytesValuesSourceParser extends AbstractValuesSourceParser<ValuesSource.Bytes> {
 
         protected BytesValuesSourceParser(boolean scriptable, boolean formattable) {
-            super(scriptable, formattable, ValuesSource.Bytes.class, ValueType.STRING);
+            super(scriptable, formattable, false, ValuesSourceType.BYTES, ValueType.STRING);
         }
     }
 
     public abstract static class GeoPointValuesSourceParser extends AbstractValuesSourceParser<ValuesSource.GeoPoint> {
 
         protected GeoPointValuesSourceParser(boolean scriptable, boolean formattable) {
-            super(scriptable, formattable, ValuesSource.GeoPoint.class, ValueType.GEOPOINT);
+            super(scriptable, formattable, false, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
         }
     }
 
     private boolean scriptable = true;
     private boolean formattable = false;
-    private Class<VS> valuesSourceType = null;
+    private boolean timezoneAware = false;
+    private ValuesSourceType valuesSourceType = null;
     private ValueType targetValueType = null;
-    private ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
 
-    private AbstractValuesSourceParser(boolean scriptable,
-            boolean formattable, Class<VS> valuesSourceType, ValueType targetValueType) {
+    private AbstractValuesSourceParser(boolean scriptable, boolean formattable, boolean timezoneAware, ValuesSourceType valuesSourceType,
+            ValueType targetValueType) {
+        this.timezoneAware = timezoneAware;
         this.valuesSourceType = valuesSourceType;
         this.targetValueType = targetValueType;
         this.scriptable = scriptable;
@@ -82,15 +84,15 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource> implem
     }
 
     @Override
-    public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
+    public final AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
 
         String field = null;
         Script script = null;
-        @Deprecated
-        Map<String, Object> params = null; // TODO Remove in 3.0
         ValueType valueType = null;
         String format = null;
         Object missing = null;
+        DateTimeZone timezone = null;
+        Map<ParseField, Object> otherOptions = new HashMap<>();
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -99,6 +101,15 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource> implem
                 currentFieldName = parser.currentName();
             } else if ("missing".equals(currentFieldName) && token.isValue()) {
                 missing = parser.objectText();
+            } else if (timezoneAware && context.parseFieldMatcher().match(currentFieldName, TIME_ZONE)) {
+                if (token == XContentParser.Token.VALUE_STRING) {
+                    timezone = DateTimeZone.forID(parser.text());
+                } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                    timezone = DateTimeZone.forOffsetHours(parser.intValue());
+                } else {
+                    throw new SearchParseException(context, "Unexpected token " + token + " [" + currentFieldName + "] in ["
+                            + aggregationName + "].", parser.getTokenLocation());
+                }
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if ("field".equals(currentFieldName)) {
                     field = parser.text();
@@ -110,54 +121,43 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource> implem
                         if (targetValueType != null && valueType.isNotA(targetValueType)) {
                             throw new SearchParseException(context, type() + " aggregation [" + aggregationName
                                     + "] was configured with an incompatible value type [" + valueType + "]. [" + type()
-                                    + "] aggregation can only work on value of type [" + targetValueType + "]",
-                                    parser.getTokenLocation());
+                                    + "] aggregation can only work on value of type [" + targetValueType + "]", parser.getTokenLocation());
                         }
-                    } else if (!scriptParameterParser.token(currentFieldName, token, parser, context.parseFieldMatcher())) {
-                        throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].",
-                                parser.getTokenLocation());
+                    } else if (!token(aggregationName, currentFieldName, token, parser, context.parseFieldMatcher(), otherOptions)) {
+                        throw new SearchParseException(context, "Unexpected token " + token + " [" + currentFieldName + "] in ["
+                                + aggregationName + "].", parser.getTokenLocation());
                     }
-                } else {
-                    throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].",
-                            parser.getTokenLocation());
+                } else if (!token(aggregationName, currentFieldName, token, parser, context.parseFieldMatcher(), otherOptions)) {
+                    throw new SearchParseException(context, "Unexpected token " + token + " [" + currentFieldName + "] in ["
+                            + aggregationName + "].", parser.getTokenLocation());
                 }
             } else if (scriptable && token == XContentParser.Token.START_OBJECT) {
                 if (context.parseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
                     script = Script.parse(parser, context.parseFieldMatcher());
-                } else if ("params".equals(currentFieldName)) {
-                    params = parser.map();
-                } else {
-                    throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].",
-                            parser.getTokenLocation());
+                } else if (!token(aggregationName, currentFieldName, token, parser, context.parseFieldMatcher(), otherOptions)) {
+                    throw new SearchParseException(context, "Unexpected token " + token + " [" + currentFieldName + "] in ["
+                            + aggregationName + "].", parser.getTokenLocation());
                 }
-            } else if (!token(currentFieldName, token, parser)) {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].",
-                        parser.getTokenLocation());
+            } else if (!token(aggregationName, currentFieldName, token, parser, context.parseFieldMatcher(), otherOptions)) {
+                throw new SearchParseException(context, "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName
+                        + "].", parser.getTokenLocation());
             }
         }
 
-        if (script == null) { // Didn't find anything using the new API so
-            // try using the old one instead
-            ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
-            if (scriptValue != null) {
-                if (params == null) {
-                    params = newHashMap();
-                }
-                script = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), params);
-            }
-        }
-
-        ValuesSourceAggregatorFactory<VS> factory = createFactory(aggregationName, this.valuesSourceType, this.targetValueType);
+        ValuesSourceAggregatorFactory<VS> factory = createFactory(aggregationName, this.valuesSourceType, this.targetValueType,
+                otherOptions);
         factory.field(field);
         factory.script(script);
         factory.valueType(valueType);
         factory.format(format);
         factory.missing(missing);
+        factory.timeZone(timezone);
         return factory;
     }
 
-    protected abstract ValuesSourceAggregatorFactory<VS> createFactory(String aggregationName, Class<VS> valuesSourceType,
-            ValueType targetValueType);
+    protected abstract ValuesSourceAggregatorFactory<VS> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+            ValueType targetValueType, Map<ParseField, Object> otherOptions);
 
-    protected abstract boolean token(String currentFieldName, XContentParser.Token token, XContentParser parser) throws IOException;
+    protected abstract boolean token(String aggregationName, String currentFieldName, XContentParser.Token token, XContentParser parser,
+            ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException;
 }

@@ -43,7 +43,8 @@ public class CardinalityParser implements Aggregator.Parser {
     @Override
     public AggregatorFactory parse(String name, XContentParser parser, SearchContext context) throws IOException {
 
-        ValuesSourceParser<?> vsParser = ValuesSourceParser.any(name, InternalCardinality.TYPE, context).formattable(false).build();
+        ValuesSourceParser<ValuesSource> vsParser = ValuesSourceParser.any(name, InternalCardinality.TYPE, context).formattable(false)
+                .build();
 
         long precisionThreshold = -1;
 
@@ -68,7 +69,9 @@ public class CardinalityParser implements Aggregator.Parser {
             }
         }
 
-        return new CardinalityAggregatorFactory(name, vsParser.config(), precisionThreshold);
+        ValuesSourceParser.Input<ValuesSource> input = vsParser.input();
+
+        return new CardinalityAggregatorFactory(name, input, precisionThreshold);
 
     }
 

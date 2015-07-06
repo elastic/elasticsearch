@@ -32,7 +32,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
@@ -110,8 +110,8 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
     public static class Factory<VS extends ValuesSource> extends ValuesSourceAggregatorFactory.LeafOnly<VS> {
 
-        public Factory(String name, ValuesSourceConfig<VS> config) {
-            super(name, InternalValueCount.TYPE.name(), config);
+        public Factory(String name, ValuesSourceParser.Input<VS> input) {
+            super(name, InternalValueCount.TYPE.name(), input);
         }
 
         @Override

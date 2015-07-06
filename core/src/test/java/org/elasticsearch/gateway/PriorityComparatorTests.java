@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 public class PriorityComparatorTests extends ElasticsearchTestCase {
@@ -39,9 +40,9 @@ public class PriorityComparatorTests extends ElasticsearchTestCase {
 
         for (int i = 0; i < indices.length; i++) {
             if (frequently()) {
-                indices[i] = new IndexMeta("idx_2015_04_" + String.format("%02d", i), randomIntBetween(1, 1000), randomIntBetween(1, 10000));
+                indices[i] = new IndexMeta("idx_2015_04_" + String.format(Locale.ROOT, "%02d", i), randomIntBetween(1, 1000), randomIntBetween(1, 10000));
             } else { // sometimes just use defaults
-                indices[i] = new IndexMeta("idx_2015_04_" +  String.format("%02d", i));
+                indices[i] = new IndexMeta("idx_2015_04_" +  String.format(Locale.ROOT, "%02d", i));
             }
             map.put(indices[i].name, indices[i]);
         }

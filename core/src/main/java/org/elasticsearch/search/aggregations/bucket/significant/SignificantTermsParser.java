@@ -80,4 +80,10 @@ public class SignificantTermsParser implements Aggregator.Parser {
         return new SignificantTermsAggregatorFactory(aggregationName, vsParser.input(), bucketCountThresholds,
                 aggParser.getIncludeExclude(), aggParser.getExecutionHint(), aggParser.getFilter(), significanceHeuristic);
     }
+
+    // NORELEASE implement this method when refactoring this aggregation
+    @Override
+    public AggregatorFactory getFactoryPrototype() {
+        return null;
+    }
 }

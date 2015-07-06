@@ -28,7 +28,7 @@ import org.elasticsearch.search.aggregations.support.format.ValueParser;
  */
 public class ValuesSourceConfig<VS extends ValuesSource> {
 
-    final Class<VS> valueSourceType;
+    final ValuesSourceType valueSourceType;
     FieldContext fieldContext;
     SearchScript script;
     ValueType scriptValueType;
@@ -37,11 +37,11 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
     ValueFormat format = ValueFormat.RAW;
     Object missing;
 
-    public ValuesSourceConfig(Class<VS> valueSourceType) {
+    public ValuesSourceConfig(ValuesSourceType valueSourceType) {
         this.valueSourceType = valueSourceType;
     }
 
-    public Class<VS> valueSourceType() {
+    public ValuesSourceType valueSourceType() {
         return valueSourceType;
     }
 

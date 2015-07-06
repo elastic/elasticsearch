@@ -116,4 +116,10 @@ public class BucketSelectorParser implements PipelineAggregator.Parser {
         return new BucketSelectorPipelineAggregator.Factory(reducerName, bucketsPathsMap, script, gapPolicy);
     }
 
+    // NORELEASE implement this method when refactoring this aggregation
+    @Override
+    public PipelineAggregatorFactory getFactoryPrototype() {
+        return null;
+    }
+
 }

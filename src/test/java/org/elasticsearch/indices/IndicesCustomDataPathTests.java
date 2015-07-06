@@ -24,8 +24,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -44,6 +44,11 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class IndicesCustomDataPathTests extends ElasticsearchIntegrationTest {
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put("gateway.type", "local").build();
+    }
+
     private String path;
 
     @Before
@@ -57,7 +62,6 @@ public class IndicesCustomDataPathTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("_root:DEBUG,index:TRACE")
     public void testDataPathCanBeChanged() throws Exception {
         final String INDEX = "idx";
         Path root = newTempDir().toPath();
@@ -74,13 +78,11 @@ public class IndicesCustomDataPathTests extends ElasticsearchIntegrationTest {
         ImmutableSettings.Builder sb = ImmutableSettings.builder()
                 .put(IndexMetaData.SETTING_DATA_PATH, startDir.toAbsolutePath().toString())
                         // Don't allow a RAM store or a "none" gateway
-                .put("index.store.type", "default")
-                .put("gateway.type", "local");
+                .put("index.store.type", "default");
         ImmutableSettings.Builder sb2 = ImmutableSettings.builder()
                 .put(IndexMetaData.SETTING_DATA_PATH, endDir.toAbsolutePath().toString())
                         // Don't allow a RAM store or a "none" gateway
-                .put("index.store.type", "default")
-                .put("gateway.type", "local");
+                .put("index.store.type", "default");
 
         logger.info("--> creating an index with data_path [{}]", startDir.toAbsolutePath().toString());
         client().admin().indices().prepareCreate(INDEX).setSettings(sb).get();

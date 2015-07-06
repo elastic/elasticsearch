@@ -124,6 +124,7 @@ public abstract class BaseAggregationTestCase<AF extends AggregatorFactory> exte
                         configureFetchSubPhase();
                     }
                 },
+
                 new AbstractModule() {
                     @Override
                     protected void configure() {

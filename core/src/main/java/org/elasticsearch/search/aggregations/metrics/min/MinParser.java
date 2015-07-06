@@ -18,28 +18,44 @@
  */
 package org.elasticsearch.search.aggregations.metrics.min;
 
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.metrics.NumericValuesSourceMetricsAggregatorParser;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+
+import java.io.IOException;
 
 /**
  *
  */
-public class MinParser extends NumericValuesSourceMetricsAggregatorParser<InternalMin> {
+public class MinParser extends NumericValuesSourceParser {
 
     public MinParser() {
-        super(InternalMin.TYPE);
+        super(true, true);
     }
 
     @Override
-    protected AggregatorFactory createFactory(String aggregationName, ValuesSourceParser.Input<ValuesSource.Numeric> input) {
-        return new MinAggregator.Factory(aggregationName, input);
+    public String type() {
+        return InternalMin.TYPE.name();
+    }
+
+    @Override
+    protected boolean token(String currentFieldName, Token token, XContentParser parser) throws IOException {
+        return false;
+    }
+
+    @Override
+    protected ValuesSourceAggregatorFactory<Numeric> createFactory(String aggregationName, Class<Numeric> valuesSourceType,
+            ValueType targetValueType) {
+        return new MinAggregator.Factory(aggregationName);
     }
 
     // NORELEASE implement this method when refactoring this aggregation
     @Override
     public AggregatorFactory getFactoryPrototype() {
-        return null;
+        return new MinAggregator.Factory(null);
     }
 }

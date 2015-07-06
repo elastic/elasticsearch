@@ -1,6 +1,24 @@
 <?xml version="1.0"?>
 <project name="elasticsearch-integration-tests">
 
+  <macrodef name="run-script">
+      <attribute name="script"/>
+      <attribute name="dir"/>
+      <attribute name="args"/>
+    <sequential>
+      <exec executable="cmd" osfamily="winnt" dir="@{dir}" spawn="true">
+        <arg value="/c"/>
+        <arg value="@{dir}/@{script}.bat"/>
+        <arg line="@{args}"/>
+      </exec>
+
+      <exec executable="sh" osfamily="unix" dir="@{dir}" spawn="true">
+        <arg value="@{dir}/@{script}"/>
+        <arg line="@{args}"/>
+      </exec>
+    </sequential>
+  </macrodef>
+
   <!-- unzip release artifact -->
   <target name="start-external-cluster">
     <property name="integ.finalname" value="${project.artifactId}-${project.version}"/>
@@ -18,16 +36,7 @@
 
     <echo>Starting up external cluster...</echo>
 
-    <exec executable="cmd" osfamily="winnt" dir="${integ.home}" spawn="true">
-      <arg value="/c"/>
-      <arg value="${integ.home}/bin/elasticsearch.bat"/>
-      <arg line="${integ.args}"/>
-    </exec>
-
-    <exec executable="sh" osfamily="unix" dir="${integ.home}" spawn="true">
-      <arg value="${integ.home}/bin/elasticsearch"/>
-      <arg line="${integ.args}"/>
-    </exec>
+    <run-script dir="${integ.home}" script="bin/elasticsearch" args="${integ.args}"/>
 
     <waitfor maxwait="3" maxwaitunit="minute" checkevery="500">
       <http url="http://127.0.0.1:9200"/>

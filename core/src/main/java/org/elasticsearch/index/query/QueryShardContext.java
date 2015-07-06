@@ -327,5 +327,4 @@ public class QueryShardContext {
     public boolean matchesIndices(String... indices) {
         return this.indexQueryParserService().matchesIndices(indices);
     }
-
 }

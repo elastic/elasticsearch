@@ -603,7 +603,7 @@ public abstract class QueryBuilders {
      * A terms query that can extract the terms from another doc in an index.
      */
     public static TermsQueryBuilder termsLookupQuery(String name) {
-        return new TermsQueryBuilder(name, (Object[]) null);
+        return new TermsQueryBuilder(name);
     }
 
     /**

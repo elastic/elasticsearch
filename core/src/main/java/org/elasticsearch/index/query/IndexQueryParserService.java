@@ -43,12 +43,15 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
+import org.elasticsearch.index.search.termslookup.TermsLookupFetchService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.indices.cache.query.terms.TermsLookup;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
+import java.util.List;
 
 public class IndexQueryParserService extends AbstractIndexComponent {
 
@@ -89,6 +92,8 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     private final ParseFieldMatcher parseFieldMatcher;
     private final boolean defaultAllowUnmappedFields;
 
+    private TermsLookupFetchService termsLookupFetchService;
+
     @Inject
     public IndexQueryParserService(Index index, @IndexSettings Settings indexSettings,
                                    IndicesQueriesRegistry indicesQueriesRegistry,
@@ -113,6 +118,11 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         this.parseFieldMatcher = new ParseFieldMatcher(indexSettings);
         this.defaultAllowUnmappedFields = indexSettings.getAsBoolean(ALLOW_UNMAPPED, true);
         this.indicesQueriesRegistry = indicesQueriesRegistry;
+    }
+
+    @Inject(optional=true)
+    public void setTermsLookupFetchService(@Nullable  TermsLookupFetchService termsLookupFetchService) {
+        this.termsLookupFetchService = termsLookupFetchService;
     }
 
     public void close() {
@@ -338,5 +348,9 @@ public class IndexQueryParserService extends AbstractIndexComponent {
             }
         }
         return false;
+    }
+
+    public List<Object> handleTermsLookup(TermsLookup termsLookup) {
+        return this.termsLookupFetchService.fetch(termsLookup);
     }
 }

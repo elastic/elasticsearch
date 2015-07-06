@@ -20,39 +20,28 @@
 package org.elasticsearch.index.query;
 
 import com.google.common.collect.Lists;
-
-import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.TermsQuery;
-import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.indices.cache.query.terms.TermsLookup;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
 
 /**
+ * Parser for terms query and terms lookup.
  *
+ * Filters documents that have fields that match any of the provided terms (not analyzed)
+ *
+ * It also supports a terms lookup mechanism which can be used to fetch the term values from
+ * a document in an index.
  */
-public class TermsQueryParser extends BaseQueryParserTemp {
+public class TermsQueryParser extends BaseQueryParser {
 
-    private static final ParseField MIN_SHOULD_MATCH_FIELD = new ParseField("min_match", "min_should_match").withAllDeprecated("Use [bool] query instead");
+    private static final ParseField MIN_SHOULD_MATCH_FIELD = new ParseField("min_match", "min_should_match", "minimum_should_match")
+            .withAllDeprecated("Use [bool] query instead");
     private static final ParseField DISABLE_COORD_FIELD = new ParseField("disable_coord").withAllDeprecated("Use [bool] query instead");
     private static final ParseField EXECUTION_FIELD = new ParseField("execution").withAllDeprecated("execution is deprecated and has no effect");
-    private Client client;
 
     @Inject
     public TermsQueryParser() {
@@ -63,32 +52,21 @@ public class TermsQueryParser extends BaseQueryParserTemp {
         return new String[]{TermsQueryBuilder.NAME, "in"};
     }
 
-    @Inject(optional = true)
-    public void setClient(Client client) {
-        this.client = client;
-    }
-
     @Override
-    public Query parse(QueryShardContext context) throws IOException, QueryParsingException {
-        QueryParseContext parseContext = context.parseContext();
+    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        String queryName = null;
-        String currentFieldName = null;
-
-        String lookupIndex = parseContext.index().name();
-        String lookupType = null;
-        String lookupId = null;
-        String lookupPath = null;
-        String lookupRouting = null;
+        String fieldName = null;
+        List<Object> values = null;
         String minShouldMatch = null;
+        boolean disableCoord = TermsQueryBuilder.DEFAULT_DISABLE_COORD;
+        TermsLookup termsLookup = null;
 
-        boolean disableCoord = false;
+        String queryName = null;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
 
         XContentParser.Token token;
-        List<Object> terms = Lists.newArrayList();
-        String fieldName = null;
-        float boost = 1f;
+        String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -99,45 +77,10 @@ public class TermsQueryParser extends BaseQueryParserTemp {
                     throw new QueryParsingException(parseContext, "[terms] query does not support multiple fields");
                 }
                 fieldName = currentFieldName;
-
-                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                    Object value = parser.objectBytes();
-                    if (value == null) {
-                        throw new QueryParsingException(parseContext, "No value specified for terms query");
-                    }
-                    terms.add(value);
-                }
+                values = parseValues(parseContext, parser);
             } else if (token == XContentParser.Token.START_OBJECT) {
                 fieldName = currentFieldName;
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        currentFieldName = parser.currentName();
-                    } else if (token.isValue()) {
-                        if ("index".equals(currentFieldName)) {
-                            lookupIndex = parser.text();
-                        } else if ("type".equals(currentFieldName)) {
-                            lookupType = parser.text();
-                        } else if ("id".equals(currentFieldName)) {
-                            lookupId = parser.text();
-                        } else if ("path".equals(currentFieldName)) {
-                            lookupPath = parser.text();
-                        } else if ("routing".equals(currentFieldName)) {
-                            lookupRouting = parser.textOrNull();
-                        } else {
-                            throw new QueryParsingException(parseContext, "[terms] query does not support [" + currentFieldName
-                                    + "] within lookup element");
-                        }
-                    }
-                }
-                if (lookupType == null) {
-                    throw new QueryParsingException(parseContext, "[terms] query lookup element requires specifying the type");
-                }
-                if (lookupId == null) {
-                    throw new QueryParsingException(parseContext, "[terms] query lookup element requires specifying the id");
-                }
-                if (lookupPath == null) {
-                    throw new QueryParsingException(parseContext, "[terms] query lookup element requires specifying the path");
-                }
+                termsLookup = parseTermsLookup(parseContext, parser);
             } else if (token.isValue()) {
                 if (parseContext.parseFieldMatcher().match(currentFieldName, EXECUTION_FIELD)) {
                     // ignore
@@ -159,58 +102,69 @@ public class TermsQueryParser extends BaseQueryParserTemp {
         }
 
         if (fieldName == null) {
-            throw new QueryParsingException(parseContext, "terms query requires a field name, followed by array of terms");
+            throw new QueryParsingException(parseContext, "terms query requires a field name, followed by array of terms or a document lookup specification");
         }
-
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
-        if (fieldType != null) {
-            fieldName = fieldType.names().indexName();
-        }
-
-        if (lookupId != null) {
-            final TermsLookup lookup = new TermsLookup(lookupIndex, lookupType, lookupId, lookupRouting, lookupPath, parseContext);
-            GetRequest getRequest = new GetRequest(lookup.getIndex(), lookup.getType(), lookup.getId()).preference("_local").routing(lookup.getRouting());
-            getRequest.copyContextAndHeadersFrom(SearchContext.current());
-            final GetResponse getResponse = client.get(getRequest).actionGet();
-            if (getResponse.isExists()) {
-                List<Object> values = XContentMapValues.extractRawValues(lookup.getPath(), getResponse.getSourceAsMap());
-                terms.addAll(values);
-            }
-        }
-
-        if (terms.isEmpty()) {
-            return Queries.newMatchNoDocsQuery();
-        }
-
-        Query query;
-        if (context.isFilter()) {
-            if (fieldType != null) {
-                query = fieldType.termsQuery(terms, context);
-            } else {
-                BytesRef[] filterValues = new BytesRef[terms.size()];
-                for (int i = 0; i < filterValues.length; i++) {
-                    filterValues[i] = BytesRefs.toBytesRef(terms.get(i));
-                }
-                query = new TermsQuery(fieldName, filterValues);
-            }
+        TermsQueryBuilder termsQueryBuilder;
+        if (values == null) {
+            termsQueryBuilder = new TermsQueryBuilder(fieldName);
         } else {
-            BooleanQuery bq = new BooleanQuery(disableCoord);
-            for (Object term : terms) {
-                if (fieldType != null) {
-                    bq.add(fieldType.termQuery(term, context), Occur.SHOULD);
+            termsQueryBuilder = new TermsQueryBuilder(fieldName, values);
+        }
+        return termsQueryBuilder
+                .disableCoord(disableCoord)
+                .minimumShouldMatch(minShouldMatch)
+                .termsLookup(termsLookup)
+                .boost(boost)
+                .queryName(queryName);
+    }
+
+    private static List<Object> parseValues(QueryParseContext parseContext, XContentParser parser) throws IOException {
+        List<Object> values = Lists.newArrayList();
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            Object value = parser.objectBytes();
+            if (value == null) {
+                throw new QueryParsingException(parseContext, "No value specified for terms query");
+            }
+            values.add(value);
+        }
+        return values;
+    }
+
+    private static TermsLookup parseTermsLookup(QueryParseContext parseContext, XContentParser parser) throws IOException {
+        TermsLookup termsLookup = new TermsLookup();
+        XContentParser.Token token;
+        String currentFieldName = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if ("index".equals(currentFieldName)) {
+                    termsLookup.index(parser.textOrNull());
+                } else if ("type".equals(currentFieldName)) {
+                    termsLookup.type(parser.text());
+                } else if ("id".equals(currentFieldName)) {
+                    termsLookup.id(parser.text());
+                } else if ("routing".equals(currentFieldName)) {
+                    termsLookup.routing(parser.textOrNull());
+                } else if ("path".equals(currentFieldName)) {
+                    termsLookup.path(parser.text());
                 } else {
-                    bq.add(new TermQuery(new Term(fieldName, BytesRefs.toBytesRef(term))), Occur.SHOULD);
+                    throw new QueryParsingException(parseContext, "[terms] query does not support [" + currentFieldName
+                            + "] within lookup element");
                 }
             }
-            Queries.applyMinimumShouldMatch(bq, minShouldMatch);
-            query = bq;
         }
-        query.setBoost(boost);
-
-        if (queryName != null) {
-            context.addNamedQuery(queryName, query);
+        if (termsLookup.type() == null) {
+            throw new QueryParsingException(parseContext, "[terms] query lookup element requires specifying the type");
         }
-        return query;
+        if (termsLookup.id() == null) {
+            throw new QueryParsingException(parseContext, "[terms] query lookup element requires specifying the id");
+        }
+        if (termsLookup.path() == null) {
+            throw new QueryParsingException(parseContext, "[terms] query lookup element requires specifying the path");
+        }
+        return termsLookup;
     }
 
     @Override

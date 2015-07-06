@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import com.google.common.collect.Lists;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -54,12 +55,14 @@ import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.index.query.support.QueryParsers;
+import org.elasticsearch.index.search.termslookup.TermsLookupFetchService;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.indices.cache.query.terms.TermsLookup;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
@@ -73,7 +76,9 @@ import org.joda.time.DateTimeZone;
 import org.junit.*;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.*;
@@ -88,6 +93,8 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
     protected static final String OBJECT_FIELD_NAME = "mapped_object";
     protected static final String[] mappedFieldNames = new String[] { STRING_FIELD_NAME, INT_FIELD_NAME,
             DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME, OBJECT_FIELD_NAME };
+    protected static final String[] mappedFieldNamesSmall = new String[] { STRING_FIELD_NAME, INT_FIELD_NAME,
+            DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME };
 
     private static Injector injector;
     private static IndexQueryParserService queryParserService;
@@ -169,6 +176,7 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
             currentTypes[i] = type;
         }
         namedWriteableRegistry = injector.getInstance(NamedWriteableRegistry.class);
+        queryParserService.setTermsLookupFetchService(new MockTermsLookupFetchService());
     }
 
     @AfterClass
@@ -245,14 +253,18 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
      * Parses the query provided as string argument and compares it with the expected result provided as argument as a {@link QueryBuilder}
      */
     protected void assertParsedQuery(String queryAsString, QueryBuilder<?> expectedQuery) throws IOException {
+        QueryBuilder newQuery = parseQuery(queryAsString, expectedQuery);
+        assertNotSame(newQuery, expectedQuery);
+        assertEquals(expectedQuery, newQuery);
+        assertEquals(expectedQuery.hashCode(), newQuery.hashCode());
+    }
+
+    protected QueryBuilder parseQuery(String queryAsString, QueryBuilder<?> expectedQuery) throws IOException {
         XContentParser parser = XContentFactory.xContent(queryAsString).createParser(queryAsString);
         QueryParseContext context = createParseContext();
         context.reset(parser);
         assertQueryHeader(parser, expectedQuery.getName());
-        QueryBuilder newQuery = queryParser(expectedQuery).fromXContent(context);
-        assertNotSame(newQuery, expectedQuery);
-        assertEquals(expectedQuery, newQuery);
-        assertEquals(expectedQuery.hashCode(), newQuery.hashCode());
+        return queryParser(expectedQuery).fromXContent(context);
     }
 
     /**
@@ -420,18 +432,50 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
 
     /**
      * create a random value for either {@link BaseQueryTestCase#BOOLEAN_FIELD_NAME}, {@link BaseQueryTestCase#INT_FIELD_NAME},
-     * {@link BaseQueryTestCase#DOUBLE_FIELD_NAME} or {@link BaseQueryTestCase#STRING_FIELD_NAME}, or a String value by default
+     * {@link BaseQueryTestCase#DOUBLE_FIELD_NAME}, {@link BaseQueryTestCase#STRING_FIELD_NAME} or
+     * {@link BaseQueryTestCase#DATE_FIELD_NAME}, or a String value by default
      */
-    protected static Object randomValueForField(String fieldName) {
+    protected static Object getRandomValueForFieldName(String fieldName) {
         Object value;
         switch (fieldName) {
-            case BOOLEAN_FIELD_NAME: value = randomBoolean(); break;
-            case INT_FIELD_NAME: value = randomInt(); break;
-            case DOUBLE_FIELD_NAME: value = randomDouble(); break;
-            case STRING_FIELD_NAME: value = randomAsciiOfLengthBetween(1, 10); break;
-            default : value = randomAsciiOfLengthBetween(1, 10);
+            case STRING_FIELD_NAME:
+                value = rarely() ? randomUnicodeOfLength(10) : randomAsciiOfLengthBetween(1, 10); // unicode in 10% cases
+                break;
+            case INT_FIELD_NAME:
+                value = randomIntBetween(0, 10);
+                break;
+            case DOUBLE_FIELD_NAME:
+                value = randomDouble() * 10;
+                break;
+            case BOOLEAN_FIELD_NAME:
+                value = randomBoolean();
+                break;
+            case DATE_FIELD_NAME:
+                value = new DateTime(System.currentTimeMillis(), DateTimeZone.UTC).toString();
+                break;
+            default:
+                value = randomAsciiOfLengthBetween(1, 10);
         }
         return value;
+    }
+
+    /**
+     * Helper method to return a mapped or a random field
+     */
+    protected String getRandomFieldName() {
+        // if no type is set then return a random field name
+        if (currentTypes == null || currentTypes.length == 0 || randomBoolean()) {
+            return randomAsciiOfLengthBetween(1, 10);
+        }
+        return randomFrom(mappedFieldNamesSmall);
+    }
+
+    /**
+     * Helper method to return a random field (mapped or unmapped) and a value
+     */
+    protected Tuple<String, Object> getRandomFieldNameAndValue() {
+        String fieldName = getRandomFieldName();
+        return new Tuple<>(fieldName, getRandomValueForFieldName(fieldName));
     }
 
     /**
@@ -473,42 +517,6 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
         return (currentTypes.length == 0) ? MetaData.ALL : randomFrom(currentTypes);
     }
 
-    /**
-     * Helper method to return a random field (mapped or unmapped) and a value
-     */
-    protected static Tuple<String, Object> getRandomFieldNameAndValue() {
-        // if no type is set then return random field name and value
-        if (currentTypes == null || currentTypes.length == 0) {
-            return new Tuple<String, Object>(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 50));
-        }
-        // mapped fields
-        String fieldName = randomFrom(mappedFieldNames);
-        Object value = randomAsciiOfLengthBetween(1, 50);
-        switch(fieldName) {
-            case STRING_FIELD_NAME:
-                value = rarely() ? randomUnicodeOfLength(10) : value; // unicode in 10% cases
-                break;
-            case INT_FIELD_NAME:
-                value = randomIntBetween(0, 10);
-                break;
-            case DOUBLE_FIELD_NAME:
-                value = randomDouble() * 10;
-                break;
-            case BOOLEAN_FIELD_NAME:
-                value = randomBoolean();
-                break;
-            case DATE_FIELD_NAME:
-                value = new DateTime(System.currentTimeMillis(), DateTimeZone.UTC).toString();
-                break;
-        } // all other fields assigned to random string
-
-        // unmapped fields
-        if (randomBoolean()) {
-            fieldName = randomAsciiOfLengthBetween(1, 10);
-        }
-        return new Tuple<>(fieldName, value);
-    }
-
     protected static Fuzziness randomFuzziness(String fieldName) {
         Fuzziness fuzziness = Fuzziness.AUTO;
         switch (fieldName) {
@@ -530,5 +538,30 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
 
     protected static boolean isNumericFieldName(String fieldName) {
         return INT_FIELD_NAME.equals(fieldName) || DOUBLE_FIELD_NAME.equals(fieldName);
+    }
+
+    protected static class MockTermsLookupFetchService extends TermsLookupFetchService {
+
+        private static List<Object> randomTerms = new ArrayList<>();
+
+        public MockTermsLookupFetchService() {
+            super(null, Settings.Builder.EMPTY_SETTINGS);
+            String[] strings = generateRandomStringArray(10, 10, false, true);
+            for (String string : strings) {
+                randomTerms.add(string);
+                if (rarely()) {
+                    randomTerms.add(null);
+                }
+            }
+        }
+
+        @Override
+        public List<Object> fetch(TermsLookup termsLookup) {
+            return randomTerms;
+        }
+
+        public static List<Object> getRandomTerms() {
+            return randomTerms;
+        }
     }
 }

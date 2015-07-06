@@ -61,7 +61,7 @@ public class SpanTermQueryBuilderTest extends BaseTermQueryTestCase<SpanTermQuer
         clauses[0] = first;
         for (int i = 1; i < amount; i++) {
             // we need same field name in all clauses, so we only randomize value
-            SpanTermQueryBuilder spanTermQuery = new SpanTermQueryBuilder(first.fieldName(), randomValueForField(first.fieldName()));
+            SpanTermQueryBuilder spanTermQuery = new SpanTermQueryBuilder(first.fieldName(), getRandomValueForFieldName(first.fieldName()));
             if (randomBoolean()) {
                 spanTermQuery.boost(2.0f / randomIntBetween(1, 20));
             }

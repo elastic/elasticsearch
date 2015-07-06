@@ -59,6 +59,11 @@ Removed `wrapperQueryBuilder(byte[] source, int offset, int length)`. Instead si
 use  `wrapperQueryBuilder(byte[] source)`. Updated the static factory methods in
 QueryBuilders accordingly.
 
+==== TermsQuery with TermsLookup
+
+Removed `getIndex()`, `getType()`, `getId()`, `getPath()`, `getRouting()` in favor of
+`index()`, `type()`, `id()`, `path()` and `routing()`.
+
 ==== Operator
 
 Removed the enums called `Operator` from `MatchQueryBuilder`, `QueryStringQueryBuilder`,

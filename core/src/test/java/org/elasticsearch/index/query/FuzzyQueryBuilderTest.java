@@ -36,7 +36,7 @@ public class FuzzyQueryBuilderTest extends BaseQueryTestCase<FuzzyQueryBuilder> 
 
     @Override
     protected FuzzyQueryBuilder doCreateTestQueryBuilder() {
-        Tuple<String, Object> fieldAndValue = getRandomFieldNameAndValue(); 
+        Tuple<String, Object> fieldAndValue = getRandomFieldNameAndValue();
         FuzzyQueryBuilder query = new FuzzyQueryBuilder(fieldAndValue.v1(), fieldAndValue.v2());
         if (randomBoolean()) {
             query.fuzziness(randomFuzziness(query.fieldName()));

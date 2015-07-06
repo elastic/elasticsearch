@@ -288,6 +288,53 @@
             </testResource>
         </testResources>
 
+        <plugins>
+           <!-- integration tests -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-antrun-plugin</artifactId>
+                    <executions>
+                        <!-- start up external cluster -->
+                        <execution>
+                            <id>integ-setup</id>
+                            <phase>pre-integration-test</phase>
+                            <goals>
+                                <goal>run</goal>
+                            </goals>
+                            <configuration>
+                                <target>
+                                    <ant antfile="${elasticsearch.tools.directory}/ant/integration-tests.xml"
+                                         target="start-external-cluster-with-plugin"/>
+                                </target>
+                            </configuration>
+                        </execution>
+                        <!-- shut down external cluster -->
+                        <execution>
+                            <id>integ-teardown</id>
+                            <phase>post-integration-test</phase>
+                            <goals>
+                                <goal>run</goal>
+                            </goals>
+                            <configuration>
+                                <target>
+                                    <ant antfile="${elasticsearch.tools.directory}/ant/integration-tests.xml"
+                                         target="stop-external-cluster"/>
+                                </target>
+                            </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-failsafe-plugin</artifactId>
+                    <configuration>
+                        <systemPropertyVariables>
+                            <tests.cluster>127.0.0.1:9300</tests.cluster>
+                        </systemPropertyVariables>
+                    </configuration>
+                </plugin>
+        </plugins>
+
         <pluginManagement>
             <plugins>
                 <plugin>

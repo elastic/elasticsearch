@@ -31,7 +31,10 @@ import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.TestCluster;
-import org.elasticsearch.watcher.*;
+import org.elasticsearch.watcher.WatcherLifeCycleService;
+import org.elasticsearch.watcher.WatcherPlugin;
+import org.elasticsearch.watcher.WatcherService;
+import org.elasticsearch.watcher.WatcherState;
 import org.elasticsearch.watcher.actions.email.service.Authentication;
 import org.elasticsearch.watcher.actions.email.service.Email;
 import org.elasticsearch.watcher.actions.email.service.EmailService;
@@ -432,11 +435,14 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
                 }
             }
         });
+
         // Verify that the index templates exist:
-        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(
-                HISTORY_TEMPLATE_NAME, TRIGGERED_TEMPLATE_NAME, WATCHES_TEMPLATE_NAME
-        ).get();
-        assertThat(response.getIndexTemplates().size(), equalTo(3));
+        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(HISTORY_TEMPLATE_NAME).get();
+        assertThat("[" + HISTORY_TEMPLATE_NAME + "] is missing", response.getIndexTemplates().size(), equalTo(1));
+        response = client().admin().indices().prepareGetTemplates(TRIGGERED_TEMPLATE_NAME).get();
+        assertThat("[" + TRIGGERED_TEMPLATE_NAME + "] is missing", response.getIndexTemplates().size(), equalTo(1));
+        response = client().admin().indices().prepareGetTemplates(WATCHES_TEMPLATE_NAME).get();
+        assertThat("[" + WATCHES_TEMPLATE_NAME + "] is missing", response.getIndexTemplates().size(), equalTo(1));
     }
 
     protected void ensureLicenseEnabled()  throws Exception {

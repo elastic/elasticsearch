@@ -28,7 +28,6 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -37,7 +36,6 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
@@ -60,7 +58,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
  * .point GeoPoint type
  * .shape GeoShape type
  */
-public class ExternalMapper extends AbstractFieldMapper {
+public class ExternalMapper extends FieldMapper {
 
     public static class Names {
         public static final String FIELD_BIN = "bin";
@@ -69,7 +67,7 @@ public class ExternalMapper extends AbstractFieldMapper {
         public static final String FIELD_SHAPE = "shape";
     }
 
-    public static class Builder extends AbstractFieldMapper.Builder<Builder, ExternalMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder, ExternalMapper> {
 
         private BinaryFieldMapper.Builder binBuilder = new BinaryFieldMapper.Builder(Names.FIELD_BIN);
         private BooleanFieldMapper.Builder boolBuilder = new BooleanFieldMapper.Builder(Names.FIELD_BOOL);

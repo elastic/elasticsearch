@@ -139,7 +139,7 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
     }
 
     /** Returns the simple name, which identifies this mapper against other mappers at the same level in the mappers hierarchy
-     * TODO: make this protected once Mapper, FieldMapper and AbstractFieldMapper are merged together */
+     * TODO: make this protected once Mapper and FieldMapper are merged together */
     public final String simpleName() {
         return simpleName;
     }

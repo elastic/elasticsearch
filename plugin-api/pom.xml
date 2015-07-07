@@ -12,6 +12,8 @@
     <artifactId>elasticsearch-license-plugin-api</artifactId>
     <properties>
         <license.basedir combine.self="override">${project.parent.basedir}</license.basedir>
+        <!-- we aren't really a plugin... -->
+        <skip.integ.tests>true</skip.integ.tests>
     </properties>
 
 

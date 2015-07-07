@@ -34,7 +34,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
 
-public class FsStats implements Iterable<FsStats.Path>, Streamable, ToXContent {
+public class FsInfo implements Iterable<FsInfo.Path>, Streamable, ToXContent {
 
     public static class Path implements Streamable, ToXContent {
 
@@ -197,11 +197,11 @@ public class FsStats implements Iterable<FsStats.Path>, Streamable, ToXContent {
     Path total;
     Path[] paths;
 
-    FsStats() {
+    FsInfo() {
 
     }
 
-    public FsStats(long timestamp, Path[] paths) {
+    public FsInfo(long timestamp, Path[] paths) {
         this.timestamp = timestamp;
         this.paths = paths;
         this.total = null;
@@ -238,8 +238,8 @@ public class FsStats implements Iterable<FsStats.Path>, Streamable, ToXContent {
         return Iterators.forArray(paths);
     }
 
-    public static FsStats readFsStats(StreamInput in) throws IOException {
-        FsStats stats = new FsStats();
+    public static FsInfo readFsInfo(StreamInput in) throws IOException {
+        FsInfo stats = new FsInfo();
         stats.readFrom(in);
         return stats;
     }

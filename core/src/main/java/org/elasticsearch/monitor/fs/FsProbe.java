@@ -37,20 +37,20 @@ public class FsProbe extends AbstractComponent {
         this.nodeEnv = nodeEnv;
     }
 
-    public FsStats stats() throws IOException {
+    public FsInfo stats() throws IOException {
         if (!nodeEnv.hasNodeFile()) {
-            return new FsStats(System.currentTimeMillis(), new FsStats.Path[0]);
+            return new FsInfo(System.currentTimeMillis(), new FsInfo.Path[0]);
         }
         NodePath[] dataLocations = nodeEnv.nodePaths();
-        FsStats.Path[] paths = new FsStats.Path[dataLocations.length];
+        FsInfo.Path[] paths = new FsInfo.Path[dataLocations.length];
         for (int i = 0; i < dataLocations.length; i++) {
             paths[i] = getFSInfo(dataLocations[i]);
         }
-        return new FsStats(System.currentTimeMillis(), paths);
+        return new FsInfo(System.currentTimeMillis(), paths);
     }
 
-    public static FsStats.Path getFSInfo(NodePath nodePath) throws IOException {
-        FsStats.Path fsPath = new FsStats.Path();
+    public static FsInfo.Path getFSInfo(NodePath nodePath) throws IOException {
+        FsInfo.Path fsPath = new FsInfo.Path();
         fsPath.path = nodePath.path.toAbsolutePath().toString();
 
         // NOTE: we use already cached (on node startup) FileStore and spins

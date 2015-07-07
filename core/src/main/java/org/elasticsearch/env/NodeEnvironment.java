@@ -41,7 +41,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.FsDirectoryService;
-import org.elasticsearch.monitor.fs.FsStats;
+import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.fs.FsProbe;
 
 import java.io.Closeable;
@@ -225,7 +225,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
                     spinsDesc = "no";
                 }
 
-                FsStats.Path fsPath = FsProbe.getFSInfo(nodePath);
+                FsInfo.Path fsPath = FsProbe.getFSInfo(nodePath);
                 sb.append(", free_space [")
                     .append(fsPath.getFree())
                     .append("], usable_space [")
@@ -242,13 +242,12 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
             }
             logger.debug(sb.toString());
         } else if (logger.isInfoEnabled()) {
-            FsStats.Path totFSPath = new FsStats.Path();
+            FsInfo.Path totFSPath = new FsInfo.Path();
             Set<String> allTypes = new HashSet<>();
             Set<String> allSpins = new HashSet<>();
             Set<String> allMounts = new HashSet<>();
             for (NodePath nodePath : nodePaths) {
-                // TODO: can/should I use the chosen FsProbe instead (i.e. sigar if it's available)?
-                FsStats.Path fsPath = FsProbe.getFSInfo(nodePath);
+                FsInfo.Path fsPath = FsProbe.getFSInfo(nodePath);
                 String mount = fsPath.getMount();
                 if (allMounts.contains(mount) == false) {
                     allMounts.add(mount);

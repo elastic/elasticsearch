@@ -1,5 +1,20 @@
 # Integration tests for Kuromoji analysis components
 #
+---
+"Analyzer":
+    - do:
+        indices.analyze:
+          text:         JR新宿駅の近くにビールを飲みに行こうか
+          analyzer:     kuromoji
+    - length: { tokens: 7 }
+    - match:  { tokens.0.token: jr }
+    - match:  { tokens.1.token: 新宿 }
+    - match:  { tokens.2.token: 駅 }
+    - match:  { tokens.3.token: 近く }
+    - match:  { tokens.4.token: ビール }
+    - match:  { tokens.5.token: 飲む }
+    - match:  { tokens.6.token: 行く }
+---
 "Tokenizer":
     - do:
         indices.analyze:

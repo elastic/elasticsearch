@@ -65,9 +65,8 @@ public class MatchQuery {
     protected int fuzzyPrefixLength = FuzzyQuery.defaultPrefixLength;
     
     protected int maxExpansions = FuzzyQuery.defaultMaxExpansions;
-    
-    //LUCENE 4 UPGRADE we need a default value for this!
-    protected boolean transpositions = false;
+
+    protected boolean transpositions = FuzzyQuery.defaultTranspositions;
 
     protected MultiTermQuery.RewriteMethod rewriteMethod;
 

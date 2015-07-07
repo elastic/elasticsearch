@@ -66,7 +66,7 @@ public class FuzzyQueryParser implements QueryParser {
         Fuzziness fuzziness = DEFAULT_FUZZINESS;
         int prefixLength = FuzzyQuery.defaultPrefixLength;
         int maxExpansions = FuzzyQuery.defaultMaxExpansions;
-        boolean transpositions = false;
+        boolean transpositions = FuzzyQuery.defaultTranspositions;
         String queryName = null;
         MultiTermQuery.RewriteMethod rewriteMethod = null;
         if (parseContext.isFilter()) {

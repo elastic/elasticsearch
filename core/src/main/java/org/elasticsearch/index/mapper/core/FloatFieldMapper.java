@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper.core;
 
 import com.carrotsearch.hppc.FloatArrayList;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;

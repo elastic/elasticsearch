@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper.ip;
 
 import com.google.common.net.InetAddresses;
-
 import org.apache.lucene.analysis.NumericTokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;

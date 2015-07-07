@@ -23,8 +23,10 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -119,7 +121,8 @@ public class FuzzyQueryParser implements QueryParser {
             query = fieldType.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions);
         }
         if (query == null) {
-            query = new FuzzyQuery(new Term(fieldName, value.toString()), fuzziness.asDistance(value.toString()), prefixLength, maxExpansions, transpositions);
+            int maxEdits = fuzziness.asDistance(((BytesRef) value).utf8ToString());
+            query = new FuzzyQuery(new Term(fieldName, BytesRefs.toBytesRef(value)), maxEdits, prefixLength, maxExpansions, transpositions);
         }
         if (query instanceof MultiTermQuery) {
             QueryParsers.setRewriteMethod((MultiTermQuery) query, rewriteMethod);

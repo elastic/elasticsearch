@@ -25,14 +25,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.queries.TermsQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.PrefixQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RegexpQuery;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Nullable;
@@ -462,7 +455,13 @@ public abstract class MappedFieldType extends FieldType {
     }
 
     public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-        return new FuzzyQuery(createTerm(value), fuzziness.asDistance(value.toString()), prefixLength, maxExpansions, transpositions);
+        int maxEdits; 
+        if (value instanceof BytesRef) {
+            maxEdits = fuzziness.asDistance(((BytesRef) value).utf8ToString());
+        } else {
+            maxEdits = fuzziness.asDistance(value.toString());
+        }
+        return new FuzzyQuery(createTerm(value), maxEdits, prefixLength, maxExpansions, transpositions);
     }
 
     public Query prefixQuery(Object value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {

@@ -1127,6 +1127,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
                 }
                 indexed.await();
                 XIOUtils.close(engine, translog);
+                thread.join();
             }
         }
 

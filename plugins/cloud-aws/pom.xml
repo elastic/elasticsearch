@@ -17,6 +17,8 @@
     <properties>
         <amazonaws.version>1.10.0</amazonaws.version>
         <tests.jvms>1</tests.jvms>
+        <tests.rest.suite>cloud_aws</tests.rest.suite>
+        <tests.rest.load_packaged>false</tests.rest.load_packaged>
     </properties>
 
     <dependencies>

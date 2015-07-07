@@ -28,6 +28,8 @@ governing permissions and limitations under the License. -->
     <properties>
         <!-- You can add any specific project property here -->
         <tests.jvms>1</tests.jvms>
+        <tests.rest.suite>cloud_azure</tests.rest.suite>
+        <tests.rest.load_packaged>false</tests.rest.load_packaged>
     </properties>
 
     <dependencies>

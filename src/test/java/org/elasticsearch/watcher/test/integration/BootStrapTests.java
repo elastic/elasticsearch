@@ -28,6 +28,8 @@ import org.elasticsearch.watcher.watch.WatchStore;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
+import java.util.concurrent.TimeUnit;
+
 import static org.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -246,19 +248,23 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
         assertThat(response.getWatcherState(), equalTo(WatcherState.STARTED));
         assertThat(response.getWatchesCount(), equalTo(0L));
 
-        String watchId = "_id";
         SearchRequest searchRequest = newInputSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
-        watcherClient().preparePutWatch(watchId).setSource(watchBuilder()
-                .trigger(schedule(cron("0/5 * * * * ? 2050")))
-                .input(searchInput(searchRequest))
-                .condition(alwaysCondition())
-                .addAction("_id", indexAction("output", "test"))
-                .defaultThrottlePeriod(TimeValue.timeValueMillis(0))
-        ).get();
+        int numWatches = 8;
+        for (int i = 0; i < numWatches; i++) {
+            String watchId = "_id" + i;
+            watcherClient().preparePutWatch(watchId).setSource(watchBuilder()
+                            .trigger(schedule(cron("0/5 * * * * ? 2050")))
+                            .input(searchInput(searchRequest))
+                            .condition(alwaysCondition())
+                            .addAction("_id", indexAction("output", "test"))
+                            .defaultThrottlePeriod(TimeValue.timeValueMillis(0))
+            ).get();
+        }
 
         DateTime now = DateTime.now(UTC);
-        final int numRecords = scaledRandomIntBetween(2, 128);
+        final int numRecords = scaledRandomIntBetween(numWatches, 128);
         for (int i = 0; i < numRecords; i++) {
+            String watchId = "_id" + (i % numWatches);
             now = now.plusMinutes(1);
             ScheduleTriggerEvent event = new ScheduleTriggerEvent(watchId, now, now);
             Wid wid = new Wid(watchId, randomLong(), now);
@@ -288,7 +294,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
                 SearchResponse searchResponse = client().prepareSearch("output").get();
                 assertHitCount(searchResponse, numRecords);
             }
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     @Test

@@ -1,0 +1,37 @@
+# Integration tests for ICU analysis components
+#
+"Tokenizer":
+    - do:
+        indices.analyze:
+          text:         Foo Bar
+          tokenizer:    icu_tokenizer
+    - length: { tokens: 2 }
+    - match:  { tokens.0.token: Foo }
+    - match:  { tokens.1.token: Bar }
+---
+"Normalization filter":
+    - do:
+        indices.analyze:
+          filters:      icu_normalizer
+          text:         Foo Bar Ruß
+          tokenizer:    keyword
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: foo bar russ }
+---
+"Normalization charfilter":
+    - do:
+        indices.analyze:
+          char_filters: icu_normalizer
+          text:         Foo Bar Ruß
+          tokenizer:    keyword
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: foo bar russ }
+---
+"Folding filter":
+    - do:
+        indices.analyze:
+          filters:      icu_folding
+          text:         Foo Bar résumé
+          tokenizer:    keyword
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: foo bar resume }

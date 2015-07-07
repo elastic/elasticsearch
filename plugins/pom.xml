@@ -277,6 +277,7 @@
                     <include>api/cluster.health.json</include>
                     <!-- used in plugin REST tests -->
                     <include>api/index.json</include>
+                    <include>api/indices.analyze.json</include>
                     <include>api/indices.refresh.json</include>
                     <include>api/count.json</include>
                 </includes>

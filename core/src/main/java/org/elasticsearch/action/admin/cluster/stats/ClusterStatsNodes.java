@@ -36,7 +36,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.monitor.fs.FsStats;
+import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsInfo;
 
@@ -52,7 +52,7 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
     private OsStats os;
     private ProcessStats process;
     private JvmStats jvm;
-    private FsStats.Path fs;
+    private FsInfo.Path fs;
     private Set<PluginInfo> plugins;
 
     private ClusterStatsNodes() {
@@ -63,7 +63,7 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
         this.versions = new HashSet<>();
         this.os = new OsStats();
         this.jvm = new JvmStats();
-        this.fs = new FsStats.Path();
+        this.fs = new FsInfo.Path();
         this.plugins = new HashSet<>();
         this.process = new ProcessStats();
 
@@ -116,7 +116,7 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
         return jvm;
     }
 
-    public FsStats.Path getFs() {
+    public FsInfo.Path getFs() {
         return fs;
     }
 
@@ -138,7 +138,7 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
         os = OsStats.readOsStats(in);
         process = ProcessStats.readStats(in);
         jvm = JvmStats.readJvmStats(in);
-        fs = FsStats.Path.readInfoFrom(in);
+        fs = FsInfo.Path.readInfoFrom(in);
 
         size = in.readVInt();
         plugins = new HashSet<>(size);

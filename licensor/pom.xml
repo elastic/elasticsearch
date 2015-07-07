@@ -15,8 +15,6 @@
         <license.basedir combine.self="override">${project.parent.basedir}</license.basedir>
         <elasticsearch.assembly.descriptor>${basedir}/src/main/assemblies/exec.xml</elasticsearch.assembly.descriptor>
         <elasticsearch.assembly.appendId>true</elasticsearch.assembly.appendId>
-        <!-- we aren't really a plugin... -->
-        <skip.integ.tests>true</skip.integ.tests>
     </properties>
 
     <dependencies>

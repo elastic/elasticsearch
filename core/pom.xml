@@ -10,8 +10,6 @@
     <modelVersion>4.0.0</modelVersion>
     <properties>
         <license.basedir combine.self="override">${project.parent.basedir}</license.basedir>
-        <!-- we aren't really a plugin... -->
-        <skip.integ.tests>true</skip.integ.tests>
     </properties>
     <artifactId>elasticsearch-license-core</artifactId>
 

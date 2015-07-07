@@ -29,6 +29,9 @@
         <packaging.elasticsearch.systemd.dir>/usr/lib/systemd/system</packaging.elasticsearch.systemd.dir>
         <packaging.elasticsearch.systemd.sysctl.dir>/usr/lib/sysctl.d</packaging.elasticsearch.systemd.sysctl.dir>
         <packaging.elasticsearch.tmpfilesd.dir>/usr/lib/tmpfiles.d</packaging.elasticsearch.tmpfilesd.dir>
+
+        <!-- rpmbuild location : default to /usr/bin/rpmbuild -->
+        <packaging.rpm.rpmbuild>/usr/bin/rpmbuild</packaging.rpm.rpmbuild>
     </properties>
 
     <dependencies>
@@ -150,11 +153,24 @@
 
     <profiles>
         <profile>
+            <id>macos_brew</id>
+            <activation>
+                <file>
+                    <!-- Folks having /usr/bin/rpmbuild available will be able to build the rpm module -->
+                    <exists>/usr/local/bin/rpmbuild</exists>
+                </file>
+            </activation>
+            <modules>
+                <module>rpm</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>rpm</id>
             <activation>
                 <file>
                     <!-- Folks having /usr/bin/rpmbuild available will be able to build the rpm module -->
-                    <exists>/usr/bin/rpmbuild</exists>
+                    <exists>${packaging.rpm.rpmbuild}</exists>
                 </file>
             </activation>
             <modules>

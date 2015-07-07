@@ -26,6 +26,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -298,7 +299,14 @@ public class BlobStoreIndexShardSnapshot {
                     }
                 }
             }
-            // TODO: Verify???
+            // Verify that file information is complete
+            if (name == null || Strings.validFileName(name) == false) {
+                throw new ElasticsearchParseException("missing or invalid file name [" + name + "]");
+            } else if (physicalName == null || Strings.validFileName(physicalName) == false) {
+                throw new ElasticsearchParseException("missing or invalid physical file name [" + physicalName + "]");
+            } else if (length < 0) {
+                throw new ElasticsearchParseException("missing or invalid file length");
+            }
             return new FileInfo(name, new StoreFileMetaData(physicalName, length, checksum, writtenBy, metaHash), partSize);
         }
 

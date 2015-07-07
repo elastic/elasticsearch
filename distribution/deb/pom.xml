@@ -85,7 +85,7 @@
                 <version>1.4</version>
                 <configuration>
                     <!-- By default it should generates target/${artifactId}_${version}.deb but we get elasticsearch_2.0.0~SNAPSHOT_all.deb -->
-                    <deb>${project.build.directory}/releases/${project.artifactId}-${project.version}.deb</deb>
+                    <deb>${project.build.directory}/releases/elasticsearch-${project.version}.deb</deb>
                     <controlDir>${project.build.directory}/generated-packaging/deb/scripts</controlDir>
                 </configuration>
                 <executions>

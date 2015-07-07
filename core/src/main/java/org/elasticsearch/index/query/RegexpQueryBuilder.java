@@ -78,7 +78,6 @@ public class RegexpQueryBuilder extends MultiTermQueryBuilder implements Boostab
      */
     public RegexpQueryBuilder maxDeterminizedStates(int value) {
         this.maxDeterminizedStates = value;
-        this.maxDetermizedStatesSet = true;
         return this;
     }
 

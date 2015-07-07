@@ -75,6 +75,11 @@ public class AttachmentMapper extends AbstractFieldMapper {
 
     public static class Defaults {
         public static final ContentPath.Type PATH_TYPE = ContentPath.Type.FULL;
+
+        public static final AttachmentFieldType FIELD_TYPE = new AttachmentFieldType();
+        static {
+            FIELD_TYPE.freeze();
+        }
     }
 
     public static class FieldNames {
@@ -90,9 +95,7 @@ public class AttachmentMapper extends AbstractFieldMapper {
     }
 
     static final class AttachmentFieldType extends MappedFieldType {
-        public AttachmentFieldType() {
-            super(AbstractFieldMapper.Defaults.FIELD_TYPE);
-        }
+        public AttachmentFieldType() {}
 
         protected AttachmentFieldType(AttachmentMapper.AttachmentFieldType ref) {
             super(ref);
@@ -100,6 +103,11 @@ public class AttachmentMapper extends AbstractFieldMapper {
 
         public AttachmentMapper.AttachmentFieldType clone() {
             return new AttachmentMapper.AttachmentFieldType(this);
+        }
+
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
         }
 
         public String value(Object value) {
@@ -243,7 +251,7 @@ public class AttachmentMapper extends AbstractFieldMapper {
             if (langDetect == null) {
                 langDetect = Boolean.FALSE;
             }
-            MappedFieldType defaultFieldType = AbstractFieldMapper.Defaults.FIELD_TYPE.clone();
+            MappedFieldType defaultFieldType = Defaults.FIELD_TYPE.clone();
             if(this.fieldType.indexOptions() != IndexOptions.NONE && !this.fieldType.tokenized()) {
                 defaultFieldType.setOmitNorms(true);
                 defaultFieldType.setIndexOptions(IndexOptions.DOCS);
@@ -258,9 +266,9 @@ public class AttachmentMapper extends AbstractFieldMapper {
 
             defaultFieldType.freeze();
             this.setupFieldType(context);
-            return new AttachmentMapper(this.fieldType, pathType, defaultIndexedChars, ignoreErrors, langDetect, contentMapper,
+            return new AttachmentMapper(name, fieldType, defaultFieldType, pathType, defaultIndexedChars, ignoreErrors, langDetect, contentMapper,
                     dateMapper, titleMapper, nameMapper, authorMapper, keywordsMapper, contentTypeMapper, contentLength,
-                    language, this.fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                    language, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -402,12 +410,12 @@ public class AttachmentMapper extends AbstractFieldMapper {
 
     private final FieldMapper languageMapper;
 
-    public AttachmentMapper(MappedFieldType type, ContentPath.Type pathType, int defaultIndexedChars, Boolean ignoreErrors,
+    public AttachmentMapper(String simpleName, MappedFieldType type, MappedFieldType defaultFieldType, ContentPath.Type pathType, int defaultIndexedChars, Boolean ignoreErrors,
                             Boolean defaultLangDetect, FieldMapper contentMapper,
                             FieldMapper dateMapper, FieldMapper titleMapper, FieldMapper nameMapper, FieldMapper authorMapper,
                             FieldMapper keywordsMapper, FieldMapper contentTypeMapper, FieldMapper contentLengthMapper,
-                            FieldMapper languageMapper, @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(type, false, fieldDataSettings, indexSettings, multiFields, copyTo);
+                            FieldMapper languageMapper, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+        super(simpleName, type, defaultFieldType, indexSettings, multiFields, copyTo);
         this.pathType = pathType;
         this.defaultIndexedChars = defaultIndexedChars;
         this.ignoreErrors = ignoreErrors;
@@ -421,16 +429,6 @@ public class AttachmentMapper extends AbstractFieldMapper {
         this.contentTypeMapper = contentTypeMapper;
         this.contentLengthMapper = contentLengthMapper;
         this.languageMapper = languageMapper;
-    }
-
-    @Override
-    public MappedFieldType defaultFieldType() {
-        return AbstractFieldMapper.Defaults.FIELD_TYPE;
-    }
-
-    @Override
-    public FieldDataType defaultFieldDataType() {
-        return null;
     }
 
     @Override
@@ -647,19 +645,6 @@ public class AttachmentMapper extends AbstractFieldMapper {
                 contentLengthMapper,
                 languageMapper);
         return CollectionUtils.concat(super.iterator(), extras.iterator());
-    }
-
-    @Override
-    public void close() {
-        contentMapper.close();
-        dateMapper.close();
-        titleMapper.close();
-        nameMapper.close();
-        authorMapper.close();
-        keywordsMapper.close();
-        contentTypeMapper.close();
-        contentLengthMapper.close();
-        languageMapper.close();
     }
 
     @Override

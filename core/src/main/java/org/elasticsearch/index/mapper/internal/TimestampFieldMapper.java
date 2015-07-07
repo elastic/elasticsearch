@@ -24,14 +24,12 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.TimestampParsingException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NumericDateAnalyzer;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -106,7 +104,8 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
             }
         }
 
-        DateFieldMapper.DateFieldType fieldType() {
+        @Override
+        public DateFieldMapper.DateFieldType fieldType() {
             return (DateFieldMapper.DateFieldType)fieldType;
         }
 

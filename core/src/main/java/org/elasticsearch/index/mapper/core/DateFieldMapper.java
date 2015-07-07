@@ -94,7 +94,8 @@ public class DateFieldMapper extends NumberFieldMapper {
             locale = Locale.ROOT;
         }
 
-        DateFieldType fieldType() {
+        @Override
+        public DateFieldType fieldType() {
             return (DateFieldType)fieldType;
         }
 

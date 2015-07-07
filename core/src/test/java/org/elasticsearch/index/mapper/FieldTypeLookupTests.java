@@ -24,8 +24,6 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
 import java.io.IOException;
@@ -176,7 +174,7 @@ public class FieldTypeLookupTests extends ElasticsearchTestCase {
     }
 
     // this sucks how much must be overridden just do get a dummy field mapper...
-    static class FakeFieldMapper extends AbstractFieldMapper {
+    static class FakeFieldMapper extends FieldMapper {
         static Settings dummySettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         public FakeFieldMapper(String fullName, String indexName) {
             super(fullName, makeFieldType(fullName, indexName), makeFieldType(fullName, indexName), dummySettings, null, null);

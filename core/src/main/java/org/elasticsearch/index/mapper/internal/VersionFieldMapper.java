@@ -35,7 +35,6 @@ import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
 import java.util.Iterator;

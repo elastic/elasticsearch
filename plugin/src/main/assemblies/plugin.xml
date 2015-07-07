@@ -9,7 +9,10 @@
         <dependencySet>
             <outputDirectory>/</outputDirectory>
             <useProjectArtifact>true</useProjectArtifact>
-            <useTransitiveFiltering>true</useTransitiveFiltering>
+            <useTransitiveDependencies>false</useTransitiveDependencies>
+            <includes>
+                <include>org.elasticsearch:elasticsearch-license-plugin-api</include>
+            </includes>
             <excludes>
                 <exclude>org.elasticsearch:elasticsearch</exclude>
             </excludes>

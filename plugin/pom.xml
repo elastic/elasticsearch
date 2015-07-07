@@ -29,15 +29,11 @@
             <groupId>org.elasticsearch</groupId>
             <artifactId>elasticsearch-license-core</artifactId>
             <version>2.0.0-SNAPSHOT</version>
-            <!-- we mark this as provided because we need the dependency but shade it into this jar, so consumers of this
-                 project don't need to depend on the core artifact -->
-            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.elasticsearch</groupId>
             <artifactId>elasticsearch-license-plugin-api</artifactId>
             <version>2.0.0-SNAPSHOT</version>
-            <scope>compile</scope>
         </dependency>
     </dependencies>
 
@@ -70,8 +66,9 @@
                 </executions>
                 <configuration>
                     <shadeTestJar>true</shadeTestJar>
-                    <minimizeJar>true</minimizeJar>
+                    <minimizeJar>false</minimizeJar>
                     <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
+                    <createDependencyReducedPom>true</createDependencyReducedPom>
                     <artifactSet>
                         <includes>
                             <include>org.elasticsearch:elasticsearch-license-core</include>

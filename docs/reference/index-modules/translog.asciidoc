@@ -53,8 +53,8 @@ The data in the transaction log is only persisted to disk when the translog is
 since the previous translog commit will be lost.
 
 By default, Elasticsearch ++fsync++s and commits the translog every 5 seconds
-and at the end of every <<docs-index_,index>>, <<doc-delete,delete>>,
-<<doc-update,update>>, or  <<docs-bulk,bulk>> request.  In fact, Elasticsearch
+and at the end of every <<docs-index_,index>>, <<docs-delete,delete>>,
+<<docs-update,update>>, or  <<docs-bulk,bulk>> request.  In fact, Elasticsearch
 will only report success of an index, delete, update, or bulk request to the
 client after the transaction log has been successfully ++fsync++ed and committed
 on the primary and on every allocated replica.

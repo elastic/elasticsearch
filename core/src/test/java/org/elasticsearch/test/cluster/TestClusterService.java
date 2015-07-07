@@ -184,6 +184,11 @@ public class TestClusterService implements ClusterService {
     @Override
     synchronized public void submitStateUpdateTask(String source, Priority priority, ClusterStateUpdateTask updateTask) {
         logger.debug("processing [{}]", source);
+        if (state().nodes().localNodeMaster() == false && updateTask.runOnlyOnMaster()) {
+            updateTask.onNoLongerMaster(source);
+            logger.debug("failed [{}], no longer master", source);
+            return;
+        }
         ClusterState newState;
         ClusterState previousClusterState = state;
         try {

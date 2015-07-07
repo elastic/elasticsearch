@@ -375,7 +375,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     new NodeJoinController.Callback() {
                         @Override
                         public void onElectedAsMaster(ClusterState state) {
-                            nodeJoinController.stopAccumulatingJoins();
                             joinThreadControl.markThreadAsDone(currentThread);
                             // we only starts nodesFD if we are master (it may be that we received a cluster state while pinging)
                             nodesFD.updateNodesAndPing(state); // start the nodes FD
@@ -387,7 +386,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         @Override
                         public void onFailure(Throwable t) {
                             logger.trace("failed while waiting for nodes to join, rejoining", t);
-                            nodeJoinController.stopAccumulatingJoins();
                             joinThreadControl.markThreadAsDoneAndStartNew(currentThread);
                         }
                     }

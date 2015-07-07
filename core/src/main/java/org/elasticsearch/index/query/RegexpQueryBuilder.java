@@ -29,8 +29,8 @@ import java.io.IOException;
  */
 public class RegexpQueryBuilder extends MultiTermQueryBuilder implements BoostableQueryBuilder<RegexpQueryBuilder> {
 
-    private final String name;
-    private final String regexp;
+    private final String fieldName;
+    private final Object value;
 
     private int flags = -1;
     private float boost = -1;
@@ -40,14 +40,75 @@ public class RegexpQueryBuilder extends MultiTermQueryBuilder implements Boostab
     private boolean maxDetermizedStatesSet;
 
     /**
-     * Constructs a new term query.
+     * Constructs a new regex query.
      *
-     * @param name  The name of the field
-     * @param regexp The regular expression
+     * @param fieldName  The name of the field
+     * @param value The regular expression
      */
-    public RegexpQueryBuilder(String name, String regexp) {
-        this.name = name;
-        this.regexp = regexp;
+    public RegexpQueryBuilder(String fieldName, String value) {
+        this(fieldName, (Object) value);
+    }
+
+    /**
+     * Constructs a new regex query.
+     *
+     * @param fieldName  The name of the field
+     * @param value The regular expression
+     */
+    public RegexpQueryBuilder(String fieldName, int value) {
+        this(fieldName, (Object) value);
+    }
+
+    /**
+     * Constructs a new regex query.
+     *
+     * @param fieldName  The name of the field
+     * @param value The regular expression
+     */
+    public RegexpQueryBuilder(String fieldName, long value) {
+        this(fieldName, (Object) value);
+    }
+
+    /**
+     * Constructs a new regex query.
+     *
+     * @param fieldName  The name of the field
+     * @param value The regular expression
+     */
+    public RegexpQueryBuilder(String fieldName, float value) {
+        this(fieldName, (Object) value);
+    }
+
+    /**
+     * Constructs a new regex query.
+     *
+     * @param fieldName  The name of the field
+     * @param value The regular expression
+     */
+    public RegexpQueryBuilder(String fieldName, double value) {
+        this(fieldName, (Object) value);
+    }
+
+    /**
+     * Constructs a new regex query.
+     *
+     * @param fieldName  The name of the field
+     * @param value The regular expression
+     */
+    public RegexpQueryBuilder(String fieldName, boolean value) {
+        this(fieldName, (Object) value);
+    }
+
+    /**
+     * Constructs a new regex query.
+     * In case value is assigned to a string, we internally convert it to a {@link org.apache.lucene.util.BytesRef}
+     *
+     * @param fieldName  The name of the field
+     * @param value The regular expression
+     */
+    public RegexpQueryBuilder(String fieldName, Object value) {
+        this.fieldName = fieldName;
+        this.value = value;
     }
 
     /**
@@ -98,8 +159,8 @@ public class RegexpQueryBuilder extends MultiTermQueryBuilder implements Boostab
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(RegexpQueryParser.NAME);
-        builder.startObject(name);
-        builder.field("value", regexp);
+        builder.startObject(fieldName);
+        builder.field("value", value);
         if (flags != -1) {
             builder.field("flags_value", flags);
         }

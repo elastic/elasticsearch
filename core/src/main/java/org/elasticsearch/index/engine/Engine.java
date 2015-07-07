@@ -512,10 +512,9 @@ public abstract class Engine implements Closeable {
 
     /**
      * fail engine due to some error. the engine will also be closed.
-     * The engine is marked corrupted iff failure is caused by index corruption
+     * The underlying store is marked corrupted iff failure is caused by index corruption
      */
-    public void failEngine(String reason, Throwable failure) {
-        assert failure != null;
+    public void failEngine(String reason, @Nullable Throwable failure) {
         if (failEngineLock.tryLock()) {
             store.incRef();
             try {
@@ -529,7 +528,7 @@ public abstract class Engine implements Closeable {
                     }
                     logger.warn("failed engine [{}]", failure, reason);
                     // we must set a failure exception, generate one if not supplied
-                    failedEngine = failure;
+                    failedEngine = (failure != null) ? failure : new IllegalStateException(reason);
                     // we first mark the store as corrupted before we notify any listeners
                     // this must happen first otherwise we might try to reallocate so quickly
                     // on the same node that we don't see the corrupted marker file when
@@ -557,13 +556,10 @@ public abstract class Engine implements Closeable {
     /** Check whether the engine should be failed */
     protected boolean maybeFailEngine(String source, Throwable t) {
         if (Lucene.isCorruptionException(t)) {
-            failEngine("corrupt file detected source: [" + source + "]", t);
+            failEngine("corrupt file (source: [" + source + "])", t);
             return true;
         } else if (ExceptionsHelper.isOOM(t)) {
-            failEngine("out of memory detected source: [" + source + "]", t);
-            return true;
-        } else if (ExceptionsHelper.isOutOfDisk(t)) {
-            failEngine("out of disk space detected source: [" + source + "]", t);
+            failEngine("out of memory (source: [" + source + "])", t);
             return true;
         }
         return false;

@@ -742,10 +742,10 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     /**
-     * Fails the shard and marks the engine as corrupted if
+     * Fails the shard and marks the shard store as corrupted if
      * <code>e</code> is caused by index corruption
      */
-    public void failShard(String reason, Throwable e) {
+    public void failShard(String reason, @Nullable Throwable e) {
         // fail the engine. This will cause this shard to also be removed from the node's index service.
         engine().failEngine(reason, e);
     }

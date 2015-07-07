@@ -15,7 +15,7 @@
     </scm>
 
     <parent>
-        <groupId>org.elasticsearch</groupId>
+        <groupId>org.elasticsearch.plugin</groupId>
         <artifactId>elasticsearch-plugin</artifactId>
         <version>2.0.0-SNAPSHOT</version>
     </parent>
@@ -72,7 +72,7 @@
         </dependency>
         <dependency>
             <groupId>org.elasticsearch</groupId>
-            <artifactId>securemock</artifactId>
+            <artifactId>elasticsearch-securemock</artifactId>
             <version>1.0-SNAPSHOT</version>
             <scope>test</scope>
         </dependency>
@@ -150,7 +150,6 @@
                 <artifactId>maven-assembly-plugin</artifactId>
                 <configuration>
                     <attach>false</attach>
-                    <finalName>shield-${project.version}</finalName>
                 </configuration>
             </plugin>
 

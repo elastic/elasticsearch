@@ -52,6 +52,19 @@
                     <groupId>com.uwyn</groupId>
                     <artifactId>jhighlight</artifactId>
                 </exclusion>
+                <!-- ES core already has these -->
+                <exclusion>
+                    <groupId>org.ow2.asm</groupId>
+                    <artifactId>asm-debug-all</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>commons-logging</groupId>
+                    <artifactId>commons-logging</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>commons-logging</groupId>
+                    <artifactId>commons-logging-api</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
     </dependencies>

@@ -7,6 +7,7 @@ package org.elasticsearch.watcher.support;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.util.concurrent.MoreExecutors;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -30,6 +31,7 @@ import org.elasticsearch.watcher.watch.WatchStore;
 import java.io.InputStream;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 
 /**
  */
@@ -80,21 +82,23 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
             return;
         }
 
-        putTemplatesIfMissing(state);
+        addTemplatesIfMissing(state, false);
     }
 
     /**
      * Adds the registered index templates if missing to the cluster.
      */
     public void addTemplatesIfMissing() {
-        putTemplatesIfMissing(clusterService.state());
+        // to be sure that the templates exist after this method call, we should wait until the put index templates calls
+        // have returned if the templates were missing
+        addTemplatesIfMissing(clusterService.state(), true);
     }
 
-    synchronized void putTemplatesIfMissing(ClusterState state) {
+    void addTemplatesIfMissing(ClusterState state, boolean wait) {
         for (TemplateConfig template : indexTemplates) {
             if (!state.metaData().getTemplates().containsKey(template.getTemplateName())) {
                 logger.debug("adding index template [{}], because it doesn't exist", template.getTemplateName());
-                putTemplate(template);
+                putTemplate(template, wait);
             } else {
                 logger.trace("not adding index template [{}], because it already exists", template.getTemplateName());
             }
@@ -144,13 +148,19 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
                 customIndexSettings = MapBuilder.newMapBuilder(customIndexSettings)
                         .put(config.getSettingsPrefix(), builder.build())
                         .immutableMap();
-                putTemplate(config);
+                putTemplate(config, false);
             }
         }
     }
 
-    private void putTemplate(final TemplateConfig config) {
-        threadPool.generic().execute(new Runnable() {
+    private void putTemplate(final TemplateConfig config, boolean wait) {
+        final Executor executor;
+        if (wait) {
+            executor = MoreExecutors.directExecutor();
+        } else {
+            executor = threadPool.generic();
+        }
+        executor.execute(new Runnable() {
             @Override
             public void run() {
                 try (InputStream is = WatchStore.class.getResourceAsStream("/" + config.getTemplateName()+ ".json")) {

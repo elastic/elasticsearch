@@ -19,9 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.spans.SpanFirstQuery;
-import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -31,7 +28,7 @@ import java.io.IOException;
 /**
  *
  */
-public class SpanFirstQueryParser extends BaseQueryParserTemp {
+public class SpanFirstQueryParser extends BaseQueryParser {
 
     @Inject
     public SpanFirstQueryParser() {
@@ -43,12 +40,12 @@ public class SpanFirstQueryParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
 
-        SpanQuery match = null;
+        SpanQueryBuilder match = null;
         int end = -1;
         String queryName = null;
 
@@ -59,11 +56,11 @@ public class SpanFirstQueryParser extends BaseQueryParserTemp {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("match".equals(currentFieldName)) {
-                    Query query = parseContext.parseInnerQuery();
-                    if (!(query instanceof SpanQuery)) {
+                    QueryBuilder query = parseContext.parseInnerQueryBuilder();
+                    if (!(query instanceof SpanQueryBuilder)) {
                         throw new QueryParsingException(parseContext, "spanFirst [match] must be of type span query");
                     }
-                    match = (SpanQuery) query;
+                    match = (SpanQueryBuilder) query;
                 } else {
                     throw new QueryParsingException(parseContext, "[span_first] query does not support [" + currentFieldName + "]");
                 }
@@ -85,13 +82,9 @@ public class SpanFirstQueryParser extends BaseQueryParserTemp {
         if (end == -1) {
             throw new QueryParsingException(parseContext, "spanFirst must have [end] set for it");
         }
-
-        SpanFirstQuery query = new SpanFirstQuery(match, end);
-        query.setBoost(boost);
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
-        }
-        return query;
+        SpanFirstQueryBuilder queryBuilder = new SpanFirstQueryBuilder(match, end);
+        queryBuilder.boost(boost).queryName(queryName);
+        return queryBuilder;
     }
 
     @Override

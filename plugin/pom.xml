@@ -54,50 +54,6 @@
 
         <plugins>
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-shade-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>shade</goal>
-                        </goals>
-                    </execution>
-                </executions>
-                <configuration>
-                    <shadeTestJar>true</shadeTestJar>
-                    <minimizeJar>false</minimizeJar>
-                    <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
-                    <createDependencyReducedPom>true</createDependencyReducedPom>
-                    <artifactSet>
-                        <includes>
-                            <include>org.elasticsearch:elasticsearch-license-core</include>
-                            <include>org.elasticsearch:elasticsearch-license-core-shaded</include>
-                        </includes>
-                    </artifactSet>
-                    <relocations>
-                        <relocation>
-                            <pattern>org.elasticsearch.license</pattern>
-                            <shadedPattern>org.elasticsearch.license</shadedPattern>
-                        </relocation>
-                    </relocations>
-                    <filters>
-                        <filter>
-                            <artifact>*:*</artifact>
-                            <excludes>
-                                <exclude>META-INF/license/**</exclude>
-                                <exclude>META-INF/*</exclude>
-                                <exclude>META-INF/maven/**</exclude>
-                                <exclude>LICENSE</exclude>
-                                <exclude>NOTICE</exclude>
-                                <exclude>/*.txt</exclude>
-                                <exclude>build.properties</exclude>
-                            </excludes>
-                        </filter>
-                    </filters>
-                </configuration>
-            </plugin>
-            <plugin>
                 <artifactId>maven-assembly-plugin</artifactId>
                 <configuration>
                     <attach>false</attach>

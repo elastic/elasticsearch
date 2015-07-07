@@ -20,6 +20,7 @@
 package org.elasticsearch.test.disruption;
 
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.HashSet;
 import java.util.Random;
@@ -60,6 +61,12 @@ public class LongGCDisruption extends SingleNodeDisruption {
             resumeThreads(suspendedThreads);
             suspendedThreads = null;
         }
+    }
+
+    @Override
+    public void removeAndEnsureHealthy(InternalTestCluster cluster) {
+        removeFromCluster(cluster);
+        ensureNodeCount(cluster);
     }
 
     @Override

@@ -24,6 +24,8 @@ import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.Random;
 
+import static org.junit.Assert.assertFalse;
+
 public abstract class SingleNodeDisruption implements ServiceDisruptionScheme {
 
     protected final ESLogger logger = Loggers.getLogger(getClass());
@@ -80,4 +82,10 @@ public abstract class SingleNodeDisruption implements ServiceDisruptionScheme {
         disruptedNode = null;
     }
 
+    protected void ensureNodeCount(InternalTestCluster cluster) {
+        assertFalse("cluster failed to form after disruption was healed", cluster.client().admin().cluster().prepareHealth()
+                .setWaitForNodes("" + cluster.size())
+                .setWaitForRelocatingShards(0)
+                .get().isTimedOut());
+    }
 }

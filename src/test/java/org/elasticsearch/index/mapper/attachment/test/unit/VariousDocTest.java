@@ -61,7 +61,7 @@ public class VariousDocTest extends AttachmentUnitTestCase {
      */
     @Test
     public void testWordDocxDocument104() throws Exception {
-        testTika("issue-104.docx", false);
+        assertParseable("issue-104.docx");
         testMapper("issue-104.docx", false);
     }
 
@@ -70,7 +70,7 @@ public class VariousDocTest extends AttachmentUnitTestCase {
      */
     @Test
     public void testEncryptedPDFDocument() throws Exception {
-        testTika("encrypted.pdf", true);
+        assertException("encrypted.pdf");
         // TODO Remove when this will be fixed in Tika. See https://issues.apache.org/jira/browse/TIKA-1548
         System.clearProperty("sun.font.fontmanager");
         testMapper("encrypted.pdf", true);
@@ -81,7 +81,7 @@ public class VariousDocTest extends AttachmentUnitTestCase {
      */
     @Test
     public void testHtmlDocument() throws Exception {
-        testTika("htmlWithEmptyDateMeta.html", false);
+        assertParseable("htmlWithEmptyDateMeta.html");
         testMapper("htmlWithEmptyDateMeta.html", false);
     }
 
@@ -90,7 +90,7 @@ public class VariousDocTest extends AttachmentUnitTestCase {
      */
     @Test
     public void testXHtmlDocument() throws Exception {
-        testTika("testXHTML.html", false);
+        assertParseable("testXHTML.html");
         testMapper("testXHTML.html", false);
     }
 
@@ -99,7 +99,7 @@ public class VariousDocTest extends AttachmentUnitTestCase {
      */
     @Test
     public void testTxtDocument() throws Exception {
-        testTika("text-in-english.txt", false);
+        assertParseable("text-in-english.txt");
         testMapper("text-in-english.txt", false);
     }
 
@@ -109,11 +109,23 @@ public class VariousDocTest extends AttachmentUnitTestCase {
      */
     @Test
     public void testAsciidocDocument() throws Exception {
-        testTika("asciidoc.asciidoc", false);
+        assertParseable("asciidoc.asciidoc");
         testMapper("asciidoc.asciidoc", false);
     }
 
-    protected void testTika(String filename, boolean errorExpected) {
+    void assertException(String filename) {
+        Tika tika = tika();
+        assumeTrue("Tika has been disabled. Ignoring test...", tika != null);
+
+        try (InputStream is = VariousDocTest.class.getResourceAsStream("/org/elasticsearch/index/mapper/attachment/test/sample-files/" + filename)) {
+            tika.parseToString(is);
+            fail("expected exception");
+        } catch (Exception e) {
+            // expected. TODO: check message
+        }
+    }
+
+    protected void assertParseable(String filename) throws Exception {
         Tika tika = tika();
         assumeTrue("Tika has been disabled. Ignoring test...", tika != null);
 
@@ -121,10 +133,6 @@ public class VariousDocTest extends AttachmentUnitTestCase {
             String parsedContent = tika.parseToString(is);
             assertThat(parsedContent, not(isEmptyOrNullString()));
             logger.debug("extracted content: {}", parsedContent);
-        } catch (Throwable e) {
-            if (!errorExpected) {
-                fail("exception caught: " + e.getMessage());
-            }
         }
     }
 

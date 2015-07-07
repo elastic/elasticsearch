@@ -78,21 +78,26 @@ public class TestClusterService implements ClusterService {
     }
 
 
-    /** set the current state and trigger any registered listeners about the change */
-    public void setState(ClusterState state) {
+    /** set the current state and trigger any registered listeners about the change, mimicking an update task */
+    public ClusterState setState(ClusterState state) {
         assert state.getNodes().localNode() != null;
         // make sure we have a version increment
         state = ClusterState.builder(state).version(this.state.version() + 1).build();
+        return setStateAndNotifyListeners(state);
+    }
+
+    private ClusterState setStateAndNotifyListeners(ClusterState state) {
         ClusterChangedEvent event = new ClusterChangedEvent("test", state, this.state);
         this.state = state;
         for (ClusterStateListener listener : listeners) {
             listener.clusterChanged(event);
         }
+        return state;
     }
 
     /** set the current state and trigger any registered listeners about the change */
-    public void setState(ClusterState.Builder state) {
-        setState(state.build());
+    public ClusterState setState(ClusterState.Builder state) {
+        return setState(state.build());
     }
 
     @Override
@@ -173,11 +178,26 @@ public class TestClusterService implements ClusterService {
 
     @Override
     public void submitStateUpdateTask(String source, Priority priority, ClusterStateUpdateTask updateTask) {
-        throw new UnsupportedOperationException();
+        ClusterState newState;
+        ClusterState previousClusterState = state;
+        try {
+            newState = updateTask.execute(previousClusterState);
+        } catch (Exception e) {
+            throw new ElasticsearchException("failed to process cluster state update task [" + source + "]", e);
+        }
+        setStateAndNotifyListeners(newState);
+        if (updateTask instanceof ProcessedClusterStateUpdateTask) {
+            ((ProcessedClusterStateUpdateTask) updateTask).clusterStateProcessed(source, previousClusterState, newState);
+        }
     }
 
     @Override
     public void submitStateUpdateTask(String source, ClusterStateUpdateTask updateTask) {
+        submitStateUpdateTask(source, Priority.NORMAL, updateTask);
+    }
+
+    @Override
+    public TimeValue getMaxTaskWaitTime() {
         throw new UnsupportedOperationException();
     }
 
@@ -189,11 +209,6 @@ public class TestClusterService implements ClusterService {
 
     @Override
     public int numberOfPendingTasks() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public TimeValue getMaxTaskWaitTime() {
         throw new UnsupportedOperationException();
     }
 
@@ -213,17 +228,17 @@ public class TestClusterService implements ClusterService {
     }
 
     @Override
-    public ClusterService start() {
+    public ClusterService start() throws ElasticsearchException {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public ClusterService stop() {
+    public ClusterService stop() throws ElasticsearchException {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public void close() {
+    public void close() throws ElasticsearchException {
         throw new UnsupportedOperationException();
     }
 

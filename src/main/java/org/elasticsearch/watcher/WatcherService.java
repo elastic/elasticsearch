@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.watcher.execution.ExecutionService;
+import org.elasticsearch.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.trigger.TriggerService;
 import org.elasticsearch.watcher.watch.Watch;
@@ -39,11 +40,12 @@ public class WatcherService extends AbstractComponent {
     private final WatchStore watchStore;
     private final WatchLockService watchLockService;
     private final ExecutionService executionService;
+    private final WatcherIndexTemplateRegistry watcherIndexTemplateRegistry;
     private final AtomicReference<WatcherState> state = new AtomicReference<>(WatcherState.STOPPED);
 
     @Inject
     public WatcherService(Settings settings, Clock clock, TriggerService triggerService, WatchStore watchStore,
-                          Watch.Parser watchParser, ExecutionService executionService, WatchLockService watchLockService) {
+                          Watch.Parser watchParser, ExecutionService executionService, WatchLockService watchLockService, WatcherIndexTemplateRegistry watcherIndexTemplateRegistry) {
         super(settings);
         this.clock = clock;
         this.triggerService = triggerService;
@@ -51,12 +53,14 @@ public class WatcherService extends AbstractComponent {
         this.watchParser = watchParser;
         this.watchLockService = watchLockService;
         this.executionService = executionService;
+        this.watcherIndexTemplateRegistry = watcherIndexTemplateRegistry;
     }
 
     public void start(ClusterState clusterState) throws Exception {
         if (state.compareAndSet(WatcherState.STOPPED, WatcherState.STARTING)) {
             try {
                 logger.info("starting watch service...");
+                watcherIndexTemplateRegistry.addTemplatesIfMissing();
                 watchLockService.start();
 
                 // Try to load watch store before the execution service, b/c action depends on watch store

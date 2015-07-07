@@ -19,6 +19,7 @@ import org.elasticsearch.watcher.WatcherService;
 import org.elasticsearch.watcher.WatcherState;
 import org.elasticsearch.watcher.actions.ActionStatus;
 import org.elasticsearch.watcher.execution.ExecutionService;
+import org.elasticsearch.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.watcher.support.clock.ClockMock;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.trigger.Trigger;
@@ -45,7 +46,6 @@ public class WatchServiceTests extends ElasticsearchTestCase {
     private WatchStore watchStore;
     private Watch.Parser watchParser;
     private WatcherService watcherService;
-    private ExecutionService executionService;
     private WatchLockService watchLockService;
     private ClockMock clock;
 
@@ -54,10 +54,11 @@ public class WatchServiceTests extends ElasticsearchTestCase {
         triggerService = mock(TriggerService.class);
         watchStore = mock(WatchStore.class);
         watchParser = mock(Watch.Parser.class);
-        executionService =  mock(ExecutionService.class);
+        ExecutionService executionService =  mock(ExecutionService.class);
         watchLockService = mock(WatchLockService.class);
         clock = new ClockMock();
-        watcherService = new WatcherService(Settings.EMPTY, clock, triggerService, watchStore, watchParser, executionService, watchLockService);
+        WatcherIndexTemplateRegistry watcherIndexTemplateRegistry = mock(WatcherIndexTemplateRegistry.class);
+        watcherService = new WatcherService(Settings.EMPTY, clock, triggerService, watchStore, watchParser, executionService, watchLockService, watcherIndexTemplateRegistry);
         Field field = WatcherService.class.getDeclaredField("state");
         field.setAccessible(true);
         AtomicReference<WatcherState> state = (AtomicReference<WatcherState>) field.get(watcherService);

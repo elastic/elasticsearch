@@ -80,9 +80,23 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
             return;
         }
 
+        putTemplatesIfMissing(state);
+    }
+
+    /**
+     * Adds the registered index templates if missing to the cluster.
+     */
+    public void addTemplatesIfMissing() {
+        putTemplatesIfMissing(clusterService.state());
+    }
+
+    synchronized void putTemplatesIfMissing(ClusterState state) {
         for (TemplateConfig template : indexTemplates) {
             if (!state.metaData().getTemplates().containsKey(template.getTemplateName())) {
+                logger.debug("adding index template [{}], because it doesn't exist", template.getTemplateName());
                 putTemplate(template);
+            } else {
+                logger.trace("not adding index template [{}], because it already exists", template.getTemplateName());
             }
         }
     }

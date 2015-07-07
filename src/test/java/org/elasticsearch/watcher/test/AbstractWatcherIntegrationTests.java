@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.test;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -30,10 +31,7 @@ import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.TestCluster;
-import org.elasticsearch.watcher.WatcherLifeCycleService;
-import org.elasticsearch.watcher.WatcherPlugin;
-import org.elasticsearch.watcher.WatcherService;
-import org.elasticsearch.watcher.WatcherState;
+import org.elasticsearch.watcher.*;
 import org.elasticsearch.watcher.actions.email.service.Authentication;
 import org.elasticsearch.watcher.actions.email.service.Email;
 import org.elasticsearch.watcher.actions.email.service.EmailService;
@@ -71,6 +69,7 @@ import java.util.Map;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
+import static org.elasticsearch.watcher.WatcherModule.*;
 import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNot.not;
@@ -433,6 +432,11 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
                 }
             }
         });
+        // Verify that the index templates exist:
+        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(
+                HISTORY_TEMPLATE_NAME, TRIGGERED_TEMPLATE_NAME, WATCHES_TEMPLATE_NAME
+        ).get();
+        assertThat(response.getIndexTemplates().size(), equalTo(3));
     }
 
     protected void ensureLicenseEnabled()  throws Exception {

@@ -296,7 +296,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                     contextProcessedSuccessfully(context);
                 }
             } catch (Throwable e) {
-                shardSearchStats.onFailedQueryPhase(context);
+                shardSearchStats.onFailedFetchPhase(context);
                 throw ExceptionsHelper.convertToRuntime(e);
             }
             shardSearchStats.onFetchPhase(context, System.nanoTime() - queryFinishTime);

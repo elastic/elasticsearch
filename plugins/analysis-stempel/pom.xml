@@ -15,7 +15,8 @@
     <description>The Stempel (Polish) Analysis plugin integrates Lucene stempel (polish) analysis module into elasticsearch.</description>
 
     <properties>
-        <!-- You can add any specific project property here -->
+        <tests.rest.suite>analysis_stempel</tests.rest.suite>
+        <tests.rest.load_packaged>false</tests.rest.load_packaged>
     </properties>
 
     <dependencies>

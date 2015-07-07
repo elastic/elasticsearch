@@ -80,9 +80,9 @@ public class FuzzyQueryParser implements QueryParser {
                     currentFieldName = parser.currentName();
                 } else {
                     if ("term".equals(currentFieldName)) {
-                        value = parser.objectText();
+                        value = parser.objectBytes();
                     } else if ("value".equals(currentFieldName)) {
-                        value = parser.objectText();
+                        value = parser.objectBytes();
                     } else if ("boost".equals(currentFieldName)) {
                         boost = parser.floatValue();
                     } else if (parseContext.parseFieldMatcher().match(currentFieldName, FUZZINESS)) {
@@ -104,7 +104,7 @@ public class FuzzyQueryParser implements QueryParser {
             }
             parser.nextToken();
         } else {
-            value = parser.objectText();
+            value = parser.objectBytes();
             // move to the next token
             parser.nextToken();
         }

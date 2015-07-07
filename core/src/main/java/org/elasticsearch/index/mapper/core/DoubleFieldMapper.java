@@ -180,7 +180,7 @@ public class DoubleFieldMapper extends NumberFieldMapper {
 
         @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-            double iValue = Double.parseDouble(value.toString());
+            double iValue = parseDoubleValue(value);
             double iSim = fuzziness.asDouble();
             return NumericRangeQuery.newDoubleRange(names().indexName(), numericPrecisionStep(),
                 iValue - iSim,

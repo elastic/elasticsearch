@@ -218,7 +218,7 @@ public class IpFieldMapper extends NumberFieldMapper {
 
         @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-            long iValue = ipToLong(value.toString());
+            long iValue = parseValue(value);
             long iSim;
             try {
                 iSim = ipToLong(fuzziness.asString());

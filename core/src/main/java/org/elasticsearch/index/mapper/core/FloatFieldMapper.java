@@ -181,7 +181,7 @@ public class FloatFieldMapper extends NumberFieldMapper {
 
         @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-            float iValue = Float.parseFloat(value.toString());
+            float iValue = parseValue(value);
             final float iSim = fuzziness.asFloat();
             return NumericRangeQuery.newFloatRange(names().indexName(), numericPrecisionStep(),
                 iValue - iSim,

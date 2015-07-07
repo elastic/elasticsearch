@@ -173,7 +173,7 @@ public class ByteFieldMapper extends NumberFieldMapper {
 
         @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-            byte iValue = Byte.parseByte(value.toString());
+            byte iValue = parseValue(value);
             byte iSim = fuzziness.asByte();
             return NumericRangeQuery.newIntRange(names().indexName(), numericPrecisionStep(),
                 iValue - iSim,

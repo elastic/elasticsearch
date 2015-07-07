@@ -387,7 +387,7 @@ public class DateFieldMapper extends NumberFieldMapper {
 
         @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-            long iValue = dateMathParser().parse(value.toString(), now());
+            long iValue = parseValue(value);
             long iSim;
             try {
                 iSim = fuzziness.asTimeValue().millis();

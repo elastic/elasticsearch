@@ -371,7 +371,9 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
         // restore isolation
         networkPartition.stopDisrupting();
 
-        ensureStableCluster(3, new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + networkPartition.expectedTimeToHeal().millis()));
+        for (String node : nodes) {
+            ensureStableCluster(3, new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + networkPartition.expectedTimeToHeal().millis()), true, node);
+        }
 
         logger.info("issue a reroute");
         // trigger a reroute now, instead of waiting for the background reroute of RerouteService
@@ -578,7 +580,7 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
 
         // restore GC
         masterNodeDisruption.stopDisrupting();
-        ensureStableCluster(3, new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + masterNodeDisruption.expectedTimeToHeal().millis()),
+        ensureStableCluster(3, new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + masterNodeDisruption.expectedTimeToHeal().millis()), false,
                 oldNonMasterNodes.get(0));
 
         // make sure all nodes agree on master
@@ -987,18 +989,18 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
     }
 
     private void ensureStableCluster(int nodeCount) {
-        ensureStableCluster(nodeCount, TimeValue.timeValueSeconds(30), null);
+        ensureStableCluster(nodeCount, TimeValue.timeValueSeconds(30));
     }
 
     private void ensureStableCluster(int nodeCount, TimeValue timeValue) {
-        ensureStableCluster(nodeCount, timeValue, null);
+        ensureStableCluster(nodeCount, timeValue, false, null);
     }
 
     private void ensureStableCluster(int nodeCount, @Nullable String viaNode) {
-        ensureStableCluster(nodeCount, TimeValue.timeValueSeconds(30), viaNode);
+        ensureStableCluster(nodeCount, TimeValue.timeValueSeconds(30), false, viaNode);
     }
 
-    private void ensureStableCluster(int nodeCount, TimeValue timeValue, @Nullable String viaNode) {
+    private void ensureStableCluster(int nodeCount, TimeValue timeValue, boolean local, @Nullable String viaNode) {
         if (viaNode == null) {
             viaNode = randomFrom(internalCluster().getNodeNames());
         }
@@ -1007,6 +1009,7 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
                 .setWaitForEvents(Priority.LANGUID)
                 .setWaitForNodes(Integer.toString(nodeCount))
                 .setTimeout(timeValue)
+                .setLocal(local)
                 .setWaitForRelocatingShards(0)
                 .get();
         if (clusterHealthResponse.isTimedOut()) {

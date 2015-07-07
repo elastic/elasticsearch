@@ -26,7 +26,7 @@ import java.io.IOException;
 /**
  * A Query that matches documents containing terms with a specified prefix.
  */
-public class PrefixQueryBuilder extends MultiTermQueryBuilder {
+public class PrefixQueryBuilder extends AbstractQueryBuilder implements MultiTermQueryBuilder {
 
     public static final String NAME = "prefix";
 

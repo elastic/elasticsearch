@@ -27,7 +27,7 @@ import java.io.IOException;
 /**
  * A Query that does fuzzy matching for a specific value.
  */
-public class FuzzyQueryBuilder extends MultiTermQueryBuilder {
+public class FuzzyQueryBuilder extends AbstractQueryBuilder implements MultiTermQueryBuilder {
 
     public static final String NAME = "fuzzy";
 

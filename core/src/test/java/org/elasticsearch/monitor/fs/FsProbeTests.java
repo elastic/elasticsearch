@@ -31,21 +31,21 @@ import static org.hamcrest.Matchers.*;
 public class FsProbeTests extends ElasticsearchTestCase {
 
     @Test
-    public void testFsStats() throws IOException {
+    public void testFsInfo() throws IOException {
         try (NodeEnvironment env = newNodeEnvironment()) {
             FsProbe probe = new FsProbe(Settings.EMPTY, env);
 
-            FsStats stats = probe.stats();
+            FsInfo stats = probe.stats();
             assertNotNull(stats);
             assertThat(stats.getTimestamp(), greaterThan(0L));
 
-            FsStats.Path total = stats.getTotal();
+            FsInfo.Path total = stats.getTotal();
             assertNotNull(total);
             assertThat(total.total, greaterThan(0L));
             assertThat(total.free, greaterThan(0L));
             assertThat(total.available, greaterThan(0L));
 
-            for (FsStats.Path path : stats) {
+            for (FsInfo.Path path : stats) {
                 assertNotNull(path);
                 assertThat(path.getPath(), not(isEmptyOrNullString()));
                 assertThat(path.getMount(), not(isEmptyOrNullString()));

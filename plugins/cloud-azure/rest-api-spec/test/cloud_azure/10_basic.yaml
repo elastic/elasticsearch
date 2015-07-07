@@ -1,0 +1,14 @@
+# Integration tests for Cloud Azure components
+#
+"Cloud Azure loaded":
+    - do:
+        cluster.state: {}
+
+    # Get master node id
+    - set: { master_node: master }
+
+    - do:
+        nodes.info: {}
+
+    - match:  { nodes.$master.plugins.0.name: cloud-azure  }
+    - match:  { nodes.$master.plugins.0.jvm: true  }

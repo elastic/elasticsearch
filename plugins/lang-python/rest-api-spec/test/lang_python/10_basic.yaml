@@ -1,0 +1,26 @@
+# Integration tests for Lang Python components
+#
+setup:
+    - do:
+        index:
+            index: test
+            type: test
+            id: 1
+            body: { "foo": "aaa" }
+    - do:
+        indices.refresh: {}
+
+---
+
+"Lang Python":
+    - do:
+        search:
+            body:
+                script_fields:
+                    bar:
+                        lang: python
+                        script: "doc['foo'].value + x"
+                        params:
+                            x: "bbb"
+
+    - match: { hits.hits.0.fields.bar.0: "aaabbb"}

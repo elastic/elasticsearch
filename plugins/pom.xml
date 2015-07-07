@@ -284,6 +284,7 @@
                     <include>api/indices.refresh.json</include>
                     <include>api/nodes.info.json</include>
                     <include>api/count.json</include>
+                    <include>api/search.json</include>
                 </includes>
             </testResource>
             <!-- shared test resources like log4j.properties -->

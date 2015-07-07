@@ -14,6 +14,8 @@
     <properties>
         <license.basedir combine.self="override">${project.parent.basedir}</license.basedir>
         <tests.ifNoTests>warn</tests.ifNoTests>
+        <!-- we aren't really a plugin... -->
+        <skip.integ.tests>true</skip.integ.tests>
     </properties>
 
 </project>

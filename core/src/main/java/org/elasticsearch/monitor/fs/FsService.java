@@ -33,33 +33,33 @@ public class FsService extends AbstractComponent {
 
     private final FsProbe probe;
 
-    private final SingleObjectCache<FsStats> fsStatsCache;
+    private final SingleObjectCache<FsInfo> fsStatsCache;
 
     @Inject
     public FsService(Settings settings, FsProbe probe) throws IOException {
         super(settings);
         this.probe = probe;
         TimeValue refreshInterval = settings.getAsTime("monitor.fs.refresh_interval", TimeValue.timeValueSeconds(1));
-        fsStatsCache = new FsStatsCache(refreshInterval, probe.stats());
+        fsStatsCache = new FsInfoCache(refreshInterval, probe.stats());
         logger.debug("Using probe [{}] with refresh_interval [{}]", probe, refreshInterval);
     }
 
-    public FsStats stats() {
+    public FsInfo stats() {
         return fsStatsCache.getOrRefresh();
     }
 
-    private class FsStatsCache extends SingleObjectCache<FsStats> {
-        public FsStatsCache(TimeValue interval, FsStats initValue) {
+    private class FsInfoCache extends SingleObjectCache<FsInfo> {
+        public FsInfoCache(TimeValue interval, FsInfo initValue) {
             super(interval, initValue);
         }
 
         @Override
-        protected FsStats refresh() {
+        protected FsInfo refresh() {
             try {
                 return probe.stats();
             } catch (IOException ex) {
                 logger.warn("Failed to fetch fs stats - returning empty instance");
-                return new FsStats();
+                return new FsInfo();
             }
         }
     }

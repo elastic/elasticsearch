@@ -47,6 +47,11 @@ grant codeBase "${es.security.jar.elasticsearch.securemock}" {
   permission java.lang.RuntimePermission "reflectionFactoryAccess";
 };
 
+grant codeBase "${es.security.jar.bouncycastle.bcprov}" {
+  // needed to allow installation of bouncycastle crypto provider
+  permission java.security.SecurityPermission "putProviderProperty.BC";
+};
+
 //// Everything else:
 
 grant {

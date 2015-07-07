@@ -169,6 +169,15 @@ public final class ShardSearchStats {
         openContexts.dec();
     }
 
+    public void onNewScrollContext(SearchContext context) {
+        totalStats.scrollCurrent.inc();
+    }
+
+    public void onFreeScrollContext(SearchContext context) {
+        totalStats.scrollCurrent.dec();
+        totalStats.scrollMetric.inc(TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis() - context.nowInMillis()));
+    }
+
     public void onRefreshSettings(Settings settings) {
         slowLogSearchService.onRefreshSettings(settings);
     }
@@ -176,21 +185,27 @@ public final class ShardSearchStats {
     final static class StatsHolder {
         public final MeanMetric queryMetric = new MeanMetric();
         public final MeanMetric fetchMetric = new MeanMetric();
+        public final MeanMetric scrollMetric = new MeanMetric();
         public final CounterMetric queryCurrent = new CounterMetric();
         public final CounterMetric fetchCurrent = new CounterMetric();
+        public final CounterMetric scrollCurrent = new CounterMetric();
 
         public SearchStats.Stats stats() {
-            return new SearchStats.Stats(queryMetric.count(), TimeUnit.NANOSECONDS.toMillis(queryMetric.sum()), queryCurrent.count(),
-                    fetchMetric.count(), TimeUnit.NANOSECONDS.toMillis(fetchMetric.sum()), fetchCurrent.count());
+            return new SearchStats.Stats(
+                    queryMetric.count(), TimeUnit.NANOSECONDS.toMillis(queryMetric.sum()), queryCurrent.count(),
+                    fetchMetric.count(), TimeUnit.NANOSECONDS.toMillis(fetchMetric.sum()), fetchCurrent.count(),
+                    scrollMetric.count(), TimeUnit.NANOSECONDS.toMillis(scrollMetric.sum()), scrollCurrent.count()
+            );
         }
 
         public long totalCurrent() {
-            return queryCurrent.count() + fetchCurrent.count();
+            return queryCurrent.count() + fetchCurrent.count() + scrollCurrent.count();
         }
 
         public void clear() {
             queryMetric.clear();
             fetchMetric.clear();
+            scrollMetric.clear();
         }
     }
 }

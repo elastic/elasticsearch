@@ -399,10 +399,10 @@ public class DocumentMapper implements ToXContent {
         return mapperService.getParentTypes().contains(type);
     }
 
-    private void addMappers(Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers) {
+    private void addMappers(Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers, boolean updateAllTypes) {
         assert mappingLock.isWriteLockedByCurrentThread();
         // first ensure we don't have any incompatible new fields
-        mapperService.checkNewMappersCompatibility(objectMappers, fieldMappers, true);
+        mapperService.checkNewMappersCompatibility(objectMappers, fieldMappers, updateAllTypes);
 
         // update mappers for this document type
         MapBuilder<String, ObjectMapper> builder = MapBuilder.newMapBuilder(this.objectMappers);
@@ -424,7 +424,7 @@ public class DocumentMapper implements ToXContent {
             final MergeResult mergeResult = new MergeResult(simulate, updateAllTypes);
             this.mapping.merge(mapping, mergeResult);
             if (simulate == false) {
-                addMappers(mergeResult.getNewObjectMappers(), mergeResult.getNewFieldMappers());
+                addMappers(mergeResult.getNewObjectMappers(), mergeResult.getNewFieldMappers(), updateAllTypes);
                 refreshSource();
             }
             return mergeResult;

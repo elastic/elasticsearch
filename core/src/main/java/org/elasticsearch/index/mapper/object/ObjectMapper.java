@@ -278,7 +278,10 @@ public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll,
             Iterator<Map.Entry<String, Object>> iterator = propsNode.entrySet().iterator();
             while (iterator.hasNext()) {
                 Map.Entry<String, Object> entry = iterator.next();
-                String propName = entry.getKey();
+                String fieldName = entry.getKey();
+                if (fieldName.contains(".")) {
+                    throw new MapperParsingException("Field name [" + fieldName + "] cannot contain '.'");
+                }
                 // Should accept empty arrays, as a work around for when the
                 // user can't provide an empty Map. (PHP for example)
                 boolean isEmptyList = entry.getValue() instanceof List && ((List<?>) entry.getValue()).isEmpty();
@@ -301,23 +304,23 @@ public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll,
                             // any type, including core values, which
                             type = ObjectMapper.CONTENT_TYPE;
                         } else {
-                            throw new MapperParsingException("No type specified for property [" + propName + "]");
+                            throw new MapperParsingException("No type specified for field [" + fieldName + "]");
                         }
                     }
 
                     Mapper.TypeParser typeParser = parserContext.typeParser(type);
                     if (typeParser == null) {
-                        throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + propName + "]");
+                        throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + fieldName + "]");
                     }
-                    objBuilder.add(typeParser.parse(propName, propNode, parserContext));
+                    objBuilder.add(typeParser.parse(fieldName, propNode, parserContext));
                     propNode.remove("type");
-                    DocumentMapperParser.checkNoRemainingFields(propName, propNode, parserContext.indexVersionCreated());
+                    DocumentMapperParser.checkNoRemainingFields(fieldName, propNode, parserContext.indexVersionCreated());
                     iterator.remove();
                 } else if (isEmptyList) {
                     iterator.remove();
                 } else {
-                    throw new MapperParsingException("Expected map for property [fields] on field [" + propName + "] but got a "
-                            + propName.getClass());
+                    throw new MapperParsingException("Expected map for property [fields] on field [" + fieldName + "] but got a "
+                            + fieldName.getClass());
                 }
             }
 

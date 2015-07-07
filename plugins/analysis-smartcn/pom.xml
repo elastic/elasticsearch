@@ -15,7 +15,8 @@
     <description>Smart Chinese Analysis plugin integrates Lucene Smart Chinese analysis module into elasticsearch.</description>
 
     <properties>
-        <!-- You can add any specific project property here -->
+        <tests.rest.suite>analysis_smartcn</tests.rest.suite>
+        <tests.rest.load_packaged>false</tests.rest.load_packaged>
     </properties>
 
     <dependencies>

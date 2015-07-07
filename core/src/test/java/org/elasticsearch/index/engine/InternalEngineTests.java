@@ -991,6 +991,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
                 }
                 indexed.await();
                 IOUtils.close(engine);
+                thread.join();
             }
         }
 

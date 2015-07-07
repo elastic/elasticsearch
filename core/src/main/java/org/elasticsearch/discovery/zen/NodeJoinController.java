@@ -109,12 +109,14 @@ public class NodeJoinController {
     }
 
     public void startAccumulatingJoins() {
+        logger.trace("starting to accumulate joins");
         boolean b = accumulateJoins.getAndSet(true);
         assert b == false : "double startAccumulatingJoins() calls";
         assert electionContext.get() == null : "startAccumulatingJoins() called, but there is an ongoing election context";
     }
 
     public void stopAccumulatingJoins() {
+        logger.trace("stopping joins accumulation");
         assert electionContext.get() == null : "stopAccumulatingJoins() called, but there is an ongoing election context";
         boolean b = accumulateJoins.getAndSet(false);
         assert b : "stopAccumulatingJoins() called but not accumulating";

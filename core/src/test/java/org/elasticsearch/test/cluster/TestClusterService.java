@@ -30,6 +30,10 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -50,6 +54,7 @@ public class TestClusterService implements ClusterService {
     private final Collection<ClusterStateListener> listeners = new CopyOnWriteArrayList<>();
     private final Queue<NotifyTimeout> onGoingTimeouts = ConcurrentCollections.newQueue();
     private final ThreadPool threadPool;
+    private final ESLogger logger = Loggers.getLogger(getClass(), Settings.EMPTY);
 
     public TestClusterService() {
         this(ClusterState.builder(new ClusterName("test")).build());
@@ -67,8 +72,8 @@ public class TestClusterService implements ClusterService {
         if (state.getNodes().size() == 0) {
             state = ClusterState.builder(state).nodes(
                     DiscoveryNodes.builder()
-                            .put(new DiscoveryNode("test_id", DummyTransportAddress.INSTANCE, Version.CURRENT))
-                            .localNodeId("test_id")).build();
+                            .put(new DiscoveryNode("test_node", DummyTransportAddress.INSTANCE, Version.CURRENT))
+                            .localNodeId("test_node")).build();
         }
 
         assert state.getNodes().localNode() != null;
@@ -79,7 +84,7 @@ public class TestClusterService implements ClusterService {
 
 
     /** set the current state and trigger any registered listeners about the change, mimicking an update task */
-    public ClusterState setState(ClusterState state) {
+    synchronized public ClusterState setState(ClusterState state) {
         assert state.getNodes().localNode() != null;
         // make sure we have a version increment
         state = ClusterState.builder(state).version(this.state.version() + 1).build();
@@ -177,7 +182,8 @@ public class TestClusterService implements ClusterService {
     }
 
     @Override
-    public void submitStateUpdateTask(String source, Priority priority, ClusterStateUpdateTask updateTask) {
+    synchronized public void submitStateUpdateTask(String source, Priority priority, ClusterStateUpdateTask updateTask) {
+        logger.debug("processing [{}]", source);
         ClusterState newState;
         ClusterState previousClusterState = state;
         try {
@@ -189,6 +195,7 @@ public class TestClusterService implements ClusterService {
         if (updateTask instanceof ProcessedClusterStateUpdateTask) {
             ((ProcessedClusterStateUpdateTask) updateTask).clusterStateProcessed(source, previousClusterState, newState);
         }
+        logger.debug("finished [{}]", source);
     }
 
     @Override

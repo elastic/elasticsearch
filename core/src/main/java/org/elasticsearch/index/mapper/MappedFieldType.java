@@ -455,13 +455,7 @@ public abstract class MappedFieldType extends FieldType {
     }
 
     public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-        int maxEdits; 
-        if (value instanceof BytesRef) {
-            maxEdits = fuzziness.asDistance(((BytesRef) value).utf8ToString());
-        } else {
-            maxEdits = fuzziness.asDistance(value.toString());
-        }
-        return new FuzzyQuery(createTerm(value), maxEdits, prefixLength, maxExpansions, transpositions);
+        return new FuzzyQuery(createTerm(value), fuzziness.asDistance(BytesRefs.toString(value)), prefixLength, maxExpansions, transpositions);
     }
 
     public Query prefixQuery(Object value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {

@@ -16,6 +16,8 @@
          -->
         <keys.path>${basedir}/src/test/resources</keys.path>
         <license.basedir combine.self="override">${project.parent.basedir}</license.basedir>
+        <tests.rest.suite>license</tests.rest.suite>
+        <tests.rest.load_packaged>false</tests.rest.load_packaged>
     </properties>
 
     <dependencies>

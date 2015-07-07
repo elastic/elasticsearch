@@ -40,7 +40,7 @@ format>> used to parse the provided timestamp value. For example:
 }
 --------------------------------------------------
 
-Note, the default format is `epoch_millis||dateOptionalTime`. The timestamp value will
+Note, the default format is `epoch_millis||strictDateOptionalTime`. The timestamp value will
 first be parsed as a number and if it fails the format will be tried.
 
 [float]

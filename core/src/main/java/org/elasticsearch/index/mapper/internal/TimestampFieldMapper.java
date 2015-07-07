@@ -24,14 +24,12 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.TimestampParsingException;
-import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericDateAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -41,10 +39,8 @@ import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
-import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -59,15 +55,16 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_timestamp";
     public static final String CONTENT_TYPE = "_timestamp";
-    public static final String DEFAULT_DATE_TIME_FORMAT = "epoch_millis||dateOptionalTime";
+    public static final String DEFAULT_DATE_TIME_FORMAT = "epoch_millis||strictDateOptionalTime";
 
     public static class Defaults extends DateFieldMapper.Defaults {
         public static final String NAME = "_timestamp";
 
         // TODO: this should be removed
-        public static final MappedFieldType PRE_20_FIELD_TYPE;
-        public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern(DEFAULT_DATE_TIME_FORMAT);
+        public static final TimestampFieldType PRE_20_FIELD_TYPE;
         public static final TimestampFieldType FIELD_TYPE = new TimestampFieldType();
+        public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern(DEFAULT_DATE_TIME_FORMAT);
+        public static final FormatDateTimeFormatter DATE_TIME_FORMATTER_BEFORE_2_0 = Joda.forPattern("epoch_millis||dateOptionalTime");
 
         static {
             FIELD_TYPE.setStored(true);
@@ -82,6 +79,9 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
             PRE_20_FIELD_TYPE = FIELD_TYPE.clone();
             PRE_20_FIELD_TYPE.setStored(false);
             PRE_20_FIELD_TYPE.setHasDocValues(false);
+            PRE_20_FIELD_TYPE.setDateTimeFormatter(DATE_TIME_FORMATTER_BEFORE_2_0);
+            PRE_20_FIELD_TYPE.setIndexAnalyzer(NumericDateAnalyzer.buildNamedAnalyzer(DATE_TIME_FORMATTER_BEFORE_2_0, Defaults.PRECISION_STEP_64_BIT));
+            PRE_20_FIELD_TYPE.setSearchAnalyzer(NumericDateAnalyzer.buildNamedAnalyzer(DATE_TIME_FORMATTER_BEFORE_2_0, Integer.MAX_VALUE));
             PRE_20_FIELD_TYPE.freeze();
         }
 
@@ -146,8 +146,23 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
             if (explicitStore == false && context.indexCreatedVersion().before(Version.V_2_0_0)) {
                 fieldType.setStored(false);
             }
+
+            if (fieldType().dateTimeFormatter().equals(Defaults.DATE_TIME_FORMATTER)) {
+                fieldType().setDateTimeFormatter(getDateTimeFormatter(context.indexSettings()));
+            }
+
             setupFieldType(context);
-            return new TimestampFieldMapper(fieldType, defaultFieldType, enabledState, path, defaultTimestamp, ignoreMissing, context.indexSettings());
+            return new TimestampFieldMapper(fieldType, defaultFieldType, enabledState, path, defaultTimestamp,
+                    ignoreMissing, context.indexSettings());
+        }
+    }
+
+    private static FormatDateTimeFormatter getDateTimeFormatter(Settings indexSettings) {
+        Version indexCreated = Version.indexCreated(indexSettings);
+        if (indexCreated.onOrAfter(Version.V_2_0_0)) {
+            return Defaults.DATE_TIME_FORMATTER;
+        } else {
+            return Defaults.DATE_TIME_FORMATTER_BEFORE_2_0;
         }
     }
 
@@ -341,7 +356,9 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
         if (indexCreatedBefore2x && (includeDefaults || path != Defaults.PATH)) {
             builder.field("path", path);
         }
-        if (includeDefaults || !fieldType().dateTimeFormatter().format().equals(Defaults.DATE_TIME_FORMATTER.format())) {
+        // different format handling depending on index version
+        String defaultDateFormat = indexCreatedBefore2x ? Defaults.DATE_TIME_FORMATTER_BEFORE_2_0.format() : Defaults.DATE_TIME_FORMATTER.format();
+        if (includeDefaults || !fieldType().dateTimeFormatter().format().equals(defaultDateFormat)) {
             builder.field("format", fieldType().dateTimeFormatter().format());
         }
         if (includeDefaults || !Defaults.DEFAULT_TIMESTAMP.equals(defaultTimestamp)) {

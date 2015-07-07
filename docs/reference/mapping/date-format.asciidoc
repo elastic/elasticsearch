@@ -49,6 +49,13 @@ first millisecond of the rounding scope. The semantics work as follows:
 [[built-in]]
 === Built In Formats
 
+Most of the below dates have a `strict` companion dates, which means, that
+year, month and day parts of the week must have prepending zeros in order
+to be valid. This means, that a date like `5/11/1` would not be valid, but
+you would need to specify the full date, which would be `2005/11/01` in this
+example. So instead of `date_optional_time` you would need to specify
+`strict_date_optional_time`.
+
 The following tables lists all the defaults ISO formats supported:
 
 [cols="<,<",options="header",]
@@ -92,112 +99,125 @@ offset prefixed by 'T' ('T'HHmmssZ).
 
 |`basic_week_date`|A basic formatter for a full date as four digit
 weekyear, two digit week of weekyear, and one digit day of week
-(xxxx'W'wwe).
+(xxxx'W'wwe). `strict_basic_week_date` is supported.
 
 |`basic_week_date_time`|A basic formatter that combines a basic weekyear
 date and time, separated by a 'T' (xxxx'W'wwe'T'HHmmss.SSSZ).
+`strict_basic_week_date_time` is supported.
 
 |`basic_week_date_time_no_millis`|A basic formatter that combines a basic
 weekyear date and time without millis, separated by a 'T'
-(xxxx'W'wwe'T'HHmmssZ).
+(xxxx'W'wwe'T'HHmmssZ). `strict_week_date_time` is supported.
 
 |`date`|A formatter for a full date as four digit year, two digit month
-of year, and two digit day of month (yyyy-MM-dd).
-
+of year, and two digit day of month (yyyy-MM-dd). `strict_date` is supported.
+_
 |`date_hour`|A formatter that combines a full date and two digit hour of
-day.
+day. strict_date_hour` is supported.
+
 
 |`date_hour_minute`|A formatter that combines a full date, two digit hour
-of day, and two digit minute of hour.
+of day, and two digit minute of hour. strict_date_hour_minute` is supported.
 
 |`date_hour_minute_second`|A formatter that combines a full date, two
 digit hour of day, two digit minute of hour, and two digit second of
-minute.
+minute. `strict_date_hour_minute_second` is supported.
 
 |`date_hour_minute_second_fraction`|A formatter that combines a full
 date, two digit hour of day, two digit minute of hour, two digit second
 of minute, and three digit fraction of second
-(yyyy-MM-dd'T'HH:mm:ss.SSS).
+(yyyy-MM-dd'T'HH:mm:ss.SSS). `strict_date_hour_minute_second_fraction` is supported.
 
 |`date_hour_minute_second_millis`|A formatter that combines a full date,
 two digit hour of day, two digit minute of hour, two digit second of
 minute, and three digit fraction of second (yyyy-MM-dd'T'HH:mm:ss.SSS).
+`strict_date_hour_minute_second_millis` is supported.
 
 |`date_optional_time`|a generic ISO datetime parser where the date is
-mandatory and the time is optional.
+mandatory and the time is optional. `strict_date_optional_time` is supported.
 
 |`date_time`|A formatter that combines a full date and time, separated by
-a 'T' (yyyy-MM-dd'T'HH:mm:ss.SSSZZ).
+a 'T' (yyyy-MM-dd'T'HH:mm:ss.SSSZZ). `strict_date_time` is supported.
 
 |`date_time_no_millis`|A formatter that combines a full date and time
 without millis, separated by a 'T' (yyyy-MM-dd'T'HH:mm:ssZZ).
+`strict_date_time_no_millis` is supported.
 
-|`hour`|A formatter for a two digit hour of day.
+|`hour`|A formatter for a two digit hour of day. `strict_hour` is supported.
 
 |`hour_minute`|A formatter for a two digit hour of day and two digit
-minute of hour.
+minute of hour. `strict_hour_minute` is supported.
 
 |`hour_minute_second`|A formatter for a two digit hour of day, two digit
 minute of hour, and two digit second of minute.
+`strict_hour_minute_second` is supported.
 
 |`hour_minute_second_fraction`|A formatter for a two digit hour of day,
 two digit minute of hour, two digit second of minute, and three digit
 fraction of second (HH:mm:ss.SSS).
+`strict_hour_minute_second_fraction` is supported.
 
 |`hour_minute_second_millis`|A formatter for a two digit hour of day, two
 digit minute of hour, two digit second of minute, and three digit
 fraction of second (HH:mm:ss.SSS).
+`strict_hour_minute_second_millis` is supported.
 
 |`ordinal_date`|A formatter for a full ordinal date, using a four digit
-year and three digit dayOfYear (yyyy-DDD).
+year and three digit dayOfYear (yyyy-DDD). `strict_ordinal_date` is supported.
 
 |`ordinal_date_time`|A formatter for a full ordinal date and time, using
 a four digit year and three digit dayOfYear (yyyy-DDD'T'HH:mm:ss.SSSZZ).
+`strict_ordinal_date_time` is supported.
 
 |`ordinal_date_time_no_millis`|A formatter for a full ordinal date and
 time without millis, using a four digit year and three digit dayOfYear
 (yyyy-DDD'T'HH:mm:ssZZ).
+`strict_ordinal_date_time_no_millis` is supported.
 
 |`time`|A formatter for a two digit hour of day, two digit minute of
 hour, two digit second of minute, three digit fraction of second, and
-time zone offset (HH:mm:ss.SSSZZ).
+time zone offset (HH:mm:ss.SSSZZ). `strict_time` is supported.
 
 |`time_no_millis`|A formatter for a two digit hour of day, two digit
 minute of hour, two digit second of minute, and time zone offset
-(HH:mm:ssZZ).
+(HH:mm:ssZZ). `strict_time_no_millis` is supported.
 
 |`t_time`|A formatter for a two digit hour of day, two digit minute of
 hour, two digit second of minute, three digit fraction of second, and
 time zone offset prefixed by 'T' ('T'HH:mm:ss.SSSZZ).
+`strict_t_time` is supported.
 
 |`t_time_no_millis`|A formatter for a two digit hour of day, two digit
 minute of hour, two digit second of minute, and time zone offset
-prefixed by 'T' ('T'HH:mm:ssZZ).
+prefixed by 'T' ('T'HH:mm:ssZZ). `strict_t_time_no_millis` is supported.
 
 |`week_date`|A formatter for a full date as four digit weekyear, two
 digit week of weekyear, and one digit day of week (xxxx-'W'ww-e).
+`strict_week_date` is supported.
 
 |`week_date_time`|A formatter that combines a full weekyear date and
 time, separated by a 'T' (xxxx-'W'ww-e'T'HH:mm:ss.SSSZZ).
+`strict_week_date_time` is supported.
 
-|`weekDateTimeNoMillis`|A formatter that combines a full weekyear date
+|`week_date_time_no_millis`|A formatter that combines a full weekyear date
 and time without millis, separated by a 'T' (xxxx-'W'ww-e'T'HH:mm:ssZZ).
+`strict_week_date_time` is supported.
 
-|`week_year`|A formatter for a four digit weekyear.
+|`weekyear`|A formatter for a four digit weekyear. `strict_week_year` is supported.
 
-|`weekyearWeek`|A formatter for a four digit weekyear and two digit week
-of weekyear.
+|`weekyear_week`|A formatter for a four digit weekyear and two digit week
+of weekyear. `strict_weekyear_week` is supported.
 
-|`weekyearWeekDay`|A formatter for a four digit weekyear, two digit week
-of weekyear, and one digit day of week.
+|`weekyear_week_day`|A formatter for a four digit weekyear, two digit week
+of weekyear, and one digit day of week. `strict_weekyear_week_day` is supported.
 
-|`year`|A formatter for a four digit year.
+|`year`|A formatter for a four digit year. `strict_year` is supported.
 
 |`year_month`|A formatter for a four digit year and two digit month of
-year.
+year. `strict_year_month` is supported.
 
 |`year_month_day`|A formatter for a four digit year, two digit month of
-year, and two digit day of month.
+year, and two digit day of month. `strict_year_month_day` is supported.
 
 |`epoch_second`|A formatter for the number of seconds since the epoch.
 Note, that this timestamp allows a max length of 10 chars, so dates

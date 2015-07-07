@@ -69,7 +69,8 @@ public class DateFieldMapper extends NumberFieldMapper {
     public static final String CONTENT_TYPE = "date";
 
     public static class Defaults extends NumberFieldMapper.Defaults {
-        public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("dateOptionalTime||epoch_millis", Locale.ROOT);
+        public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("strictDateOptionalTime||epoch_millis", Locale.ROOT);
+        public static final FormatDateTimeFormatter DATE_TIME_FORMATTER_BEFORE_2_0 = Joda.forPattern("dateOptionalTime", Locale.ROOT);
         public static final TimeUnit TIME_UNIT = TimeUnit.MILLISECONDS;
         public static final DateFieldType FIELD_TYPE = new DateFieldType();
 
@@ -123,15 +124,13 @@ public class DateFieldMapper extends NumberFieldMapper {
         }
 
         protected void setupFieldType(BuilderContext context) {
-            FormatDateTimeFormatter dateTimeFormatter = fieldType().dateTimeFormatter;
-            // TODO MOVE ME OUTSIDE OF THIS SPACE?
-            if (Version.indexCreated(context.indexSettings()).before(Version.V_2_0_0)) {
-                boolean includesEpochFormatter = dateTimeFormatter.format().contains("epoch_");
-                if (!includesEpochFormatter) {
-                    String format = fieldType().timeUnit().equals(TimeUnit.SECONDS) ? "epoch_second" : "epoch_millis";
-                    fieldType().setDateTimeFormatter(Joda.forPattern(format + "||" + dateTimeFormatter.format()));
-                }
+            if (Version.indexCreated(context.indexSettings()).before(Version.V_2_0_0) &&
+                !fieldType().dateTimeFormatter().format().contains("epoch_")) {
+                String format = fieldType().timeUnit().equals(TimeUnit.SECONDS) ? "epoch_second" : "epoch_millis";
+                fieldType().setDateTimeFormatter(Joda.forPattern(format + "||" + fieldType().dateTimeFormatter().format()));
             }
+
+            FormatDateTimeFormatter dateTimeFormatter = fieldType().dateTimeFormatter;
             if (!locale.equals(dateTimeFormatter.locale())) {
                 fieldType().setDateTimeFormatter(new FormatDateTimeFormatter(dateTimeFormatter.format(), dateTimeFormatter.parser(), dateTimeFormatter.printer(), locale));
             }
@@ -159,6 +158,7 @@ public class DateFieldMapper extends NumberFieldMapper {
         public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             DateFieldMapper.Builder builder = dateField(name);
             parseNumberField(builder, name, node, parserContext);
+            boolean configuredFormat = false;
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String propName = Strings.toUnderscoreCase(entry.getKey());
@@ -171,6 +171,7 @@ public class DateFieldMapper extends NumberFieldMapper {
                     iterator.remove();
                 } else if (propName.equals("format")) {
                     builder.dateTimeFormatter(parseDateTimeFormatter(propNode));
+                    configuredFormat = true;
                     iterator.remove();
                 } else if (propName.equals("numeric_resolution")) {
                     builder.timeUnit(TimeUnit.valueOf(propNode.toString().toUpperCase(Locale.ROOT)));
@@ -178,6 +179,13 @@ public class DateFieldMapper extends NumberFieldMapper {
                 } else if (propName.equals("locale")) {
                     builder.locale(LocaleUtils.parse(propNode.toString()));
                     iterator.remove();
+                }
+            }
+            if (!configuredFormat) {
+                if (parserContext.indexVersionCreated().onOrAfter(Version.V_2_0_0)) {
+                    builder.dateTimeFormatter(Defaults.DATE_TIME_FORMATTER);
+                } else {
+                    builder.dateTimeFormatter(Defaults.DATE_TIME_FORMATTER_BEFORE_2_0);
                 }
             }
             return builder;

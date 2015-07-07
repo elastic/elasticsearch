@@ -31,7 +31,7 @@ import java.io.IOException;
  * a Wildcard term should not start with one of the wildcards <tt>*</tt> or
  * <tt>?</tt>.
  */
-public class WildcardQueryBuilder extends MultiTermQueryBuilder {
+public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuilder> implements MultiTermQueryBuilder<WildcardQueryBuilder> {
 
     public static final String NAME = "wildcard";
 

@@ -27,7 +27,7 @@ import java.io.IOException;
 /**
  * A Query that does fuzzy matching for a specific value.
  */
-public class RegexpQueryBuilder extends MultiTermQueryBuilder {
+public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder> implements MultiTermQueryBuilder<RegexpQueryBuilder> {
 
     public static final String NAME = "regexp";
     private final String name;

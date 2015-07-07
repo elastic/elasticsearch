@@ -38,7 +38,7 @@ import java.util.Objects;
 /**
  * A Query that matches documents within an range of terms.
  */
-public class RangeQueryBuilder extends MultiTermQueryBuilder<RangeQueryBuilder> {
+public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> implements MultiTermQueryBuilder<RangeQueryBuilder> {
 
     public static final boolean DEFAULT_INCLUDE_UPPER = true;
 

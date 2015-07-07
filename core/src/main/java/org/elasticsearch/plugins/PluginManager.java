@@ -31,6 +31,7 @@ import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.http.client.HttpDownloadHelper;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.logging.log4j.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -408,6 +409,7 @@ public class PluginManager {
 
     public static void main(String[] args) {
         Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(EMPTY_SETTINGS, true, Terminal.DEFAULT);
+        LogConfigurator.configure(initialSettings.v1());
 
         try {
             Files.createDirectories(initialSettings.v2().pluginsFile());

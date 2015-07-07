@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -120,6 +122,28 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
             boolean needsGlobalOrdinals() {
                 return true;
             }
+        },
+        PER_SEGMENT(new ParseField("per_segment")) {
+
+            @Override
+            Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, Terms.Order order,
+                    TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
+                    AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode subAggCollectMode,
+                    boolean showTermDocCountError, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+                    throws IOException {
+                if (includeExclude != null || factories.count() > 0) {
+                    return GLOBAL_ORDINALS.create(name, factories, valuesSource, order, bucketCountThresholds, includeExclude,
+                            aggregationContext, parent, subAggCollectMode, showTermDocCountError, pipelineAggregators, metaData);
+                }
+                return new PerSegmentStringTermsAggregator(name, (ValuesSource.Bytes.WithOrdinals) valuesSource,
+                        aggregationContext, parent, order, bucketCountThresholds, showTermDocCountError,
+                        pipelineAggregators, metaData);
+            }
+
+            @Override
+            boolean needsGlobalOrdinals() {
+                return false;
+            }
         };
 
         public static ExecutionMode fromString(String value, ParseFieldMatcher parseFieldMatcher) {
@@ -206,18 +230,6 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                 execution = ExecutionMode.MAP;
             }
 
-            final long maxOrd;
-            final double ratio;
-            if (execution == null || execution.needsGlobalOrdinals()) {
-                ValuesSource.Bytes.WithOrdinals valueSourceWithOrdinals = (ValuesSource.Bytes.WithOrdinals) valuesSource;
-                IndexSearcher indexSearcher = aggregationContext.searchContext().searcher();
-                maxOrd = valueSourceWithOrdinals.globalMaxOrd(indexSearcher);
-                ratio = maxOrd / ((double) indexSearcher.getIndexReader().numDocs());
-            } else {
-                maxOrd = -1;
-                ratio = -1;
-            }
-
             // Let's try to use a good default
             if (execution == null) {
                 // if there is a parent bucket aggregator the number of instances of this aggregator is going
@@ -227,14 +239,22 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                     execution = ExecutionMode.GLOBAL_ORDINALS_HASH;
                 } else {
                     if (factories == AggregatorFactories.EMPTY) {
-                        if (ratio <= 0.5 && maxOrd <= 2048) {
+                        ValuesSource.Bytes.WithOrdinals valueSourceWithOrdinals = (ValuesSource.Bytes.WithOrdinals) valuesSource;
+                        IndexSearcher indexSearcher = aggregationContext.searchContext().searcher();
+                        long maxSegmentOrd = 0;
+                        for (LeafReaderContext context : indexSearcher.getIndexReader().leaves()) {
+                            RandomAccessOrds values = valueSourceWithOrdinals.ordinalsValues(context);
+                            maxSegmentOrd = Math.max(maxSegmentOrd, values.getValueCount());
+                        }
+                        double ratio = maxSegmentOrd / ((double) indexSearcher.getIndexReader().numDocs());
+
+                        if (ratio <= 0.5 && maxSegmentOrd <= 2048) {
                             // 0.5: At least we need reduce the number of global ordinals look-ups by half
                             // 2048: GLOBAL_ORDINALS_LOW_CARDINALITY has additional memory usage, which directly linked to maxOrd, so we need to limit.
                             execution = ExecutionMode.GLOBAL_ORDINALS_LOW_CARDINALITY;
-                        } else {
-                            execution = ExecutionMode.GLOBAL_ORDINALS;
                         }
-                    } else {
+                    }
+                    if (execution == null) {
                         execution = ExecutionMode.GLOBAL_ORDINALS;
                     }
                 }

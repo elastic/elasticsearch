@@ -641,6 +641,7 @@ There are different mechanisms by which terms aggregations can be executed:
  - by using ordinals of the field and preemptively allocating one bucket per ordinal value (`global_ordinals`)
  - by using ordinals of the field and dynamically allocating one bucket per ordinal value (`global_ordinals_hash`)
  - by using per-segment ordinals to compute counts and remap these counts to global counts using global ordinals (`global_ordinals_low_cardinality`)
+ - by using per-segment ordinals to compute counts and merge these counts without the help of a global ordinal map (`per_segment`)
 
 Elasticsearch tries to have sensible defaults so this is something that generally doesn't need to be configured.
 

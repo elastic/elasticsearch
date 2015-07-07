@@ -113,17 +113,6 @@ public abstract class ValuesSource {
 
             public abstract RandomAccessOrds globalOrdinalsValues(LeafReaderContext context);
 
-            public long globalMaxOrd(IndexSearcher indexSearcher) {
-                IndexReader indexReader = indexSearcher.getIndexReader();
-                if (indexReader.leaves().isEmpty()) {
-                    return 0;
-                } else {
-                    LeafReaderContext atomicReaderContext = indexReader.leaves().get(0);
-                    RandomAccessOrds values = globalOrdinalsValues(atomicReaderContext);
-                    return values.getValueCount();
-                }
-            }
-
             public static class FieldData extends WithOrdinals {
 
                 protected final IndexOrdinalsFieldData indexFieldData;

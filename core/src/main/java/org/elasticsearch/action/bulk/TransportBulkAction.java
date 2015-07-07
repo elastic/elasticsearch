@@ -168,13 +168,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         } else if (request instanceof DeleteRequest) {
             DeleteRequest deleteRequest = (DeleteRequest) request;
             if (index.equals(deleteRequest.index())) {
-                responses.set(idx, new BulkItemResponse(idx, "index", new BulkItemResponse.Failure(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), e)));
+                responses.set(idx, new BulkItemResponse(idx, "delete", new BulkItemResponse.Failure(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), e)));
                 return true;
             }
         } else if (request instanceof UpdateRequest) {
             UpdateRequest updateRequest = (UpdateRequest) request;
             if (index.equals(updateRequest.index())) {
-                responses.set(idx, new BulkItemResponse(idx, "index", new BulkItemResponse.Failure(updateRequest.index(), updateRequest.type(), updateRequest.id(), e)));
+                responses.set(idx, new BulkItemResponse(idx, "update", new BulkItemResponse.Failure(updateRequest.index(), updateRequest.type(), updateRequest.id(), e)));
                 return true;
             }
         } else {
@@ -379,7 +379,15 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         if (unavailableException != null) {
             BulkItemResponse.Failure failure = new BulkItemResponse.Failure(request.index(), request.type(), request.id(),
                     unavailableException);
-            BulkItemResponse bulkItemResponse = new BulkItemResponse(idx, "index", failure);
+            String operationType = "unknown";
+            if (request instanceof IndexRequest) {
+                operationType = "index";
+            } else if (request instanceof DeleteRequest) {
+                operationType = "delete";
+            } else if (request instanceof UpdateRequest) {
+                operationType = "update";
+            }
+            BulkItemResponse bulkItemResponse = new BulkItemResponse(idx, operationType, failure);
             responses.set(idx, bulkItemResponse);
             // make sure the request gets never processed again
             bulkRequest.requests.set(idx, null);

@@ -579,7 +579,7 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
         // restore GC
         masterNodeDisruption.stopDisrupting();
         ensureStableCluster(3, new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + masterNodeDisruption.expectedTimeToHeal().millis()),
-                oldNonMasterNodes.get(0), false);
+                oldNonMasterNodes.get(0));
 
         // make sure all nodes agree on master
         String newMaster = internalCluster().getMasterName();
@@ -987,18 +987,18 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
     }
 
     private void ensureStableCluster(int nodeCount) {
-        ensureStableCluster(nodeCount, TimeValue.timeValueSeconds(30), null, true);
+        ensureStableCluster(nodeCount, TimeValue.timeValueSeconds(30), null);
     }
 
     private void ensureStableCluster(int nodeCount, TimeValue timeValue) {
-        ensureStableCluster(nodeCount, timeValue, null, true);
+        ensureStableCluster(nodeCount, timeValue, null);
     }
 
     private void ensureStableCluster(int nodeCount, @Nullable String viaNode) {
-        ensureStableCluster(nodeCount, TimeValue.timeValueSeconds(30), viaNode, viaNode == null);
+        ensureStableCluster(nodeCount, TimeValue.timeValueSeconds(30), viaNode);
     }
 
-    private void ensureStableCluster(int nodeCount, TimeValue timeValue, @Nullable String viaNode, boolean validateOtherNodes) {
+    private void ensureStableCluster(int nodeCount, TimeValue timeValue, @Nullable String viaNode) {
         if (viaNode == null) {
             viaNode = randomFrom(internalCluster().getNodeNames());
         }
@@ -1015,14 +1015,6 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
                     + stateResponse.getState().prettyPrint());
         }
         assertThat(clusterHealthResponse.isTimedOut(), is(false));
-        if (validateOtherNodes) {
-            for (String otherNode : internalCluster().getNodeNames()) {
-                if (otherNode.equals(viaNode)) {
-                    continue;
-                }
-                ensureStableCluster(nodeCount, timeValue, otherNode, false);
-            }
-        }
     }
 
     private ClusterState getNodeClusterState(String node) {

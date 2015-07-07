@@ -151,18 +151,30 @@ public class JarHell {
     
     @SuppressForbidden(reason = "proper use of URL to reduce noise")
     static void checkClass(Map<String,URL> clazzes, String clazz, URL url) {
-        if (clazz.startsWith("org.apache.log4j")) {
-            return; // go figure, jar hell for what should be System.out.println...
-        }
-        if (clazz.equals("org.joda.time.base.BaseDateTime")) {
-            return; // apparently this is intentional... clean this up
-        }
         URL previous = clazzes.put(clazz, url);
         if (previous != null) {
-            throw new IllegalStateException("jar hell!" + System.lineSeparator() +
-                    "class: " + clazz + System.lineSeparator() +
-                    "jar1: " + previous.getPath() + System.lineSeparator() +
-                    "jar2: " + url.getPath());
+            if (previous.equals(url)) {
+                if (clazz.startsWith("org.apache.xmlbeans")) {
+                    return; // https://issues.apache.org/jira/browse/XMLBEANS-499
+                }
+                // throw a better exception in this ridiculous case.
+                // unfortunately the zip file format allows this buggy possibility
+                // UweSays: It can, but should be considered as bug :-)
+                throw new IllegalStateException("jar hell!" + System.lineSeparator() +
+                        "class: " + clazz + System.lineSeparator() +
+                        "exists multiple times in jar: " + url.getPath() + " !!!!!!!!!");
+            } else {
+                if (clazz.startsWith("org.apache.log4j")) {
+                    return; // go figure, jar hell for what should be System.out.println...
+                }
+                if (clazz.equals("org.joda.time.base.BaseDateTime")) {
+                    return; // apparently this is intentional... clean this up
+                }
+                throw new IllegalStateException("jar hell!" + System.lineSeparator() +
+                        "class: " + clazz + System.lineSeparator() +
+                        "jar1: " + previous.getPath() + System.lineSeparator() +
+                        "jar2: " + url.getPath());
+            }
         }
     }
 }

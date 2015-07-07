@@ -26,6 +26,8 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -45,6 +47,7 @@ import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.elasticsearch.test.TestSearchContext;
+import org.elasticsearch.test.VersionUtils;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
@@ -55,7 +58,6 @@ import java.util.*;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.mapper.string.SimpleStringMappingTests.docValuesType;
-import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.*;
 
 public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
@@ -481,5 +483,95 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(getDateAsMillis(doc.rootDoc(), "date_field"), equalTo(1433239200000L));
         indexResponse = client().prepareIndex("test", "test").setSource(document).get();
         assertThat(indexResponse.isCreated(), is(true));
+    }
+
+    public void testThatOlderIndicesAllowNonStrictDates() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("date_field").field("type", "date").endObject().endObject()
+                .endObject().endObject().string();
+
+        Version randomVersion = VersionUtils.randomVersionBetween(getRandom(), Version.V_0_90_0, Version.V_1_6_1);
+        IndexService index = createIndex("test", settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, randomVersion).build());
+        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping).get();
+        assertDateFormat("epoch_millis||dateOptionalTime");
+        DocumentMapper defaultMapper = index.mapperService().documentMapper("type");
+
+        defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("date_field", "1-1-1T00:00:44.000Z")
+                .endObject()
+                .bytes());
+
+        // also test normal date
+        defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("date_field", "2015-06-06T00:00:44.000Z")
+                .endObject()
+                .bytes());
+    }
+
+    public void testThatNewIndicesOnlyAllowStrictDates() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("date_field").field("type", "date").endObject().endObject()
+                .endObject().endObject().string();
+
+        IndexService index = createIndex("test");
+        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping).get();
+        assertDateFormat(DateFieldMapper.Defaults.DATE_TIME_FORMATTER.format());
+        DocumentMapper defaultMapper = index.mapperService().documentMapper("type");
+
+        // also test normal date
+        defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("date_field", "2015-06-06T00:00:44.000Z")
+                .endObject()
+                .bytes());
+
+        try {
+            defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("date_field", "1-1-1T00:00:44.000Z")
+                    .endObject()
+                    .bytes());
+            fail("non strict date indexing should have been failed");
+        } catch (MapperParsingException e) {
+            assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        }
+    }
+
+    public void testThatUpgradingAnOlderIndexToStrictDateWorks() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("date_field").field("type", "date").field("format", "dateOptionalTime").endObject().endObject()
+                .endObject().endObject().string();
+
+        Version randomVersion = VersionUtils.randomVersionBetween(getRandom(), Version.V_0_90_0, Version.V_1_6_1);
+        createIndex("test", settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, randomVersion).build());
+        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping).get();
+        assertDateFormat("epoch_millis||dateOptionalTime");
+
+        // index doc
+        client().prepareIndex("test", "type", "1").setSource(XContentFactory.jsonBuilder()
+                .startObject()
+                .field("date_field", "2015-06-06T00:00:44.000Z")
+                .endObject()).get();
+
+        // update mapping
+        String newMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("date_field")
+                .field("type", "date")
+                .field("format", "strictDateOptionalTime||epoch_millis")
+                .endObject().endObject().endObject().endObject().string();
+        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("type").setSource(newMapping).get();
+        assertThat(putMappingResponse.isAcknowledged(), is(true));
+
+        assertDateFormat("strictDateOptionalTime||epoch_millis");
+    }
+
+    private void assertDateFormat(String expectedFormat) throws IOException {
+        GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").setTypes("type").get();
+        Map<String, Object> mappingMap = response.getMappings().get("test").get("type").getSourceAsMap();
+        Map<String, Object> properties = (Map<String, Object>) mappingMap.get("properties");
+        Map<String, Object> dateField = (Map<String, Object>) properties.get("date_field");
+        assertThat((String) dateField.get("format"), is(expectedFormat));
     }
 }

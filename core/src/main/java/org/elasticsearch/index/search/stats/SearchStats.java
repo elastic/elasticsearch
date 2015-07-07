@@ -47,21 +47,38 @@ public class SearchStats implements Streamable, ToXContent {
         private long fetchTimeInMillis;
         private long fetchCurrent;
 
+        private long scrollCount;
+        private long scrollTimeInMillis;
+        private long scrollCurrent;
+
         Stats() {
 
         }
 
-        public Stats(long queryCount, long queryTimeInMillis, long queryCurrent, long fetchCount, long fetchTimeInMillis, long fetchCurrent) {
+        public Stats(
+                long queryCount, long queryTimeInMillis, long queryCurrent,
+                long fetchCount, long fetchTimeInMillis, long fetchCurrent,
+                long scrollCount, long scrollTimeInMillis, long scrollCurrent
+        ) {
             this.queryCount = queryCount;
             this.queryTimeInMillis = queryTimeInMillis;
             this.queryCurrent = queryCurrent;
+
             this.fetchCount = fetchCount;
             this.fetchTimeInMillis = fetchTimeInMillis;
             this.fetchCurrent = fetchCurrent;
+
+            this.scrollCount = scrollCount;
+            this.scrollTimeInMillis = scrollTimeInMillis;
+            this.scrollCurrent = scrollCurrent;
         }
 
         public Stats(Stats stats) {
-            this(stats.queryCount, stats.queryTimeInMillis, stats.queryCurrent, stats.fetchCount, stats.fetchTimeInMillis, stats.fetchCurrent);
+            this(
+                    stats.queryCount, stats.queryTimeInMillis, stats.queryCurrent,
+                    stats.fetchCount, stats.fetchTimeInMillis, stats.fetchCurrent,
+                    stats.scrollCount, stats.scrollTimeInMillis, stats.scrollCurrent
+            );
         }
 
         public void add(Stats stats) {
@@ -72,6 +89,10 @@ public class SearchStats implements Streamable, ToXContent {
             fetchCount += stats.fetchCount;
             fetchTimeInMillis += stats.fetchTimeInMillis;
             fetchCurrent += stats.fetchCurrent;
+
+            scrollCount += stats.scrollCount;
+            scrollTimeInMillis += stats.scrollTimeInMillis;
+            scrollCurrent += stats.scrollCurrent;
         }
 
         public long getQueryCount() {
@@ -106,6 +127,21 @@ public class SearchStats implements Streamable, ToXContent {
             return fetchCurrent;
         }
 
+        public long getScrollCount() {
+            return scrollCount;
+        }
+
+        public TimeValue getScrollTime() {
+            return new TimeValue(scrollTimeInMillis);
+        }
+
+        public long getScrollTimeInMillis() {
+            return scrollTimeInMillis;
+        }
+
+        public long getScrollCurrent() {
+            return scrollCurrent;
+        }
 
         public static Stats readStats(StreamInput in) throws IOException {
             Stats stats = new Stats();
@@ -122,6 +158,10 @@ public class SearchStats implements Streamable, ToXContent {
             fetchCount = in.readVLong();
             fetchTimeInMillis = in.readVLong();
             fetchCurrent = in.readVLong();
+
+            scrollCount = in.readVLong();
+            scrollTimeInMillis = in.readVLong();
+            scrollCurrent = in.readVLong();
         }
 
         @Override
@@ -133,6 +173,10 @@ public class SearchStats implements Streamable, ToXContent {
             out.writeVLong(fetchCount);
             out.writeVLong(fetchTimeInMillis);
             out.writeVLong(fetchCurrent);
+
+            out.writeVLong(scrollCount);
+            out.writeVLong(scrollTimeInMillis);
+            out.writeVLong(scrollCurrent);
         }
 
         @Override
@@ -144,6 +188,10 @@ public class SearchStats implements Streamable, ToXContent {
             builder.field(Fields.FETCH_TOTAL, fetchCount);
             builder.timeValueField(Fields.FETCH_TIME_IN_MILLIS, Fields.FETCH_TIME, fetchTimeInMillis);
             builder.field(Fields.FETCH_CURRENT, fetchCurrent);
+
+            builder.field(Fields.SCROLL_TOTAL, scrollCount);
+            builder.timeValueField(Fields.SCROLL_TIME_IN_MILLIS, Fields.SCROLL_TIME, scrollTimeInMillis);
+            builder.field(Fields.SCROLL_CURRENT, scrollCurrent);
 
             return builder;
         }
@@ -233,6 +281,10 @@ public class SearchStats implements Streamable, ToXContent {
         static final XContentBuilderString FETCH_TIME = new XContentBuilderString("fetch_time");
         static final XContentBuilderString FETCH_TIME_IN_MILLIS = new XContentBuilderString("fetch_time_in_millis");
         static final XContentBuilderString FETCH_CURRENT = new XContentBuilderString("fetch_current");
+        static final XContentBuilderString SCROLL_TOTAL = new XContentBuilderString("scroll_total");
+        static final XContentBuilderString SCROLL_TIME = new XContentBuilderString("scroll_time");
+        static final XContentBuilderString SCROLL_TIME_IN_MILLIS = new XContentBuilderString("scroll_time_in_millis");
+        static final XContentBuilderString SCROLL_CURRENT = new XContentBuilderString("scroll_current");
     }
 
     public static SearchStats readSearchStats(StreamInput in) throws IOException {

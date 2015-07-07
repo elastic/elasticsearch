@@ -79,7 +79,6 @@ public class RegexpQueryBuilder extends BaseQueryBuilder implements BoostableQue
      */
     public RegexpQueryBuilder maxDeterminizedStates(int value) {
         this.maxDeterminizedStates = value;
-        this.maxDetermizedStatesSet = true;
         return this;
     }
 

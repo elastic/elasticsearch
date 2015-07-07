@@ -30,6 +30,7 @@ import org.elasticsearch.gateway.local.state.shards.ShardStateInfo;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
@@ -198,5 +199,14 @@ public class IndexShardTests extends ElasticsearchSingleNodeTest {
         }
         assertTrue(exists);
         assertThat("store index should be corrupted", Store.canOpenIndex(logger, shardIndexLocations), equalTo(false));
+    }
+
+    public void testUpdatePriority() {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .setSettings(IndexMetaData.SETTING_PRIORITY, 200));
+        IndexSettingsService indexSettingsService = getInstanceFromNode(IndicesService.class).indexService("test").settingsService();
+        assertEquals(200, indexSettingsService.getSettings().getAsInt(IndexMetaData.SETTING_PRIORITY, 0).intValue());
+        client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(IndexMetaData.SETTING_PRIORITY, 400).build()).get();
+        assertEquals(400, indexSettingsService.getSettings().getAsInt(IndexMetaData.SETTING_PRIORITY, 0).intValue());
     }
 }

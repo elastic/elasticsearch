@@ -165,6 +165,7 @@ public class IndexMetaData {
     public static final String SETTING_VERSION_UPGRADED = "index.version.upgraded";
     public static final String SETTING_VERSION_MINIMUM_COMPATIBLE = "index.version.minimum_compatible";
     public static final String SETTING_CREATION_DATE = "index.creation_date";
+    public static final String SETTING_PRIORITY = "index.priority";
     public static final String SETTING_UUID = "index.uuid";
     public static final String SETTING_DATA_PATH = "index.data_path";
     public static final String SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE = "index.shared_filesystem.recover_on_any_node";

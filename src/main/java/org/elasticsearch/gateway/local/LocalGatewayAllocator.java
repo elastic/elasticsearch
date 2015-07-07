@@ -149,7 +149,16 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
         DiscoveryNodes nodes = allocation.nodes();
         RoutingNodes routingNodes = allocation.routingNodes();
 
-        MetaData metaData = routingNodes.metaData();
+        final MetaData metaData = routingNodes.metaData();
+        RoutingNodes.UnassignedShards unassigned = routingNodes.unassigned();
+        unassigned.sort(new PriorityComparator() {
+
+            @Override
+            protected Settings getIndexSettings(String index) {
+                IndexMetaData indexMetaData = metaData.index(index);
+                return indexMetaData.getSettings();
+            }
+        }); // sort for priority ordering
         // First, handle primaries, they must find a place to be allocated on here
         Iterator<MutableShardRouting> unassignedIterator = routingNodes.unassigned().iterator();
         while (unassignedIterator.hasNext()) {
@@ -370,7 +379,7 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
         }
 
         // Now, handle replicas, try to assign them to nodes that are similar to the one the primary was allocated on
-        unassignedIterator = routingNodes.unassigned().iterator();
+        unassignedIterator = unassigned.iterator();
         while (unassignedIterator.hasNext()) {
             MutableShardRouting shard = unassignedIterator.next();
             if (shard.primary()) {

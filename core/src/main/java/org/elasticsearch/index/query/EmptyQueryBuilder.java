@@ -20,9 +20,11 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -35,15 +37,16 @@ import java.io.IOException;
  * intended to be used internally as a stand-in for nested queries that are left empty and should
  * be ignored upstream.
  */
-public class EmptyQueryBuilder extends AbstractQueryBuilder<EmptyQueryBuilder> {
+public class EmptyQueryBuilder extends ToXContentToBytes implements QueryBuilder<EmptyQueryBuilder> {
 
     public static final String NAME = "empty_query";
 
     /** the one and only empty query builder */
     public static final EmptyQueryBuilder PROTOTYPE = new EmptyQueryBuilder();
 
+    // prevent instances other than prototype
     private EmptyQueryBuilder() {
-        // prevent other constructors
+        super(XContentType.JSON);
     }
 
     @Override
@@ -52,16 +55,15 @@ public class EmptyQueryBuilder extends AbstractQueryBuilder<EmptyQueryBuilder> {
     }
 
     @Override
-    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        // empty
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.endObject();
+        return builder;
     }
 
-    /**
-     * @returns <tt>null</tt> to signal to caller that this query should be ignored
-     * in the context of the DSL.
-     */
     @Override
-    public Query doToQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+    public Query toQuery(QueryParseContext parseContext) throws IOException {
+        // empty
         return null;
     }
 
@@ -72,12 +74,11 @@ public class EmptyQueryBuilder extends AbstractQueryBuilder<EmptyQueryBuilder> {
     }
 
     @Override
-    public EmptyQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        return EmptyQueryBuilder.PROTOTYPE;
+    public void writeTo(StreamOutput out) throws IOException {
     }
 
     @Override
-    public void doWriteTo(StreamOutput out) throws IOException {
-        // nothing to serialize
+    public EmptyQueryBuilder readFrom(StreamInput in) throws IOException {
+        return EmptyQueryBuilder.PROTOTYPE;
     }
 }

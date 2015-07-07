@@ -165,6 +165,16 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testInlineScriptCompiledOnceCache() throws IOException {
+        buildScriptService(Settings.EMPTY);
+        CompiledScript compiledScript1 = scriptService.compile(new Script("1+1", ScriptType.INLINE, "test", null),
+                randomFrom(scriptContexts));
+        CompiledScript compiledScript2 = scriptService.compile(new Script("1+1", ScriptType.INLINE, "test", null),
+                randomFrom(scriptContexts));
+        assertThat(compiledScript1, sameInstance(compiledScript2));
+    }
+
+    @Test
     public void testInlineScriptCompiledOnceMultipleLangAcronyms() throws IOException {
         buildScriptService(Settings.EMPTY);
         CompiledScript compiledScript1 = scriptService.compile(new Script("script", ScriptType.INLINE, "test", null),

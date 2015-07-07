@@ -1,4 +1,4 @@
-# Integration tests for ICU analysis components
+# Integration tests for Kuromoji analysis components
 #
 "Tokenizer":
     - do:

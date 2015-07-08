@@ -30,6 +30,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -239,17 +240,17 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
      * Adds a framed data in binary format
      */
     public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType) throws Exception {
-        return add(data, defaultIndex, defaultType, null, null, true);
+        return add(data, defaultIndex, defaultType, null, null, null, true);
     }
 
     /**
      * Adds a framed data in binary format
      */
     public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, boolean allowExplicitIndex) throws Exception {
-        return add(data, defaultIndex, defaultType, null, null, allowExplicitIndex);
+        return add(data, defaultIndex, defaultType, null, null, null, allowExplicitIndex);
     }
 
-    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable String defaultRouting, @Nullable Object payload, boolean allowExplicitIndex) throws Exception {
+    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable String defaultRouting, @Nullable String[] defaultFields, @Nullable Object payload, boolean allowExplicitIndex) throws Exception {
         XContent xContent = XContentFactory.xContent(data);
         int line = 0;
         int from = 0;
@@ -283,6 +284,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
                 String id = null;
                 String routing = defaultRouting;
                 String parent = null;
+                String[] fields = defaultFields;
                 String timestamp = null;
                 Long ttl = null;
                 String opType = null;
@@ -329,6 +331,9 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
                                 versionType = VersionType.fromString(parser.text());
                             } else if ("_retry_on_conflict".equals(currentFieldName) || "_retryOnConflict".equals(currentFieldName)) {
                                 retryOnConflict = parser.intValue();
+                            } else if ("fields".equals(currentFieldName)) {
+                                List<Object> values = parser.list();
+                                fields = values.toArray(new String[values.size()]);
                             } else {
                                 throw new IllegalArgumentException("Action/metadata line [" + line + "] contains an unknown parameter [" + currentFieldName + "]");
                             }
@@ -372,6 +377,9 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
                                 .routing(routing)
                                 .parent(parent)
                                 .source(data.slice(from, nextMarker - from));
+                        if (fields != null) {
+                            updateRequest.fields(fields);
+                        }
 
                         IndexRequest upsertRequest = updateRequest.upsertRequest();
                         if (upsertRequest != null) {

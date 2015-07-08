@@ -19,20 +19,17 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
 /**
- *
+ * @deprecated Use {@link BoolQueryParser} instead.
  */
+
 @Deprecated
-public class FilteredQueryParser extends BaseQueryParserTemp {
+public class FilteredQueryParser extends BaseQueryParser {
 
     @Inject
     public FilteredQueryParser() {
@@ -44,12 +41,11 @@ public class FilteredQueryParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        Query query = Queries.newMatchAllQuery();
-        Query filter = null;
-        boolean filterFound = false;
+        QueryBuilder query = null;
+        QueryBuilder filter = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
 
@@ -63,10 +59,9 @@ public class FilteredQueryParser extends BaseQueryParserTemp {
                 // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("query".equals(currentFieldName)) {
-                    query = parseContext.parseInnerQuery();
+                    query = parseContext.parseInnerQueryBuilder();
                 } else if ("filter".equals(currentFieldName)) {
-                    filterFound = true;
-                    filter = parseContext.parseInnerFilter();
+                    filter = parseContext.parseInnerFilterToQueryBuilder();
                 } else {
                     throw new QueryParsingException(parseContext, "[filtered] query does not support [" + currentFieldName + "]");
                 }
@@ -83,44 +78,15 @@ public class FilteredQueryParser extends BaseQueryParserTemp {
             }
         }
 
-        // parsed internally, but returned null during parsing...
-        if (query == null) {
-            return null;
-        }
-
-        if (filter == null) {
-            if (!filterFound) {
-                // we allow for null filter, so it makes compositions on the client side to be simpler
-                return query;
-            } else {
-                // even if the filter is not found, and its null, we should simply ignore it, and go
-                // by the query
-                return query;
-            }
-        }
-        if (Queries.isConstantMatchAllQuery(filter)) {
-            // this is an instance of match all filter, just execute the query
-            return query;
-        }
-
-        // if its a match_all query, use constant_score
-        if (Queries.isConstantMatchAllQuery(query)) {
-            Query q = new ConstantScoreQuery(filter);
-            q.setBoost(boost);
-            return q;
-        }
-
-        BooleanQuery filteredQuery = Queries.filtered(query, filter);
-
-        filteredQuery.setBoost(boost);
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, filteredQuery);
-        }
-        return filteredQuery;
+        FilteredQueryBuilder qb = new FilteredQueryBuilder(query, filter);
+        qb.boost(boost);
+        qb.queryName(queryName);
+        return qb;
     }
 
     @Override
     public FilteredQueryBuilder getBuilderPrototype() {
         return FilteredQueryBuilder.PROTOTYPE;
     }
+
 }

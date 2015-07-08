@@ -31,6 +31,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -75,6 +76,8 @@ public class RestBulkAction extends BaseRestHandler {
         String defaultIndex = request.param("index");
         String defaultType = request.param("type");
         String defaultRouting = request.param("routing");
+        String fieldsParam = request.param("fields");
+        String[] defaultFields = fieldsParam != null ? Strings.commaDelimitedListToStringArray(fieldsParam) : null;
 
         String consistencyLevel = request.param("consistency");
         if (consistencyLevel != null) {
@@ -82,7 +85,7 @@ public class RestBulkAction extends BaseRestHandler {
         }
         bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
         bulkRequest.refresh(request.paramAsBoolean("refresh", bulkRequest.refresh()));
-        bulkRequest.add(request.content(), defaultIndex, defaultType, defaultRouting, null, allowExplicitIndex);
+        bulkRequest.add(request.content(), defaultIndex, defaultType, defaultRouting, defaultFields, null, allowExplicitIndex);
 
         client.bulk(bulkRequest, new RestBuilderListener<BulkResponse>(channel) {
             @Override
@@ -131,6 +134,11 @@ public class RestBulkAction extends BaseRestHandler {
                             } else {
                                 builder.field(Fields.STATUS, shardInfo.status().getStatus());
                             }
+                            if (updateResponse.getGetResult() != null) {
+                                builder.startObject(Fields.GET);
+                                updateResponse.getGetResult().toXContentEmbedded(builder, request);
+                                builder.endObject();
+                            }
                         }
                     }
                     builder.endObject();
@@ -155,6 +163,7 @@ public class RestBulkAction extends BaseRestHandler {
         static final XContentBuilderString TOOK = new XContentBuilderString("took");
         static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
         static final XContentBuilderString FOUND = new XContentBuilderString("found");
+        static final XContentBuilderString GET = new XContentBuilderString("get");
     }
 
 }

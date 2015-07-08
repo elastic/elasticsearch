@@ -6,9 +6,6 @@
     <istrue value="${skip.integ.tests}"/>
   </condition>
 
-  <!-- this is our working area -->
-  <property name="integ.scratch" location="${project.build.directory}/integ-tests"/>
-
   <!-- our pid file for easy cleanup -->
   <property name="integ.pidfile" location="${integ.scratch}/es.pid"/>
 

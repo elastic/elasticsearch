@@ -32,15 +32,12 @@ public class LicenseGenerationToolTests extends CliToolTestCase {
 
     protected Path pubKeyPath = null;
     protected Path priKeyPath = null;
-    protected Path homeDir = null;
-
 
     @Before
     public void setup() throws Exception {
         logger.error("project.basedir [{}]", System.getProperty("project.basedir"));
         pubKeyPath = getDataPath(TestUtils.PUBLIC_KEY_RESOURCE);
         priKeyPath = getDataPath(TestUtils.PRIVATE_KEY_RESOURCE);
-        homeDir = createTempDir();
     }
 
     @Test
@@ -185,7 +182,7 @@ public class LicenseGenerationToolTests extends CliToolTestCase {
 
     private String runLicenseGenerationTool(Path pubKeyPath, Path priKeyPath, Set<License> licenseSpecs, ExitStatus expectedExitStatus) throws Exception {
         CaptureOutputTerminal outputTerminal = new CaptureOutputTerminal();
-        Settings settings = Settings.builder().put("path.home", homeDir).build();
+        Settings settings = Settings.builder().put("path.home", createTempDir("LicenseGenerationToolTests")).build();
         LicenseGenerator licenseGenerator = new LicenseGenerator(outputTerminal, pubKeyPath, priKeyPath, licenseSpecs);
         assertThat(execute(licenseGenerator, settings), equalTo(expectedExitStatus));
         assertThat(outputTerminal.getTerminalOutput().size(), equalTo(1));

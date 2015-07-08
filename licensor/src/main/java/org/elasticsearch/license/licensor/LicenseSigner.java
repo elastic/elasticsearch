@@ -15,7 +15,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.core.Licenses;
-import org.elasticsearch.license.core.shaded.CryptUtils;
+import org.elasticsearch.license.core.CryptUtils;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;

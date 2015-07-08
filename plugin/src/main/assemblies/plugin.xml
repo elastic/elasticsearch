@@ -13,7 +13,6 @@
                 <include>org.elasticsearch:elasticsearch-license-plugin</include>
                 <include>org.elasticsearch:elasticsearch-license-plugin-api</include>
                 <include>org.elasticsearch:elasticsearch-license-core</include>
-                <include>org.elasticsearch:elasticsearch-license-core-shaded</include>
             </includes>
             <excludes>
                 <exclude>org.elasticsearch:elasticsearch</exclude>

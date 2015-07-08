@@ -14,8 +14,6 @@ import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.core.Licenses;
 import org.elasticsearch.license.licensor.AbstractLicensingTestBase;
 import org.elasticsearch.license.licensor.TestUtils;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -32,18 +30,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 public class LicenseVerificationToolTests extends CliToolTestCase {
-
-    protected static Path homeDir = null;
-
-    @BeforeClass
-    public static void setup() throws Exception {
-        homeDir = createTempDir();
-    }
-
-    @AfterClass
-    public static void cleanUp() throws Exception {
-        homeDir = null;
-    }
 
     @Test
     public void testParsingMissingLicense() throws Exception {
@@ -198,7 +184,7 @@ public class LicenseVerificationToolTests extends CliToolTestCase {
 
     private String runLicenseVerificationTool(Set<License> licenses, Path publicKeyPath, ExitStatus expectedExitStatus) throws Exception {
         CaptureOutputTerminal outputTerminal = new CaptureOutputTerminal();
-        Settings settings = Settings.builder().put("path.home", homeDir).build();
+        Settings settings = Settings.builder().put("path.home", createTempDir("LicenseVerificationToolTests")).build();
         LicenseVerifier licenseVerifier = new LicenseVerifier(outputTerminal, licenses, publicKeyPath);
         assertThat(execute(licenseVerifier, settings), equalTo(expectedExitStatus));
         if (expectedExitStatus == ExitStatus.OK) {

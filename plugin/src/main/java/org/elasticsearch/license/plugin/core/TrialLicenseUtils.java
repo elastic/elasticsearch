@@ -15,8 +15,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.UUID;
 
-import static org.elasticsearch.license.core.shaded.CryptUtils.decrypt;
-import static org.elasticsearch.license.core.shaded.CryptUtils.encrypt;
+import static org.elasticsearch.license.core.CryptUtils.decrypt;
+import static org.elasticsearch.license.core.CryptUtils.encrypt;
 
 public class TrialLicenseUtils {
 

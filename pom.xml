@@ -15,7 +15,6 @@
     <packaging>pom</packaging>
     <version>2.0.0-SNAPSHOT</version>
     <modules>
-        <module>core-shaded</module>
         <module>core</module>
         <module>licensor</module>
         <module>plugin</module>

@@ -72,7 +72,7 @@ public class KeyPairGenerationToolTests extends CliToolTestCase {
         KeyPairGeneratorTool keyPairGeneratorTool = new KeyPairGeneratorTool();
         Path publicKeyFilePath = createTempFile().toAbsolutePath();
         Path privateKeyFilePath = createTempFile().toAbsolutePath();
-        Settings settings = Settings.builder().put("path.home", createTempDir()).build();
+        Settings settings = Settings.builder().put("path.home", createTempDir("KeyPairGenerationToolTests")).build();
 
         Files.delete(publicKeyFilePath);
         Files.delete(privateKeyFilePath);

@@ -23,8 +23,8 @@ import java.security.SecureRandom;
 import static org.elasticsearch.common.cli.CliToolConfig.Builder.cmd;
 import static org.elasticsearch.common.cli.CliToolConfig.Builder.option;
 import static org.elasticsearch.common.cli.CliToolConfig.config;
-import static org.elasticsearch.license.core.shaded.CryptUtils.writeEncryptedPrivateKey;
-import static org.elasticsearch.license.core.shaded.CryptUtils.writeEncryptedPublicKey;
+import static org.elasticsearch.license.core.CryptUtils.writeEncryptedPrivateKey;
+import static org.elasticsearch.license.core.CryptUtils.writeEncryptedPublicKey;
 
 public class KeyPairGeneratorTool extends CliTool {
 

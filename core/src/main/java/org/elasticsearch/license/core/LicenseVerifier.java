@@ -11,7 +11,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.license.core.shaded.CryptUtils;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;

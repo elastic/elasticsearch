@@ -1,5 +1,8 @@
 ---
 "Fields":
+  - skip:
+      version: "all"
+      reason: awaiting test fix
   - do:
       index:
         refresh: true

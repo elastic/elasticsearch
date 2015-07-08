@@ -275,10 +275,10 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
             // create a doc and refresh
             ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
-            engine.create(new Engine.Create(null, newUid("1"), doc));
+            engine.create(new Engine.Create(newUid("1"), doc));
 
             ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, null);
-            engine.create(new Engine.Create(null, newUid("2"), doc2));
+            engine.create(new Engine.Create(newUid("2"), doc2));
             engine.refresh("test");
 
             segments = engine.segments(false);
@@ -311,7 +311,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             engine.config().setCompoundOnFlush(false);
 
             ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
-            engine.create(new Engine.Create(null, newUid("3"), doc3));
+            engine.create(new Engine.Create(newUid("3"), doc3));
             engine.refresh("test");
 
             segments = engine.segments(false);
@@ -358,7 +358,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
             engine.config().setCompoundOnFlush(true);
             ParsedDocument doc4 = testParsedDocument("4", "4", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
-            engine.create(new Engine.Create(null, newUid("4"), doc4));
+            engine.create(new Engine.Create(newUid("4"), doc4));
             engine.refresh("test");
 
             segments = engine.segments(false);
@@ -392,7 +392,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             assertThat(segments.isEmpty(), equalTo(true));
 
             ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
-            engine.create(new Engine.Create(null, newUid("1"), doc));
+            engine.create(new Engine.Create(newUid("1"), doc));
             engine.refresh("test");
 
             segments = engine.segments(true);
@@ -400,10 +400,10 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             assertThat(segments.get(0).ramTree, notNullValue());
 
             ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, null);
-            engine.create(new Engine.Create(null, newUid("2"), doc2));
+            engine.create(new Engine.Create(newUid("2"), doc2));
             engine.refresh("test");
             ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
-            engine.create(new Engine.Create(null, newUid("3"), doc3));
+            engine.create(new Engine.Create(newUid("3"), doc3));
             engine.refresh("test");
 
             segments = engine.segments(true);
@@ -421,11 +421,11 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         try (Store store = createStore();
              Engine engine = createEngine(defaultSettings, store, createTempDir(), new MergeSchedulerConfig(defaultSettings), new TieredMergePolicy())) {
             ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
-            Engine.Index index = new Engine.Index(null, newUid("1"), doc);
+            Engine.Index index = new Engine.Index(newUid("1"), doc);
             engine.index(index);
             engine.flush();
             assertThat(engine.segments(false).size(), equalTo(1));
-            index = new Engine.Index(null, newUid("2"), doc);
+            index = new Engine.Index(newUid("2"), doc);
             engine.index(index);
             engine.flush();
             List<Segment> segments = engine.segments(false);
@@ -433,7 +433,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             for (Segment segment : segments) {
                 assertThat(segment.getMergeId(), nullValue());
             }
-            index = new Engine.Index(null, newUid("3"), doc);
+            index = new Engine.Index(newUid("3"), doc);
             engine.index(index);
             engine.flush();
             segments = engine.segments(false);
@@ -442,7 +442,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
                 assertThat(segment.getMergeId(), nullValue());
             }
 
-            index = new Engine.Index(null, newUid("4"), doc);
+            index = new Engine.Index(newUid("4"), doc);
             engine.index(index);
             engine.flush();
             final long gen1 = store.readLastCommittedSegmentsInfo().getGeneration();
@@ -473,7 +473,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         Document document = testDocumentWithTextField();
         document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
-        engine.create(new Engine.Create(null, newUid("1"), doc));
+        engine.create(new Engine.Create(newUid("1"), doc));
 
         CommitStats stats1 = engine.commitStats();
         assertThat(stats1.getGeneration(), greaterThan(0l));
@@ -502,7 +502,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         Document document = testDocumentWithTextField();
         document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
-        engine.create(new Engine.Create(null, newUid("1"), doc));
+        engine.create(new Engine.Create(newUid("1"), doc));
 
         // its not there...
         searchResult = engine.acquireSearcher("test");
@@ -541,7 +541,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         document.add(new TextField("value", "test1", Field.Store.YES));
         document.add(new Field(SourceFieldMapper.NAME, B_2.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
         doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_2, null);
-        engine.index(new Engine.Index(null, newUid("1"), doc));
+        engine.index(new Engine.Index(newUid("1"), doc));
 
         // its not updated yet...
         searchResult = engine.acquireSearcher("test");
@@ -594,7 +594,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         document = testDocumentWithTextField();
         document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
         doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
-        engine.create(new Engine.Create(null, newUid("1"), doc));
+        engine.create(new Engine.Create(newUid("1"), doc));
 
         // its not there...
         searchResult = engine.acquireSearcher("test");
@@ -628,7 +628,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         document = testDocument();
         document.add(new TextField("value", "test1", Field.Store.YES));
         doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
-        engine.index(new Engine.Index(null, newUid("1"), doc));
+        engine.index(new Engine.Index(newUid("1"), doc));
 
         // its not updated yet...
         searchResult = engine.acquireSearcher("test");
@@ -655,7 +655,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
         // create a document
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
-        engine.create(new Engine.Create(null, newUid("1"), doc));
+        engine.create(new Engine.Create(newUid("1"), doc));
 
         // its not there...
         searchResult = engine.acquireSearcher("test");
@@ -691,7 +691,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
                      new LogByteSizeMergePolicy()), false)) {
             final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
             ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
-            engine.create(new Engine.Create(null, newUid("1"), doc));
+            engine.create(new Engine.Create(newUid("1"), doc));
             Engine.CommitId commitID = engine.flush();
             assertThat(commitID, equalTo(new Engine.CommitId(store.readLastCommittedSegmentsInfo().getId())));
             byte[] wrongBytes = Base64.decode(commitID.toString());
@@ -699,7 +699,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             Engine.CommitId wrongId = new Engine.CommitId(wrongBytes);
             assertEquals("should fail to sync flush with wrong id (but no docs)", engine.syncFlush(syncId + "1", wrongId),
                     Engine.SyncedFlushResult.COMMIT_MISMATCH);
-            engine.create(new Engine.Create(null, newUid("2"), doc));
+            engine.create(new Engine.Create(newUid("2"), doc));
             assertEquals("should fail to sync flush with right id but pending doc", engine.syncFlush(syncId + "2", commitID),
                     Engine.SyncedFlushResult.PENDING_OPERATIONS);
             commitID = engine.flush();
@@ -713,7 +713,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     public void testSycnedFlushSurvivesEngineRestart() throws IOException {
         final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
-        engine.create(new Engine.Create(null, newUid("1"), doc));
+        engine.create(new Engine.Create(newUid("1"), doc));
         final Engine.CommitId commitID = engine.flush();
         assertEquals("should succeed to flush commit with right id and no pending doc", engine.syncFlush(syncId, commitID),
                 Engine.SyncedFlushResult.SUCCESS);
@@ -732,14 +732,14 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     public void testSycnedFlushVanishesOnReplay() throws IOException {
         final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
-        engine.create(new Engine.Create(null, newUid("1"), doc));
+        engine.create(new Engine.Create(newUid("1"), doc));
         final Engine.CommitId commitID = engine.flush();
         assertEquals("should succeed to flush commit with right id and no pending doc", engine.syncFlush(syncId, commitID),
                 Engine.SyncedFlushResult.SUCCESS);
         assertEquals(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
         assertEquals(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
         doc = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), new BytesArray("{}"), null);
-        engine.create(new Engine.Create(null, newUid("2"), doc));
+        engine.create(new Engine.Create(newUid("2"), doc));
         EngineConfig config = engine.config();
         engine.close();
         final MockDirectoryWrapper directory = DirectoryUtils.getLeaf(store.directory(), MockDirectoryWrapper.class);
@@ -755,11 +755,11 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     @Test
     public void testVersioningNewCreate() {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
-        Engine.Create create = new Engine.Create(null, newUid("1"), doc);
+        Engine.Create create = new Engine.Create(newUid("1"), doc);
         engine.create(create);
         assertThat(create.version(), equalTo(1l));
 
-        create = new Engine.Create(null, newUid("1"), doc, create.version(), create.versionType().versionTypeForReplicationAndRecovery(), REPLICA, 0);
+        create = new Engine.Create(newUid("1"), doc, create.version(), create.versionType().versionTypeForReplicationAndRecovery(), REPLICA, 0);
         replicaEngine.create(create);
         assertThat(create.version(), equalTo(1l));
     }
@@ -767,11 +767,11 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     @Test
     public void testExternalVersioningNewCreate() {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
-        Engine.Create create = new Engine.Create(null, newUid("1"), doc, 12, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, 0);
+        Engine.Create create = new Engine.Create(newUid("1"), doc, 12, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, 0);
         engine.create(create);
         assertThat(create.version(), equalTo(12l));
 
-        create = new Engine.Create(null, newUid("1"), doc, create.version(), create.versionType().versionTypeForReplicationAndRecovery(), REPLICA, 0);
+        create = new Engine.Create(newUid("1"), doc, create.version(), create.versionType().versionTypeForReplicationAndRecovery(), REPLICA, 0);
         replicaEngine.create(create);
         assertThat(create.version(), equalTo(12l));
     }
@@ -779,11 +779,11 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     @Test
     public void testVersioningNewIndex() {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
-        Engine.Index index = new Engine.Index(null, newUid("1"), doc);
+        Engine.Index index = new Engine.Index(newUid("1"), doc);
         engine.index(index);
         assertThat(index.version(), equalTo(1l));
 
-        index = new Engine.Index(null, newUid("1"), doc, index.version(), index.versionType().versionTypeForReplicationAndRecovery(), REPLICA, 0);
+        index = new Engine.Index(newUid("1"), doc, index.version(), index.versionType().versionTypeForReplicationAndRecovery(), REPLICA, 0);
         replicaEngine.index(index);
         assertThat(index.version(), equalTo(1l));
     }
@@ -791,11 +791,11 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     @Test
     public void testExternalVersioningNewIndex() {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
-        Engine.Index index = new Engine.Index(null, newUid("1"), doc, 12, VersionType.EXTERNAL, PRIMARY, 0);
+        Engine.Index index = new Engine.Index(newUid("1"), doc, 12, VersionType.EXTERNAL, PRIMARY, 0);
         engine.index(index);
         assertThat(index.version(), equalTo(12l));
 
-        index = new Engine.Index(null, newUid("1"), doc, index.version(), index.versionType().versionTypeForReplicationAndRecovery(), REPLICA, 0);
+        index = new Engine.Index(newUid("1"), doc, index.version(), index.versionType().versionTypeForReplicationAndRecovery(), REPLICA, 0);
         replicaEngine.index(index);
         assertThat(index.version(), equalTo(12l));
     }
@@ -803,15 +803,15 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     @Test
     public void testVersioningIndexConflict() {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
-        Engine.Index index = new Engine.Index(null, newUid("1"), doc);
+        Engine.Index index = new Engine.Index(newUid("1"), doc);
         engine.index(index);
         assertThat(index.version(), equalTo(1l));
 
-        index = new Engine.Index(null, newUid("1"), doc);
+        index = new Engine.Index(newUid("1"), doc);
         engine.index(index);
         assertThat(index.version(), equalTo(2l));
 
-        index = new Engine.Index(null, newUid("1"), doc, 1l, VersionType.INTERNAL, Engine.Operation.Origin.PRIMARY, 0);
+        index = new Engine.Index(newUid("1"), doc, 1l, VersionType.INTERNAL, Engine.Operation.Origin.PRIMARY, 0);
         try {
             engine.index(index);
             fail();
@@ -820,7 +820,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         }
 
         // future versions should not work as well
-        index = new Engine.Index(null, newUid("1"), doc, 3l, VersionType.INTERNAL, PRIMARY, 0);
+        index = new Engine.Index(newUid("1"), doc, 3l, VersionType.INTERNAL, PRIMARY, 0);
         try {
             engine.index(index);
             fail();
@@ -832,15 +832,15 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     @Test
     public void testExternalVersioningIndexConflict() {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
-        Engine.Index index = new Engine.Index(null, newUid("1"), doc, 12, VersionType.EXTERNAL, PRIMARY, 0);
+        Engine.Index index = new Engine.Index(newUid("1"), doc, 12, VersionType.EXTERNAL, PRIMARY, 0);
         engine.index(index);
         assertThat(index.version(), equalTo(12l));
 
-        index = new Engine.Index(null, newUid("1"), doc, 14, VersionType.EXTERNAL, PRIMARY, 0);
+        index = new Engine.Index(newUid("1"), doc, 14, VersionType.EXTERNAL, PRIMARY, 0);
         engine.index(index);
         assertThat(index.version(), equalTo(14l));
 
-        index = new Engine.Index(null, newUid("1"), doc, 13, VersionType.EXTERNAL, PRIMARY, 0);
+        index = new Engine.Index(newUid("1"), doc, 13, VersionType.EXTERNAL, PRIMARY, 0);
         try {
             engine.index(index);
             fail();
@@ -852,17 +852,17 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     @Test
     public void testVersioningIndexConflictWithFlush() {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
-        Engine.Index index = new Engine.Index(null, newUid("1"), doc);
+        Engine.Index index = new Engine.Index(newUid("1"), doc);
         engine.index(index);
         assertThat(index.version(), equalTo(1l));
 
-        index = new Engine.Index(null, newUid("1"), doc);
+        index = new Engine.Index(newUid("1"), doc);
         engine.index(index);
         assertThat(index.version(), equalTo(2l));
 
         engine.flush();
 
-        index = new Engine.Index(null, newUid("1"), doc, 1l, VersionType.INTERNAL, PRIMARY, 0);
+        index = new Engine.Index(newUid("1"), doc, 1l, VersionType.INTERNAL, PRIMARY, 0);
         try {
             engine.index(index);
             fail();
@@ -871,7 +871,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         }
 
         // future versions should not work as well
-        index = new Engine.Index(null, newUid("1"), doc, 3l, VersionType.INTERNAL, PRIMARY, 0);
+        index = new Engine.Index(newUid("1"), doc, 3l, VersionType.INTERNAL, PRIMARY, 0);
         try {
             engine.index(index);
             fail();
@@ -883,17 +883,17 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     @Test
     public void testExternalVersioningIndexConflictWithFlush() {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
-        Engine.Index index = new Engine.Index(null, newUid("1"), doc, 12, VersionType.EXTERNAL, PRIMARY, 0);
+        Engine.Index index = new Engine.Index(newUid("1"), doc, 12, VersionType.EXTERNAL, PRIMARY, 0);
         engine.index(index);
         assertThat(index.version(), equalTo(12l));
 
-        index = new Engine.Index(null, newUid("1"), doc, 14, VersionType.EXTERNAL, PRIMARY, 0);
+        index = new Engine.Index(newUid("1"), doc, 14, VersionType.EXTERNAL, PRIMARY, 0);
         engine.index(index);
         assertThat(index.version(), equalTo(14l));
 
         engine.flush();
 
-        index = new Engine.Index(null, newUid("1"), doc, 13, VersionType.EXTERNAL, PRIMARY, 0);
+        index = new Engine.Index(newUid("1"), doc, 13, VersionType.EXTERNAL, PRIMARY, 0);
         try {
             engine.index(index);
             fail();
@@ -909,7 +909,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             int numDocs = randomIntBetween(10, 100);
             for (int i = 0; i < numDocs; i++) {
                 ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), B_1, null);
-                Engine.Index index = new Engine.Index(null, newUid(Integer.toString(i)), doc);
+                Engine.Index index = new Engine.Index(newUid(Integer.toString(i)), doc);
                 engine.index(index);
                 engine.refresh("test");
             }
@@ -920,7 +920,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             assertEquals(engine.segments(true).size(), 1);
 
             ParsedDocument doc = testParsedDocument(Integer.toString(0), Integer.toString(0), "test", null, -1, -1, testDocument(), B_1, null);
-            Engine.Index index = new Engine.Index(null, newUid(Integer.toString(0)), doc);
+            Engine.Index index = new Engine.Index(newUid(Integer.toString(0)), doc);
             engine.delete(new Engine.Delete(index.type(), index.id(), index.uid()));
             engine.forceMerge(true, 10, true, false, false); //expunge deletes
 
@@ -931,7 +931,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             }
 
             doc = testParsedDocument(Integer.toString(1), Integer.toString(1), "test", null, -1, -1, testDocument(), B_1, null);
-            index = new Engine.Index(null, newUid(Integer.toString(1)), doc);
+            index = new Engine.Index(newUid(Integer.toString(1)), doc);
             engine.delete(new Engine.Delete(index.type(), index.id(), index.uid()));
             engine.forceMerge(true, 10, false, false, false); //expunge deletes
 
@@ -965,7 +965,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
                                 for (int j = 0; j < numDocs; j++) {
                                     i++;
                                     ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), B_1, null);
-                                    Engine.Index index = new Engine.Index(null, newUid(Integer.toString(i)), doc);
+                                    Engine.Index index = new Engine.Index(newUid(Integer.toString(i)), doc);
                                     engine.index(index);
                                 }
                                 engine.refresh("test");
@@ -1000,11 +1000,11 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     @Test
     public void testVersioningDeleteConflict() {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
-        Engine.Index index = new Engine.Index(null, newUid("1"), doc);
+        Engine.Index index = new Engine.Index(newUid("1"), doc);
         engine.index(index);
         assertThat(index.version(), equalTo(1l));
 
-        index = new Engine.Index(null, newUid("1"), doc);
+        index = new Engine.Index(newUid("1"), doc);
         engine.index(index);
         assertThat(index.version(), equalTo(2l));
 
@@ -1031,7 +1031,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         assertThat(delete.version(), equalTo(3l));
 
         // now check if we can index to a delete doc with version
-        index = new Engine.Index(null, newUid("1"), doc, 2l, VersionType.INTERNAL, PRIMARY, 0);
+        index = new Engine.Index(newUid("1"), doc, 2l, VersionType.INTERNAL, PRIMARY, 0);
         try {
             engine.index(index);
             fail();
@@ -1040,7 +1040,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         }
 
         // we shouldn't be able to create as well
-        Engine.Create create = new Engine.Create(null, newUid("1"), doc, 2l, VersionType.INTERNAL, PRIMARY, 0);
+        Engine.Create create = new Engine.Create(newUid("1"), doc, 2l, VersionType.INTERNAL, PRIMARY, 0);
         try {
             engine.create(create);
         } catch (VersionConflictEngineException e) {
@@ -1051,11 +1051,11 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     @Test
     public void testVersioningDeleteConflictWithFlush() {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
-        Engine.Index index = new Engine.Index(null, newUid("1"), doc);
+        Engine.Index index = new Engine.Index(newUid("1"), doc);
         engine.index(index);
         assertThat(index.version(), equalTo(1l));
 
-        index = new Engine.Index(null, newUid("1"), doc);
+        index = new Engine.Index(newUid("1"), doc);
         engine.index(index);
         assertThat(index.version(), equalTo(2l));
 
@@ -1088,7 +1088,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         engine.flush();
 
         // now check if we can index to a delete doc with version
-        index = new Engine.Index(null, newUid("1"), doc, 2l, VersionType.INTERNAL, PRIMARY, 0);
+        index = new Engine.Index(newUid("1"), doc, 2l, VersionType.INTERNAL, PRIMARY, 0);
         try {
             engine.index(index);
             fail();
@@ -1097,7 +1097,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         }
 
         // we shouldn't be able to create as well
-        Engine.Create create = new Engine.Create(null, newUid("1"), doc, 2l, VersionType.INTERNAL, PRIMARY, 0);
+        Engine.Create create = new Engine.Create(newUid("1"), doc, 2l, VersionType.INTERNAL, PRIMARY, 0);
         try {
             engine.create(create);
         } catch (VersionConflictEngineException e) {
@@ -1108,11 +1108,11 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     @Test
     public void testVersioningCreateExistsException() {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
-        Engine.Create create = new Engine.Create(null, newUid("1"), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, 0);
+        Engine.Create create = new Engine.Create(newUid("1"), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, 0);
         engine.create(create);
         assertThat(create.version(), equalTo(1l));
 
-        create = new Engine.Create(null, newUid("1"), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, 0);
+        create = new Engine.Create(newUid("1"), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, 0);
         try {
             engine.create(create);
             fail();
@@ -1124,13 +1124,13 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     @Test
     public void testVersioningCreateExistsExceptionWithFlush() {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
-        Engine.Create create = new Engine.Create(null, newUid("1"), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, 0);
+        Engine.Create create = new Engine.Create(newUid("1"), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, 0);
         engine.create(create);
         assertThat(create.version(), equalTo(1l));
 
         engine.flush();
 
-        create = new Engine.Create(null, newUid("1"), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, 0);
+        create = new Engine.Create(newUid("1"), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, 0);
         try {
             engine.create(create);
             fail();
@@ -1142,21 +1142,21 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     @Test
     public void testVersioningReplicaConflict1() {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
-        Engine.Index index = new Engine.Index(null, newUid("1"), doc);
+        Engine.Index index = new Engine.Index(newUid("1"), doc);
         engine.index(index);
         assertThat(index.version(), equalTo(1l));
 
-        index = new Engine.Index(null, newUid("1"), doc);
+        index = new Engine.Index(newUid("1"), doc);
         engine.index(index);
         assertThat(index.version(), equalTo(2l));
 
         // apply the second index to the replica, should work fine
-        index = new Engine.Index(null, newUid("1"), doc, index.version(), VersionType.INTERNAL.versionTypeForReplicationAndRecovery(), REPLICA, 0);
+        index = new Engine.Index(newUid("1"), doc, index.version(), VersionType.INTERNAL.versionTypeForReplicationAndRecovery(), REPLICA, 0);
         replicaEngine.index(index);
         assertThat(index.version(), equalTo(2l));
 
         // now, the old one should not work
-        index = new Engine.Index(null, newUid("1"), doc, 1l, VersionType.INTERNAL.versionTypeForReplicationAndRecovery(), REPLICA, 0);
+        index = new Engine.Index(newUid("1"), doc, 1l, VersionType.INTERNAL.versionTypeForReplicationAndRecovery(), REPLICA, 0);
         try {
             replicaEngine.index(index);
             fail();
@@ -1166,7 +1166,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
         // second version on replica should fail as well
         try {
-            index = new Engine.Index(null, newUid("1"), doc, 2l
+            index = new Engine.Index(newUid("1"), doc, 2l
                     , VersionType.INTERNAL.versionTypeForReplicationAndRecovery(), REPLICA, 0);
             replicaEngine.index(index);
             assertThat(index.version(), equalTo(2l));
@@ -1178,18 +1178,18 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     @Test
     public void testVersioningReplicaConflict2() {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
-        Engine.Index index = new Engine.Index(null, newUid("1"), doc);
+        Engine.Index index = new Engine.Index(newUid("1"), doc);
         engine.index(index);
         assertThat(index.version(), equalTo(1l));
 
         // apply the first index to the replica, should work fine
-        index = new Engine.Index(null, newUid("1"), doc, 1l
+        index = new Engine.Index(newUid("1"), doc, 1l
                 , VersionType.INTERNAL.versionTypeForReplicationAndRecovery(), REPLICA, 0);
         replicaEngine.index(index);
         assertThat(index.version(), equalTo(1l));
 
         // index it again
-        index = new Engine.Index(null, newUid("1"), doc);
+        index = new Engine.Index(newUid("1"), doc);
         engine.index(index);
         assertThat(index.version(), equalTo(2l));
 
@@ -1216,7 +1216,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
         // now do the second index on the replica, it should fail
         try {
-            index = new Engine.Index(null, newUid("1"), doc, 2l, VersionType.INTERNAL.versionTypeForReplicationAndRecovery(), REPLICA, 0);
+            index = new Engine.Index(newUid("1"), doc, 2l, VersionType.INTERNAL.versionTypeForReplicationAndRecovery(), REPLICA, 0);
             replicaEngine.index(index);
             fail("excepted VersionConflictEngineException to be thrown");
         } catch (VersionConflictEngineException e) {
@@ -1228,29 +1228,29 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     @Test
     public void testBasicCreatedFlag() {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
-        Engine.Index index = new Engine.Index(null, newUid("1"), doc);
+        Engine.Index index = new Engine.Index(newUid("1"), doc);
         assertTrue(engine.index(index));
 
-        index = new Engine.Index(null, newUid("1"), doc);
+        index = new Engine.Index(newUid("1"), doc);
         assertFalse(engine.index(index));
 
         engine.delete(new Engine.Delete(null, "1", newUid("1")));
 
-        index = new Engine.Index(null, newUid("1"), doc);
+        index = new Engine.Index(newUid("1"), doc);
         assertTrue(engine.index(index));
     }
 
     @Test
     public void testCreatedFlagAfterFlush() {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
-        Engine.Index index = new Engine.Index(null, newUid("1"), doc);
+        Engine.Index index = new Engine.Index(newUid("1"), doc);
         assertTrue(engine.index(index));
 
         engine.delete(new Engine.Delete(null, "1", newUid("1")));
 
         engine.flush();
 
-        index = new Engine.Index(null, newUid("1"), doc);
+        index = new Engine.Index(newUid("1"), doc);
         assertTrue(engine.index(index));
     }
 
@@ -1298,13 +1298,13 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         try {
             // First, with DEBUG, which should NOT log IndexWriter output:
             ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
-            engine.create(new Engine.Create(null, newUid("1"), doc));
+            engine.create(new Engine.Create(newUid("1"), doc));
             engine.flush();
             assertFalse(mockAppender.sawIndexWriterMessage);
 
             // Again, with TRACE, which should log IndexWriter output:
             rootLogger.setLevel(Level.TRACE);
-            engine.create(new Engine.Create(null, newUid("2"), doc));
+            engine.create(new Engine.Create(newUid("2"), doc));
             engine.flush();
             assertTrue(mockAppender.sawIndexWriterMessage);
 
@@ -1333,14 +1333,14 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         try {
             // First, with DEBUG, which should NOT log IndexWriter output:
             ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
-            engine.create(new Engine.Create(null, newUid("1"), doc));
+            engine.create(new Engine.Create(newUid("1"), doc));
             engine.flush();
             assertFalse(mockAppender.sawIndexWriterMessage);
             assertFalse(mockAppender.sawIndexWriterIFDMessage);
 
             // Again, with TRACE, which should only log IndexWriter IFD output:
             iwIFDLogger.setLevel(Level.TRACE);
-            engine.create(new Engine.Create(null, newUid("2"), doc));
+            engine.create(new Engine.Create(newUid("2"), doc));
             engine.flush();
             assertFalse(mockAppender.sawIndexWriterMessage);
             assertTrue(mockAppender.sawIndexWriterIFDMessage);
@@ -1363,7 +1363,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             document.add(new TextField("value", "test1", Field.Store.YES));
 
             ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_2, null);
-            engine.index(new Engine.Index(null, newUid("1"), doc, 1, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
+            engine.index(new Engine.Index(newUid("1"), doc, 1, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
 
             // Delete document we just added:
             engine.delete(new Engine.Delete("test", "1", newUid("1"), 10, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
@@ -1388,7 +1388,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
             // Try to index uid=1 with a too-old version, should fail:
             try {
-                engine.index(new Engine.Index(null, newUid("1"), doc, 2, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime()));
+                engine.index(new Engine.Index(newUid("1"), doc, 2, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime()));
                 fail("did not hit expected exception");
             } catch (VersionConflictEngineException vcee) {
                 // expected
@@ -1400,7 +1400,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
             // Try to index uid=2 with a too-old version, should fail:
             try {
-                engine.index(new Engine.Index(null, newUid("2"), doc, 2, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime()));
+                engine.index(new Engine.Index(newUid("2"), doc, 2, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime()));
                 fail("did not hit expected exception");
             } catch (VersionConflictEngineException vcee) {
                 // expected
@@ -1493,16 +1493,16 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         boolean canHaveDuplicates = false;
         boolean autoGeneratedId = true;
 
-        Engine.Create index = new Engine.Create(null, newUid("1"), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
+        Engine.Create index = new Engine.Create(newUid("1"), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
         engine.create(index);
         assertThat(index.version(), equalTo(1l));
 
-        index = new Engine.Create(null, newUid("1"), doc, index.version(), index.versionType().versionTypeForReplicationAndRecovery(), REPLICA, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
+        index = new Engine.Create(newUid("1"), doc, index.version(), index.versionType().versionTypeForReplicationAndRecovery(), REPLICA, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
         replicaEngine.create(index);
         assertThat(index.version(), equalTo(1l));
 
         canHaveDuplicates = true;
-        index = new Engine.Create(null, newUid("1"), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
+        index = new Engine.Create(newUid("1"), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
         engine.create(index);
         assertThat(index.version(), equalTo(1l));
         engine.refresh("test");
@@ -1510,7 +1510,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), 10);
         assertThat(topDocs.totalHits, equalTo(1));
 
-        index = new Engine.Create(null, newUid("1"), doc, index.version(), index.versionType().versionTypeForReplicationAndRecovery(), REPLICA, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
+        index = new Engine.Create(newUid("1"), doc, index.version(), index.versionType().versionTypeForReplicationAndRecovery(), REPLICA, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
         try {
             replicaEngine.create(index);
             fail();
@@ -1532,16 +1532,16 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         boolean canHaveDuplicates = true;
         boolean autoGeneratedId = true;
 
-        Engine.Create firstIndexRequest = new Engine.Create(null, newUid("1"), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
+        Engine.Create firstIndexRequest = new Engine.Create(newUid("1"), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
         engine.create(firstIndexRequest);
         assertThat(firstIndexRequest.version(), equalTo(1l));
 
-        Engine.Create firstIndexRequestReplica = new Engine.Create(null, newUid("1"), doc, firstIndexRequest.version(), firstIndexRequest.versionType().versionTypeForReplicationAndRecovery(), REPLICA, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
+        Engine.Create firstIndexRequestReplica = new Engine.Create(newUid("1"), doc, firstIndexRequest.version(), firstIndexRequest.versionType().versionTypeForReplicationAndRecovery(), REPLICA, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
         replicaEngine.create(firstIndexRequestReplica);
         assertThat(firstIndexRequestReplica.version(), equalTo(1l));
 
         canHaveDuplicates = false;
-        Engine.Create secondIndexRequest = new Engine.Create(null, newUid("1"), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
+        Engine.Create secondIndexRequest = new Engine.Create(newUid("1"), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
         try {
             engine.create(secondIndexRequest);
             fail();
@@ -1554,7 +1554,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), 10);
         assertThat(topDocs.totalHits, equalTo(1));
 
-        Engine.Create secondIndexRequestReplica = new Engine.Create(null, newUid("1"), doc, firstIndexRequest.version(), firstIndexRequest.versionType().versionTypeForReplicationAndRecovery(), REPLICA, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
+        Engine.Create secondIndexRequestReplica = new Engine.Create(newUid("1"), doc, firstIndexRequest.version(), firstIndexRequest.versionType().versionTypeForReplicationAndRecovery(), REPLICA, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
         try {
             replicaEngine.create(secondIndexRequestReplica);
             fail();
@@ -1581,7 +1581,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             for (int i = 0; i < 100; i++) {
                 String id = Integer.toString(i);
                 ParsedDocument doc = testParsedDocument(id, id, "test", null, -1, -1, testDocument(), B_1, null);
-                engine.index(new Engine.Index(null, newUid(id), doc, 2, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime()));
+                engine.index(new Engine.Index(newUid(id), doc, 2, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime()));
             }
 
             // Force merge so we know all merges are done before we start deleting:
@@ -1635,7 +1635,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         final int numDocs = randomIntBetween(1, 10);
         for (int i = 0; i < numDocs; i++) {
             ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), new BytesArray("{}"), null);
-            Engine.Create firstIndexRequest = new Engine.Create(null, newUid(Integer.toString(i)), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
+            Engine.Create firstIndexRequest = new Engine.Create(newUid(Integer.toString(i)), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
             engine.create(firstIndexRequest);
             assertThat(firstIndexRequest.version(), equalTo(1l));
         }
@@ -1690,7 +1690,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         final int numDocs = randomIntBetween(1, 10);
         for (int i = 0; i < numDocs; i++) {
             ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), new BytesArray("{}"), null);
-            Engine.Create firstIndexRequest = new Engine.Create(null, newUid(Integer.toString(i)), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
+            Engine.Create firstIndexRequest = new Engine.Create(newUid(Integer.toString(i)), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
             engine.create(firstIndexRequest);
             assertThat(firstIndexRequest.version(), equalTo(1l));
         }
@@ -1792,7 +1792,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
                 final int numExtraDocs = randomIntBetween(1, 10);
                 for (int i = 0; i < numExtraDocs; i++) {
                     ParsedDocument doc = testParsedDocument("extra" + Integer.toString(i), "extra" + Integer.toString(i), "test", null, -1, -1, testDocument(), new BytesArray("{}"), null);
-                    Engine.Create firstIndexRequest = new Engine.Create(null, newUid(Integer.toString(i)), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), false, false);
+                    Engine.Create firstIndexRequest = new Engine.Create(newUid(Integer.toString(i)), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), false, false);
                     engine.create(firstIndexRequest);
                     assertThat(firstIndexRequest.version(), equalTo(1l));
                 }
@@ -1823,7 +1823,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         final int numDocs = randomIntBetween(1, 10);
         for (int i = 0; i < numDocs; i++) {
             ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), new BytesArray("{}"), null);
-            Engine.Create firstIndexRequest = new Engine.Create(null, newUid(Integer.toString(i)), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
+            Engine.Create firstIndexRequest = new Engine.Create(newUid(Integer.toString(i)), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
             engine.create(firstIndexRequest);
             assertThat(firstIndexRequest.version(), equalTo(1l));
         }
@@ -1871,7 +1871,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         int randomId = randomIntBetween(numDocs + 1, numDocs + 10);
         String uuidValue = "test#" + Integer.toString(randomId);
         ParsedDocument doc = testParsedDocument(uuidValue, Integer.toString(randomId), "test", null, -1, -1, testDocument(), new BytesArray("{}"), null);
-        Engine.Create firstIndexRequest = new Engine.Create(null, newUid(uuidValue), doc, 1, VersionType.EXTERNAL, PRIMARY, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
+        Engine.Create firstIndexRequest = new Engine.Create(newUid(uuidValue), doc, 1, VersionType.EXTERNAL, PRIMARY, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
         engine.create(firstIndexRequest);
         assertThat(firstIndexRequest.version(), equalTo(1l));
         if (flush) {
@@ -1879,7 +1879,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         }
 
         doc = testParsedDocument(uuidValue, Integer.toString(randomId), "test", null, -1, -1, testDocument(), new BytesArray("{}"), null);
-        Engine.Index idxRequest = new Engine.Index(null, newUid(uuidValue), doc, 2, VersionType.EXTERNAL, PRIMARY, System.nanoTime());
+        Engine.Index idxRequest = new Engine.Index(newUid(uuidValue), doc, 2, VersionType.EXTERNAL, PRIMARY, System.nanoTime());
         engine.index(idxRequest);
         engine.refresh("test");
         assertThat(idxRequest.version(), equalTo(2l));
@@ -1954,7 +1954,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         final int numDocs = randomIntBetween(1, 10);
         for (int i = 0; i < numDocs; i++) {
             ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), new BytesArray("{}"), null);
-            Engine.Create firstIndexRequest = new Engine.Create(null, newUid(Integer.toString(i)), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
+            Engine.Create firstIndexRequest = new Engine.Create(newUid(Integer.toString(i)), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
             engine.create(firstIndexRequest);
             assertThat(firstIndexRequest.version(), equalTo(1l));
         }

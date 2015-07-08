@@ -214,6 +214,14 @@
             <artifactId>jna</artifactId>
             <scope>provided</scope>
         </dependency>
+
+        <!-- Required by the REST test framework -->
+        <!-- TODO: remove this dependency when we will have a REST Test module -->
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <!-- typical layout for plugins -->

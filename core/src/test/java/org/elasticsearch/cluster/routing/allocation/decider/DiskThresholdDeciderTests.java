@@ -829,8 +829,8 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 .build();
 
         // Two shards consuming each 80% of disk space while 70% is allowed, so shard 0 isn't allowed here
-        ShardRouting firstRouting = new ShardRouting("test", 0, "node1", null, null, true, ShardRoutingState.STARTED, 1);
-        ShardRouting secondRouting = new ShardRouting("test", 1, "node1", null, null, true, ShardRoutingState.STARTED, 1);
+        ShardRouting firstRouting = TestShardRouting.newShardRouting("test", 0, "node1", null, null, true, ShardRoutingState.STARTED, 1);
+        ShardRouting secondRouting = TestShardRouting.newShardRouting("test", 1, "node1", null, null, true, ShardRoutingState.STARTED, 1);
         RoutingNode firstRoutingNode = new RoutingNode("node1", discoveryNode1, Arrays.asList(firstRouting, secondRouting));
         RoutingTable.Builder builder = RoutingTable.builder().add(
                 IndexRoutingTable.builder("test")
@@ -849,8 +849,8 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
         assertThat(decision.type(), equalTo(Decision.Type.NO));
 
         // Two shards consuming each 80% of disk space while 70% is allowed, but one is relocating, so shard 0 can stay
-        firstRouting = new ShardRouting("test", 0, "node1", null, null, true, ShardRoutingState.STARTED, 1);
-        secondRouting = new ShardRouting("test", 1, "node1", "node2", null, true, ShardRoutingState.RELOCATING, 1);
+        firstRouting = TestShardRouting.newShardRouting("test", 0, "node1", null, null, true, ShardRoutingState.STARTED, 1);
+        secondRouting = TestShardRouting.newShardRouting("test", 1, "node1", "node2", null, true, ShardRoutingState.RELOCATING, 1);
         firstRoutingNode = new RoutingNode("node1", discoveryNode1, Arrays.asList(firstRouting, secondRouting));
         builder = RoutingTable.builder().add(
                 IndexRoutingTable.builder("test")

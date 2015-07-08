@@ -77,7 +77,7 @@ public abstract class CatAllocationTestBase extends ElasticsearchAllocationTestC
                     ShardRoutingState state = ShardRoutingState.valueOf(matcher.group(4));
                     String ip = matcher.group(5);
                     nodes.add(ip);
-                    ShardRouting routing = new ShardRouting(index, shard, ip, null, null, primary, state, 1);
+                    ShardRouting routing = TestShardRouting.newShardRouting(index, shard, ip, null, null, primary, state, 1);
                     idx.add(routing);
                     logger.debug("Add routing {}", routing);
                 } else {

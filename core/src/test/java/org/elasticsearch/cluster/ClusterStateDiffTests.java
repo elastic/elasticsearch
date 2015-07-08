@@ -222,7 +222,7 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
             int replicaCount = randomIntBetween(1, 10);
             for (int j = 0; j < replicaCount; j++) {
                 indexShard.addShard(
-                        new ShardRouting(index, i, randomFrom(nodeIds), null, null, j == 0, ShardRoutingState.fromValue((byte) randomIntBetween(2, 4)), 1));
+                        TestShardRouting.newShardRouting(index, i, randomFrom(nodeIds), null, null, j == 0, ShardRoutingState.fromValue((byte) randomIntBetween(2, 4)), 1));
             }
             builder.addIndexShard(indexShard.build());
         }

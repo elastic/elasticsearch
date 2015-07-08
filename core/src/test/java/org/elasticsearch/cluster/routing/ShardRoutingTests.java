@@ -19,19 +19,12 @@
 
 package org.elasticsearch.cluster.routing;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.transport.DummyTransportAddress;
-import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
 import java.io.IOException;
@@ -39,11 +32,11 @@ import java.io.IOException;
 public class ShardRoutingTests extends ElasticsearchTestCase {
 
     public void testFrozenAfterRead() throws IOException {
-        ShardRouting routing = new ShardRouting("foo", 1, "node_1", null, null, false, ShardRoutingState.INITIALIZING, 1);
+        ShardRouting routing = TestShardRouting.newShardRouting("foo", 1, "node_1", null, null, false, ShardRoutingState.INITIALIZING, 1);
         routing.moveToPrimary();
-        assertTrue(routing.primary);
+        assertTrue(routing.primary());
         routing.moveFromPrimary();
-        assertFalse(routing.primary);
+        assertFalse(routing.primary());
         BytesStreamOutput out = new BytesStreamOutput();
         routing.writeTo(out);
         ShardRouting newRouting = ShardRouting.readShardRoutingEntry(StreamInput.wrap(out.bytes()));

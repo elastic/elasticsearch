@@ -508,11 +508,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     Decision decision = allocation.deciders().canAllocate(shard, target, allocation);
                     if (decision.type() == Type.YES) { // TODO maybe we can respect throttling here too?
                         sourceNode.removeShard(shard);
-                        final ShardRouting initializingShard = new ShardRouting(shard.index(), shard.id(), currentNode.getNodeId(),
-                                shard.currentNodeId(), shard.restoreSource(), shard.primary(), INITIALIZING, shard.version() + 1);
-                        currentNode.addShard(initializingShard, decision);
-                        routingNodes.assign(initializingShard, target.nodeId());
-                        routingNodes.relocate(shard, target.nodeId()); // set the node to relocate after we added the initializing shard
+                        ShardRouting targetRelocatingShard = routingNodes.relocate(shard, target.nodeId());
+                        currentNode.addShard(targetRelocatingShard, decision);
                         if (logger.isTraceEnabled()) {
                             logger.trace("Moved shard [{}] to node [{}]", shard, currentNode.getNodeId());
                         }
@@ -783,8 +780,6 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                         /* now allocate on the cluster - if we are started we need to relocate the shard */
                         if (candidate.started()) {
                             RoutingNode lowRoutingNode = routingNodes.node(minNode.getNodeId());
-                            routingNodes.assign(new ShardRouting(candidate.index(), candidate.id(), lowRoutingNode.nodeId(), candidate
-                                    .currentNodeId(), candidate.restoreSource(), candidate.primary(), INITIALIZING, candidate.version() + 1), lowRoutingNode.nodeId());
                             routingNodes.relocate(candidate, lowRoutingNode.nodeId());
 
                         } else {

@@ -47,6 +47,8 @@
     </repositories>
 
     <properties>
+        <!-- TODO: enable these once we add logic to install license plugin -->
+        <skip.integ.tests>true</skip.integ.tests>
         <elasticsearch.license.header>dev-tools/elasticsearch_license_header.txt</elasticsearch.license.header>
         <elasticsearch.license.headerDefinition>dev-tools/license_header_definition.xml</elasticsearch.license.headerDefinition>
         <license.plugin.version>2.0.0-SNAPSHOT</license.plugin.version>

@@ -1595,6 +1595,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "test", "2").setSource("description", "foo other anything", "count", 2).get();
         client().prepareIndex("test", "test", "3").setSource("description", "foo other", "count", 3).get();
         client().prepareIndex("test", "test", "4").setSource("description", "fop", "count", 4).get();
+        client().prepareIndex("test", "test", "5").setSource("date", "2010-02-02").get();
         refresh();
 
         SearchResponse response = client().prepareSearch("test")
@@ -1613,6 +1614,11 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                 .setQuery(spanOrQuery().clause(spanMultiTermQueryBuilder(QueryBuilders.rangeQuery("description").from("ffa").to("foo"))))
                 .execute().actionGet();
         assertHitCount(response, 3);
+
+        response = client().prepareSearch("test")
+                .setQuery(spanOrQuery().clause(spanMultiTermQueryBuilder(QueryBuilders.rangeQuery("date").from("2010-01-01").to("2011-01-01"))))
+                .execute().actionGet();
+        assertHitCount(response, 1);
 
         response = client().prepareSearch("test")
                 .setQuery(spanOrQuery().clause(spanMultiTermQueryBuilder(regexpQuery("description", "fo{2}")))).get();

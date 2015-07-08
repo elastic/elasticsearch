@@ -10,9 +10,11 @@ also happens on the
 All of those queries allow to control how they will get rewritten using
 the `rewrite` parameter:
 
-* When not set, or set to `constant_score_auto`, defaults to
-automatically choosing either `constant_score_boolean` or
-`constant_score_filter` based on query characteristics.
+* `constant_score` (default): A rewrite method that performs like
+`constant_score_boolean` when there are few matching terms and otherwise
+visits all matching terms in sequence and marks documents for that term.
+Matching documents are assigned a constant score equal to the query's
+boost.
 * `scoring_boolean`: A rewrite method that first translates each term
 into a should clause in a boolean query, and keeps the scores as
 computed by the query. Note that typically such scores are meaningless
@@ -25,10 +27,6 @@ are not computed. Instead, each matching document receives a constant
 score equal to the query's boost. This rewrite method will hit too many
 clauses failure if it exceeds the boolean query limit (defaults to
 `1024`).
-* `constant_score_filter`: A rewrite method that first creates a private
-Filter by visiting each term in sequence and marking all docs for that
-term. Matching documents are assigned a constant score equal to the
-query's boost.
 * `top_terms_N`: A rewrite method that first translates each term into
 should clause in boolean query, and keeps the scores as computed by the
 query. This rewrite method only uses the top scoring terms so it will
@@ -39,4 +37,9 @@ into should clause in boolean query, but the scores are only computed as
 the boost. This rewrite method only uses the top scoring terms so it
 will not overflow the boolean max clause count. The `N` controls the
 size of the top scoring terms to use.
-
+* `top_terms_blended_freqs_N`: A rewrite method that first translates each
+term into should clause in boolean query, but all term queries compute scores
+as if they had the same frequency. In practice the frequency which is used
+is the maximum frequency of all matching terms. This rewrite method only uses
+the top scoring terms so it will not overflow boolean max clause count. The
+`N` controls the size of the top scoring terms to use.

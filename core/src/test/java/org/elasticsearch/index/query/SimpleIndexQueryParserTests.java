@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.memory.MemoryIndex;
@@ -29,6 +30,7 @@ import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.search.spans.*;
 import org.apache.lucene.spatial.prefix.IntersectsPrefixTreeFilter;
@@ -68,6 +70,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 
@@ -428,6 +431,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         assertThat(parsedQuery, instanceOf(FuzzyQuery.class));
         FuzzyQuery fuzzyQuery = (FuzzyQuery) parsedQuery;
         assertThat(fuzzyQuery.getTerm(), equalTo(new Term("name.first", "sh")));
+        assertThat(fuzzyQuery.getRewriteMethod(), instanceOf(MultiTermQuery.TopTermsBlendedFreqScoringRewrite.class));
     }
 
     @Test
@@ -2422,5 +2426,17 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         ConstantScoreQuery csq = (ConstantScoreQuery) queryParser.parse(constantScoreQuery(termsQuery("foo", "bar"))).query();
         q = csq.getQuery();
         assertThat(q, instanceOf(TermsQuery.class));
+    }
+
+    @Test
+    public void testBlendedRewriteMethod() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        for (String rewrite : Arrays.asList("top_terms_blended_freqs_10", "topTermsBlendedFreqs10")) {
+            Query parsedQuery = queryParser.parse(prefixQuery("field", "val").rewrite(rewrite)).query();
+            assertThat(parsedQuery, instanceOf(PrefixQuery.class));
+            PrefixQuery prefixQuery = (PrefixQuery) parsedQuery;
+            assertThat(prefixQuery.getPrefix(), equalTo(new Term("field", "val")));
+            assertThat(prefixQuery.getRewriteMethod(), instanceOf(MultiTermQuery.TopTermsBlendedFreqScoringRewrite.class));
+        }
     }
 }

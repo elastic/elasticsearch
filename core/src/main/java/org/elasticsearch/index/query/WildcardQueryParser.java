@@ -25,7 +25,6 @@ import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.support.QueryParsers;
 
@@ -103,8 +102,8 @@ public class WildcardQueryParser implements QueryParser {
         }
 
         WildcardQuery wildcardQuery = new WildcardQuery(new Term(fieldName, valueBytes));
-        QueryParsers.setRewriteMethod(wildcardQuery, rewriteMethod);
-        wildcardQuery.setRewriteMethod(QueryParsers.parseRewriteMethod(rewriteMethod));
+        QueryParsers.setRewriteMethod(wildcardQuery, parseContext.parseFieldMatcher(), rewriteMethod);
+        wildcardQuery.setRewriteMethod(QueryParsers.parseRewriteMethod(parseContext.parseFieldMatcher(), rewriteMethod));
         wildcardQuery.setBoost(boost);
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, wildcardQuery);

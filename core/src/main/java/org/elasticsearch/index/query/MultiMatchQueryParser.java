@@ -114,9 +114,9 @@ public class MultiMatchQueryParser implements QueryParser {
                 } else if ("minimum_should_match".equals(currentFieldName) || "minimumShouldMatch".equals(currentFieldName)) {
                     minimumShouldMatch = parser.textOrNull();
                 } else if ("rewrite".equals(currentFieldName)) {
-                    multiMatchQuery.setRewriteMethod(QueryParsers.parseRewriteMethod(parser.textOrNull(), null));
+                    multiMatchQuery.setRewriteMethod(QueryParsers.parseRewriteMethod(parseContext.parseFieldMatcher(), parser.textOrNull(), null));
                 } else if ("fuzzy_rewrite".equals(currentFieldName) || "fuzzyRewrite".equals(currentFieldName)) {
-                    multiMatchQuery.setFuzzyRewriteMethod(QueryParsers.parseRewriteMethod(parser.textOrNull(), null));
+                    multiMatchQuery.setFuzzyRewriteMethod(QueryParsers.parseRewriteMethod(parseContext.parseFieldMatcher(), parser.textOrNull(), null));
                 } else if ("use_dis_max".equals(currentFieldName) || "useDisMax".equals(currentFieldName)) {
                     useDisMax = parser.booleanValue();
                 } else if ("tie_breaker".equals(currentFieldName) || "tieBreaker".equals(currentFieldName)) {

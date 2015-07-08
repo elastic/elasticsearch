@@ -95,7 +95,7 @@ public class FuzzyQueryParser implements QueryParser {
                     } else if ("transpositions".equals(currentFieldName)) {
                       transpositions = parser.booleanValue();
                     } else if ("rewrite".equals(currentFieldName)) {
-                        rewriteMethod = QueryParsers.parseRewriteMethod(parser.textOrNull(), null);
+                        rewriteMethod = QueryParsers.parseRewriteMethod(parseContext.parseFieldMatcher(), parser.textOrNull(), null);
                     } else if ("_name".equals(currentFieldName)) {
                         queryName = parser.text();
                     } else {

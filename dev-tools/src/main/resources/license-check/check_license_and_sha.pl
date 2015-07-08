@@ -41,7 +41,7 @@ sub check_shas_and_licenses {
         }
 
         unless ( $old_sha eq $new{$jar} ) {
-            say STDERR "$jar: SHA has changed";
+            say STDERR "$jar: SHA has changed, expected $old_sha but found $new{$jar}";
             $error++;
             $sha_error++;
             next;

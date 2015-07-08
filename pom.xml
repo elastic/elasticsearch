@@ -1264,19 +1264,8 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                             <phase>test</phase>
                             <configuration>
                                 <skip>${skip.unit.tests}</skip>
-                                <!-- don't run if we skip the tests -->
-                                <failOnError>false</failOnError>
                                 <target>
-                                    <property name="runtime_classpath" refid="maven.runtime.classpath"/>
-                                    <property name="test_classpath" refid="maven.test.classpath"/>
-                                    <property name="plugin_classpath" refid="maven.plugin.classpath"/>
-                                    <taskdef resource="com/carrotsearch/junit4/antlib.xml">
-                                        <classpath>
-                                            <pathelement path="${plugin_classpath}"/>
-                                            <pathelement path="${runtime_classpath}"/>
-                                            <pathelement path="${test_classpath}"/>
-                                        </classpath>
-                                    </taskdef>
+                                    <taskdef resource="com/carrotsearch/junit4/antlib.xml" classpathref="maven.plugin.classpath"/>
                                     <tophints max="${tests.topn}">
                                         <file file="${basedir}/${execution.hint.file}"/>
                                     </tophints>
@@ -1287,6 +1276,13 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                             </goals>
                         </execution>
                     </executions>
+                    <dependencies>
+                        <dependency>
+                            <groupId>com.carrotsearch.randomizedtesting</groupId>
+                            <artifactId>junit4-ant</artifactId>
+                            <version>${testframework.version}</version>
+                        </dependency>
+                    </dependencies>
                 </plugin>
                 <plugin>
                     <!-- We just declare which plugin version to use. Each project can have then its own settings -->

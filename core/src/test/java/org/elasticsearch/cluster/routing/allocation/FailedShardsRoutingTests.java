@@ -256,7 +256,7 @@ public class FailedShardsRoutingTests extends ElasticsearchAllocationTestCase {
 
         logger.info("fail the first shard, will have no place to be rerouted to (single node), so stays unassigned");
         prevRoutingTable = routingTable;
-        routingTable = strategy.applyFailedShard(clusterState, new ShardRouting("test", 0, "node1", true, INITIALIZING, 0)).routingTable();
+        routingTable = strategy.applyFailedShard(clusterState, TestShardRouting.newShardRouting("test", 0, "node1", true, INITIALIZING, 0)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         RoutingNodes routingNodes = clusterState.routingNodes();
 
@@ -272,7 +272,7 @@ public class FailedShardsRoutingTests extends ElasticsearchAllocationTestCase {
         }
 
         logger.info("fail the shard again, see that nothing happens");
-        assertThat(strategy.applyFailedShard(clusterState, new ShardRouting("test", 0, "node1", true, INITIALIZING, 0)).changed(), equalTo(false));
+        assertThat(strategy.applyFailedShard(clusterState, TestShardRouting.newShardRouting("test", 0, "node1", true, INITIALIZING, 0)).changed(), equalTo(false));
     }
 
     @Test
@@ -371,7 +371,7 @@ public class FailedShardsRoutingTests extends ElasticsearchAllocationTestCase {
 
         logger.info("fail the first shard, will start INITIALIZING on the second node");
         prevRoutingTable = routingTable;
-        routingTable = strategy.applyFailedShard(clusterState, new ShardRouting("test", 0, nodeHoldingPrimary, true, INITIALIZING, 0)).routingTable();
+        routingTable = strategy.applyFailedShard(clusterState, TestShardRouting.newShardRouting("test", 0, nodeHoldingPrimary, true, INITIALIZING, 0)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         RoutingNodes routingNodes = clusterState.routingNodes();
 
@@ -387,7 +387,7 @@ public class FailedShardsRoutingTests extends ElasticsearchAllocationTestCase {
         }
 
         logger.info("fail the shard again, see that nothing happens");
-        assertThat(strategy.applyFailedShard(clusterState, new ShardRouting("test", 0, nodeHoldingPrimary, true, INITIALIZING, 0)).changed(), equalTo(false));
+        assertThat(strategy.applyFailedShard(clusterState, TestShardRouting.newShardRouting("test", 0, nodeHoldingPrimary, true, INITIALIZING, 0)).changed(), equalTo(false));
     }
 
     @Test

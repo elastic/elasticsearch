@@ -26,10 +26,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -100,7 +97,7 @@ public class IndicesStoreTests extends ElasticsearchTestCase {
                 if (state == ShardRoutingState.UNASSIGNED) {
                     unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
                 }
-                routingTable.addShard(new ShardRouting("test", i, "xyz", null, null, j == 0, state, 0, unassignedInfo));
+                routingTable.addShard(TestShardRouting.newShardRouting("test", i, "xyz", null, null, j == 0, state, 0, unassignedInfo));
             }
         }
         assertFalse(indicesStore.shardCanBeDeleted(clusterState.build(), routingTable.build()));
@@ -119,9 +116,9 @@ public class IndicesStoreTests extends ElasticsearchTestCase {
         for (int i = 0; i < numShards; i++) {
             String nodeId = i == localShardId ? localNode.getId() : randomBoolean() ? "abc" : "xyz";
             String relocationNodeId = randomBoolean() ? null : randomBoolean() ? localNode.getId() : "xyz";
-            routingTable.addShard(new ShardRouting("test", i, nodeId, relocationNodeId, true, ShardRoutingState.STARTED, 0));
+            routingTable.addShard(TestShardRouting.newShardRouting("test", i, nodeId, relocationNodeId, true, ShardRoutingState.STARTED, 0));
             for (int j = 0; j < numReplicas; j++) {
-                routingTable.addShard(new ShardRouting("test", i, nodeId, relocationNodeId, false, ShardRoutingState.STARTED, 0));
+                routingTable.addShard(TestShardRouting.newShardRouting("test", i, nodeId, relocationNodeId, false, ShardRoutingState.STARTED, 0));
             }
         }
 
@@ -140,9 +137,9 @@ public class IndicesStoreTests extends ElasticsearchTestCase {
         IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", 1), false);
         for (int i = 0; i < numShards; i++) {
             String relocatingNodeId = randomBoolean() ? null : "def";
-            routingTable.addShard(new ShardRouting("test", i, "xyz", relocatingNodeId, true, ShardRoutingState.STARTED, 0));
+            routingTable.addShard(TestShardRouting.newShardRouting("test", i, "xyz", relocatingNodeId, true, ShardRoutingState.STARTED, 0));
             for (int j = 0; j < numReplicas; j++) {
-                routingTable.addShard(new ShardRouting("test", i, "xyz", relocatingNodeId, false, ShardRoutingState.STARTED, 0));
+                routingTable.addShard(TestShardRouting.newShardRouting("test", i, "xyz", relocatingNodeId, false, ShardRoutingState.STARTED, 0));
             }
         }
 
@@ -162,9 +159,9 @@ public class IndicesStoreTests extends ElasticsearchTestCase {
         clusterState.nodes(DiscoveryNodes.builder().localNodeId(localNode.id()).put(localNode).put(new DiscoveryNode("xyz", new LocalTransportAddress("xyz"), nodeVersion)));
         IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", 1), false);
         for (int i = 0; i < numShards; i++) {
-            routingTable.addShard(new ShardRouting("test", i, "xyz", null, true, ShardRoutingState.STARTED, 0));
+            routingTable.addShard(TestShardRouting.newShardRouting("test", i, "xyz", null, true, ShardRoutingState.STARTED, 0));
             for (int j = 0; j < numReplicas; j++) {
-                routingTable.addShard(new ShardRouting("test", i, "xyz", null, false, ShardRoutingState.STARTED, 0));
+                routingTable.addShard(TestShardRouting.newShardRouting("test", i, "xyz", null, false, ShardRoutingState.STARTED, 0));
             }
         }
 
@@ -188,9 +185,9 @@ public class IndicesStoreTests extends ElasticsearchTestCase {
                 ));
         IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", 1), false);
         for (int i = 0; i < numShards; i++) {
-            routingTable.addShard(new ShardRouting("test", i, "xyz", "def", true, ShardRoutingState.STARTED, 0));
+            routingTable.addShard(TestShardRouting.newShardRouting("test", i, "xyz", "def", true, ShardRoutingState.STARTED, 0));
             for (int j = 0; j < numReplicas; j++) {
-                routingTable.addShard(new ShardRouting("test", i, "xyz", "def", false, ShardRoutingState.STARTED, 0));
+                routingTable.addShard(TestShardRouting.newShardRouting("test", i, "xyz", "def", false, ShardRoutingState.STARTED, 0));
             }
         }
 

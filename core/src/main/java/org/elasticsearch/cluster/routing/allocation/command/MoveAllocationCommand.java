@@ -178,11 +178,6 @@ public class MoveAllocationCommand implements AllocationCommand {
             if (decision.type() == Decision.Type.THROTTLE) {
                 // its being throttled, maybe have a flag to take it into account and fail? for now, just do it since the "user" wants it...
             }
-
-            allocation.routingNodes().assign(new ShardRouting(shardRouting.index(), shardRouting.id(),
-                    toRoutingNode.nodeId(), shardRouting.currentNodeId(), shardRouting.restoreSource(),
-                    shardRouting.primary(), ShardRoutingState.INITIALIZING, shardRouting.version() + 1), toRoutingNode.nodeId());
-
             allocation.routingNodes().relocate(shardRouting, toRoutingNode.nodeId());
         }
 

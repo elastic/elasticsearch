@@ -29,7 +29,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.support.QueryParsers;
@@ -67,8 +66,6 @@ public class MatchQuery {
     protected int maxExpansions = FuzzyQuery.defaultMaxExpansions;
 
     protected boolean transpositions = FuzzyQuery.defaultTranspositions;
-
-    protected MultiTermQuery.RewriteMethod rewriteMethod;
 
     protected MultiTermQuery.RewriteMethod fuzzyRewriteMethod;
 
@@ -116,10 +113,6 @@ public class MatchQuery {
 
     public void setTranspositions(boolean transpositions) {
         this.transpositions = transpositions;
-    }
-
-    public void setRewriteMethod(MultiTermQuery.RewriteMethod rewriteMethod) {
-        this.rewriteMethod = rewriteMethod;
     }
 
     public void setFuzzyRewriteMethod(MultiTermQuery.RewriteMethod fuzzyRewriteMethod) {
@@ -278,10 +271,11 @@ public class MatchQuery {
                 if (query instanceof FuzzyQuery) {
                     QueryParsers.setRewriteMethod((FuzzyQuery) query, fuzzyRewriteMethod);
                 }
+                return query;
             }
             int edits = fuzziness.asDistance(term.text());
             FuzzyQuery query = new FuzzyQuery(term, edits, fuzzyPrefixLength, maxExpansions, transpositions);
-            QueryParsers.setRewriteMethod(query, rewriteMethod);
+            QueryParsers.setRewriteMethod(query, fuzzyRewriteMethod);
             return query;
         }
         if (fieldType != null) {

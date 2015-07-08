@@ -29,7 +29,7 @@ of `indices`, `os`, `process`, `jvm`, `transport`, `http`,
 
 `fs`:: 
 	File system information, data path, free disk space, read/write
-	stats
+	stats (see <<fs-info,FS information>>)
 
 `http`:: 
 	HTTP connection information
@@ -69,15 +69,12 @@ curl -XGET 'http://localhost:9200/_nodes/10.0.0.1/stats/process'
 
 The `all` flag can be set to return all the stats.
 
-[[fs-stats]]
-==== File Store statistics
-
-A file store represents a storage pool, device,
-partition, volume, concrete file system or other implementation
-specific means of file storage.
+[float]
+[[fs-info]]
+==== FS information
 
 The `fs` flag can be set to retrieve
-statistics that concern the file stores:
+information that concern the file system:
 
 `fs.timestamp`::
 	Last time the file stores statistics have been refreshed

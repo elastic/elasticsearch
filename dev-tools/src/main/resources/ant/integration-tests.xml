@@ -14,23 +14,29 @@
 
   <!-- arguments passed to elasticsearch when running -->
   <property name="integ.args"
-            value="-d -Des.node.name=smoke_tester -Des.cluster.name=prepare_release
+            value="-Des.node.name=smoke_tester -Des.cluster.name=prepare_release
                    -Des.discovery.zen.ping.multicast.enabled=false -Des.script.inline=on
-                   -Des.script.indexed=on -p ${integ.pidfile}"/>
+                   -Des.script.indexed=on -Des.pidfile=${integ.pidfile}"/>
 
   <!-- runs an OS script -->
   <macrodef name="run-script">
       <attribute name="script"/>
       <attribute name="dir"/>
       <attribute name="args"/>
+      <attribute name="spawn" default="false"/>
     <sequential>
-      <exec executable="cmd" osfamily="winnt" dir="@{dir}" failonerror="true">
+      <local name="failonerror"/>
+      <condition property="failonerror">
+          <isfalse value="@{spawn}"/>
+      </condition>
+
+      <exec executable="cmd" osfamily="winnt" dir="@{dir}" failonerror="${failonerror}" spawn="@{spawn}">
         <arg value="/c"/>
         <arg value="@{dir}/@{script}.bat"/>
         <arg line="@{args}"/>
       </exec>
 
-      <exec executable="sh" osfamily="unix" dir="@{dir}" failonerror="true">
+      <exec executable="sh" osfamily="unix" dir="@{dir}" failonerror="${failonerror}" spawn="@{spawn}">
         <arg value="@{dir}/@{script}"/>
         <arg line="@{args}"/>
       </exec>
@@ -67,7 +73,8 @@
 
     <!-- execute -->
     <echo>Starting up external cluster...</echo>
-    <run-script dir="${integ.home}" script="bin/elasticsearch" args="${integ.args} -Des.path.repo=${integ.repo.home}"/>
+    <run-script dir="${integ.home}" script="bin/elasticsearch" spawn="true"
+                args="${integ.args} -Des.path.repo=${integ.repo.home}" />
 
     <waitfor maxwait="3" maxwaitunit="minute" checkevery="500">
       <http url="http://127.0.0.1:9200"/>
@@ -94,11 +101,13 @@
     <makeurl property="integ.plugin.url" file="${project.build.directory}/releases/${project.artifactId}-${project.version}.zip"/>
 
     <echo>Installing plugin ${project.artifactId}...</echo>
-    <run-script dir="${integ.home}" script="bin/plugin" args="-u ${integ.plugin.url} -i ${project.artifactId}/${project.version}"/>
+    <run-script dir="${integ.home}" script="bin/plugin"
+                args="-u ${integ.plugin.url} -i ${project.artifactId}/${project.version}"/>
 
     <!-- execute -->
     <echo>Starting up external cluster...</echo>
-    <run-script dir="${integ.home}" script="bin/elasticsearch" args="${integ.args} -Des.path.repo=${integ.repo.home}"/>
+    <run-script dir="${integ.home}" script="bin/elasticsearch" spawn="true"
+                args="${integ.args} -Des.path.repo=${integ.repo.home}"/>
 
     <waitfor maxwait="3" maxwaitunit="minute" checkevery="500">
       <http url="http://127.0.0.1:9200"/>

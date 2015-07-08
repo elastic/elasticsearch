@@ -651,36 +651,34 @@ public final class XContentBuilder implements BytesStream, Releasable {
         value(value);
         return this;
     }
-    
-    public XContentBuilder field(String name, Path value) throws IOException {
-        //treat as single value, even though Path implements Iterable
-        field(name);
-        value(value);
-        return this;
-    }
 
-    public XContentBuilder field(String name, Iterable value) throws IOException {
-        startArray(name);
-        for (Object o : value) {
-            value(o);
+    public XContentBuilder field(String name, Iterable<?> value) throws IOException {
+        if (value instanceof Path) {
+            //treat Paths as single value
+            field(name);
+            value(value);            
+        } else {
+            startArray(name);
+            for (Object o : value) {
+                value(o);
+            }
+            endArray();
         }
-        endArray();
         return this;
     }
 
-    public XContentBuilder field(XContentBuilderString name, Path value) throws IOException {
-        //treat as single value, even though Path implements Iterable
-        field(name);
-        value(value);
-        return this;
-    }
-
-    public XContentBuilder field(XContentBuilderString name, Iterable value) throws IOException {
-        startArray(name);
-        for (Object o : value) {
-            value(o);
+    public XContentBuilder field(XContentBuilderString name, Iterable<?> value) throws IOException {
+        if (value instanceof Path) {
+            //treat Paths as single value
+            field(name);
+            value(value);            
+        } else {
+            startArray(name);
+            for (Object o : value) {
+                value(o);
+            }
+            endArray();
         }
-        endArray();
         return this;
     }
 
@@ -1156,21 +1154,20 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
-    public XContentBuilder value(Path value) throws IOException {
-        //treat as single value
-        writeValue(value);
-        return this;
-    }
-
-    public XContentBuilder value(Iterable value) throws IOException {
+    public XContentBuilder value(Iterable<?> value) throws IOException {
         if (value == null) {
             return nullValue();
         }
-        startArray();
-        for (Object o : value) {
-            value(o);
+        if (value instanceof Path) {
+            //treat as single value
+            writeValue(value);
+        } else {
+            startArray();
+            for (Object o : value) {
+                value(o);
+            }
+            endArray();
         }
-        endArray();
         return this;
     }
 
@@ -1253,7 +1250,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
             generator.writeNull();
             return;
         }
-        Class type = value.getClass();
+        Class<?> type = value.getClass();
         if (type == String.class) {
             generator.writeString((String) value);
         } else if (type == Integer.class) {
@@ -1282,7 +1279,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
             generator.writeString(value.toString());            
         } else if (value instanceof Iterable) {
             generator.writeStartArray();
-            for (Object v : (Iterable) value) {
+            for (Object v : (Iterable<?>) value) {
                 writeValue(v);
             }
             generator.writeEndArray();

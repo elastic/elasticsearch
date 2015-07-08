@@ -163,7 +163,7 @@ public class ClusterInfoServiceTests extends ElasticsearchIntegrationTest {
         ClusterInfo info = listener.get();
         assertNotNull("info should not be null", info);
         Map<String, DiskUsage> usages = info.getNodeDiskUsages();
-        Map<String, Long> shardSizes = info.getShardSizes();
+        Map<String, Long> shardSizes = info.shardSizes;
         assertNotNull(usages);
         assertNotNull(shardSizes);
         assertThat("some usages are populated", usages.values().size(), Matchers.equalTo(2));
@@ -196,7 +196,7 @@ public class ClusterInfoServiceTests extends ElasticsearchIntegrationTest {
         ClusterInfo info = listener.get();
         assertNotNull("failed to collect info", info);
         assertThat("some usages are populated", info.getNodeDiskUsages().size(), Matchers.equalTo(2));
-        assertThat("some shard sizes are populated", info.getShardSizes().size(), greaterThan(0));
+        assertThat("some shard sizes are populated", info.shardSizes.size(), greaterThan(0));
 
 
         MockTransportService mockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, internalTestCluster.getMasterName());
@@ -231,7 +231,7 @@ public class ClusterInfoServiceTests extends ElasticsearchIntegrationTest {
         // node.
         assertThat(info.getNodeDiskUsages().size(), greaterThanOrEqualTo(1));
         // indices is guaranteed to time out on the latch, not updating anything.
-        assertThat(info.getShardSizes().size(), greaterThan(1));
+        assertThat(info.shardSizes.size(), greaterThan(1));
 
         // now we cause an exception
         timeout.set(false);
@@ -251,7 +251,7 @@ public class ClusterInfoServiceTests extends ElasticsearchIntegrationTest {
         info = listener.get();
         assertNotNull("info should not be null", info);
         assertThat(info.getNodeDiskUsages().size(), equalTo(0));
-        assertThat(info.getShardSizes().size(), equalTo(0));
+        assertThat(info.shardSizes.size(), equalTo(0));
 
         // check we recover
         blockingActionFilter.blockActions();
@@ -260,7 +260,7 @@ public class ClusterInfoServiceTests extends ElasticsearchIntegrationTest {
         info = listener.get();
         assertNotNull("info should not be null", info);
         assertThat(info.getNodeDiskUsages().size(), equalTo(2));
-        assertThat(info.getShardSizes().size(), greaterThan(0));
+        assertThat(info.shardSizes.size(), greaterThan(0));
 
     }
 }

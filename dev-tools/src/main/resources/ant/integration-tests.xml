@@ -37,8 +37,25 @@
     </sequential>
   </macrodef>
 
+  <!-- extracts PID from file -->
+  <macrodef name="extract-pid">
+      <attribute name="property"/>
+    <sequential>
+      <loadfile srcFile="${integ.pidfile}" property="@{property}">
+        <filterchain>
+          <striplinebreaks/>
+        </filterchain>
+      </loadfile>
+    </sequential>
+  </macrodef>
+
   <!-- unzip core release artifact and start ES -->
   <target name="start-external-cluster" depends="stop-external-cluster" unless="${shouldskip}">
+    <local name="integ.finalname"/>
+    <local name="integ.home"/>
+    <local name="integ.repo.home"/>
+    <local name="integ.pid"/>
+
     <delete dir="${integ.scratch}"/>
     <property name="integ.finalname" value="${project.artifactId}-${project.version}"/>
 
@@ -56,11 +73,17 @@
       <http url="http://127.0.0.1:9200"/>
     </waitfor>
 
-    <echo>External cluster started</echo>
+    <extract-pid property="integ.pid"/>
+    <echo>External cluster started PID ${integ.pid}</echo>
   </target>
 
   <!-- unzip core release artifact, install plugin, then start ES -->
   <target name="start-external-cluster-with-plugin" depends="stop-external-cluster" unless="${shouldskip}">
+    <local name="integ.home"/>
+    <local name="integ.repo.home"/>
+    <local name="integ.plugin.url"/>
+    <local name="integ.pid"/>
+
     <delete dir="${integ.scratch}"/>
     <unzip src="${org.elasticsearch:elasticsearch:zip}"
            dest="${integ.scratch}"/>
@@ -81,19 +104,16 @@
       <http url="http://127.0.0.1:9200"/>
     </waitfor>
 
-    <echo>External cluster started</echo>
+    <extract-pid property="integ.pid"/>
+    <echo>External cluster started PID ${integ.pid}</echo>
   </target>
 
   <!-- TODO, for some more safety, add back some of the old jps logic
        and verify the pid is really an ES process! (fail otherwise) -->
   <target name="stop-external-cluster" if="integ.pidfile.exists">
-    <!-- read contents of the pid file -->
-    <loadfile srcFile="${integ.pidfile}" property="integ.pid">
-      <filterchain>
-        <striplinebreaks/>
-      </filterchain>
-    </loadfile>
+    <local name="integ.pid"/>
 
+    <extract-pid property="integ.pid"/>
     <echo>Shutting down external cluster PID ${integ.pid}</echo>
 
     <exec executable="taskkill" failonerror="true" osfamily="winnt">

@@ -81,6 +81,12 @@
             <scope>test</scope>
         </dependency>
 
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-log4j12</artifactId>
+            <scope>test</scope>
+        </dependency>
+
         <!-- needed for tests that use templating -->
         <dependency>
             <groupId>com.github.spullara.mustache.java</groupId>

@@ -283,7 +283,6 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         Environment env = initialSettings.v2();
         Path binDir = env.homeFile().resolve("bin");
         Path pluginBinDir = binDir.resolve(pluginName);
-
         assertStatusOk(String.format(Locale.ROOT, "install %s --url %s --verbose", pluginName, pluginUrl));
         assertThatPluginIsListed(pluginName);
         assertDirectoryExists(pluginBinDir);

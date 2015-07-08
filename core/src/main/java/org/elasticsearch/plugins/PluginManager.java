@@ -22,7 +22,6 @@ package org.elasticsearch.plugins;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
-
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
@@ -37,9 +36,7 @@ import org.elasticsearch.plugins.PluginsService.Bundle;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.net.URLClassLoader;
+import java.net.*;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.PosixFileAttributeView;
@@ -89,11 +86,36 @@ public class PluginManager {
     private OutputMode outputMode;
     private TimeValue timeout;
 
-    public PluginManager(Environment environment, String url, OutputMode outputMode, TimeValue timeout) {
+    public PluginManager(Environment environment, String url, OutputMode outputMode, TimeValue timeout, String proxyUrlString) {
         this.environment = environment;
         this.url = url;
         this.outputMode = outputMode;
         this.timeout = timeout;
+
+        setProxyPropertiesFromURL(proxyUrlString);
+        // make the default authenticator use proxyUser/proxyPassword in case of proxy connection
+        boolean isProxyUserConfigured = !Strings.isNullOrEmpty(System.getProperty("http.proxyUser")) || !Strings.isNullOrEmpty(System.getProperty("https.proxyUser")) || !Strings.isNullOrEmpty(System.getProperty("proxyUser"));
+        boolean isProxyPasswordConfigured = !Strings.isNullOrEmpty(System.getProperty("http.proxyPassword")) || !Strings.isNullOrEmpty(System.getProperty("https.proxyPassword")) || !Strings.isNullOrEmpty(System.getProperty("proxyPassword"));
+        if (isProxyUserConfigured || isProxyPasswordConfigured) {
+            Authenticator.setDefault(new Authenticator() {
+                @Override
+                protected PasswordAuthentication getPasswordAuthentication() {
+                    if (getRequestorType() == Authenticator.RequestorType.PROXY) {
+                        String prot = getRequestingProtocol().toLowerCase(Locale.ROOT);
+                        String host = System.getProperty(prot + ".proxyHost", "");
+                        String port = System.getProperty(prot + ".proxyPort", "");
+                        String user = System.getProperty(prot + ".proxyUser", "");
+                        String password = System.getProperty(prot + ".proxyPassword", "");
+
+                        boolean isPortCorrect = Strings.isNullOrEmpty(port) ? true : Integer.parseInt(port) == getRequestingPort();
+                        if (getRequestingHost().toLowerCase(Locale.ROOT).equals(host.toLowerCase(Locale.ROOT)) && isPortCorrect) {
+                            return new PasswordAuthentication(user, password.toCharArray());
+                        }
+                    }
+                    return null;
+                }
+            });
+        }
     }
 
     public void downloadAndExtract(String name, Terminal terminal) throws IOException {
@@ -505,6 +527,28 @@ public class PluginManager {
 
         static boolean isOfficialPlugin(String repo, String user, String version) {
             return version == null && user == null && !Strings.isNullOrEmpty(repo);
+        }
+    }
+
+    static void setProxyPropertiesFromURL(String urlString) {
+        if (!Strings.isNullOrEmpty(urlString)) {
+            try {
+                URL proxyUrl = new URL(urlString);
+                String protocol = proxyUrl.getProtocol();
+
+                if (proxyUrl.getUserInfo() != null && proxyUrl.getUserInfo().contains(":")) {
+                    int index = proxyUrl.getUserInfo().indexOf(":");
+                    System.setProperty(protocol + ".proxyUser", proxyUrl.getUserInfo().substring(0, index));
+                    System.setProperty(protocol + ".proxyPassword", proxyUrl.getUserInfo().substring(index+1));
+                }
+
+                System.setProperty(protocol + ".proxyHost", proxyUrl.getHost());
+                if (proxyUrl.getPort() != -1) {
+                    System.setProperty(protocol + ".proxyPort", String.valueOf(proxyUrl.getPort()));
+                }
+            } catch (MalformedURLException e) {
+                throw new IllegalArgumentException("Please specify proxy like this: http://proxy.name:port");
+            }
         }
     }
 

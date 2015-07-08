@@ -83,7 +83,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
                 for (ShardRouting shard : node) {
                     // when a primary shard is INITIALIZING, it can be because of *initial recovery* or *relocation from another node*
                     // we only count initial recoveries here, so we need to make sure that relocating node is null
-                    if (shard.state() == ShardRoutingState.INITIALIZING && shard.primary() && shard.relocatingNodeId() == null) {
+                    if (shard.initializing() && shard.primary() && shard.relocatingNodeId() == null) {
                         primariesInRecovery++;
                     }
                 }
@@ -106,7 +106,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
     public Decision canAllocate(RoutingNode node, RoutingAllocation allocation) {
         int currentRecoveries = 0;
         for (ShardRouting shard : node) {
-            if (shard.state() == ShardRoutingState.INITIALIZING || shard.state() == ShardRoutingState.RELOCATING) {
+            if (shard.initializing() || shard.relocating()) {
                 currentRecoveries++;
             }
         }

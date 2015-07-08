@@ -201,7 +201,7 @@ public class CancelAllocationCommand implements AllocationCommand {
                     if (initializingNode != null) {
                         while (initializingNode.hasNext()) {
                             ShardRouting initializingShardRouting = initializingNode.next();
-                            if (initializingShardRouting.shardId().equals(shardRouting.shardId()) && initializingShardRouting.state() == INITIALIZING) {
+                            if (initializingShardRouting.shardId().equals(shardRouting.shardId()) && initializingShardRouting.initializing()) {
                                 initializingNode.remove();
                             }
                         }

@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.cluster.routing.ShardRouting;
 
 import java.util.Map;
 
@@ -31,10 +32,10 @@ import java.util.Map;
  */
 public class ClusterInfo {
 
-    private final ImmutableMap<String, DiskUsage> usages;
-    private final ImmutableMap<String, Long> shardSizes;
+    private final Map<String, DiskUsage> usages;
+    final Map<String, Long> shardSizes;
 
-    public ClusterInfo(ImmutableMap<String, DiskUsage> usages, ImmutableMap<String, Long> shardSizes) {
+    public ClusterInfo(Map<String, DiskUsage> usages, Map<String, Long> shardSizes) {
         this.usages = usages;
         this.shardSizes = shardSizes;
     }
@@ -43,7 +44,15 @@ public class ClusterInfo {
         return this.usages;
     }
 
-    public Map<String, Long> getShardSizes() {
-        return this.shardSizes;
+    public Long getShardSize(ShardRouting shardRouting) {
+        return shardSizes.get(shardIdentifierFromRouting(shardRouting));
+    }
+
+    /**
+     * Method that incorporates the ShardId for the shard into a string that
+     * includes a 'p' or 'r' depending on whether the shard is a primary.
+     */
+    static String shardIdentifierFromRouting(ShardRouting shardRouting) {
+        return shardRouting.shardId().toString() + "[" + (shardRouting.primary() ? "p" : "r") + "]";
     }
 }

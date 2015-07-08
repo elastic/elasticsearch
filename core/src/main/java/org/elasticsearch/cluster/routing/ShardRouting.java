@@ -367,7 +367,6 @@ public final class ShardRouting implements Streamable, ToXContent {
         version++;
         if (currentNodeId == null) {
             assert state == ShardRoutingState.UNASSIGNED;
-
             state = ShardRoutingState.INITIALIZING;
             currentNodeId = nodeId;
             relocatingNodeId = null;

@@ -42,6 +42,22 @@ public class LinearModel extends MovAvgModel {
 
     protected static final ParseField NAME_FIELD = new ParseField("linear");
 
+
+    @Override
+    public boolean canBeMinimized() {
+        return false;
+    }
+
+    @Override
+    public MovAvgModel neighboringModel() {
+        return new LinearModel();
+    }
+
+    @Override
+    public MovAvgModel clone() {
+        return new LinearModel();
+    }
+
     @Override
     protected  <T extends Number> double[] doPredict(Collection<T> values, int numPredictions) {
         double[] predictions = new double[numPredictions];

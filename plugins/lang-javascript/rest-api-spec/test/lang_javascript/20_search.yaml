@@ -1,0 +1,408 @@
+# Integration tests for Lang JavaScript components
+#
+"JavaScript Query":
+    - do:
+        index:
+            index: test
+            type: test
+            id: 1
+            body: { "test": "value beck", "num1": 1.0 }
+    - do:
+        index:
+            index: test
+            type: test
+            id: 2
+            body: { "test": "value beck", "num1": 2.0 }
+    - do:
+        index:
+            index: test
+            type: test
+            id: 3
+            body: { "test": "value beck", "num1": 3.0 }
+    - do:
+        indices.refresh: {}
+
+    - do:
+        index: test
+        search:
+            body:
+                query:
+                    script:
+                        script:
+                            inline: "doc['num1'].value > 1"
+                            lang: js
+                script_fields:
+                    sNum1:
+                        lang: js
+                        script: "doc['num1'].value"
+                sort:
+                    num1:
+                        order: asc
+
+    - match: { hits.total: 2 }
+    - match: { hits.hits.0.fields.sNum1.0: 2.0 }
+    - match: { hits.hits.1.fields.sNum1.0: 3.0 }
+
+    - do:
+        index: test
+        search:
+            body:
+                query:
+                    script:
+                        script:
+                            inline: "doc['num1'].value > param1"
+                            lang: js
+                            params:
+                                param1: 1
+
+                script_fields:
+                    sNum1:
+                        lang: js
+                        script: "doc['num1'].value"
+                sort:
+                    num1:
+                        order: asc
+
+    - match: { hits.total: 2 }
+    - match: { hits.hits.0.fields.sNum1.0: 2.0 }
+    - match: { hits.hits.1.fields.sNum1.0: 3.0 }
+
+    - do:
+        index: test
+        search:
+            body:
+                query:
+                    script:
+                        script:
+                            inline: "doc['num1'].value > param1"
+                            lang: js
+                            params:
+                                param1: -1
+
+                script_fields:
+                    sNum1:
+                        lang: js
+                        script: "doc['num1'].value"
+                sort:
+                    num1:
+                        order: asc
+
+    - match: { hits.total: 3 }
+    - match: { hits.hits.0.fields.sNum1.0: 1.0 }
+    - match: { hits.hits.1.fields.sNum1.0: 2.0 }
+    - match: { hits.hits.2.fields.sNum1.0: 3.0 }
+
+
+---
+
+"JavaScript Script Field Using Source":
+    - do:
+        index:
+            index: test
+            type: test
+            id: 1
+            body: {
+              "obj1": {
+                "test": "something"
+              },
+              "obj2": {
+                "arr2": [ "arr_value1", "arr_value2" ]
+              }
+            }
+    - do:
+        indices.refresh: {}
+
+    - do:
+        index: test
+        search:
+            body:
+                script_fields:
+                    s_obj1:
+                        lang: js
+                        script: "_source.obj1"
+                    s_obj1_test:
+                        lang: js
+                        script: "_source.obj1.test"
+                    s_obj2:
+                        lang: js
+                        script: "_source.obj2"
+                    s_obj2_arr2:
+                        lang: js
+                        script: "_source.obj2.arr2"
+
+    - match: { hits.total: 1 }
+    - match: { hits.hits.0.fields.s_obj1.0.test: something }
+    - match: { hits.hits.0.fields.s_obj1_test.0: something }
+    - match: { hits.hits.0.fields.s_obj2.0.arr2.0: arr_value1 }
+    - match: { hits.hits.0.fields.s_obj2.0.arr2.1: arr_value2 }
+    - match: { hits.hits.0.fields.s_obj2_arr2.0: arr_value1 }
+    - match: { hits.hits.0.fields.s_obj2_arr2.1: arr_value2 }
+
+---
+
+"JavaScript Custom Script Boost":
+    - do:
+        index:
+            index: test
+            type: test
+            id: 1
+            body: { "test": "value beck", "num1": 1.0 }
+    - do:
+        index:
+            index: test
+            type: test
+            id: 2
+            body: { "test": "value beck", "num1": 2.0 }
+    - do:
+        indices.refresh: {}
+
+    - do:
+        index: test
+        search:
+            body:
+                query:
+                    function_score:
+                        query:
+                            term:
+                                test: value
+                        "functions": [{
+                            "script_score": {
+                                "script": {
+                                    "lang": "js",
+                                    "inline": "doc['num1'].value"
+                                }
+                            }
+                        }]
+
+    - match: { hits.total: 2 }
+    - match: { hits.hits.0._id: "2" }
+    - match: { hits.hits.1._id: "1" }
+
+    - do:
+        index: test
+        search:
+            body:
+                query:
+                    function_score:
+                        query:
+                            term:
+                                test: value
+                        "functions": [{
+                            "script_score": {
+                                "script": {
+                                    "lang": "js",
+                                    "inline": "-doc['num1'].value"
+                                }
+                            }
+                        }]
+
+    - match: { hits.total: 2 }
+    - match: { hits.hits.0._id: "1" }
+    - match: { hits.hits.1._id: "2" }
+
+    - do:
+        index: test
+        search:
+            body:
+                query:
+                    function_score:
+                        query:
+                            term:
+                                test: value
+                        "functions": [{
+                            "script_score": {
+                                "script": {
+                                    "lang": "js",
+                                    "inline": "Math.pow(doc['num1'].value, 2)"
+                                }
+                            }
+                        }]
+
+    - match: { hits.total: 2 }
+    - match: { hits.hits.0._id: "2" }
+    - match: { hits.hits.1._id: "1" }
+
+    - do:
+        index: test
+        search:
+            body:
+                query:
+                    function_score:
+                        query:
+                            term:
+                                test: value
+                        "functions": [{
+                            "script_score": {
+                                "script": {
+                                    "lang": "js",
+                                    "inline": "Math.max(doc['num1'].value, 1)"
+                                }
+                            }
+                        }]
+
+    - match: { hits.total: 2 }
+    - match: { hits.hits.0._id: "2" }
+    - match: { hits.hits.1._id: "1" }
+
+    - do:
+        index: test
+        search:
+            body:
+                query:
+                    function_score:
+                        query:
+                            term:
+                                test: value
+                        "functions": [{
+                            "script_score": {
+                                "script": {
+                                    "lang": "js",
+                                    "inline": "doc['num1'].value * _score"
+                                }
+                            }
+                        }]
+
+    - match: { hits.total: 2 }
+    - match: { hits.hits.0._id: "2" }
+    - match: { hits.hits.1._id: "1" }
+
+    - do:
+        index: test
+        search:
+            body:
+                query:
+                    function_score:
+                        query:
+                            term:
+                                test: value
+                        "functions": [{
+                            "script_score": {
+                                "script": {
+                                    "lang": "js",
+                                    "inline": "param1 * param2 * _score",
+                                    "params": {
+                                        "param1": 2,
+                                        "param2": 2
+
+                                    }
+                                }
+                            }
+                        }]
+
+    - match: { hits.total: 2 }
+
+---
+
+"JavaScript Scores Nested":
+    - do:
+        index:
+            index: test
+            type: test
+            id: 1
+            body: { "dummy_field": 1 }
+    - do:
+        indices.refresh: {}
+
+    - do:
+        index: test
+        search:
+            body:
+                query:
+                    function_score:
+                        query:
+                            function_score:
+                                "functions": [
+                                    {
+                                        "script_score": {
+                                            "script": {
+                                                "lang": "js",
+                                                "inline": "1"
+                                            }
+                                        }
+                                    }, {
+                                        "script_score": {
+                                            "script": {
+                                                "lang": "js",
+                                                "inline": "_score.doubleValue()"
+                                            }
+                                        }
+                                    }
+                                ]
+                        "functions": [{
+                            "script_score": {
+                                "script": {
+                                    "lang": "js",
+                                    "inline": "_score.doubleValue()"
+                                }
+                            }
+                        }]
+
+    - match: { hits.total: 1 }
+    - match: { hits.hits.0._score: 1.0 }
+
+
+---
+
+"JavaScript Scores With Agg":
+    - do:
+        index:
+            index: test
+            type: test
+            id: 1
+            body: { "dummy_field": 1 }
+    - do:
+        indices.refresh: {}
+
+
+    - do:
+        index: test
+        search:
+            body:
+                query:
+                    function_score:
+                        "functions": [{
+                            "script_score": {
+                                "script": {
+                                    "lang": "js",
+                                    "inline": "_score.doubleValue()"
+                                }
+                            }
+                        }]
+                aggs:
+                    score_agg:
+                        terms:
+                            script:
+                                lang: js
+                                inline: "_score.doubleValue()"
+
+    - match: { hits.total: 1 }
+    - match: { hits.hits.0._score: 1.0 }
+    - match: { aggregations.score_agg.buckets.0.key: "1.0" }
+    - match: { aggregations.score_agg.buckets.0.doc_count: 1 }
+
+---
+
+"JavaScript Use List Length In Scripts":
+    - do:
+        index:
+            index: test
+            type: test
+            id: 1
+            body: { "f": 42 }
+    - do:
+        indices.refresh: {}
+
+
+    - do:
+        index: test
+        search:
+            body:
+                script_fields:
+                    foobar:
+                        lang: js
+                        script: "doc['f'].values.length"
+
+
+    - match: { hits.total: 1 }
+    - match: { hits.hits.0.fields.foobar.0: 1 }
+

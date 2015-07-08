@@ -84,7 +84,7 @@ public class JarHell {
         final Map<String,URL> clazzes = new HashMap<>(32768);
         Set<String> seenJars = new HashSet<>();
         for (final URL url : urls) {
-            String path = URLDecoder.decode(url.getPath(), "UTF-8");
+            String path = PathUtils.get(url.toURI()).toString();
             // exclude system resources
             if (path.startsWith(javaHome)) {
                 logger.debug("excluding system resource: {}", path);

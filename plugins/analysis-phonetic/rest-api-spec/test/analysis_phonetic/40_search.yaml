@@ -30,7 +30,7 @@
 
     - do:
       index:
-          index:  test
+          index:  phonetic_sample
           type:   type
           id:     1
           body:   { "text": "hello world" }
@@ -39,7 +39,7 @@
 
     - do:
         search:
-            index: test
+            index: phonetic_sample
             body:
                 query:
                     match:

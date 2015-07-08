@@ -123,8 +123,6 @@ public class MatchQueryParser implements QueryParser {
                         }
                     } else if ("minimum_should_match".equals(currentFieldName) || "minimumShouldMatch".equals(currentFieldName)) {
                         minimumShouldMatch = parser.textOrNull();
-                    } else if ("rewrite".equals(currentFieldName)) {
-                        matchQuery.setRewriteMethod(QueryParsers.parseRewriteMethod(parseContext.parseFieldMatcher(), parser.textOrNull(), null));
                     } else if ("fuzzy_rewrite".equals(currentFieldName) || "fuzzyRewrite".equals(currentFieldName)) {
                         matchQuery.setFuzzyRewriteMethod(QueryParsers.parseRewriteMethod(parseContext.parseFieldMatcher(), parser.textOrNull(), null));
                     } else if ("fuzzy_transpositions".equals(currentFieldName)) {

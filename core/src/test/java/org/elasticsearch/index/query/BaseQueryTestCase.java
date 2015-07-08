@@ -58,11 +58,20 @@ import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
-import org.junit.*;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Ignore;
+import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 @Ignore
 public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ElasticsearchTestCase {
@@ -135,9 +144,11 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
                     DOUBLE_FIELD_NAME, "type=double",
                     BOOLEAN_FIELD_NAME, "type=boolean",
                     STRING_FIELD_NAME, "type=string",
-                    OBJECT_FIELD_NAME, "type=object",
-                    OBJECT_FIELD_NAME+"."+DATE_FIELD_NAME, "type=date",
-                    OBJECT_FIELD_NAME+"."+INT_FIELD_NAME, "type=integer").string()), false, false);
+                    OBJECT_FIELD_NAME, "type=object"
+                    ).string()), false, false);
+            // also add mappings for two inner field in the object field
+            mapperService.merge(type, new CompressedXContent("{\"properties\":{\""+OBJECT_FIELD_NAME+"\":{\"type\":\"object\","
+                    + "\"properties\":{\""+DATE_FIELD_NAME+"\":{\"type\":\"date\"},\""+INT_FIELD_NAME+"\":{\"type\":\"integer\"}}}}}"), false, false);
             currentTypes[i] = type;
         }
         namedWriteableRegistry = injector.getInstance(NamedWriteableRegistry.class);

@@ -40,6 +40,22 @@ public class SimpleModel extends MovAvgModel {
 
     protected static final ParseField NAME_FIELD = new ParseField("simple");
 
+
+    @Override
+    public boolean canBeMinimized() {
+        return false;
+    }
+
+    @Override
+    public MovAvgModel neighboringModel() {
+        return new SimpleModel();
+    }
+
+    @Override
+    public MovAvgModel clone() {
+        return new SimpleModel();
+    }
+
     @Override
     protected <T extends Number> double[] doPredict(Collection<T> values, int numPredictions) {
         double[] predictions = new double[numPredictions];

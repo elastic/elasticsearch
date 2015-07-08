@@ -104,6 +104,8 @@
         <tests.ifNoTests>fail</tests.ifNoTests>
         <skip.unit.tests>${skipTests}</skip.unit.tests>
         <skip.integ.tests>${skipTests}</skip.integ.tests>
+        <integ.scratch>${project.build.directory}/integ-tests</integ.scratch>
+        <integ.temp>${integ.scratch}/temp</integ.temp>
     </properties>
 
     <repositories>
@@ -705,6 +707,7 @@
                            <tests.rest.blacklist>${tests.rest.blacklist}</tests.rest.blacklist>
                            <tests.rest.spec>${tests.rest.spec}</tests.rest.spec>
                            <tests.rest.load_packaged>${tests.rest.load_packaged}</tests.rest.load_packaged>
+                           <java.io.tmpdir>${integ.temp}</java.io.tmpdir>
                        </systemPropertyVariables>
                     </configuration>
                     <executions>

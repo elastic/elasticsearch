@@ -19,22 +19,42 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.RandomAccessWeight;
+import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.script.Script;
+import org.elasticsearch.script.*;
 import org.elasticsearch.script.Script.ScriptField;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder> {
 
     public static final String NAME = "script";
 
-    static final ScriptQueryBuilder PROTOTYPE = new ScriptQueryBuilder((Script) null);
+    static final ScriptQueryBuilder PROTOTYPE = new ScriptQueryBuilder(null);
 
-    private Script script;
-
+    private final Script script;
+    
     public ScriptQueryBuilder(Script script) {
         this.script = script;
+    }
+
+    public Script script() {
+        return this.script;
+    }
+
+    @Override
+    public String getName() {
+        return NAME;
     }
 
     @Override
@@ -46,7 +66,109 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
     }
 
     @Override
-    public String getName() {
-        return NAME;
+    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
+        return new ScriptQuery(script, parseContext.scriptService(), parseContext.lookup());
+    }
+
+    @Override
+    public QueryValidationException validate() {
+        QueryValidationException validationException = null;
+        if (this.script == null) {
+            validationException = addValidationError("script cannot be null", validationException);
+        }
+        return validationException;
+    }
+
+    static class ScriptQuery extends Query {
+
+        private final Script script;
+
+        private final SearchScript searchScript;
+
+        public ScriptQuery(Script script, ScriptService scriptService, SearchLookup searchLookup) {
+            this.script = script;
+            this.searchScript = scriptService.search(searchLookup, script, ScriptContext.Standard.SEARCH);
+        }
+
+        @Override
+        public String toString(String field) {
+            StringBuilder buffer = new StringBuilder();
+            buffer.append("ScriptFilter(");
+            buffer.append(script);
+            buffer.append(")");
+            return buffer.toString();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj)
+                return true;
+            if (!super.equals(obj))
+                return false;
+            ScriptQuery other = (ScriptQuery) obj;
+            return Objects.equals(script, other.script);
+        }
+
+        @Override
+        public int hashCode() {
+            final int prime = 31;
+            int result = super.hashCode();
+            result = prime * result + Objects.hashCode(script);
+            return result;
+        }
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
+            return new RandomAccessWeight(this) {
+                @Override
+                protected Bits getMatchingDocs(final LeafReaderContext context) throws IOException {
+                    final LeafSearchScript leafScript = searchScript.getLeafSearchScript(context);
+                    return new Bits() {
+
+                        @Override
+                        public boolean get(int doc) {
+                            leafScript.setDocument(doc);
+                            Object val = leafScript.run();
+                            if (val == null) {
+                                return false;
+                            }
+                            if (val instanceof Boolean) {
+                                return (Boolean) val;
+                            }
+                            if (val instanceof Number) {
+                                return ((Number) val).longValue() != 0;
+                            }
+                            throw new IllegalArgumentException("Can't handle type [" + val + "] in script filter");
+                        }
+
+                        @Override
+                        public int length() {
+                            return context.reader().maxDoc();
+                        }
+
+                    };
+                }
+            };
+        }
+    }
+    
+    @Override
+    protected ScriptQueryBuilder doReadFrom(StreamInput in) throws IOException {
+        return new ScriptQueryBuilder(Script.readScript(in));
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        script.writeTo(out);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(script);
+    }
+
+    @Override
+    protected boolean doEquals(ScriptQueryBuilder other) {
+        return Objects.equals(script, other.script);
     }
 }

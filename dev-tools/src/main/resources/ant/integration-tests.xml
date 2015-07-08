@@ -113,13 +113,7 @@
   <target name="stop-external-cluster" if="integ.pidfile.exists">
     <local name="integ.pid"/>
 
-    <!-- read contents of the pid file -->
-    <loadfile srcFile="${integ.pidfile}" property="integ.pid">
-      <filterchain>
-        <striplinebreaks/>
-      </filterchain>
-    </loadfile>
-
+    <extract-pid property="integ.pid"/>
     <echo>Shutting down external cluster PID ${integ.pid}</echo>
 
     <exec executable="taskkill" failonerror="true" osfamily="winnt">

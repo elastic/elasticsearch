@@ -15,8 +15,6 @@
     <description>The ICU Analysis plugin integrates Lucene ICU module into elasticsearch, adding ICU relates analysis components.</description>
 
     <properties>
-        <tests.jvms>1</tests.jvms>
-        <es.logger.level>INFO</es.logger.level>
         <tests.rest.suite>analysis_icu</tests.rest.suite>
         <tests.rest.load_packaged>false</tests.rest.load_packaged>
     </properties>

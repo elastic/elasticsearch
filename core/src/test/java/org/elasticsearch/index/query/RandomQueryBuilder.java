@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
 import java.util.Random;
 
@@ -36,7 +37,7 @@ public class RandomQueryBuilder {
      * @return a random {@link QueryBuilder}
      */
     public static QueryBuilder createQuery(Random r) {
-        switch (RandomInts.randomIntBetween(r, 0, 3)) {
+        switch (RandomInts.randomIntBetween(r, 0, 4)) {
             case 0:
                 return new MatchAllQueryBuilderTest().createTestQueryBuilder();
             case 1:
@@ -44,10 +45,27 @@ public class RandomQueryBuilder {
             case 2:
                 return new IdsQueryBuilderTest().createTestQueryBuilder();
             case 3:
+                return createMultiTermQuery(r);
+            case 4:
                 return EmptyQueryBuilder.PROTOTYPE;
             default:
                 throw new UnsupportedOperationException();
         }
+    }
+
+    /**
+     * Create a new multi term query of a random type
+     * @param r random seed
+     * @return a random {@link MultiTermQueryBuilder}
+     */
+    public static MultiTermQueryBuilder createMultiTermQuery(Random r) {
+        // for now, only use String Rangequeries for MultiTerm test, numeric and date makes little sense
+        // see issue #12123 for discussion
+        // Prefix / Fuzzy / RegEx / Wildcard can go here later once refactored and they have random query generators
+        RangeQueryBuilder query = new RangeQueryBuilder(BaseQueryTestCase.STRING_FIELD_NAME);
+        query.from("a" + RandomStrings.randomAsciiOfLengthBetween(r, 1, 10));
+        query.to("z" + RandomStrings.randomAsciiOfLengthBetween(r, 1, 10));
+        return query;
     }
 
     /**

@@ -18,9 +18,6 @@
  */
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -31,7 +28,7 @@ import java.io.IOException;
 /**
  *
  */
-public class SpanMultiTermQueryParser extends BaseQueryParserTemp {
+public class SpanMultiTermQueryParser extends BaseQueryParser {
 
     public static final String MATCH_NAME = "match";
 
@@ -45,7 +42,7 @@ public class SpanMultiTermQueryParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         Token token = parser.nextToken();
@@ -58,13 +55,13 @@ public class SpanMultiTermQueryParser extends BaseQueryParserTemp {
             throw new QueryParsingException(parseContext, "spanMultiTerm must have [" + MATCH_NAME + "] multi term query clause");
         }
 
-        Query subQuery = parseContext.parseInnerQuery();
-        if (!(subQuery instanceof MultiTermQuery)) {
+        QueryBuilder subQuery = parseContext.parseInnerQueryBuilder();
+        if (subQuery instanceof MultiTermQueryBuilder == false) {
             throw new QueryParsingException(parseContext, "spanMultiTerm [" + MATCH_NAME + "] must be of type multi term query");
         }
 
         parser.nextToken();
-        return new SpanMultiTermQueryWrapper<>((MultiTermQuery) subQuery);
+        return new SpanMultiTermQueryBuilder((MultiTermQueryBuilder) subQuery);
     }
 
     @Override

@@ -56,8 +56,8 @@ public class OsProbeTests extends ElasticsearchTestCase {
         assertThat(stats.getMem().getUsedPercent(), allOf(greaterThanOrEqualTo((short) 0), lessThanOrEqualTo((short) 100)));
 
         assertNotNull(stats.getSwap());
-        assertThat(stats.getSwap().getTotal().bytes(), anyOf(equalTo(-1L), greaterThan(0L)));
-        assertThat(stats.getSwap().getFree().bytes(), anyOf(equalTo(-1L), greaterThan(0L)));
+        assertThat(stats.getSwap().getTotal().bytes(), anyOf(equalTo(-1L), greaterThanOrEqualTo(0L)));
+        assertThat(stats.getSwap().getFree().bytes(), anyOf(equalTo(-1L), greaterThanOrEqualTo(0L)));
         assertThat(stats.getSwap().getUsed().bytes(), anyOf(equalTo(-1L), greaterThanOrEqualTo(0L)));
     }
 }

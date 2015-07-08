@@ -19,21 +19,15 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.WildcardQuery;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 
 /**
  *
  */
-public class WildcardQueryParser extends BaseQueryParserTemp {
+public class WildcardQueryParser extends BaseQueryParser {
 
     @Inject
     public WildcardQueryParser() {
@@ -45,7 +39,7 @@ public class WildcardQueryParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.nextToken();
@@ -53,7 +47,7 @@ public class WildcardQueryParser extends BaseQueryParserTemp {
             throw new QueryParsingException(parseContext, "[wildcard] query malformed, no field");
         }
         String fieldName = parser.currentName();
-        String rewriteMethod = null;
+        String rewrite = null;
 
         String value = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -72,7 +66,7 @@ public class WildcardQueryParser extends BaseQueryParserTemp {
                     } else if ("boost".equals(currentFieldName)) {
                         boost = parser.floatValue();
                     } else if ("rewrite".equals(currentFieldName)) {
-                        rewriteMethod = parser.textOrNull();
+                        rewrite = parser.textOrNull();
                     } else if ("_name".equals(currentFieldName)) {
                         queryName = parser.text();
                     } else {
@@ -89,23 +83,10 @@ public class WildcardQueryParser extends BaseQueryParserTemp {
         if (value == null) {
             throw new QueryParsingException(parseContext, "No value specified for prefix query");
         }
-
-        BytesRef valueBytes;
-        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
-        if (fieldType != null) {
-            fieldName = fieldType.names().indexName();
-            valueBytes = fieldType.indexedValueForSearch(value);
-        } else {
-            valueBytes = new BytesRef(value);
-        }
-
-        WildcardQuery wildcardQuery = new WildcardQuery(new Term(fieldName, valueBytes));
-        QueryParsers.setRewriteMethod(wildcardQuery, parseContext.parseFieldMatcher(), rewriteMethod);
-        wildcardQuery.setBoost(boost);
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, wildcardQuery);
-        }
-        return wildcardQuery;
+        return new WildcardQueryBuilder(fieldName, value)
+                .rewrite(rewrite)
+                .boost(boost)
+                .queryName(queryName);
     }
 
     @Override

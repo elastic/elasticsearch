@@ -19,9 +19,20 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.WildcardQuery;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Implements the wildcard search query. Supported wildcards are <tt>*</tt>, which
@@ -35,9 +46,9 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
 
     public static final String NAME = "wildcard";
 
-    private final String name;
+    private final String fieldName;
 
-    private final String wildcard;
+    private final String value;
 
     private String rewrite;
 
@@ -51,12 +62,20 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
      * a Wildcard term should not start with one of the wildcards <tt>*</tt> or
      * <tt>?</tt>.
      *
-     * @param name     The field name
-     * @param wildcard The wildcard query string
+     * @param fieldName The field name
+     * @param value The wildcard query string
      */
-    public WildcardQueryBuilder(String name, String wildcard) {
-        this.name = name;
-        this.wildcard = wildcard;
+    public WildcardQueryBuilder(String fieldName, String value) {
+        this.fieldName = fieldName;
+        this.value = value;
+    }
+
+    public String fieldName() {
+        return fieldName;
+    }
+
+    public String value() {
+        return value;
     }
 
     public WildcardQueryBuilder rewrite(String rewrite) {
@@ -64,11 +83,20 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         return this;
     }
 
+    public String rewrite() {
+        return this.rewrite;
+    }
+
+    @Override
+    public String getName() {
+        return NAME;
+    }
+
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.startObject(name);
-        builder.field("wildcard", wildcard);
+        builder.startObject(fieldName);
+        builder.field("wildcard", value);
         if (rewrite != null) {
             builder.field("rewrite", rewrite);
         }
@@ -78,7 +106,60 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
     }
 
     @Override
-    public String getName() {
-        return NAME;
+    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
+        String indexFieldName;
+        BytesRef valueBytes;
+        
+        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
+        if (fieldType != null) {
+            indexFieldName = fieldType.names().indexName();
+            valueBytes = fieldType.indexedValueForSearch(value);
+        } else {
+            indexFieldName = fieldName;
+            valueBytes = new BytesRef(value);
+        }
+
+        WildcardQuery query = new WildcardQuery(new Term(indexFieldName, valueBytes));
+        MultiTermQuery.RewriteMethod rewriteMethod = QueryParsers.parseRewriteMethod(parseContext.parseFieldMatcher(), rewrite, null);
+        QueryParsers.setRewriteMethod(query, rewriteMethod);
+        return query;
+    }
+
+    @Override
+    public QueryValidationException validate() {
+        QueryValidationException validationException = null;
+        if (Strings.isEmpty(this.fieldName)) {
+            validationException = addValidationError("field name cannot be null or empty.", validationException);
+        }
+        if (this.value == null) {
+            validationException = addValidationError("wildcard cannot be null", validationException);
+        }
+        return validationException;
+    }
+
+    @Override
+    protected WildcardQueryBuilder doReadFrom(StreamInput in) throws IOException {
+        WildcardQueryBuilder wildcardQueryBuilder = new WildcardQueryBuilder(in.readString(), in.readString());
+        wildcardQueryBuilder.rewrite = in.readOptionalString();
+        return wildcardQueryBuilder;
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(fieldName);
+        out.writeString(value);
+        out.writeOptionalString(rewrite);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(fieldName, value, rewrite);
+    }
+
+    @Override
+    protected boolean doEquals(WildcardQueryBuilder other) {
+        return Objects.equals(fieldName, other.fieldName) &&
+                Objects.equals(value, other.value) &&
+                Objects.equals(rewrite, other.rewrite);
     }
 }

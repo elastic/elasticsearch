@@ -38,7 +38,7 @@
           "description" : "Default document type for items which don't provide one"
         },
         "fields": {
-          "type": "string",
+          "type": "list",
           "description" : "Default comma-separated list of fields to return in the response for updates"
         }
       }

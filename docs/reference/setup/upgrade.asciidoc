@@ -29,6 +29,8 @@ consult this table:
 |1.x            |2.x            |<<restart-upgrade,Full cluster restart>>
 |=======================================================================
 
+TIP: Take plugins into consideration as well when upgrading. For example, some plugins require a specific version of Elasticsearch to be installed.
+
 include::backup.asciidoc[]
 
 include::rolling_upgrade.asciidoc[]

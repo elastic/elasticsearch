@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
-import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -29,20 +28,16 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AlreadyExpiredException;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericLongAnalyzer;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
-import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -101,6 +96,7 @@ public class TTLFieldMapper extends MetadataFieldMapper {
         @Override
         public TTLFieldMapper build(BuilderContext context) {
             setupFieldType(context);
+            fieldType.setHasDocValues(false);
             return new TTLFieldMapper(fieldType, enabledState, defaultTTL, fieldDataSettings, context.indexSettings());
         }
     }
@@ -167,7 +163,7 @@ public class TTLFieldMapper extends MetadataFieldMapper {
 
     protected TTLFieldMapper(MappedFieldType fieldType, EnabledAttributeMapper enabled, long defaultTTL,
                              @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(NAME, fieldType, false, fieldDataSettings, indexSettings);
+        super(NAME, fieldType, Defaults.TTL_FIELD_TYPE, indexSettings);
         this.enabledState = enabled;
         this.defaultTTL = defaultTTL;
     }
@@ -192,16 +188,6 @@ public class TTLFieldMapper extends MetadataFieldMapper {
     @Override
     public void postParse(ParseContext context) throws IOException {
         super.parse(context);
-    }
-
-    @Override
-    public MappedFieldType defaultFieldType() {
-        return Defaults.TTL_FIELD_TYPE;
-    }
-
-    @Override
-    public FieldDataType defaultFieldDataType() {
-        return new FieldDataType("long");
     }
 
     @Override

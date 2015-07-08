@@ -4,6 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
+    <groupId>org.elasticsearch.plugin</groupId>
     <artifactId>elasticsearch-plugin</artifactId>
     <version>2.0.0-SNAPSHOT</version>
     <packaging>pom</packaging>
@@ -37,6 +38,12 @@
             <groupId>org.elasticsearch</groupId>
             <artifactId>elasticsearch</artifactId>
             <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.elasticsearch</groupId>
+            <artifactId>elasticsearch</artifactId>
+            <type>zip</type>
             <scope>test</scope>
         </dependency>
 
@@ -268,10 +275,16 @@
                     <!-- required by the test framework -->
                     <include>api/info.json</include>
                     <include>api/cluster.health.json</include>
+                    <include>api/cluster.state.json</include>
                     <!-- used in plugin REST tests -->
                     <include>api/index.json</include>
+                    <include>api/search.json</include>
+                    <include>api/indices.analyze.json</include>
+                    <include>api/indices.create.json</include>
                     <include>api/indices.refresh.json</include>
+                    <include>api/nodes.info.json</include>
                     <include>api/count.json</include>
+                    <include>api/search.json</include>
                 </includes>
             </testResource>
             <!-- shared test resources like log4j.properties -->
@@ -280,6 +293,53 @@
                 <filtering>false</filtering>
             </testResource>
         </testResources>
+
+        <plugins>
+           <!-- integration tests -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-antrun-plugin</artifactId>
+                    <executions>
+                        <!-- start up external cluster -->
+                        <execution>
+                            <id>integ-setup</id>
+                            <phase>pre-integration-test</phase>
+                            <goals>
+                                <goal>run</goal>
+                            </goals>
+                            <configuration>
+                                <target>
+                                    <ant antfile="${elasticsearch.tools.directory}/ant/integration-tests.xml"
+                                         target="start-external-cluster-with-plugin"/>
+                                </target>
+                            </configuration>
+                        </execution>
+                        <!-- shut down external cluster -->
+                        <execution>
+                            <id>integ-teardown</id>
+                            <phase>post-integration-test</phase>
+                            <goals>
+                                <goal>run</goal>
+                            </goals>
+                            <configuration>
+                                <target>
+                                    <ant antfile="${elasticsearch.tools.directory}/ant/integration-tests.xml"
+                                         target="stop-external-cluster"/>
+                                </target>
+                            </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-failsafe-plugin</artifactId>
+                    <configuration>
+                        <systemPropertyVariables>
+                            <tests.cluster>127.0.0.1:9300</tests.cluster>
+                        </systemPropertyVariables>
+                    </configuration>
+                </plugin>
+        </plugins>
 
         <pluginManagement>
             <plugins>

@@ -647,7 +647,6 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/11788")
     public void testIndexOnSharedFSRecoversToAnyNode() throws Exception {
         Settings nodeSettings = nodeSettings();
         Settings fooSettings = Settings.builder().put(nodeSettings).put("node.affinity", "foo").build();

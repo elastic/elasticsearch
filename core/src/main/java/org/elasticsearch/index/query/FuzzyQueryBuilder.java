@@ -49,14 +49,85 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
     static final FuzzyQueryBuilder PROTOTYPE = new FuzzyQueryBuilder(null, null);
 
     /**
-     * Constructs a new term query.
+     * Constructs a new fuzzy query.
      *
      * @param name  The name of the field
-     * @param value The value of the term
+     * @param value The value of the text
      */
     public FuzzyQueryBuilder(String name, Object value) {
         this.name = name;
         this.value = value;
+    }
+
+    /**
+     * Constructs a new fuzzy query.
+     *
+     * @param name  The name of the field
+     * @param value The value of the text
+     */
+    public FuzzyQueryBuilder(String name, String value) {
+        this(name, (Object) value);
+    }
+
+    /**
+     * Constructs a new fuzzy query.
+     *
+     * @param name  The name of the field
+     * @param value The value of the text
+     */
+    public FuzzyQueryBuilder(String name, int value) {
+        this(name, (Object) value);
+    }
+
+    /**
+     * Constructs a new fuzzy query.
+     *
+     * @param name  The name of the field
+     * @param value The value of the text
+     */
+    public FuzzyQueryBuilder(String name, long value) {
+        this(name, (Object) value);
+    }
+
+    /**
+     * Constructs a new fuzzy query.
+     *
+     * @param name  The name of the field
+     * @param value The value of the text
+     */
+    public FuzzyQueryBuilder(String name, float value) {
+        this(name, (Object) value);
+    }
+
+    /**
+     * Constructs a new fuzzy query.
+     *
+     * @param name  The name of the field
+     * @param value The value of the text
+     */
+    public FuzzyQueryBuilder(String name, double value) {
+        this(name, (Object) value);
+    }
+
+    // NO COMMIT: not sure we should also allow boolean?
+    /**
+     * Constructs a new fuzzy query.
+     *
+     * @param name  The name of the field
+     * @param value The value of the text
+     */
+    public FuzzyQueryBuilder(String name, boolean value) {
+        this(name, (Object) value);
+    }
+
+    /**
+     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
+     * weightings) have their score multiplied by the boost provided.
+     */
+    @Override
+    public FuzzyQueryBuilder boost(float boost) {
+        this.boost = boost;
+        return this;
     }
 
     public FuzzyQueryBuilder fuzziness(Fuzziness fuzziness) {

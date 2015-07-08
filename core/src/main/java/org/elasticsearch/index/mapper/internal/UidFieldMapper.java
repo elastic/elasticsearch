@@ -26,7 +26,6 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -36,11 +35,10 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
 import java.util.List;
@@ -57,7 +55,7 @@ public class UidFieldMapper extends MetadataFieldMapper {
 
     public static final String CONTENT_TYPE = "_uid";
 
-    public static class Defaults extends AbstractFieldMapper.Defaults {
+    public static class Defaults {
         public static final String NAME = UidFieldMapper.NAME;
 
         public static final MappedFieldType FIELD_TYPE = new UidFieldType();
@@ -88,8 +86,9 @@ public class UidFieldMapper extends MetadataFieldMapper {
 
         @Override
         public UidFieldMapper build(BuilderContext context) {
-            fieldType.setNames(new MappedFieldType.Names(indexName, indexName, name));
-            return new UidFieldMapper(fieldType, docValues, fieldDataSettings, context.indexSettings());
+            setupFieldType(context);
+            fieldType.setHasDocValues(context.indexCreatedVersion().before(Version.V_2_0_0));
+            return new UidFieldMapper(fieldType, defaultFieldType, context.indexSettings());
         }
     }
 
@@ -107,7 +106,9 @@ public class UidFieldMapper extends MetadataFieldMapper {
 
     static final class UidFieldType extends MappedFieldType {
 
-        public UidFieldType() {}
+        public UidFieldType() {
+            setFieldDataType(new FieldDataType("string"));
+        }
 
         protected UidFieldType(UidFieldType ref) {
             super(ref);
@@ -133,30 +134,11 @@ public class UidFieldMapper extends MetadataFieldMapper {
     }
 
     public UidFieldMapper(Settings indexSettings, MappedFieldType existing) {
-        this(existing == null ? Defaults.FIELD_TYPE.clone() : existing, null,
-             existing == null ? null : (existing.fieldDataType() == null ? null : existing.fieldDataType().getSettings()),
-             indexSettings);
+        this(existing == null ? Defaults.FIELD_TYPE.clone() : existing, Defaults.FIELD_TYPE, indexSettings);
     }
 
-    protected UidFieldMapper(MappedFieldType fieldType, Boolean docValues, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(NAME, fieldType, docValuesEnabled(docValues, indexSettings), fieldDataSettings, indexSettings);
-    }
-    
-    static Boolean docValuesEnabled(Boolean docValues, Settings indexSettings) {
-        if (Version.indexCreated(indexSettings).onOrAfter(Version.V_2_0_0)) {
-            return false; // explicitly disable doc values for 2.0+, for now
-        }
-        return docValues;
-    }
-
-    @Override
-    public MappedFieldType defaultFieldType() {
-        return Defaults.FIELD_TYPE;
-    }
-
-    @Override
-    public FieldDataType defaultFieldDataType() {
-        return new FieldDataType("string");
+    protected UidFieldMapper(MappedFieldType fieldType, MappedFieldType defaultFieldType, Settings indexSettings) {
+        super(NAME, fieldType, defaultFieldType, indexSettings);
     }
 
     @Override
@@ -230,9 +212,7 @@ public class UidFieldMapper extends MetadataFieldMapper {
 
         builder.startObject(CONTENT_TYPE);
 
-        if (hasCustomFieldDataSettings()) {
-            builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
-        } else if (includeDefaults) {
+        if (includeDefaults || hasCustomFieldDataSettings()) {
             builder.field("fielddata", (Map) fieldType().fieldDataType().getSettings().getAsMap());
         }
 

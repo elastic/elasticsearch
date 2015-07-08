@@ -37,7 +37,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.NumberType;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperException;
@@ -66,11 +66,11 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
 /**
  *
  */
-public class CompletionFieldMapper extends AbstractFieldMapper {
+public class CompletionFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "completion";
 
-    public static class Defaults extends AbstractFieldMapper.Defaults {
+    public static class Defaults {
         public static final CompletionFieldType FIELD_TYPE = new CompletionFieldType();
 
         static {
@@ -104,7 +104,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
     public static final Set<String> ALLOWED_CONTENT_FIELD_NAMES = Sets.newHashSet(Fields.CONTENT_FIELD_NAME_INPUT,
             Fields.CONTENT_FIELD_NAME_OUTPUT, Fields.CONTENT_FIELD_NAME_PAYLOAD, Fields.CONTENT_FIELD_NAME_WEIGHT, Fields.CONTEXT);
 
-    public static class Builder extends AbstractFieldMapper.Builder<Builder, CompletionFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder, CompletionFieldMapper> {
 
         private boolean preserveSeparators = Defaults.DEFAULT_PRESERVE_SEPARATORS;
         private boolean payloads = Defaults.DEFAULT_HAS_PAYLOADS;
@@ -226,7 +226,9 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
         private AnalyzingCompletionLookupProvider analyzingSuggestLookupProvider;
         private SortedMap<String, ContextMapping> contextMapping = ContextMapping.EMPTY_MAPPING;
 
-        public CompletionFieldType() {}
+        public CompletionFieldType() {
+            setFieldDataType(null);
+        }
 
         protected CompletionFieldType(CompletionFieldType ref) {
             super(ref);
@@ -312,7 +314,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
     private int maxInputLength;
 
     public CompletionFieldMapper(String simpleName, MappedFieldType fieldType, int maxInputLength, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, false, null, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, multiFields, copyTo);
         this.maxInputLength = maxInputLength;
     }
 
@@ -536,16 +538,6 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public MappedFieldType defaultFieldType() {
-        return Defaults.FIELD_TYPE;
-    }
-
-    @Override
-    public FieldDataType defaultFieldDataType() {
-        return null;
     }
 
     public boolean isStoringPayloads() {

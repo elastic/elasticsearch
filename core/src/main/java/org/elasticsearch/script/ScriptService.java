@@ -95,9 +95,9 @@ public class ScriptService extends AbstractComponent implements Closeable {
     private final ImmutableMap<String, ScriptEngineService> scriptEnginesByLang;
     private final ImmutableMap<String, ScriptEngineService> scriptEnginesByExt;
 
-    private final ConcurrentMap<CacheKey, CompiledScript> staticCache = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<String, CompiledScript> staticCache = ConcurrentCollections.newConcurrentMap();
 
-    private final Cache<CacheKey, CompiledScript> cache;
+    private final Cache<String, CompiledScript> cache;
     private final Path scriptsDirectory;
 
     private final ScriptModes scriptModes;
@@ -266,7 +266,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
         }
 
         ScriptEngineService scriptEngineService = getScriptEngineServiceForLang(lang);
-        CacheKey cacheKey = newCacheKey(scriptEngineService, script.getScript());
+        String cacheKey = getCacheKey(scriptEngineService, script.getScript());
 
         if (script.getType() == ScriptType.FILE) {
             CompiledScript compiled = staticCache.get(cacheKey); //On disk scripts will be loaded into the staticCache by the listener
@@ -281,7 +281,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
         if (script.getType() == ScriptType.INDEXED) {
             final IndexedScript indexedScript = new IndexedScript(lang, script.getScript());
             code = getScriptFromIndex(indexedScript.lang, indexedScript.id);
-            cacheKey = newCacheKey(scriptEngineService, code);
+            cacheKey = getCacheKey(scriptEngineService, code);
         }
 
         CompiledScript compiled = cache.getIfPresent(cacheKey);
@@ -462,10 +462,10 @@ public class ScriptService extends AbstractComponent implements Closeable {
      * {@code ScriptEngineService}'s {@code scriptRemoved} method when the
      * script has been removed from the cache
      */
-    private class ScriptCacheRemovalListener implements RemovalListener<CacheKey, CompiledScript> {
+    private class ScriptCacheRemovalListener implements RemovalListener<String, CompiledScript> {
 
         @Override
-        public void onRemoval(RemovalNotification<CacheKey, CompiledScript> notification) {
+        public void onRemoval(RemovalNotification<String, CompiledScript> notification) {
             if (logger.isDebugEnabled()) {
                 logger.debug("notifying script services of script removal due to: [{}]", notification.getCause());
             }
@@ -513,7 +513,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
                             logger.info("compiling script file [{}]", file.toAbsolutePath());
                             try(InputStreamReader reader = new InputStreamReader(Files.newInputStream(file), Charsets.UTF_8)) {
                                 String script = Streams.copyToString(reader);
-                                CacheKey cacheKey = newCacheKey(engineService, scriptNameExt.v1());
+                                String cacheKey = getCacheKey(engineService, scriptNameExt.v1());
                                 staticCache.put(cacheKey, new CompiledScript(engineService.types()[0], engineService.compile(script)));
                             }
                         } else {
@@ -538,7 +538,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
                 ScriptEngineService engineService = getScriptEngineServiceForFileExt(scriptNameExt.v2());
                 assert engineService != null;
                 logger.info("removing script file [{}]", file.toAbsolutePath());
-                staticCache.remove(newCacheKey(engineService, scriptNameExt.v1()));
+                staticCache.remove(getCacheKey(engineService, scriptNameExt.v1()));
             }
         }
 
@@ -598,32 +598,9 @@ public class ScriptService extends AbstractComponent implements Closeable {
         }
     }
 
-    private static CacheKey newCacheKey(ScriptEngineService engineService, String script) {
-        return new CacheKey(engineService.types()[0], script);
-    }
-
-    private static class CacheKey {
-        public final String lang;
-        public final String script;
-
-        public CacheKey(String lang, String script) {
-            this.lang = lang;
-            this.script = script;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (! (o instanceof  CacheKey)) {
-                return false;
-            }
-            CacheKey other = (CacheKey) o;
-            return lang.equals(other.lang) && script.equals(other.script);
-        }
-
-        @Override
-        public int hashCode() {
-            return lang.hashCode() + 31 * script.hashCode();
-        }
+    private static String getCacheKey(ScriptEngineService scriptEngineService, String script) {
+        String lang = scriptEngineService.types()[0];
+        return lang + ":" + script;
     }
 
     private static class IndexedScript {

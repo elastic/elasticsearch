@@ -204,4 +204,28 @@ public class SecurityTests extends ElasticsearchTestCase {
             fail("didn't get expected exception");
         } catch (SecurityException expected) {}
     }
+
+    /** When a configured dir is a symlink, test that permissions work on link target */
+    public void testSymlinkPermissions() throws IOException {
+        Path dir = createTempDir();
+
+        Path target = dir.resolve("target");
+        Files.createDirectory(target);
+
+        // symlink
+        Path link = dir.resolve("link");
+        try {
+            Files.createSymbolicLink(link, target);
+        } catch (UnsupportedOperationException | IOException e) {
+            assumeNoException("test requires filesystem that supports symbolic links", e);
+        } catch (SecurityException e) {
+            assumeNoException("test cannot create symbolic links with security manager enabled", e);
+        }
+        Permissions permissions = new Permissions();
+        Security.addPath(permissions, link, "read");
+        assertTrue(permissions.implies(new FilePermission(link.toString(), "read")));
+        assertTrue(permissions.implies(new FilePermission(link.resolve("foo").toString(), "read")));
+        assertTrue(permissions.implies(new FilePermission(target.toString(), "read")));
+        assertTrue(permissions.implies(new FilePermission(target.resolve("foo").toString(), "read")));
+    }
 }

@@ -25,6 +25,7 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -60,12 +61,12 @@ public class FuzzyQueryParser extends BaseQueryParserTemp {
         }
         String fieldName = parser.currentName();
 
-        String value = null;
+        Object value = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         Fuzziness fuzziness = DEFAULT_FUZZINESS;
         int prefixLength = FuzzyQuery.defaultPrefixLength;
         int maxExpansions = FuzzyQuery.defaultMaxExpansions;
-        boolean transpositions = false;
+        boolean transpositions = FuzzyQuery.defaultTranspositions;
         String queryName = null;
         MultiTermQuery.RewriteMethod rewriteMethod = null;
         if (parseContext.isFilter()) {
@@ -79,9 +80,9 @@ public class FuzzyQueryParser extends BaseQueryParserTemp {
                     currentFieldName = parser.currentName();
                 } else {
                     if ("term".equals(currentFieldName)) {
-                        value = parser.text();
+                        value = parser.objectBytes();
                     } else if ("value".equals(currentFieldName)) {
-                        value = parser.text();
+                        value = parser.objectBytes();
                     } else if ("boost".equals(currentFieldName)) {
                         boost = parser.floatValue();
                     } else if (parseContext.parseFieldMatcher().match(currentFieldName, FUZZINESS)) {
@@ -103,7 +104,7 @@ public class FuzzyQueryParser extends BaseQueryParserTemp {
             }
             parser.nextToken();
         } else {
-            value = parser.text();
+            value = parser.objectBytes();
             // move to the next token
             parser.nextToken();
         }
@@ -111,14 +112,15 @@ public class FuzzyQueryParser extends BaseQueryParserTemp {
         if (value == null) {
             throw new QueryParsingException(parseContext, "No value specified for fuzzy query");
         }
-
+        
         Query query = null;
         MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
         if (fieldType != null) {
             query = fieldType.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions);
         }
         if (query == null) {
-            query = new FuzzyQuery(new Term(fieldName, value), fuzziness.asDistance(value), prefixLength, maxExpansions, transpositions);
+            int maxEdits = fuzziness.asDistance(BytesRefs.toString(value));
+            query = new FuzzyQuery(new Term(fieldName, BytesRefs.toBytesRef(value)), maxEdits, prefixLength, maxExpansions, transpositions);
         }
         if (query instanceof MultiTermQuery) {
             QueryParsers.setRewriteMethod((MultiTermQuery) query, rewriteMethod);

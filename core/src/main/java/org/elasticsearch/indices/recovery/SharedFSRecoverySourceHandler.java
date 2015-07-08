@@ -68,7 +68,8 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
                 // that case, fail the shard to reallocate a new IndexShard and
                 // create a new IndexWriter
                 logger.info("recovery failed for primary shadow shard, failing shard");
-                shard.failShard("primary relocation failed on shared filesystem", t);
+                // pass the failure as null, as we want to ensure the store is not marked as corrupted
+                shard.failShard("primary relocation failed on shared filesystem caused by: [" + t.getMessage() + "]", null);
             } else {
                 logger.info("recovery failed on shared filesystem", t);
             }

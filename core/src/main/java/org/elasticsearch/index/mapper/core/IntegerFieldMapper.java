@@ -40,13 +40,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericIntegerAnalyzer;
-import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryParseContext;
 
@@ -89,8 +85,8 @@ public class IntegerFieldMapper extends NumberFieldMapper {
         @Override
         public IntegerFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            IntegerFieldMapper fieldMapper = new IntegerFieldMapper(name, fieldType, docValues,
-                    ignoreMalformed(context), coerce(context), fieldDataSettings,
+            IntegerFieldMapper fieldMapper = new IntegerFieldMapper(name, fieldType, defaultFieldType,
+                    ignoreMalformed(context), coerce(context),
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -145,7 +141,8 @@ public class IntegerFieldMapper extends NumberFieldMapper {
 
         @Override
         public String typeName() {
-            return CONTENT_TYPE;
+            // TODO: this should be the same as the mapper type name, except fielddata expects int...
+            return "int";
         }
 
         @Override
@@ -183,8 +180,8 @@ public class IntegerFieldMapper extends NumberFieldMapper {
         }
 
         @Override
-        public Query fuzzyQuery(String value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-            int iValue = Integer.parseInt(value);
+        public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
+            int iValue = parseValue(value);
             int iSim = fuzziness.asInt();
             return NumericRangeQuery.newIntRange(names().indexName(), numericPrecisionStep(),
                 iValue - iSim,
@@ -202,26 +199,15 @@ public class IntegerFieldMapper extends NumberFieldMapper {
         }
     }
 
-    protected IntegerFieldMapper(String simpleName, MappedFieldType fieldType, Boolean docValues,
+    protected IntegerFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                  Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-                                 @Nullable Settings fieldDataSettings,
                                  Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, docValues, ignoreMalformed, coerce, fieldDataSettings, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, indexSettings, multiFields, copyTo);
     }
 
     @Override
     public IntegerFieldType fieldType() {
         return (IntegerFieldType) super.fieldType();
-    }
-
-    @Override
-    public MappedFieldType defaultFieldType() {
-        return Defaults.FIELD_TYPE;
-    }
-
-    @Override
-    public FieldDataType defaultFieldDataType() {
-        return new FieldDataType("int");
     }
 
     private static int parseValue(Object value) {

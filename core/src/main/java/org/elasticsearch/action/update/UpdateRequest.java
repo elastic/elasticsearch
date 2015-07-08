@@ -690,16 +690,18 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         return this.docAsUpsert;
     }
 
-    public void docAsUpsert(boolean shouldUpsertDoc) {
+    public UpdateRequest docAsUpsert(boolean shouldUpsertDoc) {
         this.docAsUpsert = shouldUpsertDoc;
+        return this;
     }
     
     public boolean scriptedUpsert(){
         return this.scriptedUpsert;
     }
     
-    public void scriptedUpsert(boolean scriptedUpsert) {
+    public UpdateRequest scriptedUpsert(boolean scriptedUpsert) {
         this.scriptedUpsert = scriptedUpsert;
+        return this;
     }
     
 

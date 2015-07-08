@@ -48,7 +48,7 @@ import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.suggest.stats.SuggestStats;
 import org.elasticsearch.indices.NodeIndicesStats;
-import org.elasticsearch.monitor.fs.FsStats;
+import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.os.OsInfo;
@@ -224,7 +224,7 @@ public class RestNodesAction extends AbstractCatAction {
             ProcessInfo processInfo = info == null ? null : info.getProcess();
 
             JvmStats jvmStats = stats == null ? null : stats.getJvm();
-            FsStats fsStats = stats == null ? null : stats.getFs();
+            FsInfo fsInfo = stats == null ? null : stats.getFs();
             OsStats osStats = stats == null ? null : stats.getOs();
             ProcessStats processStats = stats == null ? null : stats.getProcess();
             NodeIndicesStats indicesStats = stats == null ? null : stats.getIndices();
@@ -244,7 +244,7 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(node.getVersion().number());
             table.addCell(info == null ? null : info.getBuild().hashShort());
             table.addCell(jvmInfo == null ? null : jvmInfo.version());
-            table.addCell(fsStats == null ? null : fsStats.getTotal().getAvailable());
+            table.addCell(fsInfo == null ? null : fsInfo.getTotal().getAvailable());
             table.addCell(jvmStats == null ? null : jvmStats.getMem().getHeapUsed());
             table.addCell(jvmStats == null ? null : jvmStats.getMem().getHeapUsedPercent());
             table.addCell(jvmInfo == null ? null : jvmInfo.getMem().getHeapMax());

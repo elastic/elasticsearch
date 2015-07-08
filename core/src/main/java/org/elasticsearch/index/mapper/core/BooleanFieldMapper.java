@@ -24,18 +24,15 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 
 import java.io.IOException;
@@ -50,11 +47,11 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 /**
  * A field mapper for boolean fields.
  */
-public class BooleanFieldMapper extends AbstractFieldMapper {
+public class BooleanFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "boolean";
 
-    public static class Defaults extends AbstractFieldMapper.Defaults {
+    public static class Defaults {
         public static final MappedFieldType FIELD_TYPE = new BooleanFieldType();
 
         static {
@@ -72,7 +69,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper {
         public final static BytesRef FALSE = new BytesRef("F");
     }
 
-    public static class Builder extends AbstractFieldMapper.Builder<Builder, BooleanFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder, BooleanFieldMapper> {
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE);
@@ -90,8 +87,8 @@ public class BooleanFieldMapper extends AbstractFieldMapper {
         @Override
         public BooleanFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            return new BooleanFieldMapper(name, fieldType, docValues,
-                    fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+            return new BooleanFieldMapper(name, fieldType, defaultFieldType,
+                context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -194,25 +191,14 @@ public class BooleanFieldMapper extends AbstractFieldMapper {
         }
     }
 
-    protected BooleanFieldMapper(String simpleName, MappedFieldType fieldType, Boolean docValues,
-                                 @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, docValues, fieldDataSettings, indexSettings, multiFields, copyTo);
+    protected BooleanFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
+                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
     }
 
     @Override
     public BooleanFieldType fieldType() {
         return (BooleanFieldType) super.fieldType();
-    }
-
-    @Override
-    public MappedFieldType defaultFieldType() {
-        return Defaults.FIELD_TYPE;
-    }
-
-    @Override
-    public FieldDataType defaultFieldDataType() {
-        // TODO have a special boolean type?
-        return new FieldDataType(CONTENT_TYPE);
     }
 
     @Override

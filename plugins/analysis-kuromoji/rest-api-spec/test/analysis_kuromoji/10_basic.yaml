@@ -1,0 +1,54 @@
+# Integration tests for Kuromoji analysis components
+#
+---
+"Analyzer":
+    - do:
+        indices.analyze:
+          text:         JR新宿駅の近くにビールを飲みに行こうか
+          analyzer:     kuromoji
+    - length: { tokens: 7 }
+    - match:  { tokens.0.token: jr }
+    - match:  { tokens.1.token: 新宿 }
+    - match:  { tokens.2.token: 駅 }
+    - match:  { tokens.3.token: 近く }
+    - match:  { tokens.4.token: ビール }
+    - match:  { tokens.5.token: 飲む }
+    - match:  { tokens.6.token: 行く }
+---
+"Tokenizer":
+    - do:
+        indices.analyze:
+          text:         関西国際空港
+          tokenizer:    kuromoji_tokenizer
+    - length: { tokens: 4 }
+    - match:  { tokens.0.token: 関西 }
+    - match:  { tokens.1.token: 関西国際空港 }
+    - match:  { tokens.2.token: 国際 }
+    - match:  { tokens.3.token: 空港 }
+---
+"Baseform filter":
+    - do:
+        indices.analyze:
+          text:         飲み
+          tokenizer:    kuromoji_tokenizer
+          filters:      kuromoji_baseform
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: 飲む }
+---
+"Reading filter":
+    - do:
+        indices.analyze:
+          text:         寿司
+          tokenizer:    kuromoji_tokenizer
+          filters:      kuromoji_readingform
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: sushi }
+---
+"Stemming filter":
+    - do:
+        indices.analyze:
+          text:         サーバー
+          tokenizer:    kuromoji_tokenizer
+          filters:      kuromoji_stemmer
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: サーバ }

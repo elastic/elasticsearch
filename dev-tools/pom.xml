@@ -1,7 +1,7 @@
 <project>
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.elasticsearch</groupId>
-  <artifactId>dev-tools</artifactId>
+  <artifactId>elasticsearch-dev-tools</artifactId>
   <version>2.0.0-SNAPSHOT</version>
   <name>Elasticsearch Build Resources</name>
   <parent>

@@ -20,16 +20,18 @@
 package org.elasticsearch.plugins;
 
 import com.google.common.io.Files;
-
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.net.URL;
 import java.nio.file.Path;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -54,5 +56,15 @@ public class PluginManagerUnitTests extends ElasticsearchTestCase {
         String expectedDirPath = Files.simplifyPath(genericConfigFolder.resolve(pluginName).normalize().toString());
 
         assertThat(configDirPath, is(expectedDirPath));
+    }
+
+    @Test
+    public void testSimplifiedNaming() throws IOException {
+        String pluginName = randomAsciiOfLength(10);
+        PluginManager.PluginHandle handle = PluginManager.PluginHandle.parse(pluginName);
+        assertThat(handle.urls(), hasSize(1));
+        URL expected = new URL("http", "download.elastic.co", "/org.elasticsearch.plugins/" + pluginName + "/" +
+            pluginName + "-" + Version.CURRENT.number() + ".zip");
+        assertThat(handle.urls().get(0), is(expected));
     }
 }

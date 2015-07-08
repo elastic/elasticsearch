@@ -21,11 +21,14 @@ package org.elasticsearch.test.disruption;
 
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
 import java.util.regex.Pattern;
+
+import static org.junit.Assert.assertFalse;
 
 /**
  * Suspends all threads on the specified node in order to simulate a long gc.
@@ -61,6 +64,12 @@ public class LongGCDisruption extends SingleNodeDisruption {
             resumeThreads(suspendedThreads);
             suspendedThreads = null;
         }
+    }
+
+    @Override
+    public void removeAndEnsureHealthy(InternalTestCluster cluster) {
+        removeFromCluster(cluster);
+        ensureNodeCount(cluster);
     }
 
     @Override

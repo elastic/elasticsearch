@@ -19,9 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
 import java.io.IOException;
@@ -30,16 +28,16 @@ import java.io.IOException;
 /**
  * A mapper for a builtin field containing metadata about a document.
  */
-public abstract class MetadataFieldMapper extends AbstractFieldMapper {
+public abstract class MetadataFieldMapper extends FieldMapper {
 
-    public abstract static class Builder<T extends Builder, Y extends MetadataFieldMapper> extends AbstractFieldMapper.Builder<T, Y> {
+    public abstract static class Builder<T extends Builder, Y extends MetadataFieldMapper> extends FieldMapper.Builder<T, Y> {
         public Builder(String name, MappedFieldType fieldType) {
             super(name, fieldType);
         }
     }
 
-    protected MetadataFieldMapper(String simpleName, MappedFieldType fieldType, Boolean docValues, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(simpleName, fieldType, docValues, fieldDataSettings, indexSettings, MultiFields.empty(), null);
+    protected MetadataFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Settings indexSettings) {
+        super(simpleName, fieldType, defaultFieldType, indexSettings, MultiFields.empty(), null);
     }
 
     /**

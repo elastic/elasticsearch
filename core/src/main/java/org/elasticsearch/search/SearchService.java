@@ -267,22 +267,39 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     public ScrollQueryFetchSearchResult executeScan(InternalScrollSearchRequest request) {
         final SearchContext context = findContext(request.id());
+        ShardSearchStats shardSearchStats = context.indexShard().searchService();
         contextProcessing(context);
         try {
             processScroll(request, context);
-            if (context.searchType() == SearchType.QUERY_THEN_FETCH) {
-                // first scanning, reset the from to 0
-                context.searchType(SearchType.SCAN);
-                context.from(0);
+            shardSearchStats.onPreQueryPhase(context);
+            long time = System.nanoTime();
+            try {
+                if (context.searchType() == SearchType.QUERY_THEN_FETCH) {
+                    // first scanning, reset the from to 0
+                    context.searchType(SearchType.SCAN);
+                    context.from(0);
+                }
+                queryPhase.execute(context);
+            } catch (Throwable e) {
+                shardSearchStats.onFailedQueryPhase(context);
+                throw ExceptionsHelper.convertToRuntime(e);
             }
-            queryPhase.execute(context);
-            shortcutDocIdsToLoadForScanning(context);
-            fetchPhase.execute(context);
-            if (context.scroll() == null || context.fetchResult().hits().hits().length < context.size()) {
-                freeContext(request.id());
-            } else {
-                contextProcessedSuccessfully(context);
+            long queryFinishTime = System.nanoTime();
+            shardSearchStats.onQueryPhase(context, queryFinishTime - time);
+            shardSearchStats.onPreFetchPhase(context);
+            try {
+                shortcutDocIdsToLoadForScanning(context);
+                fetchPhase.execute(context);
+                if (context.scroll() == null || context.fetchResult().hits().hits().length < context.size()) {
+                    freeContext(request.id());
+                } else {
+                    contextProcessedSuccessfully(context);
+                }
+            } catch (Throwable e) {
+                shardSearchStats.onFailedFetchPhase(context);
+                throw ExceptionsHelper.convertToRuntime(e);
             }
+            shardSearchStats.onFetchPhase(context, System.nanoTime() - queryFinishTime);
             return new ScrollQueryFetchSearchResult(new QueryFetchSearchResult(context.queryResult(), context.fetchResult()), context.shardTarget());
         } catch (Throwable e) {
             logger.trace("Scan phase failed", e);
@@ -569,6 +586,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         boolean success = false;
         try {
             putContext(context);
+            if (request.scroll() != null) {
+                context.indexShard().searchService().onNewScrollContext(context);
+            }
             context.indexShard().searchService().onNewContext(context);
             success = true;
             return context;
@@ -643,6 +663,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         if (context != null) {
             try {
                 context.indexShard().searchService().onFreeContext(context);
+                if (context.scroll() != null) {
+                    context.indexShard().searchService().onFreeScrollContext(context);
+                }
             } finally {
                 context.close();
             }

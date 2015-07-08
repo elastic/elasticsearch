@@ -42,7 +42,7 @@ and will use the matching format as its format attribute. The date
 format itself is explained
 <<mapping-date-format,here>>.
 
-The default formats are: `dateOptionalTime` (ISO),
+The default formats are: `strictDateOptionalTime` (ISO) and
 `yyyy/MM/dd HH:mm:ss Z||yyyy/MM/dd Z` and `epoch_millis`.
 
 *Note:* `dynamic_date_formats` are used *only* for dynamically added

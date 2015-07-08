@@ -17,37 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.monitor.network;
+package org.elasticsearch.test.rest;
 
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-/**
- *
- */
-public class JmxNetworkProbe extends AbstractComponent implements NetworkProbe {
+import org.elasticsearch.test.rest.parser.RestTestParseException;
 
-    @Inject
-    public JmxNetworkProbe(Settings settings) {
-        super(settings);
+import java.io.IOException;
+
+/** Rest integration test. runs against external cluster in 'mvn verify' */
+public class RestIT extends ElasticsearchRestTestCase {
+    public RestIT(RestTestCandidate testCandidate) {
+        super(testCandidate);
     }
-
-    @Override
-    public NetworkInfo networkInfo() {
-        NetworkInfo info = new NetworkInfo();
-        return info;
-    }
-
-    @Override
-    public NetworkStats networkStats() {
-        NetworkStats stats = new NetworkStats();
-        stats.timestamp = System.currentTimeMillis();
-        return stats;
-    }
-
-    @Override
-    public String ifconfig() {
-        return "NA";
+    // we run them all sequentially: start simple!
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
+        return createParameters(0, 1);
     }
 }

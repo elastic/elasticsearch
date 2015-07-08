@@ -17,16 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.monitor.network;
+package org.elasticsearch.cloud.gce;
 
-/**
- *
- */
-public interface NetworkProbe {
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.test.rest.ElasticsearchRestTestCase;
+import org.elasticsearch.test.rest.RestTestCandidate;
+import org.elasticsearch.test.rest.parser.RestTestParseException;
 
-    NetworkInfo networkInfo();
+import java.io.IOException;
 
-    NetworkStats networkStats();
+public class CloudGCERestIT extends ElasticsearchRestTestCase {
 
-    String ifconfig();
+    public CloudGCERestIT(@Name("yaml") RestTestCandidate testCandidate) {
+        super(testCandidate);
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
+        return ElasticsearchRestTestCase.createParameters(0, 1);
+    }
 }
+

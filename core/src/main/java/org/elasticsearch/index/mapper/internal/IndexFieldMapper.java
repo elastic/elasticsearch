@@ -31,7 +31,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -39,7 +38,6 @@ import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
@@ -59,7 +57,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
     public static final String CONTENT_TYPE = "_index";
 
-    public static class Defaults extends AbstractFieldMapper.Defaults {
+    public static class Defaults {
         public static final String NAME = IndexFieldMapper.NAME;
 
         public static final MappedFieldType FIELD_TYPE = new IndexFieldType();
@@ -94,8 +92,9 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
         @Override
         public IndexFieldMapper build(BuilderContext context) {
-            fieldType.setNames(new MappedFieldType.Names(indexName, indexName, name));
-            return new IndexFieldMapper(fieldType, enabledState, fieldDataSettings, context.indexSettings());
+            setupFieldType(context);
+            fieldType.setHasDocValues(false);
+            return new IndexFieldMapper(fieldType, enabledState, context.indexSettings());
         }
     }
 
@@ -207,29 +206,16 @@ public class IndexFieldMapper extends MetadataFieldMapper {
     private EnabledAttributeMapper enabledState;
 
     public IndexFieldMapper(Settings indexSettings, MappedFieldType existing) {
-        this(existing == null ? Defaults.FIELD_TYPE.clone() : existing,
-             Defaults.ENABLED_STATE,
-             existing == null ? null : (existing.fieldDataType() == null ? null : existing.fieldDataType().getSettings()), indexSettings);
+        this(existing == null ? Defaults.FIELD_TYPE.clone() : existing, Defaults.ENABLED_STATE, indexSettings);
     }
 
-    public IndexFieldMapper(MappedFieldType fieldType, EnabledAttributeMapper enabledState,
-                            @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(NAME, fieldType, false, fieldDataSettings, indexSettings);
+    public IndexFieldMapper(MappedFieldType fieldType, EnabledAttributeMapper enabledState, Settings indexSettings) {
+        super(NAME, fieldType, Defaults.FIELD_TYPE, indexSettings);
         this.enabledState = enabledState;
     }
 
     public boolean enabled() {
         return this.enabledState.enabled;
-    }
-
-    @Override
-    public MappedFieldType defaultFieldType() {
-        return Defaults.FIELD_TYPE;
-    }
-
-    @Override
-    public FieldDataType defaultFieldDataType() {
-        return new FieldDataType(IndexFieldMapper.NAME);
     }
 
     public String value(Document document) {
@@ -280,13 +266,8 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         if (includeDefaults || enabledState != Defaults.ENABLED_STATE) {
             builder.field("enabled", enabledState.enabled);
         }
-
-        if (indexCreatedBefore2x) {
-            if (hasCustomFieldDataSettings()) {
-                builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
-            } else if (includeDefaults) {
-                builder.field("fielddata", (Map) fieldType().fieldDataType().getSettings().getAsMap());
-            }
+        if (indexCreatedBefore2x && (includeDefaults || hasCustomFieldDataSettings())) {
+            builder.field("fielddata", (Map) fieldType().fieldDataType().getSettings().getAsMap());
         }
         builder.endObject();
         return builder;

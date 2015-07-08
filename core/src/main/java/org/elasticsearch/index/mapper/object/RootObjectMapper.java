@@ -49,7 +49,7 @@ public class RootObjectMapper extends ObjectMapper {
         public static final FormatDateTimeFormatter[] DYNAMIC_DATE_TIME_FORMATTERS =
                 new FormatDateTimeFormatter[]{
                         DateFieldMapper.Defaults.DATE_TIME_FORMATTER,
-                        Joda.forPattern("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd")
+                        Joda.getStrictStandardDateFormatter()
                 };
         public static final boolean DATE_DETECTION = true;
         public static final boolean NUMERIC_DETECTION = false;

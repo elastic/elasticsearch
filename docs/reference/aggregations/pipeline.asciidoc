@@ -134,22 +134,26 @@ count of each bucket, instead of a specific metric:
 [float]
 === Dealing with gaps in the data
 
-There are a couple of reasons why the data output by the enclosing histogram may have gaps:
+Data in the real world is often noisy and sometimes contains *gaps* -- places where data simply doesn't exist.  This can
+occur for a variety of reasons, the most common being:
 
-* There are no documents matching the query for some buckets
-* The data for a metric is missing in all of the documents falling into a bucket (this is most likely with either a small interval
-on the enclosing histogram or with a query matching only a small number of documents)
+* Documents falling into a bucket do not contain a required field
+* There are no documents matching the query for one or more buckets
+* The metric being calculated is unable to generate a value, likely because another dependent bucket is missing a value.
+Some pipeline aggregations have specific requirements that must be met (e.g. a derivative cannot calculate a metric for the
+first value because there is no previous value, HoltWinters moving average need "warmup" data to begin calculating, etc)
 
-Where there is no data available in a bucket for a given metric it presents a problem for calculating the derivative value for both
-the current bucket and the next bucket. In the derivative pipeline aggregation has a `gap policy` parameter to define what the behavior
-should be when a gap in the data is found. There are currently two options for controlling the gap policy:
+Gap policies are a mechanism to inform the pipeline aggregation about the desired behavior when "gappy" or missing
+data is encountered.  All pipeline aggregations accept the `gap_policy` parameter.  There are currently two gap policies
+to choose from:
 
 _skip_::
-                This option will not produce a derivative value for any buckets where the value in the current or previous bucket is
-                missing
+                This option treats missing data as if the bucket does not exist.  It will skip the bucket and continue
+                calculating using the next available value.
 
 _insert_zeros_::
-                This option will assume the missing value is `0` and calculate the derivative with the value `0`.
+                This option will replace missing values with a zero (`0`) and pipeline aggregation computation will
+                proceed as normal.
 
 
 
@@ -162,3 +166,4 @@ include::pipeline/sum-bucket-aggregation.asciidoc[]
 include::pipeline/movavg-aggregation.asciidoc[]
 include::pipeline/cumulative-sum-aggregation.asciidoc[]
 include::pipeline/bucket-script-aggregation.asciidoc[]
+include::pipeline/bucket-selector-aggregation.asciidoc[]

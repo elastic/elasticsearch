@@ -33,6 +33,7 @@
     </scm>
 
     <properties>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <!-- elasticsearch stack -->
         <elasticsearch.version>2.0.0-SNAPSHOT</elasticsearch.version>
         <jvm.executable>${java.home}${file.separator}bin${file.separator}java</jvm.executable>
@@ -93,14 +94,18 @@
         <tests.rest.suite></tests.rest.suite>
         <tests.rest.blacklist></tests.rest.blacklist>
         <tests.rest.spec></tests.rest.spec>
+        <tests.rest.load_packaged></tests.rest.load_packaged>
         <tests.network></tests.network>
         <tests.cluster></tests.cluster>
         <tests.filter></tests.filter>
-        <tests.rest.load_packaged></tests.rest.load_packaged>
         <env.ES_TEST_LOCAL></env.ES_TEST_LOCAL>
         <tests.security.manager>true</tests.security.manager>
         <tests.compatibility></tests.compatibility>
         <tests.ifNoTests>fail</tests.ifNoTests>
+        <skip.unit.tests>${skipTests}</skip.unit.tests>
+        <skip.integ.tests>${skipTests}</skip.integ.tests>
+        <integ.scratch>${project.build.directory}/integ-tests</integ.scratch>
+        <integ.temp>${integ.scratch}/temp</integ.temp>
     </properties>
 
     <repositories>
@@ -125,7 +130,7 @@
         <dependencies>
             <dependency>
                 <groupId>org.elasticsearch</groupId>
-                <artifactId>dev-tools</artifactId>
+                <artifactId>elasticsearch-dev-tools</artifactId>
                 <version>${elasticsearch.version}</version>
             </dependency>
 
@@ -183,6 +188,13 @@
                 <artifactId>elasticsearch</artifactId>
                 <version>${elasticsearch.version}</version>
                 <type>test-jar</type>
+            </dependency>
+
+            <dependency>
+                <groupId>org.elasticsearch</groupId>
+                <artifactId>elasticsearch</artifactId>
+                <version>${elasticsearch.version}</version>
+                <type>zip</type>
             </dependency>
 
             <dependency>
@@ -552,6 +564,7 @@
                             <configuration>
                                 <jvm>${jvm.executable}</jvm>
                                 <argLine>${tests.jvm.argline}</argLine>
+                                <skipTests>${skip.unit.tests}</skipTests>
                                 <heartbeat>10</heartbeat>
                                 <jvmOutputAction>warn</jvmOutputAction>
                                 <leaveTemporary>true</leaveTemporary>
@@ -684,6 +697,36 @@
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-failsafe-plugin</artifactId>
+                    <version>2.18.1</version>
+                    <configuration>
+                       <skipTests>${skip.integ.tests}</skipTests>
+                       <systemPropertyVariables>
+                           <es.logger.level>${es.logger.level}</es.logger.level>
+                           <tests.rest.suite>${tests.rest.suite}</tests.rest.suite>
+                           <tests.rest.blacklist>${tests.rest.blacklist}</tests.rest.blacklist>
+                           <tests.rest.spec>${tests.rest.spec}</tests.rest.spec>
+                           <tests.rest.load_packaged>${tests.rest.load_packaged}</tests.rest.load_packaged>
+                           <java.io.tmpdir>${integ.temp}</java.io.tmpdir>
+                       </systemPropertyVariables>
+                    </configuration>
+                    <executions>
+                        <execution>
+                            <id>integration-test</id>
+                            <goals>
+                                <goal>integration-test</goal>
+                            </goals>
+                        </execution>
+                        <execution>
+                            <id>verify</id>
+                            <goals>
+                                <goal>verify</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-source-plugin</artifactId>
                     <version>2.4</version>
                     <executions>
@@ -701,8 +744,8 @@
                     <version>1.5</version>
                     <configuration>
                         <resourceBundles>
-                            <resourceBundle>org.elasticsearch:dev-tools:${elasticsearch.version}</resourceBundle>
-                            <resourceBundle>org.elasticsearch:rest-api-spec:${elasticsearch.version}</resourceBundle>
+                            <resourceBundle>org.elasticsearch:elasticsearch-dev-tools:${elasticsearch.version}</resourceBundle>
+                            <resourceBundle>org.elasticsearch:elasticsearch-rest-api-spec:${elasticsearch.version}</resourceBundle>
                         </resourceBundles>
                         <outputDirectory>${elasticsearch.tools.directory}</outputDirectory>
                         <!-- don't include dev-tools in artifacts -->
@@ -1064,7 +1107,7 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-pmd-plugin</artifactId>
-                    <version>3.3</version>
+                    <version>3.5</version>
                     <configuration>
                         <rulesets>
                             <ruleset>${elasticsearch.tools.directory}/pmd/custom.xml</ruleset>
@@ -1133,7 +1176,8 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                                         <available file="${basedir}/licenses" type="dir"/>
                                     </condition>
                                     <echo taskName="license check">Running license check</echo>
-                                    <exec failonerror="${licenses.exists}" executable="perl" dir="${elasticsearch.tools.directory}/license-check" >
+                                    <!-- on windows checksums are calculated wrong -->
+                                    <exec failonerror="${licenses.exists}" executable="perl" dir="${elasticsearch.tools.directory}/license-check" osfamily="unix" >
                                         <arg value="check_license_and_sha.pl"/>
                                         <arg value="--check"/>
                                         <arg value="${basedir}"/>
@@ -1220,20 +1264,9 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                             <id>tests-top-hints</id>
                             <phase>test</phase>
                             <configuration>
-                                <skip>${skipTests}</skip>
-                                <!-- don't run if we skip the tests -->
-                                <failOnError>false</failOnError>
+                                <skip>${skip.unit.tests}</skip>
                                 <target>
-                                    <property name="runtime_classpath" refid="maven.runtime.classpath"/>
-                                    <property name="test_classpath" refid="maven.test.classpath"/>
-                                    <property name="plugin_classpath" refid="maven.plugin.classpath"/>
-                                    <taskdef resource="com/carrotsearch/junit4/antlib.xml">
-                                        <classpath>
-                                            <pathelement path="${plugin_classpath}"/>
-                                            <pathelement path="${runtime_classpath}"/>
-                                            <pathelement path="${test_classpath}"/>
-                                        </classpath>
-                                    </taskdef>
+                                    <taskdef resource="com/carrotsearch/junit4/antlib.xml" classpathref="maven.plugin.classpath"/>
                                     <tophints max="${tests.topn}">
                                         <file file="${basedir}/${execution.hint.file}"/>
                                     </tophints>
@@ -1244,12 +1277,19 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                             </goals>
                         </execution>
                     </executions>
+                    <dependencies>
+                        <dependency>
+                            <groupId>com.carrotsearch.randomizedtesting</groupId>
+                            <artifactId>junit4-ant</artifactId>
+                            <version>${testframework.version}</version>
+                        </dependency>
+                    </dependencies>
                 </plugin>
                 <plugin>
                     <!-- We just declare which plugin version to use. Each project can have then its own settings -->
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-invoker-plugin</artifactId>
-                    <version>1.10</version>
+                    <version>2.0.0</version>
                 </plugin>
                 <plugin>
                     <!-- We just declare which plugin version to use. Each project can have then its own settings -->
@@ -1306,6 +1346,10 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                     <missing>${basedir}/src</missing>
                 </file>
             </activation>
+            <properties>
+                <skip.unit.tests>true</skip.unit.tests>
+                <skip.integ.tests>true</skip.integ.tests>
+            </properties>
             <build>
                 <plugins>
                     <plugin>

@@ -40,10 +40,9 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
@@ -61,7 +60,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
     public static final String CONTENT_TYPE = "_type";
 
-    public static class Defaults extends AbstractFieldMapper.Defaults {
+    public static class Defaults {
         public static final String NAME = TypeFieldMapper.NAME;
 
         public static final MappedFieldType FIELD_TYPE = new TypeFieldType();
@@ -106,7 +105,9 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
     static final class TypeFieldType extends MappedFieldType {
 
-        public TypeFieldType() {}
+        public TypeFieldType() {
+            setFieldDataType(new FieldDataType("string"));
+        }
 
         protected TypeFieldType(TypeFieldType ref) {
             super(ref);
@@ -150,19 +151,8 @@ public class TypeFieldMapper extends MetadataFieldMapper {
     }
 
     public TypeFieldMapper(MappedFieldType fieldType, Settings indexSettings) {
-        super(NAME, fieldType, false, null, indexSettings);
+        super(NAME, fieldType, Defaults.FIELD_TYPE, indexSettings);
     }
-
-    @Override
-    public MappedFieldType defaultFieldType() {
-        return Defaults.FIELD_TYPE;
-    }
-
-    @Override
-    public FieldDataType defaultFieldDataType() {
-        return new FieldDataType("string");
-    }
-
 
     @Override
     public void preParse(ParseContext context) throws IOException {

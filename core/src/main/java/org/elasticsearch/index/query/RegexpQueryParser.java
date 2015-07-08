@@ -37,6 +37,8 @@ import java.io.IOException;
  */
 public class RegexpQueryParser extends BaseQueryParserTemp {
 
+    public static final int DEFAULT_FLAGS_VALUE = RegexpFlag.ALL.value();
+
     @Inject
     public RegexpQueryParser() {
     }
@@ -55,7 +57,7 @@ public class RegexpQueryParser extends BaseQueryParserTemp {
 
         Object value = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
-        int flagsValue = -1;
+        int flagsValue = DEFAULT_FLAGS_VALUE;
         int maxDeterminizedStates = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
         String queryName = null;
         String currentFieldName = null;

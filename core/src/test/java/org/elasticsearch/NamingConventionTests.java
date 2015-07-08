@@ -75,7 +75,10 @@ public class NamingConventionTests extends ElasticsearchTestCase {
                         if (filename.endsWith(".class")) {
                             Class<?> clazz = loadClass(filename);
                             if (Modifier.isAbstract(clazz.getModifiers()) == false && Modifier.isInterface(clazz.getModifiers()) == false) {
-                                if ((clazz.getName().endsWith("Tests") || clazz.getName().endsWith("Test"))) { // don't worry about the ones that match the pattern
+                                if (clazz.getName().endsWith("Tests") || 
+                                    clazz.getName().endsWith("IT")    || 
+                                    clazz.getName().endsWith("Test")) { // don't worry about the ones that match the pattern
+
                                     if (isTestCase(clazz) == false) {
                                         notImplementing.add(clazz);
                                     }

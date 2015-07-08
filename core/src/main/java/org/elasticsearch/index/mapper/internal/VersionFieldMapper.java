@@ -55,6 +55,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         static {
             FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
             FIELD_TYPE.setDocValuesType(DocValuesType.NUMERIC);
+            FIELD_TYPE.setHasDocValues(true);
             FIELD_TYPE.freeze();
         }
     }
@@ -89,7 +90,9 @@ public class VersionFieldMapper extends MetadataFieldMapper {
 
     static final class VersionFieldType extends MappedFieldType {
 
-        public VersionFieldType() {}
+        public VersionFieldType() {
+            setFieldDataType(new FieldDataType("long"));
+        }
 
         protected VersionFieldType(VersionFieldType ref) {
             super(ref);
@@ -116,7 +119,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     }
 
     public VersionFieldMapper(Settings indexSettings) {
-        super(NAME, Defaults.FIELD_TYPE, true, null, indexSettings);
+        super(NAME, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE, indexSettings);
     }
 
     @Override
@@ -146,16 +149,6 @@ public class VersionFieldMapper extends MetadataFieldMapper {
             final Document doc = context.docs().get(i);
             doc.add(new NumericDocValuesField(NAME, 1L));
         }
-    }
-
-    @Override
-    public MappedFieldType defaultFieldType() {
-        return Defaults.FIELD_TYPE;
-    }
-
-    @Override
-    public FieldDataType defaultFieldDataType() {
-        return new FieldDataType("long");
     }
 
     @Override

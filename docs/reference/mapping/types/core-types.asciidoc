@@ -349,7 +349,7 @@ date type:
 Defaults to the property/field name.
 
 |`format` |The <<mapping-date-format,date
-format>>. Defaults to `epoch_millis||dateOptionalTime`.
+format>>. Defaults to `epoch_millis||strictDateOptionalTime`.
 
 |`store` |Set to `true` to store actual field in the index, `false` to not
 store it. Defaults to `false` (note, the JSON document itself is stored,

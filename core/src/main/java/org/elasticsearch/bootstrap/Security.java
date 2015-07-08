@@ -80,6 +80,7 @@ final class Security {
         m.put(Pattern.compile(".*lucene-core-.*\\.jar$"),    "es.security.jar.lucene.core");
         m.put(Pattern.compile(".*jsr166e-.*\\.jar$"),        "es.security.jar.twitter.jsr166e");
         m.put(Pattern.compile(".*securemock-.*\\.jar$"),     "es.security.jar.elasticsearch.securemock");
+        m.put(Pattern.compile(".*bcprov-.*\\.jar$"),         "es.security.jar.bouncycastle.bcprov");
         SPECIAL_JARS = Collections.unmodifiableMap(m);
     }
 
@@ -96,11 +97,9 @@ final class Security {
                 for (Map.Entry<Pattern,String> e : SPECIAL_JARS.entrySet()) {
                     if (e.getKey().matcher(url.getPath()).matches()) {
                         String prop = e.getValue();
-                        // TODO: we need to fix plugins to not include duplicate e.g. lucene-core jars,
-                        // to add back this safety check! see https://github.com/elastic/elasticsearch/issues/11647
-                        // if (System.getProperty(prop) != null) {
-                        //    throw new IllegalStateException("property: " + prop + " is unexpectedly set: " + System.getProperty(prop));
-                        //}
+                        if (System.getProperty(prop) != null) {
+                            throw new IllegalStateException("property: " + prop + " is unexpectedly set: " + System.getProperty(prop));
+                        }
                         System.setProperty(prop, url.toString());
                     }
                 }

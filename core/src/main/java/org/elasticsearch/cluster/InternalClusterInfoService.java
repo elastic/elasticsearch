@@ -39,7 +39,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.monitor.fs.FsStats;
+import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
@@ -320,7 +320,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
                             long available = 0;
                             long total = 0;
 
-                            for (FsStats.Info info : nodeStats.getFs()) {
+                            for (FsInfo.Path info : nodeStats.getFs()) {
                                 available += info.getAvailable().bytes();
                                 total += info.getTotal().bytes();
                             }

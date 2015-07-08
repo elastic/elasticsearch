@@ -27,7 +27,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoHashUtils;
@@ -39,13 +38,12 @@ import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper.CustomNumericDocValuesField;
@@ -76,7 +74,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
  * "lon" : 2.1
  * }
  */
-public class GeoPointFieldMapper extends AbstractFieldMapper implements ArrayValueMapperParser {
+public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapperParser {
 
     public static final String CONTENT_TYPE = "geo_point";
 
@@ -110,7 +108,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper implements ArrayVal
         }
     }
 
-    public static class Builder extends AbstractFieldMapper.Builder<Builder, GeoPointFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder, GeoPointFieldMapper> {
 
         private ContentPath.Type pathType = Defaults.PATH_TYPE;
 
@@ -129,7 +127,8 @@ public class GeoPointFieldMapper extends AbstractFieldMapper implements ArrayVal
             this.builder = this;
         }
 
-        GeoPointFieldType fieldType() {
+        @Override
+        public GeoPointFieldType fieldType() {
             return (GeoPointFieldType)fieldType;
         }
 
@@ -204,10 +203,10 @@ public class GeoPointFieldMapper extends AbstractFieldMapper implements ArrayVal
             // this is important: even if geo points feel like they need to be tokenized to distinguish lat from lon, we actually want to
             // store them as a single token.
             fieldType.setTokenized(false);
-            fieldType.setHasDocValues(false);
             setupFieldType(context);
-
-            return new GeoPointFieldMapper(name, fieldType, docValues, fieldDataSettings, context.indexSettings(), origPathType,
+            fieldType.setHasDocValues(false);
+            defaultFieldType.setHasDocValues(false);
+            return new GeoPointFieldMapper(name, fieldType, defaultFieldType, context.indexSettings(), origPathType,
                      latMapper, lonMapper, geohashMapper, multiFieldsBuilder.build(this, context));
         }
     }
@@ -586,9 +585,9 @@ public class GeoPointFieldMapper extends AbstractFieldMapper implements ArrayVal
 
     private final StringFieldMapper geohashMapper;
 
-    public GeoPointFieldMapper(String simpleName, MappedFieldType fieldType, Boolean docValues, @Nullable Settings fieldDataSettings, Settings indexSettings,
+    public GeoPointFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Settings indexSettings,
             ContentPath.Type pathType, DoubleFieldMapper latMapper, DoubleFieldMapper lonMapper, StringFieldMapper geohashMapper,MultiFields multiFields) {
-        super(simpleName, fieldType, docValues, fieldDataSettings, indexSettings, multiFields, null);
+        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, null);
         this.pathType = pathType;
         this.latMapper = latMapper;
         this.lonMapper = lonMapper;
@@ -603,21 +602,6 @@ public class GeoPointFieldMapper extends AbstractFieldMapper implements ArrayVal
     @Override
     public GeoPointFieldType fieldType() {
         return (GeoPointFieldType) super.fieldType();
-    }
-
-    @Override
-    public MappedFieldType defaultFieldType() {
-        return Defaults.FIELD_TYPE;
-    }
-
-    @Override
-    public FieldDataType defaultFieldDataType() {
-        return new FieldDataType("geo_point");
-    }
-    
-    @Override
-    protected boolean defaultDocValues() {
-        return false;
     }
 
     @Override

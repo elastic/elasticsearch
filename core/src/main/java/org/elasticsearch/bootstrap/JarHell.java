@@ -81,10 +81,10 @@ public class JarHell {
         // a "list" at all. So just exclude any elements underneath the java home
         String javaHome = System.getProperty("java.home");
         logger.debug("java.home: {}", javaHome);
-        final Map<String,URL> clazzes = new HashMap<>(32768);
-        Set<String> seenJars = new HashSet<>();
+        final Map<String,Path> clazzes = new HashMap<>(32768);
+        Set<Path> seenJars = new HashSet<>();
         for (final URL url : urls) {
-            String path = URLDecoder.decode(url.getPath(), "UTF-8");
+            final Path path = PathUtils.get(url.toURI());
             // exclude system resources
             if (path.startsWith(javaHome)) {
                 logger.debug("excluding system resource: {}", path);
@@ -96,7 +96,7 @@ public class JarHell {
                     continue; // we can't fail because of sheistiness with joda-time
                 }
                 logger.debug("examining jar: {}", path);
-                try (JarFile file = new JarFile(path)) {
+                try (JarFile file = new JarFile(path.toString())) {
                     Manifest manifest = file.getManifest();
                     if (manifest != null) {
                         // inspect Manifest: give a nice error if jar requires a newer java version
@@ -124,7 +124,7 @@ public class JarHell {
                         if (entry.endsWith(".class")) {
                             // for jar format, the separator is defined as /
                             entry = entry.replace('/', '.').substring(0, entry.length() - 6);
-                            checkClass(clazzes, entry, url);
+                            checkClass(clazzes, entry, path);
                         }
                     }
                 }
@@ -140,7 +140,7 @@ public class JarHell {
                         if (entry.endsWith(".class")) {
                             // normalize with the os separator
                             entry = entry.replace(sep, ".").substring(0,  entry.length() - 6);
-                            checkClass(clazzes, entry, url);
+                            checkClass(clazzes, entry, path);
                         }
                         return super.visitFile(file, attrs);
                     }
@@ -148,21 +148,32 @@ public class JarHell {
             }
         }
     }
-    
-    @SuppressForbidden(reason = "proper use of URL to reduce noise")
-    static void checkClass(Map<String,URL> clazzes, String clazz, URL url) {
-        if (clazz.startsWith("org.apache.log4j")) {
-            return; // go figure, jar hell for what should be System.out.println...
-        }
-        if (clazz.equals("org.joda.time.base.BaseDateTime")) {
-            return; // apparently this is intentional... clean this up
-        }
-        URL previous = clazzes.put(clazz, url);
+
+    static void checkClass(Map<String,Path> clazzes, String clazz, Path jarpath) {
+        Path previous = clazzes.put(clazz, jarpath);
         if (previous != null) {
-            throw new IllegalStateException("jar hell!" + System.lineSeparator() +
-                    "class: " + clazz + System.lineSeparator() +
-                    "jar1: " + previous.getPath() + System.lineSeparator() +
-                    "jar2: " + url.getPath());
+            if (previous.equals(jarpath)) {
+                if (clazz.startsWith("org.apache.xmlbeans")) {
+                    return; // https://issues.apache.org/jira/browse/XMLBEANS-499
+                }
+                // throw a better exception in this ridiculous case.
+                // unfortunately the zip file format allows this buggy possibility
+                // UweSays: It can, but should be considered as bug :-)
+                throw new IllegalStateException("jar hell!" + System.lineSeparator() +
+                        "class: " + clazz + System.lineSeparator() +
+                        "exists multiple times in jar: " + jarpath + " !!!!!!!!!");
+            } else {
+                if (clazz.startsWith("org.apache.log4j")) {
+                    return; // go figure, jar hell for what should be System.out.println...
+                }
+                if (clazz.equals("org.joda.time.base.BaseDateTime")) {
+                    return; // apparently this is intentional... clean this up
+                }
+                throw new IllegalStateException("jar hell!" + System.lineSeparator() +
+                        "class: " + clazz + System.lineSeparator() +
+                        "jar1: " + previous + System.lineSeparator() +
+                        "jar2: " + jarpath);
+            }
         }
     }
 }

@@ -428,8 +428,7 @@ public class MapperQueryParser extends QueryParser {
         currentFieldType = parseContext.fieldMapper(field);
         if (currentFieldType != null) {
             try {
-                //LUCENE 4 UPGRADE I disabled transpositions here by default - maybe this needs to be changed
-                return currentFieldType.fuzzyQuery(termStr, Fuzziness.build(minSimilarity), fuzzyPrefixLength, settings.fuzzyMaxExpansions(), false);
+                return currentFieldType.fuzzyQuery(termStr, Fuzziness.build(minSimilarity), fuzzyPrefixLength, settings.fuzzyMaxExpansions(), FuzzyQuery.defaultTranspositions);
             } catch (RuntimeException e) {
                 if (settings.lenient()) {
                     return null;
@@ -444,8 +443,7 @@ public class MapperQueryParser extends QueryParser {
     protected Query newFuzzyQuery(Term term, float minimumSimilarity, int prefixLength) {
         String text = term.text();
         int numEdits = FuzzyQuery.floatToEdits(minimumSimilarity, text.codePointCount(0, text.length()));
-        //LUCENE 4 UPGRADE I disabled transpositions here by default - maybe this needs to be changed 
-        FuzzyQuery query = new FuzzyQuery(term, numEdits, prefixLength, settings.fuzzyMaxExpansions(), false);
+        FuzzyQuery query = new FuzzyQuery(term, numEdits, prefixLength, settings.fuzzyMaxExpansions(), FuzzyQuery.defaultTranspositions);
         QueryParsers.setRewriteMethod(query, settings.fuzzyRewriteMethod());
         return query;
     }

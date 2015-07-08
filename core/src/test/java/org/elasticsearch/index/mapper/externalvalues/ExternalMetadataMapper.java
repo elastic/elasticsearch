@@ -53,22 +53,12 @@ public class ExternalMetadataMapper extends MetadataFieldMapper {
     }
 
     protected ExternalMetadataMapper(Settings indexSettings) {
-        super(FIELD_NAME, FIELD_TYPE, true, null, indexSettings);
+        super(FIELD_NAME, FIELD_TYPE, FIELD_TYPE, indexSettings);
     }
 
     @Override
     public String name() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public MappedFieldType defaultFieldType() {
-        return FIELD_TYPE;
-    }
-
-    @Override
-    public FieldDataType defaultFieldDataType() {
-        return new FieldDataType("string");
     }
 
     @Override

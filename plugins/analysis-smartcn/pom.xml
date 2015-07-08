@@ -4,21 +4,19 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>org.elasticsearch.plugin</groupId>
-    <artifactId>elasticsearch-analysis-smartcn</artifactId>
-
-    <packaging>jar</packaging>
-    <name>Elasticsearch Smart Chinese Analysis plugin</name>
-    <description>Smart Chinese Analysis plugin integrates Lucene Smart Chinese analysis module into elasticsearch.</description>
-
     <parent>
-        <groupId>org.elasticsearch</groupId>
+        <groupId>org.elasticsearch.plugin</groupId>
         <artifactId>elasticsearch-plugin</artifactId>
         <version>2.0.0-SNAPSHOT</version>
     </parent>
 
+    <artifactId>elasticsearch-analysis-smartcn</artifactId>
+    <name>Elasticsearch Smart Chinese Analysis plugin</name>
+    <description>Smart Chinese Analysis plugin integrates Lucene Smart Chinese analysis module into elasticsearch.</description>
+
     <properties>
-        <!-- You can add any specific project property here -->
+        <tests.rest.suite>analysis_smartcn</tests.rest.suite>
+        <tests.rest.load_packaged>false</tests.rest.load_packaged>
     </properties>
 
     <dependencies>

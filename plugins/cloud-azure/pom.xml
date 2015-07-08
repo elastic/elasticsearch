@@ -15,22 +15,21 @@ governing permissions and limitations under the License. -->
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>org.elasticsearch.plugin</groupId>
-    <artifactId>elasticsearch-cloud-azure</artifactId>
-
-    <packaging>jar</packaging>
-    <name>Elasticsearch Azure cloud plugin</name>
-    <description>The Azure Cloud plugin allows to use Azure API for the unicast discovery mechanism and add Azure storage repositories.</description>
-
     <parent>
-        <groupId>org.elasticsearch</groupId>
+        <groupId>org.elasticsearch.plugin</groupId>
         <artifactId>elasticsearch-plugin</artifactId>
         <version>2.0.0-SNAPSHOT</version>
     </parent>
 
+    <artifactId>elasticsearch-cloud-azure</artifactId>
+    <name>Elasticsearch Azure cloud plugin</name>
+    <description>The Azure Cloud plugin allows to use Azure API for the unicast discovery mechanism and add Azure storage repositories.</description>
+
     <properties>
         <!-- You can add any specific project property here -->
         <tests.jvms>1</tests.jvms>
+        <tests.rest.suite>cloud_azure</tests.rest.suite>
+        <tests.rest.load_packaged>false</tests.rest.load_packaged>
     </properties>
 
     <dependencies>

@@ -32,7 +32,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.monitor.fs.FsStats;
+import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -141,15 +141,15 @@ public class MockDiskUsagesTests extends ElasticsearchIntegrationTest {
 
     /** Create a fake NodeStats for the given node and usage */
     public static NodeStats makeStats(String nodeName, DiskUsage usage) {
-        FsStats.Info[] infos = new FsStats.Info[1];
-        FsStats.Info info = new FsStats.Info("/path.data", null, null,
-                usage.getTotalBytes(), usage.getFreeBytes(), usage.getFreeBytes(), -1, -1, -1, -1, -1, -1);
-        infos[0] = info;
-        FsStats fsStats = new FsStats(System.currentTimeMillis(), infos);
+        FsInfo.Path[] paths = new FsInfo.Path[1];
+        FsInfo.Path path = new FsInfo.Path("/path.data", null,
+                usage.getTotalBytes(), usage.getFreeBytes(), usage.getFreeBytes());
+        paths[0] = path;
+        FsInfo fsInfo = new FsInfo(System.currentTimeMillis(), paths);
         return new NodeStats(new DiscoveryNode(nodeName, null, Version.V_2_0_0),
                 System.currentTimeMillis(),
-                null, null, null, null, null, null,
-                fsStats,
+                null, null, null, null, null,
+                fsInfo,
                 null, null, null);
     }
 

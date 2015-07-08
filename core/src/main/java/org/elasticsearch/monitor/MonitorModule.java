@@ -23,12 +23,8 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.monitor.fs.FsService;
-import org.elasticsearch.monitor.fs.JmxFsProbe;
 import org.elasticsearch.monitor.jvm.JvmMonitorService;
 import org.elasticsearch.monitor.jvm.JvmService;
-import org.elasticsearch.monitor.network.JmxNetworkProbe;
-import org.elasticsearch.monitor.network.NetworkProbe;
-import org.elasticsearch.monitor.network.NetworkService;
 import org.elasticsearch.monitor.os.JmxOsProbe;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.os.OsService;
@@ -56,13 +52,11 @@ public class MonitorModule extends AbstractModule {
         // bind default implementations
         bind(ProcessProbe.class).to(JmxProcessProbe.class).asEagerSingleton();
         bind(OsProbe.class).to(JmxOsProbe.class).asEagerSingleton();
-        bind(NetworkProbe.class).to(JmxNetworkProbe.class).asEagerSingleton();
-        bind(FsProbe.class).to(JmxFsProbe.class).asEagerSingleton();
+        bind(FsProbe.class).asEagerSingleton();
 
         // bind other services
         bind(ProcessService.class).asEagerSingleton();
         bind(OsService.class).asEagerSingleton();
-        bind(NetworkService.class).asEagerSingleton();
         bind(JvmService.class).asEagerSingleton();
         bind(FsService.class).asEagerSingleton();
 

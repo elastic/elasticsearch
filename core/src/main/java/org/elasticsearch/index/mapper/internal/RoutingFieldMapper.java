@@ -33,9 +33,8 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
+import org.elasticsearch.index.mapper.ParseContext;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -53,7 +52,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_routing";
     public static final String CONTENT_TYPE = "_routing";
 
-    public static class Defaults extends AbstractFieldMapper.Defaults {
+    public static class Defaults {
         public static final String NAME = "_routing";
 
         public static final MappedFieldType FIELD_TYPE = new RoutingFieldType();
@@ -124,7 +123,9 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
     static final class RoutingFieldType extends MappedFieldType {
 
-        public RoutingFieldType() {}
+        public RoutingFieldType() {
+            setFieldDataType(new FieldDataType("string"));
+        }
 
         protected RoutingFieldType(RoutingFieldType ref) {
             super(ref);
@@ -157,19 +158,9 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     }
 
     protected RoutingFieldMapper(MappedFieldType fieldType, boolean required, String path, Settings indexSettings) {
-        super(NAME, fieldType, false, null, indexSettings);
+        super(NAME, fieldType, Defaults.FIELD_TYPE, indexSettings);
         this.required = required;
         this.path = path;
-    }
-
-    @Override
-    public MappedFieldType defaultFieldType() {
-        return Defaults.FIELD_TYPE;
-    }
-
-    @Override
-    public FieldDataType defaultFieldDataType() {
-        return new FieldDataType("string");
     }
 
     public void markAsRequired() {

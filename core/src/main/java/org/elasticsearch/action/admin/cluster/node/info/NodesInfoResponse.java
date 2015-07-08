@@ -111,9 +111,6 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
             if (nodeInfo.getThreadPool() != null) {
                 nodeInfo.getThreadPool().toXContent(builder, params);
             }
-            if (nodeInfo.getNetwork() != null) {
-                nodeInfo.getNetwork().toXContent(builder, params);
-            }
             if (nodeInfo.getTransport() != null) {
                 nodeInfo.getTransport().toXContent(builder, params);
             }

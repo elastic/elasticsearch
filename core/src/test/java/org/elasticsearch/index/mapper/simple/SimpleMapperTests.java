@@ -23,6 +23,7 @@ import com.google.common.base.Charsets;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.IndexService;
@@ -133,6 +134,20 @@ public class SimpleMapperTests extends ElasticsearchSingleNodeTest {
             fail("this point is never reached");
         } catch (MapperParsingException e) {
             assertThat(e.getMessage(), equalTo("failed to parse, document is empty"));
+        }
+    }
+
+    public void testHazardousFieldNames() throws Exception {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+            .startObject("foo.bar").field("type", "string").endObject()
+            .endObject().endObject().string();
+        try {
+            mapperParser.parse(mapping);
+            fail("Mapping parse should have failed");
+        } catch (MapperParsingException e) {
+            assertTrue(e.getMessage(), e.getMessage().contains("cannot contain '.'"));
         }
     }
 }

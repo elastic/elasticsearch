@@ -19,8 +19,13 @@
 
 package org.elasticsearch.action.update;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -28,9 +33,10 @@ import org.junit.Test;
 
 import java.util.Map;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public class UpdateRequestTests extends ElasticsearchTestCase {
 
@@ -118,5 +124,46 @@ public class UpdateRequestTests extends ElasticsearchTestCase {
         Map<String, Object> doc = request.doc().sourceAsMap();
         assertThat(doc.get("field1").toString(), equalTo("value1"));
         assertThat(((Map) doc.get("compound")).get("field2").toString(), equalTo("value2"));
+    }
+
+    @Test // Related to issue 3256
+    public void testUpdateRequestWithTTL() throws Exception {
+        long providedTTLValue = randomIntBetween(500, 1000);
+        Settings settings = settings(Version.CURRENT).build();
+
+        UpdateHelper updateHelper = new UpdateHelper(settings, null);
+
+        // We just upsert one document with ttl
+        IndexRequest indexRequest = new IndexRequest("test", "type1", "1")
+                .source(jsonBuilder().startObject().field("foo", "bar").endObject())
+                .ttl(providedTTLValue);
+        UpdateRequest updateRequest = new UpdateRequest("test", "type1", "1")
+                .doc(jsonBuilder().startObject().field("fooz", "baz").endObject())
+                .upsert(indexRequest);
+
+        // We simulate that the document is not existing yet
+        GetResult getResult = new GetResult("test", "type1", "1", 0, false, null, null);
+        UpdateHelper.Result result = updateHelper.prepare(updateRequest, getResult);
+        Streamable action = result.action();
+        assertThat(action, instanceOf(IndexRequest.class));
+        IndexRequest indexAction = (IndexRequest) action;
+        assertThat(indexAction.ttl(), is(providedTTLValue));
+
+        // We just upsert one document with ttl using a script
+        indexRequest = new IndexRequest("test", "type1", "2")
+                .source(jsonBuilder().startObject().field("foo", "bar").endObject())
+                .ttl(providedTTLValue);
+        updateRequest = new UpdateRequest("test", "type1", "2")
+                .upsert(indexRequest)
+                .script(new Script(";"))
+                .scriptedUpsert(true);
+
+        // We simulate that the document is not existing yet
+        getResult = new GetResult("test", "type1", "2", 0, false, null, null);
+        result = updateHelper.prepare(updateRequest, getResult);
+        action = result.action();
+        assertThat(action, instanceOf(IndexRequest.class));
+        indexAction = (IndexRequest) action;
+        assertThat(indexAction.ttl(), is(providedTTLValue));
     }
 }

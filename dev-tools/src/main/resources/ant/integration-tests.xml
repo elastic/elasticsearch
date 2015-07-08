@@ -1,0 +1,139 @@
+<?xml version="1.0"?>
+<project name="elasticsearch-integration-tests">
+
+  <!-- this is all to not run tests for 'pom' packaging. maven you fail -->
+  <condition property="shouldskip">
+    <istrue value="${skip.integ.tests}"/>
+  </condition>
+
+  <!-- our pid file for easy cleanup -->
+  <property name="integ.pidfile" location="${integ.scratch}/es.pid"/>
+
+  <!-- if this exists, ES is running (maybe) -->
+  <available property="integ.pidfile.exists" file="${integ.pidfile}"/>
+
+  <!-- arguments passed to elasticsearch when running -->
+  <property name="integ.args"
+            value="-Des.node.name=smoke_tester -Des.cluster.name=prepare_release
+                   -Des.discovery.zen.ping.multicast.enabled=false -Des.script.inline=on
+                   -Des.script.indexed=on -Des.pidfile=${integ.pidfile}"/>
+
+  <!-- runs an OS script -->
+  <macrodef name="run-script">
+      <attribute name="script"/>
+      <attribute name="dir"/>
+      <attribute name="args"/>
+      <attribute name="spawn" default="false"/>
+    <sequential>
+      <local name="failonerror"/>
+      <condition property="failonerror">
+          <isfalse value="@{spawn}"/>
+      </condition>
+
+      <exec executable="cmd" osfamily="winnt" dir="@{dir}" failonerror="${failonerror}" spawn="@{spawn}">
+        <arg value="/c"/>
+        <arg value="@{dir}/@{script}.bat"/>
+        <arg line="@{args}"/>
+      </exec>
+
+      <exec executable="sh" osfamily="unix" dir="@{dir}" failonerror="${failonerror}" spawn="@{spawn}">
+        <arg value="@{dir}/@{script}"/>
+        <arg line="@{args}"/>
+      </exec>
+    </sequential>
+  </macrodef>
+
+  <!-- extracts PID from file -->
+  <macrodef name="extract-pid">
+      <attribute name="property"/>
+    <sequential>
+      <loadfile srcFile="${integ.pidfile}" property="@{property}">
+        <filterchain>
+          <striplinebreaks/>
+        </filterchain>
+      </loadfile>
+    </sequential>
+  </macrodef>
+
+  <!-- unzip core release artifact and start ES -->
+  <target name="start-external-cluster" depends="stop-external-cluster" unless="${shouldskip}">
+    <local name="integ.finalname"/>
+    <local name="integ.home"/>
+    <local name="integ.repo.home"/>
+    <local name="integ.pid"/>
+
+    <delete dir="${integ.scratch}"/>
+    <property name="integ.finalname" value="${project.artifactId}-${project.version}"/>
+
+    <unzip src="${project.build.directory}/releases/${integ.finalname}.zip"
+           dest="${integ.scratch}"/>
+
+    <property name="integ.home" location="${integ.scratch}/${integ.finalname}"/>
+    <property name="integ.repo.home" location="${integ.home}/repo"/>
+
+    <!-- execute -->
+    <echo>Starting up external cluster...</echo>
+    <run-script dir="${integ.home}" script="bin/elasticsearch" spawn="true"
+                args="${integ.args} -Des.path.repo=${integ.repo.home}" />
+
+    <waitfor maxwait="3" maxwaitunit="minute" checkevery="500">
+      <http url="http://127.0.0.1:9200"/>
+    </waitfor>
+
+    <extract-pid property="integ.pid"/>
+    <echo>External cluster started PID ${integ.pid}</echo>
+  </target>
+
+  <!-- unzip core release artifact, install plugin, then start ES -->
+  <target name="start-external-cluster-with-plugin" depends="stop-external-cluster" unless="${shouldskip}">
+    <local name="integ.home"/>
+    <local name="integ.repo.home"/>
+    <local name="integ.plugin.url"/>
+    <local name="integ.pid"/>
+
+    <delete dir="${integ.scratch}"/>
+    <unzip src="${org.elasticsearch:elasticsearch:zip}"
+           dest="${integ.scratch}"/>
+
+    <property name="integ.home" location="${integ.scratch}/elasticsearch-${elasticsearch.version}"/>
+    <property name="integ.repo.home" location="${integ.home}/repo"/>
+
+    <makeurl property="integ.plugin.url" file="${project.build.directory}/releases/${project.artifactId}-${project.version}.zip"/>
+
+    <echo>Installing plugin ${project.artifactId}...</echo>
+    <run-script dir="${integ.home}" script="bin/plugin"
+                args="-u ${integ.plugin.url} -i ${project.artifactId}/${project.version}"/>
+
+    <!-- execute -->
+    <echo>Starting up external cluster...</echo>
+    <run-script dir="${integ.home}" script="bin/elasticsearch" spawn="true"
+                args="${integ.args} -Des.path.repo=${integ.repo.home}"/>
+
+    <waitfor maxwait="3" maxwaitunit="minute" checkevery="500">
+      <http url="http://127.0.0.1:9200"/>
+    </waitfor>
+
+    <extract-pid property="integ.pid"/>
+    <echo>External cluster started PID ${integ.pid}</echo>
+  </target>
+
+  <!-- TODO, for some more safety, add back some of the old jps logic
+       and verify the pid is really an ES process! (fail otherwise) -->
+  <target name="stop-external-cluster" if="integ.pidfile.exists">
+    <local name="integ.pid"/>
+
+    <extract-pid property="integ.pid"/>
+    <echo>Shutting down external cluster PID ${integ.pid}</echo>
+
+    <exec executable="taskkill" failonerror="true" osfamily="winnt">
+      <arg value="/F"/>
+      <arg value="/PID"/>
+      <arg value="${integ.pid}"/>
+    </exec>
+    <exec executable="kill" failonerror="true" osfamily="unix">
+      <arg value="-9"/>
+      <arg value="${integ.pid}"/>
+    </exec>
+    <delete file="${integ.pidfile}"/>
+  </target>
+</project>

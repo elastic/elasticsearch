@@ -60,7 +60,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
-import org.elasticsearch.monitor.fs.FsStats;
+import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
@@ -570,7 +570,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
             NodeStats nodeStats = nodeStatses.getNodes()[0];
             List<Path> files = new ArrayList<>();
             filesToNodes.put(nodeStats.getNode().getName(), files);
-            for (FsStats.Info info : nodeStats.getFs()) {
+            for (FsInfo.Path info : nodeStats.getFs()) {
                 String path = info.getPath();
                 final String relativeDataLocationPath = "indices/test/" + Integer.toString(shardRouting.getId()) + "/index";
                 Path file = PathUtils.get(path).resolve(relativeDataLocationPath);
@@ -604,7 +604,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         String nodeId = shardRouting.currentNodeId();
         NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(nodeId).setFs(true).get();
         Set<Path> files = new TreeSet<>(); // treeset makes sure iteration order is deterministic
-        for (FsStats.Info info : nodeStatses.getNodes()[0].getFs()) {
+        for (FsInfo.Path info : nodeStatses.getNodes()[0].getFs()) {
             String path = info.getPath();
             final String relativeDataLocationPath = "indices/test/" + Integer.toString(shardRouting.getId()) + "/index";
             Path file = PathUtils.get(path).resolve(relativeDataLocationPath);
@@ -716,7 +716,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
 
         assertThat(routing.toString(), nodeStatses.getNodes().length, equalTo(1));
         List<Path> files = new ArrayList<>();
-        for (FsStats.Info info : nodeStatses.getNodes()[0].getFs()) {
+        for (FsInfo.Path info : nodeStatses.getNodes()[0].getFs()) {
             String path = info.getPath();
             Path file = PathUtils.get(path).resolve("indices/test/" + Integer.toString(routing.getId()) + "/index");
             if (Files.exists(file)) { // multi data path might only have one path in use

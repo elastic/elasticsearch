@@ -44,51 +44,66 @@ How long to wait before triggering a flush regardless of translog size. Defaults
 How often to check if a flush is needed, randomized between the interval value
 and 2x the interval value. Defaults to `5s`.
 
+
 [float]
 === Translog settings
 
-The translog itself is only persisted to disk when it is ++fsync++ed.  Until
-then, data recently written to the translog may only exist in the file system
-cache and could potentially be lost in the event of hardware failure.
+The data in the transaction log is only persisted to disk when the translog is
+++fsync++ed and committed.  In the event of hardware failure, any data written
+since the previous translog commit will be lost.
 
-The following <<indices-update-settings,dynamically updatable>> settings
+By default, Elasticsearch ++fsync++s and commits the translog every 5 seconds
+and at the end of every <<docs-index_,index>>, <<docs-delete,delete>>,
+<<docs-update,update>>, or  <<docs-bulk,bulk>> request.  In fact, Elasticsearch
+will only report success of an index, delete, update, or bulk request to the
+client after the transaction log has been successfully ++fsync++ed and committed
+on the primary and on every allocated replica.
+
+The following <<indices-update-settings,dynamically updatable>> per-index settings
 control the behaviour of the transaction log:
 
 `index.translog.sync_interval`::
 
-How often the translog is ++fsync++ed to disk. Defaults to `5s`. Can be set to
-`0` to sync after each operation.
+How often the translog is ++fsync++ed to disk and committed, regardless of
+write operations. Defaults to `5s`.
+
+`index.translog.durability`::
++
+--
+
+Whether or not to `fsync` and commit the translog after every index, delete,
+update, or bulk request.  This setting accepts the following parameters:
+
+`request`::
+
+    (default) `fsync` and commit after every request. In the event
+    of hardware failure, all acknowledged writes will already have been
+    commited to disk.
+
+`async`::
+
+    `fsync` and commit in the background every `sync_interval`. In
+    the event of hardware failure, all acknowledged writes since the last
+    automatic commit will be discarded.
+--
 
 `index.translog.fs.type`::
++
+--
 
-Either a `buffered` translog (default) which buffers 64kB in memory before
-writing to disk, or a `simple` translog which writes every entry to disk
-immediately.  Whichever is used, these writes are only ++fsync++ed according
-to the `sync_interval`.
+Whether to buffer writes to the transaction log in memory or not.  This
+setting accepts the following parameters:
 
-The `buffered` translog is written to disk when it reaches 64kB in size, or
-whenever a `sync` is triggered by the `sync_interval`.
+`buffered`::
 
-.Why don't we `fsync` the translog after every write?
-******************************************************
+    (default) Translog writes first go to a 64kB buffer in memory,
+    and are only written to the disk when the buffer is full, or when an
+    `fsync` is triggered by a write request or the `sync_interval`.
 
-The disk is the slowest part of any server. An `fsync` ensures that data in
-the file system buffer has been physically written to disk, but this
-persistence comes with a performance cost.
+`simple`::
 
-However, the translog is not the only persistence mechanism in Elasticsearch.
-Any index or update request is first written to the primary shard, then
-forwarded in parallel to any replica shards. The primary waits for the action
-to be completed on the replicas before returning success to the client.
+    Translog writes are written to the file system immediately, without
+    buffering.  However, these writes will only be persisted to disk when an
+    `fsync` and commit is triggered by a write request or the `sync_interval`.
 
-If the node holding the primary shard dies for some reason, its transaction
-log could be missing the last 5 seconds of data. However, that data should
-already be available on a replica shard on a different node.  Of course, if
-the whole data centre loses power at the same time, then it is possible that
-you could lose the last 5 seconds (or `sync_interval`) of data.
-
-We are constantly monitoring the perfromance implications of better default
-translog sync semantics, so the default might change as time passes and HW,
-virtualization, and other aspects improve.
-
-******************************************************
+--

@@ -38,7 +38,7 @@ import com.google.common.collect.ImmutableList;
  */
 public class SnapshotInfo implements ToXContent, Streamable {
 
-    private static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("dateOptionalTime");
+    private static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("strictDateOptionalTime");
 
     private String name;
 

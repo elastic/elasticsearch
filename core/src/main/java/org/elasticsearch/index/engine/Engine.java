@@ -510,26 +510,17 @@ public abstract class Engine implements Closeable {
      */
     public abstract SnapshotIndexCommit snapshotIndex(boolean flushFirst) throws EngineException;
 
-    /** fail engine due to some error. the engine will also be closed. */
-    public void failEngine(String reason, Throwable failure) {
-        assert failure != null;
+    /**
+     * fail engine due to some error. the engine will also be closed.
+     * The underlying store is marked corrupted iff failure is caused by index corruption
+     */
+    public void failEngine(String reason, @Nullable Throwable failure) {
         if (failEngineLock.tryLock()) {
             store.incRef();
             try {
                 try {
                     // we just go and close this engine - no way to recover
                     closeNoLock("engine failed on: [" + reason + "]");
-                    // we first mark the store as corrupted before we notify any listeners
-                    // this must happen first otherwise we might try to reallocate so quickly
-                    // on the same node that we don't see the corrupted marker file when
-                    // the shard is initializing
-                    if (Lucene.isCorruptionException(failure)) {
-                        try {
-                            store.markStoreCorrupted(ExceptionsHelper.unwrapCorruption(failure));
-                        } catch (IOException e) {
-                            logger.warn("Couldn't marks store corrupted", e);
-                        }
-                    }
                 } finally {
                     if (failedEngine != null) {
                         logger.debug("tried to fail engine but engine is already failed. ignoring. [{}]", reason, failure);
@@ -537,7 +528,18 @@ public abstract class Engine implements Closeable {
                     }
                     logger.warn("failed engine [{}]", failure, reason);
                     // we must set a failure exception, generate one if not supplied
-                    failedEngine = failure;
+                    failedEngine = (failure != null) ? failure : new IllegalStateException(reason);
+                    // we first mark the store as corrupted before we notify any listeners
+                    // this must happen first otherwise we might try to reallocate so quickly
+                    // on the same node that we don't see the corrupted marker file when
+                    // the shard is initializing
+                    if (Lucene.isCorruptionException(failure)) {
+                        try {
+                            store.markStoreCorrupted(new IOException("failed engine (reason: [" + reason + "])", ExceptionsHelper.unwrapCorruption(failure)));
+                        } catch (IOException e) {
+                            logger.warn("Couldn't mark store corrupted", e);
+                        }
+                    }
                     failedEngineListener.onFailedEngine(shardId, reason, failure);
                 }
             } catch (Throwable t) {
@@ -554,10 +556,10 @@ public abstract class Engine implements Closeable {
     /** Check whether the engine should be failed */
     protected boolean maybeFailEngine(String source, Throwable t) {
         if (Lucene.isCorruptionException(t)) {
-            failEngine("corrupt file detected source: [" + source + "]", t);
+            failEngine("corrupt file (source: [" + source + "])", t);
             return true;
         } else if (ExceptionsHelper.isOOM(t)) {
-            failEngine("out of memory", t);
+            failEngine("out of memory (source: [" + source + "])", t);
             return true;
         }
         return false;

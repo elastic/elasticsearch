@@ -42,6 +42,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.Locale;
 
 import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.client.Requests.searchRequest;
@@ -530,17 +531,17 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
         ensureYellow();
 
         DateTime docDate = dt.minusDays(1);
-        String docDateString = docDate.getYear() + "-" + docDate.getMonthOfYear() + "-" + docDate.getDayOfMonth();
+        String docDateString = docDate.getYear() + "-" + String.format(Locale.ROOT, "%02d", docDate.getMonthOfYear()) + "-" + String.format(Locale.ROOT, "%02d", docDate.getDayOfMonth());
         client().index(
                 indexRequest("test").type("type1").id("1")
                         .source(jsonBuilder().startObject().field("test", "value").field("num1", docDateString).endObject())).actionGet();
         docDate = dt.minusDays(2);
-        docDateString = docDate.getYear() + "-" + docDate.getMonthOfYear() + "-" + docDate.getDayOfMonth();
+        docDateString = docDate.getYear() + "-" + String.format(Locale.ROOT, "%02d", docDate.getMonthOfYear()) + "-" + String.format(Locale.ROOT, "%02d", docDate.getDayOfMonth());
         client().index(
                 indexRequest("test").type("type1").id("2")
                         .source(jsonBuilder().startObject().field("test", "value").field("num1", docDateString).endObject())).actionGet();
         docDate = dt.minusDays(3);
-        docDateString = docDate.getYear() + "-" + docDate.getMonthOfYear() + "-" + docDate.getDayOfMonth();
+        docDateString = docDate.getYear() + "-" + String.format(Locale.ROOT, "%02d", docDate.getMonthOfYear()) + "-" + String.format(Locale.ROOT, "%02d", docDate.getDayOfMonth());
         client().index(
                 indexRequest("test").type("type1").id("3")
                         .source(jsonBuilder().startObject().field("test", "value").field("num1", docDateString).endObject())).actionGet();

@@ -37,12 +37,11 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -69,7 +68,7 @@ import static org.elasticsearch.index.mapper.MapperBuilders.geoShapeField;
  * ]
  * }
  */
-public class GeoShapeFieldMapper extends AbstractFieldMapper {
+public class GeoShapeFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "geo_shape";
 
@@ -107,7 +106,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper {
         }
     }
 
-    public static class Builder extends AbstractFieldMapper.Builder<Builder, GeoShapeFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder, GeoShapeFieldMapper> {
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE);
@@ -359,22 +358,12 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper {
     }
 
     public GeoShapeFieldMapper(String simpleName, MappedFieldType fieldType, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, false, null, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, multiFields, copyTo);
     }
 
     @Override
     public GeoShapeFieldType fieldType() {
         return (GeoShapeFieldType) super.fieldType();
-    }
-
-    @Override
-    public MappedFieldType defaultFieldType() {
-        return Defaults.FIELD_TYPE;
-    }
-
-    @Override
-    public FieldDataType defaultFieldDataType() {
-        return null;
     }
 
     @Override

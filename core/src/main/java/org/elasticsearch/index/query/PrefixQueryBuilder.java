@@ -28,9 +28,9 @@ import java.io.IOException;
  */
 public class PrefixQueryBuilder extends MultiTermQueryBuilder implements BoostableQueryBuilder<PrefixQueryBuilder> {
 
-    private final String name;
+    private final String fieldName;
 
-    private final String prefix;
+    private final Object value;
 
     private float boost = -1;
 
@@ -41,12 +41,73 @@ public class PrefixQueryBuilder extends MultiTermQueryBuilder implements Boostab
     /**
      * A Query that matches documents containing terms with a specified prefix.
      *
-     * @param name   The name of the field
-     * @param prefix The prefix query
+     * @param fieldName The name of the field
+     * @param value The prefix query
      */
-    public PrefixQueryBuilder(String name, String prefix) {
-        this.name = name;
-        this.prefix = prefix;
+    public PrefixQueryBuilder(String fieldName, String value) {
+        this(fieldName, (Object) value);
+    }
+
+    /**
+     * A Query that matches documents containing terms with a specified prefix.
+     *
+     * @param fieldName The name of the field
+     * @param value The prefix query
+     */
+    public PrefixQueryBuilder(String fieldName, int value) {
+        this(fieldName, (Object) value);
+    }
+
+    /**
+     * A Query that matches documents containing terms with a specified prefix.
+     *
+     * @param fieldName The name of the field
+     * @param value The prefix query
+     */
+    public PrefixQueryBuilder(String fieldName, long value) {
+        this(fieldName, (Object) value);
+    }
+
+    /**
+     * A Query that matches documents containing terms with a specified prefix.
+     *
+     * @param fieldName The name of the field
+     * @param value The prefix query
+     */
+    public PrefixQueryBuilder(String fieldName, float value) {
+        this(fieldName, (Object) value);
+    }
+
+    /**
+     * A Query that matches documents containing terms with a specified prefix.
+     *
+     * @param fieldName The name of the field
+     * @param value The prefix query
+     */
+    public PrefixQueryBuilder(String fieldName, double value) {
+        this(fieldName, (Object) value);
+    }
+
+    /**
+     * A Query that matches documents containing terms with a specified prefix.
+     *
+     * @param fieldName The name of the field
+     * @param value The prefix query
+     */
+    public PrefixQueryBuilder(String fieldName, boolean value) {
+        this(fieldName, (Object) value);
+    }
+
+    /**
+     * Constructs a new prefix term query.
+     * In case value is assigned to a string, we internally convert it to a {@link org.apache.lucene.util.BytesRef}
+     *
+     * @param fieldName  The name of the field
+     * @param value The value of the term
+     */
+    public PrefixQueryBuilder(String fieldName, Object value) {
+        this.fieldName = fieldName;
+        this.value = value;
     }
 
     /**
@@ -76,10 +137,10 @@ public class PrefixQueryBuilder extends MultiTermQueryBuilder implements Boostab
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(PrefixQueryParser.NAME);
         if (boost == -1 && rewrite == null && queryName == null) {
-            builder.field(name, prefix);
+            builder.field(fieldName, value);
         } else {
-            builder.startObject(name);
-            builder.field("prefix", prefix);
+            builder.startObject(fieldName);
+            builder.field("prefix", value);
             if (boost != -1) {
                 builder.field("boost", boost);
             }

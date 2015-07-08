@@ -36,13 +36,13 @@ import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -58,9 +58,9 @@ import java.util.List;
 /**
  *
  */
-public abstract class NumberFieldMapper extends AbstractFieldMapper implements AllFieldMapper.IncludeInAll {
+public abstract class NumberFieldMapper extends FieldMapper implements AllFieldMapper.IncludeInAll {
 
-    public static class Defaults extends AbstractFieldMapper.Defaults {
+    public static class Defaults {
         
         public static final int PRECISION_STEP_8_BIT  = Integer.MAX_VALUE; // 1tpv: 256 terms at most, not useful
         public static final int PRECISION_STEP_16_BIT = 8;                 // 2tpv
@@ -71,7 +71,7 @@ public abstract class NumberFieldMapper extends AbstractFieldMapper implements A
         public static final Explicit<Boolean> COERCE = new Explicit<>(true, false);
     }
 
-    public abstract static class Builder<T extends Builder, Y extends NumberFieldMapper> extends AbstractFieldMapper.Builder<T, Y> {
+    public abstract static class Builder<T extends Builder, Y extends NumberFieldMapper> extends FieldMapper.Builder<T, Y> {
 
         private Boolean ignoreMalformed;
 

@@ -37,8 +37,8 @@ import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.core.TypeParsers;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.rest.action.termvectors.RestTermVectorsAction;
@@ -266,7 +266,7 @@ public class TermVectorsUnitTests extends ElasticsearchTestCase {
         ft.setStoreTermVectorPayloads(true);
         ft.setStoreTermVectors(true);
         ft.setStoreTermVectorPositions(true);
-        String ftOpts = AbstractFieldMapper.termVectorOptionsToString(ft);
+        String ftOpts = FieldMapper.termVectorOptionsToString(ft);
         assertThat("with_positions_payloads", equalTo(ftOpts));
         AllFieldMapper.Builder builder = new AllFieldMapper.Builder(null);
         boolean exceptiontrown = false;
@@ -285,7 +285,7 @@ public class TermVectorsUnitTests extends ElasticsearchTestCase {
         ft.setStoreTermVectorPayloads(true);
         ft.setStoreTermVectors(true);
         ft.setStoreTermVectorPositions(false);
-        String ftOpts = AbstractFieldMapper.termVectorOptionsToString(ft);
+        String ftOpts = FieldMapper.termVectorOptionsToString(ft);
         assertThat(ftOpts, equalTo("with_offsets"));
     }
 

@@ -37,7 +37,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.hamcrest.Matcher;
 import org.junit.Test;
 
@@ -273,7 +273,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
         ft.setStoreTermVectorPayloads(storePayloads);
         ft.setStoreTermVectorPositions(storePositions);
 
-        String optionString = AbstractFieldMapper.termVectorOptionsToString(ft);
+        String optionString = FieldMapper.termVectorOptionsToString(ft);
         XContentBuilder mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties")
                         .startObject("field")

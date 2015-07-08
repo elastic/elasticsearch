@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType.Loading;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -60,8 +61,8 @@ public class TypeParsers {
         @Override
         public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             ContentPath.Type pathType = null;
-            AbstractFieldMapper.Builder mainFieldBuilder = null;
-            List<AbstractFieldMapper.Builder> fields = null;
+            FieldMapper.Builder mainFieldBuilder = null;
+            List<FieldMapper.Builder> fields = null;
             String firstType = null;
 
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
@@ -94,13 +95,13 @@ public class TypeParsers {
                             throw new MapperParsingException("no handler for type [" + type + "] declared on field [" + fieldName + "]");
                         }
                         if (propName.equals(name)) {
-                            mainFieldBuilder = (AbstractFieldMapper.Builder) typeParser.parse(propName, propNode, parserContext);
+                            mainFieldBuilder = (FieldMapper.Builder) typeParser.parse(propName, propNode, parserContext);
                             fieldsIterator.remove();
                         } else {
                             if (fields == null) {
                                 fields = new ArrayList<>(2);
                             }
-                            fields.add((AbstractFieldMapper.Builder) typeParser.parse(propName, propNode, parserContext));
+                            fields.add((FieldMapper.Builder) typeParser.parse(propName, propNode, parserContext));
                             fieldsIterator.remove();
                         }
                     }
@@ -121,8 +122,8 @@ public class TypeParsers {
                     mainFieldBuilder = new StringFieldMapper.Builder(name).index(false);
                 } else {
                     Mapper.Builder substitute = typeParser.parse(name, Collections.<String, Object>emptyMap(), parserContext);
-                    if (substitute instanceof AbstractFieldMapper.Builder) {
-                        mainFieldBuilder = ((AbstractFieldMapper.Builder) substitute).index(false);
+                    if (substitute instanceof FieldMapper.Builder) {
+                        mainFieldBuilder = ((FieldMapper.Builder) substitute).index(false);
                     } else {
                         // The first multi isn't a core field type
                         mainFieldBuilder =  new StringFieldMapper.Builder(name).index(false);
@@ -180,9 +181,9 @@ public class TypeParsers {
         }
     }
 
-    public static void parseField(AbstractFieldMapper.Builder builder, String name, Map<String, Object> fieldNode, Mapper.TypeParser.ParserContext parserContext) {
-        NamedAnalyzer indexAnalyzer = builder.fieldType.indexAnalyzer();
-        NamedAnalyzer searchAnalyzer = builder.fieldType.searchAnalyzer();
+    public static void parseField(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode, Mapper.TypeParser.ParserContext parserContext) {
+        NamedAnalyzer indexAnalyzer = builder.fieldType().indexAnalyzer();
+        NamedAnalyzer searchAnalyzer = builder.fieldType().searchAnalyzer();
         for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
             Map.Entry<String, Object> entry = iterator.next();
             final String propName = Strings.toUnderscoreCase(entry.getKey());
@@ -299,7 +300,7 @@ public class TypeParsers {
         builder.searchAnalyzer(searchAnalyzer);
     }
 
-    public static boolean parseMultiField(AbstractFieldMapper.Builder builder, String name, Mapper.TypeParser.ParserContext parserContext, String propName, Object propNode) {
+    public static boolean parseMultiField(FieldMapper.Builder builder, String name, Mapper.TypeParser.ParserContext parserContext, String propName, Object propNode) {
         if (propName.equals("path") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
             builder.multiFieldPathType(parsePathType(name, propNode.toString()));
             return true;
@@ -367,7 +368,7 @@ public class TypeParsers {
         return Joda.forPattern(node.toString());
     }
 
-    public static void parseTermVector(String fieldName, String termVector, AbstractFieldMapper.Builder builder) throws MapperParsingException {
+    public static void parseTermVector(String fieldName, String termVector, FieldMapper.Builder builder) throws MapperParsingException {
         termVector = Strings.toUnderscoreCase(termVector);
         if ("no".equals(termVector)) {
             builder.storeTermVectors(false);
@@ -392,7 +393,7 @@ public class TypeParsers {
         }
     }
 
-    public static void parseIndex(String fieldName, String index, AbstractFieldMapper.Builder builder) throws MapperParsingException {
+    public static void parseIndex(String fieldName, String index, FieldMapper.Builder builder) throws MapperParsingException {
         index = Strings.toUnderscoreCase(index);
         if ("no".equals(index)) {
             builder.index(false);
@@ -429,8 +430,8 @@ public class TypeParsers {
     }
 
     @SuppressWarnings("unchecked")
-    public static void parseCopyFields(Object propNode, AbstractFieldMapper.Builder builder) {
-        AbstractFieldMapper.CopyTo.Builder copyToBuilder = new AbstractFieldMapper.CopyTo.Builder();
+    public static void parseCopyFields(Object propNode, FieldMapper.Builder builder) {
+        FieldMapper.CopyTo.Builder copyToBuilder = new FieldMapper.CopyTo.Builder();
         if (isArray(propNode)) {
             for(Object node : (List<Object>) propNode) {
                 copyToBuilder.add(nodeStringValue(node, null));

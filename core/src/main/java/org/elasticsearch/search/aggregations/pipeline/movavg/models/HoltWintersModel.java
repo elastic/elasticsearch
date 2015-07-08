@@ -470,7 +470,7 @@ public class HoltWintersModel extends MovAvgModel {
             }
 
             if (seasonalityType != null) {
-                builder.field("seasonalityType", seasonalityType);
+                builder.field("type", seasonalityType.getName());
             }
 
             builder.endObject();

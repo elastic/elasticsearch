@@ -41,7 +41,8 @@ sub check_shas_and_licenses {
         }
 
         unless ( $old_sha eq $new{$jar} ) {
-            say STDERR "$jar: SHA has changed, expected $old_sha but found $new{$jar}";
+            say STDERR
+                "$jar: SHA has changed, expected $old_sha but found $new{$jar}";
             $error++;
             $sha_error++;
             next;
@@ -228,7 +229,7 @@ sub calculate_shas {
 #===================================
     my %shas;
     while ( my $file = shift() ) {
-        my $digest = eval { Digest::SHA->new(1)->addfile($file) }
+        my $digest = eval { Digest::SHA->new(1)->addfile( $file, "b" ) }
             or die "Error calculating SHA1 for <$file>: $!\n";
         $shas{ basename($file) . ".sha1" } = $digest->hexdigest;
     }

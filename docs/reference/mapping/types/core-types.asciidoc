@@ -143,6 +143,12 @@ defaults to `true` or to the parent `object` type setting.
 |`ignore_above` |The analyzer will ignore strings larger than this size.
 Useful for generic `not_analyzed` fields that should ignore long text.
 
+This option is also useful for protecting against Lucene's term byte-length
+limit of `32766`. Note: the value for `ignore_above` is the _character count_,
+but Lucene counts bytes, so if you have UTF-8 text, you may want to set the
+limit to `32766 / 3 = 10922` since UTF-8 characters may occupy at most 3
+bytes.
+
 |`position_offset_gap` |Position increment gap between field instances
 with the same field name. Defaults to 0.
 |=======================================================================

@@ -116,6 +116,8 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
                 PosixFileAttributes attributes = view.readAttributes();
                 assertTrue("unexpected permissions: " + attributes.permissions(),
                            attributes.permissions().contains(PosixFilePermission.OWNER_EXECUTE));
+                assertTrue("unexpected permissions: " + attributes.permissions(),
+                        attributes.permissions().contains(PosixFilePermission.OWNER_READ));
             }
         } finally {
             // we need to clean up the copied dirs

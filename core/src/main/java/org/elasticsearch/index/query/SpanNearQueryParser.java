@@ -19,9 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.spans.SpanNearQuery;
-import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -34,7 +31,7 @@ import static com.google.common.collect.Lists.newArrayList;
 /**
  *
  */
-public class SpanNearQueryParser extends BaseQueryParserTemp {
+public class SpanNearQueryParser extends BaseQueryParser {
 
     @Inject
     public SpanNearQueryParser() {
@@ -46,16 +43,16 @@ public class SpanNearQueryParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         Integer slop = null;
-        boolean inOrder = true;
-        boolean collectPayloads = true;
+        boolean inOrder = SpanNearQueryBuilder.DEFAULT_IN_ORDER;
+        boolean collectPayloads = SpanNearQueryBuilder.DEFAULT_COLLECT_PAYLOADS;
         String queryName = null;
 
-        List<SpanQuery> clauses = newArrayList();
+        List<SpanQueryBuilder> clauses = newArrayList();
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -65,11 +62,11 @@ public class SpanNearQueryParser extends BaseQueryParserTemp {
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("clauses".equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        Query query = parseContext.parseInnerQuery();
-                        if (!(query instanceof SpanQuery)) {
+                        QueryBuilder query = parseContext.parseInnerQueryBuilder();
+                        if (!(query instanceof SpanQueryBuilder)) {
                             throw new QueryParsingException(parseContext, "spanNear [clauses] must be of type span query");
                         }
-                        clauses.add((SpanQuery) query);
+                        clauses.add((SpanQueryBuilder) query);
                     }
                 } else {
                     throw new QueryParsingException(parseContext, "[span_near] query does not support [" + currentFieldName + "]");
@@ -92,19 +89,20 @@ public class SpanNearQueryParser extends BaseQueryParserTemp {
                 throw new QueryParsingException(parseContext, "[span_near] query does not support [" + currentFieldName + "]");
             }
         }
-        if (clauses.isEmpty()) {
-            throw new QueryParsingException(parseContext, "span_near must include [clauses]");
-        }
+
         if (slop == null) {
             throw new QueryParsingException(parseContext, "span_near must include [slop]");
         }
 
-        SpanNearQuery query = new SpanNearQuery(clauses.toArray(new SpanQuery[clauses.size()]), slop.intValue(), inOrder, collectPayloads);
-        query.setBoost(boost);
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
+        SpanNearQueryBuilder queryBuilder = new SpanNearQueryBuilder(slop);
+        for (SpanQueryBuilder subQuery : clauses) {
+            queryBuilder.clause(subQuery);
         }
-        return query;
+        queryBuilder.inOrder(inOrder);
+        queryBuilder.collectPayloads(collectPayloads);
+        queryBuilder.boost(boost);
+        queryBuilder.queryName(queryName);
+        return queryBuilder;
     }
 
     @Override

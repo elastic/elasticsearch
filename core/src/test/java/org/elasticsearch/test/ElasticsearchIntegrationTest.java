@@ -1650,7 +1650,11 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 throw new IllegalArgumentException("port is not valid, expected number but was [" + split[1] + "]");
             }
         }
-        return new ExternalTestCluster(createTempDir(), transportAddresses);
+        return new ExternalTestCluster(createTempDir(), externalClusterClientSettings(), transportAddresses);
+    }
+
+    protected Settings externalClusterClientSettings() {
+        return Settings.EMPTY;
     }
 
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {

@@ -37,11 +37,6 @@
                 args="${integ.args} -Des.path.repo=${integ.repo.home}"/>
 
     <!-- begin shield plugin mods -->
-    <!-- TODO: pluginmanager is really broken here!!!! correct the file permissions --> 
-    <exec executable="chmod" failonerror="true" osfamily="unix">
-      <arg line="-R a+r ${integ.home}/bin/elasticsearch-shield"/>
-    </exec>
-
     <run-script dir="${integ.home}" script="bin/elasticsearch-shield/esusers"
                 args="useradd test_user -p changeme -r admin"/>
 

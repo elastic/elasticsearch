@@ -125,7 +125,7 @@ public class DateFieldMapper extends NumberFieldMapper {
         }
 
         protected void setupFieldType(BuilderContext context) {
-            if (Version.indexCreated(context.indexSettings()).before(Version.V_2_0_0) &&
+            if (Version.indexCreated(context.indexSettings()).before(Version.V_2_0_0_beta1) &&
                 !fieldType().dateTimeFormatter().format().contains("epoch_")) {
                 String format = fieldType().timeUnit().equals(TimeUnit.SECONDS) ? "epoch_second" : "epoch_millis";
                 fieldType().setDateTimeFormatter(Joda.forPattern(format + "||" + fieldType().dateTimeFormatter().format()));
@@ -183,7 +183,7 @@ public class DateFieldMapper extends NumberFieldMapper {
                 }
             }
             if (!configuredFormat) {
-                if (parserContext.indexVersionCreated().onOrAfter(Version.V_2_0_0)) {
+                if (parserContext.indexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
                     builder.dateTimeFormatter(Defaults.DATE_TIME_FORMATTER);
                 } else {
                     builder.dateTimeFormatter(Defaults.DATE_TIME_FORMATTER_BEFORE_2_0);

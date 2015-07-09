@@ -124,7 +124,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
      */
     private IndexMetaData upgradeLegacyRoutingSettings(IndexMetaData indexMetaData) throws Exception {
         if (indexMetaData.settings().get(IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION) == null
-                && indexMetaData.getCreationVersion().before(Version.V_2_0_0)) {
+                && indexMetaData.getCreationVersion().before(Version.V_2_0_0_beta1)) {
             // these settings need an upgrade
             Settings indexSettings = Settings.builder().put(indexMetaData.settings())
                     .put(IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION, pre20HashFunction)
@@ -134,7 +134,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
                     .version(indexMetaData.version())
                     .settings(indexSettings)
                     .build();
-        } else if (indexMetaData.getCreationVersion().onOrAfter(Version.V_2_0_0)) {
+        } else if (indexMetaData.getCreationVersion().onOrAfter(Version.V_2_0_0_beta1)) {
             if (indexMetaData.getSettings().get(IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION) != null
                     || indexMetaData.getSettings().get(IndexMetaData.SETTING_LEGACY_ROUTING_USE_TYPE) != null) {
                 throw new IllegalStateException("Indices created on or after 2.0 should NOT contain [" + IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION
@@ -188,7 +188,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
      * missing units.
      */
     private IndexMetaData addDefaultUnitsIfNeeded(IndexMetaData indexMetaData) {
-        if (indexMetaData.getCreationVersion().before(Version.V_2_0_0)) {
+        if (indexMetaData.getCreationVersion().before(Version.V_2_0_0_beta1)) {
             // TODO: can we somehow only do this *once* for a pre-2.0 index?  Maybe we could stuff a "fake marker setting" here?  Seems hackish...
             // Created lazily if we find any settings that are missing units:
             Settings settings = indexMetaData.settings();

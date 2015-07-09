@@ -103,7 +103,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
                 throw new MapperParsingException("[_parent] field mapping must contain the [type] option");
             }
             setupFieldType(context);
-            fieldType.setHasDocValues(context.indexCreatedVersion().onOrAfter(Version.V_2_0_0));
+            fieldType.setHasDocValues(context.indexCreatedVersion().onOrAfter(Version.V_2_0_0_beta1));
             return new ParentFieldMapper(fieldType, type, context.indexSettings());
         }
     }
@@ -119,7 +119,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
                 if (fieldName.equals("type")) {
                     builder.type(fieldNode.toString());
                     iterator.remove();
-                } else if (fieldName.equals("postings_format") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+                } else if (fieldName.equals("postings_format") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
                     // ignore before 2.0, reject on and after 2.0
                     iterator.remove();
                 } else if (fieldName.equals("fielddata")) {
@@ -235,7 +235,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
 
     static MappedFieldType setupDocValues(Settings indexSettings, MappedFieldType fieldType) {
         fieldType = fieldType.clone();
-        fieldType.setHasDocValues(Version.indexCreated(indexSettings).onOrAfter(Version.V_2_0_0));
+        fieldType.setHasDocValues(Version.indexCreated(indexSettings).onOrAfter(Version.V_2_0_0_beta1));
         return fieldType;
     }
 

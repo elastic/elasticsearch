@@ -6,7 +6,7 @@
 
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch-parent</artifactId>
-    <version>2.0.0-SNAPSHOT</version>
+    <version>2.0.0.beta1-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>Elasticsearch Parent POM</name>
     <description>Elasticsearch Parent POM</description>
@@ -35,7 +35,7 @@
     <properties>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <!-- elasticsearch stack -->
-        <elasticsearch.version>2.0.0-SNAPSHOT</elasticsearch.version>
+        <elasticsearch.version>${version}</elasticsearch.version>
         <jvm.executable>${java.home}${file.separator}bin${file.separator}java</jvm.executable>
         <maven.compiler.source>1.7</maven.compiler.source>
         <maven.compiler.target>1.7</maven.compiler.target>

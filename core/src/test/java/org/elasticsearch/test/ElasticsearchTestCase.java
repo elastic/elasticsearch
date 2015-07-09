@@ -513,7 +513,7 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
     /** Return consistent index settings for the provided index version. */
     public static Settings.Builder settings(Version version) {
         Settings.Builder builder = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version);
-        if (version.before(Version.V_2_0_0)) {
+        if (version.before(Version.V_2_0_0_beta1)) {
             builder.put(IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION, DjbHashFunction.class);
         }
         return builder;

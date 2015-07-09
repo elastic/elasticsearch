@@ -79,7 +79,7 @@ public class BinaryFieldMapper extends FieldMapper {
         @Override
         public BinaryFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            ((BinaryFieldType)fieldType).setTryUncompressing(context.indexCreatedVersion().before(Version.V_2_0_0));
+            ((BinaryFieldType)fieldType).setTryUncompressing(context.indexCreatedVersion().before(Version.V_2_0_0_beta1));
             return new BinaryFieldMapper(name, fieldType, defaultFieldType,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
@@ -93,7 +93,7 @@ public class BinaryFieldMapper extends FieldMapper {
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
-                if (parserContext.indexVersionCreated().before(Version.V_2_0_0) &&
+                if (parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1) &&
                         (parserContext.parseFieldMatcher().match(fieldName, COMPRESS) || parserContext.parseFieldMatcher().match(fieldName, COMPRESS_THRESHOLD))) {
                     iterator.remove();
                 }

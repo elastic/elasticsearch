@@ -83,7 +83,7 @@ public class Murmur3FieldMapper extends LongFieldMapper {
             Builder builder = murmur3Field(name);
 
             // tweaking these settings is no longer allowed, the entire purpose of murmur3 fields is to store a hash
-            if (parserContext.indexVersionCreated().onOrAfter(Version.V_2_0_0)) {
+            if (parserContext.indexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
                 if (node.get("doc_values") != null) {
                     throw new MapperParsingException("Setting [doc_values] cannot be modified for field [" + name + "]");
                 }

@@ -67,7 +67,7 @@ public final class Mapping implements ToXContent {
         this.metadataMappers = metadataMappers;
         ImmutableMap.Builder<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> builder = ImmutableMap.builder();
         for (MetadataFieldMapper metadataMapper : metadataMappers) {
-            if (indexCreated.before(Version.V_2_0_0) && LEGACY_INCLUDE_IN_OBJECT.contains(metadataMapper.name())) {
+            if (indexCreated.before(Version.V_2_0_0_beta1) && LEGACY_INCLUDE_IN_OBJECT.contains(metadataMapper.name())) {
                 root.putMapper(metadataMapper);
             }
             builder.put(metadataMapper.getClass(), metadataMapper);

@@ -171,7 +171,7 @@ public class CompletionFieldMapper extends FieldMapper {
                     continue;
                 }
                 if (Fields.ANALYZER.equals(fieldName) || // index_analyzer is for backcompat, remove for v3.0
-                    fieldName.equals("index_analyzer") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+                    fieldName.equals("index_analyzer") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
                     
                     indexAnalyzer = getNamedAnalyzer(parserContext, fieldNode.toString());
                     iterator.remove();

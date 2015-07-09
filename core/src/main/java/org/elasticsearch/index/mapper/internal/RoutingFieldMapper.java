@@ -102,7 +102,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
-            if (parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+            if (parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
                 parseField(builder, builder.name, node, parserContext);
             }
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
@@ -112,7 +112,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
                 if (fieldName.equals("required")) {
                     builder.required(nodeBooleanValue(fieldNode));
                     iterator.remove();
-                } else if (fieldName.equals("path") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+                } else if (fieldName.equals("path") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
                     builder.path(fieldNode.toString());
                     iterator.remove();
                 }

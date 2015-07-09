@@ -146,7 +146,7 @@ public class MockDiskUsagesTests extends ElasticsearchIntegrationTest {
                 usage.getTotalBytes(), usage.getFreeBytes(), usage.getFreeBytes());
         paths[0] = path;
         FsInfo fsInfo = new FsInfo(System.currentTimeMillis(), paths);
-        return new NodeStats(new DiscoveryNode(nodeName, null, Version.V_2_0_0),
+        return new NodeStats(new DiscoveryNode(nodeName, null, Version.V_2_0_0_beta1),
                 System.currentTimeMillis(),
                 null, null, null, null, null,
                 fsInfo,

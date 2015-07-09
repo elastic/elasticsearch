@@ -129,18 +129,30 @@ public class VersionTests extends ElasticsearchTestCase {
     }
     
     public void testMinCompatVersion() {
-        assertThat(Version.V_2_0_0.minimumCompatibilityVersion(), equalTo(Version.V_2_0_0));
+        assertThat(Version.V_2_0_0_beta1.minimumCompatibilityVersion(), equalTo(Version.V_2_0_0_beta1));
         assertThat(Version.V_1_3_0.minimumCompatibilityVersion(), equalTo(Version.V_1_0_0));
         assertThat(Version.V_1_2_0.minimumCompatibilityVersion(), equalTo(Version.V_1_0_0));
         assertThat(Version.V_1_2_3.minimumCompatibilityVersion(), equalTo(Version.V_1_0_0));
         assertThat(Version.V_1_0_0_RC2.minimumCompatibilityVersion(), equalTo(Version.V_1_0_0_RC2));
+    }
+
+    public void testToString() {
+        // with 2.0.beta we lowercase
+        assertEquals("2.0.0.beta1", Version.V_2_0_0_beta1.number());
+        assertEquals("1.4.0.Beta1", Version.V_1_4_0_Beta1.number());
+        assertEquals("1.4.0", Version.V_1_4_0.number());
+    }
+
+    public void testIsBeta() {
+        assertTrue(Version.V_2_0_0_beta1.isBeta());
+        assertTrue(Version.V_1_4_0_Beta1.isBeta());
+        assertFalse(Version.V_1_4_0.isBeta());
     }
     
     public void testParseVersion() {
         final int iters = scaledRandomIntBetween(100, 1000);
         for (int i = 0; i < iters; i++) {
             Version version = randomVersion(random());
-            String stringVersion = version.toString();
             if (version.snapshot() == false && random().nextBoolean()) {
                 version = new Version(version.id, true, version.luceneVersion);
             }

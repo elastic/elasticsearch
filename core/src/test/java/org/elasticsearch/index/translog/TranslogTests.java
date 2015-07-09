@@ -1168,7 +1168,7 @@ public class TranslogTests extends ElasticsearchTestCase {
         for (Path indexFile : indexes) {
             final String indexName = indexFile.getFileName().toString().replace(".zip", "").toLowerCase(Locale.ROOT);
             Version version = Version.fromString(indexName.replace("index-", ""));
-            if (version.onOrAfter(Version.V_2_0_0)) {
+            if (version.onOrAfter(Version.V_2_0_0_beta1)) {
                 continue;
             }
             Path unzipDir = createTempDir();
@@ -1195,7 +1195,7 @@ public class TranslogTests extends ElasticsearchTestCase {
 
             final long generation = parseLegacyTranslogFile(tlogFiles[0]);
             assertTrue(generation >= 1);
-            logger.debug("upgrading index {} file: {} size: {}", indexName, tlogFiles[0].getFileName(), size);
+            logger.info("upgrading index {} file: {} size: {}", indexName, tlogFiles[0].getFileName(), size);
             TranslogConfig upgradeConfig = new TranslogConfig(config.getShardId(), translog, config.getIndexSettings(), config.getDurabilty(), config.getBigArrays(), config.getThreadPool());
             upgradeConfig.setTranslogGeneration(new Translog.TranslogGeneration(null, generation));
             Translog.upgradeLegacyTranslog(logger, upgradeConfig);
@@ -1203,7 +1203,7 @@ public class TranslogTests extends ElasticsearchTestCase {
                 assertEquals(generation + 1, upgraded.getGeneration().translogFileGeneration);
                 assertEquals(upgraded.getRecoveredReaders().size(), 1);
                 final long headerSize;
-                if (version.before(Version.V_1_4_0)) {
+                if (version.before(Version.V_1_4_0_Beta1)) {
                     assertTrue(upgraded.getRecoveredReaders().get(0).getClass().toString(), upgraded.getRecoveredReaders().get(0).getClass() == LegacyTranslogReader.class);
                    headerSize = 0;
                 } else {

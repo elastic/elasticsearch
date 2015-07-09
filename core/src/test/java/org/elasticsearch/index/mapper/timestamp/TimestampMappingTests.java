@@ -50,7 +50,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.Version.V_1_5_0;
-import static org.elasticsearch.Version.V_2_0_0;
+import static org.elasticsearch.Version.V_2_0_0_beta1;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
@@ -96,17 +96,17 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testDefaultValues() throws Exception {
-        for (Version version : Arrays.asList(V_1_5_0, V_2_0_0, randomVersion(random()))) {
+        for (Version version : Arrays.asList(V_1_5_0, V_2_0_0_beta1, randomVersion(random()))) {
             for (String mapping : Arrays.asList(
                     XContentFactory.jsonBuilder().startObject().startObject("type").endObject().string(),
                     XContentFactory.jsonBuilder().startObject().startObject("type").startObject("_timestamp").endObject().endObject().string())) {
                 DocumentMapper docMapper = createIndex("test", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build()).mapperService().documentMapperParser().parse(mapping);
                 assertThat(docMapper.timestampFieldMapper().enabled(), equalTo(TimestampFieldMapper.Defaults.ENABLED.enabled));
-                assertThat(docMapper.timestampFieldMapper().fieldType().stored(), equalTo(version.onOrAfter(Version.V_2_0_0)));
+                assertThat(docMapper.timestampFieldMapper().fieldType().stored(), equalTo(version.onOrAfter(Version.V_2_0_0_beta1)));
                 assertThat(docMapper.timestampFieldMapper().fieldType().indexOptions(), equalTo(TimestampFieldMapper.Defaults.FIELD_TYPE.indexOptions()));
                 assertThat(docMapper.timestampFieldMapper().path(), equalTo(TimestampFieldMapper.Defaults.PATH));
-                assertThat(docMapper.timestampFieldMapper().fieldType().hasDocValues(), equalTo(version.onOrAfter(Version.V_2_0_0)));
-                String expectedFormat = version.onOrAfter(Version.V_2_0_0) ? TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT :
+                assertThat(docMapper.timestampFieldMapper().fieldType().hasDocValues(), equalTo(version.onOrAfter(Version.V_2_0_0_beta1)));
+                String expectedFormat = version.onOrAfter(Version.V_2_0_0_beta1) ? TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT :
                         TimestampFieldMapper.Defaults.DATE_TIME_FORMATTER_BEFORE_2_0.format();
                 assertThat(docMapper.timestampFieldMapper().fieldType().dateTimeFormatter().format(), equalTo(expectedFormat));
                 assertAcked(client().admin().indices().prepareDelete("test").execute().get());

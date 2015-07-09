@@ -64,7 +64,6 @@ import static org.elasticsearch.search.internal.InternalSearchHitField.readSearc
 public class InternalSearchHit implements SearchHit {
 
     private static final Object[] EMPTY_SORT_VALUES = new Object[0];
-    private static final Text MAX_TERM_AS_TEXT = new StringAndBytesText(BytesRefFieldComparatorSource.MAX_TERM.utf8ToString());
 
     private transient int docId;
 
@@ -506,13 +505,7 @@ public class InternalSearchHit implements SearchHit {
         if (sortValues != null && sortValues.length > 0) {
             builder.startArray(Fields.SORT);
             for (Object sortValue : sortValues) {
-                if (sortValue != null && sortValue.equals(MAX_TERM_AS_TEXT)) {
-                    // We don't display MAX_TERM in JSON responses in case some clients have UTF-8 parsers that wouldn't accept a
-                    // non-character in the response, even though this is valid UTF-8
-                    builder.nullValue();
-                } else {
-                    builder.value(sortValue);
-                }
+                builder.value(sortValue);
             }
             builder.endArray();
         }

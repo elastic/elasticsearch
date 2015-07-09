@@ -247,9 +247,9 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         assertThat(topDocs.scoreDocs[5].doc, equalTo(6));
         assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[5]).fields[0]).utf8ToString(), equalTo("08"));
         assertThat(topDocs.scoreDocs[6].doc, equalTo(1));
-        assertThat((BytesRef) ((FieldDoc) topDocs.scoreDocs[6]).fields[0], equalTo(XFieldComparatorSource.MAX_TERM));
+        assertThat((BytesRef) ((FieldDoc) topDocs.scoreDocs[6]).fields[0], equalTo(null));
         assertThat(topDocs.scoreDocs[7].doc, equalTo(5));
-        assertThat((BytesRef) ((FieldDoc) topDocs.scoreDocs[7]).fields[0], equalTo(XFieldComparatorSource.MAX_TERM));
+        assertThat((BytesRef) ((FieldDoc) topDocs.scoreDocs[7]).fields[0], equalTo(null));
 
         topDocs = searcher.search(new MatchAllDocsQuery(), 10,
                 new Sort(new SortField("value", indexFieldData.comparatorSource(null, MultiValueMode.MAX, null), true)));

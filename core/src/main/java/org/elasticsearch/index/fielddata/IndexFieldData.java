@@ -25,13 +25,11 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexComponent;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -112,16 +110,6 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
     // on another node (we don't have the custom source them...)
     public abstract class XFieldComparatorSource extends FieldComparatorSource {
 
-        /** UTF-8 term containing a single code point: {@link Character#MAX_CODE_POINT} which will compare greater than all other index terms
-         *  since {@link Character#MAX_CODE_POINT} is a noncharacter and thus shouldn't appear in an index term. */
-        public static final BytesRef MAX_TERM;
-        static {
-            BytesRefBuilder builder = new BytesRefBuilder();
-            final char[] chars = Character.toChars(Character.MAX_CODE_POINT);
-            builder.copyChars(chars, 0, chars.length);
-            MAX_TERM = builder.toBytesRef();
-        }
-
         /**
          * Simple wrapper class around a filter that matches parent documents
          * and a filter that matches child documents. For every root document R,
@@ -179,7 +167,7 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
                     return min ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
                 case STRING:
                 case STRING_VAL:
-                    return min ? null : MAX_TERM;
+                    return null;
                 default:
                     throw new UnsupportedOperationException("Unsupported reduced type: " + reducedType());
                 }
@@ -225,6 +213,18 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
         }
 
         public abstract SortField.Type reducedType();
+
+        /**
+         * Return a missing value that is understandable by {@link SortField#setMissingValue(Object)}.
+         * Most implementations return null because they already replace the value at the fielddata level.
+         * However this can't work in case of strings since there is no such thing as a string which
+         * compares greater than any other string, so in that case we need to return
+         * {@link SortField#STRING_FIRST} or {@link SortField#STRING_LAST} so that the coordinating node
+         * knows how to deal with null values.
+         */
+        public Object missingValue(boolean reversed) {
+            return null;
+        }
     }
 
     interface Builder {

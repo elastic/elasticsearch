@@ -31,8 +31,7 @@ import java.util.Map;
  */
 public class ShieldPlugin extends AbstractPlugin {
 
-    // FIXME need to get this back to Shield once bugs fixed in core... https://github.com/elastic/elasticsearch/issues/12143
-    public static final String NAME = "elasticsearch-shield";
+    public static final String NAME = "shield";
 
     public static final String ENABLED_SETTING_NAME = NAME + ".enabled";
 

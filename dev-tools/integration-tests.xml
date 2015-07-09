@@ -39,10 +39,10 @@
     <!-- begin shield plugin mods -->
     <!-- TODO: pluginmanager is really broken here!!!! correct the file permissions --> 
     <exec executable="chmod" failonerror="true" osfamily="unix">
-      <arg line="-R a+r ${integ.home}/bin/elasticsearch-shield"/>
+      <arg line="-R a+r ${integ.home}/bin/shield"/>
     </exec>
 
-    <run-script dir="${integ.home}" script="bin/elasticsearch-shield/esusers"
+    <run-script dir="${integ.home}" script="bin/shield/esusers"
                 args="useradd test_user -p changeme -r admin"/>
 
     <!-- seems waitfor task doesnt support basic auth?

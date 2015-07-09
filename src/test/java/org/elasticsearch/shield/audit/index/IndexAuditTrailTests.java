@@ -23,6 +23,7 @@ import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authc.AuthenticationToken;
@@ -124,7 +125,7 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
         if (remoteIndexing) {
             // start a small single-node cluster to test remote indexing against
             logger.info("--> remote indexing enabled");
-            Settings s = Settings.builder().put("shield.enabled", "false").put("path.home", createTempDir()).build();
+            Settings s = Settings.builder().put(ShieldPlugin.ENABLED_SETTING_NAME, false).put("path.home", createTempDir()).build();
             remoteNode = nodeBuilder().clusterName(REMOTE_TEST_CLUSTER).data(true).settings(s).node();
             remoteClient = remoteNode.client();
 

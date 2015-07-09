@@ -109,8 +109,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                             }
                             // add the counterpart shard with relocatingNodeId reflecting the source from which
                             // it's relocating from.
-                            sr = new ShardRouting(shard.index(), shard.id(), shard.relocatingNodeId(),
-                                    shard.currentNodeId(), shard.restoreSource(), shard.primary(), ShardRoutingState.INITIALIZING, shard.version());
+                            sr = shard.buildTargetRelocatingShard();
                             entries.add(sr);
                             assignedShardsAdd(sr);
                         } else if (!shard.active()) { // shards that are initializing without being relocated
@@ -399,11 +398,16 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     }
 
     /**
-     * Relocate a shard to another node.
+     * Relocate a shard to another node, adding the target initializing
+     * shard as well as assigning it. And returning the target initializing
+     * shard.
      */
-    public void relocate(ShardRouting shard, String nodeId) {
+    public ShardRouting relocate(ShardRouting shard, String nodeId) {
         relocatingShards++;
         shard.relocate(nodeId);
+        ShardRouting target = shard.buildTargetRelocatingShard();
+        assign(target, target.currentNodeId());
+        return target;
     }
 
     /**

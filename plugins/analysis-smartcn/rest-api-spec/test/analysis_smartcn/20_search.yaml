@@ -1,0 +1,35 @@
+# Integration tests for Smartcn analysis component
+#
+---
+"Index Smartcn content":
+    - do:
+        indices.create:
+            index:  test
+            body:
+                mappings:
+                    type:
+                        properties:
+                            text:
+                                type:     string
+                                analyzer: smartcn
+    - do:
+       cluster.health:
+           wait_for_status: yellow
+
+    - do:
+      index:
+          index:  test
+          type:   type
+          id:     1
+          body:   { "text": "我购买了道具和服装" }
+    - do:
+      indices.refresh: {}
+
+    - do:
+        search:
+            index: test
+            body:
+                query:
+                    match:
+                        text: 购买
+    - match: { hits.total: 1 }

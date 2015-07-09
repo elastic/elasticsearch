@@ -36,6 +36,7 @@ public class MovAvgBuilder extends PipelineAggregatorBuilder<MovAvgBuilder> {
     private MovAvgModelBuilder modelBuilder;
     private Integer window;
     private Integer predict;
+    private Boolean minimize;
 
     public MovAvgBuilder(String name) {
         super(name, MovAvgPipelineAggregator.TYPE.name());
@@ -94,6 +95,18 @@ public class MovAvgBuilder extends PipelineAggregatorBuilder<MovAvgBuilder> {
         return this;
     }
 
+    /**
+     * Determines if the model should be fit to the data using a cost
+     * minimizing algorithm.
+     *
+     * @param minimize If the model should be fit to the underlying data
+     * @return Returns the builder to continue chaining
+     */
+    public MovAvgBuilder minimize(boolean minimize) {
+        this.minimize = minimize;
+        return this;
+    }
+
 
     @Override
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
@@ -111,6 +124,9 @@ public class MovAvgBuilder extends PipelineAggregatorBuilder<MovAvgBuilder> {
         }
         if (predict != null) {
             builder.field(MovAvgParser.PREDICT.getPreferredName(), predict);
+        }
+        if (minimize != null) {
+            builder.field(MovAvgParser.MINIMIZE.getPreferredName(), minimize);
         }
         return builder;
     }

@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
+
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
@@ -20,6 +21,8 @@
     <properties>
         <elasticsearch.assembly.descriptor>${basedir}/src/main/assemblies/plugin.xml</elasticsearch.assembly.descriptor>
         <elasticsearch.assembly.appendId>false</elasticsearch.assembly.appendId>
+        <elasticsearch.integ.antfile.default>${elasticsearch.tools.directory}/ant/integration-tests.xml</elasticsearch.integ.antfile.default>
+        <elasticsearch.integ.antfile>${elasticsearch.integ.antfile.default}</elasticsearch.integ.antfile>
     </properties>
 
     <dependencies>
@@ -214,7 +217,9 @@
             <artifactId>jna</artifactId>
             <scope>provided</scope>
         </dependency>
+
         <!-- Required by the REST test framework -->
+        <!-- TODO: remove this dependency when we will have a REST Test module -->
         <dependency>
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>httpclient</artifactId>
@@ -278,13 +283,14 @@
                     <include>api/cluster.state.json</include>
                     <!-- used in plugin REST tests -->
                     <include>api/index.json</include>
+                    <include>api/get.json</include>
+                    <include>api/update.json</include>
                     <include>api/search.json</include>
                     <include>api/indices.analyze.json</include>
                     <include>api/indices.create.json</include>
                     <include>api/indices.refresh.json</include>
                     <include>api/nodes.info.json</include>
                     <include>api/count.json</include>
-                    <include>api/search.json</include>
                 </includes>
             </testResource>
             <!-- shared test resources like log4j.properties -->
@@ -309,7 +315,7 @@
                             </goals>
                             <configuration>
                                 <target>
-                                    <ant antfile="${elasticsearch.tools.directory}/ant/integration-tests.xml"
+                                    <ant antfile="${elasticsearch.integ.antfile}"
                                          target="start-external-cluster-with-plugin"/>
                                 </target>
                             </configuration>
@@ -323,7 +329,7 @@
                             </goals>
                             <configuration>
                                 <target>
-                                    <ant antfile="${elasticsearch.tools.directory}/ant/integration-tests.xml"
+                                    <ant antfile="${elasticsearch.integ.antfile}"
                                          target="stop-external-cluster"/>
                                 </target>
                             </configuration>

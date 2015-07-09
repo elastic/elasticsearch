@@ -20,13 +20,13 @@
 package org.elasticsearch.search.innerhits;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.support.QueryInnerHitBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchHit;
@@ -42,21 +42,9 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
-import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
-import static org.elasticsearch.index.query.QueryBuilders.hasParentQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHit;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
+import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.hamcrest.Matchers.*;
 
 /**
  */
@@ -1002,6 +990,141 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
         innerInnerHits = innerHits.getAt(0).getInnerHits().get("kings");
         assertThat(innerInnerHits.totalHits(), equalTo(1l));
         assertThat(innerInnerHits.getAt(0).getId(), equalTo("king"));
+    }
+
+    @Test
+    public void matchesQueries_nestedInnerHits() throws Exception {
+        XContentBuilder builder = jsonBuilder().startObject()
+                .startObject("type1")
+                .startObject("properties")
+                .startObject("nested1")
+                .field("type", "nested")
+                .endObject()
+                .startObject("field1")
+                .field("type", "long")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+        assertAcked(prepareCreate("test").addMapping("type1", builder));
+        ensureGreen();
+
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        int numDocs = randomIntBetween(2, 35);
+        requests.add(client().prepareIndex("test", "type1", "0").setSource(jsonBuilder().startObject()
+                .field("field1", 0)
+                .startArray("nested1")
+                .startObject()
+                .field("n_field1", "n_value1_1")
+                .field("n_field2", "n_value2_1")
+                .endObject()
+                .startObject()
+                .field("n_field1", "n_value1_2")
+                .field("n_field2", "n_value2_2")
+                .endObject()
+                .endArray()
+                .endObject()));
+        requests.add(client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("field1", 1)
+                .startArray("nested1")
+                .startObject()
+                .field("n_field1", "n_value1_8")
+                .field("n_field2", "n_value2_5")
+                .endObject()
+                .startObject()
+                .field("n_field1", "n_value1_3")
+                .field("n_field2", "n_value2_1")
+                .endObject()
+                .endArray()
+                .endObject()));
+
+        for (int i = 2; i < numDocs; i++) {
+            requests.add(client().prepareIndex("test", "type1", String.valueOf(i)).setSource(jsonBuilder().startObject()
+                    .field("field1", i)
+                    .startArray("nested1")
+                    .startObject()
+                    .field("n_field1", "n_value1_8")
+                    .field("n_field2", "n_value2_5")
+                    .endObject()
+                    .startObject()
+                    .field("n_field1", "n_value1_2")
+                    .field("n_field2", "n_value2_2")
+                    .endObject()
+                    .endArray()
+                    .endObject()));
+        }
+
+        indexRandom(true, requests);
+        waitForRelocation(ClusterHealthStatus.GREEN);
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(nestedQuery("nested1", boolQuery()
+                                .should(termQuery("nested1.n_field1", "n_value1_1").queryName("test1"))
+                                .should(termQuery("nested1.n_field1", "n_value1_3").queryName("test2"))
+                                .should(termQuery("nested1.n_field2", "n_value2_2").queryName("test3"))
+                ).innerHit(new QueryInnerHitBuilder().addSort("nested1.n_field1", SortOrder.ASC)))
+                .setSize(numDocs)
+                .addSort("field1", SortOrder.ASC)
+                .get();
+        assertNoFailures(searchResponse);
+        assertAllSuccessful(searchResponse);
+        assertThat(searchResponse.getHits().totalHits(), equalTo((long) numDocs));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("0"));
+        assertThat(searchResponse.getHits().getAt(0).getInnerHits().get("nested1").getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getAt(0).getInnerHits().get("nested1").getAt(0).getMatchedQueries().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).getInnerHits().get("nested1").getAt(0).getMatchedQueries()[0], equalTo("test1"));
+        assertThat(searchResponse.getHits().getAt(0).getInnerHits().get("nested1").getAt(1).getMatchedQueries().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).getInnerHits().get("nested1").getAt(1).getMatchedQueries()[0], equalTo("test3"));
+
+
+        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(1).getInnerHits().get("nested1").getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(1).getInnerHits().get("nested1").getAt(0).getMatchedQueries().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(1).getInnerHits().get("nested1").getAt(0).getMatchedQueries()[0], equalTo("test2"));
+
+        for (int i = 2; i < numDocs; i++) {
+            assertThat(searchResponse.getHits().getAt(i).id(), equalTo(String.valueOf(i)));
+            assertThat(searchResponse.getHits().getAt(i).getInnerHits().get("nested1").getTotalHits(), equalTo(1l));
+            assertThat(searchResponse.getHits().getAt(i).getInnerHits().get("nested1").getAt(0).getMatchedQueries().length, equalTo(1));
+            assertThat(searchResponse.getHits().getAt(i).getInnerHits().get("nested1").getAt(0).getMatchedQueries()[0], equalTo("test3"));
+        }
+    }
+
+    @Test
+    public void matchesQueries_parentChildInnerHits() throws Exception {
+        assertAcked(prepareCreate("index").addMapping("child", "_parent", "type=parent"));
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        requests.add(client().prepareIndex("index", "parent", "1").setSource("{}"));
+        requests.add(client().prepareIndex("index", "child", "1").setParent("1").setSource("field", "value1"));
+        requests.add(client().prepareIndex("index", "child", "2").setParent("1").setSource("field", "value2"));
+        requests.add(client().prepareIndex("index", "parent", "2").setSource("{}"));
+        requests.add(client().prepareIndex("index", "child", "3").setParent("2").setSource("field", "value1"));
+        indexRandom(true, requests);
+
+        SearchResponse response = client().prepareSearch("index")
+                .setQuery(hasChildQuery("child", matchQuery("field", "value1").queryName("_name1")).innerHit(new QueryInnerHitBuilder()))
+                .addSort("_uid", SortOrder.ASC)
+                .get();
+        assertHitCount(response, 2);
+        assertThat(response.getHits().getAt(0).id(), equalTo("1"));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getTotalHits(), equalTo(1l));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries().length, equalTo(1));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries()[0], equalTo("_name1"));
+
+        assertThat(response.getHits().getAt(1).id(), equalTo("2"));
+        assertThat(response.getHits().getAt(1).getInnerHits().get("child").getTotalHits(), equalTo(1l));
+        assertThat(response.getHits().getAt(1).getInnerHits().get("child").getAt(0).getMatchedQueries().length, equalTo(1));
+        assertThat(response.getHits().getAt(1).getInnerHits().get("child").getAt(0).getMatchedQueries()[0], equalTo("_name1"));
+
+        response = client().prepareSearch("index")
+                .setQuery(hasChildQuery("child", matchQuery("field", "value2").queryName("_name2")).innerHit(new QueryInnerHitBuilder()))
+                .addSort("_id", SortOrder.ASC)
+                .get();
+        assertHitCount(response, 1);
+        assertThat(response.getHits().getAt(0).id(), equalTo("1"));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getTotalHits(), equalTo(1l));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries().length, equalTo(1));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries()[0], equalTo("_name2"));
     }
 
 }

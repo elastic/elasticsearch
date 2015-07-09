@@ -19,34 +19,17 @@
 
 package org.elasticsearch.search.fetch.innerhits;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.ConstantScoreScorer;
-import org.apache.lucene.search.ConstantScoreWeight;
-import org.apache.lucene.search.DocIdSet;
-import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TopDocsCollector;
-import org.apache.lucene.search.TopFieldCollector;
-import org.apache.lucene.search.TopScoreDocCollector;
-import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
@@ -83,10 +66,10 @@ public final class InnerHitsContext {
 
     public static abstract class BaseInnerHits extends FilteredSearchContext {
 
-        protected final Query query;
+        protected final ParsedQuery query;
         private final InnerHitsContext childInnerHits;
 
-        protected BaseInnerHits(SearchContext context, Query query, Map<String, BaseInnerHits> childInnerHits) {
+        protected BaseInnerHits(SearchContext context, ParsedQuery query, Map<String, BaseInnerHits> childInnerHits) {
             super(context);
             this.query = query;
             if (childInnerHits != null && !childInnerHits.isEmpty()) {
@@ -98,12 +81,12 @@ public final class InnerHitsContext {
 
         @Override
         public Query query() {
-            return query;
+            return query.query();
         }
 
         @Override
         public ParsedQuery parsedQuery() {
-            return new ParsedQuery(query, ImmutableMap.<String, Query>of());
+            return query;
         }
 
         public abstract TopDocs topDocs(SearchContext context, FetchSubPhase.HitContext hitContext) throws IOException;
@@ -120,7 +103,7 @@ public final class InnerHitsContext {
         private final ObjectMapper parentObjectMapper;
         private final ObjectMapper childObjectMapper;
 
-        public NestedInnerHits(SearchContext context, Query query, Map<String, BaseInnerHits> childInnerHits, ObjectMapper parentObjectMapper, ObjectMapper childObjectMapper) {
+        public NestedInnerHits(SearchContext context, ParsedQuery query, Map<String, BaseInnerHits> childInnerHits, ObjectMapper parentObjectMapper, ObjectMapper childObjectMapper) {
             super(context, query, childInnerHits);
             this.parentObjectMapper = parentObjectMapper;
             this.childObjectMapper = childObjectMapper;
@@ -136,7 +119,7 @@ public final class InnerHitsContext {
             }
             BitDocIdSetFilter parentFilter = context.bitsetFilterCache().getBitDocIdSetFilter(rawParentFilter);
             Filter childFilter = childObjectMapper.nestedTypeFilter();
-            Query q = Queries.filtered(query, new NestedChildrenQuery(parentFilter, childFilter, hitContext));
+            Query q = Queries.filtered(query.query(), new NestedChildrenQuery(parentFilter, childFilter, hitContext));
 
             if (size() == 0) {
                 return new TopDocs(context.searcher().count(q), Lucene.EMPTY_SCORE_DOCS, 0);
@@ -280,7 +263,7 @@ public final class InnerHitsContext {
         private final MapperService mapperService;
         private final DocumentMapper documentMapper;
 
-        public ParentChildInnerHits(SearchContext context, Query query, Map<String, BaseInnerHits> childInnerHits, MapperService mapperService, DocumentMapper documentMapper) {
+        public ParentChildInnerHits(SearchContext context, ParsedQuery query, Map<String, BaseInnerHits> childInnerHits, MapperService mapperService, DocumentMapper documentMapper) {
             super(context, query, childInnerHits);
             this.mapperService = mapperService;
             this.documentMapper = documentMapper;
@@ -307,7 +290,7 @@ public final class InnerHitsContext {
             }
 
             BooleanQuery q = new BooleanQuery();
-            q.add(query, Occur.MUST);
+            q.add(query.query(), Occur.MUST);
             // Only include docs that have the current hit as parent
             q.add(new TermQuery(new Term(field, term)), Occur.MUST);
             // Only include docs that have this inner hits type

@@ -95,7 +95,7 @@ public class PrefixQueryParser extends BaseQueryParserTemp {
             throw new QueryParsingException(parseContext, "No value specified for prefix query");
         }
 
-        MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewriteMethod, null);
+        MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(parseContext.parseFieldMatcher(), rewriteMethod, null);
 
         Query query = null;
         MappedFieldType fieldType = parseContext.fieldMapper(fieldName);

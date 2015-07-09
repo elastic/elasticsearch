@@ -39,8 +39,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
-import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 
 /**
  * This service manages the node allocation of a cluster. For this reason the
@@ -177,8 +175,6 @@ public class AllocationService extends AbstractComponent {
         // now allocate all the unassigned to available nodes
         if (allocation.routingNodes().hasUnassigned()) {
             changed |= shardsAllocators.allocateUnassigned(allocation);
-            // elect primaries again, in case this is needed with unassigned allocation
-            changed |= electPrimariesAndUnassignedDanglingReplicas(allocation);
         }
 
         // move shards that no longer can be allocated
@@ -326,7 +322,7 @@ public class AllocationService extends AbstractComponent {
         boolean dirty = false;
         // apply shards might be called several times with the same shard, ignore it
         for (ShardRouting startedShard : startedShardEntries) {
-            assert startedShard.state() == INITIALIZING;
+            assert startedShard.initializing();
 
             // retrieve the relocating node id before calling startedShard().
             String relocatingNodeId = null;
@@ -388,7 +384,7 @@ public class AllocationService extends AbstractComponent {
         boolean dirty = false;
         if (failedShard.relocatingNodeId() != null) {
             // the shard is relocating, either in initializing (recovery from another node) or relocating (moving to another node)
-            if (failedShard.state() == INITIALIZING) {
+            if (failedShard.initializing()) {
                 // the shard is initializing and recovering from another node
                 // first, we need to cancel the current node that is being initialized
                 RoutingNodes.RoutingNodeIterator initializingNode = routingNodes.routingNodeIter(failedShard.currentNodeId());
@@ -423,7 +419,7 @@ public class AllocationService extends AbstractComponent {
                     logger.debug("failed shard {} not found in routingNodes, ignoring it", failedShard);
                 }
                 return dirty;
-            } else if (failedShard.state() == RELOCATING) {
+            } else if (failedShard.relocating()) {
                 // the shard is relocating, meaning its the source the shard is relocating from
                 // first, we need to cancel the current relocation from the current node
                 // now, find the node that we are recovering from, cancel the relocation, remove it from the node
@@ -449,7 +445,7 @@ public class AllocationService extends AbstractComponent {
                     if (initializingNode != null) {
                         while (initializingNode.hasNext()) {
                             ShardRouting shardRouting = initializingNode.next();
-                            if (shardRouting.shardId().equals(failedShard.shardId()) && shardRouting.state() == INITIALIZING) {
+                            if (shardRouting.shardId().equals(failedShard.shardId()) && shardRouting.initializing()) {
                                 dirty = true;
                                 initializingNode.remove();
                             }

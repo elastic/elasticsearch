@@ -32,6 +32,7 @@ import org.elasticsearch.indices.IndexMissingException;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -179,10 +180,10 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                     if (shardRouting.active()) {
                         set.add(shardRouting.shardsIt());
                         if (includeRelocationTargets && shardRouting.relocating()) {
-                            set.add(new PlainShardIterator(shardRouting.shardId(), ImmutableList.of(shardRouting.targetRoutingIfRelocating())));
+                            set.add(new PlainShardIterator(shardRouting.shardId(), Collections.singletonList(shardRouting.buildTargetRelocatingShard())));
                         }
                     } else if (includeEmpty) { // we need this for counting properly, just make it an empty one
-                        set.add(new PlainShardIterator(shardRouting.shardId(), ImmutableList.<ShardRouting>of()));
+                        set.add(new PlainShardIterator(shardRouting.shardId(), Collections.<ShardRouting>emptyList()));
                     }
                 }
             }
@@ -215,10 +216,10 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                     if (shardRouting.assignedToNode()) {
                         set.add(shardRouting.shardsIt());
                         if (includeRelocationTargets && shardRouting.relocating()) {
-                            set.add(new PlainShardIterator(shardRouting.shardId(), ImmutableList.of(shardRouting.targetRoutingIfRelocating())));
+                            set.add(new PlainShardIterator(shardRouting.shardId(), Collections.singletonList(shardRouting.buildTargetRelocatingShard())));
                         }
                     } else if (includeEmpty) { // we need this for counting properly, just make it an empty one
-                        set.add(new PlainShardIterator(shardRouting.shardId(), ImmutableList.<ShardRouting>of()));
+                        set.add(new PlainShardIterator(shardRouting.shardId(), Collections.<ShardRouting>emptyList()));
                     }
                 }
             }
@@ -249,7 +250,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                 if (primary.active()) {
                     set.add(primary.shardsIt());
                 } else if (includeEmpty) { // we need this for counting properly, just make it an empty one
-                    set.add(new PlainShardIterator(primary.shardId(), ImmutableList.<ShardRouting>of()));
+                    set.add(new PlainShardIterator(primary.shardId(), Collections.<ShardRouting>emptyList()));
                 }
             }
         }
@@ -348,7 +349,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             for (RoutingNode routingNode : routingNodes) {
                 for (ShardRouting shardRoutingEntry : routingNode) {
                     // every relocating shard has a double entry, ignore the target one.
-                    if (shardRoutingEntry.state() == ShardRoutingState.INITIALIZING && shardRoutingEntry.relocatingNodeId() != null)
+                    if (shardRoutingEntry.initializing() && shardRoutingEntry.relocatingNodeId() != null)
                         continue;
 
                     String index = shardRoutingEntry.index();

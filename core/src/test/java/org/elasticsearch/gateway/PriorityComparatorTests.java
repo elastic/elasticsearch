@@ -19,10 +19,7 @@
 package org.elasticsearch.gateway;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.RoutingNodes;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
@@ -49,7 +46,7 @@ public class PriorityComparatorTests extends ElasticsearchTestCase {
         int numShards = randomIntBetween(10, 100);
         for (int i = 0; i < numShards; i++) {
             IndexMeta indexMeta = randomFrom(indices);
-            shards.add(new ShardRouting(indexMeta.name, randomIntBetween(1, 5), null, null, null,
+            shards.add(TestShardRouting.newShardRouting(indexMeta.name, randomIntBetween(1, 5), null, null, null,
                     randomBoolean(), ShardRoutingState.UNASSIGNED, randomIntBetween(0, 100), new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "foobar")));
         }
         shards.sort(new PriorityComparator() {

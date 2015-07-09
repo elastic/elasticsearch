@@ -251,7 +251,7 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
                 for (int i = 0; i < numShards; i++) {
                     indexRoutingTableBuilder.addIndexShard(
                             new IndexShardRoutingTable.Builder(new ShardId("test", i), false)
-                                    .addShard(new ShardRouting("test", i, node_1_id, true, ShardRoutingState.STARTED, shardVersions[shardIds[i]]))
+                                    .addShard(TestShardRouting.newShardRouting("test", i, node_1_id, true, ShardRoutingState.STARTED, shardVersions[shardIds[i]]))
                                     .build()
                     );
                 }

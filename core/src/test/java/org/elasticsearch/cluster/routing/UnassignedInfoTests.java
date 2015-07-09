@@ -186,7 +186,7 @@ public class UnassignedInfoTests extends ElasticsearchAllocationTestCase {
      */
     @Test
     public void testStateTransitionMetaHandling() {
-        ShardRouting shard = new ShardRouting("test", 1, null, null, null, true, ShardRoutingState.UNASSIGNED, 1, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
+        ShardRouting shard = TestShardRouting.newShardRouting("test", 1, null, null, null, true, ShardRoutingState.UNASSIGNED, 1, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
         ShardRouting mutable = new ShardRouting(shard);
         assertThat(mutable.unassignedInfo(), notNullValue());
         mutable.assignToNode("test_node");

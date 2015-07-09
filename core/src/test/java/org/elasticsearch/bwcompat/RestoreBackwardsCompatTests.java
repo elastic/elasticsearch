@@ -20,6 +20,7 @@ package org.elasticsearch.bwcompat;
 
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.AbstractSnapshotTests;
 import org.elasticsearch.snapshots.RestoreInfo;
+import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
@@ -149,6 +151,12 @@ public class RestoreBackwardsCompatTests extends AbstractSnapshotTests {
     }
 
     private void testOldSnapshot(String version, String repo, String snapshot) throws IOException {
+        logger.info("--> get snapshot and check its version");
+        GetSnapshotsResponse getSnapshotsResponse = client().admin().cluster().prepareGetSnapshots(repo).setSnapshots(snapshot).get();
+        assertThat(getSnapshotsResponse.getSnapshots().size(), equalTo(1));
+        SnapshotInfo snapshotInfo = getSnapshotsResponse.getSnapshots().get(0);
+        assertThat(snapshotInfo.version().toString(), equalTo(version));
+
         logger.info("--> restoring snapshot");
         RestoreSnapshotResponse response = client().admin().cluster().prepareRestoreSnapshot(repo, snapshot).setRestoreGlobalState(true).setWaitForCompletion(true).get();
         assertThat(response.status(), equalTo(RestStatus.OK));

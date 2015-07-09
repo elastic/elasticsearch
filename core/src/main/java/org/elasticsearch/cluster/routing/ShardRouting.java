@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,7 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -38,32 +37,21 @@ import java.util.List;
  */
 public final class ShardRouting implements Streamable, ToXContent {
 
-    protected String index;
-
-    protected int shardId;
-
-    protected String currentNodeId;
-
-    protected String relocatingNodeId;
-
-    protected boolean primary;
-
-    protected ShardRoutingState state;
-
-    protected long version;
-
+    private String index;
+    private int shardId;
+    private String currentNodeId;
+    private String relocatingNodeId;
+    private boolean primary;
+    private ShardRoutingState state;
+    private long version;
     private transient ShardId shardIdentifier;
-
-    protected RestoreSource restoreSource;
-
-    protected UnassignedInfo unassignedInfo;
-
+    private RestoreSource restoreSource;
+    private UnassignedInfo unassignedInfo;
     private final transient List<ShardRouting> asList;
-
     private boolean frozen = false;
 
-    ShardRouting() {
-        this.asList = Arrays.asList(this);
+    private ShardRouting() {
+        this.asList = Collections.singletonList(this);
     }
 
     public ShardRouting(ShardRouting copy) {
@@ -71,37 +59,39 @@ public final class ShardRouting implements Streamable, ToXContent {
     }
 
     public ShardRouting(ShardRouting copy, long version) {
-        this(copy.index(), copy.id(), copy.currentNodeId(), copy.relocatingNodeId(), copy.restoreSource(), copy.primary(), copy.state(), version, copy.unassignedInfo());
+        this(copy.index(), copy.id(), copy.currentNodeId(), copy.relocatingNodeId(), copy.restoreSource(), copy.primary(), copy.state(), version, copy.unassignedInfo(), true);
     }
 
-    public ShardRouting(String index, int shardId, String currentNodeId, boolean primary, ShardRoutingState state, long version) {
-        this(index, shardId, currentNodeId, null, primary, state, version);
-    }
-
-    public ShardRouting(String index, int shardId, String currentNodeId,
-                        String relocatingNodeId, boolean primary, ShardRoutingState state, long version) {
-        this(index, shardId, currentNodeId, relocatingNodeId, null, primary, state, version);
-    }
-
-    public ShardRouting(String index, int shardId, String currentNodeId,
-                        String relocatingNodeId, RestoreSource restoreSource, boolean primary, ShardRoutingState state, long version) {
-        this(index, shardId, currentNodeId, relocatingNodeId, restoreSource, primary, state, version, null);
-    }
-
-    public ShardRouting(String index, int shardId, String currentNodeId,
-                        String relocatingNodeId, RestoreSource restoreSource, boolean primary, ShardRoutingState state, long version,
-                        UnassignedInfo unassignedInfo) {
+    /**
+     * A constructor to internally create shard routing instances, note, the internal flag should only be set to true
+     * by either this class or tests. Visible for testing.
+     */
+    ShardRouting(String index, int shardId, String currentNodeId,
+                 String relocatingNodeId, RestoreSource restoreSource, boolean primary, ShardRoutingState state, long version,
+                 UnassignedInfo unassignedInfo, boolean internal) {
         this.index = index;
         this.shardId = shardId;
         this.currentNodeId = currentNodeId;
         this.relocatingNodeId = relocatingNodeId;
         this.primary = primary;
         this.state = state;
-        this.asList = Arrays.asList(this);
+        this.asList = Collections.singletonList(this);
         this.version = version;
         this.restoreSource = restoreSource;
         this.unassignedInfo = unassignedInfo;
         assert !(state == ShardRoutingState.UNASSIGNED && unassignedInfo == null) : "unassigned shard must be created with meta";
+        if (!internal) {
+            assert state == ShardRoutingState.UNASSIGNED;
+            assert currentNodeId == null;
+            assert relocatingNodeId == null;
+        }
+    }
+
+    /**
+     * Creates a new unassigned shard.
+     */
+    public static ShardRouting newUnassigned(String index, int shardId, RestoreSource restoreSource, boolean primary, UnassignedInfo unassignedInfo) {
+        return new ShardRouting(index, shardId, null, null, restoreSource, primary, ShardRoutingState.UNASSIGNED, 0, unassignedInfo, true);
     }
 
     /**
@@ -205,15 +195,13 @@ public final class ShardRouting implements Streamable, ToXContent {
     }
 
     /**
-     * If the shard is relocating, return a shard routing representing the target shard or null o.w.
+     * Creates a shard routing representing the target shard.
      * The target shard routing will be the INITIALIZING state and have relocatingNodeId set to the
      * source node.
      */
-    public ShardRouting targetRoutingIfRelocating() {
-        if (!relocating()) {
-            return null;
-        }
-        return new ShardRouting(index, shardId, relocatingNodeId, currentNodeId, primary, ShardRoutingState.INITIALIZING, version);
+    public ShardRouting buildTargetRelocatingShard() {
+        assert relocating();
+        return new ShardRouting(index, shardId, relocatingNodeId, currentNodeId, restoreSource, primary, ShardRoutingState.INITIALIZING, version, unassignedInfo, true);
     }
 
     /**
@@ -379,7 +367,6 @@ public final class ShardRouting implements Streamable, ToXContent {
         version++;
         if (currentNodeId == null) {
             assert state == ShardRoutingState.UNASSIGNED;
-
             state = ShardRoutingState.INITIALIZING;
             currentNodeId = nodeId;
             relocatingNodeId = null;
@@ -504,7 +491,7 @@ public final class ShardRouting implements Streamable, ToXContent {
         return true;
     }
 
-    private long hashVersion = version-1;
+    private long hashVersion = version - 1;
     private int hashCode = 0;
 
     @Override

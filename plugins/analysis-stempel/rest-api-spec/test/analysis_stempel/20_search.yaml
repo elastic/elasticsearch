@@ -1,0 +1,35 @@
+# Integration tests for Stempel analysis component
+#
+---
+"Index Stempel content":
+    - do:
+        indices.create:
+            index:  test
+            body:
+                mappings:
+                    type:
+                        properties:
+                            text:
+                                type:     string
+                                analyzer: polish
+    - do:
+       cluster.health:
+           wait_for_status: yellow
+
+    - do:
+      index:
+          index:  test
+          type:   type
+          id:     1
+          body:   { "text": "studenta był" }
+    - do:
+      indices.refresh: {}
+
+    - do:
+        search:
+            index: test
+            body:
+                query:
+                    match:
+                        text: student
+    - match: { hits.total: 1 }

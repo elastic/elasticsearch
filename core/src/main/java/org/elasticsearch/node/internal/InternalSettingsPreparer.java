@@ -50,8 +50,8 @@ public class InternalSettingsPreparer {
 
     /**
      * Prepares the settings by gathering all elasticsearch system properties, optionally loading the configuration settings,
-     * and then replacing all property placeholders. This method will not work with settings that have <code>__prompt__</code>
-     * as their value unless they have been resolved previously.
+     * and then replacing all property placeholders. This method will not work with settings that have <code>${prompt.text}</code>
+     * or <code>${prompt.secret}</code> as their value unless they have been resolved previously.
      * @param pSettings The initial settings to use
      * @param loadConfigSettings flag to indicate whether to load settings from the configuration directory/file
      * @return the {@link Settings} and {@link Environment} as a {@link Tuple}
@@ -63,7 +63,8 @@ public class InternalSettingsPreparer {
     /**
      * Prepares the settings by gathering all elasticsearch system properties, optionally loading the configuration settings,
      * and then replacing all property placeholders. If a {@link Terminal} is provided and configuration settings are loaded,
-     * settings with the <code>__prompt__</code> value will result in a prompt for the setting to the user.
+     * settings with a value of <code>${prompt.text}</code> or <code>${prompt.secret}</code> will result in a prompt for
+     * the setting to the user.
      * @param pSettings The initial settings to use
      * @param loadConfigSettings flag to indicate whether to load settings from the configuration directory/file
      * @param terminal the Terminal to use for input/output
@@ -131,16 +132,9 @@ public class InternalSettingsPreparer {
         }
         settingsBuilder.replacePropertyPlaceholders();
 
-        // generate the name
+        // check if name is set in settings, if not look for system property and set it
         if (settingsBuilder.get("name") == null) {
             String name = System.getProperty("name");
-            if (name == null || name.isEmpty()) {
-                name = settingsBuilder.get("node.name");
-                if (name == null || name.isEmpty()) {
-                    name = Names.randomNodeName(environment.resolveConfig("names.txt"));
-                }
-            }
-
             if (name != null) {
                 settingsBuilder.put("name", name);
             }
@@ -155,17 +149,33 @@ public class InternalSettingsPreparer {
         if (v != null) {
             Settings.setSettingsRequireUnits(Booleans.parseBoolean(v, true));
         }
-        Settings v1 = replacePromptPlaceholders(settingsBuilder.build(), terminal);
-        environment = new Environment(v1);
+
+        Settings settings = replacePromptPlaceholders(settingsBuilder.build(), terminal);
+        // all settings placeholders have been resolved. resolve the value for the name setting by checking for name,
+        // then looking for node.name, and finally generate one if needed
+        if (settings.get("name") == null) {
+            final String name = settings.get("node.name");
+            if (name == null || name.isEmpty()) {
+                settings = settingsBuilder().put(settings)
+                        .put("name", Names.randomNodeName(environment.resolveConfig("names.txt")))
+                        .build();
+            } else {
+                settings = settingsBuilder().put(settings)
+                        .put("name", name)
+                        .build();
+            }
+        }
+
+        environment = new Environment(settings);
 
         // put back the env settings
-        settingsBuilder = settingsBuilder().put(v1);
+        settingsBuilder = settingsBuilder().put(settings);
         // we put back the path.logs so we can use it in the logging configuration file
         settingsBuilder.put("path.logs", cleanPath(environment.logsFile().toAbsolutePath().toString()));
 
-        v1 = settingsBuilder.build();
+        settings = settingsBuilder.build();
 
-        return new Tuple<>(v1, environment);
+        return new Tuple<>(settings, environment);
     }
 
     static Settings replacePromptPlaceholders(Settings settings, Terminal terminal) {

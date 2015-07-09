@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing.allocation.command;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
@@ -165,10 +166,11 @@ public class AllocateAllocationCommand implements AllocationCommand {
 
     @Override
     public RerouteExplanation execute(RoutingAllocation allocation, boolean explain) {
-        DiscoveryNode discoNode = allocation.nodes().resolveNode(node);
+        final DiscoveryNode discoNode = allocation.nodes().resolveNode(node);
+        final RoutingNodes routingNodes = allocation.routingNodes();
 
         ShardRouting shardRouting = null;
-        for (ShardRouting routing : allocation.routingNodes().unassigned()) {
+        for (ShardRouting routing : routingNodes.unassigned()) {
             if (routing.shardId().equals(shardId)) {
                 // prefer primaries first to allocate
                 if (shardRouting == null || routing.primary()) {
@@ -193,7 +195,7 @@ public class AllocateAllocationCommand implements AllocationCommand {
             throw new IllegalArgumentException("[allocate] trying to allocate a primary shard " + shardId + ", which is disabled");
         }
 
-        RoutingNode routingNode = allocation.routingNodes().node(discoNode.id());
+        RoutingNode routingNode = routingNodes.node(discoNode.id());
         if (routingNode == null) {
             if (!discoNode.dataNode()) {
                 if (explain) {
@@ -218,16 +220,16 @@ public class AllocateAllocationCommand implements AllocationCommand {
             throw new IllegalArgumentException("[allocate] allocation of " + shardId + " on node " + discoNode + " is not allowed, reason: " + decision);
         }
         // go over and remove it from the unassigned
-        for (Iterator<ShardRouting> it = allocation.routingNodes().unassigned().iterator(); it.hasNext(); ) {
+        for (Iterator<ShardRouting> it = routingNodes.unassigned().iterator(); it.hasNext(); ) {
             if (it.next() != shardRouting) {
                 continue;
             }
             it.remove();
-            allocation.routingNodes().assign(shardRouting, routingNode.nodeId());
+            routingNodes.assign(shardRouting, routingNode.nodeId());
             if (shardRouting.primary()) {
                 // we need to clear the post allocation flag, since its an explicit allocation of the primary shard
                 // and we want to force allocate it (and create a new index for it)
-                allocation.routingNodes().addClearPostAllocationFlag(shardRouting.shardId());
+                routingNodes.addClearPostAllocationFlag(shardRouting.shardId());
             }
             break;
         }

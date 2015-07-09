@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.support.QueryInnerHitBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -46,25 +47,9 @@ import java.util.List;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
-import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.arrayContaining;
-import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
-import static org.hamcrest.Matchers.arrayWithSize;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.startsWith;
+import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.hamcrest.Matchers.*;
 
 public class SimpleNestedTests extends ElasticsearchIntegrationTest {
 
@@ -176,98 +161,6 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         searchResponse = client().prepareSearch("test").setTypes("type1", "type2").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"))).execute().actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
-    }
-
-    @Test @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/10661")
-    public void simpleNestedMatchQueries() throws Exception {
-        XContentBuilder builder = jsonBuilder().startObject()
-                .startObject("type1")
-                    .startObject("properties")
-                        .startObject("nested1")
-                            .field("type", "nested")
-                        .endObject()
-                        .startObject("field1")
-                            .field("type", "long")
-                        .endObject()
-                    .endObject()
-                .endObject()
-                .endObject();
-        assertAcked(prepareCreate("test").addMapping("type1", builder));
-        ensureGreen();
-
-        List<IndexRequestBuilder> requests = new ArrayList<>();
-        int numDocs = randomIntBetween(2, 35);
-        requests.add(client().prepareIndex("test", "type1", "0").setSource(jsonBuilder().startObject()
-                .field("field1", 0)
-                .startArray("nested1")
-                .startObject()
-                .field("n_field1", "n_value1_1")
-                .field("n_field2", "n_value2_1")
-                .endObject()
-                .startObject()
-                .field("n_field1", "n_value1_2")
-                .field("n_field2", "n_value2_2")
-                .endObject()
-                .endArray()
-                .endObject()));
-        requests.add(client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
-                .field("field1", 1)
-                .startArray("nested1")
-                .startObject()
-                .field("n_field1", "n_value1_8")
-                .field("n_field2", "n_value2_5")
-                .endObject()
-                .startObject()
-                .field("n_field1", "n_value1_3")
-                .field("n_field2", "n_value2_1")
-                .endObject()
-                .endArray()
-                .endObject()));
-
-        for (int i = 2; i < numDocs; i++) {
-            requests.add(client().prepareIndex("test", "type1", String.valueOf(i)).setSource(jsonBuilder().startObject()
-                    .field("field1", i)
-                    .startArray("nested1")
-                    .startObject()
-                    .field("n_field1", "n_value1_8")
-                    .field("n_field2", "n_value2_5")
-                    .endObject()
-                    .startObject()
-                    .field("n_field1", "n_value1_2")
-                    .field("n_field2", "n_value2_2")
-                    .endObject()
-                    .endArray()
-                    .endObject()));
-        }
-
-        indexRandom(true, requests);
-        waitForRelocation(ClusterHealthStatus.GREEN);
-
-        SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(nestedQuery("nested1", boolQuery()
-                        .should(termQuery("nested1.n_field1", "n_value1_1").queryName("test1"))
-                        .should(termQuery("nested1.n_field1", "n_value1_3").queryName("test2"))
-                        .should(termQuery("nested1.n_field2", "n_value2_2").queryName("test3"))
-                ))
-                .setSize(numDocs)
-                .addSort("field1", SortOrder.ASC)
-                .get();
-        assertNoFailures(searchResponse);
-        assertAllSuccessful(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), equalTo((long) numDocs));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("0"));
-        assertThat(searchResponse.getHits().getAt(0).matchedQueries(), arrayWithSize(2));
-        assertThat(searchResponse.getHits().getAt(0).matchedQueries(), arrayContainingInAnyOrder("test1", "test3"));
-
-        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("1"));
-        assertThat(searchResponse.getHits().getAt(1).matchedQueries(), arrayWithSize(1));
-        assertThat(searchResponse.getHits().getAt(1).matchedQueries(), arrayContaining("test2"));
-
-        for (int i = 2; i < numDocs; i++) {
-            assertThat(searchResponse.getHits().getAt(i).id(), equalTo(String.valueOf(i)));
-            assertThat(searchResponse.getHits().getAt(i).matchedQueries(), arrayWithSize(1));
-            assertThat(searchResponse.getHits().getAt(i).matchedQueries(), arrayContaining("test3"));
-        }
     }
 
     @Test

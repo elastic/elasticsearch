@@ -277,14 +277,21 @@ public class PluginManager {
                 throw new IOException("Could not move [" + binFile + "] to [" + toLocation + "]", e);
             }
             if (Files.getFileStore(toLocation).supportsFileAttributeView(PosixFileAttributeView.class)) {
-                final Set<PosixFilePermission> perms = new HashSet<>();
-                perms.add(PosixFilePermission.OWNER_EXECUTE);
-                perms.add(PosixFilePermission.GROUP_EXECUTE);
-                perms.add(PosixFilePermission.OTHERS_EXECUTE);
+                // add read and execute permissions to existing perms, so execution will work.
+                // read should generally be set already, but set it anyway: don't rely on umask...
+                final Set<PosixFilePermission> executePerms = new HashSet<>();
+                executePerms.add(PosixFilePermission.OWNER_READ);
+                executePerms.add(PosixFilePermission.GROUP_READ);
+                executePerms.add(PosixFilePermission.OTHERS_READ);
+                executePerms.add(PosixFilePermission.OWNER_EXECUTE);
+                executePerms.add(PosixFilePermission.GROUP_EXECUTE);
+                executePerms.add(PosixFilePermission.OTHERS_EXECUTE);
                 Files.walkFileTree(toLocation, new SimpleFileVisitor<Path>() {
                     @Override
                     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                         if (attrs.isRegularFile()) {
+                            Set<PosixFilePermission> perms = Files.getPosixFilePermissions(file);
+                            perms.addAll(executePerms);
                             Files.setPosixFilePermissions(file, perms);
                         }
                         return FileVisitResult.CONTINUE;
@@ -751,23 +758,20 @@ public class PluginManager {
                 }
             }
 
-            if (isOfficialPlugin(repo, user, version)) {
-                return new PluginHandle(repo, Version.CURRENT.number(), null, repo);
-            }
-
+            String endname = repo;
             if (repo.startsWith("elasticsearch-")) {
                 // remove elasticsearch- prefix
-                String endname = repo.substring("elasticsearch-".length());
-                return new PluginHandle(endname, version, user, repo);
-            }
-
-            if (name.startsWith("es-")) {
+                endname = repo.substring("elasticsearch-".length());
+            } else if (repo.startsWith("es-")) {
                 // remove es- prefix
-                String endname = repo.substring("es-".length());
-                return new PluginHandle(endname, version, user, repo);
+                endname = repo.substring("es-".length());
             }
 
-            return new PluginHandle(repo, version, user, repo);
+            if (isOfficialPlugin(repo, user, version)) {
+                return new PluginHandle(endname, Version.CURRENT.number(), null, repo);
+            }
+
+            return new PluginHandle(endname, version, user, repo);
         }
 
         static boolean isOfficialPlugin(String repo, String user, String version) {

@@ -535,7 +535,7 @@ source field is loaded per doc, parsed, and then provided to the script
 for evaluation. The `_source` forms the context under which the source
 field can be accessed, for example `_source.obj2.obj1.field3`.
 
-Accessing `_source` is much slower compared to using `_doc`
+Accessing `_source` is much slower compared to using `doc`
 but the data is not loaded into memory. For a single field access `_fields` may be
 faster than using `_source` due to the extra overhead of potentially parsing large documents.
 However, `_source` may be faster if you access multiple fields or if the source has already been

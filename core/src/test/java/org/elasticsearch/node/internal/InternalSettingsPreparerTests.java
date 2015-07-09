@@ -31,22 +31,23 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 public class InternalSettingsPreparerTests extends ElasticsearchTestCase {
 
     @Before
     public void setupSystemProperties() {
         System.setProperty("es.node.zone", "foo");
+        System.setProperty("name", "sys-prop-name");
     }
 
     @After
     public void cleanupSystemProperties() {
         System.clearProperty("es.node.zone");
+        System.clearProperty("name");
     }
 
     @Test
@@ -150,5 +151,73 @@ public class InternalSettingsPreparerTests extends ElasticsearchTestCase {
         } catch (UnsupportedOperationException e) {
             assertThat(e.getMessage(), containsString("with value [" + InternalSettingsPreparer.TEXT_PROMPT_VALUE + "]"));
         }
+    }
+
+    @Test
+    public void testNameSettingsPreference() {
+        // Test system property overrides node.name
+        Settings settings = settingsBuilder()
+                .put("node.name", "node-name")
+                .put("path.home", createTempDir().toString())
+                .build();
+        Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(settings, true);
+        assertThat(tuple.v1().get("name"), equalTo("sys-prop-name"));
+
+        // test name in settings overrides sys prop and node.name
+        settings = settingsBuilder()
+                .put("name", "name-in-settings")
+                .put("node.name", "node-name")
+                .put("path.home", createTempDir().toString())
+                .build();
+        tuple = InternalSettingsPreparer.prepareSettings(settings, true);
+        assertThat(tuple.v1().get("name"), equalTo("name-in-settings"));
+
+        // test only node.name in settings
+        System.clearProperty("name");
+        settings = settingsBuilder()
+                .put("node.name", "node-name")
+                .put("path.home", createTempDir().toString())
+                .build();
+        tuple = InternalSettingsPreparer.prepareSettings(settings, true);
+        assertThat(tuple.v1().get("name"), equalTo("node-name"));
+
+        // test no name at all results in name being set
+        settings = settingsBuilder()
+                .put("path.home", createTempDir().toString())
+                .build();
+        tuple = InternalSettingsPreparer.prepareSettings(settings, true);
+        assertThat(tuple.v1().get("name"), not("name-in-settings"));
+        assertThat(tuple.v1().get("name"), not("sys-prop-name"));
+        assertThat(tuple.v1().get("name"), not("node-name"));
+        assertThat(tuple.v1().get("name"), notNullValue());
+    }
+
+    @Test
+    public void testPromptForNodeNameOnlyPromptsOnce() {
+        final AtomicInteger counter = new AtomicInteger();
+        final Terminal terminal = new CliToolTestCase.MockTerminal() {
+            @Override
+            public char[] readSecret(String message, Object... args) {
+                fail("readSecret should never be called by this test");
+                return null;
+            }
+
+            @Override
+            public String readText(String message, Object... args) {
+                int count = counter.getAndIncrement();
+                return "prompted name " + count;
+            }
+        };
+
+        System.clearProperty("name");
+        Settings settings = Settings.builder()
+                .put("path.home", createTempDir())
+                .put("node.name", InternalSettingsPreparer.TEXT_PROMPT_VALUE)
+                .build();
+        Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(settings, false, terminal);
+        settings = tuple.v1();
+        assertThat(counter.intValue(), is(1));
+        assertThat(settings.get("name"), is("prompted name 0"));
+        assertThat(settings.get("node.name"), is("prompted name 0"));
     }
 }

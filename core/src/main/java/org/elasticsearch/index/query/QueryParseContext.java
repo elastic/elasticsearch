@@ -185,11 +185,11 @@ public class QueryParseContext {
         namedQueries.put(name, query);
     }
 
-    public ImmutableMap<String, Query> copyNamedFilters() {
+    public ImmutableMap<String, Query> copyNamedQueries() {
         return ImmutableMap.copyOf(namedQueries);
     }
 
-    public void combineNamedFilters(QueryParseContext context) {
+    public void combineNamedQueries(QueryParseContext context) {
         namedQueries.putAll(context.namedQueries);
     }
 

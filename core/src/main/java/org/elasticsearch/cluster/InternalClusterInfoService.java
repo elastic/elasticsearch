@@ -360,7 +360,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
                     HashMap<String, Long> newShardSizes = new HashMap<>();
                     for (ShardStats s : stats) {
                         long size = s.getStats().getStore().sizeInBytes();
-                        String sid = shardIdentifierFromRouting(s.getShardRouting());
+                        String sid = ClusterInfo.shardIdentifierFromRouting(s.getShardRouting());
                         if (logger.isTraceEnabled()) {
                             logger.trace("shard: {} size: {}", sid, size);
                         }
@@ -411,11 +411,5 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
         }
     }
 
-    /**
-     * Method that incorporates the ShardId for the shard into a string that
-     * includes a 'p' or 'r' depending on whether the shard is a primary.
-     */
-    public static String shardIdentifierFromRouting(ShardRouting shardRouting) {
-        return shardRouting.shardId().toString() + "[" + (shardRouting.primary() ? "p" : "r") + "]";
-    }
+
 }

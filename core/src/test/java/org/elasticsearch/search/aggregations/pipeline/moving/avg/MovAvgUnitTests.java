@@ -351,12 +351,11 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
         // Calculate the slopes between first and second season for each period
         for (int i = 0; i < period; i++) {
             s += vs[i];
-            b += (vs[i] - vs[i + period]) / 2;
+            b += (vs[i + period] - vs[i]) / period;
         }
         s /= (double) period;
         b /= (double) period;
         last_s = s;
-        last_b = b;
 
         // Calculate first seasonal
         if (Double.compare(s, 0.0) == 0 || Double.compare(s, -0.0) == 0) {
@@ -371,14 +370,13 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
             s = alpha * (vs[i] / seasonal[i - period]) + (1.0d - alpha) * (last_s + last_b);
             b = beta * (s - last_s) + (1 - beta) * last_b;
 
-            //seasonal[i] = gamma * (vs[i] / s) + ((1 - gamma) * seasonal[i - period]);
             seasonal[i] = gamma * (vs[i] / (last_s + last_b )) + (1 - gamma) * seasonal[i - period];
             last_s = s;
             last_b = b;
         }
 
-        int seasonCounter = (windowSize - 1) - period;
-        double expected = s + (0 * b) * seasonal[seasonCounter % windowSize];;
+        int idx = window.size() - period + (0 % period);
+        double expected = (s + (1 * b)) * seasonal[idx];
         double actual = model.next(window);
         assertThat(Double.compare(expected, actual), equalTo(0));
     }
@@ -424,35 +422,35 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
         // Calculate the slopes between first and second season for each period
         for (int i = 0; i < period; i++) {
             s += vs[i];
-            b += (vs[i] - vs[i + period]) / 2;
+            b += (vs[i + period] - vs[i]) / period;
         }
         s /= (double) period;
         b /= (double) period;
         last_s = s;
-        last_b = b;
 
-        for (int i = 0; i < period; i++) {
-            // Calculate first seasonal
-            seasonal[i] = vs[i] / s;
+        // Calculate first seasonal
+        if (Double.compare(s, 0.0) == 0 || Double.compare(s, -0.0) == 0) {
+            Arrays.fill(seasonal, 0.0);
+        } else {
+            for (int i = 0; i < period; i++) {
+                seasonal[i] = vs[i] / s;
+            }
         }
 
         for (int i = period; i < vs.length; i++) {
             s = alpha * (vs[i] / seasonal[i - period]) + (1.0d - alpha) * (last_s + last_b);
             b = beta * (s - last_s) + (1 - beta) * last_b;
 
-            //seasonal[i] = gamma * (vs[i] / s) + ((1 - gamma) * seasonal[i - period]);
             seasonal[i] = gamma * (vs[i] / (last_s + last_b )) + (1 - gamma) * seasonal[i - period];
             last_s = s;
             last_b = b;
         }
 
-        int seasonCounter = (windowSize - 1) - period;
 
-        for (int i = 0; i < numPredictions; i++) {
-
-            expected[i] = s + (i * b) * seasonal[seasonCounter % windowSize];
-            assertThat(Double.compare(expected[i], actual[i]), equalTo(0));
-            seasonCounter += 1;
+        for (int i = 1; i <= numPredictions; i++) {
+            int idx = window.size() - period + ((i - 1) % period);
+            expected[i-1] = (s + (i * b)) * seasonal[idx];
+            assertThat(Double.compare(expected[i-1], actual[i-1]), equalTo(0));
         }
 
     }
@@ -490,35 +488,36 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
             counter += 1;
         }
 
-
         // Initial level value is average of first season
         // Calculate the slopes between first and second season for each period
         for (int i = 0; i < period; i++) {
             s += vs[i];
-            b += (vs[i] - vs[i + period]) / 2;
+            b += (vs[i + period] - vs[i]) / period;
         }
         s /= (double) period;
         b /= (double) period;
         last_s = s;
-        last_b = b;
 
-        for (int i = 0; i < period; i++) {
-            // Calculate first seasonal
-            seasonal[i] = vs[i] / s;
+        // Calculate first seasonal
+        if (Double.compare(s, 0.0) == 0 || Double.compare(s, -0.0) == 0) {
+            Arrays.fill(seasonal, 0.0);
+        } else {
+            for (int i = 0; i < period; i++) {
+                seasonal[i] = vs[i] / s;
+            }
         }
 
         for (int i = period; i < vs.length; i++) {
             s = alpha * (vs[i] - seasonal[i - period]) + (1.0d - alpha) * (last_s + last_b);
             b = beta * (s - last_s) + (1 - beta) * last_b;
 
-            //seasonal[i] = gamma * (vs[i] / s) + ((1 - gamma) * seasonal[i - period]);
-            seasonal[i] = gamma * (vs[i] - (last_s + last_b )) + (1 - gamma) * seasonal[i - period];
+            seasonal[i] = gamma * (vs[i] - (last_s - last_b )) + (1 - gamma) * seasonal[i - period];
             last_s = s;
             last_b = b;
         }
 
-        int seasonCounter = (windowSize - 1) - period;
-        double expected = s + (0 * b) + seasonal[seasonCounter % windowSize];
+        int idx = window.size() - period + (0 % period);
+        double expected = s + (1 * b) + seasonal[idx];
         double actual = model.next(window);
         assertThat(Double.compare(expected, actual), equalTo(0));
     }
@@ -559,40 +558,38 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
             counter += 1;
         }
 
-
         // Initial level value is average of first season
         // Calculate the slopes between first and second season for each period
         for (int i = 0; i < period; i++) {
             s += vs[i];
-            b += (vs[i] - vs[i + period]) / 2;
+            b += (vs[i + period] - vs[i]) / period;
         }
         s /= (double) period;
         b /= (double) period;
         last_s = s;
-        last_b = b;
 
-        for (int i = 0; i < period; i++) {
-            // Calculate first seasonal
-            seasonal[i] = vs[i] / s;
+        // Calculate first seasonal
+        if (Double.compare(s, 0.0) == 0 || Double.compare(s, -0.0) == 0) {
+            Arrays.fill(seasonal, 0.0);
+        } else {
+            for (int i = 0; i < period; i++) {
+                seasonal[i] = vs[i] / s;
+            }
         }
 
         for (int i = period; i < vs.length; i++) {
             s = alpha * (vs[i] - seasonal[i - period]) + (1.0d - alpha) * (last_s + last_b);
             b = beta * (s - last_s) + (1 - beta) * last_b;
 
-            //seasonal[i] = gamma * (vs[i] / s) + ((1 - gamma) * seasonal[i - period]);
-            seasonal[i] = gamma * (vs[i] - (last_s + last_b )) + (1 - gamma) * seasonal[i - period];
+            seasonal[i] = gamma * (vs[i] - (last_s - last_b )) + (1 - gamma) * seasonal[i - period];
             last_s = s;
             last_b = b;
         }
 
-        int seasonCounter = (windowSize - 1) - period;
-
-        for (int i = 0; i < numPredictions; i++) {
-
-            expected[i] = s + (i * b) + seasonal[seasonCounter % windowSize];
-            assertThat(Double.compare(expected[i], actual[i]), equalTo(0));
-            seasonCounter += 1;
+        for (int i = 1; i <= numPredictions; i++) {
+            int idx = window.size() - period + ((i - 1) % period);
+            expected[i-1] = s + (i * b) + seasonal[idx];
+            assertThat(Double.compare(expected[i-1], actual[i-1]), equalTo(0));
         }
 
     }

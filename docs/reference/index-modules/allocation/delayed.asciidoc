@@ -32,7 +32,7 @@ requests) which have been automatically <<indices-synced-flush,sync-flushed>>.
 
 The allocation of replica shards which become unassigned because a node has
 left can be delayed with the `index.unassigned.node_left.delayed_timeout`
-dynamic setting, which defaults to `0` (reassign shards immediately).
+dynamic setting, which defaults to `1m`.
 
 This setting can be updated on a live index (or on all indices):
 

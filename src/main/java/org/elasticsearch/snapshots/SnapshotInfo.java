@@ -19,6 +19,7 @@
 package org.elasticsearch.snapshots;
 
 import java.io.IOException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -55,6 +56,7 @@ public class SnapshotInfo implements ToXContent, Streamable {
     private int successfulShards;
 
     private ImmutableList<SnapshotShardFailure> shardFailures;
+    private Version version;
 
     SnapshotInfo() {
 
@@ -75,6 +77,7 @@ public class SnapshotInfo implements ToXContent, Streamable {
         totalShards = snapshot.totalShard();
         successfulShards = snapshot.successfulShards();
         shardFailures = snapshot.shardFailures();
+        version = snapshot.version();
     }
 
     /**
@@ -170,6 +173,15 @@ public class SnapshotInfo implements ToXContent, Streamable {
     }
 
     /**
+     * Returns the version of elasticsearch that the snapshot was created with
+     *
+     * @return version of elasticsearch that the snapshot was created with
+     */
+    public Version version() {
+        return version;
+    }
+
+    /**
      * Returns snapshot REST status
      */
     public RestStatus status() {
@@ -197,12 +209,18 @@ public class SnapshotInfo implements ToXContent, Streamable {
         static final XContentBuilderString TOTAL = new XContentBuilderString("total");
         static final XContentBuilderString FAILED = new XContentBuilderString("failed");
         static final XContentBuilderString SUCCESSFUL = new XContentBuilderString("successful");
+        static final XContentBuilderString VERSION_ID = new XContentBuilderString("version_id");
+        static final XContentBuilderString VERSION = new XContentBuilderString("version");
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("snapshot", name);
+        if (version != null) {
+            builder.field(Fields.VERSION_ID, version.id);
+            builder.field(Fields.VERSION, version.toString());
+        }
         builder.startArray(Fields.INDICES);
         for (String index : indices) {
             builder.value(index);
@@ -260,6 +278,9 @@ public class SnapshotInfo implements ToXContent, Streamable {
         } else {
             shardFailures = ImmutableList.of();
         }
+        if (in.getVersion().onOrAfter(Version.V_1_7_0)) {
+            version = Version.readVersion(in);
+        }
     }
 
     @Override
@@ -278,6 +299,9 @@ public class SnapshotInfo implements ToXContent, Streamable {
         out.writeVInt(shardFailures.size());
         for (SnapshotShardFailure failure : shardFailures) {
             failure.writeTo(out);
+        }
+        if (out.getVersion().onOrAfter(Version.V_1_7_0)) {
+            Version.writeVersion(version, out);
         }
     }
 

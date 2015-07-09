@@ -69,7 +69,7 @@ public class PluginManagerUnitTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testTrimmingElasticsearchFromPluginName() throws IOException {
+    public void testTrimmingElasticsearchFromOfficialPluginName() throws IOException {
         String randomName = randomAsciiOfLength(10);
         String pluginName = randomFrom("elasticsearch-", "es-") + randomName;
         PluginManager.PluginHandle handle = PluginManager.PluginHandle.parse(pluginName);
@@ -77,6 +77,18 @@ public class PluginManagerUnitTests extends ElasticsearchTestCase {
         assertThat(handle.urls(), hasSize(1));
         URL expected = new URL("http", "download.elastic.co", "/org.elasticsearch.plugins/" + pluginName + "/" +
                 pluginName + "-" + Version.CURRENT.number() + ".zip");
+        assertThat(handle.urls().get(0), is(expected));
+    }
+
+    @Test
+    public void testTrimmingElasticsearchFromGithubPluginName() throws IOException {
+        String user = randomAsciiOfLength(6);
+        String randomName = randomAsciiOfLength(10);
+        String pluginName = randomFrom("elasticsearch-", "es-") + randomName;
+        PluginManager.PluginHandle handle = PluginManager.PluginHandle.parse(user + "/" + pluginName);
+        assertThat(handle.name, is(randomName));
+        assertThat(handle.urls(), hasSize(1));
+        URL expected = new URL("https", "github.com", "/" + user + "/" + pluginName + "/" + "archive/master.zip");
         assertThat(handle.urls().get(0), is(expected));
     }
 }

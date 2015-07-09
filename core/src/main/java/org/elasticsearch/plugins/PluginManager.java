@@ -758,19 +758,20 @@ public class PluginManager {
                 }
             }
 
+            String endname = repo;
+            if (repo.startsWith("elasticsearch-")) {
+                // remove elasticsearch- prefix
+                endname = repo.substring("elasticsearch-".length());
+            } else if (repo.startsWith("es-")) {
+                // remove es- prefix
+                endname = repo.substring("es-".length());
+            }
+
             if (isOfficialPlugin(repo, user, version)) {
-                String endname = repo;
-                if (repo.startsWith("elasticsearch-")) {
-                    // remove elasticsearch- prefix
-                    endname = repo.substring("elasticsearch-".length());
-                } else if (name.startsWith("es-")) {
-                    // remove es- prefix
-                    endname = repo.substring("es-".length());
-                }
                 return new PluginHandle(endname, Version.CURRENT.number(), null, repo);
             }
 
-            return new PluginHandle(repo, version, user, repo);
+            return new PluginHandle(endname, version, user, repo);
         }
 
         static boolean isOfficialPlugin(String repo, String user, String version) {

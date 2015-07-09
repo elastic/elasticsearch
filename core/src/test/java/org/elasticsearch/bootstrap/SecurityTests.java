@@ -19,6 +19,7 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -207,6 +208,8 @@ public class SecurityTests extends ElasticsearchTestCase {
 
     /** When a configured dir is a symlink, test that permissions work on link target */
     public void testSymlinkPermissions() throws IOException {
+        // see https://github.com/elastic/elasticsearch/issues/12170
+        assumeFalse("windows does not automatically grant permission to the target of symlinks", Constants.WINDOWS);
         Path dir = createTempDir();
 
         Path target = dir.resolve("target");

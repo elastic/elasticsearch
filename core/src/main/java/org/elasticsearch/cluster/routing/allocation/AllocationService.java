@@ -175,8 +175,6 @@ public class AllocationService extends AbstractComponent {
         // now allocate all the unassigned to available nodes
         if (allocation.routingNodes().hasUnassigned()) {
             changed |= shardsAllocators.allocateUnassigned(allocation);
-            // elect primaries again, in case this is needed with unassigned allocation
-            changed |= electPrimariesAndUnassignedDanglingReplicas(allocation);
         }
 
         // move shards that no longer can be allocated

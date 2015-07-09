@@ -241,7 +241,9 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
         if (state.compareAndSet(State.STARTED, State.STOPPING)) {
             try {
                 queueConsumer.interrupt();
-                bulkProcessor.flush();
+                if (bulkProcessor != null) {
+                    bulkProcessor.flush();
+                }
             } finally {
                 state.set(State.STOPPED);
             }
@@ -254,7 +256,9 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
         }
 
         try {
-            bulkProcessor.close();
+            if (bulkProcessor != null) {
+                bulkProcessor.close();
+            }
         } finally {
             if (indexToRemoteCluster) {
                 if (client != null) {

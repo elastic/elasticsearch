@@ -77,7 +77,7 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
 
 
     /**
-     * Adds an {@link DeleteRequest} to the list of actions to execute.
+     * Adds an {@link UpdateRequest} to the list of actions to execute.
      */
     public BulkRequestBuilder add(UpdateRequest request) {
         super.request.add(request);
@@ -85,7 +85,7 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
     }
 
     /**
-     * Adds an {@link DeleteRequest} to the list of actions to execute.
+     * Adds an {@link UpdateRequest} to the list of actions to execute.
      */
     public BulkRequestBuilder add(UpdateRequestBuilder request) {
         super.request.add(request.request());

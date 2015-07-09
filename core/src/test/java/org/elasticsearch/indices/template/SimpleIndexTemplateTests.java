@@ -20,9 +20,7 @@ package org.elasticsearch.indices.template;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
@@ -33,7 +31,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -44,12 +41,10 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
@@ -659,17 +654,21 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
         assertThat(response.getItems()[0].getId(), equalTo("test"));
         assertThat(response.getItems()[0].getVersion(), equalTo(1l));
 
-        try {
-            client().prepareIndex("d1", "test", "test").setSource("{}").get();
-            fail();
-        } catch (Exception e) {
-            assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), containsString("failed to parse filter for alias [alias4]"));
-        }
+        // Before 2.0 alias filters were parsed at alias creation time, in order
+        // for filters to work correctly ES required that fields mentioned in those
+        // filters exist in the mapping.
+        // From 2.0 and higher alias filters are parsed at request time and therefor
+        // fields mentioned in filters don't need to exist in the mapping.
+        // So the aliases defined in the index template for this index will not fail
+        // even though the fields in the alias fields don't exist yet and indexing into
+        // an index that doesn't exist yet will succeed
+        client().prepareIndex("d1", "test", "test").setSource("{}").get();
+
         response = client().prepareBulk().add(new IndexRequest("d2", "test", "test").source("{}")).get();
-        assertThat(response.hasFailures(), is(true));
-        assertThat(response.getItems()[0].isFailed(), equalTo(true));
-        assertThat(response.getItems()[0].getFailureMessage(), containsString("failed to parse filter for alias [alias4]"));
+        assertThat(response.hasFailures(), is(false));
+        assertThat(response.getItems()[0].isFailed(), equalTo(false));
+        assertThat(response.getItems()[0].getId(), equalTo("test"));
+        assertThat(response.getItems()[0].getVersion(), equalTo(1l));
     }
 
 }

@@ -33,8 +33,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -47,7 +45,7 @@ import static com.google.common.collect.Lists.newArrayList;
  * This class holds all {@link DiscoveryNode} in the cluster and provides convenience methods to
  * access, modify merge / diff discovery nodes.
  */
-public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements Iterable<DiscoveryNode>, ToXContent {
+public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements Iterable<DiscoveryNode> {
 
     public static final DiscoveryNodes EMPTY_NODES = builder().build();
     public static final DiscoveryNodes PROTO = EMPTY_NODES;
@@ -468,16 +466,6 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
 
     public Delta emptyDelta() {
         return new Delta(null, null, localNodeId, DiscoveryNode.EMPTY_LIST, DiscoveryNode.EMPTY_LIST);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("nodes");
-        for (ObjectCursor<DiscoveryNode> node : nodes.values()) {
-            node.value.toXContent(builder, params);
-        }
-        builder.endObject();
-        return builder;
     }
 
     public static class Delta {

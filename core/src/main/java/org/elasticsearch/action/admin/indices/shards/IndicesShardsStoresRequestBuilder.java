@@ -20,17 +20,43 @@
 package org.elasticsearch.action.admin.indices.shards;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
+/**
+ * Request builder for {@link IndicesShardsStoresRequest}
+ */
 public class IndicesShardsStoresRequestBuilder extends MasterNodeReadOperationRequestBuilder<IndicesShardsStoresRequest, IndicesShardsStoresResponse, IndicesShardsStoresRequestBuilder> {
 
     public IndicesShardsStoresRequestBuilder(ElasticsearchClient client, Action<IndicesShardsStoresRequest, IndicesShardsStoresResponse, IndicesShardsStoresRequestBuilder> action, String... indices) {
         super(client, action, new IndicesShardsStoresRequest(indices));
     }
 
-    public IndicesShardsStoresRequestBuilder setStatuses(String... statuses) {
-        request.shardStatuses(statuses);
+    /**
+     * Sets the indices for the shard stores request
+     */
+    public IndicesShardsStoresRequestBuilder setIndices(String... indices) {
+        request.indices(indices);
+        return this;
+    }
+
+    /**
+     * Specifies what type of requested indices to ignore and wildcard indices expressions
+     * By default, expands wildcards to both open and closed indices
+     */
+    public IndicesShardsStoresRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
+        request.indicesOptions(indicesOptions);
+        return this;
+    }
+
+    /**
+     * Set statuses to filter shards to get stores info on.
+     * @param shardStatuses acceptable values are "green", "yellow", "red" and "all"
+     * see {@link IndicesShardsStoresRequest.Status} for details
+     */
+    public IndicesShardsStoresRequestBuilder setShardStatuses(String... shardStatuses) {
+        request.shardStatuses(shardStatuses);
         return this;
     }
 }

@@ -111,7 +111,7 @@ public class SnapshotBackwardsCompatibilityTest extends ElasticsearchBackwardsCo
         assertThat(client().prepareCount(indices).get().getCount(), lessThan((long) (buildersBefore.length + buildersAfter.length)));
 
 
-        client().admin().indices().prepareUpdateSettings(indices).setSettings(Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "none")).get();
+        disableAllocation(indices);
         backwardsCluster().allowOnAllNodes(indices);
         logClusterState();
         boolean upgraded;
@@ -124,7 +124,7 @@ public class SnapshotBackwardsCompatibilityTest extends ElasticsearchBackwardsCo
             countResponse = client().prepareCount().get();
             assertHitCount(countResponse, numDocs);
         } while (upgraded);
-        client().admin().indices().prepareUpdateSettings(indices).setSettings(Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "all")).get();
+        enableAllocation(indices);
 
         logger.info("--> close indices");
         client().admin().indices().prepareClose("index_before_*").get();
@@ -201,7 +201,7 @@ public class SnapshotBackwardsCompatibilityTest extends ElasticsearchBackwardsCo
         }
         if (frequently()) {
             logger.info("-->  upgrade");
-            client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "none")).get();
+            disableAllocation("test");
             backwardsCluster().allowOnAllNodes("test");
             logClusterState();
             boolean upgraded;
@@ -214,7 +214,7 @@ public class SnapshotBackwardsCompatibilityTest extends ElasticsearchBackwardsCo
                 countResponse = client().prepareCount().get();
                 assertHitCount(countResponse, numDocs);
             } while (upgraded);
-            client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "all")).get();
+            enableAllocation("test");
         }
         if (cluster().numDataNodes() > 1 && randomBoolean()) { // only bump the replicas if we have enough nodes
             logger.info("--> move from 0 to 1 replica");

@@ -29,8 +29,12 @@ import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 
+/**
+ * Request for {@link IndicesShardsStoresAction}
+ */
 public class IndicesShardsStoresRequest extends MasterNodeReadRequest<IndicesShardsStoresRequest> implements IndicesRequest.Replaceable {
 
     /**
@@ -39,24 +43,23 @@ public class IndicesShardsStoresRequest extends MasterNodeReadRequest<IndicesSha
     public enum Status {
 
         /**
-         * Status to get store information on all active shards
+         * Shards with all assigned copies
          */
         GREEN((byte) 0),
 
         /**
-         * Status to get store information on shards with
-         * at least one unassigned replica
+         * Shards with assigned primary copy
+         * and at least one unassigned replica copy
          */
         YELLOW((byte) 1),
 
         /**
-         * Status to get store information on shards with
-         * unassigned primary or replica
+         * Shards with unassigned primary copy
          */
         RED((byte) 2),
 
         /**
-         * Status to get store information on all shards
+         * All shards
          */
         ALL((byte) 3);
 
@@ -109,8 +112,8 @@ public class IndicesShardsStoresRequest extends MasterNodeReadRequest<IndicesSha
     }
 
     private String[] indices = Strings.EMPTY_ARRAY;
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
-    private Status[] shardStatuses = new Status[] { Status.YELLOW };
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpand();
+    private EnumSet<Status> statuses = EnumSet.of(Status.YELLOW, Status.RED);
 
     /**
      * Create a request for shards stores info for <code>indices</code>
@@ -124,22 +127,46 @@ public class IndicesShardsStoresRequest extends MasterNodeReadRequest<IndicesSha
 
     /**
      * Set statuses to filter shards to get stores info on.
+     * see {@link Status} for details.
+     * Defaults to "yellow" and "red" status
      * @param shardStatuses acceptable values are "green", "yellow", "red" and "all"
-     * see {@link Status} for details
      */
     public IndicesShardsStoresRequest shardStatuses(String... shardStatuses) {
-        this.shardStatuses = new Status[shardStatuses.length];
-        for (int i = 0; i < shardStatuses.length; i++) {
-            this.shardStatuses[i] = Status.fromString(shardStatuses[i]);
+        statuses = EnumSet.noneOf(Status.class);
+        for (String statusString : shardStatuses) {
+            Status status = Status.fromString(statusString);
+            if (status == Status.ALL) {
+                statuses = EnumSet.of(Status.ALL);
+                return this;
+            }
+            statuses.add(status);
         }
+        return this;
+    }
+
+    /**
+     * Specifies what type of requested indices to ignore and wildcard indices expressions
+     * By default, expands wildcards to both open and closed indices
+     */
+    public IndicesShardsStoresRequest indicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
+        return this;
+    }
+
+    /**
+     * Sets the indices for the shard stores request
+     */
+    @Override
+    public IndicesShardsStoresRequest indices(String... indices) {
+        this.indices = indices;
         return this;
     }
 
     /**
      * Returns the shard criteria to get store information on
      */
-    public Status[] shardStatuses() {
-        return shardStatuses;
+    public EnumSet<Status> shardStatuses() {
+        return statuses;
     }
 
     @Override
@@ -152,17 +179,6 @@ public class IndicesShardsStoresRequest extends MasterNodeReadRequest<IndicesSha
         return indicesOptions;
     }
 
-    public IndicesShardsStoresRequest indicesOptions(IndicesOptions indicesOptions) {
-        this.indicesOptions = indicesOptions;
-        return this;
-    }
-
-    @Override
-    public IndicesShardsStoresRequest indices(String... indices) {
-        this.indices = indices;
-        return this;
-    }
-
     @Override
     public ActionRequestValidationException validate() {
         return null;
@@ -172,8 +188,8 @@ public class IndicesShardsStoresRequest extends MasterNodeReadRequest<IndicesSha
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
-        out.writeVInt(shardStatuses.length);
-        for (Status shardStatus : shardStatuses) {
+        out.writeVInt(statuses.size());
+        for (Status shardStatus : statuses) {
             shardStatus.writeTo(out);
         }
         indicesOptions.writeIndicesOptions(out);
@@ -184,9 +200,9 @@ public class IndicesShardsStoresRequest extends MasterNodeReadRequest<IndicesSha
         super.readFrom(in);
         indices = in.readStringArray();
         int nStatus = in.readVInt();
-        shardStatuses = new Status[nStatus];
+        statuses = EnumSet.noneOf(Status.class);
         for (int i = 0; i < nStatus; i++) {
-            shardStatuses[i] = Status.readFrom(in);
+            statuses.add(Status.readFrom(in));
         }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
     }

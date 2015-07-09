@@ -26,7 +26,7 @@ import org.elasticsearch.client.ElasticsearchClient;
  * Action for {@link TransportIndicesShardsStoresAction}
  *
  * Exposes shard store information for requested indices.
- * Shard store information reports nodes a shard is located on, how recent they are
+ * Shard store information reports which nodes hold shard copies, how recent they are
  * and any exceptions on opening the shard index or from previous engine failures
  */
 public class IndicesShardsStoresAction extends Action<IndicesShardsStoresRequest, IndicesShardsStoresResponse, IndicesShardsStoresRequestBuilder> {

@@ -397,7 +397,11 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
         // nodes
         if (metrics.contains(Metric.NODES)) {
-            nodes.toXContent(builder, params);
+            builder.startObject("nodes");
+            for (DiscoveryNode node : nodes) {
+                node.toXContent(builder, params);
+            }
+            builder.endObject();
         }
 
         // meta data

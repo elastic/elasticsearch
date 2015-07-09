@@ -7,10 +7,10 @@ copy version, indicating how recent they are, and any exceptions
 encountered while opening the shard index or from earlier engine failure.
 
 By default, only lists store information for shards that have at least one
-unallocated copy. When the cluster `status` is yellow, this will list store
+unallocated copy. When the cluster status is yellow, this will list store
 information for shards that have at least one unassigned replica. When the
-cluster `status` is red, this will list store information for shards, which
-are unassigned.
+cluster status is red, this will list store information for shards, which
+has unassigned primaries.
 
 Endpoints include shard stores information for a specific index, several
 indices, or all:
@@ -23,9 +23,11 @@ curl -XGET 'http://localhost:9200/_shard_stores'
 --------------------------------------------------
 
 The default scope of shards to list store information can be changed through
-`status` param. Defaults to 'yellow'.
-Use 'green' to list store information for active shards and 'all' for
-store information on all shards.
+status param. Defaults to 'yellow' and 'red'. 'yellow' lists store information of
+shards with at least one unassigned replica and 'red' for shards with unassigned
+primary shard.
+Use 'green' to list store information for shards with all assigned copies and 'all'
+for store information on all shards.
 
 [source,js]
 --------------------------------------------------
@@ -52,7 +54,7 @@ The shard stores information is grouped by indices and shard ids.
                     }
                 },
                 "version": 4, <4>
-                "allocation" : "PRIMARY" | "REPLICA" | "UNUSED", <6>
+                "allocation" : "primary" | "replica" | "unused", <6>
                 "store_exception": ... <5>
             },
             ...

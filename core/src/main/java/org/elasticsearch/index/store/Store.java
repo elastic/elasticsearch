@@ -48,6 +48,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -89,6 +90,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     private static final int VERSION_START = 0;
     private static final int VERSION = VERSION_STACK_TRACE;
     private static final String CORRUPTED = "corrupted_";
+    private static final String FAILED = "failed_";
     public static final String INDEX_STORE_STATS_REFRESH_INTERVAL = "index.store.stats_refresh_interval";
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
@@ -140,7 +142,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         try {
             return readSegmentsInfo(null, directory());
         } catch (CorruptIndexException ex) {
-            markStoreCorrupted(ex);
+            markStoreFailed(ex);
             throw ex;
         }
     }
@@ -225,7 +227,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         try {
             return new MetadataSnapshot(commit, directory, logger);
         } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
-            markStoreCorrupted(ex);
+            markStoreFailed(ex);
             throw ex;
         } finally {
             metadataLock.readLock().unlock();
@@ -500,6 +502,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     }
 
+    /**
+     * Returns <code>true</code> iff the store has ever failed due
+     * to index corruption
+     */
     public boolean isMarkedCorrupted() throws IOException {
         ensureOpen();
         /* marking a store as corrupted is basically adding a _corrupted to all
@@ -515,15 +521,30 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
-     * Deletes all corruption markers from this store.
+     * Returns <code>true</code> iff the store has ever failed
      */
-    public void removeCorruptionMarker() throws IOException {
+    public boolean isMarkedFailed() throws IOException {
+        ensureOpen();
+
+        final String[] files = directory().listAll();
+        for (String file : files) {
+            if (file.startsWith(CORRUPTED) || file.startsWith(FAILED)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Deletes all corruption and failure markers from this store.
+     */
+    public void removeFailureMarker() throws IOException {
         ensureOpen();
         final Directory directory = directory();
         IOException firstException = null;
         final String[] files = directory.listAll();
         for (String file : files) {
-            if (file.startsWith(CORRUPTED)) {
+            if (file.startsWith(CORRUPTED) || file.startsWith(FAILED)) {
                 try {
                     directory.deleteFile(file);
                 } catch (IOException ex) {
@@ -569,6 +590,38 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         if (ex.isEmpty() == false) {
             ExceptionsHelper.rethrowAndSuppress(ex);
         }
+    }
+
+    /**
+     * Returns all failures seen by the store, except for index corruption failures
+     * These failures, unlike index corruption failures, allows the store to be opened
+     * and used
+     */
+    public List<EngineException> getStoreFailures() throws IOException {
+        ensureOpen();
+        return getStoreFailures(directory, shardId);
+    }
+
+    private static final List<EngineException> getStoreFailures(Directory directory, ShardId shardId) throws IOException {
+        final String[] files = directory.listAll();
+        List<EngineException> failures = new ArrayList<>();
+        for (String file : files) {
+            if (file.startsWith(FAILED)) {
+                try (ChecksumIndexInput input = directory.openChecksumInput(file, IOContext.READONCE)) {
+                    int version = CodecUtil.checkHeader(input, CODEC, VERSION_START, VERSION);
+                    String msg = input.readString();
+                    StringBuilder builder = new StringBuilder(shardId.toString());
+                    builder.append(" Preexisting failed index [");
+                    builder.append(file).append("] caused by: ");
+                    builder.append(msg);
+                    builder.append(System.lineSeparator());
+                    builder.append(input.readString());
+                    failures.add(new EngineException(shardId, builder.toString()));
+                    CodecUtil.checkFooter(input);
+                }
+            }
+        }
+        return failures;
     }
 
     /**
@@ -1430,17 +1483,22 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * Marks this store as corrupted. This method writes a <tt>corrupted_${uuid}</tt> file containing the given exception
      * message. If a store contains a <tt>corrupted_${uuid}</tt> file {@link #isMarkedCorrupted()} will return <code>true</code>.
      */
-    public void markStoreCorrupted(IOException exception) throws IOException {
+    public void markStoreFailed(Throwable exception) throws IOException {
         ensureOpen();
-        if (!isMarkedCorrupted()) {
-            String uuid = CORRUPTED + Strings.randomBase64UUID();
+        if (exception != null) {
+            final String uuid;
+            if (Lucene.isCorruptionException(exception)) {
+                uuid = CORRUPTED + Strings.randomBase64UUID();
+            } else {
+                uuid = FAILED + Strings.randomBase64UUID();
+            }
             try (IndexOutput output = this.directory().createOutput(uuid, IOContext.DEFAULT)) {
                 CodecUtil.writeHeader(output, CODEC, VERSION);
                 output.writeString(ExceptionsHelper.detailedMessage(exception, true, 0)); // handles null exception
                 output.writeString(ExceptionsHelper.stackTrace(exception));
                 CodecUtil.writeFooter(output);
-            } catch (IOException ex) {
-                logger.warn("Can't mark store as corrupted", ex);
+            } catch (IOException e) {
+                logger.warn("Can't mark store as corrupted", e);
             }
             directory().sync(Collections.singleton(uuid));
         }

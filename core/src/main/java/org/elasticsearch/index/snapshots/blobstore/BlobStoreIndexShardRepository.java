@@ -691,7 +691,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
         private void failStoreIfCorrupted(Throwable t) {
             if (t instanceof CorruptIndexException || t instanceof IndexFormatTooOldException || t instanceof IndexFormatTooNewException) {
                 try {
-                    store.markStoreCorrupted((IOException) t);
+                    store.markStoreFailed((IOException) t);
                 } catch (IOException e) {
                     logger.warn("store cannot be marked as corrupted", e);
                 }
@@ -962,7 +962,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                     success = true;
                 } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
                     try {
-                        store.markStoreCorrupted(ex);
+                        store.markStoreFailed(ex);
                     } catch (IOException e) {
                         logger.warn("store cannot be marked as corrupted", e);
                     }

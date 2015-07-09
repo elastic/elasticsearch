@@ -399,7 +399,7 @@ public class RecoveryTarget extends AbstractComponent {
                     // its content on disk if possible.
                     try {
                         try {
-                            store.removeCorruptionMarker();
+                            store.removeFailureMarker();
                         } finally {
                             Lucene.cleanLuceneIndex(store.directory()); // clean up and delete all files
                         }

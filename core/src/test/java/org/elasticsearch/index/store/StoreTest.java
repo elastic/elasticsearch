@@ -1263,8 +1263,64 @@ public class StoreTest extends ElasticsearchTestCase {
             }
         };
         Store store = new Store(shardId, Settings.EMPTY, directoryService, new DummyShardLock(shardId));
-        store.markStoreCorrupted(new CorruptIndexException("foo", "bar"));
+        store.markStoreFailed(new CorruptIndexException("foo", "bar"));
         assertFalse(Store.canOpenIndex(logger, tempDir));
         store.close();
+    }
+
+    public void testMarkFailures() throws IOException {
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        Path tempDir = createTempDir();
+        final BaseDirectoryWrapper dir = newFSDirectory(tempDir);
+        assertFalse(Store.canOpenIndex(logger, tempDir));
+        IndexWriter writer = new IndexWriter(dir, iwc);
+        Document doc = new Document();
+        doc.add(new StringField("id", "1", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+        writer.addDocument(doc);
+        writer.commit();
+        writer.close();
+        assertTrue(Store.canOpenIndex(logger, tempDir));
+
+        final ShardId shardId = new ShardId(new Index("index"), 1);
+        DirectoryService directoryService = new DirectoryService(shardId, Settings.EMPTY) {
+            @Override
+            public long throttleTimeInNanos() {
+                return 0;
+            }
+
+            @Override
+            public Directory newDirectory() throws IOException {
+                return dir;
+            }
+        };
+        try (Store store = new Store(shardId, Settings.EMPTY, directoryService, new DummyShardLock(shardId))) {
+            // persist non-index corruption failures
+            assertTrue(store.getStoreFailures().isEmpty());
+            store.markStoreFailed(new OutOfMemoryError("foo"));
+            // store can still be opened
+            assertTrue(Store.canOpenIndex(logger, tempDir));
+            assertThat(store.getStoreFailures().size(), equalTo(1));
+
+            store.markStoreFailed(new IOException("bar"));
+            assertTrue(Store.canOpenIndex(logger, tempDir));
+            // ensure all non-index corruption failures persist
+            assertThat(store.getStoreFailures().size(), equalTo(2));
+
+            // should not fail, the store was marked with non index corruption exceptions
+            store.failIfCorrupted();
+
+            store.markStoreFailed(new CorruptIndexException("foo", "bar"));
+            assertFalse(Store.canOpenIndex(logger, tempDir));
+            // store failures still the same
+            assertThat(store.getStoreFailures().size(), equalTo(2));
+            // but should fail using the store
+            assertFalse(Store.canOpenIndex(logger, tempDir));
+            try {
+                store.failIfCorrupted();
+                fail("corrupted store should fail");
+            } catch (CorruptIndexException ex) {
+                // expected
+            }
+        }
     }
 }

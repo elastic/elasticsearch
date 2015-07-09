@@ -45,7 +45,6 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
@@ -533,12 +532,11 @@ public abstract class Engine implements Closeable {
                     // this must happen first otherwise we might try to reallocate so quickly
                     // on the same node that we don't see the corrupted marker file when
                     // the shard is initializing
-                    if (Lucene.isCorruptionException(failure)) {
-                        try {
-                            store.markStoreCorrupted(new IOException("failed engine (reason: [" + reason + "])", ExceptionsHelper.unwrapCorruption(failure)));
-                        } catch (IOException e) {
-                            logger.warn("Couldn't mark store corrupted", e);
-                        }
+                    try {
+                        store.markStoreFailed(new IOException("failed engine (reason: [" + reason + "])",
+                                Lucene.isCorruptionException(failure) ? ExceptionsHelper.unwrapCorruption(failure) : failure));
+                    } catch (IOException e) {
+                        logger.warn("Couldn't mark store failed", e);
                     }
                     failedEngineListener.onFailedEngine(shardId, reason, failure);
                 }

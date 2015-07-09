@@ -20,6 +20,7 @@
 package org.elasticsearch.index.engine;
 
 import com.google.common.collect.Lists;
+
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
 import org.apache.lucene.search.BooleanClause.Occur;
@@ -44,6 +45,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.Uid;
@@ -397,7 +399,11 @@ public class InternalEngine extends Engine {
                  */
                 doUpdate = true;
                 updatedVersion = 1;
-            } else {
+            }  else if (create.origin() == Operation.Origin.PRIMARY && create.versionType() == VersionType.INTERNAL && (create.version() == Versions.MATCH_ANY && currentVersion == Versions.NOT_FOUND ) ) {
+               //assuming that this means it is an update request and we can update safely
+                doUpdate = true;
+                updatedVersion = currentVersion++;
+            }  else {
                 // On primary, we throw DAEE if the _uid is already in the index with an older version:
                 assert create.origin() == Operation.Origin.PRIMARY;
                 throw new DocumentAlreadyExistsException(shardId, create.type(), create.id());

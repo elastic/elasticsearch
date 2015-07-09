@@ -69,6 +69,7 @@ import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.percolate.MultiPercolateAction;
 import org.elasticsearch.action.percolate.MultiPercolateRequest;
 import org.elasticsearch.action.percolate.PercolateAction;
@@ -248,6 +249,31 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         assertSameIndices(updateRequest, updateShardActions);
     }
 
+    @Test
+    public void testIndexNUpdateUpsert() {
+            //update action goes to the primary, index op gets executed locally, then replicated
+            String[] updateShardActions = new String[]{UpdateAction.NAME, IndexAction.NAME + "[r]"};
+            interceptTransportActions(updateShardActions);
+
+            String indexOrAlias = randomIndexOrAlias();
+            
+            String[] indexShardActions = new String[]{IndexAction.NAME, IndexAction.NAME + "[r]"};
+            interceptTransportActions(indexShardActions);
+            
+            IndexRequest indexRequest = new IndexRequest(randomIndexOrAlias(), "type", "id").source("field", "value");
+            IndexResponse indexResponse = internalCluster().clientNodeClient().index(indexRequest).actionGet();
+            clearInterceptedActions();
+            assertSameIndices(indexRequest, indexShardActions);
+            
+            UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "type", "id").upsert("field", "value").doc("field1", "value1");
+            UpdateResponse updateResponse = internalCluster().clientNodeClient().update(updateRequest).actionGet();
+            assertThat( updateResponse.getVersion(), greaterThan(indexResponse.getVersion()));
+
+            clearInterceptedActions();
+            System.out.println("updateRequest "+updateRequest +" updateShardActions = "+updateShardActions );
+            assertSameIndicesOptionalRequests(updateRequest, updateShardActions);
+    }
+    
     @Test
     public void testUpdateDelete() {
         //update action goes to the primary, delete op gets executed locally, then replicated

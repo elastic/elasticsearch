@@ -112,6 +112,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox jumps"),
                 client().prepareIndex("test", "type1", "2").setSource("field1", "quick brown"),
                 client().prepareIndex("test", "type1", "3").setSource("field1", "quick"));
+        ensureYellow();
         assertHitCount(client().prepareSearch().setQuery(queryStringQuery("quick")).get(), 3l);
         assertHitCount(client().prepareSearch().setQuery(queryStringQuery("")).get(), 0l); // return no docs
     }
@@ -154,6 +155,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
         createIndex("test");
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1_1", "field2", "value2_1").setRefresh(true).get();
 
+        ensureYellow();
         SearchResponse searchResponse = client().prepareSearch().setQuery("{ \"term\" : { \"field1\" : \"value1_1\" }}").get();
         assertHitCount(searchResponse, 1l);
     }
@@ -166,6 +168,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                 client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox"),
                 client().prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox"));
 
+        ensureYellow();
         SearchResponse searchResponse = client().prepareSearch().setQuery(matchQuery("field2", "quick brown").type(MatchQueryBuilder.Type.PHRASE).slop(0)).get();
         assertHitCount(searchResponse, 1l);
 
@@ -242,6 +245,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("foo", "bar"),
                 client().prepareIndex("test", "type1", "2").setSource("foo", "bar")
         );
+        ensureYellow();
         int iters = scaledRandomIntBetween(100, 200);
         for (int i = 0; i < iters; i++) {
             SearchResponse searchResponse = client().prepareSearch("test").setQuery(queryStringQuery("*:*^10.0").boost(10.0f)).get();
@@ -263,6 +267,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("message", "test message", "comment", "whatever"),
                 client().prepareIndex("test", "type1", "2").setSource("message", "hello world", "comment", "test comment"));
 
+        ensureYellow();
         SearchResponse searchResponse = client().prepareSearch().setQuery(commonTermsQuery("_all", "test")).get();
         assertHitCount(searchResponse, 2l);
         assertFirstHit(searchResponse, hasId("2"));
@@ -279,6 +284,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                 client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox"),
                 client().prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree") );
 
+        ensureYellow();
         SearchResponse searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the quick brown").cutoffFrequency(3).lowFreqOperator(Operator.OR)).get();
         assertHitCount(searchResponse, 3l);
         assertFirstHit(searchResponse, hasId("1"));
@@ -468,6 +474,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                 indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox"),
                         client().prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox"));
 
+                ensureYellow();
                 SearchResponse searchResponse = client().prepareSearch().setQuery(matchQuery("field2", "quick brown").type(MatchQueryBuilder.Type.PHRASE).slop(0)).get();
                 assertHitCount(searchResponse, 1l);
                 try {
@@ -492,6 +499,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1", "1").setSource("field1", "value_1", "field2", "value_2").get();
         refresh();
 
+        ensureYellow();
         SearchResponse searchResponse = client().prepareSearch().setQuery(queryStringQuery("value*").analyzeWildcard(true)).get();
         assertHitCount(searchResponse, 1l);
 
@@ -515,6 +523,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1", "1").setSource("field1", "value_1", "field2", "value_2").get();
         refresh();
 
+        ensureYellow();
         SearchResponse searchResponse = client().prepareSearch().setQuery(queryStringQuery("VALUE_3~1").lowercaseExpandedTerms(true)).get();
         assertHitCount(searchResponse, 1l);
         searchResponse = client().prepareSearch().setQuery(queryStringQuery("VALUE_3~1").lowercaseExpandedTerms(false)).get();
@@ -642,6 +651,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                 client().prepareIndex("test", "type2", "2").setSource("field1", "value1"),
                 client().prepareIndex("test", "type2", "3").setSource("field1", "value1"));
 
+        ensureYellow();
         assertHitCount(client().prepareSearch().setQuery(filteredQuery(matchAllQuery(), typeQuery("type1"))).get(), 2l);
         assertHitCount(client().prepareSearch().setQuery(filteredQuery(matchAllQuery(), typeQuery("type2"))).get(), 3l);
 
@@ -672,6 +682,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                 client().prepareIndex("test", "type1", "2").setSource("field1", "value2"),
                 client().prepareIndex("test", "type1", "3").setSource("field1", "value3"));
 
+        ensureYellow();
         SearchResponse searchResponse = client().prepareSearch().setQuery(constantScoreQuery(idsQuery("type1").ids("1", "3"))).get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "1", "3");
@@ -726,6 +737,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
             indexRandom(true, client().prepareIndex(indexName, "type1", indexName + "1").setSource("field1", "value1"));
 
         }
+        ensureYellow();
         for (String indexName : indexNames) {
             SearchResponse request = client().prepareSearch().setQuery(constantScoreQuery(termQuery("_index", indexName))).get();
             SearchResponse searchResponse = assertSearchResponse(request);
@@ -760,6 +772,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                 client().prepareIndex("test", "type1", "3").setSource("field2", "value2_3"),
                 client().prepareIndex("test", "type1", "4").setSource("field3", "value3_4"));
 
+        ensureYellow();
         assertHitCount(client().prepareSearch().setQuery(filteredQuery(matchAllQuery(), limitQuery(2))).get(), 4l); // no-op
     }
 
@@ -773,6 +786,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                 client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject().startObject("obj2").field("obj2_val", "1").endObject().field("y1", "y_1").field("field2", "value2_3").endObject()),
                 client().prepareIndex("test", "type1", "4").setSource(jsonBuilder().startObject().startObject("obj2").field("obj2_val", "1").endObject().field("y2", "y_2").field("field3", "value3_4").endObject()) );
 
+        ensureYellow();
         SearchResponse searchResponse = client().prepareSearch().setQuery(filteredQuery(matchAllQuery(), existsQuery("field1"))).get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "1", "2");
@@ -836,6 +850,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
 
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1_1", "field2", "value2_1").setRefresh(true).get();
 
+        ensureYellow();
         WrapperQueryBuilder wrapper = new WrapperQueryBuilder("{ \"term\" : { \"field1\" : \"value1_1\" } }");
         assertHitCount(client().prepareSearch().setQuery(wrapper).get(), 1l);
 
@@ -898,6 +913,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                 client().prepareIndex("test", "type1", "2").setSource("field1", "value2", "field2", "value5", "field3", "value2"),
                 client().prepareIndex("test", "type1", "3").setSource("field1", "value3", "field2", "value6", "field3", "value1") );
 
+        ensureYellow();
         MultiMatchQueryBuilder builder = multiMatchQuery("value1 value2 value4", "field1", "field2");
         SearchResponse searchResponse = client().prepareSearch().setQuery(builder)
                 .addAggregation(AggregationBuilders.terms("field1").field("field1")).get();
@@ -961,6 +977,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1", "2").setSource("field1", "value2").get();
         refresh();
 
+        ensureYellow();
         BoolQueryBuilder boolQuery = boolQuery()
                 .must(matchQuery("field1", "a").zeroTermsQuery(MatchQueryBuilder.ZeroTermsQuery.NONE))
                 .must(matchQuery("field1", "value1").zeroTermsQuery(MatchQueryBuilder.ZeroTermsQuery.NONE));
@@ -985,7 +1002,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1", "2").setSource("field1", "value3", "field2", "value4").get();
         refresh();
 
-
+        ensureYellow();
         BoolQueryBuilder boolQuery = boolQuery()
                 .must(multiMatchQuery("a", "field1", "field2").zeroTermsQuery(MatchQueryBuilder.ZeroTermsQuery.NONE))
                 .must(multiMatchQuery("value1", "field1", "field2").zeroTermsQuery(MatchQueryBuilder.ZeroTermsQuery.NONE)); // Fields are ORed together
@@ -1009,6 +1026,8 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1", "1").setSource("field1", new String[]{"value1", "value2", "value3"}).get();
         client().prepareIndex("test", "type1", "2").setSource("field2", "value1").get();
         refresh();
+
+        ensureYellow();
 
         MultiMatchQueryBuilder multiMatchQuery = multiMatchQuery("value1 value2 foo", "field1", "field2");
 
@@ -1056,6 +1075,8 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1", "2").setSource("str", "shay", "date", "2012-02-05", "num", 20).get();
         refresh();
 
+        ensureYellow();
+
         SearchResponse searchResponse = client().prepareSearch().setQuery(queryStringQuery("str:kimcy~1")).get();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, 1l);
@@ -1078,6 +1099,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                 client().prepareIndex("test", "type1", "2").setSource("important", "nothing important", "less_important", "phrase match")
         );
 
+        ensureYellow();
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(queryStringQuery("\"phrase match\"").field("important", boost).field("less_important")).get();
         assertHitCount(searchResponse, 2l);
@@ -1100,6 +1122,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1", "2").setSource("str", "shay", "date", "2012-02-05", "num", 20).get();
         refresh();
 
+        ensureYellow();
         SearchResponse searchResponse = client().prepareSearch().setQuery(queryStringQuery("num:>19")).get();
         assertHitCount(searchResponse, 1l);
         assertFirstHit(searchResponse, hasId("2"));
@@ -1537,6 +1560,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
     @Test
     public void testEmptyTopLevelFilter() {
         client().prepareIndex("test", "type", "1").setSource("field", "value").setRefresh(true).get();
+        ensureYellow();
         SearchResponse searchResponse = client().prepareSearch().setPostFilter("{}").get();
         assertHitCount(searchResponse, 1l);
     }
@@ -1716,6 +1740,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
     @Test
     public void testMultiFieldQueryString() {
         client().prepareIndex("test", "s", "1").setSource("field1", "value1", "field2", "value2").setRefresh(true).get();
+        ensureYellow();
         logger.info("regular");
         assertHitCount(client().prepareSearch("test").setQuery(queryStringQuery("value1").field("field1").field("field2")).get(), 1);
         assertHitCount(client().prepareSearch("test").setQuery(queryStringQuery("field\\*:value1")).get(), 1);
@@ -2203,6 +2228,7 @@ functionScoreQuery(scriptFunction(new Script("_doc['score'].value")))).setMinSco
                 client().prepareIndex("test", "type", "2").setSource("field", -1000000000000L),
                 client().prepareIndex("test", "type", "3").setSource("field", -999999999999L));
 
+        ensureYellow();
         assertHitCount(client().prepareCount("test").setQuery(rangeQuery("field").lte(-1000000000000L)).get(), 2);
         assertHitCount(client().prepareCount("test").setQuery(rangeQuery("field").lte(-999999999999L)).get(), 3);
     }
@@ -2405,6 +2431,7 @@ functionScoreQuery(scriptFunction(new Script("_doc['score'].value")))).setMinSco
     public void testSearchEmptyDoc() {
         assertAcked(prepareCreate("test").setSettings("{\"index.analysis.analyzer.default.type\":\"keyword\"}"));
         client().prepareIndex("test", "type1", "1").setSource("{}").get();
+        ensureYellow();
         refresh();
         assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1l);
     }
@@ -2463,6 +2490,7 @@ functionScoreQuery(scriptFunction(new Script("_doc['score'].value")))).setMinSco
         indexRandom(true, client().prepareIndex("test1", "type1", "1").setSource("field", "Johnnie Walker Black Label"),
         client().prepareIndex("test1", "type1", "2").setSource("field", "trying out Elasticsearch"));
 
+        ensureYellow();
         SearchResponse searchResponse = client().prepareSearch().setQuery(matchQuery("field", "Johnnie la").slop(between(2,5)).type(Type.PHRASE_PREFIX)).get();
         assertHitCount(searchResponse, 1l);
         assertSearchHits(searchResponse, "1");
@@ -2531,6 +2559,7 @@ functionScoreQuery(scriptFunction(new Script("_doc['score'].value")))).setMinSco
         createIndex("test");
         indexRandom(true, false, client().prepareIndex("test", "type", "1").setSource("nameTokens", "xyz"));
 
+        ensureYellow();
         SearchResponse response = client().prepareSearch("test")
                 .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
                 .setQuery(QueryBuilders.queryStringQuery("xyz").boost(100))
@@ -2556,6 +2585,7 @@ functionScoreQuery(scriptFunction(new Script("_doc['score'].value")))).setMinSco
     public void testIdsQueryWithInvalidValues() throws Exception {
         createIndex("test");
         indexRandom(true, false, client().prepareIndex("test", "type", "1").setSource("body", "foo"));
+        ensureYellow();
         try {
             client().prepareSearch("test")
                     .setTypes("type")

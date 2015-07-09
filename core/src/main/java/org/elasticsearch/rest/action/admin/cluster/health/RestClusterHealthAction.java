@@ -59,6 +59,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
         clusterHealthRequest.waitForRelocatingShards(request.paramAsInt("wait_for_relocating_shards", clusterHealthRequest.waitForRelocatingShards()));
         clusterHealthRequest.waitForActiveShards(request.paramAsInt("wait_for_active_shards", clusterHealthRequest.waitForActiveShards()));
         clusterHealthRequest.waitForNodes(request.param("wait_for_nodes", clusterHealthRequest.waitForNodes()));
+        clusterHealthRequest.waitForQuorumActive(request.paramAsBoolean("wait_for_quorum", clusterHealthRequest.waitForQuorumActive()));
 
         client.admin().cluster().health(clusterHealthRequest, new RestToXContentListener<ClusterHealthResponse>(channel));
     }

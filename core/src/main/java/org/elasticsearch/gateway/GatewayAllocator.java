@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.ConsistencyLevel;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasables;
@@ -273,47 +274,27 @@ public class GatewayAllocator extends AbstractComponent {
                 logger.trace("{} candidates for allocation: {}", shard, sb.toString());
             }
 
-            // check if the counts meets the minimum set
-            int requiredAllocation = 1;
-            // if we restore from a repository one copy is more then enough
-            if (shard.restoreSource() == null) {
+            ConsistencyLevel consistencyLevel = ConsistencyLevel.QUORUM;
+            if (shard.restoreSource() != null) {
+                consistencyLevel = ConsistencyLevel.ONE;
+            } else {
                 try {
                     String initialShards = indexMetaData.settings().get(INDEX_RECOVERY_INITIAL_SHARDS, settings.get(INDEX_RECOVERY_INITIAL_SHARDS, this.initialShards));
-                    if ("quorum".equals(initialShards)) {
-                        if (indexMetaData.numberOfReplicas() > 1) {
-                            requiredAllocation = ((1 + indexMetaData.numberOfReplicas()) / 2) + 1;
-                        }
-                    } else if ("quorum-1".equals(initialShards) || "half".equals(initialShards)) {
-                        if (indexMetaData.numberOfReplicas() > 2) {
-                            requiredAllocation = ((1 + indexMetaData.numberOfReplicas()) / 2);
-                        }
-                    } else if ("one".equals(initialShards)) {
-                        requiredAllocation = 1;
-                    } else if ("full".equals(initialShards) || "all".equals(initialShards)) {
-                        requiredAllocation = indexMetaData.numberOfReplicas() + 1;
-                    } else if ("full-1".equals(initialShards) || "all-1".equals(initialShards)) {
-                        if (indexMetaData.numberOfReplicas() > 1) {
-                            requiredAllocation = indexMetaData.numberOfReplicas();
-                        }
-                    } else {
-                        requiredAllocation = Integer.parseInt(initialShards);
-                    }
+                    consistencyLevel = ConsistencyLevel.fromString(initialShards);
                 } catch (Exception e) {
-                    logger.warn("[{}][{}] failed to derived initial_shards from value {}, ignore allocation for {}", shard.index(), shard.id(), initialShards, shard);
+                    logger.warn("failed to parse consistency level", e);
                 }
             }
 
             // not enough found for this shard, continue...
-            if (numberOfAllocationsFound < requiredAllocation) {
+            if (consistencyLevel.isMet(indexMetaData.getNumberOfReplicas() + 1, numberOfAllocationsFound) == false) {
                 // if we are restoring this shard we still can allocate
                 if (shard.restoreSource() == null) {
                     // we can't really allocate, so ignore it and continue
                     unassignedIterator.remove();
                     routingNodes.ignoredUnassigned().add(shard);
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("[{}][{}]: not allocating, number_of_allocated_shards_found [{}], required_number [{}]", shard.index(), shard.id(), numberOfAllocationsFound, requiredAllocation);
-                    }
-                } else if (logger.isDebugEnabled()) {
+                    logger.debug("[{}][{}]: not allocating, number_of_allocated_shards_found [{}], total [{}], level [{}]", shard.index(), shard.id(), numberOfAllocationsFound, indexMetaData.getNumberOfReplicas() + 1, consistencyLevel);
+                } else {
                     logger.debug("[{}][{}]: missing local data, will restore from [{}]", shard.index(), shard.id(), shard.restoreSource());
                 }
                 continue;

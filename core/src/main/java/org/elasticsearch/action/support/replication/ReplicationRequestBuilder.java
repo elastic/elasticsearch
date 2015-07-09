@@ -22,7 +22,7 @@ package org.elasticsearch.action.support.replication;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.common.ConsistencyLevel;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -70,10 +70,10 @@ public abstract class ReplicationRequestBuilder<Request extends ReplicationReque
     }
 
     /**
-     * Sets the consistency level of write. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}
+     * Sets the consistency level of write. Defaults to {@link ConsistencyLevel#DEFAULT}
      */
     @SuppressWarnings("unchecked")
-    public RequestBuilder setConsistencyLevel(WriteConsistencyLevel consistencyLevel) {
+    public RequestBuilder setConsistencyLevel(ConsistencyLevel consistencyLevel) {
         request.consistencyLevel(consistencyLevel);
         return (RequestBuilder) this;
     }

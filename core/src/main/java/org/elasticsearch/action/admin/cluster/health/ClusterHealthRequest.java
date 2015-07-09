@@ -44,6 +44,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     private ClusterHealthStatus waitForStatus;
     private int waitForRelocatingShards = -1;
     private int waitForActiveShards = -1;
+    private boolean waitForQuorumActive = false;
     private String waitForNodes = "";
     private Priority waitForEvents = null;
 
@@ -142,6 +143,21 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         return this.waitForEvents;
     }
 
+    /**
+     * Should it wait for quorum of the shards on each index to be active.
+     */
+    public ClusterHealthRequest waitForQuorumActive(boolean waitForQuorumActive) {
+        this.waitForQuorumActive = waitForQuorumActive;
+        return this;
+    }
+
+    /**
+     * Should it wait for quorum of the shards on each index to be active.
+     */
+    public boolean waitForQuorumActive() {
+        return this.waitForQuorumActive;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         return null;
@@ -169,6 +185,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         if (in.readBoolean()) {
             waitForEvents = Priority.readFrom(in);
         }
+        waitForQuorumActive = in.readBoolean();
     }
 
     @Override
@@ -198,5 +215,6 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
             out.writeBoolean(true);
             Priority.writeTo(waitForEvents, out);
         }
+        out.writeBoolean(waitForQuorumActive);
     }
 }

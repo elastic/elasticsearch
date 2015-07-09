@@ -109,8 +109,11 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
     }
 
     private void executeHealth(final ClusterHealthRequest request, final ActionListener<ClusterHealthResponse> listener) {
-        int waitFor = 5;
+        int waitFor = 6;
         if (request.waitForStatus() == null) {
+            waitFor--;
+        }
+        if (request.waitForQuorumActive() == false) {
             waitFor--;
         }
         if (request.waitForRelocatingShards() == -1) {
@@ -189,6 +192,9 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
     private boolean prepareResponse(final ClusterHealthRequest request, final ClusterHealthResponse response, ClusterState clusterState, final int waitFor) {
         int waitForCounter = 0;
         if (request.waitForStatus() != null && response.getStatus().value() <= request.waitForStatus().value()) {
+            waitForCounter++;
+        }
+        if (request.waitForQuorumActive() == true && response.isQuorumActive() == true) {
             waitForCounter++;
         }
         if (request.waitForRelocatingShards() != -1 && response.getRelocatingShards() <= request.waitForRelocatingShards()) {

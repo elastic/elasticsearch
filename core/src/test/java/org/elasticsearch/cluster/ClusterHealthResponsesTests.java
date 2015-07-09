@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -185,7 +187,7 @@ public class ClusterHealthResponsesTests extends ElasticsearchTestCase {
         MetaData.Builder metaData = MetaData.builder();
         for (int i = randomInt(4); i >= 0; i--) {
             int numberOfShards = randomInt(3) + 1;
-            int numberOfReplicas = randomInt(4);
+            int numberOfReplicas = randomInt(5);
             IndexMetaData indexMetaData = IndexMetaData.builder("test_" + Integer.toString(i)).settings(settings(Version.CURRENT)).numberOfShards(numberOfShards).numberOfReplicas(numberOfReplicas).build();
             IndexRoutingTable indexRoutingTable = genIndexRoutingTable(indexMetaData, counter);
             metaData.put(indexMetaData, true);
@@ -205,6 +207,45 @@ public class ClusterHealthResponsesTests extends ElasticsearchTestCase {
         assertThat(clusterHealth.getDelayedUnassignedShards(), Matchers.equalTo(delayedUnassigned));
         assertThat(clusterHealth.getTaskMaxWaitingTime().millis(), is(pendingTaskInQueueTime.millis()));
         assertThat(clusterHealth.getActiveShardsPercent(), is(allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(100.0))));
+
+        boolean globalQuorum = true;
+        for (ClusterIndexHealth indexHealth : clusterHealth) {
+            IndexMetaData indexMetaData = clusterState.getMetaData().getIndices().get(indexHealth.getIndex());
+            boolean indexQuorum = true;
+            for (ClusterShardHealth shardHealth : indexHealth) {
+                String message = "replicas " + indexMetaData.getNumberOfReplicas() + ", active " + shardHealth.getActiveShards() + ", quorum_active flag " + shardHealth.isQuorumActive();
+                switch (indexMetaData.getNumberOfReplicas()) {
+                    case 0:
+                        assertThat(message, shardHealth.isQuorumActive(), equalTo(shardHealth.getActiveShards() >= 1));
+                        break;
+                    case 1:
+                        assertThat(message, shardHealth.isQuorumActive(), equalTo(shardHealth.getActiveShards() >= 1));
+                        break;
+                    case 2:
+                        assertThat(message, shardHealth.isQuorumActive(), equalTo(shardHealth.getActiveShards() >= 2));
+                        break;
+                    case 3:
+                        assertThat(message, shardHealth.isQuorumActive(), equalTo(shardHealth.getActiveShards() >= 3));
+                        break;
+                    case 4:
+                        assertThat(message, shardHealth.isQuorumActive(), equalTo(shardHealth.getActiveShards() >= 3));
+                        break;
+                    case 5:
+                        assertThat(message, shardHealth.isQuorumActive(), equalTo(shardHealth.getActiveShards() >= 4));
+                        break;
+                    default:
+                        fail("the randomized number of replicas doesn't match");
+                }
+                if (shardHealth.isQuorumActive() == false) {
+                    indexQuorum = false;
+                }
+            }
+            assertThat(indexHealth.isQuorumActive(), equalTo(indexQuorum));
+            if (indexHealth.isQuorumActive() == false) {
+                globalQuorum = false;
+            }
+        }
+        assertThat(clusterHealth.isQuorumActive(), equalTo(globalQuorum));
     }
 
     ClusterHealthResponse maybeSerialize(ClusterHealthResponse clusterHealth) throws IOException {

@@ -21,7 +21,7 @@ package org.elasticsearch.action.update;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocumentRequest;
-import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.common.ConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
 import org.elasticsearch.common.Nullable;
@@ -71,7 +71,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
 
     private boolean refresh = false;
 
-    private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
+    private ConsistencyLevel consistencyLevel = ConsistencyLevel.DEFAULT;
 
     private IndexRequest upsertRequest;
 
@@ -436,14 +436,14 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         return this.refresh;
     }
 
-    public WriteConsistencyLevel consistencyLevel() {
+    public ConsistencyLevel consistencyLevel() {
         return this.consistencyLevel;
     }
 
     /**
-     * Sets the consistency level of write. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}
+     * Sets the consistency level of write. Defaults to {@link ConsistencyLevel#DEFAULT}
      */
-    public UpdateRequest consistencyLevel(WriteConsistencyLevel consistencyLevel) {
+    public UpdateRequest consistencyLevel(ConsistencyLevel consistencyLevel) {
         this.consistencyLevel = consistencyLevel;
         return this;
     }
@@ -708,7 +708,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
+        consistencyLevel = ConsistencyLevel.readFrom(in);
         type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
@@ -743,7 +743,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeByte(consistencyLevel.id());
+        consistencyLevel.writeTo(out);
         out.writeString(type);
         out.writeString(id);
         out.writeOptionalString(routing);

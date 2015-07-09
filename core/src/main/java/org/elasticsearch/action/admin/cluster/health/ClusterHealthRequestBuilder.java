@@ -85,4 +85,12 @@ public class ClusterHealthRequestBuilder extends MasterNodeReadOperationRequestB
         request.waitForEvents(waitForEvents);
         return this;
     }
+
+    /**
+     * Should it wait for quorum of the shards on each index to be active.
+     */
+    public ClusterHealthRequestBuilder setWaitForQuorumActive(boolean waitForQuorumActive) {
+        request.waitForQuorumActive(waitForQuorumActive);
+        return this;
+    }
 }

@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.ConsistencyLevel;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -46,25 +47,16 @@ import static org.elasticsearch.action.admin.cluster.health.ClusterShardHealth.r
 public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streamable, ToXContent {
 
     private String index;
-
     private int numberOfShards;
-
     private int numberOfReplicas;
-
     int activeShards = 0;
-
     int relocatingShards = 0;
-
     int initializingShards = 0;
-
     int unassignedShards = 0;
-
     int activePrimaryShards = 0;
-
+    boolean quorumActive = false;
     ClusterHealthStatus status = ClusterHealthStatus.RED;
-
     final Map<Integer, ClusterShardHealth> shards = Maps.newHashMap();
-
     List<String> validationFailures;
 
     private ClusterIndexHealth() {
@@ -103,12 +95,15 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
             } else {
                 shardHealth.status = ClusterHealthStatus.RED;
             }
+
+            shardHealth.quorumActive = ConsistencyLevel.QUORUM.isMet(indexMetaData.getNumberOfReplicas() + 1, shardHealth.activeShards);
             shards.put(shardHealth.getId(), shardHealth);
         }
 
         // update the index status
         status = ClusterHealthStatus.GREEN;
 
+        quorumActive = true;
         for (ClusterShardHealth shardHealth : shards.values()) {
             if (shardHealth.isPrimaryActive()) {
                 activePrimaryShards++;
@@ -123,6 +118,9 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
             } else if (shardHealth.getStatus() == ClusterHealthStatus.YELLOW && status != ClusterHealthStatus.RED) {
                 // do not override an existing red
                 status = ClusterHealthStatus.YELLOW;
+            }
+            if (shardHealth.quorumActive == false) {
+                quorumActive = false;
             }
         }
         if (!validationFailures.isEmpty()) {
@@ -172,6 +170,10 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
         return status;
     }
 
+    public boolean isQuorumActive() {
+        return this.quorumActive;
+    }
+
     public Map<Integer, ClusterShardHealth> getShards() {
         return this.shards;
     }
@@ -198,6 +200,7 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
         initializingShards = in.readVInt();
         unassignedShards = in.readVInt();
         status = ClusterHealthStatus.fromValue(in.readByte());
+        quorumActive = in.readBoolean();
 
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
@@ -218,6 +221,7 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
         out.writeVInt(initializingShards);
         out.writeVInt(unassignedShards);
         out.writeByte(status.value());
+        out.writeBoolean(quorumActive);
 
         out.writeVInt(shards.size());
         for (ClusterShardHealth shardHealth : this) {
@@ -242,11 +246,13 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
         static final XContentBuilderString VALIDATION_FAILURES = new XContentBuilderString("validation_failures");
         static final XContentBuilderString SHARDS = new XContentBuilderString("shards");
         static final XContentBuilderString PRIMARY_ACTIVE = new XContentBuilderString("primary_active");
+        static final XContentBuilderString QUORUM_ACTIVE = new XContentBuilderString("quorum_active");
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(Fields.STATUS, getStatus().name().toLowerCase(Locale.ROOT));
+        builder.field(Fields.QUORUM_ACTIVE, isQuorumActive());
         builder.field(Fields.NUMBER_OF_SHARDS, getNumberOfShards());
         builder.field(Fields.NUMBER_OF_REPLICAS, getNumberOfReplicas());
         builder.field(Fields.ACTIVE_PRIMARY_SHARDS, getActivePrimaryShards());
@@ -270,6 +276,7 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
                 builder.startObject(Integer.toString(shardHealth.getId()));
 
                 builder.field(Fields.STATUS, shardHealth.getStatus().name().toLowerCase(Locale.ROOT));
+                builder.field(Fields.QUORUM_ACTIVE, isQuorumActive());
                 builder.field(Fields.PRIMARY_ACTIVE, shardHealth.isPrimaryActive());
                 builder.field(Fields.ACTIVE_SHARDS, shardHealth.getActiveShards());
                 builder.field(Fields.RELOCATING_SHARDS, shardHealth.getRelocatingShards());

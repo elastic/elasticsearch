@@ -31,18 +31,13 @@ import java.io.IOException;
 public class ClusterShardHealth implements Streamable {
 
     private int shardId;
-
     ClusterHealthStatus status = ClusterHealthStatus.RED;
-
     int activeShards = 0;
-
     int relocatingShards = 0;
-
     int initializingShards = 0;
-
     int unassignedShards = 0;
-
     boolean primaryActive = false;
+    boolean quorumActive = false;
 
     private ClusterShardHealth() {
 
@@ -80,6 +75,10 @@ public class ClusterShardHealth implements Streamable {
         return unassignedShards;
     }
 
+    public boolean isQuorumActive() {
+        return this.quorumActive;
+    }
+
     static ClusterShardHealth readClusterShardHealth(StreamInput in) throws IOException {
         ClusterShardHealth ret = new ClusterShardHealth();
         ret.readFrom(in);
@@ -95,6 +94,7 @@ public class ClusterShardHealth implements Streamable {
         initializingShards = in.readVInt();
         unassignedShards = in.readVInt();
         primaryActive = in.readBoolean();
+        quorumActive = in.readBoolean();
     }
 
     @Override
@@ -106,5 +106,6 @@ public class ClusterShardHealth implements Streamable {
         out.writeVInt(initializingShards);
         out.writeVInt(unassignedShards);
         out.writeBoolean(primaryActive);
+        out.writeBoolean(quorumActive);
     }
 }

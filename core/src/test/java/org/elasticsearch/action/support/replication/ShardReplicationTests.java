@@ -24,7 +24,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.action.UnavailableShardsException;
-import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.common.ConsistencyLevel;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -331,7 +331,7 @@ public class ShardReplicationTests extends ElasticsearchTestCase {
         final int unassignedReplicas = randomInt(2);
         final int totalShards = 1 + assignedReplicas + unassignedReplicas;
         final boolean passesWriteConsistency;
-        Request request = new Request(shardId).consistencyLevel(randomFrom(WriteConsistencyLevel.values()));
+        Request request = new Request(shardId).consistencyLevel(randomFrom(ConsistencyLevel.values()));
         switch (request.consistencyLevel()) {
             case ONE:
                 passesWriteConsistency = true;
@@ -342,6 +342,13 @@ public class ShardReplicationTests extends ElasticsearchTestCase {
                     passesWriteConsistency = true; // primary is enough
                 } else {
                     passesWriteConsistency = assignedReplicas + 1 >= (totalShards / 2) + 1;
+                }
+                break;
+            case ALL_MINUS_1:
+                if (totalShards <= 1) {
+                    passesWriteConsistency = unassignedReplicas == 0;
+                } else {
+                    passesWriteConsistency = assignedReplicas + 1 >= (totalShards - 1);
                 }
                 break;
             case ALL:

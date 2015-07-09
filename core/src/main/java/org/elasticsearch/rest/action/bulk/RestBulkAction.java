@@ -21,7 +21,7 @@ package org.elasticsearch.rest.action.bulk;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionWriteResponse;
-import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.common.ConsistencyLevel;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -78,7 +78,7 @@ public class RestBulkAction extends BaseRestHandler {
 
         String consistencyLevel = request.param("consistency");
         if (consistencyLevel != null) {
-            bulkRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
+            bulkRequest.consistencyLevel(ConsistencyLevel.fromString(consistencyLevel));
         }
         bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
         bulkRequest.refresh(request.paramAsBoolean("refresh", bulkRequest.refresh()));

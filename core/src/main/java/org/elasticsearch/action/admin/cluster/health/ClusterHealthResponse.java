@@ -66,6 +66,7 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
     double activeShardsPercent = 100;
     boolean timedOut = false;
     ClusterHealthStatus status = ClusterHealthStatus.RED;
+    boolean quorumActive = false;
     private List<String> validationFailures;
     Map<String, ClusterIndexHealth> indices = Maps.newHashMap();
 
@@ -105,6 +106,7 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         }
 
         status = ClusterHealthStatus.GREEN;
+        quorumActive = true;
 
         for (ClusterIndexHealth indexHealth : indices.values()) {
             activePrimaryShards += indexHealth.activePrimaryShards;
@@ -116,6 +118,9 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
                 status = ClusterHealthStatus.RED;
             } else if (indexHealth.getStatus() == ClusterHealthStatus.YELLOW && status != ClusterHealthStatus.RED) {
                 status = ClusterHealthStatus.YELLOW;
+            }
+            if (indexHealth.quorumActive == false) {
+                quorumActive = false;
             }
         }
 
@@ -237,6 +242,13 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         return activeShardsPercent;
     }
 
+    /**
+     * Is quorum active on all indices or not.
+     */
+    public boolean isQuorumActive() {
+        return this.quorumActive;
+    }
+
     @Override
     public Iterator<ClusterIndexHealth> iterator() {
         return indices.values().iterator();
@@ -262,6 +274,7 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         numberOfDataNodes = in.readVInt();
         numberOfPendingTasks = in.readInt();
         status = ClusterHealthStatus.fromValue(in.readByte());
+        quorumActive = in.readBoolean();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             ClusterIndexHealth indexHealth = readClusterIndexHealth(in);
@@ -278,9 +291,7 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         }
 
         numberOfInFlightFetch = in.readInt();
-        if (in.getVersion().onOrAfter(Version.V_1_7_0)) {
-            delayedUnassignedShards= in.readInt();
-        }
+        delayedUnassignedShards= in.readInt();
 
         activeShardsPercent = in.readDouble();
         taskMaxWaitingTime = TimeValue.readTimeValue(in);
@@ -299,6 +310,7 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         out.writeVInt(numberOfDataNodes);
         out.writeInt(numberOfPendingTasks);
         out.writeByte(status.value());
+        out.writeBoolean(quorumActive);
         out.writeVInt(indices.size());
         for (ClusterIndexHealth indexHealth : this) {
             indexHealth.writeTo(out);
@@ -311,9 +323,7 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         }
 
         out.writeInt(numberOfInFlightFetch);
-        if (out.getVersion().onOrAfter(Version.V_1_7_0)) {
-            out.writeInt(delayedUnassignedShards);
-        }
+        out.writeInt(delayedUnassignedShards);
         out.writeDouble(activeShardsPercent);
         taskMaxWaitingTime.writeTo(out);
     }
@@ -335,6 +345,7 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
     static final class Fields {
         static final XContentBuilderString CLUSTER_NAME = new XContentBuilderString("cluster_name");
         static final XContentBuilderString STATUS = new XContentBuilderString("status");
+        static final XContentBuilderString QUORUM_ACTIVE = new XContentBuilderString("quorum_active");
         static final XContentBuilderString TIMED_OUT = new XContentBuilderString("timed_out");
         static final XContentBuilderString NUMBER_OF_NODES = new XContentBuilderString("number_of_nodes");
         static final XContentBuilderString NUMBER_OF_DATA_NODES = new XContentBuilderString("number_of_data_nodes");
@@ -358,6 +369,7 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(Fields.CLUSTER_NAME, getClusterName());
         builder.field(Fields.STATUS, getStatus().name().toLowerCase(Locale.ROOT));
+        builder.field(Fields.QUORUM_ACTIVE, isQuorumActive());
         builder.field(Fields.TIMED_OUT, isTimedOut());
         builder.field(Fields.NUMBER_OF_NODES, getNumberOfNodes());
         builder.field(Fields.NUMBER_OF_DATA_NODES, getNumberOfDataNodes());

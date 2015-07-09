@@ -25,7 +25,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.common.ConsistencyLevel;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -61,7 +61,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     List<Object> payloads = null;
 
     protected TimeValue timeout = BulkShardRequest.DEFAULT_TIMEOUT;
-    private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
+    private ConsistencyLevel consistencyLevel = ConsistencyLevel.DEFAULT;
     private boolean refresh = false;
 
     private long sizeInBytes = 0;
@@ -399,14 +399,14 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     }
 
     /**
-     * Sets the consistency level of write. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}
+     * Sets the consistency level of write. Defaults to {@link ConsistencyLevel#DEFAULT}
      */
-    public BulkRequest consistencyLevel(WriteConsistencyLevel consistencyLevel) {
+    public BulkRequest consistencyLevel(ConsistencyLevel consistencyLevel) {
         this.consistencyLevel = consistencyLevel;
         return this;
     }
 
-    public WriteConsistencyLevel consistencyLevel() {
+    public ConsistencyLevel consistencyLevel() {
         return this.consistencyLevel;
     }
 
@@ -474,7 +474,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
+        consistencyLevel = ConsistencyLevel.readFrom(in);
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             byte type = in.readByte();
@@ -499,7 +499,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeByte(consistencyLevel.id());
+        consistencyLevel.writeTo(out);
         out.writeVInt(requests.size());
         for (ActionRequest request : requests) {
             if (request instanceof IndexRequest) {

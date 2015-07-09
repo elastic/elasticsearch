@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.update;
 
-import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.common.ConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -132,9 +132,9 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     }
 
     /**
-     * Sets the consistency level of write. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}
+     * Sets the consistency level of write. Defaults to {@link ConsistencyLevel#DEFAULT}
      */
-    public UpdateRequestBuilder setConsistencyLevel(WriteConsistencyLevel consistencyLevel) {
+    public UpdateRequestBuilder setConsistencyLevel(ConsistencyLevel consistencyLevel) {
         request.consistencyLevel(consistencyLevel);
         return this;
     }

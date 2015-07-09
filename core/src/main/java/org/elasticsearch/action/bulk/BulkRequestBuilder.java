@@ -20,7 +20,7 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.common.ConsistencyLevel;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
@@ -109,9 +109,9 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
     }
 
     /**
-     * Sets the consistency level. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}.
+     * Sets the consistency level. Defaults to {@link ConsistencyLevel#DEFAULT}.
      */
-    public BulkRequestBuilder setConsistencyLevel(WriteConsistencyLevel consistencyLevel) {
+    public BulkRequestBuilder setConsistencyLevel(ConsistencyLevel consistencyLevel) {
         request.consistencyLevel(consistencyLevel);
         return this;
     }

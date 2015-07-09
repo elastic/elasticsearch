@@ -413,7 +413,13 @@ public class Lucene {
                 if (in.readBoolean()) {
                     field = in.readString();
                 }
-                fields[i] = new SortField(field, readSortType(in), in.readBoolean());
+                SortField.Type sortType = readSortType(in);
+                Object missingValue = readMissingValue(in);
+                boolean reverse = in.readBoolean();
+                fields[i] = new SortField(field, sortType, reverse);
+                if (missingValue != null) {
+                    fields[i].setMissingValue(missingValue);
+                }
             }
 
             FieldDoc[] fieldDocs = new FieldDoc[in.readVInt()];
@@ -485,9 +491,12 @@ public class Lucene {
                     out.writeString(sortField.getField());
                 }
                 if (sortField.getComparatorSource() != null) {
-                    writeSortType(out, ((IndexFieldData.XFieldComparatorSource) sortField.getComparatorSource()).reducedType());
+                    IndexFieldData.XFieldComparatorSource comparatorSource = (IndexFieldData.XFieldComparatorSource) sortField.getComparatorSource();
+                    writeSortType(out, comparatorSource.reducedType());
+                    writeMissingValue(out, comparatorSource.missingValue(sortField.getReverse()));
                 } else {
                     writeSortType(out, sortField.getType());
+                    writeMissingValue(out, sortField.missingValue);
                 }
                 out.writeBoolean(sortField.getReverse());
             }
@@ -505,6 +514,31 @@ public class Lucene {
             for (ScoreDoc doc : topDocs.scoreDocs) {
                 writeScoreDoc(out, doc);
             }
+        }
+    }
+
+    private static void writeMissingValue(StreamOutput out, Object missingValue) throws IOException {
+        if (missingValue == SortField.STRING_FIRST) {
+            out.writeByte((byte) 1);
+        } else if (missingValue == SortField.STRING_LAST) {
+            out.writeByte((byte) 2);
+        } else {
+            out.writeByte((byte) 0);
+            out.writeGenericValue(missingValue);
+        }
+    }
+
+    private static Object readMissingValue(StreamInput in) throws IOException {
+        final byte id = in.readByte();
+        switch (id) {
+        case 0:
+            return in.readGenericValue();
+        case 1:
+            return SortField.STRING_FIRST;
+        case 2:
+            return SortField.STRING_LAST;
+        default:
+            throw new IOException("Unknown missing value id: " + id);
         }
     }
 

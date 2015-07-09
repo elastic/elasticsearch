@@ -443,13 +443,11 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
             if (cmpValue == null) {
                 if ("_first".equals(missingValue)) {
                     cmpValue = new BytesRef();
-                } else if ("_last".equals(missingValue)) {
-                    cmpValue = XFieldComparatorSource.MAX_TERM;
-                } else {
+                } else if ("_last".equals(missingValue) == false) {
                     cmpValue = (BytesRef) missingValue;
                 }
             }
-            if (previous != null) {
+            if (previous != null && cmpValue != null) {
                 assertTrue(previous.utf8ToString() + "   /   " + cmpValue.utf8ToString(), previous.compareTo(cmpValue) <= 0);
             }
             previous = cmpValue;

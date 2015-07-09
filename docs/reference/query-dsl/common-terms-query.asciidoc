@@ -95,7 +95,7 @@ all terms required:
     "body": {
       "query":            "nelly the elephant as a cartoon",
       "cutoff_frequency": 0.001,
-      "low_freq_operator" "and"
+      "low_freq_operator": "and"
     }
   }
 }
@@ -113,8 +113,8 @@ which is roughly equivalent to:
       { "term": { "body": "cartoon"}}
     ],
     "should": [
-      { "term": { "body": "the"}}
-      { "term": { "body": "as"}}
+      { "term": { "body": "the"}},
+      { "term": { "body": "as"}},
       { "term": { "body": "a"}}
     ]
   }
@@ -156,8 +156,8 @@ which is roughly equivalent to:
       }
     },
     "should": [
-      { "term": { "body": "the"}}
-      { "term": { "body": "as"}}
+      { "term": { "body": "the"}},
+      { "term": { "body": "as"}},
       { "term": { "body": "a"}}
     ]
   }

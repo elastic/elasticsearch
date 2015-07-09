@@ -1062,7 +1062,7 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
                                 .should(termQuery("nested1.n_field1", "n_value1_1").queryName("test1"))
                                 .should(termQuery("nested1.n_field1", "n_value1_3").queryName("test2"))
                                 .should(termQuery("nested1.n_field2", "n_value2_2").queryName("test3"))
-                ).innerHit(new QueryInnerHitBuilder()))
+                ).innerHit(new QueryInnerHitBuilder().addSort("nested1.n_field1", SortOrder.ASC)))
                 .setSize(numDocs)
                 .addSort("field1", SortOrder.ASC)
                 .get();

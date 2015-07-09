@@ -56,7 +56,7 @@
       <socket server="127.0.0.1" port="9200"/>
     </waitfor>
     <local name="temp.file"/>
-    <tempfile property="temp.file" destdir="${integ.temp}"/>
+    <tempfile property="temp.file" destdir="${java.io.tmpdir}"/>
     <get src="http://127.0.0.1:9200" dest="${temp.file}" username="test_user" password="changeme" verbose="true" retries="10"/>
     <!-- end shield plugin mods -->
 

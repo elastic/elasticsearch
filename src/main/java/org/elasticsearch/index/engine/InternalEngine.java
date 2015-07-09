@@ -90,9 +90,6 @@ public class InternalEngine extends Engine {
     private final SearcherFactory searcherFactory;
     private final SearcherManager searcherManager;
 
-    // we use flushNeeded here, since if there are no changes, then the commit won't write
-    // will not really happen, and then the commitUserData and the new translog will not be reflected
-    private volatile boolean flushNeeded = false;
     private final Lock flushLock = new ReentrantLock();
     private final ReentrantLock optimizeLock = new ReentrantLock();
 
@@ -269,7 +266,6 @@ public class InternalEngine extends Engine {
                     innerCreate(create);
                 }
             }
-            flushNeeded = true;
         } catch (OutOfMemoryError | IllegalStateException | IOException t) {
             maybeFailEngine("create", t);
             throw new CreateFailedEngineException(shardId, create, t);
@@ -375,7 +371,6 @@ public class InternalEngine extends Engine {
                     innerIndex(index);
                 }
             }
-            flushNeeded = true;
         } catch (OutOfMemoryError | IllegalStateException | IOException t) {
             maybeFailEngine("index", t);
             throw new IndexFailedEngineException(shardId, index, t);
@@ -467,7 +462,6 @@ public class InternalEngine extends Engine {
             ensureOpen();
             // NOTE: we don't throttle this when merges fall behind because delete-by-id does not create new segments:
             innerDelete(delete);
-            flushNeeded = true;
         } catch (OutOfMemoryError | IllegalStateException | IOException t) {
             maybeFailEngine("delete", t);
             throw new DeleteFailedEngineException(shardId, delete, t);
@@ -560,7 +554,6 @@ public class InternalEngine extends Engine {
 
             indexWriter.deleteDocuments(query);
             translog.add(new Translog.DeleteByQuery(delete));
-            flushNeeded = true;
         } catch (Throwable t) {
             maybeFailEngine("delete_by_query", t);
             throw new DeleteByQueryFailedEngineException(shardId, delete, t);
@@ -675,8 +668,7 @@ public class InternalEngine extends Engine {
                         throw new FlushNotAllowedEngineException(shardId, "recovery is in progress, flush is not allowed");
                     }
 
-                    if (flushNeeded || force) {
-                        flushNeeded = false;
+                    if (indexWriter.hasUncommittedChanges() || force) {
                         try {
                             long translogId = translogIdGenerator.incrementAndGet();
                             translog.newTransientTranslog(translogId);

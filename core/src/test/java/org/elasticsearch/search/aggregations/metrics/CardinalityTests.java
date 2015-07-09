@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -323,7 +324,8 @@ public class CardinalityTests extends ElasticsearchIntegrationTest {
     @Test
     public void singleValuedStringScript() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
-                .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).script("doc['str_value'].value"))
+                .addAggregation(
+                        cardinality("cardinality").precisionThreshold(precisionThreshold).script(new Script("doc['str_value'].value")))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -337,7 +339,8 @@ public class CardinalityTests extends ElasticsearchIntegrationTest {
     @Test
     public void multiValuedStringScript() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
-                .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).script("doc['str_values'].values"))
+                .addAggregation(
+                        cardinality("cardinality").precisionThreshold(precisionThreshold).script(new Script("doc['str_values'].values")))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -351,7 +354,9 @@ public class CardinalityTests extends ElasticsearchIntegrationTest {
     @Test
     public void singleValuedNumericScript() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
-                .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).script("doc['" + singleNumericField(false) + "'].value"))
+                .addAggregation(
+                        cardinality("cardinality").precisionThreshold(precisionThreshold).script(
+                                new Script("doc['" + singleNumericField(false) + "'].value")))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -365,7 +370,9 @@ public class CardinalityTests extends ElasticsearchIntegrationTest {
     @Test
     public void multiValuedNumericScript() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
-                .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).script("doc['" + multiNumericField(false) + "'].values"))
+                .addAggregation(
+                        cardinality("cardinality").precisionThreshold(precisionThreshold).script(
+                                new Script("doc['" + multiNumericField(false) + "'].values")))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -379,7 +386,8 @@ public class CardinalityTests extends ElasticsearchIntegrationTest {
     @Test
     public void singleValuedStringValueScript() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
-                .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field("str_value").script("_value"))
+                .addAggregation(
+                        cardinality("cardinality").precisionThreshold(precisionThreshold).field("str_value").script(new Script("_value")))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -393,7 +401,8 @@ public class CardinalityTests extends ElasticsearchIntegrationTest {
     @Test
     public void multiValuedStringValueScript() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
-                .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field("str_values").script("_value"))
+                .addAggregation(
+                        cardinality("cardinality").precisionThreshold(precisionThreshold).field("str_values").script(new Script("_value")))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -407,7 +416,9 @@ public class CardinalityTests extends ElasticsearchIntegrationTest {
     @Test
     public void singleValuedNumericValueScript() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
-                .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field(singleNumericField(false)).script("_value"))
+                .addAggregation(
+                        cardinality("cardinality").precisionThreshold(precisionThreshold).field(singleNumericField(false))
+                                .script(new Script("_value")))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -421,7 +432,9 @@ public class CardinalityTests extends ElasticsearchIntegrationTest {
     @Test
     public void multiValuedNumericValueScript() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
-                .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field(multiNumericField(false)).script("_value"))
+                .addAggregation(
+                        cardinality("cardinality").precisionThreshold(precisionThreshold).field(multiNumericField(false))
+                                .script(new Script("_value")))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -468,6 +481,154 @@ public class CardinalityTests extends ElasticsearchIntegrationTest {
             assertThat(count.getName(), equalTo("cardinality"));
             assertCount(count, 2);
         }
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Test
+    public void singleValuedStringScript_OldScriptAPI() throws Exception {
+        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+                .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).script("doc['str_value'].value"))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Cardinality count = response.getAggregations().get("cardinality");
+        assertThat(count, notNullValue());
+        assertThat(count.getName(), equalTo("cardinality"));
+        assertCount(count, numDocs);
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Test
+    public void multiValuedStringScript_OldScriptAPI() throws Exception {
+        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+                .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).script("doc['str_values'].values"))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Cardinality count = response.getAggregations().get("cardinality");
+        assertThat(count, notNullValue());
+        assertThat(count.getName(), equalTo("cardinality"));
+        assertCount(count, numDocs * 2);
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Test
+    public void singleValuedNumericScript_OldScriptAPI() throws Exception {
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .setTypes("type")
+                .addAggregation(
+                        cardinality("cardinality").precisionThreshold(precisionThreshold).script(
+                                "doc['" + singleNumericField(false) + "'].value")).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Cardinality count = response.getAggregations().get("cardinality");
+        assertThat(count, notNullValue());
+        assertThat(count.getName(), equalTo("cardinality"));
+        assertCount(count, numDocs);
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Test
+    public void multiValuedNumericScript_OldScriptAPI() throws Exception {
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .setTypes("type")
+                .addAggregation(
+                        cardinality("cardinality").precisionThreshold(precisionThreshold).script(
+                                "doc['" + multiNumericField(false) + "'].values")).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Cardinality count = response.getAggregations().get("cardinality");
+        assertThat(count, notNullValue());
+        assertThat(count.getName(), equalTo("cardinality"));
+        assertCount(count, numDocs * 2);
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Test
+    public void singleValuedStringValueScript_OldScriptAPI() throws Exception {
+        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+                .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field("str_value").script("_value"))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Cardinality count = response.getAggregations().get("cardinality");
+        assertThat(count, notNullValue());
+        assertThat(count.getName(), equalTo("cardinality"));
+        assertCount(count, numDocs);
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Test
+    public void multiValuedStringValueScript_OldScriptAPI() throws Exception {
+        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+                .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field("str_values").script("_value"))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Cardinality count = response.getAggregations().get("cardinality");
+        assertThat(count, notNullValue());
+        assertThat(count.getName(), equalTo("cardinality"));
+        assertCount(count, numDocs * 2);
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Test
+    public void singleValuedNumericValueScript_OldScriptAPI() throws Exception {
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .setTypes("type")
+                .addAggregation(
+                        cardinality("cardinality").precisionThreshold(precisionThreshold).field(singleNumericField(false)).script("_value"))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Cardinality count = response.getAggregations().get("cardinality");
+        assertThat(count, notNullValue());
+        assertThat(count.getName(), equalTo("cardinality"));
+        assertCount(count, numDocs);
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Test
+    public void multiValuedNumericValueScript_OldScriptAPI() throws Exception {
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .setTypes("type")
+                .addAggregation(
+                        cardinality("cardinality").precisionThreshold(precisionThreshold).field(multiNumericField(false)).script("_value"))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Cardinality count = response.getAggregations().get("cardinality");
+        assertThat(count, notNullValue());
+        assertThat(count.getName(), equalTo("cardinality"));
+        assertCount(count, numDocs * 2);
     }
 
 }

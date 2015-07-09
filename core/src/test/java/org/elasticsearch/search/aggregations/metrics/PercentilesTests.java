@@ -22,6 +22,8 @@ import com.google.common.collect.Lists;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Order;
@@ -31,7 +33,9 @@ import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesBuil
 import org.junit.Test;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
@@ -212,7 +216,7 @@ public class PercentilesTests extends AbstractNumericTests {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(randomCompression(percentiles("percentiles"))
-                        .field("value").script("_value - 1")
+.field("value").script(new Script("_value - 1"))
                         .percentiles(pcts))
                 .execute().actionGet();
 
@@ -225,11 +229,14 @@ public class PercentilesTests extends AbstractNumericTests {
     @Override
     @Test
     public void testSingleValuedField_WithValueScript_WithParams() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("dec", 1);
         final double[] pcts = randomPercentiles();
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(randomCompression(percentiles("percentiles"))
-                        .field("value").script("_value - dec").param("dec", 1)
+.field("value")
+                                .script(new Script("_value - dec", ScriptType.INLINE, null, params))
                         .percentiles(pcts))
                 .execute().actionGet();
 
@@ -263,7 +270,7 @@ public class PercentilesTests extends AbstractNumericTests {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(randomCompression(percentiles("percentiles"))
-                        .field("values").script("_value - 1")
+.field("values").script(new Script("_value - 1"))
                         .percentiles(pcts))
                 .execute().actionGet();
 
@@ -279,7 +286,7 @@ public class PercentilesTests extends AbstractNumericTests {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(randomCompression(percentiles("percentiles"))
-                        .field("values").script("_value * -1")
+.field("values").script(new Script("_value * -1"))
                         .percentiles(pcts))
                 .execute().actionGet();
 
@@ -292,11 +299,14 @@ public class PercentilesTests extends AbstractNumericTests {
     @Override
     @Test
     public void testMultiValuedField_WithValueScript_WithParams() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("dec", 1);
         final double[] pcts = randomPercentiles();
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(randomCompression(percentiles("percentiles"))
-                        .field("values").script("_value - dec").param("dec", 1)
+.field("values")
+                                .script(new Script("_value - dec", ScriptType.INLINE, null, params))
                         .percentiles(pcts))
                 .execute().actionGet();
 
@@ -313,7 +323,7 @@ public class PercentilesTests extends AbstractNumericTests {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(randomCompression(percentiles("percentiles"))
-                        .script("doc['value'].value")
+.script(new Script("doc['value'].value"))
                         .percentiles(pcts))
                 .execute().actionGet();
 
@@ -326,11 +336,14 @@ public class PercentilesTests extends AbstractNumericTests {
     @Override
     @Test
     public void testScript_SingleValued_WithParams() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("dec", 1);
         final double[] pcts = randomPercentiles();
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(randomCompression(percentiles("percentiles"))
-                        .script("doc['value'].value - dec").param("dec", 1)
+.script(
+                                new Script("doc['value'].value - dec", ScriptType.INLINE, null, params))
                         .percentiles(pcts))
                 .execute().actionGet();
 
@@ -343,11 +356,14 @@ public class PercentilesTests extends AbstractNumericTests {
     @Override
     @Test
     public void testScript_ExplicitSingleValued_WithParams() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("dec", 1);
         final double[] pcts = randomPercentiles();
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(randomCompression(percentiles("percentiles"))
-                        .script("doc['value'].value - dec").param("dec", 1)
+.script(
+                                new Script("doc['value'].value - dec", ScriptType.INLINE, null, params))
                         .percentiles(pcts))
                 .execute().actionGet();
 
@@ -364,7 +380,7 @@ public class PercentilesTests extends AbstractNumericTests {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(randomCompression(percentiles("percentiles"))
-                        .script("doc['values'].values")
+.script(new Script("doc['values'].values"))
                         .percentiles(pcts))
                 .execute().actionGet();
 
@@ -381,7 +397,7 @@ public class PercentilesTests extends AbstractNumericTests {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(randomCompression(percentiles("percentiles"))
-                        .script("doc['values'].values")
+.script(new Script("doc['values'].values"))
                         .percentiles(pcts))
                 .execute().actionGet();
 
@@ -394,11 +410,15 @@ public class PercentilesTests extends AbstractNumericTests {
     @Override
     @Test
     public void testScript_MultiValued_WithParams() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("dec", 1);
         final double[] pcts = randomPercentiles();
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(randomCompression(percentiles("percentiles"))
-                        .script("List values = doc['values'].values; double[] res = new double[values.size()]; for (int i = 0; i < res.length; i++) { res[i] = values.get(i) - dec; }; return res;").param("dec", 1)
+                                .script(new Script(
+                                        "List values = doc['values'].values; double[] res = new double[values.size()]; for (int i = 0; i < res.length; i++) { res[i] = values.get(i) - dec; }; return res;",
+                                        ScriptType.INLINE, null, params))
                         .percentiles(pcts))
                 .execute().actionGet();
 
@@ -433,6 +453,208 @@ public class PercentilesTests extends AbstractNumericTests {
             }
             previous = p99;
         }
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Override
+    @Test
+    public void testSingleValuedField_WithValueScript_OldScriptAPI() throws Exception {
+        final double[] pcts = randomPercentiles();
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(randomCompression(percentiles("percentiles")).field("value").script("_value - 1").percentiles(pcts))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        final Percentiles percentiles = searchResponse.getAggregations().get("percentiles");
+        assertConsistent(pcts, percentiles, minValue - 1, maxValue - 1);
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Override
+    @Test
+    public void testSingleValuedField_WithValueScript_WithParams_OldScriptAPI() throws Exception {
+        final double[] pcts = randomPercentiles();
+        SearchResponse searchResponse = client()
+                .prepareSearch("idx")
+                .setQuery(matchAllQuery())
+                .addAggregation(
+                        randomCompression(percentiles("percentiles")).field("value").script("_value - dec").param("dec", 1)
+                                .percentiles(pcts)).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        final Percentiles percentiles = searchResponse.getAggregations().get("percentiles");
+        assertConsistent(pcts, percentiles, minValue - 1, maxValue - 1);
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Override
+    @Test
+    public void testMultiValuedField_WithValueScript_OldScriptAPI() throws Exception {
+        final double[] pcts = randomPercentiles();
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(randomCompression(percentiles("percentiles")).field("values").script("_value - 1").percentiles(pcts))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        final Percentiles percentiles = searchResponse.getAggregations().get("percentiles");
+        assertConsistent(pcts, percentiles, minValues - 1, maxValues - 1);
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Test
+    public void testMultiValuedField_WithValueScript_Reverse_OldScriptAPI() throws Exception {
+        final double[] pcts = randomPercentiles();
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(randomCompression(percentiles("percentiles")).field("values").script("_value * -1").percentiles(pcts))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        final Percentiles percentiles = searchResponse.getAggregations().get("percentiles");
+        assertConsistent(pcts, percentiles, -maxValues, -minValues);
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Override
+    @Test
+    public void testMultiValuedField_WithValueScript_WithParams_OldScriptAPI() throws Exception {
+        final double[] pcts = randomPercentiles();
+        SearchResponse searchResponse = client()
+                .prepareSearch("idx")
+                .setQuery(matchAllQuery())
+                .addAggregation(
+                        randomCompression(percentiles("percentiles")).field("values").script("_value - dec").param("dec", 1)
+                                .percentiles(pcts)).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        final Percentiles percentiles = searchResponse.getAggregations().get("percentiles");
+        assertConsistent(pcts, percentiles, minValues - 1, maxValues - 1);
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Override
+    @Test
+    public void testScript_SingleValued_OldScriptAPI() throws Exception {
+        final double[] pcts = randomPercentiles();
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(randomCompression(percentiles("percentiles")).script("doc['value'].value").percentiles(pcts)).execute()
+                .actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        final Percentiles percentiles = searchResponse.getAggregations().get("percentiles");
+        assertConsistent(pcts, percentiles, minValue, maxValue);
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Override
+    @Test
+    public void testScript_SingleValued_WithParams_OldScriptAPI() throws Exception {
+        final double[] pcts = randomPercentiles();
+        SearchResponse searchResponse = client()
+                .prepareSearch("idx")
+                .setQuery(matchAllQuery())
+                .addAggregation(
+                        randomCompression(percentiles("percentiles")).script("doc['value'].value - dec").param("dec", 1).percentiles(pcts))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        final Percentiles percentiles = searchResponse.getAggregations().get("percentiles");
+        assertConsistent(pcts, percentiles, minValue - 1, maxValue - 1);
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Override
+    @Test
+    public void testScript_ExplicitSingleValued_WithParams_OldScriptAPI() throws Exception {
+        final double[] pcts = randomPercentiles();
+        SearchResponse searchResponse = client()
+                .prepareSearch("idx")
+                .setQuery(matchAllQuery())
+                .addAggregation(
+                        randomCompression(percentiles("percentiles")).script("doc['value'].value - dec").param("dec", 1).percentiles(pcts))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        final Percentiles percentiles = searchResponse.getAggregations().get("percentiles");
+        assertConsistent(pcts, percentiles, minValue - 1, maxValue - 1);
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Override
+    @Test
+    public void testScript_MultiValued_OldScriptAPI() throws Exception {
+        final double[] pcts = randomPercentiles();
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(randomCompression(percentiles("percentiles")).script("doc['values'].values").percentiles(pcts)).execute()
+                .actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        final Percentiles percentiles = searchResponse.getAggregations().get("percentiles");
+        assertConsistent(pcts, percentiles, minValues, maxValues);
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Override
+    @Test
+    public void testScript_ExplicitMultiValued_OldScriptAPI() throws Exception {
+        final double[] pcts = randomPercentiles();
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(randomCompression(percentiles("percentiles")).script("doc['values'].values").percentiles(pcts)).execute()
+                .actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        final Percentiles percentiles = searchResponse.getAggregations().get("percentiles");
+        assertConsistent(pcts, percentiles, minValues, maxValues);
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Override
+    @Test
+    public void testScript_MultiValued_WithParams_OldScriptAPI() throws Exception {
+        final double[] pcts = randomPercentiles();
+        SearchResponse searchResponse = client()
+                .prepareSearch("idx")
+                .setQuery(matchAllQuery())
+                .addAggregation(
+                        randomCompression(percentiles("percentiles"))
+                                .script("List values = doc['values'].values; double[] res = new double[values.size()]; for (int i = 0; i < res.length; i++) { res[i] = values.get(i) - dec; }; return res;")
+                                .param("dec", 1).percentiles(pcts)).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        final Percentiles percentiles = searchResponse.getAggregations().get("percentiles");
+        assertConsistent(pcts, percentiles, minValues - 1, maxValues - 1);
     }
 
 }

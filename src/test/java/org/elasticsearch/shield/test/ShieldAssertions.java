@@ -7,6 +7,7 @@ package org.elasticsearch.shield.test;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.shield.ShieldPlugin;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
@@ -17,6 +18,6 @@ public class ShieldAssertions {
         assertThat(e.status(), is(RestStatus.UNAUTHORIZED));
         assertThat(e.getHeaderKeys(), hasSize(1));
         assertThat(e.getHeader("WWW-Authenticate"), notNullValue());
-        assertThat(e.getHeader("WWW-Authenticate"), contains("Basic realm=\"elasticsearch-shield\""));
+        assertThat(e.getHeader("WWW-Authenticate"), contains("Basic realm=\"" + ShieldPlugin.NAME + "\""));
     }
 }

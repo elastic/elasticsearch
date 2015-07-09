@@ -37,7 +37,7 @@
                 args="${integ.args} -Des.path.repo=${integ.repo.home}"/>
 
     <!-- begin shield plugin mods -->
-    <run-script dir="${integ.home}" script="bin/elasticsearch-shield/esusers"
+    <run-script dir="${integ.home}" script="bin/shield/esusers"
                 args="useradd test_user -p changeme -r admin"/>
 
     <!-- seems waitfor task doesnt support basic auth?

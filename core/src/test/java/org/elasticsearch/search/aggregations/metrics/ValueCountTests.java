@@ -19,10 +19,15 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
+
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -142,10 +147,8 @@ public class ValueCountTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void singleValuedScript() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(count("count").script("doc['value'].value"))
-                .execute().actionGet();
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(count("count").script(new Script("doc['value'].value"))).execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 
@@ -157,10 +160,8 @@ public class ValueCountTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void multiValuedScript() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(count("count").script("doc['values'].values"))
-                .execute().actionGet();
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(count("count").script(new Script("doc['values'].values"))).execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 
@@ -172,10 +173,10 @@ public class ValueCountTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void singleValuedScriptWithParams() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(count("count").script("doc[s].value").param("s", "value"))
-                .execute().actionGet();
+        Map<String, Object> params = new HashMap<>();
+        params.put("s", "value");
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(count("count").script(new Script("doc[s].value", ScriptType.INLINE, null, params))).execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 
@@ -187,10 +188,74 @@ public class ValueCountTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void multiValuedScriptWithParams() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(count("count").script("doc[s].values").param("s", "values"))
-                .execute().actionGet();
+        Map<String, Object> params = new HashMap<>();
+        params.put("s", "values");
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(count("count").script(new Script("doc[s].values", ScriptType.INLINE, null, params))).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        ValueCount valueCount = searchResponse.getAggregations().get("count");
+        assertThat(valueCount, notNullValue());
+        assertThat(valueCount.getName(), equalTo("count"));
+        assertThat(valueCount.getValue(), equalTo(20l));
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Test
+    public void singleValuedScript_OldScriptAPI() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(count("count").script("doc['value'].value")).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        ValueCount valueCount = searchResponse.getAggregations().get("count");
+        assertThat(valueCount, notNullValue());
+        assertThat(valueCount.getName(), equalTo("count"));
+        assertThat(valueCount.getValue(), equalTo(10l));
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Test
+    public void multiValuedScript_OldScriptAPI() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(count("count").script("doc['values'].values")).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        ValueCount valueCount = searchResponse.getAggregations().get("count");
+        assertThat(valueCount, notNullValue());
+        assertThat(valueCount.getName(), equalTo("count"));
+        assertThat(valueCount.getValue(), equalTo(20l));
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Test
+    public void singleValuedScriptWithParams_OldScriptAPI() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(count("count").script("doc[s].value").param("s", "value")).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        ValueCount valueCount = searchResponse.getAggregations().get("count");
+        assertThat(valueCount, notNullValue());
+        assertThat(valueCount.getName(), equalTo("count"));
+        assertThat(valueCount.getValue(), equalTo(10l));
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Test
+    public void multiValuedScriptWithParams_OldScriptAPI() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(count("count").script("doc[s].values").param("s", "values")).execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 

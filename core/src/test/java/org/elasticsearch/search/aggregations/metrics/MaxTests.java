@@ -19,10 +19,15 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.junit.Test;
+
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
@@ -150,7 +155,7 @@ public class MaxTests extends AbstractNumericTests {
     public void testSingleValuedField_WithValueScript() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(max("max").field("value").script("_value + 1"))
+                .addAggregation(max("max").field("value").script(new Script("_value + 1")))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
@@ -164,9 +169,11 @@ public class MaxTests extends AbstractNumericTests {
     @Override
     @Test
     public void testSingleValuedField_WithValueScript_WithParams() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("inc", 1);
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(max("max").field("value").script("_value + inc").param("inc", 1))
+                .addAggregation(max("max").field("value").script(new Script("_value + inc", ScriptType.INLINE, null, params)))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
@@ -198,7 +205,7 @@ public class MaxTests extends AbstractNumericTests {
     public void testMultiValuedField_WithValueScript() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(max("max").field("values").script("_value + 1"))
+                .addAggregation(max("max").field("values").script(new Script("_value + 1")))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
@@ -212,9 +219,11 @@ public class MaxTests extends AbstractNumericTests {
     @Override
     @Test
     public void testMultiValuedField_WithValueScript_WithParams() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("inc", 1);
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(max("max").field("values").script("_value + inc").param("inc", 1))
+                .addAggregation(max("max").field("values").script(new Script("_value + inc", ScriptType.INLINE, null, params)))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
@@ -230,7 +239,7 @@ public class MaxTests extends AbstractNumericTests {
     public void testScript_SingleValued() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(max("max").script("doc['value'].value"))
+                .addAggregation(max("max").script(new Script("doc['value'].value")))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
@@ -244,9 +253,11 @@ public class MaxTests extends AbstractNumericTests {
     @Override
     @Test
     public void testScript_SingleValued_WithParams() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("inc", 1);
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(max("max").script("doc['value'].value + inc").param("inc", 1))
+                .addAggregation(max("max").script(new Script("doc['value'].value + inc", ScriptType.INLINE, null, params)))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
@@ -260,9 +271,11 @@ public class MaxTests extends AbstractNumericTests {
     @Override
     @Test
     public void testScript_ExplicitSingleValued_WithParams() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("inc", 1);
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(max("max").script("doc['value'].value + inc").param("inc", 1))
+                .addAggregation(max("max").script(new Script("doc['value'].value + inc", ScriptType.INLINE, null, params)))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
@@ -278,7 +291,7 @@ public class MaxTests extends AbstractNumericTests {
     public void testScript_MultiValued() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(max("max").script("doc['values'].values"))
+                .addAggregation(max("max").script(new Script("doc['values'].values")))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
@@ -294,7 +307,7 @@ public class MaxTests extends AbstractNumericTests {
     public void testScript_ExplicitMultiValued() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(max("max").script("doc['values'].values"))
+                .addAggregation(max("max").script(new Script("doc['values'].values")))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
@@ -308,9 +321,11 @@ public class MaxTests extends AbstractNumericTests {
     @Override
     @Test
     public void testScript_MultiValued_WithParams() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(max("max").script("[ doc['value'].value, doc['value'].value + inc ]").param("inc", 1))
+        Map<String, Object> params = new HashMap<>();
+        params.put("inc", 1);
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(
+                        max("max").script(new Script("[ doc['value'].value, doc['value'].value + inc ]", ScriptType.INLINE, null, params)))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
@@ -321,5 +336,176 @@ public class MaxTests extends AbstractNumericTests {
         assertThat(max.getValue(), equalTo(11.0));
     }
 
+    /*
+     * TODO Remove in 3.0
+     */
+    @Override
+    @Test
+    public void testSingleValuedField_WithValueScript_OldScriptAPI() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(max("max").field("value").script("_value + 1")).execute().actionGet();
 
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        Max max = searchResponse.getAggregations().get("max");
+        assertThat(max, notNullValue());
+        assertThat(max.getName(), equalTo("max"));
+        assertThat(max.getValue(), equalTo(11.0));
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Override
+    @Test
+    public void testSingleValuedField_WithValueScript_WithParams_OldScriptAPI() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(max("max").field("value").script("_value + inc").param("inc", 1)).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        Max max = searchResponse.getAggregations().get("max");
+        assertThat(max, notNullValue());
+        assertThat(max.getName(), equalTo("max"));
+        assertThat(max.getValue(), equalTo(11.0));
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Override
+    @Test
+    public void testMultiValuedField_WithValueScript_OldScriptAPI() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(max("max").field("values").script("_value + 1")).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        Max max = searchResponse.getAggregations().get("max");
+        assertThat(max, notNullValue());
+        assertThat(max.getName(), equalTo("max"));
+        assertThat(max.getValue(), equalTo(13.0));
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Override
+    @Test
+    public void testMultiValuedField_WithValueScript_WithParams_OldScriptAPI() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx")
+                .setQuery(matchAllQuery())
+                .addAggregation(max("max").field("values").script("_value + inc").param("inc", 1)).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        Max max = searchResponse.getAggregations().get("max");
+        assertThat(max, notNullValue());
+        assertThat(max.getName(), equalTo("max"));
+        assertThat(max.getValue(), equalTo(13.0));
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Override
+    @Test
+    public void testScript_SingleValued_OldScriptAPI() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(max("max").script("doc['value'].value")).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        Max max = searchResponse.getAggregations().get("max");
+        assertThat(max, notNullValue());
+        assertThat(max.getName(), equalTo("max"));
+        assertThat(max.getValue(), equalTo(10.0));
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Override
+    @Test
+    public void testScript_SingleValued_WithParams_OldScriptAPI() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(max("max").script("doc['value'].value + inc").param("inc", 1))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        Max max = searchResponse.getAggregations().get("max");
+        assertThat(max, notNullValue());
+        assertThat(max.getName(), equalTo("max"));
+        assertThat(max.getValue(), equalTo(11.0));
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Override
+    @Test
+    public void testScript_ExplicitSingleValued_WithParams_OldScriptAPI() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(max("max").script("doc['value'].value + inc").param("inc", 1)).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        Max max = searchResponse.getAggregations().get("max");
+        assertThat(max, notNullValue());
+        assertThat(max.getName(), equalTo("max"));
+        assertThat(max.getValue(), equalTo(11.0));
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Override
+    @Test
+    public void testScript_MultiValued_OldScriptAPI() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(max("max").script("doc['values'].values")).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        Max max = searchResponse.getAggregations().get("max");
+        assertThat(max, notNullValue());
+        assertThat(max.getName(), equalTo("max"));
+        assertThat(max.getValue(), equalTo(12.0));
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Override
+    @Test
+    public void testScript_ExplicitMultiValued_OldScriptAPI() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(max("max").script("doc['values'].values")).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        Max max = searchResponse.getAggregations().get("max");
+        assertThat(max, notNullValue());
+        assertThat(max.getName(), equalTo("max"));
+        assertThat(max.getValue(), equalTo(12.0));
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Override
+    @Test
+    public void testScript_MultiValued_WithParams_OldScriptAPI() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(max("max").script("[ doc['value'].value, doc['value'].value + inc ]").param("inc", 1)).execute()
+                .actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        Max max = searchResponse.getAggregations().get("max");
+        assertThat(max, notNullValue());
+        assertThat(max.getName(), equalTo("max"));
+        assertThat(max.getValue(), equalTo(11.0));
+    }
 }

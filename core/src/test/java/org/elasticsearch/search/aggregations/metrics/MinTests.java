@@ -19,10 +19,15 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.min.Min;
 import org.junit.Test;
+
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
@@ -150,7 +155,7 @@ public class MinTests extends AbstractNumericTests {
     public void testSingleValuedField_WithValueScript() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(min("min").field("value").script("_value - 1"))
+                .addAggregation(min("min").field("value").script(new Script("_value - 1")))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
@@ -164,9 +169,11 @@ public class MinTests extends AbstractNumericTests {
     @Override
     @Test
     public void testSingleValuedField_WithValueScript_WithParams() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("dec", 1);
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(min("min").field("value").script("_value - dec").param("dec", 1))
+                .addAggregation(min("min").field("value").script(new Script("_value - dec", ScriptType.INLINE, null, params)))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
@@ -198,8 +205,7 @@ public class MinTests extends AbstractNumericTests {
     public void testMultiValuedField_WithValueScript() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(min("min").field("values").script("_value - 1"))
-                .execute().actionGet();
+                .addAggregation(min("min").field("values").script(new Script("_value - 1"))).execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 
@@ -211,6 +217,191 @@ public class MinTests extends AbstractNumericTests {
 
     @Test
     public void testMultiValuedField_WithValueScript_Reverse() throws Exception {
+        // test what happens when values arrive in reverse order since the min
+        // aggregator is optimized to work on sorted values
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(min("min").field("values").script(new Script("_value * -1"))).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        Min min = searchResponse.getAggregations().get("min");
+        assertThat(min, notNullValue());
+        assertThat(min.getName(), equalTo("min"));
+        assertThat(min.getValue(), equalTo(-12d));
+    }
+
+    @Override
+    @Test
+    public void testMultiValuedField_WithValueScript_WithParams() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("dec", 1);
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(min("min").field("values").script(new Script("_value - dec", ScriptType.INLINE, null, params))).execute()
+                .actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        Min min = searchResponse.getAggregations().get("min");
+        assertThat(min, notNullValue());
+        assertThat(min.getName(), equalTo("min"));
+        assertThat(min.getValue(), equalTo(1.0));
+    }
+
+    @Override
+    @Test
+    public void testScript_SingleValued() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(min("min").script(new Script("doc['value'].value"))).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        Min min = searchResponse.getAggregations().get("min");
+        assertThat(min, notNullValue());
+        assertThat(min.getName(), equalTo("min"));
+        assertThat(min.getValue(), equalTo(1.0));
+    }
+
+    @Override
+    @Test
+    public void testScript_SingleValued_WithParams() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("dec", 1);
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(min("min").script(new Script("doc['value'].value - dec", ScriptType.INLINE, null, params))).execute()
+                .actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        Min min = searchResponse.getAggregations().get("min");
+        assertThat(min, notNullValue());
+        assertThat(min.getName(), equalTo("min"));
+        assertThat(min.getValue(), equalTo(0.0));
+    }
+
+    @Override
+    @Test
+    public void testScript_ExplicitSingleValued_WithParams() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("dec", 1);
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(min("min").script(new Script("doc['value'].value - dec", ScriptType.INLINE, null, params))).execute()
+                .actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        Min min = searchResponse.getAggregations().get("min");
+        assertThat(min, notNullValue());
+        assertThat(min.getName(), equalTo("min"));
+        assertThat(min.getValue(), equalTo(0.0));
+    }
+
+    @Override
+    @Test
+    public void testScript_MultiValued() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(min("min").script(new Script("doc['values'].values"))).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        Min min = searchResponse.getAggregations().get("min");
+        assertThat(min, notNullValue());
+        assertThat(min.getName(), equalTo("min"));
+        assertThat(min.getValue(), equalTo(2.0));
+    }
+
+    @Override
+    @Test
+    public void testScript_ExplicitMultiValued() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(min("min").script(new Script("doc['values'].values"))).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        Min min = searchResponse.getAggregations().get("min");
+        assertThat(min, notNullValue());
+        assertThat(min.getName(), equalTo("min"));
+        assertThat(min.getValue(), equalTo(2.0));
+    }
+
+    @Override
+    @Test
+    public void testScript_MultiValued_WithParams() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("dec", 1);
+        SearchResponse searchResponse = client()
+                .prepareSearch("idx")
+                .setQuery(matchAllQuery())
+                .addAggregation(
+                        min("min")
+                                .script(new Script(
+                                        "List values = doc['values'].values; double[] res = new double[values.size()]; for (int i = 0; i < res.length; i++) { res[i] = values.get(i) - dec; }; return res;",
+                                        ScriptType.INLINE, null, params))).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        Min min = searchResponse.getAggregations().get("min");
+        assertThat(min, notNullValue());
+        assertThat(min.getName(), equalTo("min"));
+        assertThat(min.getValue(), equalTo(1.0));
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Override
+    @Test
+    public void testSingleValuedField_WithValueScript_OldScriptAPI() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(min("min").field("value").script("_value - 1")).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        Min min = searchResponse.getAggregations().get("min");
+        assertThat(min, notNullValue());
+        assertThat(min.getName(), equalTo("min"));
+        assertThat(min.getValue(), equalTo(0.0));
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Override
+    @Test
+    public void testSingleValuedField_WithValueScript_WithParams_OldScriptAPI() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(min("min").field("value").script("_value - dec").param("dec", 1)).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        Min min = searchResponse.getAggregations().get("min");
+        assertThat(min, notNullValue());
+        assertThat(min.getName(), equalTo("min"));
+        assertThat(min.getValue(), equalTo(0.0));
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Override
+    @Test
+    public void testMultiValuedField_WithValueScript_OldScriptAPI() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(min("min").field("values").script("_value - 1"))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        Min min = searchResponse.getAggregations().get("min");
+        assertThat(min, notNullValue());
+        assertThat(min.getName(), equalTo("min"));
+        assertThat(min.getValue(), equalTo(1.0));
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Test
+    public void testMultiValuedField_WithValueScript_Reverse_OldScriptAPI() throws Exception {
         // test what happens when values arrive in reverse order since the min aggregator is optimized to work on sorted values
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
@@ -225,9 +416,12 @@ public class MinTests extends AbstractNumericTests {
         assertThat(min.getValue(), equalTo(-12d));
     }
 
+    /*
+     * TODO Remove in 3.0
+     */
     @Override
     @Test
-    public void testMultiValuedField_WithValueScript_WithParams() throws Exception {
+    public void testMultiValuedField_WithValueScript_WithParams_OldScriptAPI() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(min("min").field("values").script("_value - dec").param("dec", 1))
@@ -241,9 +435,12 @@ public class MinTests extends AbstractNumericTests {
         assertThat(min.getValue(), equalTo(1.0));
     }
 
+    /*
+     * TODO Remove in 3.0
+     */
     @Override
     @Test
-    public void testScript_SingleValued() throws Exception {
+    public void testScript_SingleValued_OldScriptAPI() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(min("min").script("doc['value'].value"))
@@ -257,9 +454,12 @@ public class MinTests extends AbstractNumericTests {
         assertThat(min.getValue(), equalTo(1.0));
     }
 
+    /*
+     * TODO Remove in 3.0
+     */
     @Override
     @Test
-    public void testScript_SingleValued_WithParams() throws Exception {
+    public void testScript_SingleValued_WithParams_OldScriptAPI() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(min("min").script("doc['value'].value - dec").param("dec", 1))
@@ -273,9 +473,12 @@ public class MinTests extends AbstractNumericTests {
         assertThat(min.getValue(), equalTo(0.0));
     }
 
+    /*
+     * TODO Remove in 3.0
+     */
     @Override
     @Test
-    public void testScript_ExplicitSingleValued_WithParams() throws Exception {
+    public void testScript_ExplicitSingleValued_WithParams_OldScriptAPI() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(min("min").script("doc['value'].value - dec").param("dec", 1))
@@ -289,9 +492,12 @@ public class MinTests extends AbstractNumericTests {
         assertThat(min.getValue(), equalTo(0.0));
     }
 
+    /*
+     * TODO Remove in 3.0
+     */
     @Override
     @Test
-    public void testScript_MultiValued() throws Exception {
+    public void testScript_MultiValued_OldScriptAPI() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(min("min").script("doc['values'].values"))
@@ -305,9 +511,12 @@ public class MinTests extends AbstractNumericTests {
         assertThat(min.getValue(), equalTo(2.0));
     }
 
+    /*
+     * TODO Remove in 3.0
+     */
     @Override
     @Test
-    public void testScript_ExplicitMultiValued() throws Exception {
+    public void testScript_ExplicitMultiValued_OldScriptAPI() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(min("min").script("doc['values'].values"))
@@ -321,9 +530,12 @@ public class MinTests extends AbstractNumericTests {
         assertThat(min.getValue(), equalTo(2.0));
     }
 
+    /*
+     * TODO Remove in 3.0
+     */
     @Override
     @Test
-    public void testScript_MultiValued_WithParams() throws Exception {
+    public void testScript_MultiValued_WithParams_OldScriptAPI() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(min("min").script("List values = doc['values'].values; double[] res = new double[values.size()]; for (int i = 0; i < res.length; i++) { res[i] = values.get(i) - dec; }; return res;").param("dec", 1))

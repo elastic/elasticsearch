@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import com.google.common.collect.Maps;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.script.Script;
 
 import java.io.IOException;
 import java.util.Map;
@@ -32,10 +33,14 @@ import java.util.Map;
 public abstract class ValuesSourceMetricsAggregationBuilder<B extends ValuesSourceMetricsAggregationBuilder<B>> extends MetricsAggregationBuilder<B> {
 
     private String field;
-    private String script;
-    private String lang;
+    private Script script;
+    @Deprecated
+    private String scriptString; // TODO Remove in 3.0
+    @Deprecated
+    private String lang; // TODO Remove in 3.0
+    @Deprecated
+    private Map<String, Object> params; // TODO Remove in 3.0
     private String format;
-    private Map<String, Object> params;
     private Object missing;
 
     protected ValuesSourceMetricsAggregationBuilder(String name, String type) {
@@ -48,24 +53,39 @@ public abstract class ValuesSourceMetricsAggregationBuilder<B extends ValuesSour
         return (B) this;
     }
 
+    /**
+     * The script to use for this aggregation
+     */
     @SuppressWarnings("unchecked")
-    public B script(String script) {
+    public B script(Script script) {
         this.script = script;
         return (B) this;
     }
 
+    /**
+     * @deprecated use {@link #script(Script)} instead.
+     */
+    @Deprecated
+    @SuppressWarnings("unchecked")
+    public B script(String script) {
+        this.scriptString = script;
+        return (B) this;
+    }
+
+    /**
+     * @deprecated use {@link #script(Script)} instead.
+     */
+    @Deprecated
     @SuppressWarnings("unchecked")
     public B lang(String lang) {
         this.lang = lang;
         return (B) this;
     }
 
-    @SuppressWarnings("unchecked")
-    public B format(String format) {
-        this.format = format;
-        return (B) this;
-    }
-
+    /**
+     * @deprecated use {@link #script(Script)} instead.
+     */
+    @Deprecated
     @SuppressWarnings("unchecked")
     public B params(Map<String, Object> params) {
         if (this.params == null) {
@@ -76,12 +96,22 @@ public abstract class ValuesSourceMetricsAggregationBuilder<B extends ValuesSour
         return (B) this;
     }
 
+    /**
+     * @deprecated use {@link #script(Script)} instead.
+     */
+    @Deprecated
     @SuppressWarnings("unchecked")
     public B param(String name, Object value) {
         if (this.params == null) {
             this.params = Maps.newHashMap();
         }
         this.params.put(name, value);
+        return (B) this;
+    }
+
+    @SuppressWarnings("unchecked")
+    public B format(String format) {
+        this.format = format;
         return (B) this;
     }
 
@@ -101,6 +131,10 @@ public abstract class ValuesSourceMetricsAggregationBuilder<B extends ValuesSour
 
         if (script != null) {
             builder.field("script", script);
+        }
+
+        if (scriptString != null) {
+            builder.field("script", scriptString);
         }
 
         if (lang != null) {

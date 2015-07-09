@@ -20,10 +20,15 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
 import org.junit.Test;
+
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.extendedStats;
@@ -218,7 +223,7 @@ public class ExtendedStatsTests extends AbstractNumericTests {
         double expectedMaxValue = 10.0;
         assertThat(stats.getMax(), equalTo(expectedMaxValue));
         assertThat((double) global.getProperty("stats.max"), equalTo(expectedMaxValue));
-        double expectedSumValue = (double) (1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10);
+        double expectedSumValue = 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10;
         assertThat(stats.getSum(), equalTo(expectedSumValue));
         assertThat((double) global.getProperty("stats.sum"), equalTo(expectedSumValue));
         long expectedCountValue = 10;
@@ -266,7 +271,7 @@ public class ExtendedStatsTests extends AbstractNumericTests {
         double sigma = randomDouble() * randomIntBetween(1, 10);
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(extendedStats("stats").field("value").script("_value + 1").sigma(sigma))
+                .addAggregation(extendedStats("stats").field("value").script(new Script("_value + 1")).sigma(sigma))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
@@ -288,10 +293,14 @@ public class ExtendedStatsTests extends AbstractNumericTests {
     @Override
     @Test
     public void testSingleValuedField_WithValueScript_WithParams() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("inc", 1);
         double sigma = randomDouble() * randomIntBetween(1, 10);
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(extendedStats("stats").field("value").script("_value + inc").param("inc", 1).sigma(sigma))
+                .addAggregation(
+                        extendedStats("stats").field("value").script(new Script("_value + inc", ScriptType.INLINE, null, params))
+                                .sigma(sigma))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
@@ -341,7 +350,7 @@ public class ExtendedStatsTests extends AbstractNumericTests {
         double sigma = randomDouble() * randomIntBetween(1, 10);
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(extendedStats("stats").field("values").script("_value - 1").sigma(sigma))
+                .addAggregation(extendedStats("stats").field("values").script(new Script("_value - 1")).sigma(sigma))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
@@ -363,10 +372,14 @@ public class ExtendedStatsTests extends AbstractNumericTests {
     @Override
     @Test
     public void testMultiValuedField_WithValueScript_WithParams() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("dec", 1);
         double sigma = randomDouble() * randomIntBetween(1, 10);
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(extendedStats("stats").field("values").script("_value - dec").param("dec", 1).sigma(sigma))
+                .addAggregation(
+                        extendedStats("stats").field("values").script(new Script("_value - dec", ScriptType.INLINE, null, params))
+                                .sigma(sigma))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
@@ -391,7 +404,7 @@ public class ExtendedStatsTests extends AbstractNumericTests {
         double sigma = randomDouble() * randomIntBetween(1, 10);
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(extendedStats("stats").script("doc['value'].value").sigma(sigma))
+                .addAggregation(extendedStats("stats").script(new Script("doc['value'].value")).sigma(sigma))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
@@ -413,10 +426,13 @@ public class ExtendedStatsTests extends AbstractNumericTests {
     @Override
     @Test
     public void testScript_SingleValued_WithParams() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("inc", 1);
         double sigma = randomDouble() * randomIntBetween(1, 10);
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(extendedStats("stats").script("doc['value'].value + inc").param("inc", 1).sigma(sigma))
+                .addAggregation(
+                        extendedStats("stats").script(new Script("doc['value'].value + inc", ScriptType.INLINE, null, params)).sigma(sigma))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
@@ -438,10 +454,13 @@ public class ExtendedStatsTests extends AbstractNumericTests {
     @Override
     @Test
     public void testScript_ExplicitSingleValued_WithParams() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("inc", 1);
         double sigma = randomDouble() * randomIntBetween(1, 10);
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(extendedStats("stats").script("doc['value'].value + inc").param("inc", 1).sigma(sigma))
+                .addAggregation(
+                        extendedStats("stats").script(new Script("doc['value'].value + inc", ScriptType.INLINE, null, params)).sigma(sigma))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
@@ -466,7 +485,7 @@ public class ExtendedStatsTests extends AbstractNumericTests {
         double sigma = randomDouble() * randomIntBetween(1, 10);
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(extendedStats("stats").script("doc['values'].values").sigma(sigma))
+                .addAggregation(extendedStats("stats").script(new Script("doc['values'].values")).sigma(sigma))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
@@ -491,7 +510,7 @@ public class ExtendedStatsTests extends AbstractNumericTests {
         double sigma = randomDouble() * randomIntBetween(1, 10);
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(extendedStats("stats").script("doc['values'].values").sigma(sigma))
+                .addAggregation(extendedStats("stats").script(new Script("doc['values'].values")).sigma(sigma))
                 .execute().actionGet();
 
         assertShardExecutionState(searchResponse, 0);
@@ -515,10 +534,15 @@ public class ExtendedStatsTests extends AbstractNumericTests {
     @Override
     @Test
     public void testScript_MultiValued_WithParams() throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("dec", 1);
         double sigma = randomDouble() * randomIntBetween(1, 10);
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(extendedStats("stats").script("[ doc['value'].value, doc['value'].value - dec ]").param("dec", 1).sigma(sigma))
+                .addAggregation(
+                        extendedStats("stats").script(
+                                new Script("[ doc['value'].value, doc['value'].value - dec ]", ScriptType.INLINE, null, params))
+                                .sigma(sigma))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
@@ -552,6 +576,285 @@ public class ExtendedStatsTests extends AbstractNumericTests {
     private void checkUpperLowerBounds(ExtendedStats stats, double sigma) {
         assertThat(stats.getStdDeviationBound(ExtendedStats.Bounds.UPPER), equalTo(stats.getAvg() + (stats.getStdDeviation() * sigma)));
         assertThat(stats.getStdDeviationBound(ExtendedStats.Bounds.LOWER), equalTo(stats.getAvg() - (stats.getStdDeviation() * sigma)));
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Override
+    @Test
+    public void testSingleValuedField_WithValueScript_OldScriptAPI() throws Exception {
+        double sigma = randomDouble() * randomIntBetween(1, 10);
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(extendedStats("stats").field("value").script("_value + 1").sigma(sigma)).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        ExtendedStats stats = searchResponse.getAggregations().get("stats");
+        assertThat(stats, notNullValue());
+        assertThat(stats.getName(), equalTo("stats"));
+        assertThat(stats.getAvg(), equalTo((double) (2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11) / 10));
+        assertThat(stats.getMin(), equalTo(2.0));
+        assertThat(stats.getMax(), equalTo(11.0));
+        assertThat(stats.getSum(), equalTo((double) 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11));
+        assertThat(stats.getCount(), equalTo(10l));
+        assertThat(stats.getSumOfSquares(), equalTo((double) 4 + 9 + 16 + 25 + 36 + 49 + 64 + 81 + 100 + 121));
+        assertThat(stats.getVariance(), equalTo(variance(2, 3, 4, 5, 6, 7, 8, 9, 10, 11)));
+        assertThat(stats.getStdDeviation(), equalTo(stdDev(2, 3, 4, 5, 6, 7, 8, 9, 10, 11)));
+        checkUpperLowerBounds(stats, sigma);
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Override
+    @Test
+    public void testSingleValuedField_WithValueScript_WithParams_OldScriptAPI() throws Exception {
+        double sigma = randomDouble() * randomIntBetween(1, 10);
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(extendedStats("stats").field("value").script("_value + inc").param("inc", 1).sigma(sigma)).execute()
+                .actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        ExtendedStats stats = searchResponse.getAggregations().get("stats");
+        assertThat(stats, notNullValue());
+        assertThat(stats.getName(), equalTo("stats"));
+        assertThat(stats.getAvg(), equalTo((double) (2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11) / 10));
+        assertThat(stats.getMin(), equalTo(2.0));
+        assertThat(stats.getMax(), equalTo(11.0));
+        assertThat(stats.getSum(), equalTo((double) 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11));
+        assertThat(stats.getCount(), equalTo(10l));
+        assertThat(stats.getSumOfSquares(), equalTo((double) 4 + 9 + 16 + 25 + 36 + 49 + 64 + 81 + 100 + 121));
+        assertThat(stats.getVariance(), equalTo(variance(2, 3, 4, 5, 6, 7, 8, 9, 10, 11)));
+        assertThat(stats.getStdDeviation(), equalTo(stdDev(2, 3, 4, 5, 6, 7, 8, 9, 10, 11)));
+        checkUpperLowerBounds(stats, sigma);
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Override
+    @Test
+    public void testMultiValuedField_WithValueScript_OldScriptAPI() throws Exception {
+        double sigma = randomDouble() * randomIntBetween(1, 10);
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(extendedStats("stats").field("values").script("_value - 1").sigma(sigma)).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        ExtendedStats stats = searchResponse.getAggregations().get("stats");
+        assertThat(stats, notNullValue());
+        assertThat(stats.getName(), equalTo("stats"));
+        assertThat(stats.getAvg(),
+                equalTo((double) (1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11) / 20));
+        assertThat(stats.getMin(), equalTo(1.0));
+        assertThat(stats.getMax(), equalTo(11.0));
+        assertThat(stats.getSum(), equalTo((double) 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11));
+        assertThat(stats.getCount(), equalTo(20l));
+        assertThat(stats.getSumOfSquares(), equalTo((double) 1 + 4 + 9 + 16 + 25 + 36 + 49 + 64 + 81 + 100 + 4 + 9 + 16 + 25 + 36 + 49 + 64
+                + 81 + 100 + 121));
+        assertThat(stats.getVariance(), equalTo(variance(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)));
+        assertThat(stats.getStdDeviation(), equalTo(stdDev(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)));
+        checkUpperLowerBounds(stats, sigma);
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Override
+    @Test
+    public void testMultiValuedField_WithValueScript_WithParams_OldScriptAPI() throws Exception {
+        double sigma = randomDouble() * randomIntBetween(1, 10);
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(extendedStats("stats").field("values").script("_value - dec").param("dec", 1).sigma(sigma)).execute()
+                .actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        ExtendedStats stats = searchResponse.getAggregations().get("stats");
+        assertThat(stats, notNullValue());
+        assertThat(stats.getName(), equalTo("stats"));
+        assertThat(stats.getAvg(),
+                equalTo((double) (1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11) / 20));
+        assertThat(stats.getMin(), equalTo(1.0));
+        assertThat(stats.getMax(), equalTo(11.0));
+        assertThat(stats.getSum(), equalTo((double) 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11));
+        assertThat(stats.getCount(), equalTo(20l));
+        assertThat(stats.getSumOfSquares(), equalTo((double) 1 + 4 + 9 + 16 + 25 + 36 + 49 + 64 + 81 + 100 + 4 + 9 + 16 + 25 + 36 + 49 + 64
+                + 81 + 100 + 121));
+        assertThat(stats.getVariance(), equalTo(variance(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)));
+        assertThat(stats.getStdDeviation(), equalTo(stdDev(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)));
+        checkUpperLowerBounds(stats, sigma);
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Override
+    @Test
+    public void testScript_SingleValued_OldScriptAPI() throws Exception {
+        double sigma = randomDouble() * randomIntBetween(1, 10);
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(extendedStats("stats").script("doc['value'].value").sigma(sigma)).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        ExtendedStats stats = searchResponse.getAggregations().get("stats");
+        assertThat(stats, notNullValue());
+        assertThat(stats.getName(), equalTo("stats"));
+        assertThat(stats.getAvg(), equalTo((double) (1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10) / 10));
+        assertThat(stats.getMin(), equalTo(1.0));
+        assertThat(stats.getMax(), equalTo(10.0));
+        assertThat(stats.getSum(), equalTo((double) 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10));
+        assertThat(stats.getCount(), equalTo(10l));
+        assertThat(stats.getSumOfSquares(), equalTo((double) 1 + 4 + 9 + 16 + 25 + 36 + 49 + 64 + 81 + 100));
+        assertThat(stats.getVariance(), equalTo(variance(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
+        assertThat(stats.getStdDeviation(), equalTo(stdDev(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
+        checkUpperLowerBounds(stats, sigma);
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Override
+    @Test
+    public void testScript_SingleValued_WithParams_OldScriptAPI() throws Exception {
+        double sigma = randomDouble() * randomIntBetween(1, 10);
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(extendedStats("stats").script("doc['value'].value + inc").param("inc", 1).sigma(sigma)).execute()
+                .actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        ExtendedStats stats = searchResponse.getAggregations().get("stats");
+        assertThat(stats, notNullValue());
+        assertThat(stats.getName(), equalTo("stats"));
+        assertThat(stats.getAvg(), equalTo((double) (2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11) / 10));
+        assertThat(stats.getMin(), equalTo(2.0));
+        assertThat(stats.getMax(), equalTo(11.0));
+        assertThat(stats.getSum(), equalTo((double) 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11));
+        assertThat(stats.getCount(), equalTo(10l));
+        assertThat(stats.getSumOfSquares(), equalTo((double) 4 + 9 + 16 + 25 + 36 + 49 + 64 + 81 + 100 + 121));
+        assertThat(stats.getVariance(), equalTo(variance(2, 3, 4, 5, 6, 7, 8, 9, 10, 11)));
+        assertThat(stats.getStdDeviation(), equalTo(stdDev(2, 3, 4, 5, 6, 7, 8, 9, 10, 11)));
+        checkUpperLowerBounds(stats, sigma);
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Override
+    @Test
+    public void testScript_ExplicitSingleValued_WithParams_OldScriptAPI() throws Exception {
+        double sigma = randomDouble() * randomIntBetween(1, 10);
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(extendedStats("stats").script("doc['value'].value + inc").param("inc", 1).sigma(sigma)).execute()
+                .actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        ExtendedStats stats = searchResponse.getAggregations().get("stats");
+        assertThat(stats, notNullValue());
+        assertThat(stats.getName(), equalTo("stats"));
+        assertThat(stats.getAvg(), equalTo((double) (2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11) / 10));
+        assertThat(stats.getMin(), equalTo(2.0));
+        assertThat(stats.getMax(), equalTo(11.0));
+        assertThat(stats.getSum(), equalTo((double) 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11));
+        assertThat(stats.getCount(), equalTo(10l));
+        assertThat(stats.getSumOfSquares(), equalTo((double) 4 + 9 + 16 + 25 + 36 + 49 + 64 + 81 + 100 + 121));
+        assertThat(stats.getVariance(), equalTo(variance(2, 3, 4, 5, 6, 7, 8, 9, 10, 11)));
+        assertThat(stats.getStdDeviation(), equalTo(stdDev(2, 3, 4, 5, 6, 7, 8, 9, 10, 11)));
+        checkUpperLowerBounds(stats, sigma);
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Override
+    @Test
+    public void testScript_MultiValued_OldScriptAPI() throws Exception {
+        double sigma = randomDouble() * randomIntBetween(1, 10);
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(extendedStats("stats").script("doc['values'].values").sigma(sigma)).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        ExtendedStats stats = searchResponse.getAggregations().get("stats");
+        assertThat(stats, notNullValue());
+        assertThat(stats.getName(), equalTo("stats"));
+        assertThat(stats.getAvg(),
+                equalTo((double) (2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11 + 12) / 20));
+        assertThat(stats.getMin(), equalTo(2.0));
+        assertThat(stats.getMax(), equalTo(12.0));
+        assertThat(stats.getSum(), equalTo((double) 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11 + 12));
+        assertThat(stats.getCount(), equalTo(20l));
+        assertThat(stats.getSumOfSquares(), equalTo((double) 4 + 9 + 16 + 25 + 36 + 49 + 64 + 81 + 100 + 121 + 9 + 16 + 25 + 36 + 49 + 64
+                + 81 + 100 + 121 + 144));
+        assertThat(stats.getVariance(), equalTo(variance(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)));
+        assertThat(stats.getStdDeviation(), equalTo(stdDev(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)));
+        checkUpperLowerBounds(stats, sigma);
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Override
+    @Test
+    public void testScript_ExplicitMultiValued_OldScriptAPI() throws Exception {
+        double sigma = randomDouble() * randomIntBetween(1, 10);
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(extendedStats("stats").script("doc['values'].values").sigma(sigma)).execute().actionGet();
+
+        assertShardExecutionState(searchResponse, 0);
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        ExtendedStats stats = searchResponse.getAggregations().get("stats");
+        assertThat(stats, notNullValue());
+        assertThat(stats.getName(), equalTo("stats"));
+        assertThat(stats.getAvg(),
+                equalTo((double) (2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11 + 12) / 20));
+        assertThat(stats.getMin(), equalTo(2.0));
+        assertThat(stats.getMax(), equalTo(12.0));
+        assertThat(stats.getSum(), equalTo((double) 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11 + 12));
+        assertThat(stats.getCount(), equalTo(20l));
+        assertThat(stats.getSumOfSquares(), equalTo((double) 4 + 9 + 16 + 25 + 36 + 49 + 64 + 81 + 100 + 121 + 9 + 16 + 25 + 36 + 49 + 64
+                + 81 + 100 + 121 + 144));
+        assertThat(stats.getVariance(), equalTo(variance(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)));
+        assertThat(stats.getStdDeviation(), equalTo(stdDev(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)));
+        checkUpperLowerBounds(stats, sigma);
+
+    }
+
+    /*
+     * TODO Remove in 3.0
+     */
+    @Override
+    @Test
+    public void testScript_MultiValued_WithParams_OldScriptAPI() throws Exception {
+        double sigma = randomDouble() * randomIntBetween(1, 10);
+        SearchResponse searchResponse = client()
+                .prepareSearch("idx")
+                .setQuery(matchAllQuery())
+                .addAggregation(
+                        extendedStats("stats").script("[ doc['value'].value, doc['value'].value - dec ]").param("dec", 1).sigma(sigma))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        ExtendedStats stats = searchResponse.getAggregations().get("stats");
+        assertThat(stats, notNullValue());
+        assertThat(stats.getName(), equalTo("stats"));
+        assertThat(stats.getAvg(), equalTo((double) (1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 0 + 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9) / 20));
+        assertThat(stats.getMin(), equalTo(0.0));
+        assertThat(stats.getMax(), equalTo(10.0));
+        assertThat(stats.getSum(), equalTo((double) 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 0 + 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9));
+        assertThat(stats.getCount(), equalTo(20l));
+        assertThat(stats.getSumOfSquares(), equalTo((double) 1 + 4 + 9 + 16 + 25 + 36 + 49 + 64 + 81 + 100 + 0 + 1 + 4 + 9 + 16 + 25 + 36
+                + 49 + 64 + 81));
+        assertThat(stats.getVariance(), equalTo(variance(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9)));
+        assertThat(stats.getStdDeviation(), equalTo(stdDev(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9)));
+        checkUpperLowerBounds(stats, sigma);
     }
 
 }

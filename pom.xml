@@ -35,7 +35,7 @@
     <properties>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <!-- elasticsearch stack -->
-        <elasticsearch.version>${version}</elasticsearch.version>
+        <elasticsearch.version>${project.version}</elasticsearch.version>
         <jvm.executable>${java.home}${file.separator}bin${file.separator}java</jvm.executable>
         <maven.compiler.source>1.7</maven.compiler.source>
         <maven.compiler.target>1.7</maven.compiler.target>

@@ -17,11 +17,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Callback;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
@@ -68,6 +70,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -323,29 +326,41 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
     }
 
     protected void assertWatchWithMinimumPerformedActionsCount(final String watchName, final long minimumExpectedWatchActionsWithActionPerformed, final boolean assertConditionMet) throws Exception {
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                ClusterState state = client().admin().cluster().prepareState().get().getState();
-                String[] watchHistoryIndices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), HistoryStore.INDEX_PREFIX + "*");
-                assertThat(watchHistoryIndices, not(emptyArray()));
-                for (String index : watchHistoryIndices) {
-                    IndexRoutingTable routingTable = state.getRoutingTable().index(index);
-                    assertThat(routingTable, notNullValue());
-                    assertThat(routingTable.allPrimaryShardsActive(), is(true));
-                }
+        final AtomicReference<SearchResponse> lastResponse = new AtomicReference<>();
+        try {
+            assertBusy(new Runnable() {
+                @Override
+                public void run() {
+                    ClusterState state = client().admin().cluster().prepareState().get().getState();
+                    String[] watchHistoryIndices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), HistoryStore.INDEX_PREFIX + "*");
+                    assertThat(watchHistoryIndices, not(emptyArray()));
+                    for (String index : watchHistoryIndices) {
+                        IndexRoutingTable routingTable = state.getRoutingTable().index(index);
+                        assertThat(routingTable, notNullValue());
+                        assertThat(routingTable.allPrimaryShardsActive(), is(true));
+                    }
 
-                refresh();
-                SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
-                        .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                        .setQuery(boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state", ExecutionState.EXECUTED.id())))
-                        .get();
-                assertThat("could not find executed watch record", searchResponse.getHits().getTotalHits(), greaterThanOrEqualTo(minimumExpectedWatchActionsWithActionPerformed));
-                if (assertConditionMet) {
-                    assertThat((Integer) XContentMapValues.extractValue("result.input.payload.hits.total", searchResponse.getHits().getAt(0).sourceAsMap()), greaterThanOrEqualTo(1));
+                    refresh();
+                    SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
+                            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                            .setQuery(boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state", ExecutionState.EXECUTED.id())))
+                            .get();
+                    lastResponse.set(searchResponse);
+                    assertThat("could not find executed watch record", searchResponse.getHits().getTotalHits(), greaterThanOrEqualTo(minimumExpectedWatchActionsWithActionPerformed));
+                    if (assertConditionMet) {
+                        assertThat((Integer) XContentMapValues.extractValue("result.input.payload.hits.total", searchResponse.getHits().getAt(0).sourceAsMap()), greaterThanOrEqualTo(1));
+                    }
                 }
+            });
+        } catch (AssertionError error) {
+            SearchResponse searchResponse = lastResponse.get();
+            logger.info("Found [{}] records for watch [{}]", searchResponse.getHits().totalHits(), watchName);
+            int counter = 1;
+            for (SearchHit hit : searchResponse.getHits().getHits()) {
+                logger.info("hit [{}]=\n {}", counter++, XContentHelper.convertToJson(hit.getSourceRef(), true, true));
             }
-        });
+            throw error;
+        }
     }
 
     protected SearchResponse searchWatchRecords(Callback<SearchRequestBuilder> requestBuilderCallback) {
@@ -445,7 +460,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
         assertThat("[" + WATCHES_TEMPLATE_NAME + "] is missing", response.getIndexTemplates().size(), equalTo(1));
     }
 
-    protected void ensureLicenseEnabled()  throws Exception {
+    protected void ensureLicenseEnabled() throws Exception {
         assertBusy(new Runnable() {
             @Override
             public void run() {

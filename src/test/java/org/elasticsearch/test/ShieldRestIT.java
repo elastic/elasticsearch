@@ -11,12 +11,10 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.test.rest.ElasticsearchRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
-import org.junit.Ignore;
 
 import java.io.IOException;
 
 /** Runs rest tests against external cluster */
-@Ignore("not yet functional")
 public class ShieldRestIT extends ShieldRestTestCase {
     public ShieldRestIT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);

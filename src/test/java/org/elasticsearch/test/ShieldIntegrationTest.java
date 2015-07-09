@@ -167,6 +167,13 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
                 .build();
     }
 
+    @Override
+    protected Settings externalClusterClientSettings() {
+        return Settings.builder()
+                .put("shield.user", ShieldSettingsSource.DEFAULT_USER_NAME + ":" + ShieldSettingsSource.DEFAULT_PASSWORD)
+                .build();
+    }
+
     /**
      * Allows for us to get the system key that is being used for the cluster
      * @return the system key bytes

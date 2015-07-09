@@ -25,6 +25,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingService;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.LocalTransportAddress;
@@ -39,9 +43,7 @@ import org.elasticsearch.test.cluster.TestClusterService;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Before;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -64,7 +66,7 @@ public class NodeJoinControllerTests extends ElasticsearchTestCase {
         // make sure we have a master
         clusterService.setState(ClusterState.builder(clusterService.state()).nodes(DiscoveryNodes.builder(initialNodes).masterNodeId(localNode.id())));
         nodeJoinController = new NodeJoinController(clusterService, new NoopRoutingService(Settings.EMPTY),
-                new DiscoverySettings(Settings.EMPTY, new NodeSettingsService(Settings.EMPTY)), logger);
+                new DiscoverySettings(Settings.EMPTY, new NodeSettingsService(Settings.EMPTY)), Settings.EMPTY);
     }
 
     public void testSimpleJoinAccumulation() throws InterruptedException, ExecutionException {
@@ -182,37 +184,54 @@ public class NodeJoinControllerTests extends ElasticsearchTestCase {
         final ArrayList<SimpleFuture> pendingJoins = new ArrayList<>();
         ArrayList<DiscoveryNode> nodesToJoin = new ArrayList<>();
         for (int i = 0; i < initialJoins; i++) {
-            DiscoveryNode node = newNode(nodeId++);
+            DiscoveryNode node = newNode(nodeId++, true);
             for (int j = 1 + randomInt(3); j > 0; j--) {
                 nodesToJoin.add(node);
             }
         }
+
+        // data nodes shouldn't count
+        for (int i = 0; i < requiredJoins; i++) {
+            DiscoveryNode node = newNode(nodeId++, false);
+            for (int j = 1 + randomInt(3); j > 0; j--) {
+                nodesToJoin.add(node);
+            }
+        }
+
+        // add
+
         Collections.shuffle(nodesToJoin);
-        logger.debug("--> joining [{}] nodes, with repetition a total of [{}]", initialJoins, nodesToJoin.size());
+        logger.debug("--> joining [{}] unique master nodes. Total of [{}] join requests", initialJoins, nodesToJoin.size());
         for (DiscoveryNode node : nodesToJoin) {
             pendingJoins.add(joinNodeAsync(node));
         }
 
         logger.debug("--> asserting master election didn't finish yet");
-        assertThat("election finished after [" + initialJoins + "] but required joins is [" + requiredJoins + "]", electionFuture.isDone(), equalTo(false));
+        assertThat("election finished after [" + initialJoins + "] master nodes but required joins is [" + requiredJoins + "]", electionFuture.isDone(), equalTo(false));
 
         final int finalJoins = requiredJoins - initialJoins + randomInt(5);
         nodesToJoin.clear();
         for (int i = 0; i < finalJoins; i++) {
-            DiscoveryNode node = newNode(nodeId++);
+            DiscoveryNode node = newNode(nodeId++, true);
             for (int j = 1 + randomInt(3); j > 0; j--) {
                 nodesToJoin.add(node);
             }
         }
+
+        for (int i = 0; i < requiredJoins; i++) {
+            DiscoveryNode node = newNode(nodeId++, false);
+            for (int j = 1 + randomInt(3); j > 0; j--) {
+                nodesToJoin.add(node);
+            }
+        }
+
         Collections.shuffle(nodesToJoin);
         logger.debug("--> joining [{}] nodes, with repetition a total of [{}]", finalJoins, nodesToJoin.size());
         for (DiscoveryNode node : nodesToJoin) {
             pendingJoins.add(joinNodeAsync(node));
         }
-        logger.debug("--> asserting master election finished with no exception");
-        assertThat("master election didn't finish despite of [" + (initialJoins + finalJoins) + "] joins. required [" + requiredJoins + "]",
-                electionFuture.isDone(), equalTo(true));
-        electionFuture.get(); // throw any exception
+        logger.debug("--> waiting for master election to with no exception");
+        electionFuture.get();
 
         logger.debug("--> waiting on all joins to be processed");
         for (SimpleFuture future : pendingJoins) {
@@ -260,7 +279,7 @@ public class NodeJoinControllerTests extends ElasticsearchTestCase {
 
         final AtomicReference<Throwable> failure = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        nodeJoinController.waitToBeElectedAsMaster(requiredJoins, TimeValue.timeValueMillis(30), new NodeJoinController.Callback() {
+        nodeJoinController.waitToBeElectedAsMaster(requiredJoins, TimeValue.timeValueMillis(1), new NodeJoinController.Callback() {
             @Override
             public void onElectedAsMaster(ClusterState state) {
                 assertThat("callback called with elected as master, but state disagrees", state.nodes().localNodeMaster(), equalTo(true));
@@ -351,7 +370,7 @@ public class NodeJoinControllerTests extends ElasticsearchTestCase {
         final CyclicBarrier barrier = new CyclicBarrier(threads.length + 1);
         final List<Throwable> backgroundExceptions = new CopyOnWriteArrayList<>();
         for (int i = 0; i < threads.length; i++) {
-            final DiscoveryNode node = newNode(i);
+            final DiscoveryNode node = newNode(i, true);
             final int iterations = rarely() ? randomIntBetween(1, 4) : 1;
             nodes.add(node);
             threads[i] = new Thread(new AbstractRunnable() {
@@ -407,12 +426,34 @@ public class NodeJoinControllerTests extends ElasticsearchTestCase {
     static class NoopRoutingService extends RoutingService {
 
         public NoopRoutingService(Settings settings) {
-            super(settings, null, null, null);
+            super(settings, null, null, new NoopAllocationService(settings));
         }
 
         @Override
         protected void performReroute(String reason) {
 
+        }
+    }
+
+    static class NoopAllocationService extends AllocationService {
+
+        public NoopAllocationService(Settings settings) {
+            super(settings, null, null, null);
+        }
+
+        @Override
+        public RoutingAllocation.Result applyStartedShards(ClusterState clusterState, List<? extends ShardRouting> startedShards, boolean withReroute) {
+            return new RoutingAllocation.Result(false, clusterState.routingTable());
+        }
+
+        @Override
+        public RoutingAllocation.Result applyFailedShards(ClusterState clusterState, List<FailedRerouteAllocation.FailedShard> failedShards) {
+            return new RoutingAllocation.Result(false, clusterState.routingTable());
+        }
+
+        @Override
+        public RoutingAllocation.Result reroute(ClusterState clusterState, boolean debug) {
+            return new RoutingAllocation.Result(false, clusterState.routingTable());
         }
     }
 
@@ -471,6 +512,13 @@ public class NodeJoinControllerTests extends ElasticsearchTestCase {
     }
 
     protected DiscoveryNode newNode(int i) {
-        return new DiscoveryNode("node_" + i, new LocalTransportAddress("test_" + i), Version.CURRENT);
+        return newNode(i, randomBoolean());
+    }
+
+    protected DiscoveryNode newNode(int i, boolean master) {
+        Map<String, String> attributes = new HashMap<>();
+        attributes.put("master", Boolean.toString(master));
+        final String prefix = master ? "master_" : "data_";
+        return new DiscoveryNode(prefix + i, i + "", new LocalTransportAddress("test_" + i), attributes, Version.CURRENT);
     }
 }

@@ -142,7 +142,7 @@ public class RoutingServiceTests extends ElasticsearchAllocationTestCase {
         }
 
         @Override
-        void performReroute(String reason) {
+        protected void performReroute(String reason) {
             rerouted.set(true);
         }
     }

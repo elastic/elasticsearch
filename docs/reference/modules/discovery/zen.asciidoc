@@ -88,10 +88,14 @@ Nodes can be excluded from becoming a master by setting `node.master` to
 automatically set to `false`).
 
 The `discovery.zen.minimum_master_nodes` sets the minimum
-number of master eligible nodes a node should "see" in order to win a master election.
-It must be set to a quorum of your master eligible nodes. It is recommended to avoid
+number of master eligible nodes that need to join a newly elected master in order for an election to
+complete and for the elected node to accept it's mastership. The same setting controls the minimum number of
+active master eligible nodes that should be a part of any active cluster. If this requirement is not met the
+active master node will step down and a new mastser election will be begin.
+
+This setting must be set to a quorum of your master eligible nodes. It is recommended to avoid
 having only two master eligible nodes, since a quorum of two is two. Therefore, a loss
-of either master node will result in an inoperable cluster
+of either master node will result in an inoperable cluster.
 
 [float]
 [[fault-detection]]

@@ -26,8 +26,10 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingService;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.membership.MembershipAction;
@@ -38,9 +40,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class NodeJoinController {
+/**
+ * This class processes incoming join request (passed zia {@link ZenDiscovery}). Incoming nodes
+ * are directly added to the cluster state or are accumulated during master election.
+ */
+public class NodeJoinController extends AbstractComponent {
 
-    final ESLogger logger;
     final ClusterService clusterService;
     final RoutingService routingService;
     final DiscoverySettings discoverySettings;
@@ -52,34 +57,39 @@ public class NodeJoinController {
 
     protected final Map<DiscoveryNode, List<MembershipAction.JoinCallback>> pendingJoinRequests = new HashMap<>();
 
-    public NodeJoinController(ClusterService clusterService, RoutingService routingService, DiscoverySettings discoverySettings, ESLogger logger) {
+    public NodeJoinController(ClusterService clusterService, RoutingService routingService, DiscoverySettings discoverySettings, Settings settings) {
+        super(settings);
         this.clusterService = clusterService;
-        this.logger = logger;
         this.routingService = routingService;
         this.discoverySettings = discoverySettings;
     }
 
-    public void waitToBeElectedAsMaster(int requiredJoins, TimeValue timeValue, final Callback callback) {
-        final CountDownLatch done = new CountDownLatch(1);
-        final ElectionContext newContext = new ElectionContext();
-        newContext.requiredJoins = requiredJoins;
-        newContext.callback = new Callback() {
-            @Override
-            public void onElectedAsMaster(ClusterState state) {
-                done.countDown();
-                if (electionContext.compareAndSet(newContext, null)) {
-                    stopAccumulatingJoins();
-                    callback.onElectedAsMaster(state);
-                }
-            }
+    /**
+     * waits for enough incoming joins from master eligible nodes to complete the master election
+     * <p/>
+     * You must start accumulating joins before calling this method. See {@link #startAccumulatingJoins()}
+     * <p/>
+     * The method will return once the local node has been elected as master or some failure/timeout has happened.
+     * The exact outcome is communicated via the callback parameter, which is guaranteed to be called.
+     *
+     * @param requiredMasterJoins the number of joins from master eligible needed to complete the election
+     * @param timeValue           how long to wait before failing. a timeout is communicated via the callback's onFailure method.
+     * @param callback            the result of the election (success or failure) will be communicated by calling methods on this
+     *                            object
+     **/
+    public void waitToBeElectedAsMaster(int requiredMasterJoins, TimeValue timeValue, final Callback callback) {
+        assert accumulateJoins.get() : "waitToBeElectedAsMaster is called we are not accumulating joins";
 
+        final CountDownLatch done = new CountDownLatch(1);
+        final ElectionContext newContext = new ElectionContext(callback, requiredMasterJoins) {
             @Override
-            public void onFailure(Throwable t) {
-                done.countDown();
-                if (electionContext.compareAndSet(newContext, null)) {
+            void onClose() {
+                if (electionContext.compareAndSet(this, null)) {
                     stopAccumulatingJoins();
-                    callback.onFailure(t);
+                } else {
+                    assert false : "failed to remove current election context";
                 }
+                done.countDown();
             }
         };
 
@@ -88,27 +98,31 @@ public class NodeJoinController {
             callback.onFailure(new IllegalStateException("double waiting for election"));
             return;
         }
-
-        // check what we have so far..
-        checkAndElect();
-
         try {
-            if (done.await(timeValue.millis(), TimeUnit.MILLISECONDS)) {
-                // callback handles everything
-                return;
-            }
-        } catch (InterruptedException e) {
+            // check what we have so far..
+            checkPendingJoinsAndElectIfNeeded();
 
-        }
-        if (logger.isTraceEnabled()) {
-            final int pendingNodes;
-            synchronized (pendingJoinRequests) {
-                pendingNodes = pendingJoinRequests.size();
+            try {
+                if (done.await(timeValue.millis(), TimeUnit.MILLISECONDS)) {
+                    // callback handles everything
+                    return;
+                }
+            } catch (InterruptedException e) {
+
             }
-            logger.trace("timed out waiting to be elected. waited [{}]. pending node joins [{}]", timeValue, pendingNodes);
+            if (logger.isTraceEnabled()) {
+                final int pendingNodes;
+                synchronized (pendingJoinRequests) {
+                    pendingNodes = pendingJoinRequests.size();
+                }
+                logger.trace("timed out waiting to be elected. waited [{}]. pending node joins [{}]", timeValue, pendingNodes);
+            }
+            // callback will clear the context, if it's active
+            newContext.onFailure(new ElasticsearchTimeoutException("timed out waiting to be elected"));
+        } catch (Throwable t) {
+            logger.error("unexpected failure while waiting for incoming joins", t);
+            newContext.onFailure(t);
         }
-        // callback will clear the context, if it's active
-        newContext.callback.onFailure(new ElasticsearchTimeoutException("timed out waiting to be elected"));
     }
 
     public void startAccumulatingJoins() {
@@ -119,7 +133,7 @@ public class NodeJoinController {
     }
 
     public void stopAccumulatingJoins() {
-        logger.trace("stopping joins accumulation");
+        logger.trace("stopping join accumulation");
         assert electionContext.get() == null : "stopAccumulatingJoins() called, but there is an ongoing election context";
         boolean b = accumulateJoins.getAndSet(false);
         assert b : "stopAccumulatingJoins() called but not accumulating";
@@ -142,25 +156,35 @@ public class NodeJoinController {
         if (accumulateJoins.get() == false) {
             processJoins("join from node[" + node + "]");
         } else {
-            checkAndElect();
+            checkPendingJoinsAndElectIfNeeded();
         }
     }
 
-    private void checkAndElect() {
+    private void checkPendingJoinsAndElectIfNeeded() {
         assert accumulateJoins.get() : "election check requested but we are not accumulating joins";
         final ElectionContext context = electionContext.get();
         if (context == null) {
             return;
         }
-        final int pendingJoins;
+
+        int pendingMasterJoins=0;
         synchronized (pendingJoinRequests) {
-            pendingJoins = pendingJoinRequests.size();
+            for (DiscoveryNode node : pendingJoinRequests.keySet()) {
+                if (node.isMasterNode()) {
+                    pendingMasterJoins++;
+                }
+            }
         }
-        if (pendingJoins < context.requiredJoins) {
-            logger.trace("not enough joins for election. Got [{}], required [{}]", pendingJoins, context.requiredJoins);
+        if (pendingMasterJoins < context.requiredMasterJoins) {
+            logger.trace("not enough joins for election. Got [{}], required [{}]", pendingMasterJoins, context.requiredMasterJoins);
             return;
         }
-        final String source = "zen-disco-join(elected_as_master, [" + pendingJoins + "] joins received)";
+        if (context.pendingSetAsMasterTask.getAndSet(true)) {
+            logger.trace("elected as master task already submitted, ignoring...");
+            return;
+        }
+
+        final String source = "zen-disco-join(elected_as_master, [" + pendingMasterJoins + "] joins received)";
         clusterService.submitStateUpdateTask(source, Priority.IMMEDIATE, new ProcessJoinsTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -178,7 +202,13 @@ public class NodeJoinController {
                 ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(discoverySettings.getNoMasterBlock()).build();
                 currentState = ClusterState.builder(currentState).nodes(builder).blocks(clusterBlocks).build();
 
-                // add the incoming join requests and reroute
+                // reroute now to remove any dead nodes (master may have stepped down when they left and didn't update the routing table)
+                RoutingAllocation.Result result = routingService.getAllocationService().reroute(currentState);
+                if (result.changed()) {
+                    currentState = ClusterState.builder(currentState).routingResult(result).build();
+                }
+
+                // add the incoming join requests
                 return super.execute(currentState);
             }
 
@@ -190,13 +220,13 @@ public class NodeJoinController {
             @Override
             public void onFailure(String source, Throwable t) {
                 super.onFailure(source, t);
-                context.callback.onFailure(t);
+                context.onFailure(t);
             }
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 super.clusterStateProcessed(source, oldState, newState);
-                context.callback.onElectedAsMaster(newState);
+                context.onElectedAsMaster(newState);
             }
         });
     }
@@ -212,9 +242,43 @@ public class NodeJoinController {
         void onFailure(Throwable t);
     }
 
-    static class ElectionContext {
-        Callback callback;
-        int requiredJoins;
+    static abstract class ElectionContext implements Callback {
+        private final Callback callback;
+        private final int requiredMasterJoins;
+
+        /** set to true after enough joins have been seen and a cluster update task is submitted to become master */
+        final AtomicBoolean pendingSetAsMasterTask = new AtomicBoolean();
+        final AtomicBoolean closed = new AtomicBoolean();
+
+        ElectionContext(Callback callback, int requiredMasterJoins) {
+            this.callback = callback;
+            this.requiredMasterJoins = requiredMasterJoins;
+        }
+
+        abstract void onClose();
+
+        @Override
+        public void onElectedAsMaster(ClusterState state) {
+            assert pendingSetAsMasterTask.get() : "onElectedAsMaster called but pendingSetAsMasterTask is not set";
+            if (closed.compareAndSet(false, true)) {
+                try {
+                    onClose();
+                } finally {
+                    callback.onElectedAsMaster(state);
+                }
+            }
+        }
+
+        @Override
+        public void onFailure(Throwable t) {
+            if (closed.compareAndSet(false, true)) {
+                try {
+                    onClose();
+                } finally {
+                    callback.onFailure(t);
+                }
+            }
+        }
     }
 
 

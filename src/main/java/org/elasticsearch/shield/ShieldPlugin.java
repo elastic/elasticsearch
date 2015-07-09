@@ -31,7 +31,7 @@ import java.util.Map;
  */
 public class ShieldPlugin extends AbstractPlugin {
 
-    public static final String NAME = "shield";
+    public static final String NAME = "elasticsearch-shield";
 
     public static final String ENABLED_SETTING_NAME = NAME + ".enabled";
 

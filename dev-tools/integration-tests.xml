@@ -1,0 +1,66 @@
+<?xml version="1.0"?>
+<project name="commercial-integration-tests">
+
+  <import file="${elasticsearch.integ.antfile.default}"/>
+
+  <!-- unzip core release artifact, install license plugin, install plugin, then start ES -->
+  <target name="start-external-cluster-with-plugin" depends="stop-external-cluster" unless="${shouldskip}">
+    <local name="integ.home"/>
+    <local name="integ.repo.home"/>
+    <local name="integ.plugin.url"/>
+    <local name="integ.pid"/>
+
+    <delete dir="${integ.scratch}"/>
+    <unzip src="${org.elasticsearch:elasticsearch:zip}"
+           dest="${integ.scratch}"/>
+
+    <property name="integ.home" location="${integ.scratch}/elasticsearch-${elasticsearch.version}"/>
+    <property name="integ.repo.home" location="${integ.home}/repo"/>
+
+    <!-- begin commercial plugin mods -->
+    <local name="integ.license.plugin.url"/>
+    <makeurl property="integ.license.plugin.url" file="${org.elasticsearch:elasticsearch-license-plugin:zip}"/>
+    <echo>Installing license plugin...</echo> 
+    <run-script dir="${integ.home}" script="bin/plugin"
+                args="-u ${integ.license.plugin.url} -i elasticsearch-license-plugin"/>
+    <!-- end commercial plugin mods -->
+
+    <makeurl property="integ.plugin.url" file="${project.build.directory}/releases/${project.artifactId}-${project.version}.zip"/>
+
+    <echo>Installing plugin ${project.artifactId}...</echo>
+    <run-script dir="${integ.home}" script="bin/plugin"
+                args="-u ${integ.plugin.url} -i ${project.artifactId}"/>
+
+    <!-- execute -->
+    <echo>Starting up external cluster...</echo>
+    <run-script dir="${integ.home}" script="bin/elasticsearch" spawn="true"
+                args="${integ.args} -Des.path.repo=${integ.repo.home}"/>
+
+    <!-- begin shield plugin mods -->
+    <!-- TODO: pluginmanager is really broken here!!!! correct the file permissions --> 
+    <exec executable="chmod" failonerror="true" osfamily="unix">
+      <arg line="-R a+r ${integ.home}/bin/elasticsearch-shield"/>
+    </exec>
+
+    <run-script dir="${integ.home}" script="bin/elasticsearch-shield/esusers"
+                args="useradd test_user -p changeme -r admin"/>
+
+    <!-- seems waitfor task doesnt support basic auth?
+         we do the next best thing, wait for the socket, then verify with get
+      <waitfor maxwait="3" maxwaitunit="minute" checkevery="500">
+        <http url="http://test_user:changeme@127.0.0.1:9200"/>
+      </waitfor>
+    -->
+
+    <waitfor maxwait="3" maxwaitunit="minute" checkevery="500">
+      <socket server="127.0.0.1" port="9200"/>
+    </waitfor>
+    <local name="temp.file"/>
+    <tempfile property="temp.file" destdir="${integ.temp}"/>
+    <get src="http://127.0.0.1:9200" dest="${temp.file}" username="test_user" password="changeme" verbose="true" retries="10"/>
+    <!-- end shield plugin mods -->
+
+    <extract-pid property="integ.pid"/>
+    <echo>External cluster started PID ${integ.pid}</echo>
+  </target>
+</project>

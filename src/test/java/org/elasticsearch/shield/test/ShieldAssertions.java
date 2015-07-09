@@ -17,6 +17,6 @@ public class ShieldAssertions {
         assertThat(e.status(), is(RestStatus.UNAUTHORIZED));
         assertThat(e.getHeaderKeys(), hasSize(1));
         assertThat(e.getHeader("WWW-Authenticate"), notNullValue());
-        assertThat(e.getHeader("WWW-Authenticate"), contains("Basic realm=\"shield\""));
+        assertThat(e.getHeader("WWW-Authenticate"), contains("Basic realm=\"elasticsearch-shield\""));
     }
 }

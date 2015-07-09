@@ -22,14 +22,14 @@
     <makeurl property="integ.license.plugin.url" file="${org.elasticsearch:elasticsearch-license-plugin:zip}"/>
     <echo>Installing license plugin...</echo> 
     <run-script dir="${integ.home}" script="bin/plugin"
-                args="-u ${integ.license.plugin.url} -i license-plugin/${license.plugin.version}"/>
+                args="-u ${integ.license.plugin.url} -i elasticsearch-license-plugin"/>
     <!-- end commercial plugin mods -->
 
     <makeurl property="integ.plugin.url" file="${project.build.directory}/releases/${project.artifactId}-${project.version}.zip"/>
 
     <echo>Installing plugin ${project.artifactId}...</echo>
     <run-script dir="${integ.home}" script="bin/plugin"
-                args="-u ${integ.plugin.url} -i ${project.artifactId}/${project.version}"/>
+                args="-u ${integ.plugin.url} -i ${project.artifactId}"/>
 
     <!-- execute -->
     <echo>Starting up external cluster...</echo>

@@ -155,12 +155,12 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 if (fieldName.equals("enabled")) {
                     builder.enabled(nodeBooleanValue(fieldNode));
                     iterator.remove();
-                } else if (fieldName.equals("compress") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+                } else if (fieldName.equals("compress") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
                     if (fieldNode != null) {
                         builder.compress(nodeBooleanValue(fieldNode));
                     }
                     iterator.remove();
-                } else if (fieldName.equals("compress_threshold") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+                } else if (fieldName.equals("compress_threshold") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
                     if (fieldNode != null) {
                         if (fieldNode instanceof Number) {
                             builder.compressThreshold(((Number) fieldNode).longValue());

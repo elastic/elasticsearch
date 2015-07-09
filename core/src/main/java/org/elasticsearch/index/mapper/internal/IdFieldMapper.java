@@ -115,7 +115,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            if (parserContext.indexVersionCreated().onOrAfter(Version.V_2_0_0)) {
+            if (parserContext.indexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
                 throw new MapperParsingException(NAME + " is not configurable");
             }
             Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
@@ -242,7 +242,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
             return existing.clone();
         }
         MappedFieldType fieldType = Defaults.FIELD_TYPE.clone();
-        boolean pre2x = Version.indexCreated(indexSettings).before(Version.V_2_0_0);
+        boolean pre2x = Version.indexCreated(indexSettings).before(Version.V_2_0_0_beta1);
         if (pre2x && indexSettings.getAsBoolean("index.mapping._id.indexed", true) == false) {
             fieldType.setTokenized(false);
         }

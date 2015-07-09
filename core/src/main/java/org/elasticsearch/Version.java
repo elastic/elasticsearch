@@ -244,10 +244,10 @@ public class Version {
     public static final Version V_1_6_1 = new Version(V_1_6_1_ID, true, org.apache.lucene.util.Version.LUCENE_4_10_4);
     public static final int V_1_7_0_ID = 1070099;
     public static final Version V_1_7_0 = new Version(V_1_7_0_ID, true, org.apache.lucene.util.Version.LUCENE_4_10_4);
-    public static final int V_2_0_0_ID = 2000099;
-    public static final Version V_2_0_0 = new Version(V_2_0_0_ID, true, org.apache.lucene.util.Version.LUCENE_5_2_1);
+    public static final int V_2_0_0_beta1_ID = 2000001;
+    public static final Version V_2_0_0_beta1 = new Version(V_2_0_0_beta1_ID, true, org.apache.lucene.util.Version.LUCENE_5_2_1);
 
-    public static final Version CURRENT = V_2_0_0;
+    public static final Version CURRENT = V_2_0_0_beta1;
 
     static {
         assert CURRENT.luceneVersion.equals(Lucene.VERSION) : "Version must be upgraded to [" + Lucene.VERSION + "] is still set to [" + CURRENT.luceneVersion + "]";
@@ -259,8 +259,8 @@ public class Version {
 
     public static Version fromId(int id) {
         switch (id) {
-            case V_2_0_0_ID:
-                return V_2_0_0;
+            case V_2_0_0_beta1_ID:
+                return V_2_0_0_beta1;
             case V_1_7_0_ID:
                 return V_1_7_0;
             case V_1_6_1_ID:
@@ -515,7 +515,7 @@ public class Version {
             int build = 99;
             if (parts.length == 4) {
                 String buildStr = parts[3];
-                if (buildStr.startsWith("Beta")) {
+                if (buildStr.startsWith("Beta") || buildStr.startsWith("beta")) {
                     build = Integer.parseInt(buildStr.substring(4));
                 }
                 if (buildStr.startsWith("RC")) {
@@ -589,8 +589,13 @@ public class Version {
     public String number() {
         StringBuilder sb = new StringBuilder();
         sb.append(major).append('.').append(minor).append('.').append(revision);
-        if (build < 50) {
-            sb.append(".Beta").append(build);
+        if (isBeta()) {
+            if (major >= 2) {
+                sb.append(".beta");
+            } else {
+                sb.append(".Beta");
+            }
+            sb.append(build);
         } else if (build < 99) {
             sb.append(".RC").append(build - 50);
         }
@@ -633,6 +638,10 @@ public class Version {
     @Override
     public int hashCode() {
         return id;
+    }
+
+    public boolean isBeta() {
+        return build < 50;
     }
 
     public static class Module extends AbstractModule {

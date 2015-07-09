@@ -224,7 +224,7 @@ public abstract class FieldMapper extends Mapper {
         }
 
         protected String buildIndexName(BuilderContext context) {
-            if (context.indexCreatedVersion().onOrAfter(Version.V_2_0_0)) {
+            if (context.indexCreatedVersion().onOrAfter(Version.V_2_0_0_beta1)) {
                 return buildFullName(context);
             }
             String actualIndexName = indexName == null ? name : indexName;
@@ -232,7 +232,7 @@ public abstract class FieldMapper extends Mapper {
         }
 
         protected String buildIndexNameClean(BuilderContext context) {
-            if (context.indexCreatedVersion().onOrAfter(Version.V_2_0_0)) {
+            if (context.indexCreatedVersion().onOrAfter(Version.V_2_0_0_beta1)) {
                 return buildFullName(context);
             }
             return indexName == null ? name : indexName;
@@ -253,7 +253,7 @@ public abstract class FieldMapper extends Mapper {
                 fieldType.setFieldDataType(new FieldDataType(fieldType.fieldDataType().getType(), settings));
             }
             boolean defaultDocValues = false; // pre 2.0
-            if (context.indexCreatedVersion().onOrAfter(Version.V_2_0_0)) {
+            if (context.indexCreatedVersion().onOrAfter(Version.V_2_0_0_beta1)) {
                 defaultDocValues = fieldType.tokenized() == false && fieldType.indexOptions() != IndexOptions.NONE;
             }
             // backcompat for "fielddata: format: docvalues" for now...
@@ -279,7 +279,7 @@ public abstract class FieldMapper extends Mapper {
     protected FieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName);
         assert indexSettings != null;
-        this.indexCreatedBefore2x = Version.indexCreated(indexSettings).before(Version.V_2_0_0);
+        this.indexCreatedBefore2x = Version.indexCreated(indexSettings).before(Version.V_2_0_0_beta1);
         this.fieldTypeRef = new MappedFieldTypeReference(fieldType); // the reference ctor freezes the field type
         defaultFieldType.freeze();
         this.defaultFieldType = defaultFieldType;

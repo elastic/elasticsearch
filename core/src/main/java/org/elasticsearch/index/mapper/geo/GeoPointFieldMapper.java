@@ -220,7 +220,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
-                if (fieldName.equals("path") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+                if (fieldName.equals("path") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
                     builder.multiFieldPathType(parsePathType(name, fieldNode.toString()));
                     iterator.remove();
                 } else if (fieldName.equals("lat_lon")) {

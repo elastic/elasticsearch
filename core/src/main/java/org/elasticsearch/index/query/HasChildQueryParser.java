@@ -178,7 +178,7 @@ public class HasChildQueryParser implements QueryParser {
 
         final Query query;
         final ParentChildIndexFieldData parentChildIndexFieldData = parseContext.getForField(parentFieldMapper.fieldType());
-        if (parseContext.indexVersionCreated().onOrAfter(Version.V_2_0_0)) {
+        if (parseContext.indexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
             query = joinUtilHelper(parentType, parentChildIndexFieldData, parentDocMapper.typeFilter(), scoreType, innerQuery, minChildren, maxChildren);
         } else {
             // TODO: use the query API

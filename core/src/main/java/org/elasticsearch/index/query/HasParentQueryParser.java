@@ -202,7 +202,7 @@ public class HasParentQueryParser implements QueryParser {
         // wrap the query with type query
         innerQuery = Queries.filtered(innerQuery, parentDocMapper.typeFilter());
         Filter childrenFilter = new QueryWrapperFilter(Queries.not(parentFilter));
-        if (parseContext.indexVersionCreated().onOrAfter(Version.V_2_0_0)) {
+        if (parseContext.indexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
             ScoreType scoreMode = score ? ScoreType.MAX : ScoreType.NONE;
             return joinUtilHelper(parentType, parentChildIndexFieldData, childrenFilter, scoreMode, innerQuery, 0, Integer.MAX_VALUE);
         } else {

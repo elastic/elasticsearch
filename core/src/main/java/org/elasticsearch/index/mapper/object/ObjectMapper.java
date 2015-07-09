@@ -236,7 +236,7 @@ public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll,
         }
 
         protected static boolean parseObjectProperties(String name, String fieldName, Object fieldNode, ParserContext parserContext, ObjectMapper.Builder builder) {
-            if (fieldName.equals("path") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+            if (fieldName.equals("path") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
                 builder.pathType(parsePathType(name, fieldNode.toString()));
                 return true;
             }

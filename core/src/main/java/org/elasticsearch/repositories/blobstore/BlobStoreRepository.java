@@ -594,7 +594,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      * @return true if legacy version should be used false otherwise
      */
     private boolean legacyMetaData(Version version) {
-        return version.before(Version.V_2_0_0);
+        return version.before(Version.V_2_0_0_beta1);
     }
 
     /**

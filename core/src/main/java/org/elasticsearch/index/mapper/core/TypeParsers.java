@@ -69,7 +69,7 @@ public class TypeParsers {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
-                if (fieldName.equals("path") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+                if (fieldName.equals("path") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
                     pathType = parsePathType(name, fieldNode.toString());
                     iterator.remove();
                 } else if (fieldName.equals("fields")) {
@@ -188,7 +188,7 @@ public class TypeParsers {
             Map.Entry<String, Object> entry = iterator.next();
             final String propName = Strings.toUnderscoreCase(entry.getKey());
             final Object propNode = entry.getValue();
-            if (propName.equals("index_name") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+            if (propName.equals("index_name") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
                 builder.indexName(propNode.toString());
                 iterator.remove();
             } else if (propName.equals("store")) {
@@ -252,7 +252,7 @@ public class TypeParsers {
                 builder.indexOptions(nodeIndexOptionValue(propNode));
                 iterator.remove();
             } else if (propName.equals("analyzer") || // for backcompat, reading old indexes, remove for v3.0
-                       propName.equals("index_analyzer") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+                       propName.equals("index_analyzer") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
                 
                 NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
                 if (analyzer == null) {
@@ -270,10 +270,10 @@ public class TypeParsers {
             } else if (propName.equals("include_in_all")) {
                 builder.includeInAll(nodeBooleanValue(propNode));
                 iterator.remove();
-            } else if (propName.equals("postings_format") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+            } else if (propName.equals("postings_format") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
                 // ignore for old indexes
                 iterator.remove();
-            } else if (propName.equals("doc_values_format") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+            } else if (propName.equals("doc_values_format") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
                 // ignore for old indexes
                 iterator.remove();
             } else if (propName.equals("similarity")) {
@@ -301,7 +301,7 @@ public class TypeParsers {
     }
 
     public static boolean parseMultiField(FieldMapper.Builder builder, String name, Mapper.TypeParser.ParserContext parserContext, String propName, Object propNode) {
-        if (propName.equals("path") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+        if (propName.equals("path") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
             builder.multiFieldPathType(parsePathType(name, propNode.toString()));
             return true;
         } else if (propName.equals("fields")) {

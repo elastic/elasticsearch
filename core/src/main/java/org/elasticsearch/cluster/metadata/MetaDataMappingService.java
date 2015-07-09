@@ -396,7 +396,7 @@ public class MetaDataMappingService extends AbstractComponent {
                                 // For example in MapperService we can't distinguish between a create index api call
                                 // and a put mapping api call, so we don't which type did exist before.
                                 // Also the order of the mappings may be backwards.
-                                if (Version.indexCreated(indexService.getIndexSettings()).onOrAfter(Version.V_2_0_0) && newMapper.parentFieldMapper().active()) {
+                                if (Version.indexCreated(indexService.getIndexSettings()).onOrAfter(Version.V_2_0_0_beta1) && newMapper.parentFieldMapper().active()) {
                                     IndexMetaData indexMetaData = currentState.metaData().index(index);
                                     for (ObjectCursor<MappingMetaData> mapping : indexMetaData.mappings().values()) {
                                         if (newMapper.parentFieldMapper().type().equals(mapping.value.type())) {

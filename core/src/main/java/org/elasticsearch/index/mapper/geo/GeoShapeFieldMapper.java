@@ -120,11 +120,11 @@ public class GeoShapeFieldMapper extends FieldMapper {
         public GeoShapeFieldMapper build(BuilderContext context) {
             GeoShapeFieldType geoShapeFieldType = (GeoShapeFieldType)fieldType;
 
-            if (geoShapeFieldType.tree.equals("quadtree") && context.indexCreatedVersion().before(Version.V_2_0_0)) {
+            if (geoShapeFieldType.tree.equals("quadtree") && context.indexCreatedVersion().before(Version.V_2_0_0_beta1)) {
                 geoShapeFieldType.setTree("legacyquadtree");
             }
 
-            if (context.indexCreatedVersion().before(Version.V_2_0_0) ||
+            if (context.indexCreatedVersion().before(Version.V_2_0_0_beta1) ||
                 (geoShapeFieldType.treeLevels() == 0 && geoShapeFieldType.precisionInMeters() < 0)) {
                 geoShapeFieldType.setDefaultDistanceErrorPct(Defaults.LEGACY_DISTANCE_ERROR_PCT);
             }

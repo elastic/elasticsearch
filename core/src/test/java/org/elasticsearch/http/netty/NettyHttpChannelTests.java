@@ -80,7 +80,7 @@ public class NettyHttpChannelTests extends ESTestCase {
         httpRequest.headers().add(HttpHeaders.Names.ORIGIN, "remote");
         httpRequest.headers().add(HttpHeaders.Names.USER_AGENT, "Mozilla fake");
         WriteCapturingChannel writeCapturingChannel = new WriteCapturingChannel();
-        NettyHttpRequest request = new NettyHttpRequest(httpRequest, writeCapturingChannel);
+        NettyHttpRequest request = new NettyHttpRequest(httpRequest, writeCapturingChannel, false);
 
         // send a response
         NettyHttpChannel channel = new NettyHttpChannel(httpServerTransport, request, null, randomBoolean());
@@ -105,7 +105,7 @@ public class NettyHttpChannelTests extends ESTestCase {
         httpRequest.headers().add(HttpHeaders.Names.ORIGIN, "remote");
         httpRequest.headers().add(HttpHeaders.Names.USER_AGENT, "Mozilla fake");
         WriteCapturingChannel writeCapturingChannel = new WriteCapturingChannel();
-        NettyHttpRequest request = new NettyHttpRequest(httpRequest, writeCapturingChannel);
+        NettyHttpRequest request = new NettyHttpRequest(httpRequest, writeCapturingChannel, false);
 
         NettyHttpChannel channel = new NettyHttpChannel(httpServerTransport, request, null, randomBoolean());
         channel.sendResponse(new TestReponse());

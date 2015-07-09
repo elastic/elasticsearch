@@ -18,83 +18,69 @@
  */
 package org.elasticsearch.test.rest.client.http;
 
-import org.apache.http.Header;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpHead;
-import org.apache.http.client.methods.HttpUriRequest;
-import org.apache.http.util.EntityUtils;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.Strings;
 
-import java.io.IOException;
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
-/**
- * Response obtained from an http request
- * Always consumes the whole response body loading it entirely into a string
- */
 public class HttpResponse {
-
-    private static final ESLogger logger = Loggers.getLogger(HttpResponse.class);
-
-    private final HttpUriRequest httpRequest;
+    private final String verb;
+    private final String body;
     private final int statusCode;
     private final String reasonPhrase;
-    private final String body;
-    private final Map<String, String> headers = new HashMap<>();
+    private Map<String, List<String>> headers;
+    private final Throwable e;
 
-    HttpResponse(HttpUriRequest httpRequest, CloseableHttpResponse httpResponse) {
-        this.httpRequest = httpRequest;
-        this.statusCode = httpResponse.getStatusLine().getStatusCode();
-        this.reasonPhrase = httpResponse.getStatusLine().getReasonPhrase();
-        for (Header header : httpResponse.getAllHeaders()) {
-            this.headers.put(header.getName(), header.getValue());
-        }
-        if (httpResponse.getEntity() != null) {
-            try {
-                this.body = EntityUtils.toString(httpResponse.getEntity(), HttpRequestBuilder.DEFAULT_CHARSET);
-            } catch (IOException e) {
-                EntityUtils.consumeQuietly(httpResponse.getEntity());
-                throw new RuntimeException(e);
-            } finally {
-                try {
-                    httpResponse.close();
-                } catch (IOException e) {
-                    logger.error(e.getMessage(), e);
-                }
-            }
-        } else {
-            this.body = null;
-        }
-    }
-
-    public boolean isError() {
-        return statusCode >= 400;
-    }
-
-    public int getStatusCode() {
-        return statusCode;
-    }
-
-    public String getReasonPhrase() {
-        return reasonPhrase;
+    public HttpResponse(String verb, String body, int statusCode, String reasonPhrase, Map<String, List<String>> headers, Throwable e) {
+        this.verb = verb;
+        this.body = body;
+        this.statusCode = statusCode;
+        this.reasonPhrase = reasonPhrase;
+        this.headers = headers;
+        this.e = e;
     }
 
     public String getBody() {
         return body;
     }
 
+    public int getStatusCode() {
+        return statusCode;
+    }
+
+    public boolean isError() {
+        return statusCode >= 300;
+    }
+
     public boolean hasBody() {
-        return body != null;
+        return Strings.hasText(body);
     }
 
     public boolean supportsBody() {
-        return !HttpHead.METHOD_NAME.equals(httpRequest.getMethod());
+        return verb.equals("HEAD") == false;
     }
 
-    public Map<String, String> getHeaders() {
+    public String getReasonPhrase() {
+        return reasonPhrase;
+    }
+
+    public Throwable cause() {
+        return e;
+    }
+
+    public Map<String, List<String>> getHeaders() {
         return headers;
+    }
+
+    public String getHeader(String name) {
+        if (headers == null) {
+            return null;
+        }
+        List<String> vals = headers.get(name);
+        if (vals == null || vals.size() == 0) {
+            return null;
+        }
+        return vals.iterator().next();
     }
 
     @Override
@@ -105,4 +91,5 @@ public class HttpResponse {
         }
         return stringBuilder.toString();
     }
+
 }

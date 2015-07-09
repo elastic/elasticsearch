@@ -26,7 +26,6 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.rest.client.http.HttpDeleteWithEntity;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.Test;
@@ -52,24 +51,23 @@ public class DetailedErrorsEnabledIT extends ESIntegTestCase {
     @Test
     public void testThatErrorTraceWorksByDefault() throws Exception {
         // Make the HTTP request
-        HttpResponse response = new HttpRequestBuilder(HttpClients.createDefault())
-                .httpTransport(internalCluster().getDataNodeInstance(HttpServerTransport.class))
+        HttpResponse response = httpClient()
                 .path("/")
                 .addParam("error_trace", "true")
-                .method(HttpDeleteWithEntity.METHOD_NAME)
+                .method("DELETE")
                 .execute();
 
-        assertThat(response.getHeaders().get("Content-Type"), containsString("application/json"));
-        assertThat(response.getBody(), containsString("\"stack_trace\":\"[Validation Failed: 1: index / indices is missing;]; nested: ActionRequestValidationException[Validation Failed: 1:"));
+        assertThat(response.getHeader("Content-Type"), containsString("application/json"));
+        assertThat(response.getBody(), containsString("\"error_trace\":{\"message\":\"Validation Failed"));
 
         // Make the HTTP request
         response = new HttpRequestBuilder(HttpClients.createDefault())
                 .httpTransport(internalCluster().getDataNodeInstance(HttpServerTransport.class))
                 .path("/")
-                .method(HttpDeleteWithEntity.METHOD_NAME)
+                .method("DELETE")
                 .execute();
 
-        assertThat(response.getHeaders().get("Content-Type"), containsString("application/json"));
+        assertThat(response.getHeader("Content-Type"), containsString("application/json"));
         assertThat(response.getBody(), not(containsString("\"stack_trace\":\"[Validation Failed: 1: index / indices is missing;]; nested: ActionRequestValidationException[Validation Failed: 1:")));
     }
 }

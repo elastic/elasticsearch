@@ -140,6 +140,7 @@
       <attribute name="es.cluster.name" default="${integ.cluster.name}"/>
       <attribute name="es.http.port" default="${integ.http.port}"/>
       <attribute name="es.transport.tcp.port" default="${integ.transport.port}"/>
+      <attribute name="es.http.method_override.enabled" default="true"/>
       <attribute name="es.pidfile" default="${integ.pidfile}"/>
       <attribute name="jvm.args" default="${tests.jvm.argline}"/>
       <element name="additional-args" optional="true"/>
@@ -164,6 +165,7 @@
           <arg value="-Des.cluster.name=@{es.cluster.name}"/>
           <arg value="-Des.http.port=@{es.http.port}"/>
           <arg value="-Des.transport.tcp.port=@{es.transport.tcp.port}"/>
+          <arg value="-Des.http.method_override.enabled=true"/>
           <arg value="-Des.pidfile=@{es.pidfile}"/>
           <arg value="-Des.discovery.zen.ping.unicast.hosts=@{es.unicast.hosts}"/>
           <arg value="-Des.path.repo=@{home}/repo"/>

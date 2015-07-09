@@ -37,12 +37,14 @@ public class HttpRequestHandler extends SimpleChannelUpstreamHandler {
     private final Pattern corsPattern;
     private final boolean httpPipeliningEnabled;
     private final boolean detailedErrorsEnabled;
+    private final boolean methodOverrideEnabled;
 
     public HttpRequestHandler(NettyHttpServerTransport serverTransport, boolean detailedErrorsEnabled) {
         this.serverTransport = serverTransport;
         this.corsPattern = RestUtils.getCorsSettingRegex(serverTransport.settings());
         this.httpPipeliningEnabled = serverTransport.pipelining;
         this.detailedErrorsEnabled = detailedErrorsEnabled;
+        this.methodOverrideEnabled = serverTransport.methodOverrideEnabled;
     }
 
     @Override
@@ -58,7 +60,7 @@ public class HttpRequestHandler extends SimpleChannelUpstreamHandler {
 
         // the netty HTTP handling always copy over the buffer to its own buffer, either in NioWorker internally
         // when reading, or using a cumalation buffer
-        NettyHttpRequest httpRequest = new NettyHttpRequest(request, e.getChannel());
+        NettyHttpRequest httpRequest = new NettyHttpRequest(request, e.getChannel(), methodOverrideEnabled);
         if (oue != null) {
             serverTransport.dispatchRequest(httpRequest, new NettyHttpChannel(serverTransport, httpRequest, corsPattern, oue, detailedErrorsEnabled));
         } else {

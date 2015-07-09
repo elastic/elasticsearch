@@ -19,14 +19,7 @@
 
 package org.elasticsearch.transport;
 
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionModule;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.*;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -57,7 +50,7 @@ import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
+import org.elasticsearch.test.rest.client.http.HttpClient;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.After;
 import org.junit.Before;
@@ -305,9 +298,7 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
             restController.registerRelevantHeaders(releventHeaderName);
         }
 
-        CloseableHttpClient httpClient = HttpClients.createDefault();
-        HttpResponse response = new HttpRequestBuilder(httpClient)
-                .httpTransport(internalCluster().getDataNodeInstance(HttpServerTransport.class))
+        HttpResponse response = HttpClient.instance(internalCluster().getDataNodeInstance(HttpServerTransport.class))
                 .addHeader(randomHeaderKey, randomHeaderValue)
                 .addHeader(releventHeaderName, randomHeaderValue)
                 .path("/" + queryIndex + "/_search")

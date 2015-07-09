@@ -86,6 +86,8 @@ simple message will be returned. Defaults to `true`
 
 |`http.pipelining.max_events` |The maximum number of events to be queued up in memory before a HTTP connection is closed, defaults to `10000`.
 
+|`http.method_override.enabled` |Enable support for `X-HTTP-Method-Override`, `X-HTTP-Method` and `X-METHOD-OVERRIDE` headers, defaults to `false`.
+
 |=======================================================================
 
 It also uses the common

@@ -18,14 +18,10 @@
  */
 package org.elasticsearch.plugins;
 
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.Test;
 
@@ -81,10 +77,5 @@ public class SitePluginRelativePathConfigIT extends ESIntegTestCase {
         }
 
         return sb.toString();
-    }
-
-    public HttpRequestBuilder httpClient() {
-        CloseableHttpClient httpClient = HttpClients.createDefault();
-        return new HttpRequestBuilder(httpClient).httpTransport(internalCluster().getDataNodeInstance(HttpServerTransport.class));
     }
 }

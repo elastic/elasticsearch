@@ -19,7 +19,6 @@
 
 package org.elasticsearch.options.detailederrors;
 
-import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty.NettyHttpServerTransport;
@@ -27,8 +26,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.rest.client.http.HttpDeleteWithEntity;
-import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
+import org.elasticsearch.test.rest.client.http.HttpClient;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.Test;
 
@@ -53,13 +51,12 @@ public class DetailedErrorsDisabledIT extends ESIntegTestCase {
     @Test
     public void testThatErrorTraceParamReturns400() throws Exception {
         // Make the HTTP request
-        HttpResponse response = new HttpRequestBuilder(HttpClients.createDefault())
-                .httpTransport(internalCluster().getDataNodeInstance(HttpServerTransport.class))
+        HttpResponse response = HttpClient.instance(internalCluster().getDataNodeInstance(HttpServerTransport.class))
                 .addParam("error_trace", "true")
-                .method(HttpDeleteWithEntity.METHOD_NAME)
+                .method("DELETE")
                 .execute();
 
-        assertThat(response.getHeaders().get("Content-Type"), is("application/json"));
+        assertThat(response.getHeader("Content-Type"), is("application/json"));
         assertThat(response.getBody(), is("{\"error\":\"error traces in responses are disabled.\"}"));
         assertThat(response.getStatusCode(), is(400));
     }

@@ -41,8 +41,9 @@ public class NettyHttpRequest extends HttpRequest {
     private final Map<String, String> params;
     private final String rawPath;
     private final BytesReference content;
+    private final boolean methodOverrideEnabled;
 
-    public NettyHttpRequest(org.jboss.netty.handler.codec.http.HttpRequest request, Channel channel) {
+    public NettyHttpRequest(org.jboss.netty.handler.codec.http.HttpRequest request, Channel channel, boolean methodOverrideEnabled) {
         this.request = request;
         this.channel = channel;
         this.params = new HashMap<>();
@@ -60,6 +61,7 @@ public class NettyHttpRequest extends HttpRequest {
             this.rawPath = uri.substring(0, pathEndPos);
             RestUtils.decodeQueryString(uri, pathEndPos + 1, params);
         }
+        this.methodOverrideEnabled = methodOverrideEnabled;
     }
 
     public org.jboss.netty.handler.codec.http.HttpRequest request() {
@@ -69,6 +71,23 @@ public class NettyHttpRequest extends HttpRequest {
     @Override
     public Method method() {
         HttpMethod httpMethod = request.getMethod();
+
+        if (methodOverrideEnabled && httpMethod == HttpMethod.POST && request.headers() != null) {
+            // Google spec
+            String methodOverride = request.headers().get("X-HTTP-Method-Override");
+            if (methodOverride == null) {
+                // Microsoft spec
+                methodOverride = request.headers().get("X-HTTP-Method");
+            }
+            if (methodOverride == null) {
+                // IBM spec
+                methodOverride = request.headers().get("X-METHOD-OVERRIDE");
+            }
+            if (methodOverride != null) {
+                httpMethod = HttpMethod.valueOf(methodOverride);
+            }
+        }
+
         if (httpMethod == HttpMethod.GET)
             return Method.GET;
 

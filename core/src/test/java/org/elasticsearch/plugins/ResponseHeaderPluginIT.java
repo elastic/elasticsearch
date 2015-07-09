@@ -51,11 +51,11 @@ public class ResponseHeaderPluginIT extends ESIntegTestCase {
         ensureGreen();
         HttpResponse response = httpClient().method("GET").path("/_protected").execute();
         assertThat(response, hasStatus(UNAUTHORIZED));
-        assertThat(response.getHeaders().get("Secret"), equalTo("required"));
+        assertThat(response.getHeader("Secret"), equalTo("required"));
 
         HttpResponse authResponse = httpClient().method("GET").path("/_protected").addHeader("Secret", "password").execute();
         assertThat(authResponse, hasStatus(OK));
-        assertThat(authResponse.getHeaders().get("Secret"), equalTo("granted"));
+        assertThat(authResponse.getHeader("Secret"), equalTo("granted"));
     }
     
 }

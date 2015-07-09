@@ -19,18 +19,14 @@
 
 package org.elasticsearch.example;
 
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ExternalTestCluster;
 import org.elasticsearch.test.TestCluster;
-import org.elasticsearch.test.rest.client.RestResponse;
-import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
+import org.elasticsearch.test.rest.client.http.HttpClient;
+import org.elasticsearch.test.rest.client.http.HttpResponse;
 
 import java.net.InetSocketAddress;
-import java.util.concurrent.TimeUnit;
 
 /**
  * verifies content is actually served for the site plugin
@@ -43,17 +39,14 @@ public class SiteContentsIT extends ESIntegTestCase {
         TestCluster cluster = cluster();
         assumeTrue("this test will not work from an IDE unless you pass tests.cluster pointing to a running instance", cluster instanceof ExternalTestCluster);
         ExternalTestCluster externalCluster = (ExternalTestCluster) cluster;
-        try (CloseableHttpClient httpClient = HttpClients.createMinimal(new PoolingHttpClientConnectionManager(15, TimeUnit.SECONDS))) {
-            for (InetSocketAddress address :  externalCluster.httpAddresses()) {
-                RestResponse restResponse = new RestResponse(
-                        new HttpRequestBuilder(httpClient)
-                        .host(NetworkAddress.formatAddress(address.getAddress())).port(address.getPort())
-                        .path("/_plugin/site-example/")
-                        .method("GET").execute());
-                assertEquals(200, restResponse.getStatusCode());
-                String body = restResponse.getBodyAsString();
-                assertTrue("unexpected body contents: " + body, body.contains("<body>Page body</body>"));
-            }
+        for (InetSocketAddress address :  externalCluster.httpAddresses()) {
+            HttpResponse restResponse = HttpClient.instance(NetworkAddress.formatAddress(address.getAddress()), address.getPort())
+                    .path("/_plugin/site-example/")
+                    .method("GET")
+                    .execute();
+            assertEquals(200, restResponse.getStatusCode());
+            String body = restResponse.getBody();
+            assertTrue("unexpected body contents: " + body, body.contains("<body>Page body</body>"));
         }
     }
 }

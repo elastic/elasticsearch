@@ -63,12 +63,6 @@
             <scope>test</scope>
             <type>test-jar</type>
         </dependency>
-
-        <dependency>
-            <groupId>org.apache.httpcomponents</groupId>
-            <artifactId>httpclient</artifactId>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
 
     <build>

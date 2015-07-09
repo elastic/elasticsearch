@@ -21,18 +21,16 @@ package org.elasticsearch.rest;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.http.netty.NettyHttpServerTransport;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.Test;
 
-import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS_ALLOW_ORIGIN;
-import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS_ALLOW_CREDENTIALS;
-import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS_ENABLED;
+import static org.elasticsearch.http.netty.NettyHttpServerTransport.*;
 import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.hamcrest.Matchers.*;
-import static org.hamcrest.Matchers.is;
 
 /**
  *
@@ -50,6 +48,7 @@ public class CorsRegexIT extends ESIntegTestCase {
                 .put(SETTING_CORS_ALLOW_CREDENTIALS, true)
                 .put(SETTING_CORS_ENABLED, true)
                 .put(Node.HTTP_ENABLED, true)
+                .put(NettyHttpServerTransport.SETTING_HTTP_METHOD_OVERRIDE_ENABLED, true)
                 .build();
     }
 
@@ -63,7 +62,7 @@ public class CorsRegexIT extends ESIntegTestCase {
         response = httpClient().method("GET").path("/").addHeader("User-Agent", "Mozilla Bar").addHeader("Origin", corsValue).execute();
         assertResponseWithOriginheader(response, corsValue);
         assertThat(response.getHeaders(), hasKey("Access-Control-Allow-Credentials"));
-        assertThat(response.getHeaders().get("Access-Control-Allow-Credentials"), is("true"));
+        assertThat(response.getHeader("Access-Control-Allow-Credentials"), is("true"));
     }
 
     @Test
@@ -102,6 +101,6 @@ public class CorsRegexIT extends ESIntegTestCase {
     public static void assertResponseWithOriginheader(HttpResponse response, String expectedCorsHeader) {
         assertThat(response.getStatusCode(), is(200));
         assertThat(response.getHeaders(), hasKey("Access-Control-Allow-Origin"));
-        assertThat(response.getHeaders().get("Access-Control-Allow-Origin"), is(expectedCorsHeader));
+        assertThat(response.getHeader("Access-Control-Allow-Origin"), is(expectedCorsHeader));
     }
 }

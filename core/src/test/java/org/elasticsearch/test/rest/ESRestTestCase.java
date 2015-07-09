@@ -31,6 +31,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.http.netty.NettyHttpServerTransport;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.repositories.uri.URLRepository;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -155,6 +156,7 @@ public abstract class ESRestTestCase extends ESIntegTestCase {
         return Settings.builder()
             .putArray(URLRepository.ALLOWED_URLS_SETTING, "http://snapshot.test*")
             .put(Node.HTTP_ENABLED, true)
+            .put(NettyHttpServerTransport.SETTING_HTTP_METHOD_OVERRIDE_ENABLED, true)
             .put(super.nodeSettings(nodeOrdinal)).build();
     }
     
@@ -294,10 +296,7 @@ public abstract class ESRestTestCase extends ESIntegTestCase {
 
     @AfterClass
     public static void close() {
-        if (restTestExecutionContext != null) {
-            restTestExecutionContext.close();
-            restTestExecutionContext = null;
-        }
+        restTestExecutionContext = null;
     }
 
     @Override

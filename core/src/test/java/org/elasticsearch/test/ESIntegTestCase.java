@@ -26,7 +26,10 @@ import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Joiner;
 import com.google.common.base.Predicate;
-import org.apache.http.impl.client.HttpClients;
+
+import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
@@ -116,7 +119,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.client.RandomizingClient;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
-import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
+import org.elasticsearch.test.rest.client.http.HttpClient;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
@@ -2003,14 +2006,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return builder.build();
     }
 
-    protected HttpRequestBuilder httpClient() {
+    protected HttpClient httpClient() {
         final NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().get();
         final NodeInfo[] nodes = nodeInfos.getNodes();
         assertTrue(nodes.length > 0);
         TransportAddress publishAddress = randomFrom(nodes).getHttp().address().publishAddress();
         assertEquals(1, publishAddress.uniqueAddressTypeId());
         InetSocketAddress address = ((InetSocketTransportAddress) publishAddress).address();
-        return new HttpRequestBuilder(HttpClients.createDefault()).host(NetworkAddress.formatAddress(address.getAddress())).port(address.getPort());
+        return HttpClient.instance(NetworkAddress.formatAddress(address.getAddress()), address.getPort());
     }
 
     /**

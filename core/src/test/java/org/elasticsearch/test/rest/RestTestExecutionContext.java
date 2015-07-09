@@ -29,7 +29,6 @@ import org.elasticsearch.test.rest.client.RestException;
 import org.elasticsearch.test.rest.client.RestResponse;
 import org.elasticsearch.test.rest.spec.RestSpec;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.HashMap;
@@ -42,7 +41,7 @@ import java.util.Map;
  * Caches the last obtained test response and allows to stash part of it within variables
  * that can be used as input values in following requests.
  */
-public class RestTestExecutionContext implements Closeable {
+public class RestTestExecutionContext {
 
     private static final ESLogger logger = Loggers.getLogger(RestTestExecutionContext.class);
 
@@ -143,15 +142,5 @@ public class RestTestExecutionContext implements Closeable {
      */
     public Version esVersion() {
         return restClient.getEsVersion();
-    }
-
-    /**
-     * Closes the execution context and releases the underlying resources
-     */
-    @Override
-    public void close() {
-        if (restClient != null) {
-            restClient.close();
-        }
     }
 }

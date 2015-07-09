@@ -19,8 +19,6 @@
 package org.elasticsearch.test.rest.spec;
 
 import com.google.common.collect.Maps;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpPut;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -67,12 +65,12 @@ public class RestApi {
             for (String method : methods) {
                 if (restParams.contains("id")) {
                     //PUT when the id is provided
-                    if (HttpPut.METHOD_NAME.equals(method)) {
+                    if ("PUT".equals(method)) {
                         indexMethods.add(method);
                     }
                 } else {
                     //POST without id
-                    if (HttpPost.METHOD_NAME.equals(method)) {
+                    if ("POST".equals(method)) {
                         indexMethods.add(method);
                     }
                 }

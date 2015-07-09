@@ -20,8 +20,6 @@ package org.elasticsearch.plugins;
 
 import com.google.common.base.Charsets;
 import com.google.common.hash.Hashing;
-
-import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Base64;
@@ -35,7 +33,7 @@ import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.junit.annotations.Network;
-import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
+import org.elasticsearch.test.rest.client.http.HttpClient;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.jboss.netty.bootstrap.ServerBootstrap;
 import org.jboss.netty.channel.*;
@@ -52,7 +50,6 @@ import org.junit.Test;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
-
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -490,7 +487,7 @@ public class PluginManagerIT extends ESIntegTestCase {
     private boolean isDownloadServiceWorking(String host, int port, String resource) {
         try {
             String protocol = port == 443 ? "https" : "http";
-            HttpResponse response = new HttpRequestBuilder(HttpClients.createDefault()).protocol(protocol).host(host).port(port).path(resource).execute();
+            HttpResponse response = HttpClient.instance(protocol, host, port).path(resource).execute();
             if (response.getStatusCode() != 200) {
                 logger.warn("[{}{}] download service is not working. Disabling current test.", host, resource);
                 return false;

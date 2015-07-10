@@ -287,17 +287,17 @@ public class ScriptModesTests extends ElasticsearchTestCase {
         }
 
         @Override
-        public ExecutableScript executable(Object compiledScript, @Nullable Map<String, Object> vars) {
+        public ExecutableScript executable(CompiledScript compiledScript, @Nullable Map<String, Object> vars) {
             return null;
         }
 
         @Override
-        public SearchScript search(Object compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
+        public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
             return null;
         }
 
         @Override
-        public Object execute(Object compiledScript, Map<String, Object> vars) {
+        public Object execute(CompiledScript compiledScript, Map<String, Object> vars) {
             return null;
         }
 

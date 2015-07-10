@@ -148,7 +148,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
             scriptService.compile(new Script("test_script", ScriptType.FILE, "test", null), ScriptContext.Standard.SEARCH);
             fail("the script test_script should no longer exist");
         } catch (IllegalArgumentException ex) {
-            assertThat(ex.getMessage(), containsString("Unable to find on disk script test_script"));
+            assertThat(ex.getMessage(), containsString("Unable to find on disk file script [test_script] using lang [test]"));
         }
     }
 
@@ -171,7 +171,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
                 randomFrom(scriptContexts));
         CompiledScript compiledScript2 = scriptService.compile(new Script("1+1", ScriptType.INLINE, "test", null),
                 randomFrom(scriptContexts));
-        assertThat(compiledScript1, sameInstance(compiledScript2));
+        assertThat(compiledScript1.compiled(), sameInstance(compiledScript2.compiled()));
     }
 
     @Test
@@ -181,7 +181,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
                 randomFrom(scriptContexts));
         CompiledScript compiledScript2 = scriptService.compile(new Script("script", ScriptType.INLINE, "test2", null),
                 randomFrom(scriptContexts));
-        assertThat(compiledScript1, sameInstance(compiledScript2));
+        assertThat(compiledScript1.compiled(), sameInstance(compiledScript2.compiled()));
     }
 
     @Test
@@ -192,7 +192,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
                 randomFrom(scriptContexts));
         CompiledScript compiledScript2 = scriptService.compile(new Script("file_script", ScriptType.FILE, "test2", null),
                 randomFrom(scriptContexts));
-        assertThat(compiledScript1, sameInstance(compiledScript2));
+        assertThat(compiledScript1.compiled(), sameInstance(compiledScript2.compiled()));
     }
 
     @Test
@@ -431,17 +431,17 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
         }
 
         @Override
-        public ExecutableScript executable(final Object compiledScript, @Nullable Map<String, Object> vars) {
+        public ExecutableScript executable(final CompiledScript compiledScript, @Nullable Map<String, Object> vars) {
             return null;
         }
 
         @Override
-        public SearchScript search(Object compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
+        public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
             return null;
         }
 
         @Override
-        public Object execute(Object compiledScript, Map<String, Object> vars) {
+        public Object execute(CompiledScript compiledScript, Map<String, Object> vars) {
             return null;
         }
 

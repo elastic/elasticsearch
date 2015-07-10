@@ -135,21 +135,21 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
 
     @SuppressWarnings({"unchecked"})
     @Override
-    public ExecutableScript executable(Object compiledScript, Map<String, Object> vars) {
+    public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> vars) {
         try {
             Map<String, Object> allVars = new HashMap<>();
             if (vars != null) {
                 allVars.putAll(vars);
             }
-            return new GroovyScript(createScript(compiledScript, allVars), this.logger);
+            return new GroovyScript(compiledScript, createScript(compiledScript.compiled(), allVars), this.logger);
         } catch (Exception e) {
-            throw new ScriptException("failed to build executable script", e);
+            throw new ScriptException("failed to build executable " + compiledScript, e);
         }
     }
 
     @SuppressWarnings({"unchecked"})
     @Override
-    public SearchScript search(final Object compiledScript, final SearchLookup lookup, @Nullable final Map<String, Object> vars) {
+    public SearchScript search(final CompiledScript compiledScript, final SearchLookup lookup, @Nullable final Map<String, Object> vars) {
         return new SearchScript() {
 
             @Override
@@ -162,26 +162,26 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
                 }
                 Script scriptObject;
                 try {
-                    scriptObject = createScript(compiledScript, allVars);
+                    scriptObject = createScript(compiledScript.compiled(), allVars);
                 } catch (InstantiationException | IllegalAccessException e) {
-                    throw new ScriptException("failed to build search script", e);
+                    throw new ScriptException("failed to build search " + compiledScript, e);
                 }
-                return new GroovyScript(scriptObject, leafLookup, logger);
+                return new GroovyScript(compiledScript, scriptObject, leafLookup, logger);
             }
         };
     }
 
     @Override
-    public Object execute(Object compiledScript, Map<String, Object> vars) {
+    public Object execute(CompiledScript compiledScript, Map<String, Object> vars) {
         try {
             Map<String, Object> allVars = new HashMap<>();
             if (vars != null) {
                 allVars.putAll(vars);
             }
-            Script scriptObject = createScript(compiledScript, allVars);
+            Script scriptObject = createScript(compiledScript.compiled(), allVars);
             return scriptObject.run();
         } catch (Exception e) {
-            throw new ScriptException("failed to execute script", e);
+            throw new ScriptException("failed to execute " + compiledScript, e);
         }
     }
 
@@ -196,17 +196,19 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
 
     public static final class GroovyScript implements ExecutableScript, LeafSearchScript {
 
+        private final CompiledScript compiledScript;
         private final Script script;
         private final LeafSearchLookup lookup;
         private final Map<String, Object> variables;
         private final ESLogger logger;
 
-        public GroovyScript(Script script, ESLogger logger) {
-            this(script, null, logger);
+        public GroovyScript(CompiledScript compiledScript, Script script, ESLogger logger) {
+            this(compiledScript, script, null, logger);
         }
 
         @SuppressWarnings("unchecked")
-        public GroovyScript(Script script, @Nullable LeafSearchLookup lookup, ESLogger logger) {
+        public GroovyScript(CompiledScript compiledScript, Script script, @Nullable LeafSearchLookup lookup, ESLogger logger) {
+            this.compiledScript = compiledScript;
             this.script = script;
             this.lookup = lookup;
             this.logger = logger;
@@ -244,9 +246,9 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
                 return script.run();
             } catch (Throwable e) {
                 if (logger.isTraceEnabled()) {
-                    logger.trace("exception running Groovy script", e);
+                    logger.trace("failed to run " + compiledScript, e);
                 }
-                throw new GroovyScriptExecutionException(ExceptionsHelper.detailedMessage(e));
+                throw new GroovyScriptExecutionException("failed to run " + compiledScript + ": " + ExceptionsHelper.detailedMessage(e));
             }
         }
 

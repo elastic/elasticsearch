@@ -20,7 +20,9 @@
 package org.elasticsearch.script.javascript;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -59,7 +61,7 @@ public class JavaScriptScriptMultiThreadedTest extends ElasticsearchTestCase {
                         Map<String, Object> vars = new HashMap<String, Object>();
                         vars.put("x", x);
                         vars.put("y", y);
-                        ExecutableScript script = se.executable(compiled, vars);
+                        ExecutableScript script = se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "testExecutableNoRuntimeParams", "js", compiled), vars);
                         for (int i = 0; i < 100000; i++) {
                             long result = ((Number) script.run()).longValue();
                             assertThat(result, equalTo(addition));
@@ -100,7 +102,7 @@ public class JavaScriptScriptMultiThreadedTest extends ElasticsearchTestCase {
                         long x = ThreadLocalRandom.current().nextInt();
                         Map<String, Object> vars = new HashMap<String, Object>();
                         vars.put("x", x);
-                        ExecutableScript script = se.executable(compiled, vars);
+                        ExecutableScript script = se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "testExecutableNoRuntimeParams", "js", compiled), vars);
                         for (int i = 0; i < 100000; i++) {
                             long y = ThreadLocalRandom.current().nextInt();
                             long addition = x + y;
@@ -147,7 +149,7 @@ public class JavaScriptScriptMultiThreadedTest extends ElasticsearchTestCase {
                             long addition = x + y;
                             runtimeVars.put("x", x);
                             runtimeVars.put("y", y);
-                            long result = ((Number) se.execute(compiled, runtimeVars)).longValue();
+                            long result = ((Number) se.execute(new CompiledScript(ScriptService.ScriptType.INLINE, "testExecutableNoRuntimeParams", "js", compiled), runtimeVars)).longValue();
                             assertThat(result, equalTo(addition));
                         }
                     } catch (Throwable t) {

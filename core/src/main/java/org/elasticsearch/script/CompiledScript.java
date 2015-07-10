@@ -24,17 +24,39 @@ package org.elasticsearch.script;
  */
 public class CompiledScript {
 
+    private final ScriptService.ScriptType type;
+    private final String name;
     private final String lang;
     private final Object compiled;
 
     /**
      * Constructor for CompiledScript.
+     * @param type The type of script to be executed.
+     * @param name The name of the script to be executed.
      * @param lang The language of the script to be executed.
      * @param compiled The compiled script Object that is executable.
      */
-    public CompiledScript(String lang, Object compiled) {
-        this.lang = lang;
-        this.compiled = compiled;
+    public CompiledScript(ScriptService.ScriptType type, String name, String lang, Object compiled) {
+        this.type = type;
+        this.name = name;
+            this.lang = lang;
+            this.compiled = compiled;
+        }
+
+    /**
+     * Method to get the type of language.
+     * @return The type of language the script was compiled in.
+     */
+    public ScriptService.ScriptType type() {
+        return type;
+    }
+
+    /**
+     * Method to get the name of the script.
+     * @return The name of the script to be executed.
+     */
+    public String name() {
+        return name;
     }
 
     /**
@@ -51,5 +73,13 @@ public class CompiledScript {
      */
     public Object compiled() {
         return compiled;
+    }
+
+    /**
+     * @return A string composed of type, lang, and name to describe the CompiledScript.
+     */
+    @Override
+    public String toString() {
+        return type + " script [" + name + "] using lang [" + lang + "]";
     }
 }

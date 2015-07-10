@@ -78,26 +78,26 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public ExecutableScript executable(Object compiledScript, Map<String, Object> vars) {
-        return new PythonExecutableScript((PyCode) compiledScript, vars);
+    public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> vars) {
+        return new PythonExecutableScript((PyCode) compiledScript.compiled(), vars);
     }
 
     @Override
-    public SearchScript search(final Object compiledScript, final SearchLookup lookup, @Nullable final Map<String, Object> vars) {
+    public SearchScript search(final CompiledScript compiledScript, final SearchLookup lookup, @Nullable final Map<String, Object> vars) {
         return new SearchScript() {
             @Override
             public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
                 final LeafSearchLookup leafLookup = lookup.getLeafSearchLookup(context);
-                return new PythonSearchScript((PyCode) compiledScript, vars, leafLookup);
+                return new PythonSearchScript((PyCode) compiledScript.compiled(), vars, leafLookup);
             }
         };
     }
 
     @Override
-    public Object execute(Object compiledScript, Map<String, Object> vars) {
+    public Object execute(CompiledScript compiledScript, Map<String, Object> vars) {
         PyObject pyVars = Py.java2py(vars);
         interp.setLocals(pyVars);
-        PyObject ret = interp.eval((PyCode) compiledScript);
+        PyObject ret = interp.eval((PyCode) compiledScript.compiled());
         if (ret == null) {
             return null;
         }

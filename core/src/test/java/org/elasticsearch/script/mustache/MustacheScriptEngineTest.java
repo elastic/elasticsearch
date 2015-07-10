@@ -20,6 +20,8 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.CompiledScript;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Before;
 import org.junit.Test;
@@ -52,7 +54,7 @@ public class MustacheScriptEngineTest extends ElasticsearchTestCase {
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}" + "}}, \"negative_boost\": {{boost_val}} } }}";
             Map<String, Object> vars = new HashMap<>();
             vars.put("boost_val", "0.3");
-            BytesReference o = (BytesReference) qe.execute(qe.compile(template), vars);
+            BytesReference o = (BytesReference) qe.execute(new CompiledScript(ScriptService.ScriptType.INLINE, "", "mustache", qe.compile(template)), vars);
             assertEquals("GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}}}, \"negative_boost\": 0.3 } }}",
                     new String(o.toBytes(), Charset.forName("UTF-8")));
@@ -63,7 +65,7 @@ public class MustacheScriptEngineTest extends ElasticsearchTestCase {
             Map<String, Object> vars = new HashMap<>();
             vars.put("boost_val", "0.3");
             vars.put("body_val", "\"quick brown\"");
-            BytesReference o = (BytesReference) qe.execute(qe.compile(template), vars);
+            BytesReference o = (BytesReference) qe.execute(new CompiledScript(ScriptService.ScriptType.INLINE, "", "mustache", qe.compile(template)), vars);
             assertEquals("GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"\\\"quick brown\\\"\"}}}, \"negative_boost\": 0.3 } }}",
                     new String(o.toBytes(), Charset.forName("UTF-8")));

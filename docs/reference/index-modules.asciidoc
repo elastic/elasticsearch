@@ -92,7 +92,7 @@ specific index module:
     index visible to search.  Defaults to `1s`.  Can be set to `-1` to disable
     refresh.
 
-`index.codec`::
+[[index-codec]] `index.codec`::
 
     experimental[] The `default` value compresses stored data with LZ4
     compression, but this can be set to `best_compression` for a higher

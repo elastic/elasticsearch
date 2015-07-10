@@ -21,31 +21,45 @@ package org.elasticsearch.cluster.metadata;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.joda.DateMathParser;
+import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
+import org.joda.time.DateTimeZone;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
 
 import java.util.*;
+import java.util.concurrent.Callable;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.filterEntries;
 import static com.google.common.collect.Maps.newHashMap;
 
-public class IndexNameExpressionResolver {
+public class IndexNameExpressionResolver extends AbstractComponent {
 
     private final ImmutableList<ExpressionResolver> expressionResolvers;
+    private DateMathExpressionResolver dateMathExpressionResolver;
 
     @Inject
-    public IndexNameExpressionResolver() {
-        expressionResolvers = ImmutableList.<ExpressionResolver>of(new WildcardExpressionResolver());
+    public IndexNameExpressionResolver(Settings settings) {
+        super(settings);
+        expressionResolvers = ImmutableList.of(
+                dateMathExpressionResolver = new DateMathExpressionResolver(settings),
+                new WildcardExpressionResolver()
+        );
     }
 
     /**
@@ -72,6 +86,24 @@ public class IndexNameExpressionResolver {
      */
     public String[] concreteIndices(ClusterState state, IndicesOptions options, String... indexExpressions) {
         Context context = new Context(state, options);
+        return concreteIndices(context, indexExpressions);
+    }
+
+    /**
+     * Translates the provided index expression into actual concrete indices.
+     *
+     * @param state             the cluster state containing all the data to resolve to expressions to concrete indices
+     * @param options           defines how the aliases or indices need to be resolved to concrete indices
+     * @param startTime         The start of the request where concrete indices is being invoked for
+     * @param indexExpressions  expressions that can be resolved to alias or index names.
+     * @return the resolved concrete indices based on the cluster state, indices options and index expressions
+     * provided indices options in the context don't allow such a case, or if the final result of the indices resolution
+     * contains no indices and the indices options in the context don't allow such a case.
+     * @throws IllegalArgumentException if one of the aliases resolve to multiple indices and the provided
+     * indices options in the context don't allow such a case.
+     */
+    public String[] concreteIndices(ClusterState state, IndicesOptions options, long startTime, String... indexExpressions) {
+        Context context = new Context(state, options, startTime);
         return concreteIndices(context, indexExpressions);
     }
 
@@ -159,19 +191,28 @@ public class IndexNameExpressionResolver {
      * that require a single index as a result. The indices resolution must in fact return a single index when
      * using this method, an {@link IllegalArgumentException} gets thrown otherwise.
      *
-     * @param request   request containing the index or alias to be resolved to concrete index and
-     *                  the indices options to be used for the index resolution
-     * @throws IndexNotFoundException    if the resolved index or alias provided doesn't exist
+     * @param state             the cluster state containing all the data to resolve to expression to a concrete index
+     * @param request           The request that defines how the an alias or an index need to be resolved to a concrete index
+     *                          and the expression that can be resolved to an alias or an index name.
      * @throws IllegalArgumentException if the index resolution lead to more than one index
      * @return the concrete index obtained as a result of the index resolution
      */
     public String concreteSingleIndex(ClusterState state, IndicesRequest request) {
-        String indexOrAlias = request.indices() != null && request.indices().length > 0 ? request.indices()[0] : null;
-        String[] indices = concreteIndices(state, request.indicesOptions(), indexOrAlias);
+        String indexExpression = request.indices() != null && request.indices().length > 0 ? request.indices()[0] : null;
+        String[] indices = concreteIndices(state, request.indicesOptions(), indexExpression);
         if (indices.length != 1) {
             throw new IllegalArgumentException("unable to return a single index as the index and options provided got resolved to multiple indices");
         }
         return indices[0];
+    }
+
+    /**
+     * @return whether the specified alias or index exists. If the alias or index contains datemath then that is resolved too.
+     */
+    public boolean hasIndexOrAlias(String aliasOrIndex, ClusterState state) {
+        Context context = new Context(state, IndicesOptions.lenientExpandOpen());
+        String resolvedAliasOrIndex = dateMathExpressionResolver.resolveExpression(aliasOrIndex, context);
+        return state.metaData().getAliasAndIndexLookup().containsKey(resolvedAliasOrIndex);
     }
 
     /**
@@ -405,10 +446,18 @@ public class IndexNameExpressionResolver {
 
         private final ClusterState state;
         private final IndicesOptions options;
+        private final long startTime;
 
         Context(ClusterState state, IndicesOptions options) {
             this.state = state;
             this.options = options;
+            startTime = System.currentTimeMillis();
+        }
+
+        public Context(ClusterState state, IndicesOptions options, long startTime) {
+            this.state = state;
+            this.options = options;
+            this.startTime = startTime;
         }
 
         public ClusterState getState() {
@@ -417,6 +466,10 @@ public class IndexNameExpressionResolver {
 
         public IndicesOptions getOptions() {
             return options;
+        }
+
+        public long getStartTime() {
+            return startTime;
         }
     }
 
@@ -579,6 +632,165 @@ public class IndexNameExpressionResolver {
                 throw infe;
             }
             return new ArrayList<>(result);
+        }
+    }
+
+    final static class DateMathExpressionResolver implements ExpressionResolver {
+
+        private static final String EXPRESSION_LEFT_BOUND = "<";
+        private static final String EXPRESSION_RIGHT_BOUND = ">";
+        private static final char LEFT_BOUND = '{';
+        private static final char RIGHT_BOUND = '}';
+        private static final char ESCAPE_CHAR = '\\';
+        private static final char TIME_ZONE_BOUND = '|';
+
+        private final DateTimeZone defaultTimeZone;
+        private final String defaultDateFormatterPattern;
+        private final DateTimeFormatter defaultDateFormatter;
+
+        public DateMathExpressionResolver(Settings settings) {
+            String defaultTimeZoneId = settings.get("date_math_expression_resolver.default_time_zone", "UTC");
+            this.defaultTimeZone = DateTimeZone.forID(defaultTimeZoneId);
+            defaultDateFormatterPattern = settings.get("date_math_expression_resolver.default_date_format", "YYYY.MM.dd");
+            this.defaultDateFormatter = DateTimeFormat.forPattern(defaultDateFormatterPattern);
+        }
+
+        @Override
+        public List<String> resolve(final Context context, List<String> expressions) {
+            List<String> result = new ArrayList<>(expressions.size());
+            for (String expression : expressions) {
+                result.add(resolveExpression(expression, context));
+            }
+            return result;
+        }
+
+        String resolveExpression(String expression, final Context context) {
+            if (expression.startsWith(EXPRESSION_LEFT_BOUND) == false || expression.endsWith(EXPRESSION_RIGHT_BOUND) == false) {
+                return expression;
+            }
+
+            boolean escape = false;
+            boolean inDateFormat = false;
+            boolean inPlaceHolder = false;
+            final StringBuilder beforePlaceHolderSb = new StringBuilder();
+            StringBuilder inPlaceHolderSb = new StringBuilder();
+            final char[] text = expression.toCharArray();
+            final int from = 1;
+            final int length = text.length - 1;
+            for (int i = from; i < length; i++) {
+                boolean escapedChar = escape;
+                if (escape) {
+                    escape = false;
+                }
+
+                char c = text[i];
+                if (c == ESCAPE_CHAR) {
+                    if (escapedChar) {
+                        beforePlaceHolderSb.append(c);
+                        escape = false;
+                    } else {
+                        escape = true;
+                    }
+                    continue;
+                }
+                if (inPlaceHolder) {
+                    switch (c) {
+                        case LEFT_BOUND:
+                            if (inDateFormat && escapedChar) {
+                                inPlaceHolderSb.append(c);
+                            } else if (!inDateFormat) {
+                                inDateFormat = true;
+                                inPlaceHolderSb.append(c);
+                            } else {
+                                throw new ElasticsearchParseException("invalid dynamic name expression [{}]. invalid character in placeholder at position [{}]", new String(text, from, length), i);
+                            }
+                            break;
+
+                        case RIGHT_BOUND:
+                            if (inDateFormat && escapedChar) {
+                                inPlaceHolderSb.append(c);
+                            } else if (inDateFormat) {
+                                inDateFormat = false;
+                                inPlaceHolderSb.append(c);
+                            } else {
+                                String inPlaceHolderString = inPlaceHolderSb.toString();
+                                int dateTimeFormatLeftBoundIndex = inPlaceHolderString.indexOf(LEFT_BOUND);
+                                String mathExpression;
+                                String dateFormatterPattern;
+                                DateTimeFormatter dateFormatter;
+                                final DateTimeZone timeZone;
+                                if (dateTimeFormatLeftBoundIndex < 0) {
+                                    mathExpression = inPlaceHolderString;
+                                    dateFormatterPattern = defaultDateFormatterPattern;
+                                    dateFormatter = defaultDateFormatter;
+                                    timeZone = defaultTimeZone;
+                                } else {
+                                    if (inPlaceHolderString.lastIndexOf(RIGHT_BOUND) != inPlaceHolderString.length() - 1) {
+                                        throw new ElasticsearchParseException("invalid dynamic name expression [{}]. missing closing `}` for date math format", inPlaceHolderString);
+                                    }
+                                    if (dateTimeFormatLeftBoundIndex == inPlaceHolderString.length() - 2) {
+                                        throw new ElasticsearchParseException("invalid dynamic name expression [{}]. missing date format", inPlaceHolderString);
+                                    }
+                                    mathExpression = inPlaceHolderString.substring(0, dateTimeFormatLeftBoundIndex);
+                                    String dateFormatterPatternAndTimeZoneId = inPlaceHolderString.substring(dateTimeFormatLeftBoundIndex + 1, inPlaceHolderString.length() - 1);
+                                    int formatPatternTimeZoneSeparatorIndex = dateFormatterPatternAndTimeZoneId.indexOf(TIME_ZONE_BOUND);
+                                    if (formatPatternTimeZoneSeparatorIndex != -1) {
+                                        dateFormatterPattern = dateFormatterPatternAndTimeZoneId.substring(0, formatPatternTimeZoneSeparatorIndex);
+                                        timeZone = DateTimeZone.forID(dateFormatterPatternAndTimeZoneId.substring(formatPatternTimeZoneSeparatorIndex + 1));
+                                    } else {
+                                        dateFormatterPattern = dateFormatterPatternAndTimeZoneId;
+                                        timeZone = defaultTimeZone;
+                                    }
+                                    dateFormatter = DateTimeFormat.forPattern(dateFormatterPattern);
+                                }
+                                DateTimeFormatter parser = dateFormatter.withZone(timeZone);
+                                FormatDateTimeFormatter formatter = new FormatDateTimeFormatter(dateFormatterPattern, parser, Locale.ROOT);
+                                DateMathParser dateMathParser = new DateMathParser(formatter);
+                                long millis = dateMathParser.parse(mathExpression, new Callable<Long>() {
+                                    @Override
+                                    public Long call() throws Exception {
+                                        return context.getStartTime();
+                                    }
+                                }, false, timeZone);
+
+                                String time = formatter.printer().print(millis);
+                                beforePlaceHolderSb.append(time);
+                                inPlaceHolderSb = new StringBuilder();
+                                inPlaceHolder = false;
+                            }
+                            break;
+
+                        default:
+                            inPlaceHolderSb.append(c);
+                    }
+                } else {
+                    switch (c) {
+                        case LEFT_BOUND:
+                            if (escapedChar) {
+                                beforePlaceHolderSb.append(c);
+                            } else {
+                                inPlaceHolder = true;
+                            }
+                            break;
+
+                        case RIGHT_BOUND:
+                            if (!escapedChar) {
+                                throw new ElasticsearchParseException("invalid dynamic name expression [{}]. invalid character at position [{}]. " +
+                                        "`{` and `}` are reserved characters and should be escaped when used as part of the index name using `\\` (e.g. `\\{text\\}`)", new String(text, from, length), i);
+                            }
+                        default:
+                            beforePlaceHolderSb.append(c);
+                    }
+                }
+            }
+
+            if (inPlaceHolder) {
+                throw new ElasticsearchParseException("invalid dynamic name expression [{}]. date math placeholder is open ended", new String(text, from, length));
+            }
+            if (beforePlaceHolderSb.length() == 0) {
+                throw new ElasticsearchParseException("nothing captured");
+            }
+            return beforePlaceHolderSb.toString();
         }
     }
 

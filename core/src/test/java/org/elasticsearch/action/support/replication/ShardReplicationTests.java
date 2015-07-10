@@ -694,7 +694,7 @@ public class ShardReplicationTests extends ElasticsearchTestCase {
                ThreadPool threadPool) {
             super(settings, actionName, transportService, clusterService, null, threadPool,
                     new ShardStateAction(settings, clusterService, transportService, null, null), null,
-                    new ActionFilters(new HashSet<ActionFilter>()), new IndexNameExpressionResolver(), Request.class, Request.class, ThreadPool.Names.SAME);
+                    new ActionFilters(new HashSet<ActionFilter>()), new IndexNameExpressionResolver(Settings.EMPTY), Request.class, Request.class, ThreadPool.Names.SAME);
         }
 
         @Override

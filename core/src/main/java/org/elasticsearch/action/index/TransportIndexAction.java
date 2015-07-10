@@ -75,11 +75,12 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
     public TransportIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                 IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
                                 TransportCreateIndexAction createIndexAction, MappingUpdatedAction mappingUpdatedAction,
-                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                AutoCreateIndex autoCreateIndex) {
         super(settings, IndexAction.NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction,
                 actionFilters, indexNameExpressionResolver, IndexRequest.class, IndexRequest.class, ThreadPool.Names.INDEX);
         this.createIndexAction = createIndexAction;
-        this.autoCreateIndex = new AutoCreateIndex(settings);
+        this.autoCreateIndex = autoCreateIndex;
         this.allowIdGeneration = settings.getAsBoolean("action.allow_id_generation", true);
         this.clusterService = clusterService;
     }
@@ -87,7 +88,8 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
     @Override
     protected void doExecute(final IndexRequest request, final ActionListener<IndexResponse> listener) {
         // if we don't have a master, we don't have metadata, that's fine, let it find a master using create index API
-        if (autoCreateIndex.shouldAutoCreate(request.index(), clusterService.state())) {
+        ClusterState state = clusterService.state();
+        if (autoCreateIndex.shouldAutoCreate(request.index(), state)) {
             CreateIndexRequest createIndexRequest = new CreateIndexRequest(request);
             createIndexRequest.index(request.index());
             createIndexRequest.mapping(request.type());

@@ -60,8 +60,6 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 public class GeoDistanceIT extends ESIntegTestCase {
 
     @Test

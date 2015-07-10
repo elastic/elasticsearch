@@ -21,6 +21,10 @@ package org.elasticsearch.common.geo;
 
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.SloppyMath;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.GeoPointValues;
@@ -29,16 +33,17 @@ import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
 
+import java.io.IOException;
 import java.util.Locale;
 
 /**
  * Geo distance calculation.
  */
-public enum GeoDistance {
+public enum GeoDistance implements Writeable<GeoDistance> {
     /**
      * Calculates distance as points on a plane. Faster, but less accurate than {@link #ARC}.
      */
-    PLANE() {
+    PLANE(0) {
         @Override
         public double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit) {
             double px = targetLongitude - sourceLongitude;
@@ -60,7 +65,7 @@ public enum GeoDistance {
     /**
      * Calculates distance factor.
      */
-    FACTOR() {
+    FACTOR(1) {
         @Override
         public double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit) {
             double longitudeDifference = targetLongitude - sourceLongitude;
@@ -82,7 +87,7 @@ public enum GeoDistance {
     /**
      * Calculates distance as points on a globe.
      */
-    ARC() {
+    ARC(2) {
         @Override
         public double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit) {
             double x1 = sourceLatitude * Math.PI / 180D;
@@ -109,7 +114,7 @@ public enum GeoDistance {
      * Calculates distance as points on a globe in a sloppy way. Close to the pole areas the accuracy
      * of this function decreases.
      */
-    SLOPPY_ARC() {
+    SLOPPY_ARC(3) {
 
         @Override
         public double normalize(double distance, DistanceUnit unit) {
@@ -127,12 +132,41 @@ public enum GeoDistance {
         }
     };
 
+    private final int ordinal;
+
+    private GeoDistance(int ordinal) {
+        this.ordinal = ordinal;
+    }
+
+    /** Returns a GeoDistance object as read from the StreamInput. */
+    @Override
+    public GeoDistance readFrom(StreamInput in) throws IOException {
+        int ord = in.readVInt();
+        for (GeoDistance geodistance : GeoDistance.values()) {
+            if (geodistance.ordinal == ord) {
+                return geodistance;
+            }
+        }
+        throw new ElasticsearchException("unknown serialized geodistance [" + ord + "]");
+    }
+
+    /** Returns a GeoDistance object as read from the StreamInput. */
+    public static GeoDistance readGeoDistanceFrom(StreamInput in) throws IOException {
+        return DEFAULT.readFrom(in);
+    }
+
+    /** Writes the current GeoDistance object to the StreamOutput. */
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(this.ordinal);
+    }
+
     /**
      * Default {@link GeoDistance} function. This method should be used, If no specific function has been selected.
      * This is an alias for <code>SLOPPY_ARC</code>
      */
     public static final GeoDistance DEFAULT = SLOPPY_ARC; 
-    
+
     public abstract double normalize(double distance, DistanceUnit unit);
 
     public abstract double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit);

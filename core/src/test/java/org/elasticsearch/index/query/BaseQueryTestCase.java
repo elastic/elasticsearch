@@ -172,7 +172,6 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
                         bind(ClusterService.class).toProvider(Providers.of(clusterService));
                         bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
                         bind(NamedWriteableRegistry.class).asEagerSingleton();
-                        bind(IndexFieldDataService.class).to(MockIndexFieldDataService.class);
                     }
                 }
         ).createInjector();
@@ -581,21 +580,4 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
     protected static boolean isNumericFieldName(String fieldName) {
         return INT_FIELD_NAME.equals(fieldName) || DOUBLE_FIELD_NAME.equals(fieldName);
     }
-    
-    /** Mocks IndexFieldDataService to enable checking the "MEMORY"*/
-    public static class MockIndexFieldDataService extends IndexFieldDataService {
-
-        @Inject
-        public MockIndexFieldDataService(Index index, Settings settings) {
-            super(index, settings, null, null);
-        }
-
-        public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType ignored) {
-            MappedFieldType.Names names = new MappedFieldType.Names(index.getName());
-            IndexFieldData fieldData = new GeoPointDoubleArrayIndexFieldData(index, indexSettings(), names, null, null, null);
-            return (IFD) fieldData;
-        }
-    }
-
-
 }

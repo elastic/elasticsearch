@@ -25,11 +25,8 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
-/**
- */
 public class GeoDistanceTests extends ESTestCase {
 
     @Test

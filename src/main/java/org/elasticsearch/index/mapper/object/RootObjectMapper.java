@@ -179,7 +179,7 @@ public class RootObjectMapper extends ObjectMapper {
                     if(entry.getValue() != null && !((Map<String, Object>) entry.getValue()).isEmpty()) {
                         ((Builder) builder).add(DynamicTemplate.parse(entry.getKey(), (Map<String, Object>) entry.getValue()));
                     } else {
-                        ((Builder) builder).add(new DynamicTemplate(entry.getKey(), null, null, null, null, null, null, null, null));
+                        ((Builder) builder).add(new DynamicTemplate(entry.getKey(), Collections.EMPTY_MAP, null, null, null, null, null, null, Collections.EMPTY_MAP));
                     }
                 }
                 return true;
@@ -242,7 +242,7 @@ public class RootObjectMapper extends ObjectMapper {
 
     public DynamicTemplate findTemplate(ContentPath path, String name, String matchType) {
         for (DynamicTemplate dynamicTemplate : dynamicTemplates) {
-            if (!dynamicTemplate.isEmpty() && dynamicTemplate.match(path, name, matchType)) {
+            if (!dynamicTemplate.conf().isEmpty() && dynamicTemplate.match(path, name, matchType)) {
                 return dynamicTemplate;
             }
         }
@@ -265,14 +265,14 @@ public class RootObjectMapper extends ObjectMapper {
                 DynamicTemplate currentTemplate = it.next();
                 for (DynamicTemplate toMergeTemplate : mergeWithObject.dynamicTemplates) {
                     if (toMergeTemplate.name().equals(currentTemplate.name())
-                            && toMergeTemplate.isEmpty()) {
+                            && toMergeTemplate.conf().isEmpty()) {
                         it.remove();
                         break;
                     }
                 }
             }
             for (DynamicTemplate template : mergeWithObject.dynamicTemplates) {
-                if(template.isEmpty()) {
+                if(template.conf().isEmpty()) {
                     continue;
                 }
                 boolean replaced = false;
@@ -305,13 +305,13 @@ public class RootObjectMapper extends ObjectMapper {
         if (dynamicTemplates != null && !dynamicTemplates.isEmpty()) {
             boolean nonEmptyTemplatePresent = false;
             for (DynamicTemplate dynamicTemplate : dynamicTemplates) {
-                nonEmptyTemplatePresent = !dynamicTemplate.isEmpty();
+                nonEmptyTemplatePresent = !dynamicTemplate.conf().isEmpty();
             }
             
             if (nonEmptyTemplatePresent) {
                 builder.startArray("dynamic_templates");
                 for (DynamicTemplate dynamicTemplate : dynamicTemplates) {
-                    if(dynamicTemplate.isEmpty()) {
+                    if(dynamicTemplate.conf().isEmpty()) {
                         continue;
                     }
                     builder.startObject();

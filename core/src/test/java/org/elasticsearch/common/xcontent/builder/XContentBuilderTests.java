@@ -33,7 +33,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.*;
 
-import static org.apache.commons.lang3.StringEscapeUtils.escapeJson;
 import static org.elasticsearch.common.xcontent.XContentBuilder.FieldCaseConversion.CAMELCASE;
 import static org.elasticsearch.common.xcontent.XContentBuilder.FieldCaseConversion.UNDERSCORE;
 import static org.hamcrest.Matchers.equalTo;
@@ -284,10 +283,13 @@ public class XContentBuilderTests extends ElasticsearchTestCase {
     }     
 
     private void checkPathSerialization(Path path) throws IOException {
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);        
-        builder.startObject().field("file", path).endObject();
-
-        assertThat(builder.string(), equalTo("{\"file\":\""+escapeJson(path.toString())+"\"}"));
+        XContentBuilder pathBuilder = XContentFactory.contentBuilder(XContentType.JSON);        
+        pathBuilder.startObject().field("file", path).endObject();
+        
+        XContentBuilder stringBuilder = XContentFactory.contentBuilder(XContentType.JSON);        
+        stringBuilder.startObject().field("file", path.toString()).endObject();
+        
+        assertThat(pathBuilder.string(), equalTo(stringBuilder.string()));
     }
 
     @Test
@@ -295,20 +297,26 @@ public class XContentBuilderTests extends ElasticsearchTestCase {
         Path path = PathUtils.get("path");        
         XContentBuilderString name = new XContentBuilderString("file");
 
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        builder.startObject().field(name, path).endObject();
+        XContentBuilder pathBuilder = XContentFactory.contentBuilder(XContentType.JSON);
+        pathBuilder.startObject().field(name, path).endObject();
 
-        assertThat(builder.string(), equalTo("{\"file\":\""+escapeJson(path.toString())+"\"}"));
+        XContentBuilder stringBuilder = XContentFactory.contentBuilder(XContentType.JSON);        
+        stringBuilder.startObject().field(name, path.toString()).endObject();
+        
+        assertThat(pathBuilder.string(), equalTo(stringBuilder.string()));
     }
 
     @Test
     public void testHandlingOfCollectionOfPaths() throws IOException {
         Path path = PathUtils.get("path");
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        
+        XContentBuilder pathBuilder = XContentFactory.contentBuilder(XContentType.JSON);
+        pathBuilder.startObject().field("file", Arrays.asList(path)).endObject();
 
-        builder.startObject().field("file", Arrays.asList(path)).endObject();
-
-        assertThat(builder.string(), equalTo("{\"file\":[\""+escapeJson(path.toString())+"\"]}"));
+        XContentBuilder stringBuilder = XContentFactory.contentBuilder(XContentType.JSON);
+        stringBuilder.startObject().field("file", Arrays.asList(path.toString())).endObject();
+        
+        assertThat(pathBuilder.string(), equalTo(stringBuilder.string()));
     }
     
 }

@@ -87,7 +87,8 @@ public class RecoveryBackwardsCompatibilityTests extends ElasticsearchBackwardsC
             }
         }
         logger.info("--> bump number of replicas from 0 to 1");
-        client().admin().indices().prepareFlush().execute().actionGet();
+        client().admin().indices().prepareOptimize("test").setMaxNumSegments(100).get(); // just wait for merges
+        client().admin().indices().prepareFlush().setWaitIfOngoing(true).setForce(true).get();
         client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1").build()).get();
         ensureGreen();
 

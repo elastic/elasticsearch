@@ -74,6 +74,12 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
             this.indicesPath = path.resolve(INDICES_FOLDER);
             this.fileStore = getFileStore(path);
         }
+
+        @Override
+        public String toString() {
+            return "NodePath{" +
+                    "path=" + path + '}';
+        }
     }
 
     private final NodePath[] nodePaths;
@@ -607,7 +613,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
     }
 
     /**
-     * Returns an array of all of the {@link #NodePath}s.
+     * Returns an array of all of the {@link NodePath}s.
      */
     public NodePath[] nodePaths() {
         assert assertEnvIsLocked();

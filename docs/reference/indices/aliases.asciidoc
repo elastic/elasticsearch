@@ -63,6 +63,23 @@ curl -XPOST 'http://localhost:9200/_aliases' -d '
 }'
 --------------------------------------------------
 
+Alternatively, you can use a glob pattern to associate an alias to
+more than one index that share a common name:
+
+[source,js]
+--------------------------------------------------
+curl -XPOST 'http://localhost:9200/_aliases' -d '
+{
+    "actions" : [
+        { "add" : { "index" : "test*", "alias" : "all_test_indices" } }
+    ]
+}'
+--------------------------------------------------
+
+In this case, the alias is a point-in-time alias that will group all
+current indices that match, it will not automatically update as new
+indices that match this pattern are added/removed.
+
 It is an error to index to an alias which points to more than one index.
 
 [float]

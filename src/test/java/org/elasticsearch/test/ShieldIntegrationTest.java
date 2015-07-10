@@ -35,7 +35,7 @@ import java.util.Random;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -141,7 +141,7 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
                 public String apply(PluginInfo pluginInfo) {
                     return pluginInfo.getName();
                 }
-            }), contains(ShieldPlugin.NAME, licensePluginName()));
+            }), containsInAnyOrder(ShieldPlugin.NAME, licensePluginName()));
         }
     }
 

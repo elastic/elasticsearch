@@ -38,11 +38,11 @@ public interface ScriptEngineService extends Closeable {
 
     Object compile(String script);
 
-    ExecutableScript executable(Object compiledScript, @Nullable Map<String, Object> vars);
+    ExecutableScript executable(CompiledScript compiledScript, @Nullable Map<String, Object> vars);
 
-    SearchScript search(Object compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars);
+    SearchScript search(CompiledScript compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars);
 
-    Object execute(Object compiledScript, Map<String, Object> vars);
+    Object execute(CompiledScript compiledScript, Map<String, Object> vars);
 
     Object unwrap(Object value);
 

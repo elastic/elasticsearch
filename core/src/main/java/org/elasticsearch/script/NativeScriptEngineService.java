@@ -71,14 +71,14 @@ public class NativeScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public ExecutableScript executable(Object compiledScript, @Nullable Map<String, Object> vars) {
-        NativeScriptFactory scriptFactory = (NativeScriptFactory) compiledScript;
+    public ExecutableScript executable(CompiledScript compiledScript, @Nullable Map<String, Object> vars) {
+        NativeScriptFactory scriptFactory = (NativeScriptFactory) compiledScript.compiled();
         return scriptFactory.newScript(vars);
     }
 
     @Override
-    public SearchScript search(Object compiledScript, final SearchLookup lookup, @Nullable final Map<String, Object> vars) {
-        final NativeScriptFactory scriptFactory = (NativeScriptFactory) compiledScript;
+    public SearchScript search(CompiledScript compiledScript, final SearchLookup lookup, @Nullable final Map<String, Object> vars) {
+        final NativeScriptFactory scriptFactory = (NativeScriptFactory) compiledScript.compiled();
         return new SearchScript() {
             @Override
             public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
@@ -90,7 +90,7 @@ public class NativeScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public Object execute(Object compiledScript, Map<String, Object> vars) {
+    public Object execute(CompiledScript compiledScript, Map<String, Object> vars) {
         return executable(compiledScript, vars).run();
     }
 

@@ -38,6 +38,7 @@ import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -99,79 +100,83 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
     }
 
     @Override
-    public SearchScript search(Object compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
-        Expression expr = (Expression)compiledScript;
-        MapperService mapper = lookup.doc().mapperService();
-        // NOTE: if we need to do anything complicated with bindings in the future, we can just extend Bindings,
-        // instead of complicating SimpleBindings (which should stay simple)
-        SimpleBindings bindings = new SimpleBindings();
-        ReplaceableConstValueSource specialValue = null;
+    public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
+        try {
+            Expression expr = (Expression)compiledScript.compiled();
+            MapperService mapper = lookup.doc().mapperService();
+            // NOTE: if we need to do anything complicated with bindings in the future, we can just extend Bindings,
+            // instead of complicating SimpleBindings (which should stay simple)
+            SimpleBindings bindings = new SimpleBindings();
+            ReplaceableConstValueSource specialValue = null;
 
-        for (String variable : expr.variables) {
-            if (variable.equals("_score")) {
-                bindings.add(new SortField("_score", SortField.Type.SCORE));
+            for (String variable : expr.variables) {
+                if (variable.equals("_score")) {
+                    bindings.add(new SortField("_score", SortField.Type.SCORE));
 
-            } else if (variable.equals("_value")) {
-                specialValue = new ReplaceableConstValueSource();
-                bindings.add("_value", specialValue);
-                // noop: _value is special for aggregations, and is handled in ExpressionScriptBindings
-                // TODO: if some uses it in a scoring expression, they will get a nasty failure when evaluating...need a
-                // way to know this is for aggregations and so _value is ok to have...
+                } else if (variable.equals("_value")) {
+                    specialValue = new ReplaceableConstValueSource();
+                    bindings.add("_value", specialValue);
+                    // noop: _value is special for aggregations, and is handled in ExpressionScriptBindings
+                    // TODO: if some uses it in a scoring expression, they will get a nasty failure when evaluating...need a
+                    // way to know this is for aggregations and so _value is ok to have...
 
-            } else if (vars != null && vars.containsKey(variable)) {
-                // TODO: document and/or error if vars contains _score?
-                // NOTE: by checking for the variable in vars first, it allows masking document fields with a global constant,
-                // but if we were to reverse it, we could provide a way to supply dynamic defaults for documents missing the field?
-                Object value = vars.get(variable);
-                if (value instanceof Number) {
-                    bindings.add(variable, new DoubleConstValueSource(((Number)value).doubleValue()));
+                } else if (vars != null && vars.containsKey(variable)) {
+                    // TODO: document and/or error if vars contains _score?
+                    // NOTE: by checking for the variable in vars first, it allows masking document fields with a global constant,
+                    // but if we were to reverse it, we could provide a way to supply dynamic defaults for documents missing the field?
+                    Object value = vars.get(variable);
+                    if (value instanceof Number) {
+                        bindings.add(variable, new DoubleConstValueSource(((Number) value).doubleValue()));
+                    } else {
+                        throw new ExpressionScriptCompilationException("Parameter [" + variable + "] must be a numeric type");
+                    }
+
                 } else {
-                    throw new ExpressionScriptCompilationException("Parameter [" + variable + "] must be a numeric type");
-                }
+                    String fieldname = null;
+                    String methodname = null;
+                    VariableContext[] parts = VariableContext.parse(variable);
+                    if (parts[0].text.equals("doc") == false) {
+                        throw new ExpressionScriptCompilationException("Unknown variable [" + parts[0].text + "] in expression");
+                    }
+                    if (parts.length < 2 || parts[1].type != VariableContext.Type.STR_INDEX) {
+                        throw new ExpressionScriptCompilationException("Variable 'doc' in expression must be used with a specific field like: doc['myfield']");
+                    } else {
+                        fieldname = parts[1].text;
+                    }
+                    if (parts.length == 3) {
+                        if (parts[2].type == VariableContext.Type.METHOD) {
+                            methodname = parts[2].text;
+                        } else if (parts[2].type != VariableContext.Type.MEMBER || !"value".equals(parts[2].text)) {
+                            throw new ExpressionScriptCompilationException("Only the member variable [value] or member methods may be accessed on a field when not accessing the field directly");
+                        }
+                    }
+                    if (parts.length > 3) {
+                        throw new ExpressionScriptCompilationException("Variable [" + variable + "] does not follow an allowed format of either doc['field'] or doc['field'].method()");
+                    }
 
-            } else {
-                String fieldname = null;
-                String methodname = null;
-                VariableContext[] parts = VariableContext.parse(variable);
-                if (parts[0].text.equals("doc") == false) {
-                    throw new ExpressionScriptCompilationException("Unknown variable [" + parts[0].text + "] in expression");
-                }
-                if (parts.length < 2 || parts[1].type != VariableContext.Type.STR_INDEX) {
-                    throw new ExpressionScriptCompilationException("Variable 'doc' in expression must be used with a specific field like: doc['myfield']");
-                } else {
-                    fieldname = parts[1].text;
-                }
-                if (parts.length == 3) {
-                    if (parts[2].type == VariableContext.Type.METHOD) {
-                        methodname = parts[2].text;
-                    } else if (parts[2].type != VariableContext.Type.MEMBER || !"value".equals(parts[2].text)) {
-                        throw new ExpressionScriptCompilationException("Only the member variable [value] or member methods may be accessed on a field when not accessing the field directly");
+                    MappedFieldType fieldType = mapper.smartNameFieldType(fieldname);
+
+                    if (fieldType == null) {
+                        throw new ExpressionScriptCompilationException("Field [" + fieldname + "] used in expression does not exist in mappings");
+                    }
+                    if (fieldType.isNumeric() == false) {
+                        // TODO: more context (which expression?)
+                        throw new ExpressionScriptCompilationException("Field [" + fieldname + "] used in expression must be numeric");
+                    }
+
+                    IndexFieldData<?> fieldData = lookup.doc().fieldDataService().getForField((NumberFieldMapper.NumberFieldType) fieldType);
+                    if (methodname == null) {
+                        bindings.add(variable, new FieldDataValueSource(fieldData, MultiValueMode.MIN));
+                    } else {
+                        bindings.add(variable, getMethodValueSource(fieldType, fieldData, fieldname, methodname));
                     }
                 }
-                if (parts.length > 3) {
-                    throw new ExpressionScriptCompilationException("Variable [" + variable + "] does not follow an allowed format of either doc['field'] or doc['field'].method()");
-                }
-
-                MappedFieldType fieldType = mapper.smartNameFieldType(fieldname);
-
-                if (fieldType == null) {
-                    throw new ExpressionScriptCompilationException("Field [" + fieldname + "] used in expression does not exist in mappings");
-                }
-                if (fieldType.isNumeric() == false) {
-                    // TODO: more context (which expression?)
-                    throw new ExpressionScriptCompilationException("Field [" + fieldname + "] used in expression must be numeric");
-                }
-
-                IndexFieldData<?> fieldData = lookup.doc().fieldDataService().getForField((NumberFieldMapper.NumberFieldType)fieldType);
-                if (methodname == null) {
-                    bindings.add(variable, new FieldDataValueSource(fieldData, MultiValueMode.MIN));
-                } else {
-                    bindings.add(variable, getMethodValueSource(fieldType, fieldData, fieldname, methodname));
-                }
             }
-        }
 
-        return new ExpressionSearchScript((Expression)compiledScript, bindings, specialValue);
+            return new ExpressionSearchScript(compiledScript, bindings, specialValue);
+        } catch (Exception exception) {
+            throw new ScriptException("Error during search with " + compiledScript, exception);
+        }
     }
 
     protected ValueSource getMethodValueSource(MappedFieldType fieldType, IndexFieldData<?> fieldData, String fieldName, String methodName) {
@@ -214,12 +219,12 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
     }
 
     @Override
-    public ExecutableScript executable(Object compiledScript, Map<String, Object> vars) {
+    public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> vars) {
         return new ExpressionExecutableScript(compiledScript, vars);
     }
 
     @Override
-    public Object execute(Object compiledScript, Map<String, Object> vars) {
+    public Object execute(CompiledScript compiledScript, Map<String, Object> vars) {
         ExpressionExecutableScript expressionExecutableScript = new ExpressionExecutableScript(compiledScript, vars);
         return expressionExecutableScript.run();
     }

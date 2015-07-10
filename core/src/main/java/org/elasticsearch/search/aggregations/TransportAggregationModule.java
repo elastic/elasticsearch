@@ -72,6 +72,7 @@ import org.elasticsearch.search.aggregations.pipeline.derivative.InternalDerivat
 import org.elasticsearch.search.aggregations.pipeline.having.BucketSelectorPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.TransportMovAvgModelModule;
+import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregator;
 
 /**
  * A module that registers all the transport streams for the addAggregation
@@ -133,6 +134,7 @@ public class TransportAggregationModule extends AbstractModule implements SpawnM
         CumulativeSumPipelineAggregator.registerStreams();
         BucketScriptPipelineAggregator.registerStreams();
         BucketSelectorPipelineAggregator.registerStreams();
+        SerialDiffPipelineAggregator.registerStreams();
     }
 
     @Override

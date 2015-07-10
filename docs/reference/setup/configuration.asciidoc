@@ -390,3 +390,16 @@ deprecation: DEBUG, deprecation_log_file
 This will create a daily rolling deprecation log file in your log directory.
 Check this file regularly, especially when you intend to upgrade to a new
 major version.
+
+[float]
+[[changing-logging-technology]]
+==== Using a different logging framework.
+
+Earlier Elasticsearch releases tried to load classes to find out which logging
+implementation to use. This caused problems, when a logging technology had a
+bridging implementation to another logging framework. In order to solve this,
+the logging framework now needs to be configured via a system property named
+`es.logger.impl` manually. By default, `log4j` is used and loaded, but you
+can change this to `slf4j` or `jdk` if you want to. Note: If you do not have
+log4j available, elasticsearch will not start up, if you do not change the
+property up front.

@@ -37,12 +37,24 @@ public class ESLoggerFactoryTests extends ElasticsearchTestCase {
 
         System.setProperty(ESLoggerFactory.LOGGER_IMPL_PROPERTY_NAME, "jdk");
         assertThat(ESLoggerFactory.getConfiguredEsLoggerFactory(), instanceOf(JdkESLoggerFactory.class));
+    }
 
-        System.setProperty(ESLoggerFactory.LOGGER_IMPL_PROPERTY_NAME, "unknown");
-        assertThat(ESLoggerFactory.getConfiguredEsLoggerFactory(), is(nullValue()));
+    public void testThatUnknownLoggingFactoryThrowsException() {
+        try {
+            System.setProperty(ESLoggerFactory.LOGGER_IMPL_PROPERTY_NAME, "unknown");
+            assertThat(ESLoggerFactory.getConfiguredEsLoggerFactory(), is(nullValue()));
+            fail("Expected to fail but didnt with unknown logging type");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("unknown"));
+        }
 
-        System.setProperty(ESLoggerFactory.LOGGER_IMPL_PROPERTY_NAME, "");
-        assertThat(ESLoggerFactory.getConfiguredEsLoggerFactory(), is(nullValue()));
+        try {
+            System.setProperty(ESLoggerFactory.LOGGER_IMPL_PROPERTY_NAME, "");
+            assertThat(ESLoggerFactory.getConfiguredEsLoggerFactory(), is(nullValue()));
+            fail("Expected to fail but didnt with unset logging type");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("[]"));
+        }
     }
 
 }

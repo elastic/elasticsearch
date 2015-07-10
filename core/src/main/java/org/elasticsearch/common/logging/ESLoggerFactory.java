@@ -32,38 +32,21 @@ public abstract class ESLoggerFactory {
     private static volatile ESLoggerFactory defaultFactory = new JdkESLoggerFactory();
 
     static {
-        ESLoggerFactory configuredEsLoggerFactory = getConfiguredEsLoggerFactory();
-        if (configuredEsLoggerFactory == null) {
-            try {
-                Class<?> loggerClazz = Class.forName("org.apache.log4j.Logger");
-                // below will throw a NoSuchMethod failure with using slf4j log4j bridge
-                loggerClazz.getMethod("setLevel", Class.forName("org.apache.log4j.Level"));
-                defaultFactory = new Log4jESLoggerFactory();
-            } catch (Throwable e) {
-                // no log4j
-                try {
-                    Class.forName("org.slf4j.Logger");
-                    defaultFactory = new Slf4jESLoggerFactory();
-                } catch (Throwable e1) {
-                    // no slf4j
-                }
-            }
-        } else {
-            defaultFactory = configuredEsLoggerFactory;
-        }
+        defaultFactory = getConfiguredEsLoggerFactory();
     }
 
     static ESLoggerFactory getConfiguredEsLoggerFactory() {
-        String loggingType = System.getProperty(LOGGER_IMPL_PROPERTY_NAME);
-        if ("log4j".equals(loggingType)) {
-            return new Log4jESLoggerFactory();
-        } else if ("slf4j".equals(loggingType)) {
-            return new Slf4jESLoggerFactory();
-        } else if ("jdk".equals(loggingType)) {
-            return new JdkESLoggerFactory();
+        String loggingType = System.getProperty(LOGGER_IMPL_PROPERTY_NAME, "log4j");
+        switch (loggingType) {
+            case "slf4j":
+                return new Slf4jESLoggerFactory();
+            case "jdk":
+                return new JdkESLoggerFactory();
+            case "log4j":
+                return new Log4jESLoggerFactory();
+            default:
+                throw new IllegalArgumentException("Unknown logger impl configured: " + LOGGER_IMPL_PROPERTY_NAME + "[" + loggingType + "]");
         }
-
-        return null;
     }
 
     /**

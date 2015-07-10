@@ -637,7 +637,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             return this;
         }
 
-        public Builder uuid(String uuid) {
+        public Builder stateUUID(String uuid) {
             this.uuid = uuid;
             return this;
         }
@@ -823,7 +823,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             if (fromUuid.equals(state.stateUUID) == false) {
                 throw new IncompatibleClusterStateVersionException(state.version, state.stateUUID, toVersion, fromUuid);
             }
-            builder.uuid(toUuid);
+            builder.stateUUID(toUuid);
             builder.version(toVersion);
             builder.routingTable(routingTable.apply(state.routingTable));
             builder.nodes(nodes.apply(state.nodes));

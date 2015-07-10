@@ -1173,7 +1173,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
 
         private long version;
 
-        private String uuid;
+        private String clusterUUID;
 
         private Settings transientSettings;
         private Settings persistentSettings;
@@ -1183,7 +1183,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
 
 
         public MetaDataDiff(MetaData before, MetaData after) {
-            uuid = after.clusterUUID;
+            clusterUUID = after.clusterUUID;
             version = after.version;
             transientSettings = after.transientSettings;
             persistentSettings = after.persistentSettings;
@@ -1193,7 +1193,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
         }
 
         public MetaDataDiff(StreamInput in) throws IOException {
-            uuid = in.readString();
+            clusterUUID = in.readString();
             version = in.readLong();
             transientSettings = Settings.readSettingsFromStream(in);
             persistentSettings = Settings.readSettingsFromStream(in);
@@ -1214,7 +1214,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(uuid);
+            out.writeString(clusterUUID);
             out.writeLong(version);
             Settings.writeSettingsToStream(transientSettings, out);
             Settings.writeSettingsToStream(persistentSettings, out);
@@ -1226,7 +1226,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
         @Override
         public MetaData apply(MetaData part) {
             Builder builder = builder();
-            builder.uuid(uuid);
+            builder.uuid(clusterUUID);
             builder.version(version);
             builder.transientSettings(transientSettings);
             builder.persistentSettings(persistentSettings);

@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.Realm;
@@ -32,9 +33,10 @@ public class TransportClearRealmCacheAction extends TransportNodesAction<ClearRe
     @Inject
     public TransportClearRealmCacheAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                                           ClusterService clusterService, TransportService transportService,
-                                          ActionFilters actionFilters, Realms realms) {
+                                          ActionFilters actionFilters, Realms realms,
+                                          IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ClearRealmCacheAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
-                ClearRealmCacheRequest.class, ClearRealmCacheRequest.Node.class, ThreadPool.Names.MANAGEMENT);
+                indexNameExpressionResolver, ClearRealmCacheRequest.class, ClearRealmCacheRequest.Node.class, ThreadPool.Names.MANAGEMENT);
         this.realms = realms;
     }
 

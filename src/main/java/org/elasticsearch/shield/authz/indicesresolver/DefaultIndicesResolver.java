@@ -14,6 +14,7 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.Index;
@@ -143,7 +144,7 @@ public class DefaultIndicesResolver implements IndicesResolver<TransportRequest>
     }
 
     private boolean containsWildcards(IndicesRequest indicesRequest) {
-        if (MetaData.isAllIndices(indicesRequest.indices())) {
+        if (IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()))) {
             return true;
         }
         for (String index : indicesRequest.indices()) {
@@ -156,7 +157,7 @@ public class DefaultIndicesResolver implements IndicesResolver<TransportRequest>
 
     private List<String> replaceWildcardsWithAuthorizedIndices(String[] indices, IndicesOptions indicesOptions, MetaData metaData, List<String> authorizedIndices) {
 
-        if (MetaData.isAllIndices(indices)) {
+        if (IndexNameExpressionResolver.isAllIndices(indicesList(indices))) {
             List<String> visibleIndices = new ArrayList<>();
             for (String authorizedIndex : authorizedIndices) {
                 if (isIndexVisible(authorizedIndex, indicesOptions, metaData)) {
@@ -225,7 +226,7 @@ public class DefaultIndicesResolver implements IndicesResolver<TransportRequest>
         //If we can't replace because we got an empty set, we can only throw exception.
         //Downside of this is that a single item exception is going to make fail the composite request that holds it as a whole.
         if (resolvedIndices == null || resolvedIndices.isEmpty()) {
-            Index index = MetaData.isAllIndices(originalIndices) ? new Index(MetaData.ALL) : new Index(Arrays.toString(originalIndices));
+            Index index = IndexNameExpressionResolver.isAllIndices(indicesList(originalIndices)) ? new Index(MetaData.ALL) : new Index(Arrays.toString(originalIndices));
             throw new IndexMissingException(index);
         }
         return resolvedIndices;
@@ -247,5 +248,9 @@ public class DefaultIndicesResolver implements IndicesResolver<TransportRequest>
             }
         }
         return false;
+    }
+
+    private static List<String> indicesList(String[] list) {
+        return (list == null) ? null : Arrays.asList(list);
     }
 }

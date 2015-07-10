@@ -20,7 +20,7 @@ import org.elasticsearch.watcher.WatcherVersion;
  */
 public class ShieldIntegration {
 
-    private static final int MIN_SHIELD_VERSION = /*00*/2000099; // 2.0.0
+    private static final int MIN_SHIELD_VERSION = /*00*/2000001; // 2.0.0_beta1
 
     private final boolean installed;
     private final boolean enabled;

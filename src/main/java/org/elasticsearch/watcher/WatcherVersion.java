@@ -33,7 +33,7 @@ public class WatcherVersion implements Serializable {
     public static final int V_1_0_0_ID = /*00*/1000099;
     public static final WatcherVersion V_1_0_0 = new WatcherVersion(V_1_0_0_ID, false, Version.V_1_5_0, LicenseVersion.V_1_0_0);
     public static final int V_2_0_0_Beta1_ID = /*00*/200001;
-    public static final WatcherVersion V_2_0_0_Beta1 = new WatcherVersion(V_2_0_0_Beta1_ID, true, Version.V_1_5_0, LicenseVersion.V_2_0_0);
+    public static final WatcherVersion V_2_0_0_Beta1 = new WatcherVersion(V_2_0_0_Beta1_ID, true, Version.V_1_5_0, LicenseVersion.V_2_0_0_beta1);
 
     public static final WatcherVersion CURRENT = V_2_0_0_Beta1;
 

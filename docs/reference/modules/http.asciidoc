@@ -55,11 +55,13 @@ Defaults to `6`.
 i.e. whether a browser on another origin can do requests to
 Elasticsearch. Defaults to `false`.
 
-|`http.cors.allow-origin` |Which origins to allow. Defaults to `*`,
-i.e. any origin. If you prepend and append a `/` to the value, this will
+|`http.cors.allow-origin` |Which origins to allow. Defaults to no origins
+allowed. If you prepend and append a `/` to the value, this will
 be treated as a regular expression, allowing you to support HTTP and HTTPs.
 for example using `/https?:\/\/localhost(:[0-9]+)?/` would return the
-request header appropriately in both cases.
+request header appropriately in both cases. `*` is a valid value but is
+considered a *security risk* as your elasticsearch instance is open to cross origin
+requests from *anywhere*.
 
 |`http.cors.max-age` |Browsers send a "preflight" OPTIONS-request to
 determine CORS settings. `max-age` defines how long the result should

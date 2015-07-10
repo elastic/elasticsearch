@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.core.LicensesManagerService;
@@ -28,8 +29,8 @@ public class TransportPutLicenseAction extends TransportMasterNodeAction<PutLice
 
     @Inject
     public TransportPutLicenseAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                     LicensesManagerService licensesManagerService, ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, PutLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters, PutLicenseRequest.class);
+                                     LicensesManagerService licensesManagerService, ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, PutLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, PutLicenseRequest.class);
         this.licensesManagerService = licensesManagerService;
     }
 

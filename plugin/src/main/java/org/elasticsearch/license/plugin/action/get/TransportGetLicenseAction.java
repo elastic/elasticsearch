@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.core.LicensesManagerService;
@@ -25,8 +26,8 @@ public class TransportGetLicenseAction extends TransportMasterNodeReadAction<Get
 
     @Inject
     public TransportGetLicenseAction(Settings settings, TransportService transportService, ClusterService clusterService, LicensesManagerService licensesManagerService,
-                                     ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, GetLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters, GetLicenseRequest.class);
+                                     ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, GetLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, GetLicenseRequest.class);
         this.licensesManagerService = licensesManagerService;
     }
 

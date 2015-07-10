@@ -90,7 +90,7 @@ public class JarHell {
                 logger.debug("excluding system resource: {}", path);
                 continue;
             }
-            if (path.endsWith(".jar")) {
+            if (path.toString().endsWith(".jar")) {
                 if (!seenJars.add(path)) {
                     logger.debug("excluding duplicate classpath element: {}", path);
                     continue; // we can't fail because of sheistiness with joda-time

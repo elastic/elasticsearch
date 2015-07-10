@@ -21,7 +21,9 @@ package org.elasticsearch.script.javascript;
 
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScriptService;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -34,32 +36,33 @@ public class SimpleBench {
     public static void main(String[] args) {
         JavaScriptScriptEngineService se = new JavaScriptScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
         Object compiled = se.compile("x + y");
+        CompiledScript compiledScript = new CompiledScript(ScriptService.ScriptType.INLINE, "testExecutableNoRuntimeParams", "js", compiled);
 
         Map<String, Object> vars = new HashMap<String, Object>();
         // warm up
         for (int i = 0; i < 1000; i++) {
             vars.put("x", i);
             vars.put("y", i + 1);
-            se.execute(compiled, vars);
+            se.execute(compiledScript, vars);
         }
 
         final long ITER = 100000;
 
         StopWatch stopWatch = new StopWatch().start();
         for (long i = 0; i < ITER; i++) {
-            se.execute(compiled, vars);
+            se.execute(compiledScript, vars);
         }
         System.out.println("Execute Took: " + stopWatch.stop().lastTaskTime());
 
         stopWatch = new StopWatch().start();
-        ExecutableScript executableScript = se.executable(compiled, vars);
+        ExecutableScript executableScript = se.executable(compiledScript, vars);
         for (long i = 0; i < ITER; i++) {
             executableScript.run();
         }
         System.out.println("Executable Took: " + stopWatch.stop().lastTaskTime());
 
         stopWatch = new StopWatch().start();
-        executableScript = se.executable(compiled, vars);
+        executableScript = se.executable(compiledScript, vars);
         for (long i = 0; i < ITER; i++) {
             for (Map.Entry<String, Object> entry : vars.entrySet()) {
                 executableScript.setNextVar(entry.getKey(), entry.getValue());

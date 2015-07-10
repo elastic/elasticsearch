@@ -27,7 +27,9 @@ import org.apache.lucene.queries.function.FunctionValues;
 import org.apache.lucene.queries.function.ValueSource;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.LeafSearchScript;
+import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
@@ -40,17 +42,17 @@ import java.util.Map;
  */
 class ExpressionSearchScript implements SearchScript {
 
-    final Expression expression;
+    final CompiledScript compiledScript;
     final SimpleBindings bindings;
     final ValueSource source;
     final ReplaceableConstValueSource specialValue; // _value
     Scorer scorer;
     int docid;
 
-    ExpressionSearchScript(Expression e, SimpleBindings b, ReplaceableConstValueSource v) {
-        expression = e;
+    ExpressionSearchScript(CompiledScript c, SimpleBindings b, ReplaceableConstValueSource v) {
+        compiledScript = c;
         bindings = b;
-        source = expression.getValueSource(bindings);
+        source = ((Expression)compiledScript.compiled()).getValueSource(bindings);
         specialValue = v;
     }
 
@@ -61,7 +63,11 @@ class ExpressionSearchScript implements SearchScript {
             FunctionValues values = source.getValues(Collections.singletonMap("scorer", Lucene.illegalScorer("Scores are not available in the current context")), leaf);
 
             double evaluate() {
-                return values.doubleVal(docid);
+                try {
+                    return values.doubleVal(docid);
+                } catch (Exception exception) {
+                    throw new ScriptException("Error evaluating " + compiledScript, exception);
+                }
             }
 
             @Override
@@ -91,7 +97,7 @@ class ExpressionSearchScript implements SearchScript {
                     // We have a new binding for the scorer so we need to reset the values
                     values = source.getValues(Collections.singletonMap("scorer", scorer), leaf);
                 } catch (IOException e) {
-                    throw new IllegalStateException("Can't get values", e);
+                    throw new IllegalStateException("Can't get values using " + compiledScript, e);
                 }
             }
 
@@ -109,7 +115,7 @@ class ExpressionSearchScript implements SearchScript {
                 if (value instanceof Number) {
                     specialValue.setValue(((Number)value).doubleValue());
                 } else {
-                    throw new ExpressionScriptExecutionException("Cannot use expression with text variable");
+                    throw new ExpressionScriptExecutionException("Cannot use expression with text variable using " + compiledScript);
                 }
             }
         };

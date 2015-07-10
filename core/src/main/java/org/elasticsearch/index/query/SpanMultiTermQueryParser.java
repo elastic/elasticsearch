@@ -25,6 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.mapper.core.DateFieldMapper;
 
 import java.io.IOException;
 
@@ -60,6 +61,9 @@ public class SpanMultiTermQueryParser implements QueryParser {
         }
 
         Query subQuery = parseContext.parseInnerQuery();
+        if (subQuery instanceof DateFieldMapper.DateFieldType.LateParsingQuery) {
+            subQuery = ((DateFieldMapper.DateFieldType.LateParsingQuery) subQuery).rewrite(null);
+        }
         if (!(subQuery instanceof MultiTermQuery)) {
             throw new QueryParsingException(parseContext, "spanMultiTerm [" + MATCH_NAME + "] must be of type multi term query");
         }

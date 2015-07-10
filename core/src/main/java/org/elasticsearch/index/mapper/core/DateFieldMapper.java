@@ -124,6 +124,7 @@ public class DateFieldMapper extends NumberFieldMapper {
             return fieldMapper;
         }
 
+        @Override
         protected void setupFieldType(BuilderContext context) {
             if (Version.indexCreated(context.indexSettings()).before(Version.V_2_0_0) &&
                 !fieldType().dateTimeFormatter().format().contains("epoch_")) {
@@ -195,7 +196,7 @@ public class DateFieldMapper extends NumberFieldMapper {
 
     public static class DateFieldType extends NumberFieldType {
 
-        final class LateParsingQuery extends Query {
+        public final class LateParsingQuery extends Query {
 
             final Object lowerTerm;
             final Object upperTerm;
@@ -277,6 +278,7 @@ public class DateFieldMapper extends NumberFieldMapper {
             this.dateMathParser = ref.dateMathParser;
         }
 
+        @Override
         public DateFieldType clone() {
             return new DateFieldType(this);
         }

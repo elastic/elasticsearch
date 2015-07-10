@@ -1588,7 +1588,8 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSpanMultiTermQuery() throws IOException {
-        createIndex("test");
+        assertAcked(prepareCreate("test")
+                .addMapping("test", "date", "type=date"));
         ensureGreen();
 
         client().prepareIndex("test", "test", "1").setSource("description", "foo other anything bar", "count", 1).get();

@@ -182,7 +182,7 @@ public class IndexNameExpressionResolver {
      */
     public String[] filteringAliases(ClusterState state, String index, String... expressions) {
         // expand the aliases wildcard
-        List<String> resolvedExpressions = Arrays.asList(expressions);
+        List<String> resolvedExpressions = expressions != null ? Arrays.asList(expressions) : Collections.<String>emptyList();
         Context context = new Context(state, IndicesOptions.lenientExpandOpen());
         for (ExpressionResolver expressionResolver : expressionResolvers) {
             resolvedExpressions = expressionResolver.resolve(context, resolvedExpressions);

@@ -1700,12 +1700,11 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         ensureGreen("idx");
 
         try {
-        client().prepareIndex("idx", PercolatorService.TYPE_NAME, "1")
-                .setSource(jsonBuilder().startObject().field("query", QueryBuilders.queryStringQuery("color:red")).endObject())
-                .get();
+            client().prepareIndex("idx", PercolatorService.TYPE_NAME, "1")
+                    .setSource(jsonBuilder().startObject().field("query", QueryBuilders.queryStringQuery("color:red")).endObject())
+                    .get();
             fail();
         } catch (PercolatorException e) {
-
         }
 
         PercolateResponse percolateResponse = client().preparePercolate().setDocumentType("type")

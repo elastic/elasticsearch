@@ -311,9 +311,6 @@ public class RootObjectMapper extends ObjectMapper {
             if (nonEmptyTemplatePresent) {
                 builder.startArray("dynamic_templates");
                 for (DynamicTemplate dynamicTemplate : dynamicTemplates) {
-                    if(dynamicTemplate.conf().isEmpty()) {
-                        continue;
-                    }
                     builder.startObject();
                     builder.field(dynamicTemplate.name());
                     builder.map(dynamicTemplate.conf());

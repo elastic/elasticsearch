@@ -159,7 +159,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         indicesService.indicesLifecycle().addListener(new IndicesLifecycle.Listener() {
 
             @Override
-            public void afterIndexDeleted(Index index, @IndexSettings Settings indexSettings) {
+            public void afterIndexClosed(Index index, @IndexSettings Settings indexSettings) {
                 // once an index is closed we can just clean up all the pending search context information
                 // to release memory and let references to the filesystem go etc.
                 freeAllContextForIndex(index);

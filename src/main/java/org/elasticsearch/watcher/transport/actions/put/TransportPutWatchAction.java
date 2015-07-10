@@ -13,13 +13,14 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.watcher.WatcherService;
 import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.transport.actions.WatcherTransportAction;
-import org.elasticsearch.watcher.WatcherService;
 import org.elasticsearch.watcher.watch.WatchStore;
 
 /**
@@ -30,8 +31,9 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
 
     @Inject
     public TransportPutWatchAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                   ThreadPool threadPool, ActionFilters actionFilters, WatcherService watcherService, LicenseService licenseService) {
-        super(settings, PutWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, licenseService, PutWatchRequest.class);
+                                   ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                   WatcherService watcherService, LicenseService licenseService) {
+        super(settings, PutWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, licenseService, PutWatchRequest.class);
         this.watcherService = watcherService;
     }
 

@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.core.LicenseUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -24,8 +25,10 @@ public abstract class WatcherTransportAction<Request extends MasterNodeRequest<R
 
     private final LicenseService licenseService;
 
-    public WatcherTransportAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters, LicenseService licenseService,  Class<Request> request) {
-        super(settings, actionName, transportService, clusterService, threadPool, actionFilters, request);
+    public WatcherTransportAction(Settings settings, String actionName, TransportService transportService,
+                                  ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
+                                  IndexNameExpressionResolver indexNameExpressionResolver, LicenseService licenseService,  Class<Request> request) {
+        super(settings, actionName, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, request);
         this.licenseService = licenseService;
     }
 

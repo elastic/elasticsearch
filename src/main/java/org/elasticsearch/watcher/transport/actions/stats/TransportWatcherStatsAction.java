@@ -12,16 +12,17 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.WatcherBuild;
+import org.elasticsearch.watcher.WatcherService;
 import org.elasticsearch.watcher.WatcherVersion;
 import org.elasticsearch.watcher.execution.ExecutionService;
 import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.transport.actions.WatcherTransportAction;
-import org.elasticsearch.watcher.WatcherService;
 
 /**
  * Performs the stats operation.
@@ -33,9 +34,9 @@ public class TransportWatcherStatsAction extends WatcherTransportAction<WatcherS
 
     @Inject
     public TransportWatcherStatsAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                       ThreadPool threadPool, ActionFilters actionFilters, WatcherService watcherService,
+                                       ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, WatcherService watcherService,
                                        ExecutionService executionService, LicenseService licenseService) {
-        super(settings, WatcherStatsAction.NAME, transportService, clusterService, threadPool, actionFilters, licenseService, WatcherStatsRequest.class);
+        super(settings, WatcherStatsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, licenseService, WatcherStatsRequest.class);
         this.watcherService = watcherService;
         this.executionService = executionService;
     }

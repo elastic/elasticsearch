@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -55,10 +56,10 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
 
     @Inject
     public TransportExecuteWatchAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                       ThreadPool threadPool, ActionFilters actionFilters, ExecutionService executionService,
+                                       ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, ExecutionService executionService,
                                        Clock clock, LicenseService licenseService, WatchStore watchStore, TriggerService triggerService,
                                        Watch.Parser watchParser) {
-        super(settings, ExecuteWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, licenseService, ExecuteWatchRequest.class);
+        super(settings, ExecuteWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, licenseService, ExecuteWatchRequest.class);
         this.executionService = executionService;
         this.watchStore = watchStore;
         this.clock = clock;

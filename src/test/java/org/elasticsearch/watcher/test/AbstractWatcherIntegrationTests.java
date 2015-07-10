@@ -12,6 +12,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
@@ -313,6 +314,10 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
         return getInstanceFromMaster(LicenseService.class);
     }
 
+    protected IndexNameExpressionResolver indexNameExpressionResolver() {
+        return internalCluster().getInstance(IndexNameExpressionResolver.class);
+    }
+
     protected void assertValue(XContentSource source, String path, Matcher<?> matcher) {
         WatcherTestUtils.assertValue(source, path, matcher);
     }
@@ -332,7 +337,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
                 @Override
                 public void run() {
                     ClusterState state = client().admin().cluster().prepareState().get().getState();
-                    String[] watchHistoryIndices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), HistoryStore.INDEX_PREFIX + "*");
+                    String[] watchHistoryIndices = indexNameExpressionResolver().concreteIndices(state, IndicesOptions.lenientExpandOpen(), HistoryStore.INDEX_PREFIX + "*");
                     assertThat(watchHistoryIndices, not(emptyArray()));
                     for (String index : watchHistoryIndices) {
                         IndexRoutingTable routingTable = state.getRoutingTable().index(index);
@@ -394,7 +399,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
             public void run() {
                 // The watch_history index gets created in the background when the first watch is triggered, so we to check first is this index is created and shards are started
                 ClusterState state = client().admin().cluster().prepareState().get().getState();
-                String[] watchHistoryIndices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), HistoryStore.INDEX_PREFIX + "*");
+                String[] watchHistoryIndices = indexNameExpressionResolver().concreteIndices(state, IndicesOptions.lenientExpandOpen(), HistoryStore.INDEX_PREFIX + "*");
                 assertThat(watchHistoryIndices, not(emptyArray()));
                 for (String index : watchHistoryIndices) {
                     IndexRoutingTable routingTable = state.getRoutingTable().index(index);
@@ -417,7 +422,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
             @Override
             public void run() {
                 ClusterState state = client().admin().cluster().prepareState().get().getState();
-                String[] watchHistoryIndices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), HistoryStore.INDEX_PREFIX + "*");
+                String[] watchHistoryIndices = indexNameExpressionResolver().concreteIndices(state, IndicesOptions.lenientExpandOpen(), HistoryStore.INDEX_PREFIX + "*");
                 assertThat(watchHistoryIndices, not(emptyArray()));
                 for (String index : watchHistoryIndices) {
                     IndexRoutingTable routingTable = state.getRoutingTable().index(index);

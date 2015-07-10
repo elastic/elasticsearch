@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -27,8 +28,10 @@ public class TransportWatcherServiceAction extends WatcherTransportAction<Watche
     private final WatcherLifeCycleService lifeCycleService;
 
     @Inject
-    public TransportWatcherServiceAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters, WatcherLifeCycleService lifeCycleService, LicenseService licenseService) {
-        super(settings, WatcherServiceAction.NAME, transportService, clusterService, threadPool, actionFilters, licenseService, WatcherServiceRequest.class);
+    public TransportWatcherServiceAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                         ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                         WatcherLifeCycleService lifeCycleService, LicenseService licenseService) {
+        super(settings, WatcherServiceAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, licenseService, WatcherServiceRequest.class);
         this.lifeCycleService = lifeCycleService;
     }
 

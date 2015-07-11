@@ -55,6 +55,23 @@
     </sequential>
   </macrodef>
 
+  <!-- applies transformations to src and stores in dst -->
+  <macrodef name="filter-property">
+      <attribute name="src"/>
+      <attribute name="dest"/>
+      <element name="chain"/>
+    <sequential>
+      <loadresource property="@{dest}">
+        <propertyresource name="@{src}"/>
+        <filterchain>
+          <tokenfilter>
+            <chain/>
+          </tokenfilter>
+        </filterchain>
+      </loadresource>
+    </sequential>
+  </macrodef>
+
   <!-- unzip core release artifact and start ES -->
   <target name="start-external-cluster" depends="stop-external-cluster" unless="${shouldskip}">
     <local name="integ.finalname"/>
@@ -100,9 +117,28 @@
 
     <makeurl property="integ.plugin.url" file="${project.build.directory}/releases/${project.artifactId}-${project.version}.zip"/>
 
+    <!-- install plugin -->
     <echo>Installing plugin ${project.artifactId}...</echo>
     <run-script dir="${integ.home}" script="bin/plugin"
-                args="-u ${integ.plugin.url} -i ${project.artifactId}/${project.version}"/>
+                args="-u ${integ.plugin.url} -i ${project.artifactId}"/>
+
+    <!-- check that plugin was installed into correct place -->
+    <local name="expected-shortname"/>
+    <filter-property src="project.artifactId" dest="expected-shortname">
+      <chain>
+        <replaceregex pattern="^elasticsearch-" replace=""/>
+      </chain>
+    </filter-property>
+
+    <fail message="did not find plugin installed as ${expected-shortname}">
+      <condition>
+        <not>
+          <resourceexists>
+            <file file="${integ.home}/plugins/${expected-shortname}"/>
+          </resourceexists>
+        </not>
+      </condition>
+    </fail>
 
     <!-- execute -->
     <echo>Starting up external cluster...</echo>

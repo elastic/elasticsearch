@@ -54,8 +54,8 @@ import static org.hamcrest.Matchers.instanceOf;
 @TestLogging("discovery.zen:TRACE")
 public class NodeJoinControllerTests extends ElasticsearchTestCase {
 
-    TestClusterService clusterService;
-    NodeJoinController nodeJoinController;
+    private TestClusterService clusterService;
+    private NodeJoinController nodeJoinController;
 
     @Before
     public void setUp() throws Exception {

@@ -51,6 +51,7 @@ import static org.elasticsearch.test.XContentTestUtils.convertToMap;
 import static org.elasticsearch.test.XContentTestUtils.mapsEqualIgnoringArrayOrder;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numDataNodes = 0, numClientNodes = 0)
@@ -147,7 +148,7 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
                 assertThat(clusterStateFromDiffs.metaData().indices(), equalTo(clusterState.metaData().indices()));
                 assertThat(clusterStateFromDiffs.metaData().templates(), equalTo(clusterState.metaData().templates()));
                 assertThat(clusterStateFromDiffs.metaData().customs(), equalTo(clusterState.metaData().customs()));
-                assertThat(clusterStateFromDiffs.metaData().aliases(), equalTo(clusterState.metaData().aliases()));
+                assertThat(clusterStateFromDiffs.metaData().equalsAliases(clusterState.metaData()), is(true));
 
                 // JSON Serialization test - make sure that both states produce similar JSON
                 assertThat(mapsEqualIgnoringArrayOrder(convertToMap(clusterStateFromDiffs), convertToMap(clusterState)), equalTo(true));

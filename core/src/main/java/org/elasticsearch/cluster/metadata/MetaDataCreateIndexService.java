@@ -181,7 +181,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     "index name is too long, (" + byteCount +
                     " > " + MAX_INDEX_NAME_BYTES + ")");
         }
-        if (state.metaData().aliases().containsKey(index)) {
+        if (state.metaData().hasAlias(index)) {
             throw new InvalidIndexNameException(new Index(index), index, "already exists as alias");
         }
     }

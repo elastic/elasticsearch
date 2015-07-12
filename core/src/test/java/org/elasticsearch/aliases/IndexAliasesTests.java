@@ -32,6 +32,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.settings.Settings;
@@ -518,7 +519,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         assertThat(stopWatch.stop().lastTaskTime().millis(), lessThan(timeout.millis()));
 
         logger.info("--> verify that filter was updated");
-        AliasMetaData aliasMetaData = internalCluster().clusterService().state().metaData().aliases().get("alias1").get("test");
+        AliasMetaData aliasMetaData = ((AliasOrIndex.Alias) internalCluster().clusterService().state().metaData().getAliasAndIndexLookup().get("alias1")).getFirstAliasMetaData();
         assertThat(aliasMetaData.getFilter().toString(), equalTo("{\"term\":{\"name\":\"bar\"}}"));
 
         logger.info("--> deleting alias1");

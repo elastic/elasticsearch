@@ -32,6 +32,7 @@ import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -310,7 +311,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
             assertAcked(client().admin().indices().prepareAliases().addAlias("test", "alias"));
 
             for (Client client : clients()) {
-                AliasMetaData aliasMetaData = getLocalClusterState(client).metaData().aliases().get("alias").get("test");
+                AliasMetaData aliasMetaData = ((AliasOrIndex.Alias) getLocalClusterState(client).metaData().getAliasAndIndexLookup().get("alias")).getFirstAliasMetaData();
                 assertThat(aliasMetaData.alias(), equalTo("alias"));
             }
         }

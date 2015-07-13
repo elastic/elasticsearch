@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>org.elasticsearch.plugin</groupId>
+    <artifactId>x-plugins</artifactId>
+    <version>2.0.0.beta1-SNAPSHOT</version>
+    <packaging>pom</packaging>
+    <name>Elasticsearch X-Plugins POM</name>
+    <inceptionYear>2015</inceptionYear>
+
+    <parent>
+        <groupId>org.elasticsearch.plugin</groupId>
+        <artifactId>elasticsearch-plugin</artifactId>
+        <version>2.0.0.beta1-SNAPSHOT</version>
+    </parent>
+
+    <properties>
+        <elasticsearch.assembly.descriptor>${basedir}/src/main/assemblies/plugin.xml</elasticsearch.assembly.descriptor>
+        <elasticsearch.assembly.appendId>false</elasticsearch.assembly.appendId>
+    </properties>
+
+    <!-- typical layout for plugins -->
+    <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>**/*.properties</include>
+                </includes>
+            </resource>
+        </resources>
+
+        <testResources>
+            <testResource>
+                <directory>src/test/java</directory>
+                <includes>
+                    <include>**/*.json</include>
+                    <include>**/*.txt</include>
+                </includes>
+            </testResource>
+            <testResource>
+                <directory>src/test/resources</directory>
+                <excludes>
+                    <exclude>elasticsearch.yml</exclude>
+                    <exclude>**/*.properties</exclude>
+                </excludes>
+            </testResource>
+            <testResource>
+                <directory>src/test/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>elasticsearch.yml</include>
+                    <include>**/*.properties</include>
+                </includes>
+            </testResource>
+            <!-- REST API specification and test suites -->
+            <testResource>
+                <directory>${project.basedir}/rest-api-spec</directory>
+                <targetPath>rest-api-spec</targetPath>
+                <includes>
+                    <include>api/*.json</include>
+                    <include>test/**/*.yaml</include>
+                </includes>
+            </testResource>
+            <!-- REST API specifications copied from main Elasticsearch specs
+                 because they are required to execute the REST tests in plugins  -->
+            <testResource>
+                <directory>${elasticsearch.tools.directory}/rest-api-spec</directory>
+                <targetPath>rest-api-spec</targetPath>
+                <includes>
+                    <!-- required by the test framework -->
+                    <include>api/info.json</include>
+                    <include>api/cluster.health.json</include>
+                    <include>api/cluster.state.json</include>
+                    <!-- used in plugin REST tests -->
+                    <include>api/index.json</include>
+                    <include>api/get.json</include>
+                    <include>api/update.json</include>
+                    <include>api/search.json</include>
+                    <include>api/indices.analyze.json</include>
+                    <include>api/indices.create.json</include>
+                    <include>api/indices.refresh.json</include>
+                    <include>api/nodes.info.json</include>
+                    <include>api/count.json</include>
+                </includes>
+            </testResource>
+            <!-- shared test resources like log4j.properties -->
+            <testResource>
+                <directory>${elasticsearch.tools.directory}/shared-test-resources</directory>
+                <filtering>false</filtering>
+            </testResource>
+        </testResources>
+
+        <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-failsafe-plugin</artifactId>
+                    <configuration>
+                        <systemPropertyVariables>
+                            <tests.cluster>127.0.0.1:9300</tests.cluster>
+                        </systemPropertyVariables>
+                    </configuration>
+                </plugin>
+        </plugins>
+
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-assembly-plugin</artifactId>
+                    <configuration>
+                        <appendAssemblyId>${elasticsearch.assembly.appendId}</appendAssemblyId>
+                        <outputDirectory>${project.build.directory}/releases/</outputDirectory>
+                        <descriptors>
+                            <descriptor>${elasticsearch.assembly.descriptor}</descriptor>
+                        </descriptors>
+                    </configuration>
+                    <executions>
+                        <execution>
+                            <phase>package</phase>
+                            <goals>
+                                <goal>single</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+
+    <profiles>
+        <profile>
+            <id>deploy-internal</id>
+            <distributionManagement>
+                <repository>
+                    <id>elasticsearch-internal-releases</id>
+                    <name>Elasticsearch Internal Releases</name>
+                    <url>http://maven.elasticsearch.org/artifactory/internal-releases</url>
+                </repository>
+                <snapshotRepository>
+                    <id>elasticsearch-internal-snapshots</id>
+                    <name>Elasticsearch Internal Snapshots</name>
+                    <url>http://maven.elasticsearch.org/artifactory/internal-snapshots</url>
+                </snapshotRepository>
+            </distributionManagement>
+        </profile>
+        <profile>
+            <id>deploy-public</id>
+            <distributionManagement>
+                <repository>
+                    <id>elasticsearch-public-releases</id>
+                    <name>Elasticsearch Public Releases</name>
+                    <url>http://maven.elasticsearch.org/artifactory/public-releases</url>
+                </repository>
+            </distributionManagement>
+        </profile>
+        <profile>
+            <id>default</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+        </profile>
+    </profiles>
+
+    <modules>
+        <module>watcher</module>
+    </modules>
+</project>

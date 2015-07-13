@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.*;
@@ -178,6 +179,145 @@ public class SimpleDynamicTemplatesTests extends ElasticsearchSingleNodeTest {
         assertThat(f.fieldType().tokenized(), equalTo(false));
 
         fieldMapper = docMapper.mappers().getMapper("multi2.org");
+        assertNotNull(fieldMapper);
+    }
+
+    @Test
+    public void testRemove() throws Exception {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-mapping.json");
+        IndexService index = createIndex("test");
+        client().admin().indices().preparePutMapping("test").setType("person").setSource(mapping).get();
+        DocumentMapper docMapper = index.mapperService().documentMapper("person");
+        byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-data.json");
+        ParsedDocument parsedDoc = docMapper.parse("person", "1", new BytesArray(json));
+        client().admin().indices().preparePutMapping("test").setType("person").setSource(parsedDoc.dynamicMappingsUpdate().toString()).get();
+        Document doc = parsedDoc.rootDoc();
+
+        IndexableField f = doc.getField("name");
+        assertThat(f.name(), equalTo("name"));
+        assertThat(f.stringValue(), equalTo("some name"));
+        assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
+        assertThat(f.fieldType().tokenized(), equalTo(false));
+
+        FieldMapper fieldMapper = docMapper.mappers().getMapper("name");
+        assertNotNull(fieldMapper);
+
+        f = doc.getField("multi1");
+        assertThat(f.name(), equalTo("multi1"));
+        assertThat(f.stringValue(), equalTo("multi 1"));
+        assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
+        assertThat(f.fieldType().tokenized(), equalTo(true));
+
+        fieldMapper = docMapper.mappers().getMapper("multi1");
+        assertNotNull(fieldMapper);
+
+        f = doc.getField("multi1.org");
+        assertThat(f.name(), equalTo("multi1.org"));
+        assertThat(f.stringValue(), equalTo("multi 1"));
+        assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
+        assertThat(f.fieldType().tokenized(), equalTo(false));
+
+        fieldMapper = docMapper.mappers().getMapper("multi1.org");
+        assertNotNull(fieldMapper);
+
+        f = doc.getField("multi2");
+        assertThat(f.name(), equalTo("multi2"));
+        assertThat(f.stringValue(), equalTo("multi 2"));
+        assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
+        assertThat(f.fieldType().tokenized(), equalTo(true));
+
+        fieldMapper = docMapper.mappers().getMapper("multi2");
+        assertNotNull(fieldMapper);
+
+        f = doc.getField("multi2.org");
+        assertThat(f.name(), equalTo("multi2.org"));
+        assertThat(f.stringValue(), equalTo("multi 2"));
+        assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
+        assertThat(f.fieldType().tokenized(), equalTo(false));
+
+        fieldMapper = docMapper.mappers().getMapper("multi2.org");
+        assertNotNull(fieldMapper);
+
+        String mappingWithRemovedTemplate = copyToStringFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-mapping-remove.json");
+        client().admin().indices().preparePutMapping("test").setType("person").setSource(mappingWithRemovedTemplate).get();
+        docMapper = index.mapperService().documentMapper("person");
+       
+        byte[] json2 = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-data-2.json");
+        parsedDoc = docMapper.parse("person", "2", new BytesArray(json2));
+        client().admin().indices().preparePutMapping("test").setType("person").setSource(parsedDoc.dynamicMappingsUpdate().toString()).get();
+        doc = parsedDoc.rootDoc();
+        
+        assertFalse(XContentHelper.toString(docMapper).contains("template_2"));
+        assertTrue(XContentHelper.toString(docMapper).contains("dynamic_templates"));
+        assertTrue(XContentHelper.toString(docMapper).contains("template_1"));
+
+        f = doc.getField("name_2");
+        assertThat(f.name(), equalTo("name_2"));
+        assertThat(f.stringValue(), equalTo("some other name"));
+        assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
+        assertThat(f.fieldType().tokenized(), equalTo(true));
+
+        fieldMapper = docMapper.mappers().getMapper("name_2");
+        assertNotNull(fieldMapper);
+
+        f = doc.getField("multi3");
+        assertThat(f.name(), equalTo("multi3"));
+        assertThat(f.stringValue(), equalTo("multi 3"));
+        assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
+        assertThat(f.fieldType().tokenized(), equalTo(true));
+
+        fieldMapper = docMapper.mappers().getMapper("multi3");
+        assertNotNull(fieldMapper);
+
+        f = doc.getField("multi3.org");
+        assertThat(f.name(), equalTo("multi3.org"));
+        assertThat(f.stringValue(), equalTo("multi 3"));
+        assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
+        assertThat(f.fieldType().tokenized(), equalTo(false));
+
+        fieldMapper = docMapper.mappers().getMapper("multi3.org");
+        assertNotNull(fieldMapper);
+
+        f = doc.getField("multi4");
+        assertThat(f.name(), equalTo("multi4"));
+        assertThat(f.stringValue(), equalTo("multi 4"));
+        assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
+        assertThat(f.fieldType().tokenized(), equalTo(true));
+
+        fieldMapper = docMapper.mappers().getMapper("multi4");
+        assertNotNull(fieldMapper);
+
+        f = doc.getField("multi4.org");
+        assertThat(f.name(), equalTo("multi4.org"));
+        assertThat(f.stringValue(), equalTo("multi 4"));
+        assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
+        assertThat(f.fieldType().tokenized(), equalTo(false));
+
+        fieldMapper = docMapper.mappers().getMapper("multi4.org");
+        assertNotNull(fieldMapper);
+    }
+
+    @Test
+    public void testAddEmtpy() throws Exception {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-mapping-remove.json");
+        IndexService index = createIndex("test");
+        client().admin().indices().preparePutMapping("test").setType("person").setSource(mapping).get();
+        DocumentMapper docMapper = index.mapperService().documentMapper("person");
+        byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-data.json");
+        ParsedDocument parsedDoc = docMapper.parse("person", "1", new BytesArray(json));
+        client().admin().indices().preparePutMapping("test").setType("person").setSource(parsedDoc.dynamicMappingsUpdate().toString()).get();
+        Document doc = parsedDoc.rootDoc();
+        
+        assertFalse(XContentHelper.toString(docMapper).contains("dynamic"));
+        assertFalse(XContentHelper.toString(docMapper).contains("template_2"));
+
+        IndexableField f = doc.getField("name");
+        assertThat(f.name(), equalTo("name"));
+        assertThat(f.stringValue(), equalTo("some name"));
+        assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
+        assertThat(f.fieldType().tokenized(), equalTo(true));
+
+        FieldMapper fieldMapper = docMapper.mappers().getMapper("name");
         assertNotNull(fieldMapper);
     }
 }

@@ -1,0 +1,9 @@
+{
+    "person":{
+        "dynamic_templates":[
+            {
+                "template_2":{}
+            }
+        ]
+    }
+}

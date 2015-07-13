@@ -113,7 +113,7 @@ public class RootObjectMapper extends ObjectMapper {
             }
             return new RootObjectMapper(name, enabled, dynamic, pathType, mappers,
                     dates,
-                    dynamicTemplates.toArray(new DynamicTemplate[dynamicTemplates.size()]),
+                    dynamicTemplates,
                     dateDetection, numericDetection);
         }
     }
@@ -180,7 +180,11 @@ public class RootObjectMapper extends ObjectMapper {
                         throw new MapperParsingException("A dynamic template must be defined with a name");
                     }
                     Map.Entry<String, Object> entry = tmpl.entrySet().iterator().next();
-                    ((Builder) builder).add(DynamicTemplate.parse(entry.getKey(), (Map<String, Object>) entry.getValue()));
+                    if(entry.getValue() != null && !((Map<String, Object>) entry.getValue()).isEmpty()) {
+                        ((Builder) builder).add(DynamicTemplate.parse(entry.getKey(), (Map<String, Object>) entry.getValue()));
+                    } else {
+                        ((Builder) builder).add(new DynamicTemplate(entry.getKey(), Collections.EMPTY_MAP, null, null, null, null, null, null, Collections.EMPTY_MAP));
+                    }
                 }
                 return true;
             } else if (fieldName.equals("date_detection")) {
@@ -199,12 +203,12 @@ public class RootObjectMapper extends ObjectMapper {
     private final boolean dateDetection;
     private final boolean numericDetection;
 
-    private volatile DynamicTemplate dynamicTemplates[];
+    private volatile List<DynamicTemplate> dynamicTemplates;
 
     RootObjectMapper(String name, boolean enabled, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers,
-                     FormatDateTimeFormatter[] dynamicDateTimeFormatters, DynamicTemplate dynamicTemplates[], boolean dateDetection, boolean numericDetection) {
+                     FormatDateTimeFormatter[] dynamicDateTimeFormatters, List<DynamicTemplate> dynamicTemplates, boolean dateDetection, boolean numericDetection) {
         super(name, name, enabled, Nested.NO, dynamic, pathType, mappers);
-        this.dynamicTemplates = dynamicTemplates;
+        this.dynamicTemplates = Lists.newArrayList(dynamicTemplates);
         this.dynamicDateTimeFormatters = dynamicDateTimeFormatters;
         this.dateDetection = dateDetection;
         this.numericDetection = numericDetection;
@@ -214,7 +218,7 @@ public class RootObjectMapper extends ObjectMapper {
     public ObjectMapper mappingUpdate(Mapper mapper) {
         RootObjectMapper update = (RootObjectMapper) super.mappingUpdate(mapper);
         // dynamic templates are irrelevant for dynamic mappings updates
-        update.dynamicTemplates = new DynamicTemplate[0];
+        update.dynamicTemplates = Collections.EMPTY_LIST;
         return update;
     }
 
@@ -250,7 +254,7 @@ public class RootObjectMapper extends ObjectMapper {
 
     public DynamicTemplate findTemplate(ContentPath path, String name, String matchType) {
         for (DynamicTemplate dynamicTemplate : dynamicTemplates) {
-            if (dynamicTemplate.match(path, name, matchType)) {
+            if (!dynamicTemplate.conf().isEmpty() && dynamicTemplate.match(path, name, matchType)) {
                 return dynamicTemplate;
             }
         }
@@ -262,8 +266,23 @@ public class RootObjectMapper extends ObjectMapper {
         RootObjectMapper mergeWithObject = (RootObjectMapper) mergeWith;
         if (!mergeResult.simulate()) {
             // merge them
-            List<DynamicTemplate> mergedTemplates = Lists.newArrayList(Arrays.asList(this.dynamicTemplates));
+            List<DynamicTemplate> mergedTemplates = Lists.newArrayList(this.dynamicTemplates);
+            ListIterator<DynamicTemplate> it = mergedTemplates.listIterator();
+            while (it.hasNext()) {
+                DynamicTemplate currentTemplate = it.next();
+                for (DynamicTemplate toMergeTemplate : mergeWithObject.dynamicTemplates) {
+                    if (toMergeTemplate.name().equals(currentTemplate.name())
+                            && toMergeTemplate.conf().isEmpty()) {
+                        it.remove();
+                        break;
+                    }
+                }
+            }
+
             for (DynamicTemplate template : mergeWithObject.dynamicTemplates) {
+                if(template.conf().isEmpty()) {
+                    continue;
+                }
                 boolean replaced = false;
                 for (int i = 0; i < mergedTemplates.size(); i++) {
                     if (mergedTemplates.get(i).name().equals(template.name())) {
@@ -275,7 +294,7 @@ public class RootObjectMapper extends ObjectMapper {
                     mergedTemplates.add(template);
                 }
             }
-            this.dynamicTemplates = mergedTemplates.toArray(new DynamicTemplate[mergedTemplates.size()]);
+            this.dynamicTemplates = mergedTemplates;
         }
     }
 
@@ -291,15 +310,22 @@ public class RootObjectMapper extends ObjectMapper {
             }
         }
 
-        if (dynamicTemplates != null && dynamicTemplates.length > 0) {
-            builder.startArray("dynamic_templates");
+        if (dynamicTemplates != null && !dynamicTemplates.isEmpty()) {
+            boolean nonEmptyTemplatePresent = false;
             for (DynamicTemplate dynamicTemplate : dynamicTemplates) {
-                builder.startObject();
-                builder.field(dynamicTemplate.name());
-                builder.map(dynamicTemplate.conf());
-                builder.endObject();
+                nonEmptyTemplatePresent = !dynamicTemplate.conf().isEmpty();
             }
-            builder.endArray();
+            
+            if (nonEmptyTemplatePresent) {
+                builder.startArray("dynamic_templates");
+                for (DynamicTemplate dynamicTemplate : dynamicTemplates) {
+                    builder.startObject();
+                    builder.field(dynamicTemplate.name());
+                    builder.map(dynamicTemplate.conf());
+                    builder.endObject();
+                }
+                builder.endArray();
+            }
         }
 
         if (dateDetection != Defaults.DATE_DETECTION) {

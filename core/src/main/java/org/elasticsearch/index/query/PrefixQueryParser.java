@@ -55,7 +55,7 @@ public class PrefixQueryParser implements QueryParser {
         String rewriteMethod = null;
         String queryName = null;
 
-        Object value = null;
+        String value = null;
         float boost = 1.0f;
         String currentFieldName = null;
         XContentParser.Token token;
@@ -73,7 +73,7 @@ public class PrefixQueryParser implements QueryParser {
                         if ("_name".equals(currentFieldName)) {
                             queryName = parser.text();
                         } else if ("value".equals(currentFieldName) || "prefix".equals(currentFieldName)) {
-                            value = parser.objectBytes();
+                            value = parser.textOrNull();
                         } else if ("boost".equals(currentFieldName)) {
                             boost = parser.floatValue();
                         } else if ("rewrite".equals(currentFieldName)) {
@@ -88,7 +88,7 @@ public class PrefixQueryParser implements QueryParser {
                     queryName = parser.text();
                 } else {
                     fieldName = currentFieldName;
-                    value = parser.objectBytes();
+                    value = parser.textOrNull();
                 }
             }
         }

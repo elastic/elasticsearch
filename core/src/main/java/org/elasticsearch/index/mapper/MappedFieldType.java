@@ -460,7 +460,7 @@ public abstract class MappedFieldType extends FieldType {
         return new FuzzyQuery(createTerm(value), fuzziness.asDistance(BytesRefs.toString(value)), prefixLength, maxExpansions, transpositions);
     }
 
-    public Query prefixQuery(Object value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
+    public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
         PrefixQuery query = new PrefixQuery(createTerm(value));
         if (method != null) {
             query.setRewriteMethod(method);

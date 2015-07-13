@@ -201,7 +201,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query regexpQuery(Object value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
+        public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
             if (indexOptions() != IndexOptions.NONE || context == null) {
                 return super.regexpQuery(value, flags, maxDeterminizedStates, method, context);
             }

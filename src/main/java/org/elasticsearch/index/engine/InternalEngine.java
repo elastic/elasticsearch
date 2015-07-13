@@ -122,10 +122,10 @@ public class InternalEngine extends Engine {
                 // it needs to be upgraded
                 autoUpgrade = Version.indexCreated(engineConfig.getIndexSettings()).onOrBefore(Version.V_0_20_7);
                 if (autoUpgrade) {
-                    logger.debug("[{}] checking for 3x segments to upgrade", shardId);
+                    logger.debug("checking for 3x segments to upgrade");
                     upgrade3xSegments(store);
                 } else {
-                    logger.debug("[{}] skipping check for 3x segments", shardId);
+                    logger.debug("skipping check for 3x segments");
                 }
             } catch (IOException ex) {
                 throw new EngineCreationFailureException(shardId, "failed to upgrade 3x segments", ex);

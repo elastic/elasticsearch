@@ -8,6 +8,8 @@ package org.elasticsearch.watcher.support.template.xmustache;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.CompiledScript;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Before;
 import org.junit.Test;
@@ -37,7 +39,8 @@ public class XMustacheScriptEngineTests extends ElasticsearchTestCase {
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}" + "}}, \"negative_boost\": {{boost_val}} } }}";
             Map<String, Object> vars = new HashMap<>();
             vars.put("boost_val", "0.3");
-            BytesReference o = (BytesReference) engine.execute(engine.compile(template), vars);
+            CompiledScript compiledScript = new CompiledScript(ScriptService.ScriptType.INLINE, "inline", "mustache", engine.compile(template));
+            BytesReference o = (BytesReference) engine.execute(compiledScript, vars);
             assertEquals("GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
                             + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}}}, \"negative_boost\": 0.3 } }}",
                     new String(o.toBytes(), Charset.forName("UTF-8")));
@@ -48,7 +51,8 @@ public class XMustacheScriptEngineTests extends ElasticsearchTestCase {
             Map<String, Object> vars = new HashMap<>();
             vars.put("boost_val", "0.3");
             vars.put("body_val", "\"quick brown\"");
-            BytesReference o = (BytesReference) engine.execute(engine.compile(template), vars);
+            CompiledScript compiledScript = new CompiledScript(ScriptService.ScriptType.INLINE, "inline", "mustache", engine.compile(template));
+            BytesReference o = (BytesReference) engine.execute(compiledScript, vars);
             assertEquals("GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
                             + "\"negative\": {\"term\": {\"body\": {\"value\": \"\\\"quick brown\\\"\"}}}, \"negative_boost\": 0.3 } }}",
                     new String(o.toBytes(), Charset.forName("UTF-8")));
@@ -73,7 +77,8 @@ public class XMustacheScriptEngineTests extends ElasticsearchTestCase {
 
         vars.put("test_var1", var1Writer.toString());
         vars.put("test_var2", var2Writer.toString());
-        BytesReference o = (BytesReference) engine.execute(engine.compile(template), vars);
+        CompiledScript compiledScript = new CompiledScript(ScriptService.ScriptType.INLINE, "inline", "mustache", engine.compile(template));
+        BytesReference o = (BytesReference) engine.execute(compiledScript, vars);
         String s1 = o.toUtf8();
         String s2 =  prefix + " " + var1Writer.toString() + " " + var2Writer.toString();
         assertEquals(s1, s2);

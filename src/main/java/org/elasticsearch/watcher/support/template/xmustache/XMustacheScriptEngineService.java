@@ -61,7 +61,7 @@ public class XMustacheScriptEngineService extends AbstractComponent implements S
      * Execute a compiled template object (as retrieved from the compile method)
      * and fill potential place holders with the variables given.
      *
-     * @param template
+     * @param compiledScript
      *            compiled template object.
      * @param vars
      *            map of variables to use during substitution.
@@ -69,10 +69,10 @@ public class XMustacheScriptEngineService extends AbstractComponent implements S
      * @return the processed string with all given variables substitued.
      * */
     @Override
-    public Object execute(Object template, Map<String, Object> vars) {
+    public Object execute(CompiledScript compiledScript, Map<String, Object> vars) {
         BytesStreamOutput result = new BytesStreamOutput();
         UTF8StreamWriter writer = utf8StreamWriter().setOutput(result);
-        ((Mustache) template).execute(writer, vars);
+        ((Mustache) compiledScript.compiled()).execute(writer, vars);
         try {
             writer.flush();
         } catch (IOException e) {
@@ -103,13 +103,13 @@ public class XMustacheScriptEngineService extends AbstractComponent implements S
     }
 
     @Override
-    public ExecutableScript executable(Object mustache,
+    public ExecutableScript executable(CompiledScript compiledScript,
                                        @Nullable Map<String, Object> vars) {
-        return new MustacheExecutableScript((Mustache) mustache, vars);
+        return new MustacheExecutableScript((Mustache) compiledScript.compiled(), vars);
     }
 
     @Override
-    public SearchScript search(Object compiledScript, SearchLookup lookup,
+    public SearchScript search(CompiledScript compiledScript, SearchLookup lookup,
                                @Nullable Map<String, Object> vars) {
         throw new UnsupportedOperationException();
     }

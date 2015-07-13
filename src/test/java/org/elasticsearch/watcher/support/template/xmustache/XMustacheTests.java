@@ -13,7 +13,9 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Before;
 import org.junit.Test;
@@ -40,7 +42,7 @@ public class XMustacheTests extends ElasticsearchTestCase {
     @Test
     public void testArrayAccess() throws Exception {
         String template = "{{data.0}} {{data.1}}";
-        Object mustache = engine.compile(template);
+        CompiledScript mustache = new CompiledScript(ScriptService.ScriptType.INLINE, "inline", "mustache", engine.compile(template));
         Map<String, Object> vars = new HashMap<>();
         Object data = randomFrom(
                 new String[] { "foo", "bar" },
@@ -57,7 +59,7 @@ public class XMustacheTests extends ElasticsearchTestCase {
     @Test
     public void testArrayInArrayAccess() throws Exception {
         String template = "{{data.0.0}} {{data.0.1}}";
-        Object mustache = engine.compile(template);
+        CompiledScript mustache = new CompiledScript(ScriptService.ScriptType.INLINE, "inline", "mustache", engine.compile(template));
         Map<String, Object> vars = new HashMap<>();
         Object data = randomFrom(
                 new String[][] { new String[] {"foo", "bar" }},
@@ -75,7 +77,7 @@ public class XMustacheTests extends ElasticsearchTestCase {
     @Test
     public void testMapInArrayAccess() throws Exception {
         String template = "{{data.0.key}} {{data.1.key}}";
-        Object mustache = engine.compile(template);
+        CompiledScript mustache = new CompiledScript(ScriptService.ScriptType.INLINE, "inline", "mustache", engine.compile(template));
         Map<String, Object> vars = new HashMap<>();
         Object data = randomFrom(
                 new Map[] { ImmutableMap.<String, Object>of("key", "foo"), ImmutableMap.<String, Object>of("key", "bar") },
@@ -132,7 +134,7 @@ public class XMustacheTests extends ElasticsearchTestCase {
 
             Map<String, Object> dataMap = new HashMap<>();
             dataMap.put("data", unescaped.toString());
-            Object mustache = engine.compile(template);
+            CompiledScript mustache = new CompiledScript(ScriptService.ScriptType.INLINE, "inline", "mustache", engine.compile(template));
             Object output = engine.execute(mustache, dataMap);
 
             assertThat(output, notNullValue());

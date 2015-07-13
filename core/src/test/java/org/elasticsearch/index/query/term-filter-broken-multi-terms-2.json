@@ -1,0 +1,10 @@
+{
+  "filtered": {
+    "filter": {
+      "term": {
+        "name.first": { "value": "shay" },
+        "name.last": { "value": "banon" }
+      }
+    }
+  }
+}

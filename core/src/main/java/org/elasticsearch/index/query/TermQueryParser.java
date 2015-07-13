@@ -63,6 +63,9 @@ public class TermQueryParser implements QueryParser {
                 // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
                 // also support a format of "term" : {"field_name" : { ... }}
+                if (fieldName != null) {
+                    throw new QueryParsingException(parseContext, "[term] query does not support different field names, use [bool] query instead");
+                }
                 fieldName = currentFieldName;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
@@ -87,6 +90,9 @@ public class TermQueryParser implements QueryParser {
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else {
+                    if (fieldName != null) {
+                        throw new QueryParsingException(parseContext, "[term] query does not support different field names, use [bool] query instead");
+                    }
                     fieldName = currentFieldName;
                     value = parser.objectBytes();
                 }

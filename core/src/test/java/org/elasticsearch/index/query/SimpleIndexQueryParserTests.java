@@ -1205,6 +1205,28 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test
+    public void testTermQueryParserShouldOnlyAllowSingleTerm() throws Exception {
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/term-filter-broken-multi-terms.json");
+        assertQueryParsingFailureDueToMultipleTermsInTermFilter(query);
+    }
+
+    @Test
+    public void testTermQueryParserShouldOnlyAllowSingleTermInAlternateFormat() throws Exception {
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/term-filter-broken-multi-terms-2.json");
+        assertQueryParsingFailureDueToMultipleTermsInTermFilter(query);
+    }
+
+    private void assertQueryParsingFailureDueToMultipleTermsInTermFilter(String query) throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        try {
+            queryParser.parse(query);
+            fail("Expected Query Parsing Exception but did not happen");
+        } catch (QueryParsingException e) {
+            assertThat(e.getMessage(), containsString("[term] query does not support different field names, use [bool] query instead"));
+        }
+    }
+
+    @Test
     public void testTermsFilterQueryBuilder() throws Exception {
         IndexQueryParserService queryParser = queryParser();
         Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), termsQuery("name.last", "banon", "kimchy"))).query();

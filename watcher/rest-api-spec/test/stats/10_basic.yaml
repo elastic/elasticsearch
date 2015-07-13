@@ -1,0 +1,5 @@
+---
+"Test watcher stats output":
+
+  - do: {watcher.stats: {}}
+  - match: { "watcher_state": "started" }

@@ -1,0 +1,5 @@
+---
+"Test watcher info api":
+  - do: {watcher.info: {}}
+  - is_true:    version.build_hash
+  - is_true:    version.build_timestamp

@@ -1,0 +1,46 @@
+<?xml version="1.0"?>
+<project name="commercial-integration-tests">
+
+  <import file="${elasticsearch.integ.antfile.default}"/>
+
+  <!-- unzip core release artifact, install license plugin, install plugin, then start ES -->
+  <target name="start-external-cluster-with-plugin" depends="stop-external-cluster" unless="${shouldskip}">
+    <local name="integ.home"/>
+    <local name="integ.repo.home"/>
+    <local name="integ.plugin.url"/>
+    <local name="integ.pid"/>
+
+    <delete dir="${integ.scratch}"/>
+    <unzip src="${org.elasticsearch:elasticsearch:zip}"
+           dest="${integ.scratch}"/>
+
+    <property name="integ.home" location="${integ.scratch}/elasticsearch-${elasticsearch.version}"/>
+    <property name="integ.repo.home" location="${integ.home}/repo"/>
+
+    <!-- begin commercial plugin mods -->
+    <local name="integ.license.plugin.url"/>
+    <makeurl property="integ.license.plugin.url" file="${org.elasticsearch:elasticsearch-license-plugin:zip}"/>
+    <echo>Installing license plugin...</echo> 
+    <run-script dir="${integ.home}" script="bin/plugin"
+                args="-u ${integ.license.plugin.url} -i elasticsearch-license-plugin"/>
+    <!-- end commercial plugin mods -->
+
+    <makeurl property="integ.plugin.url" file="${project.build.directory}/releases/${project.artifactId}-${project.version}.zip"/>
+
+    <echo>Installing plugin ${project.artifactId}...</echo>
+    <run-script dir="${integ.home}" script="bin/plugin"
+                args="-u ${integ.plugin.url} -i ${project.artifactId}"/>
+
+    <!-- execute -->
+    <echo>Starting up external cluster...</echo>
+    <run-script dir="${integ.home}" script="bin/elasticsearch" spawn="true"
+                args="${integ.args} -Des.path.repo=${integ.repo.home}"/>
+
+    <waitfor maxwait="3" maxwaitunit="minute" checkevery="500">
+      <http url="http://127.0.0.1:9200"/>
+    </waitfor>
+
+    <extract-pid property="integ.pid"/>
+    <echo>External cluster started PID ${integ.pid}</echo>
+  </target>
+</project>

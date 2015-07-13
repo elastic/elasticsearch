@@ -25,20 +25,31 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.core.CompletionV2FieldMapper;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 
+import static org.elasticsearch.Version.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.VersionUtils.randomVersion;
+import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
 public class CompletionV2FieldMapperTests extends ElasticsearchSingleNodeTest {
@@ -128,9 +139,9 @@ public class CompletionV2FieldMapperTests extends ElasticsearchSingleNodeTest {
 
         CompletionV2FieldMapper completionFieldMapper = (CompletionV2FieldMapper) fieldMapper;
         XContentBuilder builder = jsonBuilder().startObject();
-        completionFieldMapper.toXContent(builder, null).endObject();
+        completionFieldMapper.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject();
         builder.close();
-        Map<String, Object> serializedMap = JsonXContent.jsonXContent.createParser(builder.bytes()).mapAndClose();
+        Map<String, Object> serializedMap = JsonXContent.jsonXContent.createParser(builder.bytes()).map();
         Map<String, Object> configMap = (Map<String, Object>) serializedMap.get("completion");
         assertThat(configMap.get("index_analyzer").toString(), is("simple"));
         assertThat(configMap.get("search_analyzer").toString(), is("standard"));
@@ -157,6 +168,68 @@ public class CompletionV2FieldMapperTests extends ElasticsearchSingleNodeTest {
                 .bytes());
         IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.names().indexName());
         assertSuggestFields(fields, 1);
+    }
+
+    @Test
+    public void testCreatingAndIndexingSuggestFieldForOlderIndices() throws Exception {
+        // creating completion field for pre 2.0 indices, should create old completion fields
+        String mapping = jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("completion")
+                .field("type", "completion")
+                .endObject().endObject()
+                .endObject().endObject().string();
+        for (Version version : Arrays.asList(V_1_7_0, V_1_1_0, randomVersionBetween(random(), V_1_1_0, V_1_7_0))) {
+            DocumentMapper defaultMapper = createIndex("test", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version.id).build())
+                    .mapperService().documentMapperParser().parse(mapping);
+            FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
+            assertTrue(fieldMapper instanceof CompletionFieldMapper);
+            MappedFieldType completionFieldType = fieldMapper.fieldType();
+            ParsedDocument parsedDocument = defaultMapper.parse("type1", "1", XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("completion", "suggestion")
+                    .endObject()
+                    .bytes());
+            IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.names().indexName());
+            assertThat(fields.length, equalTo(1));
+            assertFalse(fields[0] instanceof SuggestField);
+            assertAcked(client().admin().indices().prepareDelete("test").execute().get());
+        }
+
+        // creating completion field for pre 2.0 indices with explicit force_new should create new completion fields
+        mapping = jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("completion")
+                .field("type", "completion")
+                .field("force_new", true)
+                .endObject().endObject()
+                .endObject().endObject().string();
+        for (Version version : Arrays.asList(V_1_7_0, V_1_1_0, randomVersionBetween(random(), V_1_1_1, V_1_6_1))) {
+            Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version.id).build();
+            DocumentMapper defaultMapper = createIndex("test", settings)
+                    .mapperService().documentMapperParser().parse(mapping);
+            FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
+            assertTrue(fieldMapper instanceof CompletionV2FieldMapper);
+            MappedFieldType completionFieldType = fieldMapper.fieldType();
+            ParsedDocument parsedDocument = defaultMapper.parse("type1", "1", XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("completion", "suggestion")
+                    .endObject()
+                    .bytes());
+            IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.names().indexName());
+            assertThat(fields.length, equalTo(1));
+            assertTrue(fields[0] instanceof SuggestField);
+            assertAcked(client().admin().indices().prepareDelete("test").execute().get());
+
+            // when force_new is specified, ensure it gets serialized
+            XContentBuilder builder = JsonXContent.contentBuilder().startObject();
+            fieldMapper.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject();
+            builder.close();
+            Map<String, Object> serializedMap;
+            try (XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes())) {
+                serializedMap = parser.map();
+                serializedMap = ((Map<String, Object>) serializedMap.get("completion"));
+            }
+            assertThat(((boolean)serializedMap.get("force_new")), equalTo(true));
+        }
     }
 
     @Test
@@ -563,7 +636,7 @@ public class CompletionV2FieldMapperTests extends ElasticsearchSingleNodeTest {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         CompletionV2FieldMapper completionFieldMapper = (CompletionV2FieldMapper) fieldMapper;
-        Query prefixQuery = ((CompletionV2FieldMapper.CompletionFieldType) completionFieldMapper.fieldType()).prefixQuery(new BytesRef("co"));
+        Query prefixQuery = completionFieldMapper.fieldType().prefixQuery(new BytesRef("co"));
         assertThat(prefixQuery, instanceOf(PrefixCompletionQuery.class));
     }
 
@@ -578,7 +651,7 @@ public class CompletionV2FieldMapperTests extends ElasticsearchSingleNodeTest {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         CompletionV2FieldMapper completionFieldMapper = (CompletionV2FieldMapper) fieldMapper;
-        Query prefixQuery = ((CompletionV2FieldMapper.CompletionFieldType) completionFieldMapper.fieldType()).fuzzyQuery("co",
+        Query prefixQuery = completionFieldMapper.fieldType().fuzzyQuery("co",
                 Fuzziness.fromEdits(FuzzyCompletionQuery.DEFAULT_MAX_EDITS), FuzzyCompletionQuery.DEFAULT_NON_FUZZY_PREFIX,
                 FuzzyCompletionQuery.DEFAULT_MIN_FUZZY_LENGTH, Operations.DEFAULT_MAX_DETERMINIZED_STATES,
                 FuzzyCompletionQuery.DEFAULT_TRANSPOSITIONS, FuzzyCompletionQuery.DEFAULT_UNICODE_AWARE);
@@ -596,7 +669,7 @@ public class CompletionV2FieldMapperTests extends ElasticsearchSingleNodeTest {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         CompletionV2FieldMapper completionFieldMapper = (CompletionV2FieldMapper) fieldMapper;
-        Query prefixQuery = ((CompletionV2FieldMapper.CompletionFieldType) completionFieldMapper.fieldType())
+        Query prefixQuery = completionFieldMapper.fieldType()
                 .regexpQuery(new BytesRef("co"), RegExp.ALL, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
         assertThat(prefixQuery, instanceOf(RegexCompletionQuery.class));
     }

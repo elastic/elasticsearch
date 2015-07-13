@@ -891,7 +891,7 @@ public class GetActionIT extends ESIntegTestCase {
                 "    \"doc\": {\n" +
                 "      \"properties\": {\n" +
                 "        \"suggest\": {\n" +
-                "          \"type\": \"completion_old\"\n" +
+                "          \"type\": \"completion\"\n" +
                 "        }\n" +
                 "      }\n" +
                 "    }\n" +
@@ -904,8 +904,7 @@ public class GetActionIT extends ESIntegTestCase {
                 "    \"input\": [\n" +
                 "      \"Nevermind\",\n" +
                 "      \"Nirvana\"\n" +
-                "    ],\n" +
-                "    \"output\": \"Nirvana - Nevermind\"\n" +
+                "    ]\n" +
                 "  }\n" +
                 "}";
 

@@ -22,8 +22,9 @@ package org.elasticsearch.common.lucene.search;
 import com.google.common.base.Stopwatch;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -103,9 +104,9 @@ public class ProfileQuery extends Query {
                 executionTime = time;
                 break;
             case ALL:
-                throw new ElasticsearchIllegalArgumentException("Must setTime for either REWRITE or EXECUTION timing.");
+                throw new IllegalArgumentException("Must setTime for either REWRITE or EXECUTION timing.");
             default:
-                throw new ElasticsearchIllegalArgumentException("Must setTime for either REWRITE or EXECUTION timing.");
+                throw new IllegalArgumentException("Must setTime for either REWRITE or EXECUTION timing.");
         }
     }
 
@@ -128,16 +129,19 @@ public class ProfileQuery extends Query {
                 executionTime += time;
                 break;
             case ALL:
-                throw new ElasticsearchIllegalArgumentException("Must setTime for either REWRITE or EXECUTION timing.");
+                throw new IllegalArgumentException("Must setTime for either REWRITE or EXECUTION timing.");
             default:
-                throw new ElasticsearchIllegalArgumentException("Must setTime for either REWRITE or EXECUTION timing.");
+                throw new IllegalArgumentException("Must setTime for either REWRITE or EXECUTION timing.");
         }
     }
 
+    /*
     @Override
     public void extractTerms(Set<Term> terms) {
-        subQuery.extractTerms(terms);
+        super(terms);
+        //subQuery.extractTerms(terms);
     }
+    */
 
     /** Create a shallow copy of us -- used in rewriting if necessary
      * @return a copy of us (but reuse, don't copy, our subqueries) */

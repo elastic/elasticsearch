@@ -468,7 +468,7 @@ public abstract class MappedFieldType extends FieldType {
         return query;
     }
 
-    public Query regexpQuery(Object value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
+    public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
         RegexpQuery query = new RegexpQuery(createTerm(value), flags, maxDeterminizedStates);
         if (method != null) {
             query.setRewriteMethod(method);

@@ -99,7 +99,7 @@ public class CompletionSuggestParser implements SuggestContextParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (!parseSuggestContext(parser, mapperService, fieldName, suggestion)) {
+                if (!parseSuggestContext(parser, mapperService, fieldName, suggestion, queryParserService.parseFieldMatcher())) {
                     if (token == XContentParser.Token.VALUE_BOOLEAN && "fuzzy".equals(fieldName)) {
                         if (parser.booleanValue()) {
                             fuzzyOptions = new CompletionSuggestionBuilder.FuzzyOptionsBuilder();
@@ -114,7 +114,7 @@ public class CompletionSuggestParser implements SuggestContextParser {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             fuzzyConfigName = parser.currentName();
                         } else if (token.isValue()) {
-                            if (FUZZINESS.match(fuzzyConfigName, ParseField.EMPTY_FLAGS)) {
+                            if (queryParserService.parseFieldMatcher().match(fuzzyConfigName, FUZZINESS)) {
                                 fuzzyOptions.setFuzziness(Fuzziness.parse(parser).asDistance());
                             } else if ("transpositions".equals(fuzzyConfigName)) {
                                 fuzzyOptions.setTranspositions(parser.booleanValue());
@@ -126,6 +126,8 @@ public class CompletionSuggestParser implements SuggestContextParser {
                                 fuzzyOptions.setUnicodeAware(parser.booleanValue());
                             } else if ("max_determinized_states".equals(fuzzyConfigName)) {
                                 fuzzyOptions.setMaxDeterminizedStates(parser.intValue());
+                            } else {
+                                throw new IllegalArgumentException("[fuzzy] query does not support [" + fuzzyConfigName + "]");
                             }
                         }
                     }
@@ -156,20 +158,16 @@ public class CompletionSuggestParser implements SuggestContextParser {
                     throw new IllegalArgumentException("suggester [completion] doesn't support field [" + fieldName + "]");
                 }
             } else {
-                throw new IllegalArgumentException("suggester[completion]  doesn't support field [" + fieldName + "]");
+                throw new IllegalArgumentException("suggester [completion] doesn't support field [" + fieldName + "]");
             }
         }
         MappedFieldType mappedFieldType = mapperService.smartNameFieldType(suggestion.getField());
-        if (mappedFieldType == null
-                || (mappedFieldType instanceof CompletionV2FieldMapper.CompletionFieldType) == false
-                || (mappedFieldType instanceof CompletionFieldMapper.CompletionFieldType) == false) {
+        if (mappedFieldType == null) {
             throw new ElasticsearchException("Field [" + suggestion.getField() + "] is not a completion suggest field");
-        }
-
-        if (mappedFieldType instanceof CompletionV2FieldMapper.CompletionFieldType) {
+        } else if (mappedFieldType instanceof CompletionV2FieldMapper.CompletionFieldType) {
             CompletionV2FieldMapper.CompletionFieldType type = (CompletionV2FieldMapper.CompletionFieldType) mappedFieldType;
             if (type.hasContextMappings() == false && contextParser != null) {
-                throw new IllegalArgumentException("suggester [completion] doesn't expect any context");
+                throw new IllegalArgumentException("suggester [" + type.names().fullName() + "] doesn't expect any context");
             }
             Map<String, ContextMapping.QueryContexts> queryContexts = Collections.emptyMap();
             if (type.hasContextMappings() && contextParser != null) {
@@ -185,6 +183,7 @@ public class CompletionSuggestParser implements SuggestContextParser {
             // TODO: pass a query builder or the query itself?
             // now we do it in CompletionSuggester#toQuery(CompletionSuggestionContext)
             return suggestion;
+
         } else if (mappedFieldType instanceof CompletionFieldMapper.CompletionFieldType) {
             org.elasticsearch.search.suggest.completion.CompletionSuggestionContext oldSuggestionContext =
                     new org.elasticsearch.search.suggest.completion.CompletionSuggestionContext(oldCompletionSuggester);
@@ -192,7 +191,9 @@ public class CompletionSuggestParser implements SuggestContextParser {
             oldSuggestionContext.setAnalyzer(suggestion.getAnalyzer());
             oldSuggestionContext.setField(suggestion.getField());
             oldSuggestionContext.setSize(suggestion.getSize());
-            oldSuggestionContext.setShardSize(suggestion.getShardSize());
+            if (suggestion.getShardSize() > 0) {
+                oldSuggestionContext.setShardSize(suggestion.getShardSize());
+            }
 
             if (fuzzyOptions != null) {
                 oldSuggestionContext.setFuzzy(true);
@@ -220,8 +221,9 @@ public class CompletionSuggestParser implements SuggestContextParser {
                 }
             }
             return oldSuggestionContext;
+        } else {
+            throw new ElasticsearchException("Field [" + suggestion.getField() + "] is not a completion suggest field");
         }
-        throw new ElasticsearchException("Field [" + suggestion.getField() + "] is not a completion suggest field");
     }
 
     public void setOldCompletionSuggester(org.elasticsearch.search.suggest.completion.CompletionSuggester oldCompletionSuggester) {

@@ -20,12 +20,15 @@ package org.elasticsearch.search.suggest;
 
 import com.google.common.collect.Sets;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.suggest.SuggestRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -39,6 +42,7 @@ import org.elasticsearch.search.suggest.context.ContextBuilder;
 import org.elasticsearch.search.suggest.context.ContextMapping;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
+import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -56,6 +60,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
     private static final String INDEX = "test";
     private static final String TYPE = "testType";
     private static final String FIELD = "testField";
+    private final Version PRE2X_VERSION = VersionUtils.randomVersionBetween(getRandom(), Version.V_1_0_0, Version.V_1_7_0);
 
     private static final String[][] HEROS = {
             { "Afari, Jamal", "Jamal Afari", "Jamal" },
@@ -78,7 +83,8 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
 
     @Test
     public void testBasicGeo() throws Exception {
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, ContextBuilder.location("st").precision("5km").neighbors(true))));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id))
+                .addMapping(TYPE, createMapping(TYPE, ContextBuilder.location("st").precision("5km").neighbors(true))));
         ensureYellow();
 
         XContentBuilder source1 = jsonBuilder()
@@ -116,7 +122,8 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
     
     @Test
     public void testMultiLevelGeo() throws Exception {
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, ContextBuilder.location("st")
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id))
+                .addMapping(TYPE, createMapping(TYPE, ContextBuilder.location("st")
                 .precision(1)
                 .precision(2)
                 .precision(3)
@@ -165,8 +172,8 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
         }
         Collections.shuffle(precisions, getRandom());
         XContentBuilder mapping = jsonBuilder().startObject().startObject(TYPE)
-                .startObject("properties").startObject("completion_old")
-                .field("type", "completion_old")
+                .startObject("properties").startObject("completion")
+                .field("type", "completion")
                 .startObject("context")
                 .startObject("location")
                 .field("type", "geo")
@@ -175,13 +182,13 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
                 .endObject().endObject()
                 .endObject().endObject();
 
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, mapping.string()));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id)).addMapping(TYPE, mapping.string()));
         ensureYellow();
 
         Collections.shuffle(precisions, getRandom());
         mapping = jsonBuilder().startObject().startObject(TYPE)
-                .startObject("properties").startObject("completion_old")
-                .field("type", "completion_old")
+                .startObject("properties").startObject("completion")
+                .field("type", "completion")
                 .startObject("context")
                 .startObject("location")
                 .field("type", "geo")
@@ -204,7 +211,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
         mapping.field("type", "geo_point");
         mapping.endObject();
         mapping.startObject(FIELD);
-        mapping.field("type", "completion_old");
+        mapping.field("type", "completion");
         mapping.field("analyzer", "simple");
 
         mapping.startObject("context");
@@ -216,7 +223,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
         mapping.endObject();
         mapping.endObject();
 
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, mapping));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id)).addMapping(TYPE, mapping));
         ensureYellow();
 
         XContentBuilder source1 = jsonBuilder()
@@ -270,7 +277,8 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
 
         double precision = 100.0; // meters
 
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, ContextBuilder.location("st").precision(precision).neighbors(true))));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id))
+                .addMapping(TYPE, createMapping(TYPE, ContextBuilder.location("st").precision(precision).neighbors(true))));
         ensureYellow();
 
         String[] locations = { reinickendorf, pankow, koepenick, bernau, berlin, mitte, steglitz, wilmersdorf, spandau, tempelhof,
@@ -310,7 +318,8 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
 
     @Test
     public void testSimplePrefix() throws Exception {
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, ContextBuilder.category("st"))));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id))
+                .addMapping(TYPE, createMapping(TYPE, ContextBuilder.category("st"))));
         ensureYellow();
 
         for (int i = 0; i < HEROS.length; i++) {
@@ -338,11 +347,11 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
     public void testTypeCategoryIsActuallyCalledCategory() throws Exception {
         XContentBuilder mapping = jsonBuilder();
         mapping.startObject().startObject(TYPE).startObject("properties")
-                .startObject("suggest_field").field("type", "completion_old")
+                .startObject("suggest_field").field("type", "completion")
                 .startObject("context").startObject("color").field("type", "category").endObject().endObject()
                 .endObject()
                 .endObject().endObject().endObject();
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, mapping));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id)).addMapping(TYPE, mapping));
         ensureYellow();
         XContentBuilder doc1 = jsonBuilder();
         doc1.startObject().startObject("suggest_field")
@@ -393,7 +402,8 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
 
     @Test
     public void testBasic() throws Exception {
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, false, ContextBuilder.reference("st", "_type"), ContextBuilder.reference("nd", "_type"))));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id))
+                .addMapping(TYPE, createMapping(TYPE, false, ContextBuilder.reference("st", "_type"), ContextBuilder.reference("nd", "_type"))));
         ensureYellow();
 
         client().prepareIndex(INDEX, TYPE, "1")
@@ -410,7 +420,8 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
 
     @Test
     public void testSimpleField() throws Exception {
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, ContextBuilder.reference("st", "category"))));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id))
+                .addMapping(TYPE, createMapping(TYPE, ContextBuilder.reference("st", "category"))));
         ensureYellow();
 
         for (int i = 0; i < HEROS.length; i++) {
@@ -442,7 +453,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
                 .startObject(TYPE)
                 .startObject("properties")
                 .startObject(FIELD)
-                .field("type", "completion_old")
+                .field("type", "completion")
                 .startObject("context")
                 .startObject("type_context")
                 .field("path", "_type")
@@ -455,7 +466,8 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
                 .endObject()
                 .string();
 
-        assertAcked(client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, mapping).get());
+        assertAcked(client().admin().indices().prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id))
+                .addMapping(TYPE, mapping).get());
         ensureGreen();
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(FIELD, "")
@@ -465,7 +477,8 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
 
     @Test
     public void testMultiValueField() throws Exception {
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, ContextBuilder.reference("st", "category"))));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id))
+                .addMapping(TYPE, createMapping(TYPE, ContextBuilder.reference("st", "category"))));
         ensureYellow();
 
         for (int i = 0; i < HEROS.length; i++) {
@@ -491,7 +504,8 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
 
     @Test
     public void testMultiContext() throws Exception {
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, ContextBuilder.reference("st", "categoryA"), ContextBuilder.reference("nd", "categoryB"))));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id))
+                .addMapping(TYPE, createMapping(TYPE, ContextBuilder.reference("st", "categoryA"), ContextBuilder.reference("nd", "categoryB"))));
         ensureYellow();
 
         for (int i = 0; i < HEROS.length; i++) {
@@ -518,7 +532,8 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
 
     @Test
     public void testMultiContextWithFuzzyLogic() throws Exception {
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, ContextBuilder.reference("st", "categoryA"), ContextBuilder.reference("nd", "categoryB"))));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id))
+                .addMapping(TYPE, createMapping(TYPE, ContextBuilder.reference("st", "categoryA"), ContextBuilder.reference("nd", "categoryB"))));
         ensureYellow();
 
         for (int i = 0; i < HEROS.length; i++) {
@@ -551,7 +566,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
     public void testSimpleType() throws Exception {
         String[] types = { TYPE + "A", TYPE + "B", TYPE + "C" };
 
-        CreateIndexRequestBuilder createIndexRequestBuilder = prepareCreate(INDEX);
+        CreateIndexRequestBuilder createIndexRequestBuilder = prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id));
         for (String type : types) {
             createIndexRequestBuilder.addMapping(type, createMapping(type, ContextBuilder.reference("st", "_type")));
         }
@@ -585,7 +600,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
 
         XContentBuilder xContentBuilder = jsonBuilder().startObject()
             .startObject("poi").startObject("properties").startObject("suggest")
-                .field("type", "completion_old")
+                .field("type", "completion")
                 .startObject("context").startObject("location")
                     .field("type", "geo")
                     .field("precision", "500m")
@@ -594,7 +609,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
                 .endObject().endObject().endObject()
             .endObject();
 
-        assertAcked(prepareCreate(INDEX).addMapping("poi", xContentBuilder));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id)).addMapping("poi", xContentBuilder));
         ensureYellow();
 
         index(INDEX, "poi", "1", jsonBuilder().startObject().startObject("suggest").field("input", "Berlin Alexanderplatz").endObject().endObject());
@@ -609,7 +624,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
     public void testThatMissingPrefixesForContextReturnException() throws Exception {
         XContentBuilder xContentBuilder = jsonBuilder().startObject()
             .startObject("service").startObject("properties").startObject("suggest")
-                .field("type", "completion_old")
+                .field("type", "completion")
                 .startObject("context").startObject("color")
                     .field("type", "category")
                     .field("path", "color")
@@ -617,7 +632,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
             .endObject().endObject().endObject()
             .endObject();
 
-        assertAcked(prepareCreate(INDEX).addMapping("service", xContentBuilder));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id)).addMapping("service", xContentBuilder));
         ensureYellow();
 
         // now index a document with color field
@@ -636,7 +651,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
     public void testThatLocationVenueCanBeParsedAsDocumented() throws Exception {
         XContentBuilder xContentBuilder = jsonBuilder().startObject()
             .startObject("poi").startObject("properties").startObject("suggest")
-                .field("type", "completion_old")
+                .field("type", "completion")
                 .startObject("context").startObject("location")
                     .field("type", "geo")
                     .field("precision", "1m")
@@ -644,14 +659,14 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
             .endObject().endObject().endObject()
             .endObject();
 
-        assertAcked(prepareCreate(INDEX).addMapping("poi", xContentBuilder));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id)).addMapping("poi", xContentBuilder));
         ensureYellow();
 
         SuggestRequest suggestRequest = new SuggestRequest(INDEX);
         XContentBuilder builder = jsonBuilder().startObject()
             .startObject("suggest")
                 .field("text", "m")
-                .startObject("completion_old")
+                .startObject("completion")
                     .field("field", "suggest")
                     .startObject("context").startObject("location").startObject("value").field("lat", 0).field("lon", 0).endObject().field("precision", "1km").endObject().endObject()
                 .endObject()
@@ -667,14 +682,14 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
     public void testThatCategoryDefaultWorks() throws Exception {
         XContentBuilder xContentBuilder = jsonBuilder().startObject()
                 .startObject("item").startObject("properties").startObject("suggest")
-                .field("type", "completion_old")
+                .field("type", "completion")
                 .startObject("context").startObject("color")
                 .field("type", "category").field("default", "red")
                 .endObject().endObject()
                 .endObject().endObject().endObject()
                 .endObject();
 
-        assertAcked(prepareCreate(INDEX).addMapping("item", xContentBuilder));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id)).addMapping("item", xContentBuilder));
         ensureYellow();
 
         index(INDEX, "item", "1", jsonBuilder().startObject().startObject("suggest").field("input", "Hoodie red").endObject().endObject());
@@ -690,7 +705,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
     public void testThatDefaultCategoryAndPathWorks() throws Exception {
         XContentBuilder xContentBuilder = jsonBuilder().startObject()
                 .startObject("item").startObject("properties").startObject("suggest")
-                .field("type", "completion_old")
+                .field("type", "completion")
                 .startObject("context").startObject("color")
                 .field("type", "category")
                 .field("default", "red")
@@ -699,7 +714,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
                 .endObject().endObject().endObject()
                 .endObject();
 
-        assertAcked(prepareCreate(INDEX).addMapping("item", xContentBuilder));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id)).addMapping("item", xContentBuilder));
         ensureYellow();
 
         index(INDEX, "item", "1", jsonBuilder().startObject().startObject("suggest").field("input", "Hoodie red").endObject().endObject());
@@ -715,7 +730,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
     public void testThatGeoPrecisionIsWorking() throws Exception {
         XContentBuilder xContentBuilder = jsonBuilder().startObject()
                 .startObject("item").startObject("properties").startObject("suggest")
-                .field("type", "completion_old")
+                .field("type", "completion")
                 .startObject("context").startObject("location")
                 .field("type", "geo")
                 .field("precision", 4) // this means geo hashes with a length of four are used, like u345
@@ -723,7 +738,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
                 .endObject().endObject().endObject()
                 .endObject();
 
-        assertAcked(prepareCreate(INDEX).addMapping("item", xContentBuilder));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id)).addMapping("item", xContentBuilder));
         ensureYellow();
 
         // lets create some locations by geohashes in different cells with the precision 4
@@ -748,7 +763,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
     public void testThatNeighborsCanBeExcluded() throws Exception {
         XContentBuilder xContentBuilder = jsonBuilder().startObject()
                 .startObject("item").startObject("properties").startObject("suggest")
-                .field("type", "completion_old")
+                .field("type", "completion")
                 .startObject("context").startObject("location")
                 .field("type", "geo")
                 .field("precision", 6)
@@ -757,7 +772,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
                 .endObject().endObject().endObject()
                 .endObject();
 
-        assertAcked(prepareCreate(INDEX).addMapping("item", xContentBuilder));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id)).addMapping("item", xContentBuilder));
         ensureYellow();
 
         GeoPoint alexanderplatz = GeoHashUtils.decode("u33dc1");
@@ -778,7 +793,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
     public void testThatGeoPathCanBeSelected() throws Exception {
         XContentBuilder xContentBuilder = jsonBuilder().startObject()
                 .startObject("item").startObject("properties").startObject("suggest")
-                .field("type", "completion_old")
+                .field("type", "completion")
                 .startObject("context").startObject("location")
                 .field("type", "geo")
                 .field("precision", "5m")
@@ -787,7 +802,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
                 .endObject().endObject().endObject()
                 .endObject();
 
-        assertAcked(prepareCreate(INDEX).addMapping("item", xContentBuilder));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id)).addMapping("item", xContentBuilder));
         ensureYellow();
 
         GeoPoint alexanderplatz = GeoHashUtils.decode("u33dc1");
@@ -803,7 +818,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
     public void testThatPrecisionIsRequired() throws Exception {
         XContentBuilder xContentBuilder = jsonBuilder().startObject()
                 .startObject("item").startObject("properties").startObject("suggest")
-                .field("type", "completion_old")
+                .field("type", "completion")
                 .startObject("context").startObject("location")
                 .field("type", "geo")
                 .field("path", "loc")
@@ -811,14 +826,14 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
                 .endObject().endObject().endObject()
                 .endObject();
 
-        assertAcked(prepareCreate(INDEX).addMapping("item", xContentBuilder));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id)).addMapping("item", xContentBuilder));
     }
 
     @Test
     public void testThatLatLonParsingFromSourceWorks() throws Exception {
         XContentBuilder xContentBuilder = jsonBuilder().startObject()
                 .startObject("mappings").startObject("test").startObject("properties").startObject("suggest_geo")
-                .field("type", "completion_old")
+                .field("type", "completion")
                 .startObject("context").startObject("location")
                 .field("type", "geo")
                 .field("precision", "1km")
@@ -826,7 +841,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
                 .endObject().endObject().endObject()
                 .endObject().endObject();
 
-        assertAcked(prepareCreate("test").setSource(xContentBuilder.bytes()));
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id)).setSource(xContentBuilder.bytes()));
 
         double latitude = 52.22;
         double longitude = 4.53;
@@ -838,13 +853,13 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
         index("test", "test", "2", doc2);
         refresh();
 
-        XContentBuilder source = jsonBuilder().startObject().startObject("suggestion").field("text", "h").startObject("completion_old").field("field", "suggest_geo").startObject("context").field("location", geohash).endObject().endObject().endObject().endObject();
+        XContentBuilder source = jsonBuilder().startObject().startObject("suggestion").field("text", "h").startObject("completion").field("field", "suggest_geo").startObject("context").field("location", geohash).endObject().endObject().endObject().endObject();
         SuggestRequest suggestRequest = new SuggestRequest(INDEX).suggest(source.bytes());
         SuggestResponse suggestResponse = client().suggest(suggestRequest).get();
         assertSuggestion(suggestResponse.getSuggest(), 0, "suggestion", "Hotel Marriot in Amsterdam");
 
         // this is exact the same request, but using lat/lon instead of geohash
-        source = jsonBuilder().startObject().startObject("suggestion").field("text", "h").startObject("completion_old").field("field", "suggest_geo").startObject("context").startObject("location").field("lat", latitude).field("lon", longitude).endObject().endObject().endObject().endObject().endObject();
+        source = jsonBuilder().startObject().startObject("suggestion").field("text", "h").startObject("completion").field("field", "suggest_geo").startObject("context").startObject("location").field("lat", latitude).field("lon", longitude).endObject().endObject().endObject().endObject().endObject();
         suggestRequest = new SuggestRequest(INDEX).suggest(source.bytes());
         suggestResponse = client().suggest(suggestRequest).get();
         assertSuggestion(suggestResponse.getSuggest(), 0, "suggestion", "Hotel Marriot in Amsterdam");
@@ -1035,7 +1050,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
         mapping.startObject(type);
         mapping.startObject("properties");
         mapping.startObject(FIELD);
-        mapping.field("type", "completion_old");
+        mapping.field("type", "completion");
         mapping.field("analyzer", indexAnalyzer);
         mapping.field("search_analyzer", searchAnalyzer);
         mapping.field("payloads", payloads);

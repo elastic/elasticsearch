@@ -23,6 +23,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.google.common.collect.Lists;
 
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
@@ -33,6 +34,7 @@ import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -48,6 +50,7 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionFuzzyBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -72,6 +75,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     private final String INDEX = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
     private final String TYPE = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
     private final String FIELD = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
+    private final Version PRE2X_VERSION = VersionUtils.randomVersionBetween(getRandom(), Version.V_1_0_0, Version.V_1_7_0);
     private final CompletionMappingBuilder completionMappingBuilder = new CompletionMappingBuilder();
 
     @Test
@@ -491,7 +495,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject();
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, mapping));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id)).addMapping(TYPE, mapping));
         client().prepareIndex(INDEX, TYPE, "1").setRefresh(true).setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
         ensureGreen(INDEX);
 
@@ -501,7 +505,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .field("type", "multi_field")
                 .startObject("fields")
                 .startObject(FIELD).field("type", "string").endObject()
-                .startObject("suggest").field("type", "completion_old").field("analyzer", "simple").endObject()
+                .startObject("suggest").field("type", "completion").field("analyzer", "simple").endObject()
                 .endObject()
                 .endObject()
                 .endObject().endObject()
@@ -535,7 +539,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject();
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, mapping));
+        assertAcked(prepareCreate(INDEX).addMapping(TYPE, mapping).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id)));
         client().prepareIndex(INDEX, TYPE, "1").setRefresh(true).setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
         ensureGreen(INDEX);
 
@@ -544,7 +548,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .startObject(FIELD)
                 .field("type", "string")
                 .startObject("fields")
-                .startObject("suggest").field("type", "completion_old").field("analyzer", "simple").endObject()
+                .startObject("suggest").field("type", "completion").field("analyzer", "simple").endObject()
                 .endObject()
                 .endObject()
                 .endObject().endObject()
@@ -717,15 +721,15 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     public void testThatStatsAreWorking() throws Exception {
         String otherField = "testOtherField";
 
-        createIndex(INDEX);
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id)));
 
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties")
                 .startObject(FIELD.toString())
-                .field("type", "completion_old").field("analyzer", "simple")
+                .field("type", "completion").field("analyzer", "simple")
                 .endObject()
                 .startObject(otherField)
-                .field("type", "completion_old").field("analyzer", "simple")
+                .field("type", "completion").field("analyzer", "simple")
                 .endObject()
                 .endObject().endObject().endObject())
                 .get();
@@ -890,11 +894,11 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
     private void createIndexAndMappingAndSettings(Settings settings, CompletionMappingBuilder completionMappingBuilder) throws IOException {
         assertAcked(client().admin().indices().prepareCreate(INDEX)
-                .setSettings(Settings.settingsBuilder().put(indexSettings()).put(settings))
+                .setSettings(Settings.settingsBuilder().put(indexSettings()).put(settings).put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id))
                 .addMapping(TYPE, jsonBuilder().startObject()
                         .startObject(TYPE).startObject("properties")
                         .startObject(FIELD)
-                        .field("type", "completion_old")
+                        .field("type", "completion")
                         .field("analyzer", completionMappingBuilder.indexAnalyzer)
                         .field("search_analyzer", completionMappingBuilder.searchAnalyzer)
                         .field("payloads", completionMappingBuilder.payloads)
@@ -991,7 +995,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
     @Test
     public void testMaxFieldLength() throws IOException {
-        client().admin().indices().prepareCreate(INDEX).get();
+        client().admin().indices().prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id)).get();
         ensureGreen();
         int iters = scaledRandomIntBetween(10, 20);
         for (int i = 0; i < iters; i++) {
@@ -1000,7 +1004,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             assertAcked(client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
                     .startObject(TYPE).startObject("properties")
                     .startObject(FIELD)
-                    .field("type", "completion_old")
+                    .field("type", "completion")
                     .field("max_input_length", maxInputLen)
                             // upgrade mapping each time
                     .field("analyzer", "keyword")
@@ -1030,13 +1034,14 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     @Test
     // see #3596
     public void testVeryLongInput() throws IOException {
-        assertAcked(client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, jsonBuilder().startObject()
-                .startObject(TYPE).startObject("properties")
-                .startObject(FIELD)
-                .field("type", "completion_old")
-                .endObject()
-                .endObject().endObject()
-                .endObject()).get());
+        assertAcked(client().admin().indices().prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id))
+                .addMapping(TYPE, jsonBuilder().startObject()
+                        .startObject(TYPE).startObject("properties")
+                        .startObject(FIELD)
+                        .field("type", "completion")
+                        .endObject()
+                        .endObject().endObject()
+                        .endObject()).get());
         ensureYellow();
         // can cause stack overflow without the default max_input_length
         String longString = replaceReservedChars(randomRealisticUnicodeOfLength(randomIntBetween(5000, 10000)), (char) 0x01);
@@ -1055,7 +1060,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties")
                 .startObject(FIELD)
-                .field("type", "completion_old")
+                .field("type", "completion")
                 .endObject()
                 .endObject().endObject()
                 .endObject()).get());
@@ -1075,7 +1080,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties")
                 .startObject(FIELD)
-                .field("type", "completion_old")
+                .field("type", "completion")
                 .endObject()
                 .endObject().endObject()
                 .endObject()).get());
@@ -1105,14 +1110,14 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .startObject(TYPE)
                 .startObject("properties")
                 .startObject(FIELD)
-                .field("type", "completion_old")
+                .field("type", "completion")
                 .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
                 .string();
 
-        assertAcked(client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, mapping).get());
+        assertAcked(client().admin().indices().prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id)).addMapping(TYPE, mapping).get());
         ensureGreen();
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(FIELD, "strings make me happy", FIELD + "_1", "nulls make me sad")

@@ -1226,7 +1226,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
         @Override
         public MetaData apply(MetaData part) {
             Builder builder = builder();
-            builder.uuid(clusterUUID);
+            builder.clusterUUID(clusterUUID);
             builder.version(version);
             builder.transientSettings(transientSettings);
             builder.persistentSettings(persistentSettings);
@@ -1522,8 +1522,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
             return this;
         }
 
-        public Builder uuid(String uuid) {
-            this.clusterUUID = uuid;
+        public Builder clusterUUID(String clusterUUID) {
+            this.clusterUUID = clusterUUID;
             return this;
         }
 

@@ -35,6 +35,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.dfs.CachedDfSource;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
@@ -139,7 +140,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     public void search(Query query, Collector collector) throws IOException {
         // Wrap the caller's collector with various wrappers e.g. those used to siphon
         // matches off for aggregation or to impose a time-limit on collection.
-        final boolean timeoutSet = searchContext.timeoutInMillis() != -1;
+        final boolean timeoutSet = searchContext.timeoutInMillis() != SearchService.NO_TIMEOUT.millis();
         final boolean terminateAfterSet = searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER;
 
         if (timeoutSet) {

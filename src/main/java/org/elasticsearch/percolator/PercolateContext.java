@@ -100,6 +100,7 @@ public class PercolateContext extends SearchContext {
     private final int numberOfShards;
     private final Filter aliasFilter;
     private String[] types;
+    private final long startTime;
 
     private Engine.Searcher docSearcher;
     private Engine.Searcher engineSearcher;
@@ -126,6 +127,8 @@ public class PercolateContext extends SearchContext {
         this.searchShardTarget = searchShardTarget;
         this.percolateQueries = indexShard.percolateRegistry().percolateQueries();
         this.types = new String[]{request.documentType()};
+        long startTime = request.getStartTime();
+        this.startTime = startTime == -1 ? System.currentTimeMillis() : startTime;
         this.cacheRecycler = cacheRecycler;
         this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays.withCircuitBreaking();
@@ -349,7 +352,7 @@ public class PercolateContext extends SearchContext {
 
     @Override
     protected long nowInMillisImpl() {
-        throw new UnsupportedOperationException();
+        return startTime;
     }
 
     @Override

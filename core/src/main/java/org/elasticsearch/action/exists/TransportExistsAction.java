@@ -45,6 +45,7 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.DefaultSearchContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -153,7 +154,9 @@ public class TransportExistsAction extends TransportBroadcastAction<ExistsReques
         SearchContext context = new DefaultSearchContext(0,
                 new ShardSearchLocalRequest(request.types(), request.nowInMillis(), request.filteringAliases()),
                 shardTarget, indexShard.acquireSearcher("exists"), indexService, indexShard,
-                scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher);
+                scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher,
+                SearchService.NO_TIMEOUT
+        );
         SearchContext.setCurrent(context);
 
         try {

@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.dfs.DfsPhase;
@@ -52,10 +53,10 @@ public class MockSearchService extends SearchService {
     }
 
     @Inject
-    public MockSearchService(Settings settings, ClusterService clusterService, IndicesService indicesService, IndicesWarmer indicesWarmer,
+    public MockSearchService(Settings settings, NodeSettingsService nodeSettingsService, ClusterService clusterService, IndicesService indicesService, IndicesWarmer indicesWarmer,
             ThreadPool threadPool, ScriptService scriptService, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays,
             DfsPhase dfsPhase, QueryPhase queryPhase, FetchPhase fetchPhase, IndicesRequestCache indicesQueryCache) {
-        super(settings, clusterService, indicesService, indicesWarmer, threadPool, scriptService, pageCacheRecycler, bigArrays, dfsPhase,
+        super(settings, nodeSettingsService, clusterService, indicesService, indicesWarmer, threadPool, scriptService, pageCacheRecycler, bigArrays, dfsPhase,
                 queryPhase, fetchPhase, indicesQueryCache);
     }
  

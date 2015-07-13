@@ -499,7 +499,7 @@ public class Version {
         if (snapshot = version.endsWith("-SNAPSHOT")) {
             version = version.substring(0, version.length() - 9);
         }
-        String[] parts = version.split("\\.");
+        String[] parts = version.split("\\.|\\-");
         if (parts.length < 3 || parts.length > 4) {
             throw new IllegalArgumentException("the version needs to contain major, minor and revision, and optionally the build: " + version);
         }
@@ -518,7 +518,7 @@ public class Version {
                 if (buildStr.startsWith("Beta") || buildStr.startsWith("beta")) {
                     build = Integer.parseInt(buildStr.substring(4));
                 }
-                if (buildStr.startsWith("RC")) {
+                if (buildStr.startsWith("RC") || buildStr.startsWith("rc")) {
                     build = Integer.parseInt(buildStr.substring(2)) + 50;
                 }
             }
@@ -591,13 +591,18 @@ public class Version {
         sb.append(major).append('.').append(minor).append('.').append(revision);
         if (isBeta()) {
             if (major >= 2) {
-                sb.append(".beta");
+                sb.append("-beta");
             } else {
                 sb.append(".Beta");
             }
             sb.append(build);
         } else if (build < 99) {
-            sb.append(".RC").append(build - 50);
+            if (major >= 2) {
+                sb.append("-rc");
+            } else {
+                sb.append(".RC");
+            }
+            sb.append(build - 50);
         }
         return sb.toString();
     }
@@ -642,6 +647,10 @@ public class Version {
 
     public boolean isBeta() {
         return build < 50;
+    }
+
+    public boolean isRC() {
+        return build > 50 && build < 99;
     }
 
     public static class Module extends AbstractModule {

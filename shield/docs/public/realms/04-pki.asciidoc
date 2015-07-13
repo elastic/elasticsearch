@@ -1,0 +1,105 @@
+[[pki]]
+=== PKI Authentication
+
+added[1.3.0] Shield allows for authentication through the use of Public Key Infrastructure (PKI). This works by requiring
+clients to present X.509 certificates that are used for authentication and authorization will be performed by mapping the
+distinguished name (DN) from the certificate to roles.
+
+==== SSL/TLS setup
+
+The PKI realm requires that SSL/TLS be enabled and client authentication also be enabled on the desired network layers
+(http and/or transport). It is possible to enable SSL/TLS and client authentication on only one network layer and use PKI
+authentication for that layer; for example, enabling SSL/TLS and client authentication on the transport layer with a PKI
+realm defined would allow for transport clients to authenticate with X.509 certificates while HTTP traffic would still
+authenticate using username and password authentication. The PKI realm supports a client authentication setting of either
+`required` or `optional`; `required` forces all clients to present a certificate, while `optional` enables clients
+without certificates to authenticate with other credentials. For SSL/TLS configuration details, please see
+<<ref-ssl-tls-settings, SSL/TLS settings>>.
+
+==== PKI Realm Configuration
+
+Like all realms, the `pki` realm is configured under the `shield.authc.realms` settings namespace in the
+`elasticsearch.yml` file. The following snippet shows an example of the most basic configuration:
+
+[source, yaml]
+------------------------------------------------------------
+shield:
+  authc:
+    realms:
+      pki1:
+        type: pki
+------------------------------------------------------------
+
+In the above configuration, any certificate trusted by the SSL/TLS layer will be accepted for authentication. The username
+will be the common name (CN) extracted from the DN of the certificate. If the username that should be used is something
+other than the CN of the DN, a regex can be provided to extract the value desired for the username. The following example
+will extract the email address from the DN:
+
+[source, yaml]
+------------------------------------------------------------
+shield:
+  authc:
+    realms:
+      pki1:
+        type: pki
+        username_pattern: "EMAILADDRESS=(.*?)(?:,|$)"
+------------------------------------------------------------
+
+The PKI realm also provides configuration options to specify a specific truststore for authentication, which is useful
+when the SSL/TLS layer trusts clients with certificates that are signed by a different CA than the one that signs the
+certificates for client authentication. The following example shows such a configuration:
+
+[source, yaml]
+------------------------------------------------------------
+shield:
+  authc:
+    realms:
+      pki1:
+        type: pki
+        truststore:
+          path: "/path/to/pki_truststore.jks"
+          password: "changeme"
+------------------------------------------------------------
+
+[[pki-settings]]
+
+.PKI Realm Settings
+|=======================
+| Setting                    | Required  | Description
+| `type`                     | yes       | Indicates the realm type and must be set to `pki`
+| `order`                    | no        | Indicates the priority of this realm within the realm chain. Realms with lower order will be consulted first. Although not required, it is highly recommended to explicitly set this value when multiple realms are configured. Defaults to `Integer.MAX_VALUE`.
+| `enabled`                  | no        | Indicates whether this realm is enabled/disabled. Provides an easy way to disable realms in the chain without removing their configuration. Defaults to `true`.
+| `username_pattern`         | no        | The regular expression pattern used to extract the username from the certificate DN. The first match group is used as the username. Default is `CN=(.*?)(?:,\|$)`
+| `truststore.path`          | no        | The path of a truststore to use. The default truststore is the one defined by <<ref-ssl-tls-settings,SSL/TLS settings>>
+| `truststore.password`      | no        | The password to the truststore. Must be provided if `truststore.path` is set.
+| `truststore.algorithm`     | no        | Algorithm for the trustsore. Default is `SunX509`
+| `files.role_mapping`       | no        | Specifies the path and file name for the <<pki-role-mapping, YAML role  mapping configuration file>>. The default file name is `role_mapping.yml` in the <<shield-config,Shield config directory>>.
+|=======================
+
+[[pki-role-mapping]]
+==== Mapping Users and Groups to Roles
+
+By default, the file that maps users to roles is `config/shield/role_mapping.yml`. You can configure
+the path and name of the mapping file by setting the appropriate value for the `.files.role_mapping` configuration
+parameter for a specific realm.
+
+The `role_mapping.yml` file uses the YAML format. Within a mapping file, Elasticsearch roles are keys and distinguished
+names (DNs) are values. The mapping can have a many-to-many relationship.
+
+.Example Role Mapping File
+[source, yaml]
+------------------------------------------------------------
+# Example group mapping configuration:
+# roleA: <1>
+#  - user1-DN <2>
+monitoring:
+  - "cn=Admin,ou=example,o=com"
+user:
+  - "cn=John Doe,ou=example,o=com"
+------------------------------------------------------------
+<1> The name of the elasticsearch role found in the <<roles-file, roles file>>
+<2> Example specifying the distinguished name of a PKI user
+
+NOTE: For the PKI realm, only the DN of a user can be mapped as there is no concept of a group in PKI
+
+After setting up role mappings, copy this file to each node. Tools like Puppet or Chef can help with this.

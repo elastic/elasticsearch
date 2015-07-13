@@ -1,0 +1,17 @@
+NAME
+
+    list - List existing users and their corresponding roles
+
+SYNOPSIS
+
+    esusers list <username>
+
+DESCRIPTION
+
+    The list command allows to list all existing users and their
+    corresponding roles. Alternatively you can also list just a
+    single user.
+
+OPTIONS
+
+    -h,--help                    Shows this message

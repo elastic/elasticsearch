@@ -1,0 +1,134 @@
+Elasticsearch Shield
+Copyright 2009-2015 Elasticsearch
+
+---
+This product includes software developed by The Apache Software
+Foundation (http://www.apache.org/).
+
+
+---
+This product contains software developed by Anders Moeller. The
+following is the copyright and notice text for this software:
+
+    Copyright (c) 2001-2011 Anders Moeller
+    All rights reserved.
+
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions
+    are met:
+    1. Redistributions of source code must retain the above copyright
+       notice, this list of conditions and the following disclaimer.
+    2. Redistributions in binary form must reproduce the above copyright
+       notice, this list of conditions and the following disclaimer in the
+       documentation and/or other materials provided with the distribution.
+    3. The name of the author may not be used to endorse or promote products
+       derived from this software without specific prior written permission.
+
+    THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+    IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+    OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+    IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
+    INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+    NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+    DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+    THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+    THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+---
+This product contains software developed by UNBOUNDID CORP
+(https://www.unboundid.com/). The following is the copyright and notice
+text for this software:
+
+                UnboundID LDAP SDK Free Use License
+
+THIS IS AN AGREEMENT BETWEEN YOU ("YOU") AND UNBOUNDID CORP. ("UNBOUNDID")
+REGARDING YOUR USE OF UNBOUNDID LDAP SDK FOR JAVA AND ANY ASSOCIATED
+DOCUMENTATION, OBJECT CODE, COMPILED LIBRARIES, SOURCE CODE AND SOURCE FILES OR
+OTHER MATERIALS MADE AVAILABLE BY UNBOUNDID (COLLECTIVELY REFERRED TO IN THIS
+AGREEMENT AS THE ("SDK").
+
+BY INSTALLING, ACCESSING OR OTHERWISE USING THE SDK, YOU ACCEPT THE TERMS OF
+THIS AGREEMENT.  IF YOU DO NOT AGREE TO THE TERMS OF THIS AGREEMENT, DO NOT
+INSTALL, ACCESS OR USE THE SDK.
+
+USE OF THE SDK.  Subject to your compliance with this Agreement, UnboundID
+grants to You a non-exclusive, royalty-free license, under UnboundID's
+intellectual property rights in the SDK, to use, reproduce, modify and
+distribute this release of the SDK; provided that no license is granted herein
+under any patents that may be infringed by your modifications, derivative works
+or by other works in which the SDK may be incorporated (collectively, your
+"Applications").  You may reproduce and redistribute the SDK with your
+Applications provided that you (i) include this license file and an
+unmodified copy of the unboundid-ldapsdk-se.jar file; and (ii) such
+redistribution is subject to a license whose terms do not conflict with or
+contradict the terms of this Agreement. You may also reproduce and redistribute
+the SDK without your Applications provided that you redistribute the SDK
+complete and unmodified (i.e., with all "read me" files, copyright notices, and
+other legal notices and terms that UnboundID has included in the SDK).
+
+SCOPE OF LICENSES.  This Agreement does not grant You the right to use any
+UnboundID intellectual property which is not included as part of the SDK.  The
+SDK is licensed, not sold.  This Agreement only gives You some rights to use
+the SDK.  UnboundID reserves all other rights. Unless applicable law gives You
+more rights despite this limitation, You may use the SDK only as expressly
+permitted in this Agreement.
+
+SUPPORT.  UnboundID is not obligated to provide any technical or other support
+("Support Services") for the SDK to You under this Agreement. However, if
+UnboundID chooses to provide any Support Services to You, Your use of such
+Support Services will be governed by then-current UnboundID support policies.
+
+TERMINATION.  UnboundID reserves the right to discontinue offering the SDK and
+to modify the SDK at any time in its sole discretion.  Notwithstanding anything
+contained in this Agreement to the contrary, UnboundID may also, in its sole
+discretion, terminate or suspend access to the SDK to You or any end user at
+any time.  In addition, if you fail to comply with the terms of this Agreement,
+then any rights granted herein will be automatically terminated if such failure
+is not corrected within 30 days of the initial notification of such failure.
+You acknowledge that termination and/or monetary damages may not be a
+sufficient remedy if You breach this Agreement and that UnboundID will be
+entitled, without waiving any other rights or remedies, to injunctive or
+equitable relief as may be deemed proper by a court of competent jurisdiction
+in the event of a breach.  UnboundID may also terminate this Agreement if the
+SDK becomes, or in UnboundID?s reasonable opinion is likely to become, the
+subject of a claim of intellectual property infringement or trade secret
+misappropriation.  All rights and licenses granted herein will simultaneously
+and automatically terminate upon termination of this Agreement for any reason.
+
+DISCLAIMER OF WARRANTY. THE SDK IS PROVIDED "AS IS" AND UNBOUNDID DOES NOT
+WARRANT THAT THE SDK WILL BE ERROR-FREE, VIRUS-FREE, WILL PERFORM IN AN
+UNINTERRUPTED, SECURE OR TIMELY MANNER, OR WILL INTEROPERATE WITH OTHER
+HARDWARE, SOFTWARE, SYSTEMS OR DATA.  TO THE MAXIMUM EXTENT ALLOWED BY LAW, ALL
+CONDITIONS, REPRESENTATIONS AND WARRANTIES, WHETHER EXPRESS, IMPLIED, STATUTORY
+OR OTHERWISE INCLUDING, WITHOUT LIMITATION, ANY IMPLIED WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE (EVEN IF UNBOUNDID HAD BEEN
+INFORMED OF SUCH PURPOSE), OR NON-INFRINGEMENT OF THIRD PARTY RIGHTS ARE HEREBY
+DISCLAIMED.
+
+LIMITATION OF LIABILITY.  IN NO EVENT WILL UNBOUNDID OR ITS SUPPLIERS BE LIABLE
+FOR ANY DAMAGES WHATSOEVER (INCLUDING, WITHOUT LIMITATION, LOST PROFITS,
+REVENUE, DATA OR DATA USE, BUSINESS INTERRUPTION, COST OF COVER, DIRECT,
+INDIRECT, SPECIAL, PUNITIVE, INCIDENTAL OR CONSEQUENTIAL DAMAGES OF ANY KIND)
+ARISING OUT OF THE USE OF OR INABILITY TO USE THE SDK OR IN ANY WAY RELATED TO
+THIS AGREEMENT, EVEN IF UNBOUNDID HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH
+DAMAGES.
+
+ADDITIONAL RIGHTS.  Certain states do not allow the exclusion of implied
+warranties or limitation of liability for certain kinds of damages, so the
+exclusion of limited warranties and limitation of liability set forth above may
+not apply to You.
+
+EXPORT RESTRICTIONS.  The SDK is subject to United States export control laws.
+You acknowledge and agree that You are responsible for compliance with all
+domestic and international export laws and regulations that apply to the SDK.
+
+MISCELLANEOUS.  This Agreement constitutes the entire agreement with respect to
+the SDK.  If any provision of this Agreement shall be held to be invalid,
+illegal or unenforceable, the validity, legality and enforceability of the
+remaining provisions shall in no way be affected or impaired thereby. This
+Agreement and performance hereunder shall be governed by and construed in
+accordance with the laws of the State of Texas without regard to its conflict
+of laws rules.  Any disputes related to this Agreement shall be exclusively
+litigated in the state or federal courts located in Travis County, Texas.

@@ -1,0 +1,13 @@
+admin:
+  cluster: all
+  indices:
+    '*': all
+
+power_user:
+  cluster: monitor
+  indices:
+    '*': all
+
+user:
+  indices:
+    '*': read

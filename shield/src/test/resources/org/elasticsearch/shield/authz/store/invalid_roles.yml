@@ -1,0 +1,27 @@
+valid_role:
+  cluster: ALL
+  indices:
+    idx: ALL
+
+"$dlk39":
+  cluster: all
+
+# invalid role deifnition
+role1: cluster: ALL indices: '*': ALL
+
+# invalid role cluster privilege
+role2:
+  cluster: blkjdlkd
+  indices:
+    '*': ALL
+
+# invalid role indices deifnition
+role3:
+  cluster: ALL
+  indices: '*': ALL
+
+# invalid role indices privilegs
+role4:
+  cluster: ALL
+  indices:
+    '*': al;kjdlkj;lkj

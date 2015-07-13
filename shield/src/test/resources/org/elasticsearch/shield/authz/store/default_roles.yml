@@ -1,0 +1,48 @@
+admin:
+  cluster: all
+  indices:
+    '*': all
+
+# monitoring cluster privileges
+# All operations on all indices
+power_user:
+  cluster: monitor
+  indices:
+    '*': all
+
+# Only operations on indices
+user:
+  indices:
+    '*': read
+
+# The required role for kibana 3 users
+kibana3:
+  cluster: cluster:monitor/nodes/info
+  indices:
+    '*': indices:data/read/search, indices:data/read/get, indices:admin/get
+    'kibana-int': indices:data/read/search, indices:data/read/get, indices:data/write/delete, indices:data/write/index, create_index
+
+# The required role for kibana 4 users
+kibana4:
+  cluster: cluster:monitor/nodes/info
+  indices:
+    '*': indices:data/read/search, indices:data/read/get, indices:admin/get
+    '.kibana': indices:data/read/search, indices:data/read/get, indices:data/write/delete, indices:data/write/index, create_index
+
+# The required role for logstash users
+logstash:
+  cluster: indices:admin/template/get, indices:admin/template/put
+  indices:
+    'logstash-*': indices:data/write/bulk, indices:data/write/delete, indices:data/write/update, create_index
+
+# Marvel role, allowing all operations
+# on the marvel indices
+marvel_user:
+  indices:
+    '.marvel-*': all
+
+# Marvel Agent users
+marvel_agent:
+  cluster: indices:admin/template/get, indices:admin/template/put
+  indices:
+    '.marvel-*': indices:data/write/bulk, create_index

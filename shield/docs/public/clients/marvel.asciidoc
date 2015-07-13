@@ -1,0 +1,122 @@
+[[marvel]]
+=== Shield with Marvel
+
+Marvel consists of a user interface over a data exporter known as the _agent_. The agent runs on each node and accesses 
+that node's monitoring API. The agent can store this collected data locally, on the cluster, or send the data to an 
+external monitoring cluster. Users can view and analyze the collected data with the Marvel UI.
+
+To work with the Shield plugin, Marvel's configuration needs to be adapted for the _production_ cluster, which is the 
+cluster being monitored, as well as the _monitoring_ cluster, where the monitoring data is stored. For clusters that 
+store their own monitoring data, apply both sets of settings to the single, production cluster.
+
+You will configure at least two users to work with Marvel.  These users have to exist on the monitoring cluster.
+
+* The Agent needs to be assigned a user with the correct <<roles,privileges>> to write data to the Marvel indices
+  named `.marvel-*`, check the Marvel index template, and upload the Marvel index template. You need only one agent user.
+* Marvel UI users must authenticate and have privileges to read data from the Marvel indices. These users also 
+  need to able to call the Nodes Info API in order to get the monitoring cluster's Elasticsearch version.  
+  This version check allows Marvel to be compatible with many versions of Elasticsearch. You can have as many of 
+  these end users configured as you would like.
+
+The default `roles.yml` file includes definitions for these two roles.  The steps below show you how to create these
+users on the monitoring cluster.
+
+[[monitoring-cluster]]
+==== Monitoring Cluster Settings
+
+The monitoring cluster is used to both store and view the Marvel data. When configuring Shield, you need to perform the
+following actions:
+
+* Make sure there is a user created with the `marvel_agent` role. Marvel uses this to export the data.
+* Make sure there is a user created with the `marvel_user` role. You use this to view the Marvel UI and get  license information.
+* When using Marvel on a production server, you must enter your Marvel License. This license is stored in the
+  monitoring cluster. This step needs to be performed once, by a user with permissions to write to the `.marvel-kibana` 
+  index.  The .marvel-kibana index is used to store Marvel UI settings (for example, set custom warning levels) and 
+  therefore write permission for `.marvel-kibana` is required for UI customizations. Both storing license and storing 
+  settings can be done by any user added to the marvel_user role.
+
+This is in the default `roles.yml`
+
+[source,yaml]
+--------------------------------------------------
+marvel_agent:
+  cluster: indices:admin/template/get, indices:admin/template/put
+  indices:
+    '.marvel-*': indices:data/write/bulk, create_index
+
+marvel_user:
+  cluster: cluster:monitor/nodes/info, cluster:admin/plugin/license/get
+  indices:
+    '.marvel-*': all
+--------------------------------------------------
+
+Once the roles are configured, create a user for the agent:
+
+[source,shell]
+--------------------------------------------------
+bin/shield/esusers useradd marvel_export -p strongpassword -r marvel_agent
+--------------------------------------------------
+
+Then create one or more users for the Marvel UI:
+
+[source,shell]
+--------------------------------------------------
+bin/shield/esusers useradd USER -p strongerpassword -r marvel_user
+--------------------------------------------------
+
+
+==== Production Cluster Settings
+
+The Marvel agent is installed on every node in the production cluster. The agent collects monitoring data from the
+production cluster and stores the data on the monitoring cluster. The agent's configuration specifies a list of 
+hostname and port combinations for access to the monitoring cluster.
+
+When the monitoring cluster uses the Shield plugin and is configured to accept only HTTPS requests, you must configure the agent
+on the production cluster to use HTTPS instead of the default HTTP protocol.  
+
+Authentication and protocol configuration are both controlled by the `marvel.agent.exporter.es.hosts` setting in the
+node's `elasticsearch.yml` file. The setting accepts a list of monitoring cluster servers to serve as a fallback 
+in case a server is unavailable. Each of these servers must be properly configured, as in the following example:
+
+Example `marvel.agent.exporter.es.hosts` setting
+[source,yaml]
+-------------------------------------------------------------------------------------------------------------------
+marvel.agent.exporter.es.hosts: [ "https<1>://USER:PASSWORD<2>@node01:9200", "https://USER:PASSWORD@node02:9200"]
+-------------------------------------------------------------------------------------------------------------------
+
+<1> Indicates to use HTTPS.
+<2> Username and password. The user needs to be configured on the Monitoring Cluster as described in the next section.
+
+When the monitoring cluster uses HTTPS, the Marvel agent will attempt to validate the certificate of the Elasticsearch 
+node in the monitoring cluster.  If you are using your own CA you should specify a trust store that has the signing 
+certificate of the CA.  Here is an example config for the `marvel.agent.exporter.es.truststore.*` settings:
+
+[source,yaml]
+-------------------------------------------------------------------------------------------------------------
+marvel.agent.exporter.es.hosts: [ "https://USER:PASSWORD@node01:9200", "https://USER:PASSWORD@node02:9200"]
+marvel.agent.exporter.es.ssl.truststore.path: FULL_FILE_PATH
+marvel.agent.exporter.es.ssl.truststore.password: PASSWORD
+-------------------------------------------------------------------------------------------------------------
+
+See the http://www.elastic.co/guide/en/marvel/current/configuration.html[Marvel documentation] for more details about
+other SSL related settings.
+
+NOTE: The 1.3.0 release of Marvel adds HTTPS support.
+
+==== Marvel user interface & Sense
+
+The Marvel UI supports SSL without the need for any additional configuration. You can change URL access scheme for Marvel to 
+HTTPS.
+
+Users attempting to access the Marvel UI with the URL `https://HOST:9200/_plugin/marvel` must provide valid 
+credentials. See <<monitoring-cluster,Monitoring Cluster settings>> for information on the required user configuration.
+
+Sense also supports HTTPS access. Users that access Sense over URLs of the form 
+`https://host:9200/_plugin/marvel/sense/index.html` must provide valid credentials if they have not already 
+authenticated to a dashboard.
+
+Users connecting to the production cluster with Sense must provide valid credentials. Clusters must be configured to
+enable cross-origin requests to enable users to connect with Sense. See the <<cors, CORS>> documentation for details.
+
+NOTE: Providing user credentials to Sense in order to access another cluster is only supported in releases 1.3.0 and 
+later of Marvel.

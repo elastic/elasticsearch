@@ -1,0 +1,108 @@
+[[release-notes]]
+== Release Notes
+
+[float]
+[[version-compatibility]]
+=== Version Compatibility
+
+Watcher 1.0.0 is compatible with:
+
+* Elasticsearch: 1.5.2+
+* License: 1.0
+* Shield: 1.2.2
+
+[float]
+[[upgrade-instructions]]
+=== Upgrading Watcher
+
+Watcher 1.0.0 is not backward compatible with Watcher 1.0.0-rc1. Follow these steps to
+upgrade:
+
+1. Back up all of the watches you've defined. You can search/scan the `.watches` index and save the
+   returned watches aside.
+
+2. Stop Elasticsearch on all nodes in your cluster.
+
+3. Uninstall the Watcher plugin from each node:
++
+[source,yaml]
+--------------------------------------------------
+bin/plugin -r watcher
+--------------------------------------------------
+
+4. Restart Elasticsearch on each node.
+
+5. Delete the `.watches` index and all of the existing `.watch_history-*` indices
++
+[source,yaml]
+--------------------------------------------------
+DELETE .watches
+--------------------------------------------------
++
+[source,yaml]
+--------------------------------------------------
+DELETE .watch_history*
+--------------------------------------------------
+
+6. Stop Elasticsearch on all nodes in your cluster.
+
+7. From here on you can simply follow the <<getting-started, Getting Started>> guide. If you are
+   upgrading from Beta1, you can skip the license installation as both Beta1 and Beta2 are
+   compatible with the same license version (1.0.0). Once Watcher is installed, you can use the
+   <<api-rest-put-watch, PUT Watch API>> to restore your backed up watches.
+
+[float]
+[[change-list]]
+=== Change List
+
+[float]
+==== 1.0.0
+
+.Enhancements
+* Added execution time aware <<dynamic-index-names, dynamic index names>> support to `index`
+  action, `search` input, and `search` transform.
+* You must now explicitly specify the unit when configuring any time value. (Numeric-only
+  values are no longer supported.)
+* Cleaned up the <<api-rest-get-watch, Get Watch API>> response.
+* Cleaned up the <<api-rest-stats, Stats API>> response.
+
+
+[float]
+==== 1.0.0-rc1
+
+.New Features
+* Added <<api-rest-execute-inline-watch, inline watch>> support to the Execute API
+
+.Enhancements
+* Added execution context <<watch-execution-context, variables>> support.
+* Email html body sanitization is now <<email-html-sanitization, configurable>>.
+* It is now possible to configure timeouts for http requests in 
+  <<http-input-attributes, HTTP input>> and <<webhook-action-attributes, webhook actions>>.
+
+[float]
+==== 1.0.0-Beta2
+
+.New Features
+* <<actions-ack-throttle, Acking and Throttling>> are now applied at the action level rather than
+  the watch level.
+* Added support for <<anatomy-actions-index-multi-doc-support, multi-doc>> indexing to the index
+  action.
+* Added a queued watches metric that's accessible via the <<api-rest-stats, Stats API>>.
+* Added a currently-executing watches metric that's accessible via the <<api-rest-stats, Stats API>>.
+
+.Enhancements
+* The <<condition-compare, compare condition>> result now includes the value of each field that
+  was referenced in the comparison.
+* The <<api-rest-execute-watch, Execute API>> now supports a default trigger event
+  (**breaking change**)
+* The `watch_record` document structure in the `.watch_history-*` indices has changed significantly
+  (**breaking change**)
+* A new internal index was introduced - `.triggered_watches`
+* Added support for headers in the <<actions-webhook, Webhook Action>> result and the
+  <<input-http, HTTP Input>> result.
+* Add plain text response body support for the <<input-http, HTTP Input>>.
+
+.Bug Fixes
+* Disallow negative time value settings for <<actions-ack-throttle, `throttle_period`>>
+* Added support for separate keystore and truststore in <<actions-webhook, Webhook Action>>
+  and <<input-http, HTTP Input>>.

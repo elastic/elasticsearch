@@ -118,10 +118,10 @@ public class InternalEngine extends Engine {
         try {
             // If the index was created on 0.20.7 (Lucene 3.x) or earlier, its commit point (segments_N file) needs to be upgraded:
             if (Version.indexCreated(engineConfig.getIndexSettings()).onOrBefore(Version.V_0_20_7)) {
-                logger.debug("[{}] checking for 3x segments to upgrade", shardId);
+                logger.debug("checking for 3x segments to upgrade");
                 maybeUpgrade3xSegments(store);
             } else {
-                logger.debug("[{}] skipping check for 3x segments", shardId);
+                logger.debug("skipping check for 3x segments");
             }
             this.onGoingRecoveries = new FlushingRecoveryCounter(this, store, logger);
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().estimatedTimeInMillis();

@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.gateway.local.LocalIndexShardGateway;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
 import org.junit.Test;
@@ -45,6 +46,7 @@ public class DelayedAllocationTests extends ElasticsearchIntegrationTest {
         return ImmutableSettings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("gateway.type", "local")
+                .put(LocalIndexShardGateway.SYNC_INTERVAL, TimeValue.timeValueSeconds(5))
                 .build();
     }
 
@@ -58,6 +60,7 @@ public class DelayedAllocationTests extends ElasticsearchIntegrationTest {
         prepareCreate("test").setSettings(ImmutableSettings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(LocalIndexShardGateway.SYNC_INTERVAL, TimeValue.timeValueSeconds(5))
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, 0)).get();
         ensureGreen("test");
         indexRandomData();
@@ -78,6 +81,7 @@ public class DelayedAllocationTests extends ElasticsearchIntegrationTest {
         prepareCreate("test").setSettings(ImmutableSettings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(LocalIndexShardGateway.SYNC_INTERVAL, TimeValue.timeValueSeconds(5))
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, TimeValue.timeValueHours(1))).get();
         ensureGreen("test");
         indexRandomData();
@@ -103,6 +107,7 @@ public class DelayedAllocationTests extends ElasticsearchIntegrationTest {
         prepareCreate("test").setSettings(ImmutableSettings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(LocalIndexShardGateway.SYNC_INTERVAL, TimeValue.timeValueSeconds(5))
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, TimeValue.timeValueMillis(100))).get();
         ensureGreen("test");
         indexRandomData();
@@ -126,6 +131,7 @@ public class DelayedAllocationTests extends ElasticsearchIntegrationTest {
         prepareCreate("test").setSettings(ImmutableSettings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(LocalIndexShardGateway.SYNC_INTERVAL, TimeValue.timeValueSeconds(5))
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, TimeValue.timeValueHours(1))).get();
         ensureGreen("test");
         indexRandomData();
@@ -153,6 +159,7 @@ public class DelayedAllocationTests extends ElasticsearchIntegrationTest {
         prepareCreate("test").setSettings(ImmutableSettings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(LocalIndexShardGateway.SYNC_INTERVAL, TimeValue.timeValueSeconds(5))
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, TimeValue.timeValueHours(1))).get();
         ensureGreen("test");
         indexRandomData();

@@ -311,7 +311,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
      * shard paths. The "write.lock" file is assumed to be under the shard
      * path's "index" directory as used by Elasticsearch.
      *
-     * @throws ElasticsearchException if any of the locks could not be acquired
+     * @throws LockObtainFailedException if any of the locks could not be acquired
      */
     public static void acquireFSLockForPaths(@IndexSettings Settings indexSettings, Path... shardPaths) throws IOException {
         Lock[] locks = new Lock[shardPaths.length];
@@ -326,7 +326,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
                 try {
                     locks[i] = Lucene.acquireWriteLock(dirs[i]);
                 } catch (IOException ex) {
-                    throw new ElasticsearchException("unable to acquire " +
+                    throw new LockObtainFailedException("unable to acquire " +
                             IndexWriter.WRITE_LOCK_NAME + " for " + p);
                 }
             }

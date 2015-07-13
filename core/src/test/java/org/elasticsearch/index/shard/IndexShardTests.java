@@ -19,6 +19,7 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
@@ -110,7 +111,6 @@ public class IndexShardTests extends ElasticsearchSingleNodeTest {
     public void testLockTryingToDelete() throws Exception {
         createIndex("test");
         ensureGreen();
-        //IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         NodeEnvironment env = getInstanceFromNode(NodeEnvironment.class);
         Path[] shardPaths = env.availableShardPaths(new ShardId("test", 0));
         logger.info("--> paths: [{}]", shardPaths);
@@ -118,7 +118,7 @@ public class IndexShardTests extends ElasticsearchSingleNodeTest {
         try {
             NodeEnvironment.acquireFSLockForPaths(Settings.EMPTY, shardPaths);
             fail("should not have been able to acquire the lock");
-        } catch (ElasticsearchException e) {
+        } catch (LockObtainFailedException e) {
             assertTrue("msg: " + e.getMessage(), e.getMessage().contains("unable to acquire write.lock"));
         }
         // Test without the regular shard lock to assume we can acquire it
@@ -128,7 +128,7 @@ public class IndexShardTests extends ElasticsearchSingleNodeTest {
         try {
             env.deleteShardDirectoryUnderLock(sLock, Settings.builder().build());
             fail("should not have been able to delete the directory");
-        } catch (ElasticsearchException e) {
+        } catch (LockObtainFailedException e) {
             assertTrue("msg: " + e.getMessage(), e.getMessage().contains("unable to acquire write.lock"));
         }
     }

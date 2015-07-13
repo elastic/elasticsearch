@@ -180,6 +180,7 @@ public class PercolatorService extends AbstractComponent {
         final PercolateContext context = new PercolateContext(
                 request, searchShardTarget, indexShard, percolateIndexService, pageCacheRecycler, bigArrays, scriptService, aliasFilter, parseFieldMatcher
         );
+        SearchContext.setCurrent(context);
         try {
             ParsedDocument parsedDocument = parseRequest(percolateIndexService, request, context);
             if (context.percolateQueries().isEmpty()) {
@@ -235,6 +236,7 @@ public class PercolatorService extends AbstractComponent {
             percolatorIndex.prepare(context, parsedDocument);
             return action.doPercolate(request, context, isNested);
         } finally {
+            SearchContext.removeCurrent();
             context.close();
             shardPercolateService.postPercolate(System.nanoTime() - startTime);
         }
@@ -258,7 +260,6 @@ public class PercolatorService extends AbstractComponent {
         // not the in memory percolate doc
         String[] previousTypes = context.types();
         context.types(new String[]{TYPE_NAME});
-        SearchContext.setCurrent(context);
         try {
             parser = XContentFactory.xContent(source).createParser(source);
             String currentFieldName = null;
@@ -359,7 +360,6 @@ public class PercolatorService extends AbstractComponent {
             throw new ElasticsearchParseException("failed to parse request", e);
         } finally {
             context.types(previousTypes);
-            SearchContext.removeCurrent();
             if (parser != null) {
                 parser.close();
             }

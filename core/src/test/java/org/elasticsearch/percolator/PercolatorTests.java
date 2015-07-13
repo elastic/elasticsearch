@@ -2079,5 +2079,21 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         assertThat(response.getMatches()[0].getId().string(), equalTo("1"));
     }
 
+    @Test
+    public void testFilterByNow() throws Exception {
+        client().prepareIndex("index", PercolatorService.TYPE_NAME, "1")
+                .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).field("created", "2015-07-10T14:41:54+0000").endObject())
+                .get();
+        refresh();
+
+        PercolateResponse response = client().preparePercolate()
+                .setIndices("index")
+                .setDocumentType("type")
+                .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
+                .setPercolateQuery(rangeQuery("created").lte("now"))
+                .get();
+        assertMatchCount(response, 1);
+    }
+
 }
 

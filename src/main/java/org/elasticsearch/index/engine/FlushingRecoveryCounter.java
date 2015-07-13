@@ -32,25 +32,32 @@ public final class FlushingRecoveryCounter extends RecoveryCounter {
 
     private final Engine engine;
     private final ESLogger logger;
+    private final Store store;
 
     FlushingRecoveryCounter(Engine engine, Store store, ESLogger logger) {
         super(store);
         this.engine = engine;
         this.logger = logger;
+        this.store = store;
     }
 
     int endRecovery() throws ElasticsearchException {
-        int left = super.endRecovery();
-        if (left == 0) {
-            try {
-                engine.flush();
-            } catch (IllegalIndexShardStateException|FlushNotAllowedEngineException e) {
-                // we are being closed, or in created state, ignore
-                // OR, we are not allowed to perform flush, ignore
-            } catch (Throwable e) {
-                logger.warn("failed to flush shard post recovery", e);
+        store.incRef();
+        try {
+            int left = super.endRecovery();
+            if (left == 0) {
+                try {
+                    engine.flush();
+                } catch (IllegalIndexShardStateException | FlushNotAllowedEngineException e) {
+                    // we are being closed, or in created state, ignore
+                    // OR, we are not allowed to perform flush, ignore
+                } catch (Throwable e) {
+                    logger.warn("failed to flush shard post recovery", e);
+                }
             }
+            return left;
+        } finally {
+            store.decRef();
         }
-        return left;
     }
 }

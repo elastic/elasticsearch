@@ -1,0 +1,206 @@
+[[certificate-authority]]
+== Appendix 1. Running a Certificate Authority
+
+A Certificate Authority (CA) can greatly simplify managing trust. Instead of trusting hundreds of certificates
+individually, a client only needs to trust the certificate from the CA. When the CA signs other node certificates, 
+nodes that trust the CA also trust other nodes with certificates signed by the CA.
+
+NOTE: This procedure is an example of how to set up a CA and cannot universally address a wide array of security needs.
+      To properly secure a production site, consult your organization's security experts to discuss requirements.
+
+To run a CA, generate a public and private key, and wrap the public key in a certificate that clients will trust.
+
+Node certificates are sent in a _Certificate Signing Request_ (CSR). Your CA signs the CSR, producing a newly 
+signed certificate that you install on the node.
+
+IMPORTANT: Because a Certificate Authority is a central point for trust, the private keys to the CA must be protected 
+           from compromise.
+
+=== Setting up a CA
+
+To set up a CA, generate a private and public key pair and build a certificate from the public key. This procedure
+uses OpenSSL to create the CA certificate and sign CSRs. First, set up a file structure and configuration template for 
+the CA.
+	
+==== Creating the Certificate Authority
+
+Create the `ca` directory along with the `private`, `certs`, and `conf` subdirectories, then populate the required
+`serial` and `index.txt` files.
+
+[source,shell]
+--------------------------------------------------
+mkdir -p ca/private ca/certs ca/conf
+cd ca
+echo '01' > serial
+touch index.txt
+--------------------------------------------------
+
+A configuration template file specifies several configurations settings that cannot be passed from the command line. 
+The following sample configuration file highlights fields of particular interest. 
+
+Create the `ca/conf/caconfig.cnf` file with contents similar to the following:
+
+[source,shell]
+-------------------------------------------------------------------------------------
+#..................................
+[ ca ]
+default_ca = CA_default
+[ CA_default ]
+copy_extensions = copy <1>
+dir = /PATH/TO/YOUR/DIR/ca <2>
+serial = $dir/serial
+database = $dir/index.txt
+new_certs_dir = $dir/certs
+certificate = $dir/certs/cacert.pem
+private_key = $dir/private/cakey.pem
+default_days = 712 <3>
+default_md = sha256
+preserve = no
+email_in_dn = no
+x509_extensions = v3_ca
+name_opt = ca_default
+cert_opt = ca_default
+policy = policy_anything
+[ policy_anything ]
+countryName             = optional
+stateOrProvinceName     = optional
+localityName            = optional
+organizationName        = optional
+organizationalUnitName  = optional
+commonName              = supplied
+emailAddress            = optional
+[ req ]
+default_bits = 2048 # Size of keys
+default_keyfile = key.pem # name of generated keys
+default_md = sha256 # message digest algorithm
+string_mask = nombstr # permitted characters
+distinguished_name = req_distinguished_name
+req_extensions = v3_req
+[ req_distinguished_name ]
+# Variable name Prompt string
+#------------------------- ----------------------------------
+0.organizationName = Organization Name (company)
+organizationalUnitName = Organizational Unit Name (department, division)
+emailAddress = Email Address
+emailAddress_max = 40
+localityName = Locality Name (city, district)
+stateOrProvinceName = State or Province Name (full name)
+countryName = Country Name (2 letter code)
+countryName_min = 2
+countryName_max = 2
+commonName = Common Name (hostname, IP, or your name)
+commonName_max = 64
+# Default values for the above, for consistency and less typing.
+# Variable name Value
+#------------------------ ------------------------------
+0.organizationName_default = Elasticsearch Test Org <4>
+localityName_default = Amsterdam
+stateOrProvinceName_default = Amsterdam
+countryName_default = NL
+emailAddress_default = cacerttest@YOUR.COMPANY.TLD
+[ v3_ca ]
+basicConstraints = CA:TRUE
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always,issuer:always
+[ v3_req ]
+basicConstraints = CA:FALSE
+subjectKeyIdentifier = hash
+---------------------------------------------------------------------------------------
+<1> Copy extensions: Copies all X509 V3 extensions from a Certificate Signing Request into the signed certificate.
+With the value set to `copy`, you need to ensure the extensions and their values are valid for the certificate
+being requested prior to signing the certificate.
+<2> CA directory: Add the full path to this newly created CA
+<3> Certificate validity period:  The default number of days that a certificate signed by this CA is valid for. Note the
+certificates signed by a CA must expire before the CA certificate expires.
+<4> Certificate Defaults: The `OrganizationName`, `localityName`, `stateOrProvinceName`, `countryName`, and
+`emailAddress` fields are informational. The settings in the above example are the defaults for these values.
+
+=== Create a CA Certificate
+
+In the `ca` directory, create the CA certificate and export the certificate. The following command creates and signs 
+the CA certificate, resulting in a _self-signed_ certificate that establishes the CA as an authority.
+
+[source,shell]
+------------------------------------------------------------------------------
+openssl req -new -x509 -extensions v3_ca     \
+       -keyout private/cakey.pem             \ <1>
+       -out certs/cacert.pem                 \ <2>
+       -days 1460                            \ <3>
+       -config conf/caconfig.cnf
+------------------------------------------------------------------------------
+<1> The path to the file where the private key is stored.
+<2> The path to the file where the CA certificate is stored.
+<3> The duration, in days, that the CA certificate is valid. After the expiration, trust in the CA is revoked and
+requires generation of a new CA certificate and re-signing of certificates.
+
+The command prompts you to supply information to place in the certificate. You will have to pick a PEM passphrase to 
+encrypt the private key for your CA.
+
+WARNING: You cannot recover the CA without this passphrase.
+
+The following shows a sample interaction with the command above:
+
+[source,shell]
+------------------------------------------------------------------------------------------------------------------------
+openssl req -new -x509 -extensions v3_ca -keyout private/cakey.pem -out certs/cacert.pem -days 1460 -config \
+conf/caconfig.cnf
+Generating a 2048 bit RSA private key
+.....................++++++
+.......++++++
+writing new private key to 'private/cakey.pem'
+Enter PEM pass phrase:
+Verifying - Enter PEM pass phrase:
+#-----
+You are about to be asked to enter information that will be incorporated
+into your certificate request.
+What you are about to enter is what is called a Distinguished Name or a DN.
+There are quite a few fields but you can leave some blank
+For some fields there will be a default value,
+If you enter '.', the field will be left blank.
+#-----
+Organization Name (company) [Elasticsearch Test Org]:
+Organizational Unit Name (department, division) []:.
+Email Address [cacerttest@YOUR.COMPANY.TLD]:.
+Locality Name (city, district) [Amsterdam]:.
+State or Province Name (full name) [Amsterdam]:.
+Country Name (2 letter code) [NL]:.
+Common Name (hostname, IP, or your name) []:Elasticsearch Test CA
+------------------------------------------------------------------------------------------------------------------------
+
+You now have a CA private key and a CA certificate (which includes the public key). You can now distribute the CA
+certificate and sign CSRs.
+
+[[sign-csr]]
+==== Signing a CSR
+
+Signing a certificate with the CA means that the CA vouches for the owner of the certificate. The private key that is
+linked to the certificate proves certificate ownership. The CSR includes the certificate. Signing a CSR results in a 
+new certificate that includes the old certificate, the CA certificate, and a signature. This resulting certificate is
+a _certificate chain_. Send the certificate chain back to the private key's holder for use on the node.
+
+TIP: If you do not yet have a CSR, you need to follow the steps described in <<private-key>> and <<generate-csr>> 
+before continuing.
+
+The following commands sign the CSR with the CA:
+
+[source,shell]
+-----------------------------------------------------------------------------
+openssl ca -in node01.csr -notext -out node01-signed.crt -config conf/caconfig.cnf -extensions v3_req
+-----------------------------------------------------------------------------
+
+The newly signed certificate chain `node01-signed.crt` can now be sent to the node to be imported back into its 
+keystore.
+
+NOTE: If you plan on allowing more than one certificate per common name, OpenSSL must be configured to allow non-unique
+subjects. This is necessary when running multiple nodes on a single host and requesting unique certificates per node.
+Edit the `ca/index.txt.attr` file and ensure the `unique_subject` line matches below:
+[source, shell]
+-----------------------
+unique_subject = no
+-----------------------
+
+These steps provide you with a basic CA that can sign certificates for your Shield nodes.
+
+OpenSSL is an extremely powerful tool and there are many more options available for your certification strategy,
+such as intermediate authorities and restrictions on the use of certificates. There are many tutorials on the internet
+for these advanced options, and the OpenSSL website details all the intricacies.

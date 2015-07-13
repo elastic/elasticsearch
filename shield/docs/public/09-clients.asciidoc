@@ -1,0 +1,17 @@
+[[clients]]
+== Integrating Shield with clients
+
+You will need to update the configuration for several clients to work with the Shield security plugin. The jump list in
+the right side bar lists the configuration information for the clients that support Shield.
+
+include::clients/java.asciidoc[]
+
+include::clients/http.asciidoc[]
+
+include::clients/logstash.asciidoc[]
+
+include::clients/marvel.asciidoc[]
+
+include::clients/kibana.asciidoc[]
+
+include::clients/hadoop.asciidoc[]

@@ -1,0 +1,437 @@
+=== Java clients
+
+Elasticsearch supports two types of Java clients: _Node Client_ and _Transport Client_.
+
+The _Node Client_ is a cluster node that joins the cluster and receives all the cluster events, in the same manner as
+any other cluster node. Node clients cannot be allocated shards, and therefore cannot hold data. Node clients are not
+eligible for election as a master node in the cluster. For more information about node clients, see the
+http://www.elastic.co/guide/en/elasticsearch/client/java-api/current/node-client.html[following section].
+
+Unlike the _Node Client_, the _Transport Client_ is not a node in the cluster. Yet it uses the same transport protocol
+the cluster nodes use for inter-node communication and is therefore considered to be very efficient as it bypasses the
+process of un/marshalling of request from/to JSON which you typically have in REST based clients (read more about
+http://www.elastic.co/guide/en/elasticsearch/client/java-api/current/transport-client.html[_Transport Client_]).
+
+Shield supports both clients. This section provides configuration instructions for these clients.
+
+==== Node Client
+
+WARNING: While _Node Clients_ may work with Shield, since these are actual nodes in the cluster, they require access
+         to a breadth of cluster management internal APIs. Additionally, just like all other nodes in the cluster,
+         _Node Clients_ require the License plugin to be installed and access to Shield configuration files that contain
+         sensitive data. For this reason, _Node Clients_ should be considered as unsafe clients. If you choose to use
+         these clients, make sure you treat them in the same way you treat any other node in your cluster. Your
+         application should sit next to the cluster within the same security zone.
+
+There are several steps for setting up this client:
+
+. Set the appropriate dependencies for you project
+. Duplicate <<ref-shield-files, configuration files>> for authentication
+. Configure the authentication token
+. (Optional) If SSL/TLS is enabled, set up the keystore, then create and import the appropriate certificates.
+
+===== Java project dependencies
+
+If you plan on using the Node Client, you first need to make sure the Shield jar files (`elasticsearch-shield-2.0.0.jar`,
+`automaton-1.11-8.jar`, `unboundid-ldapsdk-2.3.8.jar`) and the License jar file (`elasticsearch-license-2.0.0.jar`) are
+in the classpath. You can either download the distributions, extract the jar files manually and include them in your
+classpath, or you can pull them out of the Elasticsearch Maven repository.
+
+===== Maven Example
+
+The following snippet shows the configuration you will need to include in your project's `pom.xml` file:
+
+[source,xml]
+--------------------------------------------------------------
+<project ...>
+
+   <repositories>
+      <!-- add the elasticsearch repo -->
+      <repository>
+         <id>elasticsearch-releases</id>
+         <url>http://maven.elasticsearch.org/releases</url>
+         <releases>
+            <enabled>true</enabled>
+         </releases>
+         <snapshots>
+            <enabled>false</enabled>
+         </snapshots>
+      </repository>
+      ...
+   </repositories>
+   ...
+
+   <dependencies>
+      <!-- add the Shield jar as a dependency -->
+      <dependency>
+         <groupId>org.elasticsearch</groupId>
+         <artifactId>elasticsearch-shield</artifactId>
+         <version>2.0.0</version>
+      </dependency>
+      <!-- add the License jar as a dependency -->
+      <dependency>
+         <groupId>org.elasticsearch</groupId>
+         <artifactId>elasticsearch-license-plugin</artifactId>
+         <version>2.0.0</version>
+         <scope>runtime</scope>
+      </dependency>
+      ...
+   </dependencies>
+   ...
+
+ </project>
+--------------------------------------------------------------
+
+===== Gradle Example
+
+If you are using Gradle, then you will need to add the dependencies to your `build.gradle` file:
+
+[source,groovy]
+--------------------------------------------------------------
+repositories {
+  /* ... Any other repositories ... */
+
+  // Add the Elasticsearch Maven Repository
+  maven {
+    url "http://maven.elasticsearch.org/releases"
+  }
+}
+
+dependencies {
+  // Provide the Shield jar on the classpath for compilation and at runtime
+  // Note: Many projects can use the Shield jar as a runtime dependency
+  compile "org.elasticsearch:elasticsearch-shield:2.0.0"
+
+  /* ... */
+
+  // Provide the License jar on the classpath at runtime (not needed for compilation)
+  runtime "org.elasticsearch:elasticsearch-license-plugin:2.0.0"
+}
+--------------------------------------------------------------
+
+It is also possible to manually download the http://maven.elasticsearch.org/releases/org/elasticsearch/elasticsearch-shield/2.0.0/elasticsearch-shield-2.0.0.jar[Shield jar]
+and the http://maven.elasticsearch.org/releases/org/elasticsearch/elasticsearch-license-plugin/1.0.0/elasticsearch-license-plugin-2.0.0.jar[License jar]
+files from our Maven repository.
+
+===== Duplicate Shield Configuration Files
+
+The _Node Client_ will authenticate requests before sending the requests to the cluster. To do this, copy the `users`,
+`users_roles`, `roles.yml`, and `system_key` files from the <<ref-shield-files,Shield configuration files>> to a place
+accessible to the node client. These files should be stored on the filesystem in a folder with restricted access as they
+contain sesnitive data. This can be configured with the following settings:
+
+* `shield.authc.realms.esusers.files.users`
+* `shield.authc.realms.esusers.files.users_roles`
+* `shield.authz.store.files.roles`
+* `shield.system_key.file`
+
+[source, java]
+------------------------------------------------------------------------------------------------------
+import static org.elasticsearch.node.NodeBuilder.*;
+...
+Node node = nodeBuilder().client(true).settings(ImmutableSettings.builder()
+    .put("cluster.name", "myClusterName")
+    .put("discovery.zen.ping.multicast.enabled", false)
+    .putArray("discovery.zen.ping.unicast.hosts", "localhost:9300", "localhost:9301")
+    .put("shield.authc.realms.esusers.type", "esusers")
+    .put("shield.authc.realms.esusers.files.users", "/Users/es/config/shield/users")
+    .put("shield.authc.realms.esusers.files.users_roles", "/Users/es/config/shield/users_roles")
+    .put("shield.authz.store.files.roles", "/Users/es/config/shield/roles.yml")
+    .put("shield.system_key.file", "/Users/es/config/shield/system_key"))
+    ...
+    .node();
+------------------------------------------------------------------------------------------------------
+
+Additionally, if you are using LDAP or Active Directory authentication then you will need to specify that configuration
+in the settings when configuring the node or provide a `elasticsearch.yml` in the classpath with the appropriate settings.
+
+===== Configuring Authentication Token
+
+The authentication token can be configured in two ways - globally or per-request. When setting it up globally, the
+values of the username and password are configured in the client's settings:
+
+[source,java]
+------------------------------------------------------------------------------------------------------
+import static org.elasticsearch.node.NodeBuilder.*;
+import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+...
+
+Node node = nodeBuilder().client(true).settings(ImmutableSettings.builder()
+    ...
+    .put("shield.user", "test_user:changeme"))
+    ...
+    .node();
+Client client = node.client();
+------------------------------------------------------------------------------------------------------
+
+Once the client is created as above, the `shield.user` setting is translated to a request header in the standard HTTP
+basic authentication form `Authentication base64("test_user:changeme")` which will be sent with every request executed.
+
+To skip the global configuration of the token, manually set the authentication token header on every request:
+
+[source,java]
+------------------------------------------------------------------------------------------------------
+import org.elasticsearch.shield.authc.support.SecuredString;
+
+import static org.elasticsearch.node.NodeBuilder.*;
+import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+...
+
+String token = basicAuthHeaderValue("test_user", new SecuredString("changeme".toCharArray()));
+Node node = nodeBuilder().client(true).settings(ImmutableSettings.builder()
+    ...
+    .node();
+Client client = node.client();
+
+client.prepareSearch().putHeader("Authorization", token).get();
+------------------------------------------------------------------------------------------------------
+
+The example above executes a search request and manually adds the authentication token as a header on it.
+
+===== Setting up SSL
+
+Authenticating to the cluster requires proof that a node client is trusted as part of the cluster. This is done through
+standard PKI and SSL. A client node creates a private key and an associated certificate. The cluster Certificate
+Authority signs the certificate. A Client node authenticates during the SSL connection setup by presenting the signed
+certificate, and proving ownership of the private key. All of these setup steps are described in
+<<private-key, Securing Nodes>>.
+
+In addition, the node client acts like a node, authenticating locally any request made. Copies of the files `users`,
+`users_roles`, `roles.yml` , and `system_key` need to be made available to the node client.
+
+After following the steps in <<private-key, Securing Nodes>>, configuration for a node client with Shield might look
+like this:
+
+[source, java]
+------------------------------------------------------------------------------------------------------
+import static org.elasticsearch.node.NodeBuilder.*;
+...
+Node node = nodeBuilder().client(true).settings(ImmutableSettings.builder()
+    .put("cluster.name", "myClusterName")
+    .put("discovery.zen.ping.multicast.enabled", false)
+    .putArray("discovery.zen.ping.unicast.hosts", "localhost:9300", "localhost:9301")
+    .put("shield.ssl.keystore.path", "/Users/es/node_client/node_client.jks")
+    .put("shield.ssl.keystore.password", "password")
+    .put("shield.transport.ssl", "true")
+    .put("shield.authc.realms.esusers.type", "esusers")
+    .put("shield.authc.realms.esusers.files.users", "/Users/es/config/shield/users")
+    .put("shield.authc.realms.esusers.files.users_roles", "/Users/es/config/shield/users_roles")
+    .put("shield.authz.store.files.roles", "/Users/es/config/shield/roles.yml")
+    .put("shield.system_key.file", "/Users/es/config/shield/system_key"))
+    ...
+    .node();
+------------------------------------------------------------------------------------------------------
+
+[[transport-client]]
+==== Transport Client
+
+If you plan on using the Transport Client over SSL/TLS you first need to make sure the Shield jar file
+(`elasticsearch-shield-2.0.0.jar`) is in the classpath. You can either download the Shield distribution, extract the jar
+files manually and include them in your classpath, or you can pull them out of the Elasticsearch Maven repository.
+
+NOTE:   Unlike the _Node Client_, the _Transport Client_ is not acting as a node in the cluster, and therefore
+        **does not** require the License plugin to be installed.
+
+===== Maven Example
+
+The following snippet shows the configuration you will need to include in your project's `pom.xml` file:
+
+[source,xml]
+--------------------------------------------------------------
+<project ...>
+
+   <repositories>
+      <!-- add the elasticsearch repo -->
+      <repository>
+         <id>elasticsearch-releases</id>
+         <url>http://maven.elasticsearch.org/releases</url>
+         <releases>
+            <enabled>true</enabled>
+         </releases>
+         <snapshots>
+            <enabled>false</enabled>
+         </snapshots>
+      </repository>
+      ...
+   </repositories>
+   ...
+
+   <dependencies>
+      <!-- add the shield jar as a dependency -->
+      <dependency>
+         <groupId>org.elasticsearch</groupId>
+         <artifactId>elasticsearch-shield</artifactId>
+         <version>2.0.0</version>
+      </dependency>
+      ...
+   </dependencies>
+   ...
+
+ </project>
+--------------------------------------------------------------
+
+===== Gradle Example
+
+If you are using Gradle, then you will need to add the dependencies to your `build.gradle` file:
+
+[source,groovy]
+--------------------------------------------------------------
+repositories {
+  /* ... Any other repositories ... */
+
+  // Add the Elasticsearch Maven Repository
+  maven {
+    url "http://maven.elasticsearch.org/releases"
+  }
+}
+
+dependencies {
+  // Provide the Shield jar on the classpath for compilation and at runtime
+  // Note: Many projects can use the Shield jar as a runtime dependency
+  compile "org.elasticsearch:elasticsearch-shield:2.0.0"
+
+  /* ... */
+}
+--------------------------------------------------------------
+
+It is also possible to manually download the http://maven.elasticsearch.org/releases/org/elasticsearch/elasticsearch-shield/2.0.0/elasticsearch-shield-2.0.0.jar[Shield jar]
+file from our Maven repository.
+
+TIP:    Even if you are not planning on using the client over SSL/TLS, it is still worth having the Shield jar file in
+        the classpath as it provides various helpful utilities, such as the `UsernamePasswordToken` class for generating
+        basic-auth tokens and the `ShieldClient` that <<shield-client,exposes an API>> to clear realm caches.
+
+[[java-transport-client-role]]
+
+Before setting up the client itself, you need to make sure you have a user with sufficient privileges to start
+the transport client.  The transport client uses Elasticsearch's node info API to fetch information about the
+nodes in the cluster.  For this reason, the authenticated user of the transport client must have the
+`cluster:monitor/nodes/info` cluster permission.  Furthermore, if the client is configured to use sniffing, the
+`cluster:monitor/state` cluster permission is required.
+
+TIP:    `roles.yml` ships with a predefined `transport_client` role. By default it is configured to only grant the
+        `cluster:monitor/nodes/info` cluster permission. You can use this role and assign it to any user
+        that will be attached to a transport client.
+
+Setting up the transport client is similar to the Node client except authentication files do not need to be configured.
+Without SSL, it is as easy as setting up the authentication token on the request, similarly to how they're set up with
+the _Node Client_:
+
+[source,java]
+------------------------------------------------------------------------------------------------------
+import org.elasticsearch.client.transport.TransportClient;
+...
+
+TransportClient client = new TransportClient(ImmutableSettings.builder()
+    .put("cluster.name", "myClusterName")
+    .put("shield.user", "test_user:changeme")
+    .addTransportAddress(new InetSocketTransportAddress("localhost", 9300))
+    .addTransportAddress(new InetSocketTransportAddress("localhost", 9301));
+------------------------------------------------------------------------------------------------------
+WARNING: Configuring a Transport Client without SSL will send passwords in plaintext.
+
+When using SSL for transport client communication, a few more settings are required. By default, Shield requires client
+authentication for secured transport communication. This means that every client would need to have a certificate signed
+by a trusted CA. The client authentication can be disabled through the use of a <<separating-node-client-traffic, client
+specific transport profile>>.
+
+Configuration required for SSL when using client authentication:
+[source,java]
+------------------------------------------------------------------------------------------------------
+import org.elasticsearch.client.transport.TransportClient;
+...
+
+TransportClient client = new TransportClient(ImmutableSettings.builder()
+    .put("cluster.name", "myClusterName")
+    .put("shield.user", "test_user:changeme")
+    .put("shield.ssl.keystore.path", "/path/to/client.jks")
+    .put("shield.ssl.keystore.password", "password")
+    .put("shield.transport.ssl", "true"))
+    .addTransportAddress(new InetSocketTransportAddress("localhost", 9300))
+    .addTransportAddress(new InetSocketTransportAddress("localhost", 9301));
+------------------------------------------------------------------------------------------------------
+NOTE: The `client.jks` keystore needs to contain the client's signed CA certificate and the CA certificate.
+
+Configuration required for SSL without client authentication:
+[source,java]
+------------------------------------------------------------------------------------------------------
+import org.elasticsearch.client.transport.TransportClient;
+...
+
+TransportClient client = new TransportClient(ImmutableSettings.builder()
+    .put("cluster.name", "myClusterName")
+    .put("shield.user", "test_user:changeme")
+    .put("shield.ssl.truststore.path", "/path/to/truststore.jks")
+    .put("shield.ssl.truststore.password", "password")
+    .put("shield.transport.ssl", "true"))
+    .addTransportAddress(new InetSocketTransportAddress("localhost", 9300))
+    .addTransportAddress(new InetSocketTransportAddress("localhost", 9301));
+------------------------------------------------------------------------------------------------------
+NOTE: The `truststore.jks` truststore needs to contain the certificate of the CA that has signed the Elasticsearch nodes'
+certificates. If you are using a public CA that is already trusted by the Java runtime, then you can omit
+`shield.ssl.truststore.path` and `shield.ssl.truststore.password`.
+
+In the above code snippets, we set up a _Transport Client_ and configured the authentication token globally. Meaning,
+that every request executed with this client will include this token in its headers.
+
+The global configuration of the token *must be* set to some user with the privileges in the default `transport_client`
+role, as described earlier. The global authentication token may also be overridden by adding a `Authorization` header on
+each request. This is useful when an application uses multiple users to access Elasticsearch via the same client. When
+operating in this mode, it is best to set the global token to a user that only has the `transport_client` role. The
+following example directly sets the authentication token on the request when executing a search.
+
+[source,java]
+------------------------------------------------------------------------------------------------------
+import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.client.transport.TransportClient;
+
+import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+...
+
+String token = basicAuthHeaderValue("test_user", new SecuredString("changeme".toCharArray()));
+TransportClient client = new TransportClient(ImmutableSettings.builder()
+    .put("shield.user", "transport_client_user:changeme")
+    ...
+    .addTransportAddress(new InetSocketTransportAddress("localhost", 9300))
+    .addTransportAddress(new InetSocketTransportAddress("localhost", 9301));
+
+client.prepareSearch().putHeader("Authorization", token).get();
+------------------------------------------------------------------------------------------------------
+
+===== Anonymous Access
+
+added[1.1.0]
+
+If Shield enables <<anonymous-access,anonymous access>>, the `shield.user` setting may be dropped and all requests will
+be executed under the anonymous user (with the exception of the requests on which the `Authorization` header is explicitly
+set, as shown above). For this to work, please make sure the anonymous user is configured with sufficient roles that have
+the same privileges as described <<java-transport-client-role,above>>.
+
+
+[[shield-client]]
+
+==== Shield Client
+
+Shield exposes its own API to the user which is accessible by the `ShieldClient` class. The purpose of this API
+ is to manage all Shield related aspects. While at the moment it only exposes an operation for clearing up the
+ realm caches, the plan is to extend this API in the future.
+
+`ShieldClient` is a wrapper around the existing clients (any client class implementing `org.elasticsearch.client.Client`.
+
+ The following example shows how one can clear up Shield's realm caches using the `ShieldClient`:
+
+[source,java]
+------------------------------------------------------------------------------------------------------
+import static org.elasticsearch.node.NodeBuilder.*;
+...
+
+Client client = ... // create the client (either transport or node)
+
+ShieldClient shieldClient = new ShieldClient(client);
+ClearRealmCacheResponse response = shieldClient.authc().prepareClearRealmCache()
+    .realms("ldap1", "ad1")
+    .usernames("rdeniro")
+    .get();
+------------------------------------------------------------------------------------------------------
+
+In the example above, we clear the caches of two realms - `ldap1` and `ad1` - for the `rdeniro` user.

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index;
 
+import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -773,7 +774,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
         try {
             NodeEnvironment.acquireFSLockForPaths(ImmutableSettings.EMPTY, shardPaths);
             fail("should not have been able to acquire the lock");
-        } catch (ElasticsearchException e) {
+        } catch (LockObtainFailedException e) {
             assertTrue("msg: " + e.getMessage(), e.getMessage().contains("unable to acquire write.lock"));
         }
         // Test without the regular shard lock to assume we can acquire it
@@ -783,7 +784,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
         try {
             env.deleteShardDirectoryUnderLock(sLock, ImmutableSettings.builder().build());
             fail("should not have been able to delete the directory");
-        } catch (ElasticsearchException e) {
+        } catch (LockObtainFailedException e) {
             assertTrue("msg: " + e.getMessage(), e.getMessage().contains("unable to acquire write.lock"));
         }
     }

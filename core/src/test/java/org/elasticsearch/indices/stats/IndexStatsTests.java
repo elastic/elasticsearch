@@ -51,6 +51,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -736,6 +737,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @Ignore
     public void testCompletionFieldsParam() throws Exception {
 
         assertAcked(prepareCreate("test1")

@@ -18,6 +18,9 @@
  */
 package org.elasticsearch.index.mapper.completion;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -25,6 +28,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.VersionUtils;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -34,18 +38,19 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-// CHANGED type "completion" -> "completion_old"
 public class CompletionFieldMapperTests extends ElasticsearchSingleNodeTest {
+    private final Version PRE2X_VERSION = VersionUtils.randomVersionBetween(getRandom(), Version.V_1_0_0, Version.V_1_7_0);
 
     @Test
     public void testDefaultConfiguration() throws IOException {
         String mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")
-                .field("type", "completion_old")
+                .field("type", "completion")
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id).build())
+                .mapperService().documentMapperParser().parse(mapping);
 
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         assertThat(fieldMapper, instanceOf(CompletionFieldMapper.class));
@@ -58,7 +63,7 @@ public class CompletionFieldMapperTests extends ElasticsearchSingleNodeTest {
     public void testThatSerializationIncludesAllElements() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")
-                .field("type", "completion_old")
+                .field("type", "completion")
                 .field("analyzer", "simple")
                 .field("search_analyzer", "standard")
                 .field("payloads", true)
@@ -69,7 +74,8 @@ public class CompletionFieldMapperTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id).build())
+                .mapperService().documentMapperParser().parse(mapping);
 
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         assertThat(fieldMapper, instanceOf(CompletionFieldMapper.class));
@@ -95,13 +101,14 @@ public class CompletionFieldMapperTests extends ElasticsearchSingleNodeTest {
     public void testThatSerializationCombinesToOneAnalyzerFieldIfBothAreEqual() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")
-                .field("type", "completion_old")
+                .field("type", "completion")
                 .field("analyzer", "simple")
                 .field("search_analyzer", "simple")
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id).build())
+                .mapperService().documentMapperParser().parse(mapping);
 
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         assertThat(fieldMapper, instanceOf(CompletionFieldMapper.class));

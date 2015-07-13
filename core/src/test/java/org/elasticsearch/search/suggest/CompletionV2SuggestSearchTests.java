@@ -140,6 +140,12 @@ public class CompletionV2SuggestSearchTests extends ElasticsearchIntegrationTest
     }
 
     @Test
+    public void testMixedCompletion() throws Exception {
+
+    }
+
+
+    @Test
     public void testSuggestFieldWithPercolateApi() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
         String[][] input = {{"Foo Fighters"}, {"Foo Fighters"}, {"Foo Fighters"}, {"Foo Fighters"},

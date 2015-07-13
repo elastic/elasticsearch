@@ -90,7 +90,7 @@ public class DefaultSearchContext extends SearchContext {
     private final BigArrays bigArrays;
     private final IndexShard indexShard;
     private final IndexService indexService;
-    private final ContextIndexSearcher searcher;
+    private ContextIndexSearcher searcher;
     private final DfsSearchResult dfsResult;
     private final QuerySearchResult queryResult;
     private final FetchSearchResult fetchResult;

@@ -2,24 +2,28 @@ package org.elasticsearch.search.internal;
 
 import com.google.common.base.Stopwatch;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.engine.Engine;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 
 public class ProfileIndexSearcher extends ContextIndexSearcher implements Releasable {
 
     private Stopwatch stopwatch;
+    private HashMap<Query, Long> timings;
 
 
     public ProfileIndexSearcher(SearchContext searchContext, Engine.Searcher searcher) {
         super(searchContext, searcher);
         stopwatch = Stopwatch.createUnstarted();
+        timings = new HashMap<>(10);
     }
 
     @Override
@@ -60,7 +64,7 @@ public class ProfileIndexSearcher extends ContextIndexSearcher implements Releas
         long time = stopwatch.elapsed(TimeUnit.MICROSECONDS);
         stopwatch.reset();
 
-        //timings.put(query, time);
+        timings.put(query, time);
 
         switch (timing) {
             case REWRITE:
@@ -70,9 +74,9 @@ public class ProfileIndexSearcher extends ContextIndexSearcher implements Releas
                 //executionTime += time;
                 break;
             case ALL:
-                throw new ElasticsearchIllegalArgumentException("Must setTime for either REWRITE or EXECUTION timing.");
+                throw new IllegalArgumentException("Must setTime for either REWRITE or EXECUTION timing.");
             default:
-                throw new ElasticsearchIllegalArgumentException("Must setTime for either REWRITE or EXECUTION timing.");
+                throw new IllegalArgumentException("Must setTime for either REWRITE or EXECUTION timing.");
         }
     }
     
@@ -113,6 +117,11 @@ public class ProfileIndexSearcher extends ContextIndexSearcher implements Releas
             pSearcher.startTime();
             BulkScorer bScorer = subQueryWeight.bulkScorer(context, acceptDocs);
             pSearcher.stopAndRecordTime(Timing.EXECUTION, getQuery());
+
+            if (bScorer == null) {
+                return null;
+            }
+
             return new ProfileBulkScorer(bScorer, pSearcher, getQuery());
         }
 
@@ -135,6 +144,11 @@ public class ProfileIndexSearcher extends ContextIndexSearcher implements Releas
             pSearcher.startTime();
             subQueryWeight.normalize(norm, topLevelBoost);
             pSearcher.stopAndRecordTime(Timing.EXECUTION, getQuery());
+        }
+
+        @Override
+        public void extractTerms(Set<Term> set) {
+            subQueryWeight.extractTerms(set);
         }
     }
 

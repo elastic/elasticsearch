@@ -18,7 +18,7 @@ governing permissions and limitations under the License. -->
     <parent>
         <groupId>org.elasticsearch.plugin</groupId>
         <artifactId>elasticsearch-plugin</artifactId>
-        <version>2.0.0.beta1-SNAPSHOT</version>
+        <version>2.0.0-beta1-SNAPSHOT</version>
     </parent>
 
     <artifactId>elasticsearch-delete-by-query</artifactId>

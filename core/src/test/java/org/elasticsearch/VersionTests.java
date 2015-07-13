@@ -138,7 +138,7 @@ public class VersionTests extends ElasticsearchTestCase {
 
     public void testToString() {
         // with 2.0.beta we lowercase
-        assertEquals("2.0.0.beta1", Version.V_2_0_0_beta1.number());
+        assertEquals("2.0.0-beta1", Version.V_2_0_0_beta1.number());
         assertEquals("1.4.0.Beta1", Version.V_1_4_0_Beta1.number());
         assertEquals("1.4.0", Version.V_1_4_0.number());
     }
@@ -189,7 +189,17 @@ public class VersionTests extends ElasticsearchTestCase {
                 logger.info("Checking " + v);
                 assertEquals("Version id " + field.getName() + " does not point to " + constantName, v, Version.fromId(versionId));
                 assertEquals("Version " + constantName + " does not have correct id", versionId, v.id);
-                assertEquals("V_" + v.number().replace('.', '_'), constantName);
+                if (v.major >= 2) {
+                    String number = v.number();
+                    if (v.isBeta()) {
+                        number = number.replace("-beta", "_beta");
+                    } else if (v.isRC()) {
+                        number = number.replace("-rc", "_rc");
+                    }
+                    assertEquals("V_" + number.replace('.', '_'), constantName);
+                } else {
+                    assertEquals("V_" + v.number().replace('.', '_'), constantName);
+                }
                 
                 // only the latest version for a branch should be a snapshot (ie unreleased)
                 String branchName = "" + v.major + "." + v.minor;

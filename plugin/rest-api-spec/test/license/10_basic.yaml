@@ -1,4 +1,0 @@
----
-"licenses endpoint exists":
-    - do:         {licenses: {}}
-    - match:      {licenses: []}

@@ -137,8 +137,8 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
         } else if (indexMetaData.getCreationVersion().onOrAfter(Version.V_2_0_0_beta1)) {
             if (indexMetaData.getSettings().get(IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION) != null
                     || indexMetaData.getSettings().get(IndexMetaData.SETTING_LEGACY_ROUTING_USE_TYPE) != null) {
-                throw new IllegalStateException("Indices created on or after 2.0 should NOT contain [" + IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION
-                        + "] + or [" + IndexMetaData.SETTING_LEGACY_ROUTING_USE_TYPE + "] in their index settings");
+                throw new IllegalStateException("Index [" + indexMetaData.getIndex() + "] created on or after 2.0 should NOT contain [" + IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION
+                        + "] + or [" + IndexMetaData.SETTING_LEGACY_ROUTING_USE_TYPE + "] in its index settings");
             }
         }
         return indexMetaData;

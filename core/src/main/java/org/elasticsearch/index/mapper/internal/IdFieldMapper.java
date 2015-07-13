@@ -184,7 +184,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query prefixQuery(Object value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
+        public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
             if (indexOptions() != IndexOptions.NONE || context == null) {
                 return super.prefixQuery(value, method, context);
             }

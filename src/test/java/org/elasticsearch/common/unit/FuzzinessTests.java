@@ -181,18 +181,5 @@ public class FuzzinessTests extends ElasticsearchTestCase {
         assertThat((double) Fuzziness.ONE.asSimilarity("abcefg"), closeTo(0.8f, 0.05));
         assertThat((double) Fuzziness.TWO.asSimilarity("abcefg"), closeTo(0.66f, 0.05));
         assertThat((double) Fuzziness.ONE.asSimilarity("ab"), closeTo(0.5f, 0.05));
-
-        int iters = randomIntBetween(100, 1000);
-        for (int i = 0; i < iters; i++) {
-            Fuzziness fuzziness = Fuzziness.fromEdits(between(1, 2));
-            String string = rarely() ? randomRealisticUnicodeOfLengthBetween(2, 4) :
-                    randomRealisticUnicodeOfLengthBetween(4, 10);
-            float similarity = fuzziness.asSimilarity(string);
-            if (similarity != 0.0f) {
-                Fuzziness similarityBased = Fuzziness.build(similarity);
-                assertThat((double) similarityBased.asSimilarity(string), closeTo(similarity, 0.05));
-                assertThat(similarityBased.asDistance(string), equalTo(Math.min(2, fuzziness.asDistance(string))));
-            }
-        }
     }
 }

@@ -18,10 +18,8 @@
     </parent>
 
     <properties>
-        <xplugins.basedir>${basedir}</xplugins.basedir>
-        <x-dev-tools.dir>${xplugins.basedir}/x-dev-tools</x-dev-tools.dir>
-        <elasticsearch.license.header>${x-dev-tools.dir}/license-check/elasticsearch_license_header.txt</elasticsearch.license.header>
-        <elasticsearch.license.headerDefinition>${x-dev-tools.dir}/license-check/license_header_definition.xml</elasticsearch.license.headerDefinition>
+        <elasticsearch.license.header>${elasticsearch.tools.directory}/commercial-license-check/elasticsearch_license_header.txt</elasticsearch.license.header>
+        <elasticsearch.license.headerDefinition>${elasticsearch.tools.directory}/commercial-license-check/license_header_definition.xml</elasticsearch.license.headerDefinition>
     </properties>
 
     <scm>
@@ -93,6 +91,23 @@
 
     </dependencies>
 
+    <build>
+      <pluginManagement>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-remote-resources-plugin</artifactId>
+            <configuration>
+              <!-- include x-dev-tools resources bundle -->
+              <resourceBundles combine.children="append">
+                <resourceBundle>org.elasticsearch:elasticsearch-x-dev-tools:${elasticsearch.version}</resourceBundle>
+              </resourceBundles>
+            </configuration>
+          </plugin>
+        </plugins>
+      </pluginManagement>
+    </build>
+
     <profiles>
         <profile>
             <id>deploy-internal</id>
@@ -128,6 +143,7 @@
     </profiles>
 
     <modules>
+        <module>x-dev-tools</module>
         <module>license</module>
         <module>shield</module>
         <module>watcher</module>

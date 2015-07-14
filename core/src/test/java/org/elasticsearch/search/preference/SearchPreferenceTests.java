@@ -88,7 +88,7 @@ public class SearchPreferenceTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void simplePreferenceTests() throws Exception {
-        createIndex("test");
+        client().admin().indices().prepareCreate("test").setSettings("number_of_replicas=1").get();
         ensureGreen();
 
         client().prepareIndex("test", "type1").setSource("field1", "value1").execute().actionGet();
@@ -104,10 +104,45 @@ public class SearchPreferenceTests extends ElasticsearchIntegrationTest {
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_primary").execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica").execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica").execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica_first").execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica_first").execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("1234").execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("1234").execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+    }
+
+    @Test
+    public void testReplicaPreference() throws Exception {
+        client().admin().indices().prepareCreate("test").setSettings("number_of_replicas=0").get();
+        ensureGreen();
+
+        client().prepareIndex("test", "type1").setSource("field1", "value1").execute().actionGet();
+        refresh();
+
+        try {
+            client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica").execute().actionGet();
+            fail("should have failed because there are no replicas");
+        } catch (Exception e) {
+            // pass
+        }
+
+        SearchResponse resp = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica_first").execute().actionGet();
+        assertThat(resp.getHits().totalHits(), equalTo(1l));
+
+        client().admin().indices().prepareUpdateSettings("test").setSettings("number_of_replicas=1").get();
+        ensureGreen("test");
+
+        resp = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica").execute().actionGet();
+        assertThat(resp.getHits().totalHits(), equalTo(1l));
     }
 
     @Test (expected = IllegalArgumentException.class)

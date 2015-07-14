@@ -45,6 +45,7 @@ import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.transport.RemoteTransportException;
+import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.EOFException;
@@ -249,8 +250,10 @@ public class ElasticsearchExceptionTests extends ElasticsearchTestCase {
             builder.startObject();
             ElasticsearchException.toXContent(builder, ToXContent.EMPTY_PARAMS, ex);
             builder.endObject();
-            String expected = "{\"type\":\"test_query_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo\",\"line\":1,\"col\":2,\"header\":{\"test_multi\":[\"some value\",\"another value\"],\"test\":\"some value\"}}";
-            assertEquals(expected, builder.string());
+            assertThat(builder.string(), Matchers.anyOf( // iteration order depends on platform
+                    equalTo("{\"type\":\"test_query_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo\",\"line\":1,\"col\":2,\"header\":{\"test_multi\":[\"some value\",\"another value\"],\"test\":\"some value\"}}"),
+                    equalTo("{\"type\":\"test_query_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo\",\"line\":1,\"col\":2,\"header\":{\"test\":\"some value\",\"test_multi\":[\"some value\",\"another value\"]}}")
+            ));
         }
     }
 

@@ -225,7 +225,7 @@ public class AllocateAllocationCommand implements AllocationCommand {
                 continue;
             }
             it.remove();
-            routingNodes.assign(shardRouting, routingNode.nodeId());
+            routingNodes.initialize(shardRouting, routingNode.nodeId());
             if (shardRouting.primary()) {
                 // we need to clear the post allocation flag, since its an explicit allocation of the primary shard
                 // and we want to force allocate it (and create a new index for it)

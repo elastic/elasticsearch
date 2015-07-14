@@ -339,7 +339,7 @@ public class GatewayAllocator extends AbstractComponent {
                     // we found a match
                     changed = true;
                     // make sure we create one with the version from the recovered state
-                    routingNodes.assign(new ShardRouting(shard, highestVersion), node.nodeId());
+                    routingNodes.initialize(new ShardRouting(shard, highestVersion), node.nodeId());
                     unassignedIterator.remove();
 
                     // found a node, so no throttling, no "no", and break out of the loop
@@ -359,7 +359,7 @@ public class GatewayAllocator extends AbstractComponent {
                     // we found a match
                     changed = true;
                     // make sure we create one with the version from the recovered state
-                    routingNodes.assign(new ShardRouting(shard, highestVersion), node.nodeId());
+                    routingNodes.initialize(new ShardRouting(shard, highestVersion), node.nodeId());
                     unassignedIterator.remove();
                 }
             } else {
@@ -514,7 +514,7 @@ public class GatewayAllocator extends AbstractComponent {
                     }
                     // we found a match
                     changed = true;
-                    routingNodes.assign(shard, lastNodeMatched.nodeId());
+                    routingNodes.initialize(shard, lastNodeMatched.nodeId());
                     unassignedIterator.remove();
                 }
             } else if (hasReplicaData == false) {

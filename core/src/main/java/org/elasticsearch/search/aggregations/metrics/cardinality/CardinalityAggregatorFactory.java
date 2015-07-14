@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics.cardinality;
 
-import org.elasticsearch.index.mapper.core.Murmur3FieldMapper;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -49,17 +47,7 @@ final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory.L
     @Override
     protected Aggregator createUnmapped(AggregationContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
-        resolveRehash();
         return new CardinalityAggregator(name, null, precision(parent), config.formatter(), context, parent, pipelineAggregators, metaData);
-    }
-
-    private void resolveRehash() {
-        if (rehash == null && config.fieldContext() != null
-                && config.fieldContext().fieldType() instanceof Murmur3FieldMapper.Murmur3FieldType) {
-            rehash = false;
-        } else if (rehash == null) {
-            rehash = true;
-        }
     }
 
     @Override

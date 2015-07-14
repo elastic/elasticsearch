@@ -26,7 +26,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
@@ -80,9 +80,9 @@ public class HDRPercentileRanksAggregator extends AbstractHDRPercentilesAggregat
         private final int numberOfSignificantValueDigits;
         private final boolean keyed;
 
-        public Factory(String name, ValuesSourceConfig<ValuesSource.Numeric> valuesSourceConfig, double[] values,
+        public Factory(String name, ValuesSourceParser.Input<ValuesSource.Numeric> valuesSourceInput, double[] values,
                 int numberOfSignificantValueDigits, boolean keyed) {
-            super(name, InternalHDRPercentiles.TYPE.name(), valuesSourceConfig);
+            super(name, InternalHDRPercentiles.TYPE.name(), valuesSourceInput);
             this.values = values;
             this.numberOfSignificantValueDigits = numberOfSignificantValueDigits;
             this.keyed = keyed;

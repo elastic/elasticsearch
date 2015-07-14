@@ -193,7 +193,7 @@ public class WatcherScheduleEngineBenchmark {
                                             .interval(10)
                             )
                             .addAggregation(percentiles("percentile_delay")
-                                            .script("doc['trigger_event.schedule.triggered_time'].value - doc['trigger_event.schedule.scheduled_time'].value")
+                                            .script(new Script("doc['trigger_event.schedule.triggered_time'].value - doc['trigger_event.schedule.scheduled_time'].value"))
                                             .percentiles(1.0, 20.0, 50.0, 80.0, 99.0)
                             )
                             .get();

@@ -31,7 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
-import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+import org.elasticsearch.search.suggest.completion.old.CompletionSuggestion;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 
@@ -118,8 +118,8 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             case TermSuggestion.TYPE:
                 suggestion = new TermSuggestion();
                 break;
-            case org.elasticsearch.search.suggest.completionv2.CompletionSuggestion.TYPE:
-                suggestion = new org.elasticsearch.search.suggest.completionv2.CompletionSuggestion();
+            case org.elasticsearch.search.suggest.completion.CompletionSuggestion.TYPE:
+                suggestion = new org.elasticsearch.search.suggest.completion.CompletionSuggestion();
                 break;
             case CompletionSuggestion.TYPE:
                 suggestion = new CompletionSuggestion();

@@ -33,7 +33,7 @@ import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.index.mapper.core.CompletionV2FieldMapper;
+import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
@@ -365,7 +365,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         assertThat(docMapper.mappers().getMapper("a").fieldType().tokenized(), equalTo(false));
 
         assertThat(docMapper.mappers().getMapper("a.b"), notNullValue());
-        assertThat(docMapper.mappers().getMapper("a.b"), instanceOf(CompletionV2FieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("a.b"), instanceOf(CompletionFieldMapper.class));
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("a.b").fieldType().indexOptions());
         assertThat(docMapper.mappers().getMapper("a.b").fieldType().stored(), equalTo(false));
         assertThat(docMapper.mappers().getMapper("a.b").fieldType().tokenized(), equalTo(true));
@@ -390,7 +390,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
 
         assertThat(docMapper.mappers().getMapper("b"), notNullValue());
-        assertThat(docMapper.mappers().getMapper("b"), instanceOf(CompletionV2FieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("b"), instanceOf(CompletionFieldMapper.class));
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("b").fieldType().indexOptions());
         assertThat(docMapper.mappers().getMapper("b").fieldType().stored(), equalTo(false));
         assertThat(docMapper.mappers().getMapper("b").fieldType().tokenized(), equalTo(true));

@@ -19,21 +19,15 @@
 package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
-import org.elasticsearch.index.mapper.core.CompletionV2FieldMapper;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
-import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
-import org.elasticsearch.search.suggest.completionv2.CompletionSuggestParser;
-import org.elasticsearch.search.suggest.completionv2.CompletionSuggester;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggester;
+import org.elasticsearch.search.suggest.completion.CompletionSuggestParser;
+import org.elasticsearch.search.suggest.completion.old.CompletionSuggester;
 
 import java.io.IOException;
 import java.util.Map;
@@ -118,7 +112,7 @@ public final class SuggestParseElement implements SearchParseElement {
                             if (prefix != null && regex != null) {
                                 throw new IllegalArgumentException("Suggestion against completion field must have either 'prefix' or 'regex'");
                             }
-                            ((CompletionSuggestParser) contextParser).setOldCompletionSuggester(((org.elasticsearch.search.suggest.completion.CompletionSuggester) suggesters.get("completion_old")));
+                            ((CompletionSuggestParser) contextParser).setOldCompletionSuggester(((CompletionSuggester) suggesters.get("completion_old")));
                         }
                         suggestionContext = contextParser.parse(parser, mapperService, queryParserService);
                     }

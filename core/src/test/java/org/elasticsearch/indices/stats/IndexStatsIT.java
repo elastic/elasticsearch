@@ -51,9 +51,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilders;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -758,8 +756,8 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(stats.getTotal().completion.getFields(), is(nullValue()));
 
         // load FST in memory by searching
-        client().prepareSuggest().addSuggestion(SuggestBuilders.completionV2Suggestion("suggest").field("bar.completion").prefix("ba")).get();
-        client().prepareSuggest().addSuggestion(SuggestBuilders.completionV2Suggestion("suggest").field("baz.completion").prefix("ba")).get();
+        client().prepareSuggest().addSuggestion(SuggestBuilders.completionSuggestion("suggest").field("bar.completion").prefix("ba")).get();
+        client().prepareSuggest().addSuggestion(SuggestBuilders.completionSuggestion("suggest").field("baz.completion").prefix("ba")).get();
 
         builder = client().admin().indices().prepareStats();
         stats = builder.execute().actionGet();

@@ -88,14 +88,16 @@ public class BootstrapForTesting {
                 // add permissions to everything in classpath
                 for (URL url : ((URLClassLoader)BootstrapForTesting.class.getClassLoader()).getURLs()) {
                     Path path = PathUtils.get(url.toURI());
-                    if (path.toString().endsWith(".jar")) {
-                        // jar itself
-                        perms.add(new FilePermission(path.toString(), "read,readlink"));
-                        // crazy jython...
-                        Security.addPath(perms, path.getParent().resolve("Lib"), "read,readlink");
-                    } else {
-                        // classes
-                        Security.addPath(perms, path, "read,readlink");
+                    // resource itself
+                    perms.add(new FilePermission(path.toString(), "read,readlink"));
+                    // classes underneath
+                    perms.add(new FilePermission(path.toString() + path.getFileSystem().getSeparator() + "-", "read,readlink"));
+
+                    // crazy jython...
+                    String filename = path.getFileName().toString();
+                    if (filename.contains("jython") && filename.endsWith(".jar")) {
+                        // just enough so it won't fail when it does not exist
+                        perms.add(new FilePermission(path.getParent().resolve("Lib").toString(), "read,readlink"));
                     }
                 }
                 // java.io.tmpdir

@@ -331,6 +331,7 @@ generates an edit distance based on the length of the term. For lengths:
 `>5`:: two edits allowed
 
 `AUTO` should generally be the preferred value for `fuzziness`.
+--
 
 [float]
 === Result Casing

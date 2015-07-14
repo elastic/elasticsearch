@@ -49,7 +49,7 @@ public class PercentilesParser extends AbstractPercentilesParser {
     protected ParseField keysField() {
         return PERCENTS_FIELD;
     }
-    
+
     @Override
     protected AggregatorFactory buildFactory(SearchContext context, String aggregationName, ValuesSourceParser.Input<Numeric> valuesSourceInput,
             double[] keys, PercentilesMethod method, Double compression, Integer numberOfSignificantValueDigits, boolean keyed) {
@@ -59,7 +59,7 @@ public class PercentilesParser extends AbstractPercentilesParser {
         if (method == PercentilesMethod.TDIGEST) {
             return new TDigestPercentilesAggregator.Factory(aggregationName, valuesSourceInput, keys, compression, keyed);
         } else if (method == PercentilesMethod.HDR) {
-            return new HDRPercentilesAggregator.Factory(aggregationName, valuesSourceConfig, keys, numberOfSignificantValueDigits, keyed);
+            return new HDRPercentilesAggregator.Factory(aggregationName, valuesSourceInput, keys, numberOfSignificantValueDigits, keyed);
         } else {
             throw new AssertionError();
         }

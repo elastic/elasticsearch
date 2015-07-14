@@ -2054,13 +2054,29 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testParentChild() throws Exception {
-        // We don't fail p/c queries, but those queries are unsuable because only one document can be provided in
+        // We don't fail p/c queries, but those queries are unusable because only a single document can be provided in
         // the percolate api
 
         assertAcked(prepareCreate("index").addMapping("child", "_parent", "type=parent").addMapping("parent"));
         client().prepareIndex("index", PercolatorService.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", hasChildQuery("child", matchAllQuery())).endObject())
                 .execute().actionGet();
+    }
+
+    @Test
+    public void testPercolateDocumentWithParentField() throws Exception {
+        assertAcked(prepareCreate("index").addMapping("child", "_parent", "type=parent").addMapping("parent"));
+        client().prepareIndex("index", PercolatorService.TYPE_NAME, "1")
+                .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
+                .execute().actionGet();
+
+        // Just percolating a document that has a _parent field in its mapping should just work:
+        PercolateResponse response = client().preparePercolate()
+                .setDocumentType("parent")
+                .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("field", "value"))
+                .get();
+        assertMatchCount(response, 1);
+        assertThat(response.getMatches()[0].getId().string(), equalTo("1"));
     }
 
 }

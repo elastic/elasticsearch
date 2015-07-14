@@ -125,6 +125,10 @@ public class NodeJoinController extends AbstractComponent {
         }
     }
 
+    /**
+     * Accumulates any future incoming join request. Pending join requests will be processed in the final steps of becoming a
+     * master or when {@link #stopAccumulatingJoins()} is called.
+     */
     public void startAccumulatingJoins() {
         logger.trace("starting to accumulate joins");
         boolean b = accumulateJoins.getAndSet(true);
@@ -132,6 +136,7 @@ public class NodeJoinController extends AbstractComponent {
         assert electionContext.get() == null : "startAccumulatingJoins() called, but there is an ongoing election context";
     }
 
+    /** Stopped accumulating joins. All pending joins will be processed. Future joins will be processed immediately */
     public void stopAccumulatingJoins() {
         logger.trace("stopping join accumulation");
         assert electionContext.get() == null : "stopAccumulatingJoins() called, but there is an ongoing election context";
@@ -144,6 +149,11 @@ public class NodeJoinController extends AbstractComponent {
         }
     }
 
+    /**
+     * processes or queues an incoming join request.
+     * <p/>
+     * Note: doesn't do any validation. This should have been done before.
+     */
     public void handleJoinRequest(final DiscoveryNode node, final MembershipAction.JoinCallback callback) {
         synchronized (pendingJoinRequests) {
             List<MembershipAction.JoinCallback> nodeCallbacks = pendingJoinRequests.get(node);
@@ -160,6 +170,10 @@ public class NodeJoinController extends AbstractComponent {
         }
     }
 
+    /**
+     * checks if there is an on going request to become master and if it has enough pending joins. If so, the node will
+     * become master via a ClusterState update task.
+     */
     private void checkPendingJoinsAndElectIfNeeded() {
         assert accumulateJoins.get() : "election check requested but we are not accumulating joins";
         final ElectionContext context = electionContext.get();
@@ -208,7 +222,8 @@ public class NodeJoinController extends AbstractComponent {
                     currentState = ClusterState.builder(currentState).routingResult(result).build();
                 }
 
-                // add the incoming join requests
+                // Add the incoming join requests.
+                // Note: we only do this now (after the reroute) to avoid assigning shards to these nodes.
                 return super.execute(currentState);
             }
 
@@ -231,6 +246,7 @@ public class NodeJoinController extends AbstractComponent {
         });
     }
 
+    /** process all pending joins */
     private void processJoins(String reason) {
         clusterService.submitStateUpdateTask("zen-disco-join(" + reason + ")", Priority.URGENT, new ProcessJoinsTask());
     }
@@ -282,6 +298,10 @@ public class NodeJoinController extends AbstractComponent {
     }
 
 
+    /**
+     * Processes any pending joins via a ClusterState update task.
+     * Note: this task automatically fails (and fails all pending joins) if the current node is not marked as master
+     */
     class ProcessJoinsTask extends ProcessedClusterStateUpdateTask {
 
         private final List<MembershipAction.JoinCallback> joinCallbacksToRespondTo = new ArrayList<>();

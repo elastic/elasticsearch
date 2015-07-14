@@ -130,11 +130,11 @@ public class NodeJoinControllerTests extends ElasticsearchTestCase {
         }
     }
 
-    public void testSimpleMasterElection() throws InterruptedException, ExecutionException {
+    public void testSimpleMasterElectionWithoutRequiredJoins() throws InterruptedException, ExecutionException {
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterService.state().nodes()).masterNodeId(null);
         clusterService.setState(ClusterState.builder(clusterService.state()).nodes(nodes));
         int nodeId = 0;
-        final int requiredJoins = randomInt(5);
+        final int requiredJoins = 0;
         logger.debug("--> using requiredJoins [{}]", requiredJoins);
         // initial (failing) joins shouldn't count
         for (int i = randomInt(5); i > 0; i--) {
@@ -173,11 +173,54 @@ public class NodeJoinControllerTests extends ElasticsearchTestCase {
             }
         });
         masterElection.start();
-        if (requiredJoins == 0) {
+
             logger.debug("--> requiredJoins is set to 0. verifying election finished");
             electionFuture.get();
-            return;
+    }
+
+    public void testSimpleMasterElection() throws InterruptedException, ExecutionException {
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterService.state().nodes()).masterNodeId(null);
+        clusterService.setState(ClusterState.builder(clusterService.state()).nodes(nodes));
+        int nodeId = 0;
+        final int requiredJoins = 1 + randomInt(5);
+        logger.debug("--> using requiredJoins [{}]", requiredJoins);
+        // initial (failing) joins shouldn't count
+        for (int i = randomInt(5); i > 0; i--) {
+            try {
+                joinNode(newNode(nodeId++));
+                fail("failed to fail node join when not a master");
+            } catch (ExecutionException e) {
+                assertThat(e.getCause(), instanceOf(NotMasterException.class));
+            }
         }
+
+        nodeJoinController.startAccumulatingJoins();
+        final SimpleFuture electionFuture = new SimpleFuture("master election");
+        final Thread masterElection = new Thread(new AbstractRunnable() {
+            @Override
+            public void onFailure(Throwable t) {
+                logger.error("unexpected error from waitToBeElectedAsMaster", t);
+                electionFuture.markAsFailed(t);
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+                nodeJoinController.waitToBeElectedAsMaster(requiredJoins, TimeValue.timeValueHours(30), new NodeJoinController.Callback() {
+                    @Override
+                    public void onElectedAsMaster(ClusterState state) {
+                        assertThat("callback called with elected as master, but state disagrees", state.nodes().localNodeMaster(), equalTo(true));
+                        electionFuture.markAsDone();
+                    }
+
+                    @Override
+                    public void onFailure(Throwable t) {
+                        logger.error("unexpected error while waiting to be elected as master", t);
+                        electionFuture.markAsFailed(t);
+                    }
+                });
+            }
+        });
+        masterElection.start();
         assertThat("election finished immediately but required joins is [" + requiredJoins + "]", electionFuture.isDone(), equalTo(false));
 
         final int initialJoins = randomIntBetween(0, requiredJoins - 1);
@@ -244,6 +287,7 @@ public class NodeJoinControllerTests extends ElasticsearchTestCase {
         nodeJoinController.stopAccumulatingJoins();
 
     }
+
 
     public void testMasterElectionTimeout() throws InterruptedException {
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterService.state().nodes()).masterNodeId(null);

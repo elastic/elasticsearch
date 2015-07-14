@@ -17,7 +17,7 @@
 
     <properties>
         <xplugins.basedir>${project.parent.basedir}</xplugins.basedir>
-        <!--<elasticsearch.integ.antfile>dev-tools/integration-tests.xml</elasticsearch.integ.antfile>-->
+        <elasticsearch.integ.antfile>dev-tools/integration-tests.xml</elasticsearch.integ.antfile>
         <tests.rest.load_packaged>false</tests.rest.load_packaged>
         <tests.timewarp>true</tests.timewarp>
     </properties>

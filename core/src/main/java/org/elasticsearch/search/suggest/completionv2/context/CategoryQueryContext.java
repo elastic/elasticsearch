@@ -24,6 +24,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+import static org.elasticsearch.search.suggest.completionv2.context.CategoryContextMapping.CONTEXT_BOOST;
+import static org.elasticsearch.search.suggest.completionv2.context.CategoryContextMapping.CONTEXT_PREFIX;
+import static org.elasticsearch.search.suggest.completionv2.context.CategoryContextMapping.CONTEXT_VALUE;
+
 /**
  * Defines the query context for {@link CategoryContextMapping}
  */
@@ -37,7 +41,7 @@ public class CategoryQueryContext implements ToXContent {
      * Whether the value is a
      * prefix of a category value or not
      */
-    public final boolean exact;
+    public final boolean isPrefix;
 
     /**
      * Query-time boost to be
@@ -51,21 +55,21 @@ public class CategoryQueryContext implements ToXContent {
     }
 
     public CategoryQueryContext(CharSequence context, int boost) {
-        this(context, boost, true);
+        this(context, boost, false);
     }
 
-    public CategoryQueryContext(CharSequence context, int boost, boolean exact) {
+    public CategoryQueryContext(CharSequence context, int boost, boolean isPrefix) {
         this.context = context;
-        this.exact = exact;
         this.boost = boost;
+        this.isPrefix = isPrefix;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("value", context);
-        builder.field("boost", boost);
-        builder.field("exact", exact);
+        builder.field(CONTEXT_VALUE, context);
+        builder.field(CONTEXT_BOOST, boost);
+        builder.field(CONTEXT_PREFIX, isPrefix);
         builder.endObject();
         return builder;
     }

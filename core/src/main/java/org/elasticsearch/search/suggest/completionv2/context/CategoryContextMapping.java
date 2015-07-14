@@ -20,8 +20,8 @@
 package org.elasticsearch.search.suggest.completionv2.context;
 
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.search.suggest.document.CompletionQuery;
-import org.apache.lucene.search.suggest.document.ContextQuery;
+import org.apache.lucene.search.suggest.xdocument.CompletionQuery;
+import org.apache.lucene.search.suggest.xdocument.ContextQuery;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
@@ -48,9 +48,9 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
 
     private static final String FIELD_FIELDNAME = "path";
 
-    private static final String CONTEXT_VALUE = "value";
-    private static final String CONTEXT_BOOST = "boost";
-    private static final String CONTEXT_EXACT = "exact";
+    static final String CONTEXT_VALUE = "context";
+    static final String CONTEXT_BOOST = "boost";
+    static final String CONTEXT_PREFIX = "prefix";
 
     private final String fieldName;
 
@@ -179,7 +179,7 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
                     // context, exact
                     if (CONTEXT_VALUE.equals(currentFieldName)) {
                         context = parser.text();
-                    } else if (CONTEXT_EXACT.equals(currentFieldName)) {
+                    } else if (CONTEXT_PREFIX.equals(currentFieldName)) {
                         isExact = Boolean.valueOf(parser.text());
                     } else if (CONTEXT_BOOST.equals(currentFieldName)) {
                         Number number;
@@ -202,7 +202,7 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
                     }
                 } else if (token == Token.VALUE_BOOLEAN) {
                     // exact
-                    if (CONTEXT_EXACT.equals(currentFieldName)) {
+                    if (CONTEXT_PREFIX.equals(currentFieldName)) {
                         isExact = parser.booleanValue();
                     }
                 }
@@ -221,7 +221,7 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
         final ContextQuery contextQuery = new ContextQuery(query);
         if (queryContexts != null) {
             for (CategoryQueryContext queryContext : queryContexts) {
-                contextQuery.addContext(queryContext.context, queryContext.boost, queryContext.exact);
+                contextQuery.addContext(queryContext.context, queryContext.boost, queryContext.isPrefix == false);
             }
         }
         return contextQuery;
@@ -229,16 +229,21 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
 
     @Override
     public boolean equals(Object obj) {
-        if (obj instanceof CategoryContextMapping) {
-            CategoryContextMapping other = (CategoryContextMapping) obj;
-            return (this.fieldName.equals(other.fieldName));
+        if (super.equals(obj)) {
+            if (obj instanceof CategoryContextMapping) {
+                CategoryContextMapping other = (CategoryContextMapping) obj;
+                return (this.fieldName.equals(other.fieldName));
+            }
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return fieldName.hashCode();
+        final int prime = 31;
+        int result = super.hashCode();
+        result = prime * result + ((fieldName == null) ? 0 : fieldName.hashCode());
+        return result;
     }
 
     /**

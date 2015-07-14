@@ -23,7 +23,7 @@ import com.google.common.collect.Sets;
 import org.apache.lucene.analysis.TokenStreamToAutomaton;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.search.suggest.document.*;
+import org.apache.lucene.search.suggest.xdocument.*;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
@@ -34,11 +34,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.NumberType;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
 import org.elasticsearch.search.suggest.completionv2.CompletionSuggester;
-import org.elasticsearch.search.suggest.completionv2.context.ContextMapping;
 import org.elasticsearch.search.suggest.completionv2.context.ContextMappings;
 
 import java.io.IOException;
@@ -155,8 +153,8 @@ public class CompletionV2FieldMapper extends FieldMapper implements ArrayValueMa
                 searchAnalyzer = indexAnalyzer;
             }
 
-            CompletionAnalyzer completionIndexAnalyzer = new CompletionAnalyzer(indexAnalyzer, preserveSeparators, preservePositionIncrements);
-            CompletionAnalyzer completionSearchAnalyzer = new CompletionAnalyzer(searchAnalyzer, preserveSeparators, preservePositionIncrements);
+            org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer completionIndexAnalyzer = new org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer(indexAnalyzer, preserveSeparators, preservePositionIncrements);
+            org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer completionSearchAnalyzer = new org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer(searchAnalyzer, preserveSeparators, preservePositionIncrements);
             builder.indexAnalyzer(new NamedAnalyzer(indexAnalyzer.name(), indexAnalyzer.scope(), completionIndexAnalyzer));
             builder.searchAnalyzer(new NamedAnalyzer(searchAnalyzer.name(), searchAnalyzer.scope(), completionSearchAnalyzer));
             return builder;
@@ -210,7 +208,7 @@ public class CompletionV2FieldMapper extends FieldMapper implements ArrayValueMa
          */
         public static synchronized PostingsFormat postingsFormat() {
             if (postingsFormat == null) {
-                postingsFormat = new Completion50PostingsFormat();
+                postingsFormat = new org.apache.lucene.search.suggest.xdocument.Completion50PostingsFormat();
             }
             return postingsFormat;
         }
@@ -254,8 +252,8 @@ public class CompletionV2FieldMapper extends FieldMapper implements ArrayValueMa
         public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts, boolean strict) {
             super.checkCompatibility(fieldType, conflicts, strict);
             CompletionFieldType other = (CompletionFieldType)fieldType;
-            CompletionAnalyzer analyzer = (CompletionAnalyzer) indexAnalyzer().analyzer();
-            CompletionAnalyzer otherAnalyzer = (CompletionAnalyzer) other.indexAnalyzer().analyzer();
+            org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer analyzer = (org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer) indexAnalyzer().analyzer();
+            org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer otherAnalyzer = (org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer) other.indexAnalyzer().analyzer();
 
             if (analyzer.preservePositionIncrements() != otherAnalyzer.preservePositionIncrements()) {
                 conflicts.add("mapper [" + names().fullName() + "] has different 'preserve_position_increments' values");
@@ -362,7 +360,7 @@ public class CompletionV2FieldMapper extends FieldMapper implements ArrayValueMa
      *
      * Indexing:
      *  if context mappings are defined, delegates to {@link ContextMappings#addFields(ParseContext.Document, String, String, int, Map)}
-     *  else adds inputs as a {@link SuggestField}
+     *  else adds inputs as a {@link org.apache.lucene.search.suggest.xdocument.SuggestField}
      */
     @Override
     public Mapper parse(ParseContext context) throws IOException {
@@ -392,7 +390,7 @@ public class CompletionV2FieldMapper extends FieldMapper implements ArrayValueMa
                 fieldType().getContextMappings().addFields(context.doc(), fieldType().names().indexName(),
                         input, metaData.weight, metaData.contexts);
             } else {
-                context.doc().add(new SuggestField(fieldType().names().indexName(), input, metaData.weight));
+                context.doc().add(new org.apache.lucene.search.suggest.xdocument.SuggestField(fieldType().names().indexName(), input, metaData.weight));
             }
         }
         multiFields.parse(this, context);
@@ -480,7 +478,7 @@ public class CompletionV2FieldMapper extends FieldMapper implements ArrayValueMa
         if (fieldType().indexAnalyzer().name().equals(fieldType().searchAnalyzer().name()) == false) {
             builder.field(Fields.SEARCH_ANALYZER.getPreferredName(), fieldType().searchAnalyzer().name());
         }
-        CompletionAnalyzer analyzer = (CompletionAnalyzer) fieldType().indexAnalyzer().analyzer();
+        org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer analyzer = (org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer) fieldType().indexAnalyzer().analyzer();
         builder.field(Fields.PRESERVE_SEPARATORS.getPreferredName(), analyzer.preserveSep());
         builder.field(Fields.PRESERVE_POSITION_INCREMENTS.getPreferredName(), analyzer.preservePositionIncrements());
         builder.field(Fields.MAX_INPUT_LENGTH.getPreferredName(), this.maxInputLength);

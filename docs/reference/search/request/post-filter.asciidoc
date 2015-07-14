@@ -10,7 +10,7 @@ Imagine that you are selling shirts, and the user has specified two filters:
 Gucci in the search results.  Normally you would do this with a 
 <<query-dsl-filtered-query,`filtered` query>>:
 
-[source,json]
+[source,js]
 --------------------------------------------------
 curl -XGET localhost:9200/shirts/_search -d '
 {
@@ -38,7 +38,7 @@ that would allow the user to limit their search results to red Gucci
 This can be done with a 
 <<search-aggregations-bucket-terms-aggregation,`terms` aggregation>>:
 
-[source,json]
+[source,js]
 --------------------------------------------------
 curl -XGET localhost:9200/shirts/_search -d '
 {
@@ -73,7 +73,7 @@ Instead, you want to include shirts of all colors during aggregation, then
 apply the `colors` filter only to the search results.  This is the purpose of
 the `post_filter`:
 
-[source,json]
+[source,js]
 --------------------------------------------------
 curl -XGET localhost:9200/shirts/_search -d '
 {

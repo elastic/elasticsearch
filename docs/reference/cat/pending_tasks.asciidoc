@@ -5,7 +5,7 @@
 <<cluster-pending,`/_cluster/pending_tasks`>> API in a
 convenient tabular format.
 
-[source,shell]
+[source,sh]
 --------------------------------------------------
 % curl 'localhost:9200/_cat/pending_tasks?v'
 insertOrder timeInQueue priority source

@@ -25,7 +25,7 @@ ActN   3806 192.168.56.20 9300 {version}   {jdk}
 
 The next few give a picture of your heap, memory, and load.
 
-[source,shell]
+[source,sh]
 --------------------------------------------------
 diskAvail heapPercent heapMax ramPercent  ramMax load
    72.1gb        31.3  93.9mb         81 239.1mb 0.24
@@ -39,7 +39,7 @@ ones.  How many master-eligible nodes do I have?  How many client
 nodes?  It looks like someone restarted a node recently; which one was
 it?
 
-[source,shell]
+[source,sh]
 --------------------------------------------------
 uptime data/client master name
   3.5h d           m      Boneyard

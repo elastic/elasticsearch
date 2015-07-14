@@ -23,7 +23,7 @@ These metadata attributes can be used with the
 group of nodes.  For instance, we can move the index `test` to either `big` or
 `medium` nodes as follows:
 
-[source,json]
+[source,js]
 ------------------------
 PUT test/_settings
 {
@@ -35,7 +35,7 @@ PUT test/_settings
 Alternatively, we can move the index `test` away from the `small` nodes with
 an `exclude` rule:
 
-[source,json]
+[source,js]
 ------------------------
 PUT test/_settings
 {
@@ -48,7 +48,7 @@ Multiple rules can be specified, in which case all conditions must be
 satisfied.  For instance, we could move the index `test` to `big` nodes in
 `rack1` with the following:
 
-[source,json]
+[source,js]
 ------------------------
 PUT test/_settings
 {
@@ -87,7 +87,7 @@ These special attributes are also supported:
 
 All attribute values can be specified with wildcards, eg:
 
-[source,json]
+[source,js]
 ------------------------
 PUT test/_settings
 {

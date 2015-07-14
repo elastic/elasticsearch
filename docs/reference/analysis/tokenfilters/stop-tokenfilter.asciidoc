@@ -31,7 +31,7 @@ type:
 
 The `stopwords` parameter accepts either an array of stopwords:
 
-[source,json]
+[source,js]
 ------------------------------------
 PUT /my_index
 {
@@ -50,7 +50,7 @@ PUT /my_index
 
 or a predefined language-specific list:
 
-[source,json]
+[source,js]
 ------------------------------------
 PUT /my_index
 {

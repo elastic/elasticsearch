@@ -24,7 +24,7 @@ The settings which control logging can be updated dynamically with the
 `logger.` prefix.  For instance, to increase the logging level of the
 `indices.recovery` module to `DEBUG`, issue this request:
 
-[source,json]
+[source,js]
 -------------------------------
 PUT /_cluster/settings
 {

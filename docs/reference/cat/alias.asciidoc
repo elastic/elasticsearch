@@ -4,7 +4,7 @@
 `aliases` shows information about currently configured aliases to indices
 including filter and routing infos.
 
-[source,shell]
+[source,sh]
 --------------------------------------------------
 % curl '192.168.56.10:9200/_cat/aliases?v'
 alias  index filter indexRouting searchRouting

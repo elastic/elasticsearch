@@ -40,7 +40,7 @@ evicted.
 
 The cache can be expired manually with the <<indices-clearcache,`clear-cache` API>>:
 
-[source,json]
+[source,js]
 ------------------------
 curl -XPOST 'localhost:9200/kimchy,elasticsearch/_cache/clear?request_cache=true'
 ------------------------
@@ -51,7 +51,7 @@ curl -XPOST 'localhost:9200/kimchy,elasticsearch/_cache/clear?request_cache=true
 The cache is not enabled by default, but can be enabled when creating a new
 index as follows:
 
-[source,json]
+[source,js]
 -----------------------------
 curl -XPUT localhost:9200/my_index -d'
 {
@@ -65,7 +65,7 @@ curl -XPUT localhost:9200/my_index -d'
 It can also be enabled or disabled dynamically on an existing index with the
 <<indices-update-settings,`update-settings`>> API:
 
-[source,json]
+[source,js]
 -----------------------------
 curl -XPUT localhost:9200/my_index/_settings -d'
 { "index.requests.cache.enable": true }
@@ -78,7 +78,7 @@ curl -XPUT localhost:9200/my_index/_settings -d'
 The `query_cache` query-string parameter can be used to enable or disable
 caching on a *per-request* basis.  If set, it overrides the index-level setting:
 
-[source,json]
+[source,js]
 -----------------------------
 curl 'localhost:9200/my_index/_search?request_cache=true' -d'
 {
@@ -131,14 +131,14 @@ setting is provided for completeness' sake only.
 The size of the cache (in bytes) and the number of evictions can be viewed
 by index, with the <<indices-stats,`indices-stats`>> API:
 
-[source,json]
+[source,js]
 ------------------------
 curl 'localhost:9200/_stats/request_cache?pretty&human'
 ------------------------
 
 or by node with the <<cluster-nodes-stats,`nodes-stats`>> API:
 
-[source,json]
+[source,js]
 ------------------------
 curl 'localhost:9200/_nodes/stats/indices/request_cache?pretty&human'
 ------------------------

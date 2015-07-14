@@ -90,7 +90,7 @@ Script fields in 1.x were only returned as a single value. So even if the return
 value of a script used to be list, it would be returned as an array containing
 a single value that is a list too, such as:
 
-[source,json]
+[source,js]
 ---------------
 "fields": {
   "my_field": [
@@ -106,7 +106,7 @@ In elasticsearch 2.x, scripts that return a list of values are considered as
 multivalued fields. So the same example would return the following response,
 with values in a single array.
 
-[source,json]
+[source,js]
 ---------------
 "fields": {
   "my_field": [
@@ -200,7 +200,7 @@ Types can no longer be specified on fields within queries.  Instead, specify typ
 
 The following is an example query in 1.x over types `t1` and `t2`:
 
-[source,json]
+[source,js]
 ---------------
 curl -XGET 'localhost:9200/index/_search'
 {
@@ -217,7 +217,7 @@ curl -XGET 'localhost:9200/index/_search'
 
 In 2.0, the query should look like the following:
 
-[source,json]
+[source,js]
 ---------------
 curl -XGET 'localhost:9200/index/t1,t2/_search'
 {
@@ -240,7 +240,7 @@ The following example illustrates the difference between 1.x and 2.0.
 
 Given these mappings:
 
-[source,json]
+[source,js]
 ---------------
 curl -XPUT 'localhost:9200/index'
 {
@@ -262,7 +262,7 @@ curl -XPUT 'localhost:9200/index'
 
 The following query was possible in 1.x:
 
-[source,json]
+[source,js]
 ---------------
 curl -XGET 'localhost:9200/index/type/_search'
 {
@@ -274,7 +274,7 @@ curl -XGET 'localhost:9200/index/type/_search'
 
 In 2.0, the same query should now be:
 
-[source,json]
+[source,js]
 ---------------
 curl -XGET 'localhost:9200/index/type/_search'
 {
@@ -347,7 +347,7 @@ In addition, terms aggregations use a custom formatter for boolean (like for
 dates and ip addresses, which are also backed by numbers) in order to return
 the user-friendly representation of boolean fields: `false`/`true`:
 
-[source,json]
+[source,js]
 ---------------
 "buckets": [
   {
@@ -486,7 +486,7 @@ The `filtered` query is deprecated. Instead you should use a `bool` query with
 a `must` clause for the query and a `filter` clause for the filter. For instance
 the below query:
 
-[source,json]
+[source,js]
 ---------------
 {
   "filtered": {
@@ -500,7 +500,7 @@ the below query:
 }
 ---------------
 can be replaced with
-[source,json]
+[source,js]
 ---------------
 {
   "bool": {
@@ -707,7 +707,7 @@ put under `fields` like regular stored fields.
 curl -XGET 'localhost:9200/test/_search?fields=_timestamp,foo'
 ---------------
 
-[source,json]
+[source,js]
 ---------------
 {
    [...]

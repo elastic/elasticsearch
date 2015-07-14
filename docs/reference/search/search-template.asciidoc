@@ -210,7 +210,7 @@ _section_ markers like `{{#line_no}}`.  For this reason, the template should
 either be stored in a file (see <<pre-registered-templates>>) or, when used 
 via the REST API, should be written as a string:
 
-[source,json]
+[source,js]
 --------------------
 "inline": "{\"query\":{\"filtered\":{\"query\":{\"match\":{\"line\":\"{{text}}\"}},\"filter\":{{{#line_no}}\"range\":{\"line_no\":{{{#start}}\"gte\":\"{{start}}\"{{#end}},{{/end}}{{/start}}{{#end}}\"lte\":\"{{end}}\"{{/end}}}}{{/line_no}}}}}}"
 --------------------

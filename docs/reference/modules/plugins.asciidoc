@@ -18,7 +18,7 @@ Installing plugins can either be done manually by placing them under the
 
 Installing plugins typically take the following form:
 
-[source,shell]
+[source,sh]
 -----------------------------------
 bin/plugin --install plugin_name
 -----------------------------------
@@ -28,7 +28,7 @@ same version as your elasticsearch version.
 
 For older version of elasticsearch (prior to 2.0.0) or community plugins, you would use the following form:
 
-[source,shell]
+[source,sh]
 -----------------------------------
 bin/plugin --install <org>/<user/component>/<version>
 -----------------------------------
@@ -43,7 +43,7 @@ the `artifactId`.
 A plugin can also be installed directly by specifying the URL for it,
 for example:
 
-[source,shell]
+[source,sh]
 -----------------------------------
 bin/plugin --url file:///path/to/plugin --install plugin-name
 -----------------------------------
@@ -106,7 +106,7 @@ Removing plugins can either be done manually by removing them under the
 
 Removing plugins typically take the following form:
 
-[source,shell]
+[source,sh]
 -----------------------------------
 plugin --remove <pluginname>
 -----------------------------------
@@ -124,7 +124,7 @@ Note that exit codes could be:
 * `74`: IO error
 * `70`: other errors
 
-[source,shell]
+[source,sh]
 -----------------------------------
 bin/plugin --install mobz/elasticsearch-head --verbose
 plugin --remove head --silent
@@ -137,7 +137,7 @@ By default, the `plugin` script will wait indefinitely when downloading before f
 The timeout parameter can be used to explicitly specify how long it waits. Here is some examples of setting it to
 different values:
 
-[source,shell]
+[source,sh]
 -----------------------------------
 # Wait for 30 seconds before failing
 bin/plugin --install mobz/elasticsearch-head --timeout 30s
@@ -156,14 +156,14 @@ To install a plugin via a proxy, you can pass the proxy details using the enviro
 
 On Linux and Mac, here is an example of setting it:
 
-[source,shell]
+[source,sh]
 -----------------------------------
 bin/plugin -DproxyHost=host_name -DproxyPort=port_number --install mobz/elasticsearch-head
 -----------------------------------
 
 On Windows, here is an example of setting it:
 
-[source,shell]
+[source,sh]
 -----------------------------------
 set JAVA_OPTS="-DproxyHost=host_name -DproxyPort=port_number"
 bin/plugin --install mobz/elasticsearch-head

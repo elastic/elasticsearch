@@ -127,7 +127,7 @@ will operate with its local data type but, if the shard is relocated, the
 data type from the cluster state will be applied to the new shard, which
 can result in a corrupt shard.  To prevent this, new fields should not
 be added to a shard's mapping until confirmed by the master.
-{GIT}8688[#8688] (STATUS: ONGOING)
+{GIT}8688[#8688] (STATUS: DONE)
 
 [float]
 === Loss of documents during network partition (STATUS: ONGOING)

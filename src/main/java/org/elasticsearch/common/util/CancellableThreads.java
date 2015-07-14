@@ -132,7 +132,7 @@ public class CancellableThreads {
         public void run() throws InterruptedException;
     }
 
-    public class ExecutionCancelledException extends ElasticsearchException {
+    public static class ExecutionCancelledException extends ElasticsearchException {
 
         public ExecutionCancelledException(String msg) {
             super(msg);

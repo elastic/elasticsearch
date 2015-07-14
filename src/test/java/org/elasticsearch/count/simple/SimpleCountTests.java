@@ -19,6 +19,7 @@
 
 package org.elasticsearch.count.simple;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -159,19 +160,20 @@ public class SimpleCountTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void localDependentDateTests() throws Exception {
+        assumeFalse("Locals are buggy on JDK9EA", Constants.JRE_IS_MINIMUM_JAVA9);
         assertAcked(prepareCreate("test")
-                .addMapping("type1",
-                        jsonBuilder().startObject()
-                                .startObject("type1")
-                                .startObject("properties")
-                                .startObject("date_field")
-                                .field("type", "date")
-                                .field("format", "E, d MMM yyyy HH:mm:ss Z")
-                                .field("locale", "de")
-                                .endObject()
-                                .endObject()
-                                .endObject()
-                                .endObject()));
+                        .addMapping("type1",
+                                jsonBuilder().startObject()
+                                        .startObject("type1")
+                                        .startObject("properties")
+                                        .startObject("date_field")
+                                        .field("type", "date")
+                                        .field("format", "E, d MMM yyyy HH:mm:ss Z")
+                                        .field("locale", "de")
+                                        .endObject()
+                                        .endObject()
+                                        .endObject()
+                                        .endObject()));
         ensureGreen();
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("test", "type1", "" + i).setSource("date_field", "Mi, 06 Dez 2000 02:55:00 -0800").execute().actionGet();

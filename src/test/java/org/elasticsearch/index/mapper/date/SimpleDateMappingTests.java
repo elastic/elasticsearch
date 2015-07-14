@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -102,6 +103,7 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
     
     @Test
     public void testLocale() throws IOException {
+        assumeFalse("Locals are buggy on JDK9EA", Constants.JRE_IS_MINIMUM_JAVA9);
         String mapping = XContentFactory.jsonBuilder()
                     .startObject()
                         .startObject("type")
@@ -241,6 +243,7 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testDayWithoutYearFormat() throws Exception {
+        assumeFalse("Locals are buggy on JDK9EA", Constants.JRE_IS_MINIMUM_JAVA9);
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .field("date_detection", false)
                 .startObject("properties").startObject("date_field").field("type", "date").field("format", "MMM dd HH:mm:ss").endObject().endObject()

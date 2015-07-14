@@ -25,6 +25,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.joda.time.DateTimeZone;
 
 import java.util.Collection;
@@ -49,7 +50,7 @@ public class QueryParserSettings {
     private boolean lowercaseExpandedTerms = true;
     private boolean enablePositionIncrements = true;
     private int phraseSlop = 0;
-    private float fuzzyMinSim = FuzzyQuery.defaultMinSimilarity;
+    private Fuzziness fuzziness = Fuzziness.AUTO;
     private int fuzzyPrefixLength = FuzzyQuery.defaultPrefixLength;
     private int fuzzyMaxExpansions = FuzzyQuery.defaultMaxExpansions;
     private int maxDeterminizedStates = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
@@ -156,14 +157,6 @@ public class QueryParserSettings {
 
     public void phraseSlop(int phraseSlop) {
         this.phraseSlop = phraseSlop;
-    }
-
-    public float fuzzyMinSim() {
-        return fuzzyMinSim;
-    }
-
-    public void fuzzyMinSim(float fuzzyMinSim) {
-        this.fuzzyMinSim = fuzzyMinSim;
     }
 
     public int fuzzyPrefixLength() {
@@ -340,7 +333,7 @@ public class QueryParserSettings {
         if (enablePositionIncrements != that.enablePositionIncrements) return false;
         if (escape != that.escape) return false;
         if (analyzeWildcard != that.analyzeWildcard) return false;
-        if (Float.compare(that.fuzzyMinSim, fuzzyMinSim) != 0) return false;
+        if (fuzziness != null ? fuzziness.equals(that.fuzziness) == false : fuzziness != null) return false;
         if (fuzzyPrefixLength != that.fuzzyPrefixLength) return false;
         if (fuzzyMaxExpansions != that.fuzzyMaxExpansions) return false;
         if (fuzzyRewriteMethod != null ? !fuzzyRewriteMethod.equals(that.fuzzyRewriteMethod) : that.fuzzyRewriteMethod != null)
@@ -395,7 +388,7 @@ public class QueryParserSettings {
         result = 31 * result + (lowercaseExpandedTerms ? 1 : 0);
         result = 31 * result + (enablePositionIncrements ? 1 : 0);
         result = 31 * result + phraseSlop;
-        result = 31 * result + (fuzzyMinSim != +0.0f ? Float.floatToIntBits(fuzzyMinSim) : 0);
+        result = 31 * result + (fuzziness.hashCode());
         result = 31 * result + fuzzyPrefixLength;
         result = 31 * result + (escape ? 1 : 0);
         result = 31 * result + (defaultAnalyzer != null ? defaultAnalyzer.hashCode() : 0);
@@ -412,5 +405,13 @@ public class QueryParserSettings {
         result = 31 * result + (locale != null ? locale.hashCode() : 0);
         result = 31 * result + (timeZone != null ? timeZone.hashCode() : 0);
         return result;
+    }
+
+    public void setFuzziness(Fuzziness fuzziness) {
+        this.fuzziness = fuzziness;
+    }
+
+    public Fuzziness getFuzziness() {
+        return fuzziness;
     }
 }

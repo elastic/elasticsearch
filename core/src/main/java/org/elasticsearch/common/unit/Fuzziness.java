@@ -43,27 +43,15 @@ public final class Fuzziness implements ToXContent {
     public static final Fuzziness AUTO = new Fuzziness("AUTO");
     public static final ParseField FIELD = new ParseField(X_FIELD_NAME.camelCase().getValue());
 
-    private final Object fuzziness;
+    private final String fuzziness;
 
     private Fuzziness(int fuzziness) {
         Preconditions.checkArgument(fuzziness >= 0 && fuzziness <= 2, "Valid edit distances are [0, 1, 2] but was [" + fuzziness + "]");
-        this.fuzziness = fuzziness;
-    }
-
-    private Fuzziness(float fuzziness) {
-        Preconditions.checkArgument(fuzziness >= 0.0 && fuzziness < 1.0f, "Valid similarities must be in the interval [0..1] but was [" + fuzziness + "]");
-        this.fuzziness = fuzziness;
+        this.fuzziness = Integer.toString(fuzziness);
     }
 
     private Fuzziness(String fuzziness) {
         this.fuzziness = fuzziness;
-    }
-
-    /**
-     * Creates a {@link Fuzziness} instance from a similarity. The value must be in the range <tt>[0..1)</tt>
-     */
-    public static Fuzziness fromSimilarity(float similarity) {
-        return new Fuzziness(similarity);
     }
 
     /**
@@ -133,19 +121,17 @@ public final class Fuzziness implements ToXContent {
     }
 
     public int asDistance(String text) {
-        if (fuzziness instanceof String) {
-            if (this == AUTO) { //AUTO
-                final int len = termLen(text);
-                if (len <= 2) {
-                    return 0;
-                } else if (len > 5) {
-                    return 2;
-                } else {
-                    return 1;
-                }
+        if (this == AUTO) { //AUTO
+            final int len = termLen(text);
+            if (len <= 2) {
+                return 0;
+            } else if (len > 5) {
+                return 2;
+            } else {
+                return 1;
             }
         }
-        return FuzzyQuery.floatToEdits(asFloat(), termLen(text));
+        return Math.min(2, asInt());
     }
 
     public TimeValue asTimeValue() {
@@ -212,37 +198,6 @@ public final class Fuzziness implements ToXContent {
             return 1f;
         }
         return Float.parseFloat(fuzziness.toString());
-    }
-
-    public float asSimilarity() {
-        return asSimilarity(null);
-    }
-
-    public float asSimilarity(String text) {
-        if (this == AUTO) {
-            final int len = termLen(text);
-            if (len <= 2) {
-                return 0.0f;
-            } else if (len > 5) {
-                return 0.5f;
-            } else {
-                return 0.66f;
-            }
-//            return dist == 0 ? dist : Math.min(0.999f, Math.max(0.0f, 1.0f - ((float) dist/ (float) termLen(text))));
-        }
-        if (fuzziness instanceof Float) { // it's a similarity
-            return ((Float) fuzziness).floatValue();
-        } else if (fuzziness instanceof Integer) { // it's an edit!
-            int dist = Math.min(((Integer) fuzziness).intValue(),
-                    LevenshteinAutomata.MAXIMUM_SUPPORTED_DISTANCE);
-            return Math.min(0.999f, Math.max(0.0f, 1.0f - ((float) dist / (float) termLen(text))));
-        } else {
-            final float similarity = Float.parseFloat(fuzziness.toString());
-            if (similarity >= 0.0f && similarity < 1.0f) {
-                return similarity;
-            }
-        }
-        throw new IllegalArgumentException("Can't get similarity from fuzziness [" + fuzziness + "]");
     }
 
     private int termLen(String text) {

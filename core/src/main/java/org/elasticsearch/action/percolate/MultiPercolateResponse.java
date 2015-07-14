@@ -19,6 +19,7 @@
 package org.elasticsearch.action.percolate;
 
 import com.google.common.collect.Iterators;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -72,15 +73,13 @@ public class MultiPercolateResponse extends ActionResponse implements Iterable<M
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startArray(Fields.RESPONSES);
         for (MultiPercolateResponse.Item item : items) {
+            builder.startObject();
             if (item.isFailure()) {
-                builder.startObject();
-                builder.field(Fields.ERROR, item.getErrorMessage());
-                builder.endObject();
+                ElasticsearchException.renderThrowable(builder, params, item.getFailure());
             } else {
-                builder.startObject();
                 item.getResponse().toXContent(builder, params);
-                builder.endObject();
             }
+            builder.endObject();
         }
         builder.endArray();
         return builder;
@@ -112,34 +111,19 @@ public class MultiPercolateResponse extends ActionResponse implements Iterable<M
     public static class Item implements Streamable {
 
         private PercolateResponse response;
-        private String errorMessage;
+        private Throwable throwable;
 
         Item(PercolateResponse response) {
             this.response = response;
         }
 
-        Item(String errorMessage) {
-            this.errorMessage = errorMessage;
+        Item(Throwable Throwable) {
+            this.throwable = Throwable;
         }
 
         Item() {
         }
 
-        /**
-         * @return The percolator response or <code>null</code> if there was error.
-         */
-        @Nullable
-        public PercolateResponse response() {
-            return response;
-        }
-
-        /**
-         * @return An error description if there was an error or <code>null</code> if the percolate request was successful
-         */
-        @Nullable
-        public String errorMessage() {
-            return errorMessage;
-        }
 
         /**
          * @return The percolator response or <code>null</code> if there was error.
@@ -154,7 +138,7 @@ public class MultiPercolateResponse extends ActionResponse implements Iterable<M
          */
         @Nullable
         public String getErrorMessage() {
-            return errorMessage;
+            return throwable == null ? null : throwable.getMessage();
         }
 
         /**
@@ -162,7 +146,11 @@ public class MultiPercolateResponse extends ActionResponse implements Iterable<M
          * <code>false</code> is returned.
          */
         public boolean isFailure() {
-            return errorMessage != null;
+            return throwable != null;
+        }
+
+        public Throwable getFailure() {
+            return throwable;
         }
 
         @Override
@@ -171,7 +159,7 @@ public class MultiPercolateResponse extends ActionResponse implements Iterable<M
                 response = new PercolateResponse();
                 response.readFrom(in);
             } else {
-                errorMessage = in.readString();
+                throwable = in.readThrowable();
             }
         }
 
@@ -182,10 +170,9 @@ public class MultiPercolateResponse extends ActionResponse implements Iterable<M
                 response.writeTo(out);
             } else {
                 out.writeBoolean(false);
-                out.writeString(errorMessage);
+                out.writeThrowable(throwable);
             }
         }
-
     }
 
     static final class Fields {

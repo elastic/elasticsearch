@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.mget;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
@@ -57,7 +58,8 @@ public class SimpleMgetTests extends ElasticsearchIntegrationTest {
 
         assertThat(mgetResponse.getResponses()[1].getIndex(), is("nonExistingIndex"));
         assertThat(mgetResponse.getResponses()[1].isFailed(), is(true));
-        assertThat(mgetResponse.getResponses()[1].getFailure().getMessage(), is("[nonExistingIndex] missing"));
+        assertThat(mgetResponse.getResponses()[1].getFailure().getMessage(), is("no such index"));
+        assertThat(((ElasticsearchException)mgetResponse.getResponses()[1].getFailure().getFailure()).getIndex(), is("nonExistingIndex"));
 
 
         mgetResponse = client().prepareMultiGet()
@@ -66,7 +68,9 @@ public class SimpleMgetTests extends ElasticsearchIntegrationTest {
         assertThat(mgetResponse.getResponses().length, is(1));
         assertThat(mgetResponse.getResponses()[0].getIndex(), is("nonExistingIndex"));
         assertThat(mgetResponse.getResponses()[0].isFailed(), is(true));
-        assertThat(mgetResponse.getResponses()[0].getFailure().getMessage(), is("[nonExistingIndex] missing"));
+        assertThat(mgetResponse.getResponses()[0].getFailure().getMessage(), is("no such index"));
+        assertThat(((ElasticsearchException)mgetResponse.getResponses()[0].getFailure().getFailure()).getIndex(), is("nonExistingIndex"));
+
 
     }
 

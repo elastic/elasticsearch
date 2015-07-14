@@ -661,4 +661,19 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         }
         return null;
     }
+
+    public static void renderThrowable(XContentBuilder builder, Params params, Throwable t) throws IOException {
+        builder.startObject("error");
+        final ElasticsearchException[] rootCauses = ElasticsearchException.guessRootCauses(t);
+        builder.field("root_cause");
+        builder.startArray();
+        for (ElasticsearchException rootCause : rootCauses){
+            builder.startObject();
+            rootCause.toXContent(builder, new ToXContent.DelegatingMapParams(Collections.singletonMap(ElasticsearchException.REST_EXCEPTION_SKIP_CAUSE, "true"), params));
+            builder.endObject();
+        }
+        builder.endArray();
+        ElasticsearchException.toXContent(builder, params, t);
+        builder.endObject();
+    }
 }

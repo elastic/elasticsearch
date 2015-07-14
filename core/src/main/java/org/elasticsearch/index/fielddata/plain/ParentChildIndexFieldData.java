@@ -397,6 +397,10 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         @Override
         public SortedDocValues getOrdinalsValues(String type) {
             final OrdinalMapAndAtomicFieldData atomicFD = this.atomicFD.get(type);
+            if (atomicFD == null) {
+                return DocValues.emptySorted();
+            }
+
             final OrdinalMap ordMap = atomicFD.ordMap;
             final SortedDocValues[] allSegmentValues = new SortedDocValues[atomicFD.fieldData.length];
             for (int i = 0; i < allSegmentValues.length; ++i) {

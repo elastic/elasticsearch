@@ -20,7 +20,7 @@ package org.elasticsearch.index.mapper.completion;
 
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.suggest.document.*;
+import org.apache.lucene.search.suggest.xdocument.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.automaton.Operations;
@@ -47,7 +47,6 @@ import java.util.Map;
 
 import static org.elasticsearch.Version.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
@@ -71,15 +70,15 @@ public class CompletionV2FieldMapperTests extends ElasticsearchSingleNodeTest {
 
         NamedAnalyzer indexAnalyzer = completionFieldType.indexAnalyzer();
         assertThat(indexAnalyzer.name(), equalTo("simple"));
-        assertThat(indexAnalyzer.analyzer(), instanceOf(CompletionAnalyzer.class));
-        CompletionAnalyzer analyzer = (CompletionAnalyzer) indexAnalyzer.analyzer();
+        assertThat(indexAnalyzer.analyzer(), instanceOf(org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer.class));
+        org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer analyzer = (org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer) indexAnalyzer.analyzer();
         assertThat(analyzer.preservePositionIncrements(), equalTo(true));
         assertThat(analyzer.preserveSep(), equalTo(true));
 
         NamedAnalyzer searchAnalyzer = completionFieldType.searchAnalyzer();
         assertThat(searchAnalyzer.name(), equalTo("simple"));
-        assertThat(searchAnalyzer.analyzer(), instanceOf(CompletionAnalyzer.class));
-        analyzer = (CompletionAnalyzer) searchAnalyzer.analyzer();
+        assertThat(searchAnalyzer.analyzer(), instanceOf(org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer.class));
+        analyzer = (org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer) searchAnalyzer.analyzer();
         assertThat(analyzer.preservePositionIncrements(), equalTo(true));
         assertThat(analyzer.preserveSep(), equalTo(true));
     }
@@ -105,15 +104,15 @@ public class CompletionV2FieldMapperTests extends ElasticsearchSingleNodeTest {
 
         NamedAnalyzer indexAnalyzer = completionFieldType.indexAnalyzer();
         assertThat(indexAnalyzer.name(), equalTo("simple"));
-        assertThat(indexAnalyzer.analyzer(), instanceOf(CompletionAnalyzer.class));
-        CompletionAnalyzer analyzer = (CompletionAnalyzer) indexAnalyzer.analyzer();
+        assertThat(indexAnalyzer.analyzer(), instanceOf(org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer.class));
+        org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer analyzer = (org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer) indexAnalyzer.analyzer();
         assertThat(analyzer.preservePositionIncrements(), equalTo(true));
         assertThat(analyzer.preserveSep(), equalTo(false));
 
         NamedAnalyzer searchAnalyzer = completionFieldType.searchAnalyzer();
         assertThat(searchAnalyzer.name(), equalTo("standard"));
-        assertThat(searchAnalyzer.analyzer(), instanceOf(CompletionAnalyzer.class));
-        analyzer = (CompletionAnalyzer) searchAnalyzer.analyzer();
+        assertThat(searchAnalyzer.analyzer(), instanceOf(org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer.class));
+        analyzer = (org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer) searchAnalyzer.analyzer();
         assertThat(analyzer.preservePositionIncrements(), equalTo(true));
         assertThat(analyzer.preserveSep(), equalTo(false));
 
@@ -191,7 +190,7 @@ public class CompletionV2FieldMapperTests extends ElasticsearchSingleNodeTest {
                     .bytes());
             IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.names().indexName());
             assertThat(fields.length, equalTo(1));
-            assertFalse(fields[0] instanceof SuggestField);
+            assertFalse(fields[0] instanceof org.apache.lucene.search.suggest.xdocument.SuggestField);
             assertAcked(client().admin().indices().prepareDelete("test").execute().get());
         }
 
@@ -216,7 +215,7 @@ public class CompletionV2FieldMapperTests extends ElasticsearchSingleNodeTest {
                     .bytes());
             IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.names().indexName());
             assertThat(fields.length, equalTo(1));
-            assertTrue(fields[0] instanceof SuggestField);
+            assertTrue(fields[0] instanceof org.apache.lucene.search.suggest.xdocument.SuggestField);
             assertAcked(client().admin().indices().prepareDelete("test").execute().get());
 
             // when force_new is specified, ensure it gets serialized
@@ -687,7 +686,7 @@ public class CompletionV2FieldMapperTests extends ElasticsearchSingleNodeTest {
     private static void assertSuggestFields(IndexableField[] fields, int expected) {
         int actualFieldCount = 0;
         for (IndexableField field : fields) {
-            if (field instanceof SuggestField) {
+            if (field instanceof org.apache.lucene.search.suggest.xdocument.SuggestField) {
                 actualFieldCount++;
             }
         }

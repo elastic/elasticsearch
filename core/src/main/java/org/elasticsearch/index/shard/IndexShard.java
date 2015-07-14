@@ -106,6 +106,7 @@ import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.search.suggest.completionv2.CompletionFieldStats;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -665,6 +666,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                 Completion090PostingsFormat completionPostingsFormat = (Completion090PostingsFormat) postingsFormat;
                 completionStats.add(completionPostingsFormat.completionStats(currentSearcher.reader(), fields));
             }
+            completionStats.add(CompletionFieldStats.completionStats(currentSearcher.reader(), fields));
         } finally {
             currentSearcher.close();
         }

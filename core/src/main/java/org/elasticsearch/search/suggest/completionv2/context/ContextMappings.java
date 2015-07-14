@@ -19,9 +19,10 @@
 
 package org.elasticsearch.search.suggest.completionv2.context;
 
-import org.apache.lucene.search.suggest.document.CompletionQuery;
-import org.apache.lucene.search.suggest.document.ContextQuery;
-import org.apache.lucene.search.suggest.document.ContextSuggestField;
+import org.apache.lucene.search.suggest.xdocument.CompletionQuery;
+import org.apache.lucene.search.suggest.xdocument.ContextQuery;
+import org.apache.lucene.search.suggest.xdocument.ContextSuggestField;
+import org.apache.lucene.search.suggest.xdocument.TopSuggestDocs;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
@@ -179,8 +180,7 @@ public class ContextMappings implements ToXContent {
     public CompletionQuery toContextQuery(CompletionQuery query, Map<String, QueryContexts> queryContexts) {
         CompletionQuery completionQuery = query;
         for (ContextMapping<?> contextMapping : queryOrder) {
-            QueryContexts contexts = queryContexts.get(contextMapping.name());
-            completionQuery = contextMapping.toContextQuery(completionQuery, contexts);
+            completionQuery = contextMapping.toContextQuery(completionQuery, queryContexts.get(contextMapping.name()));
         }
         return completionQuery;
     }
@@ -189,7 +189,7 @@ public class ContextMappings implements ToXContent {
      * Maps an output context list to a map of context mapping names and their values
      *
      * see {@link ContextField}
-     * @param contexts from {@link org.apache.lucene.search.suggest.document.TopSuggestDocs.SuggestScoreDoc#contexts}
+     * @param contexts from {@link TopSuggestDocs.SuggestScoreDoc#contexts}
      * @return a map of context names and their values
      *
      */
@@ -283,14 +283,22 @@ public class ContextMappings implements ToXContent {
 
     @Override
     public int hashCode() {
-        // TODO
-        return super.hashCode();
+        final int prime = 31;
+        int result = super.hashCode();
+        for (Map.Entry<String, ContextMapping<?>> mappingEntry : contextMappings.entrySet()) {
+            result = prime * result + mappingEntry.getKey().hashCode();
+            result = prime * result + mappingEntry.getValue().hashCode();
+        }
+        return result;
     }
 
     @Override
     public boolean equals(Object obj) {
-        //TODO
-        return super.equals(obj);
+        if (obj == null || (obj instanceof ContextMappings) == false) {
+            return false;
+        }
+        ContextMappings other = ((ContextMappings) obj);
+        return contextMappings.equals(other.contextMappings);
     }
 
     /**

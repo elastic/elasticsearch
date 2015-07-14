@@ -51,6 +51,8 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.suggest.SuggestBuilders;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -737,21 +739,30 @@ public class IndexStatsIT extends ESIntegTestCase {
     }
 
     @Test
-    @Ignore
     public void testCompletionFieldsParam() throws Exception {
 
         assertAcked(prepareCreate("test1")
                 .addMapping(
                         "bar",
-                        "{ \"properties\": { \"bar\": { \"type\": \"string\", \"fields\": { \"completion\": { \"type\": \"completion_old\" }}},\"baz\": { \"type\": \"string\", \"fields\": { \"completion\": { \"type\": \"completion_old\" }}}}}"));
+                        "{ \"properties\": { \"bar\": { \"type\": \"string\", \"fields\": { \"completion\": { \"type\": \"completion\" }}},\"baz\": { \"type\": \"string\", \"fields\": { \"completion\": { \"type\": \"completion\" }}}}}"));
         ensureGreen();
 
         client().prepareIndex("test1", "bar", Integer.toString(1)).setSource("{\"bar\":\"bar\",\"baz\":\"baz\"}").execute().actionGet();
         client().prepareIndex("test1", "baz", Integer.toString(1)).setSource("{\"bar\":\"bar\",\"baz\":\"baz\"}").execute().actionGet();
         refresh();
 
+        // should not load FST in memory yet
         IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats();
         IndicesStatsResponse stats = builder.execute().actionGet();
+        assertThat(stats.getTotal().completion.getSizeInBytes(), equalTo(0l));
+        assertThat(stats.getTotal().completion.getFields(), is(nullValue()));
+
+        // load FST in memory by searching
+        client().prepareSuggest().addSuggestion(SuggestBuilders.completionV2Suggestion("suggest").field("bar.completion").prefix("ba")).get();
+        client().prepareSuggest().addSuggestion(SuggestBuilders.completionV2Suggestion("suggest").field("baz.completion").prefix("ba")).get();
+
+        builder = client().admin().indices().prepareStats();
+        stats = builder.execute().actionGet();
 
         assertThat(stats.getTotal().completion.getSizeInBytes(), greaterThan(0l));
         assertThat(stats.getTotal().completion.getFields(), is(nullValue()));

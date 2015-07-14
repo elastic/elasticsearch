@@ -25,6 +25,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+import static org.elasticsearch.search.suggest.completionv2.context.GeoContextMapping.*;
+
 /**
  * WIP
  */
@@ -54,9 +56,9 @@ public class GeoQueryContext implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("value", geoHash);
-        builder.field("boost", boost);
-        builder.field("neighbours", neighbours);
+        builder.field(CONTEXT_VALUE, geoHash);
+        builder.field(CONTEXT_BOOST, boost);
+        builder.field(CONTEXT_NEIGHBOURS, neighbours);
         builder.endObject();
         return builder;
     }

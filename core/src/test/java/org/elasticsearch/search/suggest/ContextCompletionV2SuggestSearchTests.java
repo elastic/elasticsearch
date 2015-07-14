@@ -19,6 +19,7 @@
 package org.elasticsearch.search.suggest;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestResponse;
@@ -37,9 +38,6 @@ import java.util.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
-/*
-    TODO: add more tests for geo contexts
- */
 @SuppressCodecs("*") // requires custom completion format
 public class ContextCompletionV2SuggestSearchTests extends ElasticsearchIntegrationTest {
 
@@ -393,6 +391,112 @@ public class ContextCompletionV2SuggestSearchTests extends ElasticsearchIntegrat
         indexRandom(true, indexRequestBuilders);
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionV2Suggestion("foo").field(FIELD).prefix("sugg");
         assertSuggestions("foo", prefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
+    }
+
+    @Test
+    public void testGeoFiltering() throws Exception {
+        LinkedHashMap<String, ContextMapping<?>> map = new LinkedHashMap<>();
+        map.put("geo", ContextBuilder.geo("geo").build());
+        final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
+        createIndexAndMapping(mapping);
+        int numDocs = 10;
+        List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+        String[] geoHashes = new String[] {"ezs42e44yx96", "u4pruydqqvj8"};
+        for (int i = 0; i < numDocs; i++) {
+            XContentBuilder source = jsonBuilder()
+                    .startObject()
+                    .startObject(FIELD)
+                    .field("input", "suggestion" + i)
+                    .field("weight", i + 1)
+                    .startObject("contexts")
+                    .field("geo", (i % 2 == 0) ? geoHashes[0] : geoHashes[1])
+                    .endObject()
+                    .endObject().endObject();
+            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+                    .setSource(source));
+        }
+        indexRandom(true, indexRequestBuilders);
+        CompletionSuggestionBuilder prefix = SuggestBuilders.completionV2Suggestion("foo").field(FIELD).prefix("sugg");
+        assertSuggestions("foo", prefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
+
+        CompletionSuggestionBuilder geoFilteringPrefix = SuggestBuilders.completionV2Suggestion("foo").field(FIELD).prefix("sugg")
+                .geoContexts("geo", new GeoQueryContext(geoHashes[0]));
+
+        assertSuggestions("foo", geoFilteringPrefix, "suggestion8", "suggestion6", "suggestion4", "suggestion2", "suggestion0");
+    }
+
+    @Test
+    public void testGeoBoosting() throws Exception {
+        LinkedHashMap<String, ContextMapping<?>> map = new LinkedHashMap<>();
+        map.put("geo", ContextBuilder.geo("geo").build());
+        final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
+        createIndexAndMapping(mapping);
+        int numDocs = 10;
+        List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+        String[] geoHashes = new String[] {"ezs42e44yx96", "u4pruydqqvj8"};
+        for (int i = 0; i < numDocs; i++) {
+            XContentBuilder source = jsonBuilder()
+                    .startObject()
+                    .startObject(FIELD)
+                    .field("input", "suggestion" + i)
+                    .field("weight", i + 1)
+                    .startObject("contexts")
+                    .field("geo", (i % 2 == 0) ? geoHashes[0] : geoHashes[1])
+                    .endObject()
+                    .endObject().endObject();
+            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+                    .setSource(source));
+        }
+        indexRandom(true, indexRequestBuilders);
+        CompletionSuggestionBuilder prefix = SuggestBuilders.completionV2Suggestion("foo").field(FIELD).prefix("sugg");
+        assertSuggestions("foo", prefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
+
+        CompletionSuggestionBuilder geoBoostingPrefix = SuggestBuilders.completionV2Suggestion("foo").field(FIELD).prefix("sugg")
+                .geoContexts("geo", new GeoQueryContext(geoHashes[0], 2), new GeoQueryContext(geoHashes[1]));
+
+        assertSuggestions("foo", geoBoostingPrefix, "suggestion8", "suggestion6", "suggestion4", "suggestion9", "suggestion7");
+    }
+
+    @Test
+    public void testGeoNeighbours() throws Exception {
+        String geohash = "gcpv";
+        List<String> neighbours = new ArrayList<>();
+        neighbours.add("gcpw");
+        neighbours.add("gcpy");
+        neighbours.add("u10n");
+        neighbours.add("gcpt");
+        neighbours.add("u10j");
+        neighbours.add("gcps");
+        neighbours.add("gcpu");
+        neighbours.add("u10h");
+
+        LinkedHashMap<String, ContextMapping<?>> map = new LinkedHashMap<>();
+        map.put("geo", ContextBuilder.geo("geo").build());
+        final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
+        createIndexAndMapping(mapping);
+        int numDocs = 10;
+        List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            XContentBuilder source = jsonBuilder()
+                    .startObject()
+                    .startObject(FIELD)
+                    .field("input", "suggestion" + i)
+                    .field("weight", i + 1)
+                    .startObject("contexts")
+                    .field("geo", randomFrom(neighbours))
+                    .endObject()
+                    .endObject().endObject();
+            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+                    .setSource(source));
+        }
+        indexRandom(true, indexRequestBuilders);
+        CompletionSuggestionBuilder prefix = SuggestBuilders.completionV2Suggestion("foo").field(FIELD).prefix("sugg");
+        assertSuggestions("foo", prefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
+
+        CompletionSuggestionBuilder geoNeighbourPrefix = SuggestBuilders.completionV2Suggestion("foo").field(FIELD).prefix("sugg")
+                .geoContexts("geo", new GeoQueryContext(geohash, 1, geohash.length()));
+
+        assertSuggestions("foo", geoNeighbourPrefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
     }
 
     public void assertSuggestions(String suggestionName, SuggestBuilder.SuggestionBuilder suggestBuilder, String... suggestions) {

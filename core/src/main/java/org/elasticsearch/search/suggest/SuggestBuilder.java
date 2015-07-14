@@ -20,9 +20,9 @@ package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.suggest.context.CategoryContextMapping;
-import org.elasticsearch.search.suggest.context.ContextMapping.ContextQuery;
-import org.elasticsearch.search.suggest.context.GeolocationContextMapping;
+import org.elasticsearch.search.suggest.completion.old.context.CategoryContextMapping;
+import org.elasticsearch.search.suggest.completion.old.context.ContextMapping.ContextQuery;
+import org.elasticsearch.search.suggest.completion.old.context.GeolocationContextMapping;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -129,6 +129,7 @@ public class SuggestBuilder extends ToXContentToBytes {
          * @param lon Longitude of the Location
          * @return this
          */
+        @Deprecated
         public T addGeoLocation(String name, double lat, double lon, int ... precisions) {
             return addContextQuery(GeolocationContextMapping.query(name, lat, lon, precisions));
         }
@@ -140,6 +141,7 @@ public class SuggestBuilder extends ToXContentToBytes {
          * @param precisions precisions as string var-args
          * @return this
          */
+        @Deprecated
         public T addGeoLocationWithPrecision(String name, double lat, double lon, String ... precisions) {
             return addContextQuery(GeolocationContextMapping.query(name, lat, lon, precisions));
         }
@@ -149,6 +151,7 @@ public class SuggestBuilder extends ToXContentToBytes {
          * @param geohash Geohash of the location
          * @return this
          */
+        @Deprecated
         public T addGeoLocation(String name, String geohash) {
             return addContextQuery(GeolocationContextMapping.query(name, geohash));
         }
@@ -158,6 +161,7 @@ public class SuggestBuilder extends ToXContentToBytes {
          * @param categories name of the category
          * @return this
          */
+        @Deprecated
         public T addCategory(String name, CharSequence...categories) {
             return addContextQuery(CategoryContextMapping.query(name, categories));
         }
@@ -167,6 +171,7 @@ public class SuggestBuilder extends ToXContentToBytes {
          * @param categories name of the category
          * @return this
          */
+        @Deprecated
         public T addCategory(String name, Iterable<? extends CharSequence> categories) {
             return addContextQuery(CategoryContextMapping.query(name, categories));
         }
@@ -176,6 +181,7 @@ public class SuggestBuilder extends ToXContentToBytes {
          * @param fieldvalues name of the category
          * @return this
          */
+        @Deprecated
         public T addContextField(String name, CharSequence...fieldvalues) {
             return addContextQuery(CategoryContextMapping.query(name, fieldvalues));
         }
@@ -185,6 +191,7 @@ public class SuggestBuilder extends ToXContentToBytes {
          * @param fieldvalues name of the category
          * @return this
          */
+        @Deprecated
         public T addContextField(String name, Iterable<? extends CharSequence> fieldvalues) {
             return addContextQuery(CategoryContextMapping.query(name, fieldvalues));
         }

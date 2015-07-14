@@ -33,8 +33,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.search.suggest.SuggestBuilders;
-import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.search.suggest.completion.old.CompletionSuggestion;
 import org.elasticsearch.test.VersionUtils;
 import org.junit.Test;
 
@@ -107,7 +107,7 @@ public class TransformOnIndexMapperIT extends ESIntegTestCase {
         source.startObject().field("text", "findme").endObject();
         indexRandom(true, client().prepareIndex("test", "test", "findme").setSource(source));
         SuggestResponse response = client().prepareSuggest("test").addSuggestion(
-                SuggestBuilders.completionSuggestion("test").field("suggest").text("findme")).get();
+                SuggestBuilders.oldCompletionSuggestion("test").field("suggest").text("findme")).get();
         assertSuggestion(response.getSuggest(), 0, 0, "test", "findme");
         CompletionSuggestion.Entry.Option option = (CompletionSuggestion.Entry.Option)response.getSuggest().getSuggestion("test").getEntries().get(0).getOptions().get(0);
         // And it comes back in exactly that way.

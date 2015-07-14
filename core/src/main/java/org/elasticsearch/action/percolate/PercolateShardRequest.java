@@ -37,6 +37,7 @@ public class PercolateShardRequest extends BroadcastShardRequest {
     private BytesReference docSource;
     private boolean onlyCount;
     private int numberOfShards;
+    private long startTime;
 
     PercolateShardRequest() {
     }
@@ -48,6 +49,7 @@ public class PercolateShardRequest extends BroadcastShardRequest {
         this.docSource = request.docSource();
         this.onlyCount = request.onlyCount();
         this.numberOfShards = numberOfShards;
+        this.startTime = request.startTime;
     }
 
     PercolateShardRequest(ShardId shardId, OriginalIndices originalIndices) {
@@ -60,6 +62,7 @@ public class PercolateShardRequest extends BroadcastShardRequest {
         this.source = request.source();
         this.docSource = request.docSource();
         this.onlyCount = request.onlyCount();
+        this.startTime = request.startTime;
     }
 
     public String documentType() {
@@ -98,6 +101,10 @@ public class PercolateShardRequest extends BroadcastShardRequest {
         return numberOfShards;
     }
 
+    public long getStartTime() {
+        return startTime;
+    }
+
     OriginalIndices originalIndices() {
         return originalIndices;
     }
@@ -110,6 +117,7 @@ public class PercolateShardRequest extends BroadcastShardRequest {
         docSource = in.readBytesReference();
         onlyCount = in.readBoolean();
         numberOfShards = in.readVInt();
+        startTime = in.readLong(); // no vlong, this can be negative!
     }
 
     @Override
@@ -120,6 +128,7 @@ public class PercolateShardRequest extends BroadcastShardRequest {
         out.writeBytesReference(docSource);
         out.writeBoolean(onlyCount);
         out.writeVInt(numberOfShards);
+        out.writeLong(startTime);
     }
 
 }

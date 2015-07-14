@@ -81,7 +81,7 @@
             <groupId>org.elasticsearch</groupId>
             <artifactId>elasticsearch-license-plugin</artifactId>
             <version>${project.version}</version>
-            <optional>true</optional>
+            <scope>provided</scope>
         </dependency>
 
         <dependency>

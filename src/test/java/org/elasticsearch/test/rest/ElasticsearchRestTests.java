@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.repositories.uri.URLRepository;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.rest.client.RestException;
@@ -111,6 +112,7 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.builder()
+                .putArray(URLRepository.ALLOWED_URLS_SETTING, "http://snapshot.test*")
                 .put(InternalNode.HTTP_ENABLED, true)
                 .put(super.nodeSettings(nodeOrdinal)).build();
     }

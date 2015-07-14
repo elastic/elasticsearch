@@ -3,14 +3,13 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>org.elasticsearch.plugin</groupId>
     <artifactId>x-plugins</artifactId>
-    <version>2.0.0.beta1-SNAPSHOT</version>
+    <version>2.0.0-beta1-SNAPSHOT</version>
     <packaging>pom</packaging>
-    <name>Elasticsearch X-Plugins POM</name>
-    <inceptionYear>2015</inceptionYear>
+    <name>Elasticsearch X-Plugins - Parent POM</name>
 
     <parent>
         <groupId>org.elasticsearch.plugin</groupId>
@@ -19,9 +18,84 @@
     </parent>
 
     <properties>
-        <elasticsearch.assembly.descriptor>${basedir}/src/main/assemblies/plugin.xml</elasticsearch.assembly.descriptor>
+        <xplugins.basedir>${basedir}</xplugins.basedir>
+        <x-dev-tools.dir>${xplugins.basedir}/x-dev-tools</x-dev-tools.dir>
+        <elasticsearch.license.header>${x-dev-tools.dir}/license-check/elasticsearch_license_header.txt</elasticsearch.license.header>
+        <elasticsearch.license.headerDefinition>${x-dev-tools.dir}/license-check/license_header_definition.xml</elasticsearch.license.headerDefinition>
+
+        <elasticsearch.assembly.descriptor>${project.basedir}/src/main/assemblies/plugin.xml</elasticsearch.assembly.descriptor>
         <elasticsearch.assembly.appendId>false</elasticsearch.assembly.appendId>
+        <!--<elasticsearch.integ.antfile>${basedir}/dev-tools/integration-tests.xml</elasticsearch.integ.antfile>-->
     </properties>
+
+    <scm>
+        <connection>scm:git:git@github.com:elastic/x-plugins.git</connection>
+        <developerConnection>scm:git:git@github.com:elastic/x-plugins.git</developerConnection>
+        <url>http://github.com/elastic/x-plugins</url>
+    </scm>
+
+    <repositories>
+        <repository>
+            <id>oss-snapshots</id>
+            <name>Sonatype OSS Snapshots</name>
+            <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
+            <releases>
+                <enabled>false</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+                <updatePolicy>always</updatePolicy>
+            </snapshots>
+        </repository>
+        <repository>
+            <id>elasticsearch-releases</id>
+            <url>http://maven.elasticsearch.org/releases</url>
+            <releases>
+                <enabled>true</enabled>
+                <updatePolicy>daily</updatePolicy>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+        <repository>
+            <id>elasticsearch-internal-snapshots</id>
+            <url>http://maven.elasticsearch.org/artifactory/internal-snapshots</url>
+            <releases>
+                <enabled>false</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+                <updatePolicy>always</updatePolicy>
+            </snapshots>
+        </repository>
+    </repositories>
+
+    <dependencies>
+
+      <dependency>
+          <groupId>org.elasticsearch</groupId>
+          <artifactId>elasticsearch-securemock</artifactId>
+          <version>1.0-SNAPSHOT</version>
+          <scope>test</scope>
+      </dependency>
+
+      <dependency> <!-- required for rest tests -->
+          <groupId>org.apache.httpcomponents</groupId>
+          <artifactId>httpclient</artifactId>
+          <version>4.3.5</version>
+          <scope>test</scope>
+      </dependency>
+
+      <dependency>
+          <groupId>org.codehaus.groovy</groupId>
+          <artifactId>groovy-all</artifactId>
+          <version>2.4.0</version>
+          <classifier>indy</classifier>
+          <scope>test</scope>
+      </dependency>
+
+    </dependencies>
 
     <!-- typical layout for plugins -->
     <build>
@@ -109,6 +183,13 @@
         </plugins>
 
         <pluginManagement>
+            <!--<plugin>-->
+            <!--<artifactId>maven-assembly-plugin</artifactId>-->
+            <!--<version>2.4</version>-->
+            <!--<configuration>-->
+            <!--<attach>false</attach>-->
+            <!--</configuration>-->
+            <!--</plugin>-->
             <plugins>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -168,6 +249,8 @@
     </profiles>
 
     <modules>
+        <module>license</module>
+        <module>shield</module>
         <module>watcher</module>
     </modules>
 </project>

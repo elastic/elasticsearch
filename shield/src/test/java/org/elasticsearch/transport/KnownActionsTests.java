@@ -145,6 +145,7 @@ public class KnownActionsTests extends ShieldIntegrationTest {
     /**
      * finds all subclasses extending {@code subClass}, recursively from the package and codesource of {@code prototype}
      */
+    @AwaitsFix(bugUrl = "fails due to security manager consraints on file write")
     private static Collection<Class<?>> collectSubClasses(Class<?> subClass, Class<?> prototype) throws IOException, ReflectiveOperationException, URISyntaxException {
         URL codeLocation = prototype.getProtectionDomain().getCodeSource().getLocation();
         final FileSystem fileSystem;

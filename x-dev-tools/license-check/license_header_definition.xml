@@ -3,7 +3,7 @@
     <javadoc_style>
         <firstLine>/*</firstLine>
         <beforeEachLine> * </beforeEachLine>
-        <endLine> */EOL</endLine>
+        <endLine> */</endLine>
         <!--skipLine></skipLine-->
         <firstLineDetectionPattern>(\s|\t)*/\*.*$</firstLineDetectionPattern>
         <lastLineDetectionPattern>.*\*/(\s|\t)*$</lastLineDetectionPattern>

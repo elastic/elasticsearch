@@ -1,0 +1,7 @@
+= Elasticsearch X Plugins
+
+A set of Elastic's commercial plugins:
+
+- License
+- Shield
+- Watcher

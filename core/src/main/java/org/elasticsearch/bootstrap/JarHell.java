@@ -19,6 +19,7 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
@@ -27,7 +28,6 @@ import org.elasticsearch.common.logging.Loggers;
 import java.io.IOException;
 import java.net.URL;
 import java.net.URLClassLoader;
-import java.net.URLDecoder;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -99,23 +99,7 @@ public class JarHell {
                 try (JarFile file = new JarFile(path.toString())) {
                     Manifest manifest = file.getManifest();
                     if (manifest != null) {
-                        // inspect Manifest: give a nice error if jar requires a newer java version
-                        String systemVersion = System.getProperty("java.specification.version");
-                        String targetVersion = manifest.getMainAttributes().getValue("X-Compile-Target-JDK");
-                        if (targetVersion != null) {
-                            float current = Float.POSITIVE_INFINITY;
-                            float target = Float.NEGATIVE_INFINITY;
-                            try {
-                                current = Float.parseFloat(systemVersion);
-                                target = Float.parseFloat(targetVersion);
-                            } catch (NumberFormatException e) {
-                                // some spec changed, time for a more complex parser
-                            }
-                            if (current < target) {
-                                throw new IllegalStateException(path + " requires Java " + targetVersion
-                                        + ", your system: " + systemVersion);
-                            }
-                        }
+                        checkManifest(manifest, path);
                     }
                     // inspect entries
                     Enumeration<JarEntry> elements = file.entries();
@@ -146,6 +130,35 @@ public class JarHell {
                     }
                 });
             }
+        }
+    }
+
+    /** inspect manifest for sure incompatibilities */
+    static void checkManifest(Manifest manifest, Path jar) {
+        // give a nice error if jar requires a newer java version
+        String systemVersion = System.getProperty("java.specification.version");
+        String targetVersion = manifest.getMainAttributes().getValue("X-Compile-Target-JDK");
+        if (targetVersion != null) {
+            float current = Float.POSITIVE_INFINITY;
+            float target = Float.NEGATIVE_INFINITY;
+            try {
+                current = Float.parseFloat(systemVersion);
+                target = Float.parseFloat(targetVersion);
+            } catch (NumberFormatException e) {
+                // some spec changed, time for a more complex parser
+            }
+            if (current < target) {
+                throw new IllegalStateException(jar + " requires Java " + targetVersion
+                        + ", your system: " + systemVersion);
+            }
+        }
+
+        // give a nice error if jar is compiled against different es version
+        String systemESVersion = Version.CURRENT.toString();
+        String targetESVersion = manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Version");
+        if (targetESVersion != null && targetESVersion.equals(systemESVersion) == false) {
+            throw new IllegalStateException(jar + " requires Elasticsearch " + targetESVersion
+                    + ", your system: " + systemESVersion);
         }
     }
 

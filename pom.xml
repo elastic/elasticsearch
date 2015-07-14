@@ -106,6 +106,7 @@
         <skip.integ.tests>${skipTests}</skip.integ.tests>
         <integ.scratch>${project.build.directory}/integ-tests</integ.scratch>
         <integ.temp>${integ.scratch}/temp</integ.temp>
+        <no.commit.pattern>\bno(n|)commit\b</no.commit.pattern>
     </properties>
 
     <repositories>
@@ -500,6 +501,9 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-deploy-plugin</artifactId>
                     <version>2.8.2</version>
+                    <configuration>
+                        <deployAtEnd>true</deployAtEnd> <!-- all or nothing -->
+                    </configuration>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -1238,8 +1242,8 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                                             <exclude name="**/.idea/**/*"/>
                                             <exclude name="**/eclipse-build/**/*"/>
                                             <or>
-                                                <containsregexp expression="\bno(n|)commit\b" casesensitive="no"/>
                                                 <containsregexp expression="\t" casesensitive="no"/>
+                                                <containsregexp expression="${no.commit.pattern}" casesensitive="no"/>
                                             </or>
                                         </fileset>
                                         <map from="${basedir}${file.separator}" to="* "/>
@@ -1334,6 +1338,38 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                     <groupId>com.mycila</groupId>
                     <artifactId>license-maven-plugin</artifactId>
                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>release</id>
+            <properties>
+                <package.rpm>true</package.rpm>
+                <no.commit.pattern>\bno(n|)(release|commit)\b</no.commit.pattern> <!-- check for no-commit / no-release -->
+                <forbidden.test.signatures>org.apache.lucene.util.LuceneTestCase$AwaitsFix @ Please fix all bugs before release</forbidden.test.signatures>
+            </properties>
+            <build>
+                <!-- sign the artifacts with GPG -->
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <version>1.6</version>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>sign</goal>
+                                </goals>
+                                <configuration>
+                                    <keyname>${gpg.keyname}</keyname>
+                                    <passphrase>${gpg.passphrase}</passphrase>
+                                    <defaultKeyring>${gpg.keyring}</defaultKeyring>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
                 </plugins>
             </build>
         </profile>

@@ -126,7 +126,7 @@ rules:
 * The response format always has the index name, then the section, then the
   element name, for instance:
 +
-[source,json]
+[source,js]
 ---------------
 {
     "my_index": {
@@ -151,7 +151,7 @@ mapping`>>, <<indices-get-field-mapping,`get-field-mapping`>>,
 Previously a document could be indexed as itself, or wrapped in an outer
 object which specified the `type` name:
 
-[source,json]
+[source,js]
 ---------------
 PUT /my_index/my_type/1
 {
@@ -173,7 +173,7 @@ While the `search` API takes a top-level `query` parameter, the
 <<search-validate,`validate-query`>> requests expected the whole body to be a
 query. These now _require_ a top-level `query` parameter:
 
-[source,json]
+[source,js]
 ---------------
 GET /_count
 {
@@ -194,7 +194,7 @@ results AFTER aggregations have been calculated.
 This example counts the top colors in all matching docs, but only returns docs
 with color `red`:
 
-[source,json]
+[source,js]
 ---------------
 GET /_search
 {
@@ -221,7 +221,7 @@ Multi-fields are dead! Long live multi-fields!  Well, the field type
 (excluding `object` and `nested`) now accept a `fields` parameter.  It's the
 same thing, but nicer. Instead of:
 
-[source,json]
+[source,js]
 ---------------
 "title": {
     "type": "multi_field",
@@ -234,7 +234,7 @@ same thing, but nicer. Instead of:
 
 you can now write:
 
-[source,json]
+[source,js]
 ---------------
 "title": {
     "type": "string",
@@ -322,7 +322,7 @@ parameters instead.
 * Settings, like `index.analysis.analyzer.default` are now returned as proper
   nested JSON objects, which makes them easier to work with programatically:
 +
-[source,json]
+[source,js]
 ---------------
 {
     "index": {

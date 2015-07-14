@@ -23,7 +23,7 @@ index.store.type: niofs
 It is a _static_ setting that can be set on a per-index basis at index
 creation time:
 
-[source,json]
+[source,js]
 ---------------------------------
 PUT /my_index
 {

@@ -27,7 +27,7 @@ the available commands.
 Each of the commands accepts a query string parameter `v` to turn on
 verbose output.
 
-[source,shell]
+[source,sh]
 --------------------------------------------------
 % curl 'localhost:9200/_cat/master?v'
 id                     ip        node
@@ -41,7 +41,7 @@ EGtKWZlWQYWDmX29fUnp3Q 127.0.0.1 Grey, Sara
 Each of the commands accepts a query string parameter `help` which will
 output its available columns.
 
-[source,shell]
+[source,sh]
 --------------------------------------------------
 % curl 'localhost:9200/_cat/master?help'
 id   | node id
@@ -56,7 +56,7 @@ node | node name
 Each of the commands accepts a query string parameter `h` which forces
 only those columns to appear.
 
-[source,shell]
+[source,sh]
 --------------------------------------------------
 % curl 'n1:9200/_cat/nodes?h=ip,port,heapPercent,name'
 192.168.56.40 9300 40.3 Captain Universe
@@ -87,7 +87,7 @@ off human mode.  We'll use a byte-level resolution.  Then we'll pipe
 our output into `sort` using the appropriate column, which in this
 case is the eight one.
 
-[source,shell]
+[source,sh]
 --------------------------------------------------
 % curl '192.168.56.10:9200/_cat/indices?bytes=b' | sort -rnk8
 green wiki2 3 0 10000   0 105274918 105274918

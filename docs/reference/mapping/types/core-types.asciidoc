@@ -189,7 +189,7 @@ for filtering or aggregations.
 In case you would like to disable norms after the fact, it is possible to do so
 by using the <<indices-put-mapping,PUT mapping API>>, like this:
 
-[source,json]
+[source,js]
 ------------
 PUT my_index/_mapping/my_type
 {

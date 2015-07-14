@@ -47,7 +47,7 @@ source filtering.  It can be highlighted if it is marked as stored.
 The get endpoint will retransform the source if the `_source_transform`
 parameter is set.  Example:
 
-[source,bash]
+[source,sh]
 --------------------------------------------------
 curl -XGET "http://localhost:9200/test/example/3?pretty&_source_transform"
 --------------------------------------------------

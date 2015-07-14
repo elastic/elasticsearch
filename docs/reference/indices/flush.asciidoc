@@ -70,7 +70,7 @@ recovery without the synced flush marker would take a long time.
 To check whether a shard has a marker or not, look for the `commit` section of shard stats returned by
 the <<indices-stats,indices stats>> API:
 
-[source,bash]
+[source,sh]
 --------------------------------------------------
 GET /twitter/_stats/commit?level=shards
 --------------------------------------------------
@@ -134,7 +134,7 @@ NOTE: It is harmless to request a synced flush while there is ongoing indexing. 
  that are not will fail. Any shards that succeeded will have faster recovery times.
 
 
-[source,bash]
+[source,sh]
 --------------------------------------------------
 POST /twitter/_flush/synced
 --------------------------------------------------

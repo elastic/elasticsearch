@@ -4,7 +4,7 @@
 `fielddata` shows how much heap memory is currently being used by fielddata 
 on every data node in the cluster.
 
-[source,shell]
+[source,sh]
 --------------------------------------------------
 % curl '192.168.56.10:9200/_cat/fielddata?v'
 id                     host    ip            node          total   body    text
@@ -15,7 +15,7 @@ yaDkp-G3R0q1AJ-HUEvkSQ myhost3 10.20.100.202 Microchip     284.6kb 109.2kb 175.3
 
 Fields can be specified either as a query parameter, or in the URL path:
 
-[source,shell]
+[source,sh]
 --------------------------------------------------
 % curl '192.168.56.10:9200/_cat/fielddata?v&fields=body'
 id                     host    ip            node          total   body

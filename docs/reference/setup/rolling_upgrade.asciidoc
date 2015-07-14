@@ -19,7 +19,7 @@ replicate the shards that were on that node to other nodes in the cluster,
 causing a lot of wasted I/O.  This can be avoided by disabling allocation
 before shutting down a node:
 
-[source,json]
+[source,js]
 --------------------------------------------------
 PUT /_cluster/settings
 {
@@ -38,7 +38,7 @@ You may happily continue indexing during the upgrade.  However, shard recovery
 will be much faster if you temporarily stop non-essential indexing and issue a
 <<indices-synced-flush, synced-flush>> request:
 
-[source,json]
+[source,js]
 --------------------------------------------------
 POST /_flush/synced
 --------------------------------------------------
@@ -105,7 +105,7 @@ GET _cat/nodes
 Once the node has joined the cluster, reenable shard allocation to start using
 the node:
 
-[source,json]
+[source,js]
 --------------------------------------------------
 PUT /_cluster/settings
 {

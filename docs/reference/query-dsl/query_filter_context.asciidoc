@@ -45,7 +45,7 @@ conditions are met:
 * The `status` field contains the exact word `published`.
 * The `publish_date` field contains a date from 1 Jan 2015 onwards.
 
-[source,json]
+[source,js]
 ------------------------------------
 GET _search
 {

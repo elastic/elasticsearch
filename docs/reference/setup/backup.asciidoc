@@ -29,7 +29,7 @@ To back up a running 0.90.x system:
 This will prevent indices from being flushed to disk while the backup is in
 process:
 
-[source,json]
+[source,js]
 -----------------------------------
 PUT /_all/_settings
 {
@@ -45,7 +45,7 @@ PUT /_all/_settings
 This will prevent the cluster from moving data files from one node to another
 while the backup is in process:
 
-[source,json]
+[source,js]
 -----------------------------------
 PUT /_cluster/settings
 {
@@ -67,7 +67,7 @@ array snapshots, backup software).
 When the backup is complete and data no longer needs to be read from the
 Elasticsearch data path, allocation and index flushing must be re-enabled:
 
-[source,json]
+[source,js]
 -----------------------------------
 PUT /_all/_settings
 {

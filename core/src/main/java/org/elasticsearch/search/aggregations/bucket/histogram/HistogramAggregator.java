@@ -38,7 +38,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter.DateTime;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -206,16 +205,14 @@ public class HistogramAggregator extends BucketsAggregator {
         private DateTimeZone timeZone;
 
         public DateHistogramFactory(String name, ValuesSourceParser.Input<Numeric> input, Rounding rounding, InternalOrder order,
-                boolean keyed, long minDocCount, ExtendedBounds extendedBounds,
-                org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.Factory<?> histogramFactory, DateTimeZone timeZone) {
+                boolean keyed, long minDocCount, ExtendedBounds extendedBounds, InternalHistogram.Factory<?> histogramFactory) {
             super(name, input, rounding, order, keyed, minDocCount, extendedBounds, histogramFactory);
-            this.timeZone = timeZone;
+            this.timeZone = input.timezone();
         }
 
         @Override
         protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
                 List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            setFormatterTimeZone();
             return super.createUnmapped(aggregationContext, parent, pipelineAggregators, metaData);
         }
 
@@ -223,15 +220,8 @@ public class HistogramAggregator extends BucketsAggregator {
         protected Aggregator doCreateInternal(Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent,
                 boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
                 throws IOException {
-            setFormatterTimeZone();
             return super
                     .doCreateInternal(valuesSource, aggregationContext, parent, collectsFromSingleBucket, pipelineAggregators, metaData);
-        }
-
-        private void setFormatterTimeZone() {
-            if (config.formatter() instanceof ValueFormatter.DateTime) {
-                ((DateTime) config.formatter()).setTimeZone(timeZone);
-            }
         }
     }
 }

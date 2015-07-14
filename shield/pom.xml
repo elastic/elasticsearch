@@ -157,48 +157,4 @@
         </pluginManagement>
     </build>
 
-    <profiles>
-        <profile>
-            <id>deploy-internal</id>
-            <distributionManagement>
-                <repository>
-                    <id>elasticsearch-internal-releases</id>
-                    <name>Elasticsearch Internal Releases</name>
-                    <url>http://maven.elasticsearch.org/artifactory/internal-releases</url>
-                </repository>
-                <snapshotRepository>
-                    <id>elasticsearch-internal-snapshots</id>
-                    <name>Elasticsearch Internal Snapshots</name>
-                    <url>http://maven.elasticsearch.org/artifactory/internal-snapshots</url>
-                </snapshotRepository>
-            </distributionManagement>
-            <build>
-                <plugins>
-                    <plugin>
-                        <artifactId>maven-assembly-plugin</artifactId>
-                        <configuration>
-                            <attach>true</attach>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-        <profile>
-            <id>deploy-public</id>
-            <distributionManagement>
-                <repository>
-                    <id>elasticsearch-public-releases</id>
-                    <name>Elasticsearch Public Releases</name>
-                    <url>http://maven.elasticsearch.org/artifactory/public-releases</url>
-                </repository>
-            </distributionManagement>
-        </profile>
-        <profile>
-            <id>default</id>
-            <activation>
-                <activeByDefault>true</activeByDefault>
-            </activation>
-        </profile>
-    </profiles>
-
 </project>

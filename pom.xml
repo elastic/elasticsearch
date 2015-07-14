@@ -22,10 +22,6 @@
         <x-dev-tools.dir>${xplugins.basedir}/x-dev-tools</x-dev-tools.dir>
         <elasticsearch.license.header>${x-dev-tools.dir}/license-check/elasticsearch_license_header.txt</elasticsearch.license.header>
         <elasticsearch.license.headerDefinition>${x-dev-tools.dir}/license-check/license_header_definition.xml</elasticsearch.license.headerDefinition>
-
-        <elasticsearch.assembly.descriptor>${project.basedir}/src/main/assemblies/plugin.xml</elasticsearch.assembly.descriptor>
-        <elasticsearch.assembly.appendId>false</elasticsearch.assembly.appendId>
-        <!--<elasticsearch.integ.antfile>${basedir}/dev-tools/integration-tests.xml</elasticsearch.integ.antfile>-->
     </properties>
 
     <scm>

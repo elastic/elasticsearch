@@ -665,8 +665,6 @@
                                     <tests.locale>${tests.locale}</tests.locale>
                                     <tests.rest.load_packaged>${tests.rest.load_packaged}</tests.rest.load_packaged>
                                     <tests.timezone>${tests.timezone}</tests.timezone>
-                                    <project.basedir>${project.basedir}</project.basedir>
-                                    <m2.repository>${settings.localRepository}</m2.repository>
                                     <es.node.local>${env.ES_TEST_LOCAL}</es.node.local>
                                     <es.node.mode>${es.node.mode}</es.node.mode>
                                     <es.logger.level>${es.logger.level}</es.logger.level>

@@ -28,6 +28,8 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.Loggers;
 
 import java.io.FilePermission;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.security.Permissions;
 import java.security.Policy;
@@ -83,15 +85,19 @@ public class BootstrapForTesting {
                 Security.setCodebaseProperties();
                 // initialize paths the same exact way as bootstrap.
                 Permissions perms = new Permissions();
-                Path basedir = PathUtils.get(Objects.requireNonNull(System.getProperty("project.basedir"), 
-                                                                    "please set ${project.basedir} in pom.xml"));
-                // target/classes, target/test-classes
-                Security.addPath(perms, basedir.resolve("target").resolve("classes"), "read,readlink");
-                Security.addPath(perms, basedir.resolve("target").resolve("test-classes"), "read,readlink");
-                // .m2/repository
-                Path m2repoDir = PathUtils.get(Objects.requireNonNull(System.getProperty("m2.repository"), 
-                                                                     "please set ${m2.repository} in pom.xml"));
-                Security.addPath(perms, m2repoDir, "read,readlink");
+                // add permissions to everything in classpath
+                for (URL url : ((URLClassLoader)BootstrapForTesting.class.getClassLoader()).getURLs()) {
+                    Path path = PathUtils.get(url.toURI());
+                    if (path.toString().endsWith(".jar")) {
+                        // jar itself
+                        perms.add(new FilePermission(path.toString(), "read,readlink"));
+                        // crazy jython...
+                        Security.addPath(perms, path.getParent().resolve("Lib"), "read,readlink");
+                    } else {
+                        // classes
+                        Security.addPath(perms, path, "read,readlink");
+                    }
+                }
                 // java.io.tmpdir
                 Security.addPath(perms, javaTmpDir, "read,readlink,write,delete");
                 // custom test config file

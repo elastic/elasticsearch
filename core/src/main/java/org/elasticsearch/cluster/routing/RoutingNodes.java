@@ -363,36 +363,15 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     }
 
     /**
-     * Assign a shard to a node. This will increment the inactiveShardCount counter
-     * and the inactivePrimaryCount counter if the shard is the primary.
-     * In case the shard is already assigned and started, it will be marked as 
-     * relocating, which is accounted for, too, so the number of concurrent relocations
-     * can be retrieved easily.
-     * This method can be called several times for the same shard, only the first time
-     * will change the state.
-     *
-     * INITIALIZING => INITIALIZING
-     * UNASSIGNED   => INITIALIZING
-     * STARTED      => RELOCATING
-     * RELOCATING   => RELOCATING
-     *
-     * @param shard the shard to be assigned
-     * @param nodeId the nodeId this shard should initialize on or relocate from
+     * Moves a shard from unassigned to initialize state
      */
-    public void assign(ShardRouting shard, String nodeId) {
-        // state will not change if the shard is already initializing.
-        ShardRoutingState oldState = shard.state();
-        shard.assignToNode(nodeId);
+    public void initialize(ShardRouting shard, String nodeId) {
+        assert shard.unassigned() : shard;
+        shard.initialize(nodeId);
         node(nodeId).add(shard);
-        if (oldState == ShardRoutingState.UNASSIGNED) {
-            inactiveShardCount++;
-            if (shard.primary()) {
-                inactivePrimaryCount++;
-            }
-        }
-
-        if (shard.state() == ShardRoutingState.RELOCATING) {
-            relocatingShards++;
+        inactiveShardCount++;
+        if (shard.primary()) {
+            inactivePrimaryCount++;
         }
         assignedShardsAdd(shard);
     }
@@ -406,7 +385,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         relocatingShards++;
         shard.relocate(nodeId);
         ShardRouting target = shard.buildTargetRelocatingShard();
-        assign(target, target.currentNodeId());
+        node(target.currentNodeId()).add(target);
+        assignedShardsAdd(target);
         return target;
     }
 

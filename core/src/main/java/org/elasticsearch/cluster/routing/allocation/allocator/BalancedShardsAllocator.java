@@ -688,7 +688,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                             if (logger.isTraceEnabled()) {
                                 logger.trace("Assigned shard [{}] to [{}]", shard, minNode.getNodeId());
                             }
-                            routingNodes.assign(shard, routingNodes.node(minNode.getNodeId()).nodeId());
+                            routingNodes.initialize(shard, routingNodes.node(minNode.getNodeId()).nodeId());
                             changed = true;
                             continue; // don't add to ignoreUnassigned
                         } else {
@@ -783,8 +783,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                             routingNodes.relocate(candidate, lowRoutingNode.nodeId());
 
                         } else {
-                            assert candidate.unassigned();
-                            routingNodes.assign(candidate, routingNodes.node(minNode.getNodeId()).nodeId());
+                            routingNodes.initialize(candidate, routingNodes.node(minNode.getNodeId()).nodeId());
                         }
                         return true;
 

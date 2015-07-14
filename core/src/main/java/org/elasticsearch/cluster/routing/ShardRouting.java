@@ -350,7 +350,7 @@ public final class ShardRouting implements Streamable, ToXContent {
     void moveToUnassigned(UnassignedInfo unassignedInfo) {
         ensureNotFrozen();
         version++;
-        assert state != ShardRoutingState.UNASSIGNED;
+        assert state != ShardRoutingState.UNASSIGNED : this;
         state = ShardRoutingState.UNASSIGNED;
         currentNodeId = null;
         relocatingNodeId = null;
@@ -358,24 +358,15 @@ public final class ShardRouting implements Streamable, ToXContent {
     }
 
     /**
-     * Assign this shard to a node.
-     *
-     * @param nodeId id of the node to assign this shard to
+     * Initializes an unassigned shard on a node.
      */
-    void assignToNode(String nodeId) {
+    void initialize(String nodeId) {
         ensureNotFrozen();
         version++;
-        if (currentNodeId == null) {
-            assert state == ShardRoutingState.UNASSIGNED;
-            state = ShardRoutingState.INITIALIZING;
-            currentNodeId = nodeId;
-            relocatingNodeId = null;
-        } else if (state == ShardRoutingState.STARTED) {
-            state = ShardRoutingState.RELOCATING;
-            relocatingNodeId = nodeId;
-        } else if (state == ShardRoutingState.RELOCATING) {
-            assert nodeId.equals(relocatingNodeId);
-        }
+        assert state == ShardRoutingState.UNASSIGNED : this;
+        assert relocatingNodeId == null : this;
+        state = ShardRoutingState.INITIALIZING;
+        currentNodeId = nodeId;
     }
 
     /**
@@ -386,7 +377,7 @@ public final class ShardRouting implements Streamable, ToXContent {
     void relocate(String relocatingNodeId) {
         ensureNotFrozen();
         version++;
-        assert state == ShardRoutingState.STARTED;
+        assert state == ShardRoutingState.STARTED : this;
         state = ShardRoutingState.RELOCATING;
         this.relocatingNodeId = relocatingNodeId;
     }
@@ -398,9 +389,9 @@ public final class ShardRouting implements Streamable, ToXContent {
     void cancelRelocation() {
         ensureNotFrozen();
         version++;
-        assert state == ShardRoutingState.RELOCATING;
-        assert assignedToNode();
-        assert relocatingNodeId != null;
+        assert state == ShardRoutingState.RELOCATING : this;
+        assert assignedToNode() : this;
+        assert relocatingNodeId != null : this;
 
         state = ShardRoutingState.STARTED;
         relocatingNodeId = null;
@@ -424,7 +415,7 @@ public final class ShardRouting implements Streamable, ToXContent {
     void moveToStarted() {
         ensureNotFrozen();
         version++;
-        assert state == ShardRoutingState.INITIALIZING || state == ShardRoutingState.RELOCATING;
+        assert state == ShardRoutingState.INITIALIZING || state == ShardRoutingState.RELOCATING : this;
         relocatingNodeId = null;
         restoreSource = null;
         state = ShardRoutingState.STARTED;

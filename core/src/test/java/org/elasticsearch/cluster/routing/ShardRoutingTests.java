@@ -82,7 +82,7 @@ public class ShardRoutingTests extends ElasticsearchTestCase {
             }
 
             try {
-                routing.assignToNode("boom");
+                routing.initialize("boom");
                 fail("must be frozen");
             } catch (IllegalStateException ex) {
                 // expected

@@ -189,7 +189,7 @@ public class UnassignedInfoTests extends ElasticsearchAllocationTestCase {
         ShardRouting shard = TestShardRouting.newShardRouting("test", 1, null, null, null, true, ShardRoutingState.UNASSIGNED, 1, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
         ShardRouting mutable = new ShardRouting(shard);
         assertThat(mutable.unassignedInfo(), notNullValue());
-        mutable.assignToNode("test_node");
+        mutable.initialize("test_node");
         assertThat(mutable.state(), equalTo(ShardRoutingState.INITIALIZING));
         assertThat(mutable.unassignedInfo(), notNullValue());
         mutable.moveToStarted();

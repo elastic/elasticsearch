@@ -369,37 +369,37 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
                     switch (sr.id()) {
                         case 0:
                             if (sr.primary()) {
-                                allocation.routingNodes().assign(sr, "node1");
+                                allocation.routingNodes().initialize(sr, "node1");
                             } else {
-                                allocation.routingNodes().assign(sr, "node0");
+                                allocation.routingNodes().initialize(sr, "node0");
                             }
                             break;
                         case 1:
                             if (sr.primary()) {
-                                allocation.routingNodes().assign(sr, "node1");
+                                allocation.routingNodes().initialize(sr, "node1");
                             } else {
-                                allocation.routingNodes().assign(sr, "node2");
+                                allocation.routingNodes().initialize(sr, "node2");
                             }
                             break;
                         case 2:
                             if (sr.primary()) {
-                                allocation.routingNodes().assign(sr, "node3");
+                                allocation.routingNodes().initialize(sr, "node3");
                             } else {
-                                allocation.routingNodes().assign(sr, "node2");
+                                allocation.routingNodes().initialize(sr, "node2");
                             }
                             break;
                         case 3:
                             if (sr.primary()) {
-                                allocation.routingNodes().assign(sr, "node3");
+                                allocation.routingNodes().initialize(sr, "node3");
                             } else {
-                                allocation.routingNodes().assign(sr, "node1");
+                                allocation.routingNodes().initialize(sr, "node1");
                             }
                             break;
                         case 4:
                             if (sr.primary()) {
-                                allocation.routingNodes().assign(sr, "node2");
+                                allocation.routingNodes().initialize(sr, "node2");
                             } else {
-                                allocation.routingNodes().assign(sr, "node0");
+                                allocation.routingNodes().initialize(sr, "node0");
                             }
                             break;
                     }

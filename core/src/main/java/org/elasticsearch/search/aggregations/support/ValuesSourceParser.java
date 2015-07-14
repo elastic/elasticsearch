@@ -34,9 +34,12 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+// NORELEASE remove this class when aggs refactoring complete
 /**
- *
+ * @deprecated use {@link AbstractValuesSourceParser} instead. This class will
+ *             be removed when aggs refactoring is complete.
  */
+@Deprecated
 public class ValuesSourceParser<VS extends ValuesSource> {
 
     static final ParseField TIME_ZONE = new ParseField("time_zone");
@@ -57,6 +60,12 @@ public class ValuesSourceParser<VS extends ValuesSource> {
         return new Builder<>(aggName, aggType, context, ValuesSource.GeoPoint.class).targetValueType(ValueType.GEOPOINT).scriptable(false);
     }
 
+    // NORELEASE remove this class when aggs refactoring complete
+    /**
+     * @deprecated use {@link AbstractValuesSourceParser} instead. This class
+     *             will be removed when aggs refactoring is complete.
+     */
+    @Deprecated
     public static class Input<VS> {
         String field = null;
         Script script = null;
@@ -67,6 +76,7 @@ public class ValuesSourceParser<VS extends ValuesSource> {
         Object missing = null;
         Class<VS> valuesSourceType = null;
         ValueType targetValueType = null;
+        DateTimeZone timezone = DateTimeZone.UTC;
 
         public boolean valid() {
             return field != null || script != null;
@@ -75,7 +85,6 @@ public class ValuesSourceParser<VS extends ValuesSource> {
         public DateTimeZone timezone() {
             return this.timezone;
         }
-    }
     }
 
     private final String aggName;
@@ -162,6 +171,12 @@ public class ValuesSourceParser<VS extends ValuesSource> {
         return input;
             }
 
+    // NORELEASE remove this class when aggs refactoring complete
+    /**
+     * @deprecated use {@link AbstractValuesSourceParser} instead. This class
+     *             will be removed when aggs refactoring is complete.
+     */
+    @Deprecated
     public static class Builder<VS extends ValuesSource> {
 
         private final ValuesSourceParser<VS> parser;

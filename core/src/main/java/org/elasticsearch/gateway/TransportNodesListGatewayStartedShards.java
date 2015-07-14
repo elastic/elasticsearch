@@ -21,6 +21,7 @@ package org.elasticsearch.gateway;
 
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -119,10 +120,15 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             if (shardStateMetaData != null) {
                 final IndexMetaData metaData = clusterService.state().metaData().index(shardId.index().name()); // it's a mystery why this is sometimes null
                 if (metaData != null) {
+                    ShardPath shardPath = null;
                     try {
-                        tryOpenIndex(request.getShardId(), metaData);
+                        shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, metaData.settings());
+                        if (shardPath == null) {
+                            throw new IllegalStateException(shardId + " no shard state found");
+                        }
+                        Store.tryOpenIndex(shardPath.resolveIndex());
                     } catch (Exception exception) {
-                        logger.trace("{} can't open index for shard [{}]", shardId, shardStateMetaData);
+                        logger.trace("{} can't open index for shard [{}] in path [{}]", exception, shardId, shardStateMetaData, (shardPath != null) ? shardPath.resolveIndex() : "");
                         return new NodeGatewayStartedShards(clusterService.localNode(), -1, exception);
                     }
                 }
@@ -140,19 +146,6 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             return new NodeGatewayStartedShards(clusterService.localNode(), -1);
         } catch (Exception e) {
             throw new ElasticsearchException("failed to load started shards", e);
-        }
-    }
-
-    private void tryOpenIndex(ShardId shardId, IndexMetaData metaData) throws IOException {
-        final ShardPath shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, metaData.settings());
-        if (shardPath == null) {
-            throw new IllegalStateException(shardId + " no shard state found");
-        }
-        try {
-            Store.tryOpenIndex(shardPath.resolveIndex());
-        } catch (Exception exception) {
-            logger.trace("Can't open index for path [{}]", exception, shardPath.resolveIndex());
-            throw exception;
         }
     }
 

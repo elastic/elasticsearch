@@ -40,16 +40,15 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.ExceptionsHelper.detailedMessage;
-import static org.elasticsearch.action.admin.indices.shards.IndicesShardsStoresResponse.StoreStatus.*;
+import static org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse.StoreStatus.*;
 
 /**
- * Response for {@link IndicesShardsStoresAction}
+ * Response for {@link IndicesShardStoresAction}
  *
  * Consists of {@link StoreStatus}s for requested indices grouped by
  * indices and shard ids and a list of encountered node {@link Failure}s
  */
-public class IndicesShardsStoresResponse extends ActionResponse implements ToXContent {
+public class IndicesShardStoresResponse extends ActionResponse implements ToXContent {
 
     /**
      * Shard store information from a node
@@ -124,14 +123,14 @@ public class IndicesShardsStoresResponse extends ActionResponse implements ToXCo
         }
 
         /**
-         * Node the shard belongs to
+         * Node the store belongs to
          */
         public DiscoveryNode getNode() {
             return node;
         }
 
         /**
-         * Version of the shard, used to select the store that will be
+         * Version of the store, used to select the store that will be
          * used as a primary.
          */
         public long getVersion() {
@@ -200,10 +199,7 @@ public class IndicesShardsStoresResponse extends ActionResponse implements ToXCo
 
         @Override
         public int compareTo(StoreStatus other) {
-            if (other == null) {
-                return -1;
-            }
-            int compare = Long.compare(other.getVersion(), getVersion());
+            int compare = Long.compare(other.version, version);
             if (compare == 0) {
                 return Integer.compare(allocation.id, other.allocation.id);
             }
@@ -258,12 +254,12 @@ public class IndicesShardsStoresResponse extends ActionResponse implements ToXCo
     private ImmutableOpenMap<String, ImmutableOpenIntMap<List<StoreStatus>>> storeStatuses;
     private ImmutableList<Failure> failures;
 
-    public IndicesShardsStoresResponse(ImmutableOpenMap<String, ImmutableOpenIntMap<List<StoreStatus>>> storeStatuses, ImmutableList<Failure> failures) {
+    public IndicesShardStoresResponse(ImmutableOpenMap<String, ImmutableOpenIntMap<List<StoreStatus>>> storeStatuses, ImmutableList<Failure> failures) {
         this.storeStatuses = storeStatuses;
         this.failures = failures;
     }
 
-    IndicesShardsStoresResponse() {
+    IndicesShardStoresResponse() {
         this(ImmutableOpenMap.<String, ImmutableOpenIntMap<List<StoreStatus>>>of(), ImmutableList.<Failure>of());
     }
 

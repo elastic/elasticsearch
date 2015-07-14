@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.indices.segments;
 import com.google.common.collect.ImmutableList;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.shards.IndicesShardsStoresResponse;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
@@ -42,25 +42,25 @@ public class IndicesShardsStoreResponseTest extends ElasticsearchTestCase {
 
     @Test
     public void testBasicSerialization() throws Exception {
-        ImmutableOpenMap.Builder<String, ImmutableOpenIntMap<List<IndicesShardsStoresResponse.StoreStatus>>> indexStoreStatuses = ImmutableOpenMap.builder();
-        ImmutableList.Builder<IndicesShardsStoresResponse.Failure> failures = ImmutableList.builder();
-        ImmutableOpenIntMap.Builder<List<IndicesShardsStoresResponse.StoreStatus>> storeStatuses = ImmutableOpenIntMap.builder();
+        ImmutableOpenMap.Builder<String, ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>>> indexStoreStatuses = ImmutableOpenMap.builder();
+        ImmutableList.Builder<IndicesShardStoresResponse.Failure> failures = ImmutableList.builder();
+        ImmutableOpenIntMap.Builder<List<IndicesShardStoresResponse.StoreStatus>> storeStatuses = ImmutableOpenIntMap.builder();
 
         DiscoveryNode node1 = new DiscoveryNode("node1", DummyTransportAddress.INSTANCE, Version.CURRENT);
         DiscoveryNode node2 = new DiscoveryNode("node2", DummyTransportAddress.INSTANCE, Version.CURRENT);
-        List<IndicesShardsStoresResponse.StoreStatus> storeStatusList = new ArrayList<>();
-        storeStatusList.add(new IndicesShardsStoresResponse.StoreStatus(node1, 3, IndicesShardsStoresResponse.StoreStatus.Allocation.PRIMARY, null));
-        storeStatusList.add(new IndicesShardsStoresResponse.StoreStatus(node2, 2, IndicesShardsStoresResponse.StoreStatus.Allocation.REPLICA, null));
-        storeStatusList.add(new IndicesShardsStoresResponse.StoreStatus(node1, -1, IndicesShardsStoresResponse.StoreStatus.Allocation.UNUSED, new IOException("corrupted")));
+        List<IndicesShardStoresResponse.StoreStatus> storeStatusList = new ArrayList<>();
+        storeStatusList.add(new IndicesShardStoresResponse.StoreStatus(node1, 3, IndicesShardStoresResponse.StoreStatus.Allocation.PRIMARY, null));
+        storeStatusList.add(new IndicesShardStoresResponse.StoreStatus(node2, 2, IndicesShardStoresResponse.StoreStatus.Allocation.REPLICA, null));
+        storeStatusList.add(new IndicesShardStoresResponse.StoreStatus(node1, -1, IndicesShardStoresResponse.StoreStatus.Allocation.UNUSED, new IOException("corrupted")));
         storeStatuses.put(0, storeStatusList);
         storeStatuses.put(1, storeStatusList);
-        ImmutableOpenIntMap<List<IndicesShardsStoresResponse.StoreStatus>> storesMap = storeStatuses.build();
+        ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>> storesMap = storeStatuses.build();
         indexStoreStatuses.put("test", storesMap);
         indexStoreStatuses.put("test2", storesMap);
 
-        failures.add(new IndicesShardsStoresResponse.Failure("node1", "test", 3, new NodeDisconnectedException(node1, "")));
+        failures.add(new IndicesShardStoresResponse.Failure("node1", "test", 3, new NodeDisconnectedException(node1, "")));
 
-        IndicesShardsStoresResponse storesResponse = new IndicesShardsStoresResponse(indexStoreStatuses.build(), failures.build());
+        IndicesShardStoresResponse storesResponse = new IndicesShardStoresResponse(indexStoreStatuses.build(), failures.build());
         XContentBuilder contentBuilder = XContentFactory.jsonBuilder();
         contentBuilder.startObject();
         storesResponse.toXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
@@ -91,7 +91,7 @@ public class IndicesShardsStoreResponseTest extends ElasticsearchTestCase {
                     assertThat(stores.size(), equalTo(storeStatusList.size()));
                     for (int i = 0; i < stores.size(); i++) {
                         HashMap storeInfo = ((HashMap) stores.get(i));
-                        IndicesShardsStoresResponse.StoreStatus storeStatus = storeStatusList.get(i);
+                        IndicesShardStoresResponse.StoreStatus storeStatus = storeStatusList.get(i);
                         assertThat(storeInfo.containsKey("version"), equalTo(true));
                         assertThat(((int) storeInfo.get("version")), equalTo(((int) storeStatus.getVersion())));
                         assertThat(storeInfo.containsKey("allocation"), equalTo(true));
@@ -109,13 +109,13 @@ public class IndicesShardsStoreResponseTest extends ElasticsearchTestCase {
     @Test
     public void testStoreStatusOrdering() throws Exception {
         DiscoveryNode node1 = new DiscoveryNode("node1", DummyTransportAddress.INSTANCE, Version.CURRENT);
-        List<IndicesShardsStoresResponse.StoreStatus> orderedStoreStatuses = new ArrayList<>();
-        orderedStoreStatuses.add(new IndicesShardsStoresResponse.StoreStatus(node1, 2, IndicesShardsStoresResponse.StoreStatus.Allocation.PRIMARY, null));
-        orderedStoreStatuses.add(new IndicesShardsStoresResponse.StoreStatus(node1, 1, IndicesShardsStoresResponse.StoreStatus.Allocation.PRIMARY, null));
-        orderedStoreStatuses.add(new IndicesShardsStoresResponse.StoreStatus(node1, 1, IndicesShardsStoresResponse.StoreStatus.Allocation.REPLICA, null));
-        orderedStoreStatuses.add(new IndicesShardsStoresResponse.StoreStatus(node1, 1, IndicesShardsStoresResponse.StoreStatus.Allocation.UNUSED, null));
+        List<IndicesShardStoresResponse.StoreStatus> orderedStoreStatuses = new ArrayList<>();
+        orderedStoreStatuses.add(new IndicesShardStoresResponse.StoreStatus(node1, 2, IndicesShardStoresResponse.StoreStatus.Allocation.PRIMARY, null));
+        orderedStoreStatuses.add(new IndicesShardStoresResponse.StoreStatus(node1, 1, IndicesShardStoresResponse.StoreStatus.Allocation.PRIMARY, null));
+        orderedStoreStatuses.add(new IndicesShardStoresResponse.StoreStatus(node1, 1, IndicesShardStoresResponse.StoreStatus.Allocation.REPLICA, null));
+        orderedStoreStatuses.add(new IndicesShardStoresResponse.StoreStatus(node1, 1, IndicesShardStoresResponse.StoreStatus.Allocation.UNUSED, null));
 
-        List<IndicesShardsStoresResponse.StoreStatus> storeStatuses = new ArrayList<>(orderedStoreStatuses);
+        List<IndicesShardStoresResponse.StoreStatus> storeStatuses = new ArrayList<>(orderedStoreStatuses);
         Collections.shuffle(storeStatuses);
         CollectionUtil.timSort(storeStatuses);
         assertThat(storeStatuses, equalTo(orderedStoreStatuses));

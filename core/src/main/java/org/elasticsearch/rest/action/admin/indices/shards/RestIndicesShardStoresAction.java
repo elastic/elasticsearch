@@ -19,9 +19,9 @@
 
 package org.elasticsearch.rest.action.admin.indices.shards;
 
-import org.elasticsearch.action.admin.indices.shards.IndicesShardsStoresAction;
-import org.elasticsearch.action.admin.indices.shards.IndicesShardsStoresResponse;
-import org.elasticsearch.action.admin.indices.shards.IndicesShardsStoresRequest;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
@@ -35,7 +35,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
- * Rest action for {@link IndicesShardsStoresAction}
+ * Rest action for {@link IndicesShardStoresAction}
  */
 public class RestIndicesShardStoresAction extends BaseRestHandler {
 
@@ -48,14 +48,14 @@ public class RestIndicesShardStoresAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
-        IndicesShardsStoresRequest indicesShardsStoresRequest = new IndicesShardsStoresRequest(Strings.splitStringByCommaToArray(request.param("index")));
+        IndicesShardStoresRequest indicesShardStoresRequest = new IndicesShardStoresRequest(Strings.splitStringByCommaToArray(request.param("index")));
         if (request.hasParam("status")) {
-            indicesShardsStoresRequest.shardStatuses(Strings.splitStringByCommaToArray(request.param("status")));
+            indicesShardStoresRequest.shardStatuses(Strings.splitStringByCommaToArray(request.param("status")));
         }
-        indicesShardsStoresRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesShardsStoresRequest.indicesOptions()));
-        client.admin().indices().shardsStores(indicesShardsStoresRequest, new RestBuilderListener<IndicesShardsStoresResponse>(channel) {
+        indicesShardStoresRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesShardStoresRequest.indicesOptions()));
+        client.admin().indices().shardsStores(indicesShardStoresRequest, new RestBuilderListener<IndicesShardStoresResponse>(channel) {
             @Override
-            public RestResponse buildResponse(IndicesShardsStoresResponse response, XContentBuilder builder) throws Exception {
+            public RestResponse buildResponse(IndicesShardStoresResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
                 response.toXContent(builder, request);
                 builder.endObject();

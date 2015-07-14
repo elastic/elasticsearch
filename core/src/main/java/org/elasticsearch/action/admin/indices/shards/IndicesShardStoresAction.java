@@ -23,28 +23,28 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
 /**
- * Action for {@link TransportIndicesShardsStoresAction}
+ * Action for {@link TransportIndicesShardStoresAction}
  *
  * Exposes shard store information for requested indices.
  * Shard store information reports which nodes hold shard copies, how recent they are
  * and any exceptions on opening the shard index or from previous engine failures
  */
-public class IndicesShardsStoresAction extends Action<IndicesShardsStoresRequest, IndicesShardsStoresResponse, IndicesShardsStoresRequestBuilder> {
+public class IndicesShardStoresAction extends Action<IndicesShardStoresRequest, IndicesShardStoresResponse, IndicesShardsStoreRequestBuilder> {
 
-    public static final IndicesShardsStoresAction INSTANCE = new IndicesShardsStoresAction();
+    public static final IndicesShardStoresAction INSTANCE = new IndicesShardStoresAction();
     public static final String NAME = "indices:monitor/shard_stores";
 
-    private IndicesShardsStoresAction() {
+    private IndicesShardStoresAction() {
         super(NAME);
     }
 
     @Override
-    public IndicesShardsStoresResponse newResponse() {
-        return new IndicesShardsStoresResponse();
+    public IndicesShardStoresResponse newResponse() {
+        return new IndicesShardStoresResponse();
     }
 
     @Override
-    public IndicesShardsStoresRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new IndicesShardsStoresRequestBuilder(client, this);
+    public IndicesShardsStoreRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new IndicesShardsStoreRequestBuilder(client, this);
     }
 }

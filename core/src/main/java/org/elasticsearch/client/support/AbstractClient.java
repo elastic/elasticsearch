@@ -176,10 +176,10 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
-import org.elasticsearch.action.admin.indices.shards.IndicesShardsStoresRequestBuilder;
-import org.elasticsearch.action.admin.indices.shards.IndicesShardsStoresResponse;
-import org.elasticsearch.action.admin.indices.shards.IndicesShardsStoresAction;
-import org.elasticsearch.action.admin.indices.shards.IndicesShardsStoresRequest;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardsStoreRequestBuilder;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
@@ -1499,18 +1499,18 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
-        public ActionFuture<IndicesShardsStoresResponse> shardsStores(IndicesShardsStoresRequest request) {
-            return execute(IndicesShardsStoresAction.INSTANCE, request);
+        public ActionFuture<IndicesShardStoresResponse> shardsStores(IndicesShardStoresRequest request) {
+            return execute(IndicesShardStoresAction.INSTANCE, request);
         }
 
         @Override
-        public void shardsStores(IndicesShardsStoresRequest request, ActionListener<IndicesShardsStoresResponse> listener) {
-            execute(IndicesShardsStoresAction.INSTANCE, request, listener);
+        public void shardsStores(IndicesShardStoresRequest request, ActionListener<IndicesShardStoresResponse> listener) {
+            execute(IndicesShardStoresAction.INSTANCE, request, listener);
         }
 
         @Override
-        public IndicesShardsStoresRequestBuilder prepareShardStores(String... indices) {
-            return new IndicesShardsStoresRequestBuilder(this, IndicesShardsStoresAction.INSTANCE, indices);
+        public IndicesShardsStoreRequestBuilder prepareShardStores(String... indices) {
+            return new IndicesShardsStoreRequestBuilder(this, IndicesShardStoresAction.INSTANCE, indices);
         }
 
         @Override

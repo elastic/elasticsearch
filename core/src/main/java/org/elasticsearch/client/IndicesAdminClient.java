@@ -81,9 +81,9 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
-import org.elasticsearch.action.admin.indices.shards.IndicesShardsStoresRequestBuilder;
-import org.elasticsearch.action.admin.indices.shards.IndicesShardsStoresResponse;
-import org.elasticsearch.action.admin.indices.shards.IndicesShardsStoresRequest;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardsStoreRequestBuilder;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -228,7 +228,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @return The result future
      * @see Requests#indicesShardsStoresRequest(String...)
      */
-    ActionFuture<IndicesShardsStoresResponse> shardsStores(IndicesShardsStoresRequest request);
+    ActionFuture<IndicesShardStoresResponse> shardsStores(IndicesShardStoresRequest request);
 
     /**
      * The shards stores info of one or more indices.
@@ -237,12 +237,12 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @param listener A listener to be notified with a result
      * @see Requests#indicesShardsStoresRequest(String...)
      */
-    void shardsStores(IndicesShardsStoresRequest request, ActionListener<IndicesShardsStoresResponse> listener);
+    void shardsStores(IndicesShardStoresRequest request, ActionListener<IndicesShardStoresResponse> listener);
 
     /**
      * The shards stores info of one or more indices.
      */
-    IndicesShardsStoresRequestBuilder prepareShardStores(String... indices);
+    IndicesShardsStoreRequestBuilder prepareShardStores(String... indices);
 
     /**
      * Creates an index using an explicit request allowing to specify the settings of the index.

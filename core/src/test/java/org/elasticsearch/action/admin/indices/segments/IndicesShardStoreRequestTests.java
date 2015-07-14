@@ -23,7 +23,7 @@ import com.carrotsearch.hppc.cursors.IntObjectCursor;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.base.Predicate;
-import org.elasticsearch.action.admin.indices.shards.IndicesShardsStoresResponse;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
@@ -44,16 +44,15 @@ import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.hamcrest.Matchers.*;
 
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST)
-public class IndicesShardsStoreRequestTests extends ElasticsearchIntegrationTest {
+public class IndicesShardStoreRequestTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testEmpty() {
         ensureGreen();
-        IndicesShardsStoresResponse rsp = client().admin().indices().prepareShardStores().get();
+        IndicesShardStoresResponse rsp = client().admin().indices().prepareShardStores().get();
         assertThat(rsp.getStoreStatuses().size(), equalTo(0));
     }
 
@@ -62,23 +61,23 @@ public class IndicesShardsStoreRequestTests extends ElasticsearchIntegrationTest
         String index = "test";
         internalCluster().ensureAtLeastNumDataNodes(2);
         assertAcked(prepareCreate(index).setSettings(Settings.builder()
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "5")
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "2")
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
         ));
         indexRandomData(index);
         ensureGreen(index);
 
         // no unallocated shards
-        IndicesShardsStoresResponse response = client().admin().indices().prepareShardStores(index).get();
+        IndicesShardStoresResponse response = client().admin().indices().prepareShardStores(index).get();
         assertThat(response.getStoreStatuses().size(), equalTo(0));
 
         // all shards
-        response = client().admin().indices().shardsStores(Requests.indicesShardsStoresRequest(index).shardStatuses("all")).get();
+        response = client().admin().indices().shardsStores(Requests.indicesShardsStoresRequest(index).shardStatuses("red", "yellow", "green")).get();
         assertThat(response.getStoreStatuses().containsKey(index), equalTo(true));
-        ImmutableOpenIntMap<List<IndicesShardsStoresResponse.StoreStatus>> shardStores = response.getStoreStatuses().get(index);
-        assertThat(shardStores.values().size(), equalTo(5));
-        for (ObjectCursor<List<IndicesShardsStoresResponse.StoreStatus>> shardStoreStatuses : shardStores.values()) {
-            for (IndicesShardsStoresResponse.StoreStatus storeStatus : shardStoreStatuses.value) {
+        ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>> shardStores = response.getStoreStatuses().get(index);
+        assertThat(shardStores.values().size(), equalTo(2));
+        for (ObjectCursor<List<IndicesShardStoresResponse.StoreStatus>> shardStoreStatuses : shardStores.values()) {
+            for (IndicesShardStoresResponse.StoreStatus storeStatus : shardStoreStatuses.value) {
                 assertThat(storeStatus.getVersion(), greaterThan(-1l));
                 assertThat(storeStatus.getNode(), notNullValue());
                 assertThat(storeStatus.getStoreException(), nullValue());
@@ -94,11 +93,11 @@ public class IndicesShardsStoreRequestTests extends ElasticsearchIntegrationTest
         List<ShardRouting> unassignedShards = clusterService().state().routingTable().index(index).shardsWithState(ShardRoutingState.UNASSIGNED);
         response = client().admin().indices().shardsStores(Requests.indicesShardsStoresRequest(index)).get();
         assertThat(response.getStoreStatuses().containsKey(index), equalTo(true));
-        ImmutableOpenIntMap<List<IndicesShardsStoresResponse.StoreStatus>> shardStoresStatuses = response.getStoreStatuses().get(index);
+        ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>> shardStoresStatuses = response.getStoreStatuses().get(index);
         assertThat(shardStoresStatuses.size(), equalTo(unassignedShards.size()));
-        for (IntObjectCursor<List<IndicesShardsStoresResponse.StoreStatus>> storesStatus : shardStoresStatuses) {
+        for (IntObjectCursor<List<IndicesShardStoresResponse.StoreStatus>> storesStatus : shardStoresStatuses) {
             assertThat("must report for one store", storesStatus.value.size(), equalTo(1));
-            assertThat("reported store should be primary", storesStatus.value.get(0).getAllocation(), equalTo(IndicesShardsStoresResponse.StoreStatus.Allocation.PRIMARY));
+            assertThat("reported store should be primary", storesStatus.value.get(0).getAllocation(), equalTo(IndicesShardStoresResponse.StoreStatus.Allocation.PRIMARY));
         }
         logger.info("--> enable allocation");
         enableAllocation(index);
@@ -118,15 +117,15 @@ public class IndicesShardsStoreRequestTests extends ElasticsearchIntegrationTest
         indexRandomData(index1);
         indexRandomData(index2);
         ensureGreen();
-        IndicesShardsStoresResponse response = client().admin().indices().shardsStores(Requests.indicesShardsStoresRequest().shardStatuses("all")).get();
-        ImmutableOpenMap<String, ImmutableOpenIntMap<List<IndicesShardsStoresResponse.StoreStatus>>> shardStatuses = response.getStoreStatuses();
+        IndicesShardStoresResponse response = client().admin().indices().shardsStores(Requests.indicesShardsStoresRequest().shardStatuses("red", "yellow", "green")).get();
+        ImmutableOpenMap<String, ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>>> shardStatuses = response.getStoreStatuses();
         assertThat(shardStatuses.containsKey(index1), equalTo(true));
         assertThat(shardStatuses.containsKey(index2), equalTo(true));
         assertThat(shardStatuses.get(index1).size(), equalTo(2));
         assertThat(shardStatuses.get(index2).size(), equalTo(2));
 
         // ensure index filtering works
-        response = client().admin().indices().shardsStores(Requests.indicesShardsStoresRequest(index1).shardStatuses("all")).get();
+        response = client().admin().indices().shardsStores(Requests.indicesShardsStoresRequest(index1).shardStatuses("red", "yellow", "green")).get();
         shardStatuses = response.getStoreStatuses();
         assertThat(shardStatuses.containsKey(index1), equalTo(true));
         assertThat(shardStatuses.containsKey(index2), equalTo(false));
@@ -166,12 +165,12 @@ public class IndicesShardsStoreRequestTests extends ElasticsearchIntegrationTest
             }
         }
 
-        IndicesShardsStoresResponse rsp = client().admin().indices().prepareShardStores(index).setShardStatuses("all").get();
-        ImmutableOpenIntMap<List<IndicesShardsStoresResponse.StoreStatus>> shardStatuses = rsp.getStoreStatuses().get(index);
+        IndicesShardStoresResponse rsp = client().admin().indices().prepareShardStores(index).setShardStatuses("red", "yellow", "green").get();
+        ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>> shardStatuses = rsp.getStoreStatuses().get(index);
         assertNotNull(shardStatuses);
         assertThat(shardStatuses.size(), greaterThan(0));
-        for (IntObjectCursor<List<IndicesShardsStoresResponse.StoreStatus>> shardStatus : shardStatuses) {
-            for (IndicesShardsStoresResponse.StoreStatus status : shardStatus.value) {
+        for (IntObjectCursor<List<IndicesShardStoresResponse.StoreStatus>> shardStatus : shardStatuses) {
+            for (IndicesShardStoresResponse.StoreStatus status : shardStatus.value) {
                 if (corruptedShardIDMap.containsKey(shardStatus.key)
                         && corruptedShardIDMap.get(shardStatus.key).contains(status.getNode().name())) {
                     assertThat(status.getVersion(), equalTo(-1l));

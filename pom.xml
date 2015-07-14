@@ -532,6 +532,13 @@
                                 </rules>
                             </configuration>
                         </execution>
+                        <execution>
+                            <id>print-versions</id>
+                            <phase>validate</phase>
+                            <goals>
+                                <goal>display-info</goal>
+                            </goals>
+                        </execution>
                     </executions>
                 </plugin>
                 <plugin>
@@ -1191,18 +1198,6 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                                         <arg value="--check"/>
                                         <arg value="${basedir}"/>
                                     </exec>
-                                </target>
-                            </configuration>
-                        </execution>
-                        <execution>
-                            <id>print-jvm</id>
-                            <phase>validate</phase>
-                            <goals>
-                                <goal>run</goal>
-                            </goals>
-                            <configuration>
-                                <target>
-                                    <echo taskname="JVM">Using ${java.runtime.name} ${java.runtime.version} ${java.vendor}</echo>
                                 </target>
                             </configuration>
                         </execution>

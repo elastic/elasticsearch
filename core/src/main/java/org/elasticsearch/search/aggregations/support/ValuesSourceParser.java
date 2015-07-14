@@ -33,9 +33,12 @@ import java.util.Map;
 
 import static com.google.common.collect.Maps.newHashMap;
 
+// NORELEASE remove this class when aggs refactoring complete
 /**
- *
+ * @deprecated use {@link AbstractValuesSourceParser} instead. This class will
+ *             be removed when aggs refactoring is complete.
  */
+@Deprecated
 public class ValuesSourceParser<VS extends ValuesSource> {
 
     public static Builder any(String aggName, InternalAggregation.Type aggType, SearchContext context) {
@@ -54,6 +57,12 @@ public class ValuesSourceParser<VS extends ValuesSource> {
         return new Builder<>(aggName, aggType, context, ValuesSource.GeoPoint.class).targetValueType(ValueType.GEOPOINT).scriptable(false);
     }
 
+    // NORELEASE remove this class when aggs refactoring complete
+    /**
+     * @deprecated use {@link AbstractValuesSourceParser} instead. This class
+     *             will be removed when aggs refactoring is complete.
+     */
+    @Deprecated
     public static class Input<VS> {
         String field = null;
         Script script = null;
@@ -143,6 +152,12 @@ public class ValuesSourceParser<VS extends ValuesSource> {
         return input;
     }
 
+    // NORELEASE remove this class when aggs refactoring complete
+    /**
+     * @deprecated use {@link AbstractValuesSourceParser} instead. This class
+     *             will be removed when aggs refactoring is complete.
+     */
+    @Deprecated
     public static class Builder<VS extends ValuesSource> {
 
         private final ValuesSourceParser<VS> parser;

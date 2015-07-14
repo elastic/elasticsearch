@@ -19,13 +19,10 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import com.google.common.collect.Maps;
-
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.Script;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  *
@@ -34,12 +31,6 @@ public abstract class ValuesSourceMetricsAggregationBuilder<B extends ValuesSour
 
     private String field;
     private Script script;
-    @Deprecated
-    private String scriptString; // TODO Remove in 3.0
-    @Deprecated
-    private String lang; // TODO Remove in 3.0
-    @Deprecated
-    private Map<String, Object> params; // TODO Remove in 3.0
     private String format;
     private Object missing;
 
@@ -59,53 +50,6 @@ public abstract class ValuesSourceMetricsAggregationBuilder<B extends ValuesSour
     @SuppressWarnings("unchecked")
     public B script(Script script) {
         this.script = script;
-        return (B) this;
-    }
-
-    /**
-     * @deprecated use {@link #script(Script)} instead.
-     */
-    @Deprecated
-    @SuppressWarnings("unchecked")
-    public B script(String script) {
-        this.scriptString = script;
-        return (B) this;
-    }
-
-    /**
-     * @deprecated use {@link #script(Script)} instead.
-     */
-    @Deprecated
-    @SuppressWarnings("unchecked")
-    public B lang(String lang) {
-        this.lang = lang;
-        return (B) this;
-    }
-
-    /**
-     * @deprecated use {@link #script(Script)} instead.
-     */
-    @Deprecated
-    @SuppressWarnings("unchecked")
-    public B params(Map<String, Object> params) {
-        if (this.params == null) {
-            this.params = params;
-        } else {
-            this.params.putAll(params);
-        }
-        return (B) this;
-    }
-
-    /**
-     * @deprecated use {@link #script(Script)} instead.
-     */
-    @Deprecated
-    @SuppressWarnings("unchecked")
-    public B param(String name, Object value) {
-        if (this.params == null) {
-            this.params = Maps.newHashMap();
-        }
-        this.params.put(name, value);
         return (B) this;
     }
 
@@ -133,20 +77,8 @@ public abstract class ValuesSourceMetricsAggregationBuilder<B extends ValuesSour
             builder.field("script", script);
         }
 
-        if (scriptString != null) {
-            builder.field("script", scriptString);
-        }
-
-        if (lang != null) {
-            builder.field("lang", lang);
-        }
-
         if (format != null) {
             builder.field("format", format);
-        }
-
-        if (this.params != null && !this.params.isEmpty()) {
-            builder.field("params").map(this.params);
         }
 
         if (missing != null) {

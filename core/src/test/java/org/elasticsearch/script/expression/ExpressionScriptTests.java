@@ -29,7 +29,6 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
@@ -362,8 +361,12 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
 
         SearchRequestBuilder req = client().prepareSearch().setIndices("test");
         req.setQuery(QueryBuilders.matchAllQuery())
-                .addAggregation(AggregationBuilders.stats("int_agg").field("x").script("_value * 3").lang(ExpressionScriptEngineService.NAME))
-                .addAggregation(AggregationBuilders.stats("double_agg").field("y").script("_value - 1.1").lang(ExpressionScriptEngineService.NAME));
+                .addAggregation(
+                        AggregationBuilders.stats("int_agg").field("x")
+                                .script(new Script("_value * 3", ScriptType.INLINE, ExpressionScriptEngineService.NAME, null)))
+                .addAggregation(
+                        AggregationBuilders.stats("double_agg").field("y")
+                                .script(new Script("_value - 1.1", ScriptType.INLINE, ExpressionScriptEngineService.NAME, null)));
 
         SearchResponse rsp = req.get();
         assertEquals(3, rsp.getHits().getTotalHits());

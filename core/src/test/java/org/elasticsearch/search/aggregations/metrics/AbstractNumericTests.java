@@ -103,24 +103,4 @@ public abstract class AbstractNumericTests extends ElasticsearchIntegrationTest 
 
     public abstract void testScript_MultiValued_WithParams() throws Exception;
 
-    public abstract void testSingleValuedField_WithValueScript_OldScriptAPI() throws Exception;
-
-    public abstract void testSingleValuedField_WithValueScript_WithParams_OldScriptAPI() throws Exception;
-
-    public abstract void testMultiValuedField_WithValueScript_OldScriptAPI() throws Exception;
-
-    public abstract void testMultiValuedField_WithValueScript_WithParams_OldScriptAPI() throws Exception;
-
-    public abstract void testScript_SingleValued_OldScriptAPI() throws Exception;
-
-    public abstract void testScript_SingleValued_WithParams_OldScriptAPI() throws Exception;
-
-    public abstract void testScript_ExplicitSingleValued_WithParams_OldScriptAPI() throws Exception;
-
-    public abstract void testScript_MultiValued_OldScriptAPI() throws Exception;
-
-    public abstract void testScript_ExplicitMultiValued_OldScriptAPI() throws Exception;
-
-    public abstract void testScript_MultiValued_WithParams_OldScriptAPI() throws Exception;
-
 }

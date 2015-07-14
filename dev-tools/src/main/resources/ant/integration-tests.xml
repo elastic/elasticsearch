@@ -91,7 +91,7 @@
     <!-- execute -->
     <echo>Starting up external cluster...</echo>
     <run-script dir="${integ.home}" script="bin/elasticsearch" spawn="true"
-                args="${integ.args} -Des.path.repo=${integ.repo.home}" />
+                args="${integ.args} -Des.path.repo=${integ.repo.home} -Des.repositories.url.allowed_urls=http://snapshot.test*" />
 
     <waitfor maxwait="3" maxwaitunit="minute" checkevery="500">
       <http url="http://127.0.0.1:9200"/>
@@ -143,7 +143,7 @@
     <!-- execute -->
     <echo>Starting up external cluster...</echo>
     <run-script dir="${integ.home}" script="bin/elasticsearch" spawn="true"
-                args="${integ.args} -Des.path.repo=${integ.repo.home}"/>
+                args="${integ.args} -Des.path.repo=${integ.repo.home} -Des.repositories.url.allowed_urls=http://snapshot.test*"/>
 
     <waitfor maxwait="3" maxwaitunit="minute" checkevery="500">
       <http url="http://127.0.0.1:9200"/>

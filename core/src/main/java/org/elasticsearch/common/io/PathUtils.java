@@ -93,6 +93,15 @@ public final class PathUtils {
     }
 
     /**
+     * Tries to resolve the given file uri against the list of available roots.
+     *
+     * If uri starts with one of the listed roots, it returned back by this method, otherwise null is returned.
+     */
+    public static Path get(Path[] roots, URI uri) {
+        return get(roots, PathUtils.get(uri).normalize().toString());
+    }
+
+    /**
      * Returns the default FileSystem.
      */
     public static FileSystem getDefaultFileSystem() {

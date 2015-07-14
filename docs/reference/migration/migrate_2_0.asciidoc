@@ -548,17 +548,26 @@ As a consequence the `query` filter serves no purpose anymore and is deprecated.
 
 === Snapshot and Restore
 
-Locations of file system repositories has to be now registered using `path.repo` setting. The `path.repo`
-setting can contain one or more repository locations:
+Locations of the shared file system repositories and the URL repositories with `file:` URLs has to be now registered
+using `path.repo` setting. The `path.repo` setting can contain one or more repository locations:
 
 [source,yaml]
 ---------------
 path.repo: ["/mnt/daily", "/mnt/weekly"]
 ---------------
 
-If the file system repository location is specified as an absolute path it has to start with one of the locations
+If the repository location is specified as an absolute path it has to start with one of the locations
 specified in `path.repo`. If the location is specified as a relative path, it will be resolved against the first
 location specified in the `path.repo` setting.
+
+URL repositories with `http:`, `https:`, and `ftp:` URLs has to be whitelisted by specifying allowed URLs in the
+`repositories.url.allowed_urls` setting. This setting supports wildcards in the place of host, path, query, and
+fragment. For example:
+
+[source,yaml]
+-----------------------------------
+repositories.url.allowed_urls: ["http://www.example.org/root/*", "https://*.mydomain.com/*?*#*"]
+-----------------------------------
 
 The obsolete parameters `expand_wildcards_open` and `expand_wildcards_close` are no longer
 supported by the snapshot and restore operations. These parameters have been replaced by

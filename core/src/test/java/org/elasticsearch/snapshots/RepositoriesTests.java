@@ -136,8 +136,9 @@ public class RepositoriesTests extends AbstractSnapshotTests {
             assertThat(ex.toString(), containsString("missing location"));
         }
 
-        logger.info("--> trying creating repository with location that is not registered in path.repo setting");
-        String location = createTempDir().toAbsolutePath().toString();
+        logger.info("--> trying creating fs repository with location that is not registered in path.repo setting");
+        Path invalidRepoPath = createTempDir().toAbsolutePath();
+        String location = invalidRepoPath.toString();
         try {
             client().admin().cluster().preparePutRepository("test-repo")
                     .setType("fs").setSettings(Settings.settingsBuilder().put("location", location))
@@ -145,6 +146,28 @@ public class RepositoriesTests extends AbstractSnapshotTests {
             fail("Shouldn't be here");
         } catch (RepositoryException ex) {
             assertThat(ex.toString(), containsString("location [" + location + "] doesn't match any of the locations specified by path.repo"));
+        }
+
+        String repoUrl = invalidRepoPath.toAbsolutePath().toUri().toURL().toString();
+        String unsupportedUrl = repoUrl.replace("file:/", "netdoc:/");
+        logger.info("--> trying creating url repository with unsupported url protocol");
+        try {
+            client().admin().cluster().preparePutRepository("test-repo")
+                    .setType("url").setSettings(Settings.settingsBuilder().put("url", unsupportedUrl))
+                    .get();
+            fail("Shouldn't be here");
+        } catch (RepositoryException ex) {
+            assertThat(ex.toString(), containsString("unsupported url protocol [netdoc]"));
+        }
+
+        logger.info("--> trying creating url repository with location that is not registered in path.repo setting");
+        try {
+            client().admin().cluster().preparePutRepository("test-repo")
+                    .setType("url").setSettings(Settings.settingsBuilder().put("url", invalidRepoPath.toUri().toURL()))
+                    .get();
+            fail("Shouldn't be here");
+        } catch (RepositoryException ex) {
+            assertThat(ex.toString(), containsString("doesn't match any of the locations specified by path.repo"));
         }
     }
 

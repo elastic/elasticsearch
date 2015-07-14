@@ -118,11 +118,23 @@ The following settings are supported:
 ===== Read-only URL Repository
 
 The URL repository (`"type": "url"`) can be used as an alternative read-only way to access data created by the shared file
-system repository. The URL specified in the `url` parameter should
-point to the root of the shared filesystem repository. The following settings are supported:
+system repository. The URL specified in the `url` parameter should point to the root of the shared filesystem repository.
+The following settings are supported:
 
 [horizontal]
 `url`:: Location of the snapshots. Mandatory.
+
+URL Repository supports the following protocols: "http", "https", "ftp", "file" and "jar". URL repositories with `http:`,
+`https:`, and `ftp:` URLs has to be whitelisted by specifying allowed URLs in the `repositories.url.allowed_urls` setting.
+This setting supports wildcards in the place of host, path, query, and fragment. For example:
+
+[source,yaml]
+-----------------------------------
+repositories.url.allowed_urls: ["http://www.example.org/root/*", "https://*.mydomain.com/*?*#*"]
+-----------------------------------
+
+URL repositories with `file:` URLs can only point to locations registered in the `repo.path` setting similiar to
+shared file system repository.
 
 [float]
 ===== Repository plugins

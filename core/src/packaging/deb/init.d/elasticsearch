@@ -96,6 +96,10 @@ MAX_MAP_COUNT=262144
 
 # Elasticsearch PID file directory
 PID_DIR="${packaging.elasticsearch.pid.dir}"
+if [ ! -d "$PID_DIR" ]; then
+	mkdir "$PID_DIR"
+	chown "$ES_USER":"$ES_GROUP" "$PID_DIR"
+fi
 
 # End of variables that can be overwritten in $DEFAULT
 

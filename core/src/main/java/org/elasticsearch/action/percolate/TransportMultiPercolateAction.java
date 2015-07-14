@@ -20,7 +20,6 @@
 package org.elasticsearch.action.percolate;
 
 import com.carrotsearch.hppc.IntArrayList;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.get.*;
@@ -312,9 +311,9 @@ public class TransportMultiPercolateAction extends HandledTransportAction<MultiP
                 if (element instanceof PercolateResponse) {
                     finalResponse[slot] = new MultiPercolateResponse.Item((PercolateResponse) element);
                 } else if (element instanceof Throwable) {
-                    finalResponse[slot] = new MultiPercolateResponse.Item(ExceptionsHelper.detailedMessage((Throwable) element));
+                    finalResponse[slot] = new MultiPercolateResponse.Item((Throwable)element);
                 } else if (element instanceof MultiGetResponse.Failure) {
-                    finalResponse[slot] = new MultiPercolateResponse.Item(((MultiGetResponse.Failure)element).getMessage());
+                    finalResponse[slot] = new MultiPercolateResponse.Item(((MultiGetResponse.Failure)element).getFailure());
                 }
             }
             finalListener.onResponse(new MultiPercolateResponse(finalResponse));

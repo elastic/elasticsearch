@@ -20,7 +20,9 @@
 package org.elasticsearch.action.get;
 
 import com.google.common.collect.Iterators;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -29,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Iterator;
 
 public class MultiGetResponse extends ActionResponse implements Iterable<MultiGetItemResponse>, ToXContent {
@@ -40,17 +43,17 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
         private String index;
         private String type;
         private String id;
-        private String message;
+        private Throwable throwable;
 
         Failure() {
 
         }
 
-        public Failure(String index, String type, String id, String message) {
+        public Failure(String index, String type, String id, Throwable throwable) {
             this.index = index;
             this.type = type;
             this.id = id;
-            this.message = message;
+            this.throwable = throwable;
         }
 
         /**
@@ -78,7 +81,7 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
          * The failure message.
          */
         public String getMessage() {
-            return this.message;
+            return throwable != null ? throwable.getMessage() : null;
         }
 
         public static Failure readFailure(StreamInput in) throws IOException {
@@ -92,7 +95,7 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
             index = in.readString();
             type = in.readOptionalString();
             id = in.readString();
-            message = in.readString();
+            throwable = in.readThrowable();
         }
 
         @Override
@@ -100,7 +103,11 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
             out.writeString(index);
             out.writeOptionalString(type);
             out.writeString(id);
-            out.writeString(message);
+            out.writeThrowable(throwable);
+        }
+
+        public Throwable getFailure() {
+            return throwable;
         }
     }
 
@@ -132,7 +139,7 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
                 builder.field(Fields._INDEX, failure.getIndex());
                 builder.field(Fields._TYPE, failure.getType());
                 builder.field(Fields._ID, failure.getId());
-                builder.field(Fields.ERROR, failure.getMessage());
+                ElasticsearchException.renderThrowable(builder, params, failure.getFailure());
                 builder.endObject();
             } else {
                 GetResponse getResponse = response.getResponse();
@@ -151,6 +158,8 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString _ID = new XContentBuilderString("_id");
         static final XContentBuilderString ERROR = new XContentBuilderString("error");
+        static final XContentBuilderString ROOT_CAUSE = new XContentBuilderString("root_cause");
+
     }
 
     @Override

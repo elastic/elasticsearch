@@ -44,10 +44,11 @@ public final class ShardRouting implements Streamable, ToXContent {
     private boolean primary;
     private ShardRoutingState state;
     private long version;
-    private transient ShardId shardIdentifier;
     private RestoreSource restoreSource;
     private UnassignedInfo unassignedInfo;
+    private AllocationId allocationId;
     private final transient List<ShardRouting> asList;
+    private transient ShardId shardIdentifier;
     private boolean frozen = false;
 
     private ShardRouting() {
@@ -59,7 +60,7 @@ public final class ShardRouting implements Streamable, ToXContent {
     }
 
     public ShardRouting(ShardRouting copy, long version) {
-        this(copy.index(), copy.id(), copy.currentNodeId(), copy.relocatingNodeId(), copy.restoreSource(), copy.primary(), copy.state(), version, copy.unassignedInfo(), true);
+        this(copy.index(), copy.id(), copy.currentNodeId(), copy.relocatingNodeId(), copy.restoreSource(), copy.primary(), copy.state(), version, copy.unassignedInfo(), copy.allocationId(), true);
     }
 
     /**
@@ -68,7 +69,7 @@ public final class ShardRouting implements Streamable, ToXContent {
      */
     ShardRouting(String index, int shardId, String currentNodeId,
                  String relocatingNodeId, RestoreSource restoreSource, boolean primary, ShardRoutingState state, long version,
-                 UnassignedInfo unassignedInfo, boolean internal) {
+                 UnassignedInfo unassignedInfo, AllocationId allocationId, boolean internal) {
         this.index = index;
         this.shardId = shardId;
         this.currentNodeId = currentNodeId;
@@ -79,11 +80,13 @@ public final class ShardRouting implements Streamable, ToXContent {
         this.version = version;
         this.restoreSource = restoreSource;
         this.unassignedInfo = unassignedInfo;
+        this.allocationId = allocationId;
         assert !(state == ShardRoutingState.UNASSIGNED && unassignedInfo == null) : "unassigned shard must be created with meta";
         if (!internal) {
             assert state == ShardRoutingState.UNASSIGNED;
             assert currentNodeId == null;
             assert relocatingNodeId == null;
+            assert allocationId == null;
         }
     }
 
@@ -91,7 +94,7 @@ public final class ShardRouting implements Streamable, ToXContent {
      * Creates a new unassigned shard.
      */
     public static ShardRouting newUnassigned(String index, int shardId, RestoreSource restoreSource, boolean primary, UnassignedInfo unassignedInfo) {
-        return new ShardRouting(index, shardId, null, null, restoreSource, primary, ShardRoutingState.UNASSIGNED, 0, unassignedInfo, true);
+        return new ShardRouting(index, shardId, null, null, restoreSource, primary, ShardRoutingState.UNASSIGNED, 0, unassignedInfo, null, true);
     }
 
     /**
@@ -201,7 +204,8 @@ public final class ShardRouting implements Streamable, ToXContent {
      */
     public ShardRouting buildTargetRelocatingShard() {
         assert relocating();
-        return new ShardRouting(index, shardId, relocatingNodeId, currentNodeId, restoreSource, primary, ShardRoutingState.INITIALIZING, version, unassignedInfo, true);
+        return new ShardRouting(index, shardId, relocatingNodeId, currentNodeId, restoreSource, primary, ShardRoutingState.INITIALIZING, version, unassignedInfo,
+                AllocationId.newTargetRelocation(allocationId), true);
     }
 
     /**
@@ -218,6 +222,14 @@ public final class ShardRouting implements Streamable, ToXContent {
     @Nullable
     public UnassignedInfo unassignedInfo() {
         return unassignedInfo;
+    }
+
+    /**
+     * An id that uniquely identifies an allocation.
+     */
+    @Nullable
+    public AllocationId allocationId() {
+        return this.allocationId;
     }
 
     /**
@@ -287,6 +299,9 @@ public final class ShardRouting implements Streamable, ToXContent {
         if (in.readBoolean()) {
             unassignedInfo = new UnassignedInfo(in);
         }
+        if (in.readBoolean()) {
+            allocationId = new AllocationId(in);
+        }
         freeze();
     }
 
@@ -332,6 +347,12 @@ public final class ShardRouting implements Streamable, ToXContent {
         } else {
             out.writeBoolean(false);
         }
+        if (allocationId != null) {
+            out.writeBoolean(true);
+            allocationId.writeTo(out);
+        } else {
+            out.writeBoolean(false);
+        }
     }
 
     @Override
@@ -355,6 +376,7 @@ public final class ShardRouting implements Streamable, ToXContent {
         currentNodeId = null;
         relocatingNodeId = null;
         this.unassignedInfo = unassignedInfo;
+        allocationId = null;
     }
 
     /**
@@ -367,6 +389,7 @@ public final class ShardRouting implements Streamable, ToXContent {
         assert relocatingNodeId == null : this;
         state = ShardRoutingState.INITIALIZING;
         currentNodeId = nodeId;
+        allocationId = AllocationId.newInitializing();
     }
 
     /**
@@ -380,6 +403,7 @@ public final class ShardRouting implements Streamable, ToXContent {
         assert state == ShardRoutingState.STARTED : this;
         state = ShardRoutingState.RELOCATING;
         this.relocatingNodeId = relocatingNodeId;
+        this.allocationId = AllocationId.newRelocation(allocationId);
     }
 
     /**
@@ -395,6 +419,7 @@ public final class ShardRouting implements Streamable, ToXContent {
 
         state = ShardRoutingState.STARTED;
         relocatingNodeId = null;
+        allocationId = AllocationId.cancelRelocation(allocationId);
     }
 
     /**
@@ -405,6 +430,7 @@ public final class ShardRouting implements Streamable, ToXContent {
         assert state == ShardRoutingState.STARTED;
         version++;
         state = ShardRoutingState.INITIALIZING;
+        allocationId = AllocationId.newInitializing();
     }
 
     /**
@@ -418,8 +444,11 @@ public final class ShardRouting implements Streamable, ToXContent {
         assert state == ShardRoutingState.INITIALIZING || state == ShardRoutingState.RELOCATING : this;
         relocatingNodeId = null;
         restoreSource = null;
-        state = ShardRoutingState.STARTED;
         unassignedInfo = null; // we keep the unassigned data until the shard is started
+        if (state == ShardRoutingState.RELOCATING) {
+            allocationId = AllocationId.finishRelocation(allocationId);
+        }
+        state = ShardRoutingState.STARTED;
     }
 
     /**

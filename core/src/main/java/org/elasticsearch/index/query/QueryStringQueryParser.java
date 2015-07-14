@@ -179,7 +179,7 @@ public class QueryStringQueryParser implements QueryParser {
                 } else if ("phrase_slop".equals(currentFieldName) || "phraseSlop".equals(currentFieldName)) {
                     qpSettings.phraseSlop(parser.intValue());
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, FUZZINESS)) {
-                    qpSettings.fuzzyMinSim(Fuzziness.parse(parser).asSimilarity());
+                    qpSettings.setFuzziness(Fuzziness.parse(parser));
                 } else if ("boost".equals(currentFieldName)) {
                     qpSettings.boost(parser.floatValue());
                 } else if ("tie_breaker".equals(currentFieldName) || "tieBreaker".equals(currentFieldName)) {

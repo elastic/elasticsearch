@@ -703,6 +703,7 @@
                            <tests.rest.spec>${tests.rest.spec}</tests.rest.spec>
                            <tests.rest.load_packaged>${tests.rest.load_packaged}</tests.rest.load_packaged>
                            <java.io.tmpdir>${integ.temp}</java.io.tmpdir>
+                           <tests.security.manager>false</tests.security.manager>
                        </systemPropertyVariables>
                     </configuration>
                     <executions>

@@ -85,33 +85,33 @@ public class MultiPercolatorTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
 
         MultiPercolateResponse.Item item = response.getItems()[0];
-        assertMatchCount(item.response(), 2l);
+        assertMatchCount(item.getResponse(), 2l);
         assertThat(item.getResponse().getMatches(), arrayWithSize(2));
-        assertThat(item.errorMessage(), nullValue());
+        assertThat(item.getErrorMessage(), nullValue());
         assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContainingInAnyOrder("1", "4"));
 
         item = response.getItems()[1];
-        assertThat(item.errorMessage(), nullValue());
+        assertThat(item.getErrorMessage(), nullValue());
 
-        assertMatchCount(item.response(), 2l);
+        assertMatchCount(item.getResponse(), 2l);
         assertThat(item.getResponse().getMatches(), arrayWithSize(2));
         assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContainingInAnyOrder("2", "4"));
 
         item = response.getItems()[2];
-        assertThat(item.errorMessage(), nullValue());
-        assertMatchCount(item.response(), 4l);
+        assertThat(item.getErrorMessage(), nullValue());
+        assertMatchCount(item.getResponse(), 4l);
         assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContainingInAnyOrder("1", "2", "3", "4"));
 
         item = response.getItems()[3];
-        assertThat(item.errorMessage(), nullValue());
-        assertMatchCount(item.response(), 1l);
+        assertThat(item.getErrorMessage(), nullValue());
+        assertMatchCount(item.getResponse(), 1l);
         assertThat(item.getResponse().getMatches(), arrayWithSize(1));
         assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContaining("4"));
 
         item = response.getItems()[4];
         assertThat(item.getResponse(), nullValue());
-        assertThat(item.errorMessage(), notNullValue());
-        assertThat(item.errorMessage(), containsString("document missing"));
+        assertThat(item.getErrorMessage(), notNullValue());
+        assertThat(item.getErrorMessage(), containsString("document missing"));
     }
 
     @Test
@@ -164,33 +164,33 @@ public class MultiPercolatorTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
 
         MultiPercolateResponse.Item item = response.getItems()[0];
-        assertMatchCount(item.response(), 2l);
+        assertMatchCount(item.getResponse(), 2l);
         assertThat(item.getResponse().getMatches(), arrayWithSize(2));
-        assertThat(item.errorMessage(), nullValue());
+        assertThat(item.getErrorMessage(), nullValue());
         assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContainingInAnyOrder("1", "4"));
 
         item = response.getItems()[1];
-        assertThat(item.errorMessage(), nullValue());
+        assertThat(item.getErrorMessage(), nullValue());
 
-        assertMatchCount(item.response(), 2l);
+        assertMatchCount(item.getResponse(), 2l);
         assertThat(item.getResponse().getMatches(), arrayWithSize(2));
         assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContainingInAnyOrder("2", "4"));
 
         item = response.getItems()[2];
-        assertThat(item.errorMessage(), nullValue());
-        assertMatchCount(item.response(), 4l);
+        assertThat(item.getErrorMessage(), nullValue());
+        assertMatchCount(item.getResponse(), 4l);
         assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContainingInAnyOrder("1", "2", "3", "4"));
 
         item = response.getItems()[3];
-        assertThat(item.errorMessage(), nullValue());
-        assertMatchCount(item.response(), 1l);
+        assertThat(item.getErrorMessage(), nullValue());
+        assertMatchCount(item.getResponse(), 1l);
         assertThat(item.getResponse().getMatches(), arrayWithSize(1));
         assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContaining("4"));
 
         item = response.getItems()[4];
         assertThat(item.getResponse(), nullValue());
-        assertThat(item.errorMessage(), notNullValue());
-        assertThat(item.errorMessage(), containsString("document missing"));
+        assertThat(item.getErrorMessage(), notNullValue());
+        assertThat(item.getErrorMessage(), containsString("document missing"));
     }
 
     @Test
@@ -222,7 +222,7 @@ public class MultiPercolatorTests extends ElasticsearchIntegrationTest {
         assertThat(response.items().length, equalTo(numPercolateRequest));
         for (MultiPercolateResponse.Item item : response) {
             assertThat(item.isFailure(), equalTo(false));
-            assertMatchCount(item.response(), numQueries);
+            assertMatchCount(item.getResponse(), numQueries);
             assertThat(item.getResponse().getMatches().length, equalTo(numQueries));
         }
 
@@ -239,7 +239,7 @@ public class MultiPercolatorTests extends ElasticsearchIntegrationTest {
         assertThat(response.items().length, equalTo(numPercolateRequest));
         for (MultiPercolateResponse.Item item : response) {
             assertThat(item.isFailure(), equalTo(true));
-            assertThat(item.errorMessage(), containsString("document missing"));
+            assertThat(item.getErrorMessage(), containsString("document missing"));
             assertThat(item.getResponse(), nullValue());
         }
 
@@ -259,7 +259,7 @@ public class MultiPercolatorTests extends ElasticsearchIntegrationTest {
         response = builder.execute().actionGet();
         assertThat(response.items().length, equalTo(numPercolateRequest + 1));
         assertThat(response.items()[numPercolateRequest].isFailure(), equalTo(false));
-        assertMatchCount(response.items()[numPercolateRequest].response(), numQueries);
+        assertMatchCount(response.items()[numPercolateRequest].getResponse(), numQueries);
         assertThat(response.items()[numPercolateRequest].getResponse().getMatches().length, equalTo(numQueries));
     }
 
@@ -291,7 +291,7 @@ public class MultiPercolatorTests extends ElasticsearchIntegrationTest {
         assertThat(response.items().length, equalTo(numPercolateRequest));
         for (MultiPercolateResponse.Item item : response) {
             assertThat(item.isFailure(), equalTo(false));
-            assertMatchCount(item.response(), numQueries);
+            assertMatchCount(item.getResponse(), numQueries);
             assertThat(item.getResponse().getMatches().length, equalTo(numQueries));
         }
 
@@ -332,7 +332,7 @@ public class MultiPercolatorTests extends ElasticsearchIntegrationTest {
         response = builder.execute().actionGet();
         assertThat(response.items().length, equalTo(numPercolateRequest + 1));
         assertThat(response.items()[numPercolateRequest].isFailure(), equalTo(false));
-        assertMatchCount(response.items()[numPercolateRequest].response(), numQueries);
+        assertMatchCount(response.items()[numPercolateRequest].getResponse(), numQueries);
         assertThat(response.items()[numPercolateRequest].getResponse().getMatches().length, equalTo(numQueries));
     }
 

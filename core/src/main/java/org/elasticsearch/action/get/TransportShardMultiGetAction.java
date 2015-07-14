@@ -105,7 +105,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                     throw (ElasticsearchException) t;
                 } else {
                     logger.debug("{} failed to execute multi_get for [{}]/[{}]", t, shardId, item.type(), item.id());
-                    response.add(request.locations.get(i), new MultiGetResponse.Failure(request.index(), item.type(), item.id(), ExceptionsHelper.detailedMessage(t)));
+                    response.add(request.locations.get(i), new MultiGetResponse.Failure(request.index(), item.type(), item.id(), t));
                 }
             }
         }

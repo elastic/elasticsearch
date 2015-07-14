@@ -19,8 +19,7 @@
 
 package org.elasticsearch.search.suggest.completionv2.context;
 
-import org.apache.lucene.search.suggest.document.CompletionQuery;
-import org.apache.lucene.search.suggest.document.ContextQuery;
+import org.apache.lucene.search.suggest.xdocument.CompletionQuery;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -178,6 +177,24 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
         builder.field(FIELD_TYPE, type.name());
         toInnerXContent(builder, params);
         return builder;
+    }
+
+    @Override
+    public int hashCode() {
+        final int prime = 31;
+        int result = super.hashCode();
+        result = prime * result + name.hashCode();
+        result = prime * result + type.hashCode();
+        return result;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || (obj instanceof ContextMapping) == false) {
+            return false;
+        }
+        ContextMapping other = ((ContextMapping) obj);
+        return name.equals(other.name) && type == other.type;
     }
 
     @Override

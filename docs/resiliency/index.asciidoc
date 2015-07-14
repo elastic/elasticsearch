@@ -97,7 +97,7 @@ nodes. Based on this information the node either discovers an existing master or
 elected as master will currently update it the cluster state to indicate the result of the election. Other nodes will submit
 a join request to the newly elected master node. Instead of immediately processing the election result, the elected master
 node should wait for the incoming joins from other nodes, thus validating the elections result is properly applied. As soon as enough
-nodes have sent their joins request (based on the `minimum_master_nodes` settings) the cluster state is modified.
+nodes have sent their joins request (based on the `minimum_master_nodes` settings) the cluster state is updated.
 {GIT}12161{#12161}
 
 

@@ -13,7 +13,7 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ShieldIntegrationTest;
 import org.elasticsearch.test.ShieldSettingsSource;
@@ -55,30 +55,30 @@ public class IndicesResolverIntegrationTests extends ShieldIntegrationTest {
         assertReturnedIndices(searchResponse, "test1", "test2", "test3");
     }
 
-    @Test(expected = IndexMissingException.class)
+    @Test(expected = IndexNotFoundException.class)
     public void testSearchNonAuthorizedWildcard() {
         //wildcard doesn't match any authorized index
         createIndices("test1", "test2", "index1", "index2");
         client().prepareSearch("index*").get();
     }
 
-    @Test(expected = IndexMissingException.class)
+    @Test(expected = IndexNotFoundException.class)
     public void testEmptyClusterSearchForAll() {
         client().prepareSearch().get();
     }
 
-    @Test(expected = IndexMissingException.class)
+    @Test(expected = IndexNotFoundException.class)
     public void testEmptyClusterSearchForWildcard() {
        client().prepareSearch("*").get();
     }
 
-    @Test(expected = IndexMissingException.class)
+    @Test(expected = IndexNotFoundException.class)
     public void testEmptyAuthorizedIndicesSearchForAll() {
         createIndices("index1", "index2");
         client().prepareSearch().get();
     }
 
-    @Test(expected = IndexMissingException.class)
+    @Test(expected = IndexNotFoundException.class)
     public void testEmptyAuthorizedIndicesSearchForWildcard() {
         createIndices("index1", "index2");
         client().prepareSearch("*").get();
@@ -91,13 +91,13 @@ public class IndicesResolverIntegrationTests extends ShieldIntegrationTest {
     }
 
     @Test
-    public void testIndexMissing() {
+    public void testIndexNotFound() {
         createIndices("test1", "test2", "index1");
         assertThrowsAuthorizationException(client().prepareSearch("missing"));
     }
 
     @Test
-    public void testIndexMissingIgnoreUnavailable() {
+    public void testIndexNotFoundIgnoreUnavailable() {
         createIndices("test1", "test2", "index1");
         assertThrowsAuthorizationException(client().prepareSearch("missing").setIndicesOptions(IndicesOptions.lenientExpandOpen()));
     }
@@ -176,7 +176,7 @@ public class IndicesResolverIntegrationTests extends ShieldIntegrationTest {
         assertThat(multiSearchResponse.getResponses()[1].getFailure().toString(), equalTo("[test4] no such index"));
     }
 
-    @Test(expected = IndexMissingException.class)
+    @Test(expected = IndexNotFoundException.class)
     public void testMultiSearchWildcard() {
         //test4 is missing but authorized, only that specific item fails
         createIndices("test1", "test2", "test3", "index1");

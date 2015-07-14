@@ -18,7 +18,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.transport.TransportRequest;
@@ -138,7 +138,7 @@ public class DefaultIndicesResolver implements IndicesResolver<TransportRequest>
         //If we can't replace because we got an empty set, we can only throw exception.
         if (finalAliases.isEmpty()) {
             Index index = matchAllAliases ? new Index(MetaData.ALL) : new Index(Arrays.toString(aliases));
-            throw new IndexMissingException(index);
+            throw new IndexNotFoundException(index.getName());
         }
         return finalAliases;
     }
@@ -204,9 +204,9 @@ public class DefaultIndicesResolver implements IndicesResolver<TransportRequest>
                     }
                 }
             } else {
-                //MetaData#convertFromWildcards checks if the index exists here and throws IndexMissingException if not (based on ignore_unavailable).
+                //MetaData#convertFromWildcards checks if the index exists here and throws IndexNotFoundException if not (based on ignore_unavailable).
                 //Do nothing as if the index is missing but the user is not authorized to it an AuthorizationException will be thrown.
-                //If the index is missing and the user is authorized to it, core will throw IndexMissingException later on.
+                //If the index is missing and the user is authorized to it, core will throw IndexNotFoundException later on.
                 //There is no problem with deferring this as we are dealing with an explicit name, not with wildcards.
                 if (minus) {
                     finalIndices.remove(aliasOrIndex);
@@ -227,7 +227,7 @@ public class DefaultIndicesResolver implements IndicesResolver<TransportRequest>
         //Downside of this is that a single item exception is going to make fail the composite request that holds it as a whole.
         if (resolvedIndices == null || resolvedIndices.isEmpty()) {
             Index index = IndexNameExpressionResolver.isAllIndices(indicesList(originalIndices)) ? new Index(MetaData.ALL) : new Index(Arrays.toString(originalIndices));
-            throw new IndexMissingException(index);
+            throw new IndexNotFoundException(index.getName());
         }
         return resolvedIndices;
     }

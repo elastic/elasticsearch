@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -195,13 +195,13 @@ public class DefaultIndicesResolverTests extends ElasticsearchTestCase {
         assertThat(request.indices(), arrayContaining(replacedIndices));
     }
 
-    @Test(expected = IndexMissingException.class)
+    @Test(expected = IndexNotFoundException.class)
     public void testResolveNonMatchingIndices() {
         SearchRequest request = new SearchRequest("missing*");
         defaultIndicesResolver.resolve(user, SearchAction.NAME, request, metaData);
     }
 
-    @Test(expected = IndexMissingException.class)
+    @Test(expected = IndexNotFoundException.class)
     public void testResolveNoAuthorizedIndices() {
         SearchRequest request = new SearchRequest();
         defaultIndicesResolver.resolve(userNoIndices, SearchAction.NAME, request, metaData);
@@ -301,7 +301,7 @@ public class DefaultIndicesResolverTests extends ElasticsearchTestCase {
         assertThat(request.getAliasActions().get(1).aliases(), arrayContaining("alias2"));
     }
 
-    @Test(expected = IndexMissingException.class)
+    @Test(expected = IndexNotFoundException.class)
     public void testResolveWildcardsIndicesAliasesRequestNoMatchingIndices() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAlias("alias1", "foo*");
@@ -329,7 +329,7 @@ public class DefaultIndicesResolverTests extends ElasticsearchTestCase {
         assertThat(request.getAliasActions().get(1).aliases(), arrayContaining("alias2"));
     }
 
-    @Test(expected = IndexMissingException.class)
+    @Test(expected = IndexNotFoundException.class)
     public void testResolveAllIndicesAliasesRequestNoAuthorizedIndices() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAlias("alias1", "_all");
@@ -337,7 +337,7 @@ public class DefaultIndicesResolverTests extends ElasticsearchTestCase {
         defaultIndicesResolver.resolve(userNoIndices, IndicesAliasesAction.NAME, request, metaData);
     }
 
-    @Test(expected = IndexMissingException.class)
+    @Test(expected = IndexNotFoundException.class)
     public void testResolveWildcardsIndicesAliasesRequestNoAuthorizedIndices() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAlias("alias1", "foo*");
@@ -432,7 +432,7 @@ public class DefaultIndicesResolverTests extends ElasticsearchTestCase {
         assertThat(request.getAliasActions().get(1).aliases(), arrayContaining("foofoobar", "explicit"));
     }
 
-    @Test(expected = IndexMissingException.class)
+    @Test(expected = IndexNotFoundException.class)
     public void testResolveAliasesWildcardsIndicesAliasesRequestDeleteActionsNoAuthorizedIndices() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAliasAction(AliasAction.newRemoveAliasAction("foo*", "foo*"));
@@ -499,7 +499,7 @@ public class DefaultIndicesResolverTests extends ElasticsearchTestCase {
         assertThat(request.aliases(), arrayContaining("alias1"));
     }
 
-    @Test(expected = IndexMissingException.class)
+    @Test(expected = IndexNotFoundException.class)
     public void testResolveWildcardsGetAliasesRequestNoMatchingIndices() {
         GetAliasesRequest request = new GetAliasesRequest();
         request.aliases("alias3");
@@ -548,7 +548,7 @@ public class DefaultIndicesResolverTests extends ElasticsearchTestCase {
         assertThat(request.aliases(), arrayContaining("alias1"));
     }
 
-    @Test(expected = IndexMissingException.class)
+    @Test(expected = IndexNotFoundException.class)
     public void testResolveAllGetAliasesRequestNoAuthorizedIndices() {
         GetAliasesRequest request = new GetAliasesRequest();
         request.aliases("alias1");
@@ -557,7 +557,7 @@ public class DefaultIndicesResolverTests extends ElasticsearchTestCase {
         defaultIndicesResolver.resolve(userNoIndices, GetAliasesAction.NAME, request, metaData);
     }
 
-    @Test(expected = IndexMissingException.class)
+    @Test(expected = IndexNotFoundException.class)
     public void testResolveWildcardsGetAliasesRequestNoAuthorizedIndices() {
         GetAliasesRequest request = new GetAliasesRequest();
         request.aliases("alias1");
@@ -634,7 +634,7 @@ public class DefaultIndicesResolverTests extends ElasticsearchTestCase {
         assertThat(request.aliases(), arrayContaining("foofoobar"));
     }
 
-    @Test(expected = IndexMissingException.class)
+    @Test(expected = IndexNotFoundException.class)
     public void testResolveAliasesWildcardsGetAliasesRequestNoAuthorizedIndices() {
         GetAliasesRequest request = new GetAliasesRequest();
         //no authorized aliases match bar*, hence the request fails
@@ -643,7 +643,7 @@ public class DefaultIndicesResolverTests extends ElasticsearchTestCase {
         defaultIndicesResolver.resolve(user, GetAliasesAction.NAME, request, metaData);
     }
 
-    @Test(expected = IndexMissingException.class)
+    @Test(expected = IndexNotFoundException.class)
     public void testResolveAliasesAllGetAliasesRequestNoAuthorizedIndices() {
         GetAliasesRequest request = new GetAliasesRequest();
         if (randomBoolean()) {
@@ -722,7 +722,7 @@ public class DefaultIndicesResolverTests extends ElasticsearchTestCase {
         assertThat(request.subRequests().get(1).indices(), equalTo(new String[]{"missing"}));
     }
 
-    @Test(expected = IndexMissingException.class)
+    @Test(expected = IndexNotFoundException.class)
     public void testResolveMultiSearchWildcardsNoMatchingIndices() {
         MultiSearchRequest request = new MultiSearchRequest();
         request.add(Requests.searchRequest("missing*"));
@@ -730,7 +730,7 @@ public class DefaultIndicesResolverTests extends ElasticsearchTestCase {
         defaultIndicesResolver.resolve(user, MultiSearchAction.NAME, request, metaData);
     }
 
-    @Test(expected = IndexMissingException.class)
+    @Test(expected = IndexNotFoundException.class)
     public void testResolveMultiSearchWildcardsNoAuthorizedIndices() {
         MultiSearchRequest request = new MultiSearchRequest();
         request.add(Requests.searchRequest("foofoo*"));

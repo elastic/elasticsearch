@@ -48,8 +48,14 @@ public class ProfileIndexSearcher extends ContextIndexSearcher implements Releas
         return new ProfileWeight(query, weight, this);
     }
 
+    @Override
+    public Weight createWeight(Query query, boolean needsScores) throws IOException {
+        startTime();
+        Weight weight = super.createWeight(query, needsScores);
+        stopAndRecordTime(Timing.EXECUTION, query);
 
-    
+        return new ProfileWeight(query, weight, this);
+    }
 
     public enum Timing {
         REWRITE, EXECUTION, ALL

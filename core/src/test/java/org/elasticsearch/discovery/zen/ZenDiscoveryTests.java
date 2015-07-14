@@ -219,7 +219,7 @@ public class ZenDiscoveryTests extends ElasticsearchIntegrationTest {
         });
         latch.await();
         assertThat(reference.get(), notNullValue());
-        assertThat(ExceptionsHelper.detailedMessage(reference.get()), containsString("cluster state from a different master, rejecting"));
+        assertThat(ExceptionsHelper.detailedMessage(reference.get()), containsString("cluster state from a different master than the current one, rejecting"));
     }
 
     @Test

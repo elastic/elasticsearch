@@ -688,6 +688,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     void handleNewClusterStateFromMaster(ClusterState newClusterState, final PublishClusterStateAction.NewClusterStateListener.NewStateProcessed newStateProcessed) {
         final ClusterName incomingClusterName = newClusterState.getClusterName();
+        /* The cluster name can still be null if the state comes from a node that is prev 1.1.1*/
+        if (incomingClusterName != null && !incomingClusterName.equals(this.clusterName)) {
+            logger.warn("received cluster state from [{}] which is also master but with a different cluster name [{}]", newClusterState.nodes().masterNode(), incomingClusterName);
+            newStateProcessed.onNewClusterStateFailed(new IllegalStateException("received state from a node that is not part of the cluster"));
+            return;
+        }
         if (localNodeMaster()) {
             logger.debug("received cluster state from [{}] which is also master with cluster name [{}]", newClusterState.nodes().masterNode(), incomingClusterName);
             final ClusterState newState = newClusterState;
@@ -710,97 +716,101 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
             });
         } else {
+            if (newClusterState.nodes().localNode() == null) {
+                logger.warn("received a cluster state from [{}] and not part of the cluster, should not happen", newClusterState.nodes().masterNode());
+                newStateProcessed.onNewClusterStateFailed(new IllegalStateException("received state from a node that is not part of the cluster"));
+            } else {
 
+                final ProcessClusterState processClusterState = new ProcessClusterState(newClusterState);
+                processNewClusterStates.add(processClusterState);
 
-            final ProcessClusterState processClusterState = new ProcessClusterState(newClusterState);
-            processNewClusterStates.add(processClusterState);
+                assert newClusterState.nodes().masterNode() != null : "received a cluster state without a master";
+                assert !newClusterState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock()) : "received a cluster state with a master block";
 
-            assert newClusterState.nodes().masterNode() != null : "received a cluster state without a master";
-            assert !newClusterState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock()) : "received a cluster state with a master block";
-
-            clusterService.submitStateUpdateTask("zen-disco-receive(from master [" + newClusterState.nodes().masterNode() + "])", Priority.URGENT, new ProcessedClusterStateNonMasterUpdateTask() {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    // we already processed it in a previous event
-                    if (processClusterState.processed) {
-                        return currentState;
-                    }
-
-                    // TODO: once improvement that we can do is change the message structure to include version and masterNodeId
-                    // at the start, this will allow us to keep the "compressed bytes" around, and only parse the first page
-                    // to figure out if we need to use it or not, and only once we picked the latest one, parse the whole state
-
-
-                    ClusterState updatedState = selectNextStateToProcess(processNewClusterStates);
-                    if (updatedState == null) {
-                        updatedState = currentState;
-                    }
-                    if (shouldIgnoreOrRejectNewClusterState(logger, currentState, updatedState)) {
-                        return currentState;
-                    }
-
-                    // we don't need to do this, since we ping the master, and get notified when it has moved from being a master
-                    // because it doesn't have enough master nodes...
-                    //if (!electMaster.hasEnoughMasterNodes(newState.nodes())) {
-                    //    return disconnectFromCluster(newState, "not enough master nodes on new cluster state wreceived from [" + newState.nodes().masterNode() + "]");
-                    //}
-
-                    // check to see that we monitor the correct master of the cluster
-                    if (masterFD.masterNode() == null || !masterFD.masterNode().equals(updatedState.nodes().masterNode())) {
-                        masterFD.restart(updatedState.nodes().masterNode(), "new cluster state received and we are monitoring the wrong master [" + masterFD.masterNode() + "]");
-                    }
-
-                    if (currentState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock())) {
-                        // its a fresh update from the master as we transition from a start of not having a master to having one
-                        logger.debug("got first state from fresh master [{}]", updatedState.nodes().masterNodeId());
-                        long count = clusterJoinsCounter.incrementAndGet();
-                        logger.trace("updated cluster join cluster to [{}]", count);
-
-                        return updatedState;
-                    }
-
-
-                    // some optimizations to make sure we keep old objects where possible
-                    ClusterState.Builder builder = ClusterState.builder(updatedState);
-
-                    // if the routing table did not change, use the original one
-                    if (updatedState.routingTable().version() == currentState.routingTable().version()) {
-                        builder.routingTable(currentState.routingTable());
-                    }
-                    // same for metadata
-                    if (updatedState.metaData().version() == currentState.metaData().version()) {
-                        builder.metaData(currentState.metaData());
-                    } else {
-                        // if its not the same version, only copy over new indices or ones that changed the version
-                        MetaData.Builder metaDataBuilder = MetaData.builder(updatedState.metaData()).removeAllIndices();
-                        for (IndexMetaData indexMetaData : updatedState.metaData()) {
-                            IndexMetaData currentIndexMetaData = currentState.metaData().index(indexMetaData.index());
-                            if (currentIndexMetaData != null && currentIndexMetaData.isSameUUID(indexMetaData.uuid()) &&
-                                    currentIndexMetaData.version() == indexMetaData.version()) {
-                                // safe to reuse
-                                metaDataBuilder.put(currentIndexMetaData, false);
-                            } else {
-                                metaDataBuilder.put(indexMetaData, false);
-                            }
+                clusterService.submitStateUpdateTask("zen-disco-receive(from master [" + newClusterState.nodes().masterNode() + "])", Priority.URGENT, new ProcessedClusterStateNonMasterUpdateTask() {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        // we already processed it in a previous event
+                        if (processClusterState.processed) {
+                            return currentState;
                         }
-                        builder.metaData(metaDataBuilder);
+
+                        // TODO: once improvement that we can do is change the message structure to include version and masterNodeId
+                        // at the start, this will allow us to keep the "compressed bytes" around, and only parse the first page
+                        // to figure out if we need to use it or not, and only once we picked the latest one, parse the whole state
+
+
+                        ClusterState updatedState = selectNextStateToProcess(processNewClusterStates);
+                        if (updatedState == null) {
+                            updatedState = currentState;
+                        }
+                        if (shouldIgnoreOrRejectNewClusterState(logger, currentState, updatedState)) {
+                            return currentState;
+                        }
+
+                        // we don't need to do this, since we ping the master, and get notified when it has moved from being a master
+                        // because it doesn't have enough master nodes...
+                        //if (!electMaster.hasEnoughMasterNodes(newState.nodes())) {
+                        //    return disconnectFromCluster(newState, "not enough master nodes on new cluster state wreceived from [" + newState.nodes().masterNode() + "]");
+                        //}
+
+                        // check to see that we monitor the correct master of the cluster
+                        if (masterFD.masterNode() == null || !masterFD.masterNode().equals(updatedState.nodes().masterNode())) {
+                            masterFD.restart(updatedState.nodes().masterNode(), "new cluster state received and we are monitoring the wrong master [" + masterFD.masterNode() + "]");
+                        }
+
+                        if (currentState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock())) {
+                            // its a fresh update from the master as we transition from a start of not having a master to having one
+                            logger.debug("got first state from fresh master [{}]", updatedState.nodes().masterNodeId());
+                            long count = clusterJoinsCounter.incrementAndGet();
+                            logger.trace("updated cluster join cluster to [{}]", count);
+
+                            return updatedState;
+                        }
+
+
+                        // some optimizations to make sure we keep old objects where possible
+                        ClusterState.Builder builder = ClusterState.builder(updatedState);
+
+                        // if the routing table did not change, use the original one
+                        if (updatedState.routingTable().version() == currentState.routingTable().version()) {
+                            builder.routingTable(currentState.routingTable());
+                        }
+                        // same for metadata
+                        if (updatedState.metaData().version() == currentState.metaData().version()) {
+                            builder.metaData(currentState.metaData());
+                        } else {
+                            // if its not the same version, only copy over new indices or ones that changed the version
+                            MetaData.Builder metaDataBuilder = MetaData.builder(updatedState.metaData()).removeAllIndices();
+                            for (IndexMetaData indexMetaData : updatedState.metaData()) {
+                                IndexMetaData currentIndexMetaData = currentState.metaData().index(indexMetaData.index());
+                                if (currentIndexMetaData != null && currentIndexMetaData.isSameUUID(indexMetaData.uuid()) &&
+                                        currentIndexMetaData.version() == indexMetaData.version()) {
+                                    // safe to reuse
+                                    metaDataBuilder.put(currentIndexMetaData, false);
+                                } else {
+                                    metaDataBuilder.put(indexMetaData, false);
+                                }
+                            }
+                            builder.metaData(metaDataBuilder);
+                        }
+
+                        return builder.build();
                     }
 
-                    return builder.build();
-                }
+                    @Override
+                    public void onFailure(String source, Throwable t) {
+                        logger.error("unexpected failure during [{}]", t, source);
+                        newStateProcessed.onNewClusterStateFailed(t);
+                    }
 
-                @Override
-                public void onFailure(String source, Throwable t) {
-                    logger.error("unexpected failure during [{}]", t, source);
-                    newStateProcessed.onNewClusterStateFailed(t);
-                }
-
-                @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    sendInitialStateEventIfNeeded();
-                    newStateProcessed.onNewClusterStateProcessed();
-                }
-            });
+                    @Override
+                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        sendInitialStateEventIfNeeded();
+                        newStateProcessed.onNewClusterStateProcessed();
+                    }
+                });
+            }
         }
     }
 
@@ -849,7 +859,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
      * If the second condition fails we ignore the cluster state.
      */
     static boolean shouldIgnoreOrRejectNewClusterState(ESLogger logger, ClusterState currentState, ClusterState newClusterState) {
-        rejectNewClusterStateIfNeeded(logger, currentState.nodes(), newClusterState);
         if (currentState.nodes().masterNodeId() == null) {
             return false;
         }
@@ -862,20 +871,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             return true;
         } else {
             return false;
-        }
-    }
-
-    /**
-     * In the case we follow an elected master the new cluster state needs to have the same elected master
-     * This method checks for this and throws an exception if needed
-     */
-    public static void rejectNewClusterStateIfNeeded(ESLogger logger, DiscoveryNodes currentNodes, ClusterState newClusterState) {
-        if (currentNodes.masterNodeId() == null) {
-            return;
-        }
-        if (!currentNodes.masterNodeId().equals(newClusterState.nodes().masterNodeId())) {
-            logger.warn("received a cluster state from a different master that the one we are following, rejecting (received {}, following {})", newClusterState.nodes().masterNode(), currentNodes.masterNode());
-            throw new IllegalStateException("cluster state from a different master, rejecting (received " + newClusterState.nodes().masterNode() + ", following " + currentNodes.masterNode() + ")");
         }
     }
 

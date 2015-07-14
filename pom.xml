@@ -510,9 +510,6 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-deploy-plugin</artifactId>
                     <version>2.8.2</version>
-                    <configuration>
-                        <deployAtEnd>true</deployAtEnd> <!-- all or nothing -->
-                    </configuration>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -1238,6 +1235,13 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                 </plugin>
             </plugins>
         </pluginManagement>
+        <extensions>
+            <extension>
+                <groupId>org.springframework.build</groupId>
+                <artifactId>aws-maven</artifactId>
+                <version>5.0.0.RELEASE</version>
+            </extension>
+        </extensions>
     </build>
     <profiles>
         <profile>
@@ -1259,7 +1263,7 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
             <properties>
                 <package.rpm>true</package.rpm>
                 <no.commit.pattern>\bno(n|)(release|commit)\b</no.commit.pattern> <!-- check for no-commit / no-release -->
-                <forbidden.test.signatures>org.apache.lucene.util.LuceneTestCase$AwaitsFix @ Please fix all bugs before release</forbidden.test.signatures>
+                <forbidden.test.signatures>org.apache.lucene.util.LuceneTestCase$AwaitsFix @ Please fix all bugs before release or mark them as ignored</forbidden.test.signatures>
             </properties>
             <build>
                 <!-- sign the artifacts with GPG -->
@@ -1285,6 +1289,18 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                     </plugin>
                 </plugins>
             </build>
+            <distributionManagement>
+                <repository>
+                    <id>aws-release</id>
+                    <name>AWS Release Repository</name>
+                    <url>s3://download.elasticsearch.org/elasticsearch/release</url>
+                </repository>
+                <snapshotRepository>
+                    <id>aws-snapshot</id>
+                    <name>AWS Snapshot Repository</name>
+                    <url>s3://download.elasticsearch.org/elasticsearch/snapshot</url>
+                </snapshotRepository>
+            </distributionManagement>
         </profile>
         <!-- license profile, to generate third party license file -->
         <profile>

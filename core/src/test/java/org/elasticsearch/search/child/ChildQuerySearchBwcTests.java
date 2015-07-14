@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.child;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -147,7 +146,6 @@ public class ChildQuerySearchBwcTests extends ChildQuerySearchTests {
     }
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/9270")
     public void testParentFieldDataCacheBug() throws Exception {
         assertAcked(prepareCreate("test")
                 .setSettings(Settings.builder().put(indexSettings())

@@ -335,6 +335,8 @@ generates an edit distance based on the length of the term. For lengths:
 
 `0.0..1.0`::
 
+:deprecated[1.7.0, Support for similarity will be removed in Elasticsearch 2.0]
+
 converted into an edit distance using the formula: `length(term) * (1.0 -
 fuzziness)`, eg a `fuzziness` of `0.6` with a term of length 10 would result
 in an edit distance of `4`. Note: in all APIs except for the

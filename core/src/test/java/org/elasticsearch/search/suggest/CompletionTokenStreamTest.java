@@ -31,8 +31,8 @@ import org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.IntsRef;
-import org.elasticsearch.search.suggest.completion.CompletionTokenStream;
-import org.elasticsearch.search.suggest.completion.CompletionTokenStream.ByteTermAttribute;
+import org.elasticsearch.search.suggest.completion.old.CompletionTokenStream;
+import org.elasticsearch.search.suggest.completion.old.CompletionTokenStream.ByteTermAttribute;
 import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
 import org.junit.Test;
 

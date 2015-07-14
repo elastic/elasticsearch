@@ -48,12 +48,10 @@ import org.elasticsearch.index.shard.MergePolicyConfig;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -758,8 +756,8 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
         assertThat(stats.getTotal().completion.getFields(), is(nullValue()));
 
         // load FST in memory by searching
-        client().prepareSuggest().addSuggestion(SuggestBuilders.completionV2Suggestion("suggest").field("bar.completion").prefix("ba")).get();
-        client().prepareSuggest().addSuggestion(SuggestBuilders.completionV2Suggestion("suggest").field("baz.completion").prefix("ba")).get();
+        client().prepareSuggest().addSuggestion(SuggestBuilders.completionSuggestion("suggest").field("bar.completion").prefix("ba")).get();
+        client().prepareSuggest().addSuggestion(SuggestBuilders.completionSuggestion("suggest").field("baz.completion").prefix("ba")).get();
 
         builder = client().admin().indices().prepareStats();
         stats = builder.execute().actionGet();

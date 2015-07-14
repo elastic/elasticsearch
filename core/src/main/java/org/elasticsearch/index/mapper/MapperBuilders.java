@@ -23,7 +23,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.core.*;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
-import org.elasticsearch.index.mapper.internal.*;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
@@ -104,11 +103,11 @@ public final class MapperBuilders {
         return new GeoShapeFieldMapper.Builder(name);
     }
 
-    public static CompletionFieldMapper.Builder completionField(String name) {
-        return new CompletionFieldMapper.Builder(name);
+    public static OldCompletionFieldMapper.Builder oldCompletionField(String name) {
+        return new OldCompletionFieldMapper.Builder(name);
     }
 
-    public static CompletionV2FieldMapper.Builder completionV2Field(String name) {
-        return new CompletionV2FieldMapper.Builder(name);
+    public static CompletionFieldMapper.Builder completionField(String name) {
+        return new CompletionFieldMapper.Builder(name);
     }
 }

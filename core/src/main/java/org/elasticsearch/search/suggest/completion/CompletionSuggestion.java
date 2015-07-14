@@ -18,23 +18,34 @@
  */
 package org.elasticsearch.search.suggest.completion;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
-import java.util.Map;
+import java.util.*;
 
 /**
+ * Suggestion response for {@link CompletionSuggester} results
+ *
+ * Response format for each entry:
+ * {
+ *     "text" : STRING
+ *     "score" : FLOAT
+ *     "contexts" : CONTEXTS
+ * }
+ *
+ * CONTEXTS : {
+ *     "CONTEXT_NAME" : ARRAY,
+ *     ..
+ * }
  *
  */
 public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestion.Entry> {
 
-    public static final int TYPE = 2;
+    public static final int TYPE = 4;
 
     public CompletionSuggestion() {
     }
@@ -53,7 +64,7 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
         return new Entry();
     }
 
-    public static class Entry extends org.elasticsearch.search.suggest.Suggest.Suggestion.Entry<CompletionSuggestion.Entry.Option> {
+    public static class Entry extends Suggest.Suggestion.Entry<CompletionSuggestion.Entry.Option> {
 
         public Entry(Text text, int offset, int length) {
             super(text, offset, length);
@@ -68,41 +79,50 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
             return new Option();
         }
 
-        public static class Option extends org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option {
-            private BytesReference payload;
+        public static class Option extends Suggest.Suggestion.Entry.Option {
+            private Map<String, Set<CharSequence>> contexts = new LinkedHashMap<>(0);
+            private int docID;
 
-            public Option(Text text, float score, BytesReference payload) {
+            public Option(int docID, Text text, float score, Map<String, CharSequence> contextMap) {
                 super(text, score);
-                this.payload = payload;
+                this.docID = docID;
+                addContextMap(contextMap);
             }
-
 
             protected Option() {
                 super();
             }
 
-            public void setPayload(BytesReference payload) {
-                this.payload = payload;
+            @Override
+            protected void mergeInto(Suggest.Suggestion.Entry.Option otherOption) {
+                super.mergeInto(otherOption);
+                this.contexts.putAll(((Option) otherOption).contexts);
             }
 
-            public BytesReference getPayload() {
-                return payload;
+            public void addContextMap(Map<String, CharSequence> contextMap) {
+                if (contextMap != null) {
+                    for (Map.Entry<String, CharSequence> entry : contextMap.entrySet()) {
+                        Set<CharSequence> namedContext = contexts.get(entry.getKey());
+                        if (namedContext == null) {
+                            namedContext = new HashSet<>();
+                        }
+                        CharSequence value = entry.getValue();
+                        if (value != null) {
+                            namedContext.add(value);
+                        }
+                        if (namedContext.size() > 0) {
+                            contexts.put(entry.getKey(), namedContext);
+                        }
+                    }
+                }
             }
 
-            public String getPayloadAsString() {
-                return payload.toUtf8();
+            int getDocID() {
+                return docID;
             }
 
-            public long getPayloadAsLong() {
-                return Long.parseLong(payload.toUtf8());
-            }
-
-            public double getPayloadAsDouble() {
-                return Double.parseDouble(payload.toUtf8());
-            }
-
-            public Map<String, Object> getPayloadAsMap() {
-                return XContentHelper.convertToMap(payload, false).v2();
+            public Map<String, Set<CharSequence>> getContexts() {
+                return contexts;
             }
 
             @Override
@@ -113,8 +133,16 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
             @Override
             protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
                 super.innerToXContent(builder, params);
-                if (payload != null && payload.length() > 0) {
-                    builder.rawField("payload", payload);
+                if (contexts.size() > 0) {
+                    builder.startObject("contexts");
+                    for (Map.Entry<String, Set<CharSequence>> entry : contexts.entrySet()) {
+                        builder.startArray(entry.getKey());
+                        for (CharSequence context : entry.getValue()) {
+                            builder.value(context.toString());
+                        }
+                        builder.endArray();
+                    }
+                    builder.endObject();
                 }
                 return builder;
             }
@@ -122,13 +150,31 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
             @Override
             public void readFrom(StreamInput in) throws IOException {
                 super.readFrom(in);
-                payload = in.readBytesReference();
+                docID = in.readInt();
+                int size = in.readInt();
+                for (int i = 0; i < size; i++) {
+                    String contextName = in.readString();
+                    int nContexts = in.readVInt();
+                    Set<CharSequence> contexts = new HashSet<>(nContexts);
+                    for (int j = 0; j < nContexts; j++) {
+                        contexts.add(in.readString());
+                    }
+                    this.contexts.put(contextName, contexts);
+                }
             }
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 super.writeTo(out);
-                out.writeBytesReference(payload);
+                out.writeInt(docID);
+                out.writeInt(contexts.size());
+                for (Map.Entry<String, Set<CharSequence>> entry : contexts.entrySet()) {
+                    out.writeString(entry.getKey());
+                    out.writeVInt(entry.getValue().size());
+                    for (CharSequence ctx : entry.getValue()) {
+                        out.writeString(ctx.toString());
+                    }
+                }
             }
         }
     }

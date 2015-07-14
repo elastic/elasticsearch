@@ -417,6 +417,9 @@ script.indexed: on
 Deprecated script parameters `id`, `file`, `scriptField`, `script_id`, `script_file`, 
 `script`, `lang` and `params`. The <<modules-scripting,new script API syntax>> should be used in their place.
 
+The deprecated script parameters have been removed from the Java API so applications using the Java API will 
+need to be updated.
+
 === Groovy scripts sandbox
 
 The groovy sandbox and related settings have been removed. Groovy is now a non

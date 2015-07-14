@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.AbstractSnapshotTests;
 import org.elasticsearch.snapshots.RestoreInfo;
@@ -39,6 +40,7 @@ import org.junit.Test;
 import java.io.IOException;
 import java.lang.reflect.Modifier;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -55,6 +57,20 @@ import static org.hamcrest.Matchers.*;
 @Slow
 @ClusterScope(scope = Scope.TEST)
 public class RestoreBackwardsCompatTests extends AbstractSnapshotTests {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        try {
+            URI repoDirUri = getClass().getResource(".").toURI();
+            URI repoJarPatternUri = new URI("jar:" + repoDirUri.toString() + "*.zip!/repo/");
+            return ImmutableSettings.settingsBuilder()
+                    .put(super.nodeSettings(nodeOrdinal))
+                    .putArray("repositories.url.allowed_urls", repoJarPatternUri.toString())
+                    .build();
+        } catch (URISyntaxException ex) {
+            throw new IllegalArgumentException(ex);
+        }
+    }
 
 
     @Test

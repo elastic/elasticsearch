@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.snapshots;
 
-import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
@@ -38,6 +37,7 @@ import org.junit.Test;
 
 import java.io.File;
 
+import static org.apache.lucene.util.LuceneTestCase.createTempDir;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.containsString;
@@ -132,6 +132,40 @@ public class RepositoriesTests extends AbstractSnapshotTests {
             fail("Shouldn't be here");
         } catch (RepositoryException ex) {
             // Expected
+        }
+
+        logger.info("--> trying creating fs repository with location that is not registered in path.repo setting");
+        File invalidRepoPath = newTempDir().getAbsoluteFile();
+        String location = invalidRepoPath.toString();
+        try {
+            client().admin().cluster().preparePutRepository("test-repo")
+                    .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", location))
+                    .get();
+            fail("Shouldn't be here. Location=" + location);
+        } catch (RepositoryException ex) {
+            assertThat(ex.getDetailedMessage(), containsString("location [" + location + "] doesn't match any of the locations specified by path.repo"));
+        }
+
+        String repoUrl = invalidRepoPath.toURI().toURL().toString();
+        String unsupportedUrl = repoUrl.replace("file:/", "netdoc:/");
+        logger.info("--> trying creating url repository with unsupported url protocol");
+        try {
+            client().admin().cluster().preparePutRepository("test-repo")
+                    .setType("url").setSettings(ImmutableSettings.settingsBuilder().put("url", unsupportedUrl))
+                    .get();
+            fail("Shouldn't be here");
+        } catch (RepositoryException ex) {
+            assertThat(ex.getDetailedMessage(), containsString("unsupported url protocol [netdoc]"));
+        }
+
+        logger.info("--> trying creating url repository with location that is not registered in path.repo setting");
+        try {
+            client().admin().cluster().preparePutRepository("test-repo")
+                    .setType("url").setSettings(ImmutableSettings.settingsBuilder().put("url", invalidRepoPath.toURI().toURL()))
+                    .get();
+            fail("Shouldn't be here");
+        } catch (RepositoryException ex) {
+            assertThat(ex.getDetailedMessage(), containsString("doesn't match any of the locations specified by path.repo"));
         }
     }
 

@@ -147,7 +147,6 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/9270")
     public void testRamAccountingTermsEnum() throws Exception {
         if (noopBreakerUsed()) {
             logger.info("--> noop breakers used, skipping test");
@@ -159,7 +158,7 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("ramtest").setSource("{\"mappings\": {\"type\": {\"properties\": {\"test\": " +
                 "{\"type\": \"string\",\"fielddata\": {\"filter\": {\"regex\": {\"pattern\": \"^value.*\"}}}}}}}}"));
 
-        ensureGreen(TimeValue.timeValueSeconds(10), "ramtest");
+        ensureGreen("ramtest");
 
         // index some different terms so we have some field data for loading
         int docCount = scaledRandomIntBetween(300, 1000);
@@ -167,7 +166,7 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
         for (long id = 0; id < docCount; id++) {
             reqs.add(client.prepareIndex("ramtest", "type", Long.toString(id)).setSource("test", "value" + id));
         }
-        indexRandom(true, reqs);
+        indexRandom(true, false, true, reqs);
 
         // execute a search that loads field data (sorting on the "test" field)
         client.prepareSearch("ramtest").setQuery(matchAllQuery()).addSort("test", SortOrder.DESC).get();

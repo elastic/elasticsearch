@@ -127,7 +127,7 @@
   </macrodef>
 
   <!-- unzip the elasticsearch zip -->
-  <target name="setup-workspace" depends="stop-external-cluster">
+  <target name="setup-workspace" depends="stop-external-cluster" unless="${shouldskip}">
     <sequential>
       <delete dir="${integ.scratch}"/>
       <unzip src="${integ.deps}/elasticsearch-${elasticsearch.version}.zip" dest="${integ.scratch}"/>

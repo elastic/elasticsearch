@@ -324,6 +324,15 @@ public class ContextMappings implements ToXContent {
      * <p>
      * To map back context values from a suggestion hit, the same
      * ordering is used. see {@link #buildContextValueMap(CharSequence[])}
+     *
+     * TODO: another approach would be associating a type with
+     * contexts, that way we could index a context-enabled
+     * suggestion as
+     * <p>
+     *     CONTEXT_VALUE | CONTEXT_SEPARATOR | SUGGESTION_VALUE
+     * <p>
+     * keeping one context per suggestion
+     *
      */
     private class ContextField extends ContextSuggestField {
 

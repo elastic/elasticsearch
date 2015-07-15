@@ -30,9 +30,7 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Set;
+import java.util.*;
 
 /**
  * A {@link ContextMapping} defines criteria types that can be used to
@@ -111,7 +109,7 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
      */
     public static class QueryContexts<T extends ToXContent> implements Iterable<T>, ToXContent {
         private String name;
-        private Set<T> queryContexts;
+        private List<T> queryContexts;
 
         /**
          * Constructs a query contexts holder
@@ -121,7 +119,7 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
          */
         public QueryContexts(String name) {
             this.name = name;
-            this.queryContexts = new HashSet<>();
+            this.queryContexts = new ArrayList<>();
         }
 
         /**

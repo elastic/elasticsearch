@@ -7,10 +7,6 @@ package org.elasticsearch.watcher.history;
 
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -40,7 +36,6 @@ public class HistoryStore extends AbstractComponent {
     private static final ImmutableSet<String> forbiddenIndexSettings = ImmutableSet.of("index.mapper.dynamic");
 
     private final ClientProxy client;
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
     private final Lock putUpdateLock = readWriteLock.readLock();
@@ -48,34 +43,13 @@ public class HistoryStore extends AbstractComponent {
     private final AtomicBoolean started = new AtomicBoolean(false);
 
     @Inject
-    public HistoryStore(Settings settings, ClientProxy client, IndexNameExpressionResolver indexNameExpressionResolver) {
+    public HistoryStore(Settings settings, ClientProxy client) {
         super(settings);
         this.client = client;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     public void start() {
         started.set(true);
-    }
-
-    public boolean validate(ClusterState state) {
-        String[] indices = indexNameExpressionResolver.concreteIndices(state, IndicesOptions.lenientExpandOpen(), INDEX_PREFIX + "*");
-        if (indices.length == 0) {
-            logger.debug("no history indices exist, so we can load");
-            return true;
-        }
-
-        for (String index : indices) {
-            IndexMetaData indexMetaData = state.getMetaData().index(index);
-            if (indexMetaData != null) {
-                if (!state.routingTable().index(index).allPrimaryShardsActive()) {
-                    logger.debug("not all primary shards of the [{}] index are started, so we cannot load watcher records", index);
-                    return false;
-                }
-            }
-        }
-
-        return true;
     }
 
     public void stop() {

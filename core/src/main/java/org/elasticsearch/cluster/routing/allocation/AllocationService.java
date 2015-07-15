@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -86,7 +87,7 @@ public class AllocationService extends AbstractComponent {
     }
 
     public RoutingAllocation.Result applyFailedShard(ClusterState clusterState, ShardRouting failedShard) {
-        return applyFailedShards(clusterState, ImmutableList.of(new FailedRerouteAllocation.FailedShard(failedShard, null)));
+        return applyFailedShards(clusterState, ImmutableList.of(new FailedRerouteAllocation.FailedShard(failedShard, null, null)));
     }
 
     /**
@@ -101,7 +102,7 @@ public class AllocationService extends AbstractComponent {
         FailedRerouteAllocation allocation = new FailedRerouteAllocation(allocationDeciders, routingNodes, clusterState.nodes(), failedShards, clusterInfoService.getClusterInfo());
         boolean changed = false;
         for (FailedRerouteAllocation.FailedShard failedShard : failedShards) {
-            changed |= applyFailedShard(allocation, failedShard.shard, true, new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, failedShard.details));
+            changed |= applyFailedShard(allocation, failedShard.shard, true, new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, failedShard.message, failedShard.failure));
         }
         if (!changed) {
             return new RoutingAllocation.Result(false, clusterState.routingTable());

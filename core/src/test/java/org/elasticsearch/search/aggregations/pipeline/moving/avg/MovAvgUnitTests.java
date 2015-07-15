@@ -611,8 +611,6 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
         for (MovAvgModel.AbstractModelParser parser : parsers) {
             for (Object v : values) {
                 settings.put("alpha", v);
-                settings.put("beta", v);
-                settings.put("gamma", v);
 
                 try {
                     parser.parse(settings, "pipeline", 10, ParseFieldMatcher.STRICT);

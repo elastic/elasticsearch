@@ -180,10 +180,12 @@ public class HoltLinearModel extends MovAvgModel {
         }
 
         @Override
-        public MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName, int windowSize, ParseFieldMatcher parseFieldMatcher) throws ParseException {
+        public MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName, int windowSize,
+                                 ParseFieldMatcher parseFieldMatcher) throws ParseException {
 
             double alpha = parseDoubleParam(settings, "alpha", 0.3);
             double beta = parseDoubleParam(settings, "beta", 0.1);
+            checkUnrecognizedParams(settings);
             return new HoltLinearModel(alpha, beta);
         }
     }

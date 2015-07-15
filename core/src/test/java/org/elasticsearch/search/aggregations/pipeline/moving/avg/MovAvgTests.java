@@ -25,7 +25,6 @@ import com.google.common.collect.EvictingQueue;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.Bucket;
@@ -1265,6 +1264,42 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                 fail("Model [" + builder.toString() + "] can be minimized, but an exception was thrown");
             }
         }
+    }
+
+    @Test
+    public void testUnrecognizedParams() {
+
+        MovAvgModelBuilder[] builders = new MovAvgModelBuilder[]{
+                new SimpleModel.SimpleModelBuilder(),
+                new LinearModel.LinearModelBuilder(),
+                new EwmaModel.EWMAModelBuilder(),
+                new HoltLinearModel.HoltLinearModelBuilder(),
+                new HoltWintersModel.HoltWintersModelBuilder()
+        };
+        Map<String, Object> badSettings = new HashMap<>(1);
+        badSettings.put("abc", 1.2);
+
+        for (MovAvgModelBuilder builder : builders) {
+            try {
+                SearchResponse response = client()
+                        .prepareSearch("idx").setTypes("type")
+                        .addAggregation(
+                                histogram("histo").field(INTERVAL_FIELD).interval(interval)
+                                        .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
+                                        .subAggregation(metric)
+                                        .subAggregation(movingAvg("movavg_counts")
+                                                .window(10)
+                                                .modelBuilder(builder)
+                                                .gapPolicy(gapPolicy)
+                                                .settings(badSettings)
+                                                .setBucketsPaths("_count"))
+                        ).execute().actionGet();
+            } catch (SearchPhaseExecutionException e) {
+                // All good
+            }
+        }
+
+
 
 
     }

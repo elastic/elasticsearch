@@ -38,12 +38,12 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.highlight.HighlightField;
+import org.elasticsearch.search.internal.InternalSearchHits.StreamContext.ShardTargetType;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -556,7 +556,7 @@ public class InternalSearchHit implements SearchHit {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        readFrom(in, InternalSearchHits.streamContext().streamShardTarget(InternalSearchHits.StreamContext.ShardTargetType.STREAM));
+        readFrom(in, InternalSearchHits.streamContext().streamShardTarget(ShardTargetType.STREAM));
     }
 
     public void readFrom(StreamInput in, InternalSearchHits.StreamContext context) throws IOException {
@@ -678,11 +678,11 @@ public class InternalSearchHit implements SearchHit {
             }
         }
 
-        if (context.streamShardTarget() == InternalSearchHits.StreamContext.ShardTargetType.STREAM) {
+        if (context.streamShardTarget() == ShardTargetType.STREAM) {
             if (in.readBoolean()) {
                 shard = readSearchShardTarget(in);
             }
-        } else if (context.streamShardTarget() == InternalSearchHits.StreamContext.ShardTargetType.LOOKUP) {
+        } else if (context.streamShardTarget() == ShardTargetType.LOOKUP) {
             int lookupId = in.readVInt();
             if (lookupId > 0) {
                 shard = context.handleShardLookup().get(lookupId);
@@ -694,7 +694,9 @@ public class InternalSearchHit implements SearchHit {
             innerHits = new HashMap<>(size);
             for (int i = 0; i < size; i++) {
                 String key = in.readString();
-                InternalSearchHits value = InternalSearchHits.readSearchHits(in, InternalSearchHits.streamContext().streamShardTarget(InternalSearchHits.StreamContext.ShardTargetType.NO_STREAM));
+                ShardTargetType shardTarget = InternalSearchHits.streamContext().streamShardTarget();
+                InternalSearchHits value = InternalSearchHits.readSearchHits(in, InternalSearchHits.streamContext().streamShardTarget(ShardTargetType.NO_STREAM));
+                InternalSearchHits.streamContext().streamShardTarget(shardTarget);
                 innerHits.put(key, value);
             }
         }
@@ -702,7 +704,7 @@ public class InternalSearchHit implements SearchHit {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        writeTo(out, InternalSearchHits.streamContext().streamShardTarget(InternalSearchHits.StreamContext.ShardTargetType.STREAM));
+        writeTo(out, InternalSearchHits.streamContext().streamShardTarget(ShardTargetType.STREAM));
     }
 
     public void writeTo(StreamOutput out, InternalSearchHits.StreamContext context) throws IOException {
@@ -787,14 +789,14 @@ public class InternalSearchHit implements SearchHit {
             }
         }
 
-        if (context.streamShardTarget() == InternalSearchHits.StreamContext.ShardTargetType.STREAM) {
+        if (context.streamShardTarget() == ShardTargetType.STREAM) {
             if (shard == null) {
                 out.writeBoolean(false);
             } else {
                 out.writeBoolean(true);
                 shard.writeTo(out);
             }
-        } else if (context.streamShardTarget() == InternalSearchHits.StreamContext.ShardTargetType.LOOKUP) {
+        } else if (context.streamShardTarget() == ShardTargetType.LOOKUP) {
             if (shard == null) {
                 out.writeVInt(0);
             } else {
@@ -808,7 +810,9 @@ public class InternalSearchHit implements SearchHit {
             out.writeVInt(innerHits.size());
             for (Map.Entry<String, InternalSearchHits> entry : innerHits.entrySet()) {
                 out.writeString(entry.getKey());
-                entry.getValue().writeTo(out, InternalSearchHits.streamContext().streamShardTarget(InternalSearchHits.StreamContext.ShardTargetType.NO_STREAM));
+                ShardTargetType shardTarget = InternalSearchHits.streamContext().streamShardTarget();
+                entry.getValue().writeTo(out, InternalSearchHits.streamContext().streamShardTarget(ShardTargetType.NO_STREAM));
+                InternalSearchHits.streamContext().streamShardTarget(shardTarget);
             }
         }
     }

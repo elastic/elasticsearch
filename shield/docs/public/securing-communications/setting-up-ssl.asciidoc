@@ -1,0 +1,324 @@
+[[ssl-tls]]
+=== Setting Up SSL/TLS on a Cluster
+
+Shield allows for the installation of X.509 certificates that establish trust between nodes. When a client connects to a
+node using SSL or TLS, the node will present its certificate to the client, and then as part of the handshake process the
+node will prove that it owns the private key linked with the certificate. The client will then determine if the node's
+certificate is valid, trusted, and matches the hostname or IP address it is trying to connect to. A node also acts as a
+client when connecting to other nodes in the cluster, which means that every node must trust all of the other nodes in
+the cluster.
+
+The certificates used for SSL and TLS can be signed by a certificate authority (CA) or self-signed. The type of signing
+affects how a client will trust these certificates. Self-signed certificates must be trusted individually, which means
+that each node must have every other node's certificate installed. Certificates signed by a CA, can be trusted through
+validation that the CA signed the certificate. This means that every node will only need the signing CA certificate
+installed to trust the other nodes in the cluster.
+
+The best practice with Shield is to use certificates signed by a CA. Self-signed certificates introduce a lot of
+overhead as they require each client to trust every self-signed certificate. Self-signed certificates also limit
+the elasticity of Elasticsearch as adding a new node to the cluster requires a restart of every node after
+installing the new node's certificate. This overhead is not present when using a CA as a new node only needs a
+certificate signed by the CA to establish trust with the other nodes in the cluster.
+
+Many organizations have a CA to sign certificates for each nodes. If not, see
+<<certificate-authority, Setting Up a Certificate Authority>> for instructions on setting up a CA.
+
+The following steps will need to be repeated on each node to setup SSL/TLS:
+
+* Install the CA certificate in the node's keystore
+* Generate a private key and certificate for the node
+* Create a signing request for the new node certificate
+* Send the signing request to the CA
+* Install the newly signed certificate in the node keystore
+
+The steps in this procedure use the <<keytool,`keytool`>> command-line utility.
+
+WARNING: Nodes that do not have SSL/TLS encryption enabled send passwords in plain text.
+
+[float]
+==== Set up a keystore
+
+These instructions show how to place a CA certificate and a certificate for the node in a single keystore.
+You can optionally store the CA certificate in a separate truststore.  The configuration for this is 
+discussed later in this section.
+
+First obtain the root CA certificate from your certificate authority. This certificate is used to verify that
+any node certificate has been signed by the CA. Store this certificate in a keystore as a *trusted certificate*. With
+the simplest configuration, Shield uses a keystore with a trusted certificate as a truststore.
+
+The following shows how to create a keystore from a PEM encoded certificate. A _JKS file_ is a Java Key Store file.
+It securely stores certificates.
+
+[source,shell]
+--------------------------------------------------
+keytool -importcert                           \
+        -keystore /home/es/config/node01.jks  \
+        -file     /Users/Download/cacert.pem  <1>
+--------------------------------------------------
+<1> The Certificate Authority's own certificate.
+
+The keytool command will prompt you for a password, which will be used to protect the integrity of the keystore. You
+will need to remember this password as it will be needed for all further interactions with the keystore.
+
+The keystore needs an update when the CA expires.
+
+[float]
+[[private-key]]
+==== Generate a node private key and certificate
+
+This step creates a private key and certificate that the node will use to identify itself. This step must
+be done for every node.
+
+`keytool -genkey` can generate a private key and certificate for your node. The following is a typical usage:
+
+[source,shell]
+--------------------------------------------------
+keytool -genkey                  \
+        -alias     node01        \ <1>
+        -keystore  node01.jks    \ <2>
+        -keyalg    RSA           \
+        -keysize   2048          \
+        -validity  712           \
+        -ext san=dns:node01.example.com,ip:192.168.1.1 <3>
+--------------------------------------------------
+<1> An alias for this public/private key-pair.
+<2> The keystore for this node -- will be created.
+<3> The `SubjectAlternativeName` list for this host. The '-ext' parameter is optional and can be used to specify
+additional DNS names and IP Addresses that the certificate will be valid for. Multiple DNS and IP entries can
+be specified by separating each entry with a comma. If this option is used, *all* names and ip addresses must
+be specified in this list.
+
+This will create an RSA public/private key-pair with a key size of 2048 bits and store them in the `node01.jks` file.
+The keystore is protected with the password of `myPass`. The `712` argument specifies the number of days that the 
+certificate is valid for -- two years, in this example.
+
+The tool will prompt you for information to include in the certificate.
+
+[IMPORTANT]
+.Specifying the Node Identity
+==========================
+An Elasticsearch node with Shield will verify the hostname contained
+in the certificate of each node it connects to. Therefore it is important
+that each node's certificate contains the hostname or IP address used to connect
+to the node. Hostname verification can be disabled, for more information see
+the <<ref-ssl-tls-settings, Configuration Parameters for TLS/SSL>> section.
+
+The recommended way to specify the node identity is by providing all names and
+IP addresses of a node as a `SubjectAlternativeName` list using the the `-ext` option.
+When using a commercial CA, internal DNS names and private IP addresses will not
+be accepted as a `SubjectAlternativeName` due to https://cabforum.org/internal-names/[security concerns];
+only publicly resolvable DNS names and IP addresses will be accepted. The use of an
+internal CA is the most secure option for using private DNS names and IP addresses,
+as it allows for node identity to be specified and verified. If you must use a commercial
+CA and private DNS names or IP addresses, you will not be able to include the node
+identity in the certificate and will need to disable <<ref-ssl-tls-settings, hostname verification>>.
+
+Another way to specify node identity is by using the `CommonName` attribute
+of the certificate. The first prompt from keytool, `What is your first and last name?`,
+is asking for the `CommonName` attribute of certificate. When using the `CommonName` attribute
+for node identity, a DNS name must be used. The rest of the prompts by keytool are for information only.
+==========================
+
+At the end, you will be prompted to optionally enter a password. The command line argument specifies the password for 
+the keystore. This prompt is asking if you want to set a different password that is specific to this certificate. 
+Doing so may provide some incremental improvement to security.
+
+Here is a sample interaction with `keytool -genkey`
+[source, shell]
+--------------------------------------------------
+What is your first and last name?
+  [Unknown]:  node01.example.com <1>
+What is the name of your organizational unit?
+  [Unknown]:  test
+What is the name of your organization?
+  [Unknown]:  Elasticsearch
+What is the name of your City or Locality?
+  [Unknown]:  Amsterdam
+What is the name of your State or Province?
+  [Unknown]:  Amsterdam
+What is the two-letter country code for this unit?
+  [Unknown]:  NL
+Is CN=node01.example.com, OU=test, O=elasticsearch, L=Amsterdam, ST=Amsterdam, C=NL correct?
+  [no]:  yes
+
+Enter key password for <mydomain>
+    (RETURN if same as keystore password):
+--------------------------------------------------
+<1> The DNS name or hostname of the node must be used here if you do not specify a `SubjectAlternativeName` list using the
+`-ext` option.
+
+Now you have a certificate and private key stored in `node01.jks`.
+
+[float]
+[[generate-csr]]
+==== Create a certificate signing request
+
+The next step is to get the node certificate signed by your CA. To do this you must generate a _Certificate Signing 
+Request_ (CSR) with the `keytool -certreq` command:
+
+[source, shell]
+--------------------------------------------------
+keytool -certreq                   \
+        -alias      node01         \ <1>
+        -keystore   node01.jks     \
+        -file       node01.csr     \
+        -keyalg     rsa            \
+        -ext san=dns:node01.example.com,ip:192.168.1.1 <2>
+--------------------------------------------------
+
+<1> The same `alias` that you specified when creating the public/private key-pair in <<private-key>>.
+<2> The `SubjectAlternativeName` list for this host. The `-ext` parameter is optional and can be used to specify
+additional DNS names and IP Addresses that the certificate will be valid for. Multiple DNS and IP entries can
+be specified by separating each entry with a comma. If this option is used, *all* names and ip addresses must
+be specified in this list.
+
+The resulting file -- `node01.csr` -- is your _Certificate Signing Request_, or _CSR file_.
+
+[float]
+===== Send the signing request
+
+Send the CSR file to the Certificate Authority for signing. The Certificate Authority will sign the certificate and
+return a signed version of the certificate. See <<sign-csr>> if you are running your own Certificate Authority.
+
+NOTE: When running multiple nodes on the same host, the same signed certificate can be used on each node or a unique
+certificate can be requested per node if your CA supports multiple certificates with the same common name.
+
+[float]
+==== Install the newly signed certificate
+
+Replace the existing unsigned certificate by importing the new signed certificate from your CA into the node keystore:
+
+[source, shell]
+--------------------------------------------------
+keytool -importcert                       \
+        -keystore   node01.jks            \
+        -file       node01-signed.crt     \ <1>
+        -alias      node01                  <2>
+--------------------------------------------------
+
+<1> This name of the signed certificate file that you received from the CA.
+<2> The `alias` must be the same as the alias that you used in <<private-key>>.
+
+NOTE: keytool confuses some PEM-encoded certificates with extra text headers as DER-encoded certificates, giving
+this error: `java.security.cert.CertificateParsingException: invalid DER-encoded certificate data`. The text information
+can be deleted from the certificate. The following openssl command will remove the text headers:
+[source, shell]
+--------------------------------------------------
+openssl x509 -in node01-signed.crt -out node01-signed-noheaders.crt
+--------------------------------------------------
+
+[float]
+==== Configure the keystores and enable SSL
+
+NOTE:   All ssl related node settings that are considered to be highly sensitive and therefore are not exposed via the
+        {ref}/cluster-nodes-info.html#cluster-nodes-info[nodes info API].
+
+
+You need to configure the node to enable SSL, identify itself using
+its signed certificate, and verify the identify of incoming connections.
+The settings below should be added to the main `elasticsearch.yml` config file.
+
+[float]
+===== Node identity
+
+The `node01.jks` contains the certificate that `node01` will use to identify
+itself to other nodes in the cluster, to transport clients, and to HTTPS
+clients. Add the following to `elasticsearch.yml`:
+
+[source, yaml]
+--------------------------------------------------
+shield.ssl.keystore.path:          /home/es/config/node01.jks <1>
+shield.ssl.keystore.password:      myPass <2>
+--------------------------------------------------
+<1> The full path to the node keystore file.
+<2> The password used to decrypt the `node01.jks` keystore.
+
+If you specified a different password than the keystore password when executing the `keytool -genkey` command, you will
+need to specify that password in the `elasticsearch.yml` configuration file:
+
+[source, yaml]
+--------------------------------------------------
+shield.ssl.keystore.key_password:  myKeyPass <1>
+--------------------------------------------------
+<1> The password entered at the end of the `keytool -genkey` command
+
+[float]
+[[create-truststore]]
+===== Optional truststore configuration
+The truststore holds the trusted CA certificates.  Shield will use the keystore as the truststore 
+by default.  You can optionally provide a separate path for the truststore.  In this case, Shield
+will use the keystore for the node's private key and the configured truststore for trusted certificates.
+
+First obtain the CA certificates that will be trusted. Each of these certificates need to be imported into a truststore
+by running the following command for each CA certificate:
+
+[source,shell]
+--------------------------------------------------
+keytool -importcert                              \
+        -keystore /home/es/config/truststore.jks \ <1>
+        -file     /Users/Download/cacert.pem  <2>
+--------------------------------------------------
+<1> The full path to the truststore file. If the file does not exist it will be created.
+<2> A trusted CA certificate.
+
+The keytool command will prompt you for a password, which will be used to protect the integrity of the truststore. You
+will need to remember this password as it will be needed for all further interactions with the truststore.
+
+Add the following to `elasticsearch.yml`:
+
+[source, yaml]
+--------------------------------------------------
+shield.ssl.truststore.path:          /home/es/config/truststore.jks <1>
+shield.ssl.truststore.password:      myPass <2>
+--------------------------------------------------
+<1> The full path to the truststore file.
+<2> The password used to decrypt the `truststore.jks` keystore.
+
+[float]
+[[ssl-transport]]
+==== Enable SSL on the transport layer
+
+Enable SSL on the transport networking layer to ensure that communication between nodes is encrypted. Add the following 
+value to the `elasticsearch.yml` configuration file:
+
+[source, yaml]
+--------------------------------------------------
+shield.transport.ssl: true
+--------------------------------------------------
+
+Regardless of this setting, transport clients can only connect to the cluster with a valid username and password.
+
+[float]
+[[disable-multicast]]
+==== Disable multicast
+
+Multicast {ref}/modules-discovery.html[discovery] is
+not supported with shield. To properly secure node communications, disable multicast by setting the following values 
+in the `elasticsearch.yml` configuration file:
+
+[source, yaml]
+--------------------------------------------------
+discovery.zen.ping.multicast.enabled: false
+discovery.zen.ping.unicast.hosts: ["node01:9300", "node02:9301"]
+--------------------------------------------------
+
+You can learn more about unicast configuration in the {ref}/modules-discovery.html[Zen Discovery] documentation.
+
+[float]
+[[ssl-http]]
+==== Enable SSL on the HTTP layer
+
+SSL should be enabled on the HTTP networking layer to ensure that communication between HTTP clients and the cluster is 
+encrypted:
+
+[source, yaml]
+--------------------------------------------------
+shield.http.ssl: true
+--------------------------------------------------
+
+Regardless of this setting, HTTP clients can only connect to the cluster with a valid username and password.
+
+Congratulations! At this point, you have a node with encryption enabled for both HTTPS and the transport layers.
+Your node will correctly present its certificate to other nodes or clients when connecting. There are optional,
+more advanced features you may use to further configure or protect your node.  They are described in the following 
+paragraphs.

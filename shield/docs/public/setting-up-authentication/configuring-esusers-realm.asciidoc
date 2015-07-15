@@ -1,0 +1,41 @@
+[[esusers]]
+=== Configuring an esusers Realm
+
+The _esusers_ realm is the default Shield realm. The _esusers_ realm enables the registration of users, passwords for 
+those users, and associates those users with roles. The `esusers` command-line tool assists with the registration and 
+administration of users.
+
+==== `esusers` Realm Settings
+
+Like all other realms, the `esusers` realm is configured under the `shield.authc.realms` settings namespace in the
+`elasticsearch.yml` file. The following snippet shows an example of such configuration:
+
+.Example `esusers` Realm Configuration
+[source, yaml]
+------------------------------------------------------------
+shield:
+  authc:
+    realms:
+      default:
+        type: esusers
+        order: 0
+------------------------------------------------------------
+
+[[esusers-settings]]
+
+.`esusers` Realm Settings
+|=======================
+| Setting                        | Required  | Description
+| `type`                         | yes       | Indicates the realm type and must be set to `esusers`.
+| `order`                        | no        | Indicates the priority of this realm within the realm chain. Realms with lower order will be consulted first. Although not required, it is highly recommended to explicitly set this value when multiple realms are configured. Defaults to `Integer.MAX_VALUE`.
+| `enabled`                      | no        | Indicates whether this realm is enabled/disabled. Provides an easy way to disable realms in the chain without removing their configuration. Defaults to `true`.
+| `files.users`                  | no        | Points to the location of the `users` file where the users and their passwords are stored. By default, it is `ES_HOME/config/shield/users`.
+| `files.users_roles`            | no        | Points to the location of the `users_roles` file where the users and their roles are stored. By default, it is `ES_HOME/config/shield/users_roles`.
+| `cache.ttl`                    | no        | Specified the time-to-live for cached user entries (a user and its credentials will be cached for this configured period of time). Defaults to `20m` (use the standard Elasticsearch {ref}/common-options.html#time-units[time units]).
+| `cache.max_users`              | no        | Specified the maximum number of user entries that can live in the cache at a given time. Defaults to 100,000.
+| `cache.hash_algo`              | no        | (Expert Setting) Specifies the hashing algorithm that will be used for the in-memory cached user credentials (see <<esusers-cache-hash-algo,here>> for possible values).
+|=======================
+
+NOTE: When no realms are explicitly configured in `elasticsearch.yml`, a default realm chain will be created that holds
+      a single `esusers` realm. If you wish to only work with `esusers` realm and you're satisfied with the default
+      files paths, there is no real need to add the above configuration.

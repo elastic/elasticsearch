@@ -1113,7 +1113,7 @@
             <!-- not including license-maven-plugin is sufficent to expose default license -->
         </profile>
         <profile>
-            <id>package-rpm</id>
+            <id>release</id> <!-- named after the parents release profile to be activated -->
             <activation>
                 <property>
                     <name>package.rpm</name>

@@ -606,7 +606,7 @@
                                     </report-text>
                                 <report-execution-times historyLength="20" file="${basedir}/${execution.hint.file}"/>
                                 </listeners>
-                                <assertions>
+                                <assertions enableSystemAssertions="true">
                                     <enable/>
                                     <disable package="${tests.assertion.disabled}"/>
                                     <!-- pass org.elasticsearch to run without assertions -->

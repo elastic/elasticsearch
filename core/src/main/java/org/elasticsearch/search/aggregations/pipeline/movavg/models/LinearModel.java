@@ -107,7 +107,9 @@ public class LinearModel extends MovAvgModel {
         }
 
         @Override
-        public MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName, int windowSize, ParseFieldMatcher parseFieldMatcher) throws ParseException {
+        public MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName, int windowSize,
+                                 ParseFieldMatcher parseFieldMatcher) throws ParseException {
+            checkUnrecognizedParams(settings);
             return new LinearModel();
         }
     }

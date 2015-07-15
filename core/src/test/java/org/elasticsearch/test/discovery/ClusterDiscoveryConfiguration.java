@@ -142,11 +142,11 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
             int[] unicastHostPorts = new int[numHosts];
 
             final int basePort = calcBasePort();
-            final int maxPort = basePort + 1000;
+            final int maxPort = basePort + InternalTestCluster.PORTS_PER_JVM;
             int tries = 0;
             for (int i = 0; i < unicastHostPorts.length; i++) {
                 boolean foundPortInRange = false;
-                while (tries < 1000 && !foundPortInRange) {
+                while (tries < InternalTestCluster.PORTS_PER_JVM && !foundPortInRange) {
                     try (ServerSocket serverSocket = new ServerSocket()) {
                         // Set SO_REUSEADDR as we may bind here and not be able to reuse the address immediately without it.
                         serverSocket.setReuseAddress(NetworkUtils.defaultReuseAddress());

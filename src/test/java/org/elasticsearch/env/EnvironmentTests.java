@@ -25,8 +25,10 @@ import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URL;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
 
@@ -56,6 +58,20 @@ public class EnvironmentTests extends ElasticsearchTestCase {
         assertThat(environment.resolveRepoFile("/test/repos/../repo1"), nullValue());
         assertThat(environment.resolveRepoFile("/test/repos/../repos/repo1"), notNullValue());
         assertThat(environment.resolveRepoFile("/somethingeles/repos/repo1"), nullValue());
+
+
+        assertThat(environment.resolveRepoURL(new URL("file:///test/repos/repo1")), notNullValue());
+        assertThat(environment.resolveRepoURL(new URL("file:/test/repos/repo1")), notNullValue());
+        assertThat(environment.resolveRepoURL(new URL("file://test/repos/repo1")), nullValue());
+        assertThat(environment.resolveRepoURL(new URL("file:///test/repos/../repo1")), nullValue());
+        assertThat(environment.resolveRepoURL(new URL("http://localhost/test/")), nullValue());
+
+        assertThat(environment.resolveRepoURL(new URL("jar:file:///test/repos/repo1!/repo/")), notNullValue());
+        assertThat(environment.resolveRepoURL(new URL("jar:file:/test/repos/repo1!/repo/")), notNullValue());
+        assertThat(environment.resolveRepoURL(new URL("jar:file:///test/repos/repo1!/repo/")).toString(), endsWith("repo1!/repo/"));
+        assertThat(environment.resolveRepoURL(new URL("jar:file:///test/repos/../repo1!/repo/")), nullValue());
+        assertThat(environment.resolveRepoURL(new URL("jar:http://localhost/test/../repo1?blah!/repo/")), nullValue());
+
     }
 
     @Test

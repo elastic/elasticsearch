@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.simple;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -173,6 +174,7 @@ public class SimpleSearchTests extends ElasticsearchIntegrationTest {
     
     @Test
     public void localDependentDateTests() throws Exception {
+        assumeFalse("Locals are buggy on JDK9EA", Constants.JRE_IS_MINIMUM_JAVA9);
         assertAcked(prepareCreate("test")
                 .addMapping("type1",
                         jsonBuilder().startObject()

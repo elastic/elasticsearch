@@ -122,6 +122,19 @@ point to the root of the shared filesystem repository. The following settings ar
 [horizontal]
 `url`:: Location of the snapshots. Mandatory.
 
+URL Repository supports the following protocols: "http", "https", "ftp", "file" and "jar". URL repositories with `http:`,
+`https:`, and `ftp:` URLs has to be whitelisted by specifying allowed URLs in the `repositories.url.allowed_urls` setting.
+This setting supports wildcards in the place of host, path, query, and fragment. For example:
+
+[source,yaml]
+-----------------------------------
+repositories.url.allowed_urls: ["http://www.example.org/root/*", "https://*.mydomain.com/*?*#*"]
+-----------------------------------
+
+URL repositories with `file:` URLs can only point to locations registered in the `repo.path` setting similiar to
+shared file system repository.
+
+
 [float]
 ===== Common Repository Settings
 

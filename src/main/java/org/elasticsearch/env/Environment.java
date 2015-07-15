@@ -29,8 +29,11 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 
 import static org.elasticsearch.common.Strings.cleanPath;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
@@ -186,6 +189,52 @@ public class Environment {
     }
 
     /**
+     * Checks if the specified URL is pointing to the local file system and if it does, resolves the specified url
+     * against the list of configured repository roots
+     *
+     * If the specified url doesn't match any of the roots, returns null.
+     */
+    public URL resolveRepoURL(URL url) {
+        try {
+            if ("file".equalsIgnoreCase(url.getProtocol())) {
+                if (url.getHost() == null || "".equals(url.getHost())) {
+                    // only local file urls are supported
+                    File file = resolve(repoFiles, url.toURI());
+                    if (file == null) {
+                        // Couldn't resolve against known repo locations
+                        return null;
+                    }
+                    // Normalize URL
+                    return file.toURI().toURL();
+                }
+                return null;
+            } else if ("jar".equals(url.getProtocol())) {
+                String file = url.toURI().getSchemeSpecificPart();
+                int pos = file.indexOf("!/");
+                if (pos < 0) {
+                    return null;
+                }
+                String jarTail = file.substring(pos);
+                String filePath = file.substring(0, pos);
+                URL internalUrl = new URL(filePath);
+                URL normalizedUrl = resolveRepoURL(internalUrl);
+                if (normalizedUrl == null) {
+                    return null;
+                }
+                return new URL("jar", "", normalizedUrl.toExternalForm() + jarTail);
+            } else {
+                // It's not file or jar url and it didn't match the white list - reject
+                return null;
+            }
+        } catch (MalformedURLException ex) {
+            // cannot make sense of this file url
+            return null;
+        } catch (URISyntaxException ex) {
+            return null;
+        }
+    }
+
+    /**
      * The config location.
      */
     public File configFile() {
@@ -258,5 +307,13 @@ public class Environment {
         return null;
     }
 
+    /**
+     * Tries to resolve the given path against the list of available roots.
+     *
+     * If path starts with one of the listed roots, it returned back by this method, otherwise null is returned.
+     */
+    public static File resolve(File[] roots, URI uri) {
+        return resolve(roots, Paths.get(uri).normalize().toString());
+    }
 
 }

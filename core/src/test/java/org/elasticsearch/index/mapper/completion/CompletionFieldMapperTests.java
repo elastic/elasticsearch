@@ -72,15 +72,15 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
 
         NamedAnalyzer indexAnalyzer = completionFieldType.indexAnalyzer();
         assertThat(indexAnalyzer.name(), equalTo("simple"));
-        assertThat(indexAnalyzer.analyzer(), instanceOf(org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer.class));
-        org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer analyzer = (org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer) indexAnalyzer.analyzer();
+        assertThat(indexAnalyzer.analyzer(), instanceOf(CompletionAnalyzer.class));
+        CompletionAnalyzer analyzer = (CompletionAnalyzer) indexAnalyzer.analyzer();
         assertThat(analyzer.preservePositionIncrements(), equalTo(true));
         assertThat(analyzer.preserveSep(), equalTo(true));
 
         NamedAnalyzer searchAnalyzer = completionFieldType.searchAnalyzer();
         assertThat(searchAnalyzer.name(), equalTo("simple"));
-        assertThat(searchAnalyzer.analyzer(), instanceOf(org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer.class));
-        analyzer = (org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer) searchAnalyzer.analyzer();
+        assertThat(searchAnalyzer.analyzer(), instanceOf(CompletionAnalyzer.class));
+        analyzer = (CompletionAnalyzer) searchAnalyzer.analyzer();
         assertThat(analyzer.preservePositionIncrements(), equalTo(true));
         assertThat(analyzer.preserveSep(), equalTo(true));
     }
@@ -106,22 +106,22 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
 
         NamedAnalyzer indexAnalyzer = completionFieldType.indexAnalyzer();
         assertThat(indexAnalyzer.name(), equalTo("simple"));
-        assertThat(indexAnalyzer.analyzer(), instanceOf(org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer.class));
-        org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer analyzer = (org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer) indexAnalyzer.analyzer();
+        assertThat(indexAnalyzer.analyzer(), instanceOf(CompletionAnalyzer.class));
+        CompletionAnalyzer analyzer = (CompletionAnalyzer) indexAnalyzer.analyzer();
         assertThat(analyzer.preservePositionIncrements(), equalTo(true));
         assertThat(analyzer.preserveSep(), equalTo(false));
 
         NamedAnalyzer searchAnalyzer = completionFieldType.searchAnalyzer();
         assertThat(searchAnalyzer.name(), equalTo("standard"));
-        assertThat(searchAnalyzer.analyzer(), instanceOf(org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer.class));
-        analyzer = (org.apache.lucene.search.suggest.xdocument.CompletionAnalyzer) searchAnalyzer.analyzer();
+        assertThat(searchAnalyzer.analyzer(), instanceOf(CompletionAnalyzer.class));
+        analyzer = (CompletionAnalyzer) searchAnalyzer.analyzer();
         assertThat(analyzer.preservePositionIncrements(), equalTo(true));
         assertThat(analyzer.preserveSep(), equalTo(false));
 
     }
 
     @Test
-    public void testThatSerializationIncludesAllElements() throws Exception {
+    public void testTypeParsing() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")
                 .field("type", "completion")
@@ -152,7 +152,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     @Test
-    public void testFieldSerializationMinimal() throws Exception {
+    public void testParsingMinimal() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")
                 .field("type", "completion")
@@ -172,7 +172,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     @Test
-    public void testCreatingAndIndexingSuggestFieldForOlderIndices() throws Exception {
+    public void testBackCompatiblity() throws Exception {
         // creating completion field for pre 2.0 indices, should create old completion fields
         String mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")
@@ -192,7 +192,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                     .bytes());
             IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.names().indexName());
             assertThat(fields.length, equalTo(1));
-            assertFalse(fields[0] instanceof org.apache.lucene.search.suggest.xdocument.SuggestField);
+            assertFalse(fields[0] instanceof SuggestField);
             assertAcked(client().admin().indices().prepareDelete("test").execute().get());
         }
         // for 2.0 indices and onwards, should create new completion fields
@@ -207,12 +207,12 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                 .bytes());
         IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.names().indexName());
         assertThat(fields.length, equalTo(1));
-        assertTrue(fields[0] instanceof org.apache.lucene.search.suggest.xdocument.SuggestField);
+        assertTrue(fields[0] instanceof SuggestField);
         assertAcked(client().admin().indices().prepareDelete("test").execute().get());
     }
 
     @Test
-    public void testFieldSerializationMinimalMultiValued() throws Exception {
+    public void testParsingMultiValued() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")
                 .field("type", "completion")
@@ -232,7 +232,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     @Test
-    public void testFieldSerializationWithWeight() throws Exception {
+    public void testParsingWithWeight() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")
                 .field("type", "completion")
@@ -255,7 +255,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     @Test
-    public void testFieldSerializationMultiValueWithWeight() throws Exception {
+    public void testParsingMultiValueWithWeight() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")
                 .field("type", "completion")
@@ -278,7 +278,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     @Test
-    public void testFieldSerializationFullOption() throws Exception {
+    public void testParsingFull() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")
                 .field("type", "completion")
@@ -311,7 +311,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     @Test
-    public void testFieldSerializationFullOptionMixed() throws Exception {
+    public void testParsingMixed() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")
                 .field("type", "completion")
@@ -344,40 +344,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     @Test
-    public void testFieldSerializationFullOptionWithMultiValue() throws Exception {
-        String mapping = jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("completion")
-                .field("type", "completion")
-                .endObject().endObject()
-                .endObject().endObject().string();
-
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
-        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
-        MappedFieldType completionFieldType = fieldMapper.fieldType();
-        ParsedDocument parsedDocument = defaultMapper.parse("type1", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .startArray("completion")
-                .startObject()
-                .array("input", "suggestion1", "suggestion2")
-                .field("weight", 3)
-                .endObject()
-                .startObject()
-                .array("input", "suggestion3", "suggestion4")
-                .field("weight", 4)
-                .endObject()
-                .startObject()
-                .field("input", "suggestion5", "suggestion6", "suggestion7")
-                .field("weight", 5)
-                .endObject()
-                .endArray()
-                .endObject()
-                .bytes());
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.names().indexName());
-        assertSuggestFields(fields, 7);
-    }
-
-    @Test
-    public void testNonContextEnabledFieldWithContexts() throws Exception {
+    public void testNonContextEnabledParsingWithContexts() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("field1")
                 .field("type", "completion")
@@ -404,7 +371,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     @Test
-    public void testContextEnabledFieldSerializationWithNoContexts() throws Exception {
+    public void testContextEnabledParsingWithNoContexts() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")
                 .field("type", "completion")
@@ -477,7 +444,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     @Test
-    public void testFieldSerializationWithSimpleContextsList() throws Exception {
+    public void testContextEnabledParsingWithContextList() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")
                 .field("type", "completion")
@@ -544,7 +511,6 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endArray()
                 .endObject();
-        String string = builder.string();
         ParsedDocument parsedDocument = defaultMapper.parse("type1", "1", builder.bytes());
         IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.names().indexName());
         assertContextSuggestFields(fields, 3);
@@ -666,7 +632,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
     private static void assertSuggestFields(IndexableField[] fields, int expected) {
         int actualFieldCount = 0;
         for (IndexableField field : fields) {
-            if (field instanceof org.apache.lucene.search.suggest.xdocument.SuggestField) {
+            if (field instanceof SuggestField) {
                 actualFieldCount++;
             }
         }

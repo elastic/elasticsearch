@@ -20,7 +20,7 @@ In addition to that, Watcher also registers with Shield two additional cluster l
 					  <<api-rest-get-watch, get>> APIs
 * `manage_watcher` - grants access to all watcher APIs
 
-You can use the privileges above in Shield's {shield-ref}/authorization.html#roles-file[`roles.yml`]
+You can use the privileges above in Shield's {shield-ref}/defining-roles.html[`roles.yml`]
 file to grant roles access to the watcher APIs. The following snippet shows an example of such role
 definition:
 
@@ -33,7 +33,7 @@ watcher_admin:
 Once the relevant role was defined, adding the watcher administrator user requires the exact same
 process as adding any other user to to Shield. For example, if you are using the
 {shield-ref}/esusers.html[`esusers`] realm, use the `esusers`
-{shield-ref}/esusers.html#_the_literal_esusers_literal_command_line_tool[command-line tool] to add
+{shield-ref}/_managing_users_in_an_esusers_realm.html[command-line tool] to add
 the user:
 
 [source,js]
@@ -78,7 +78,7 @@ NOTE:   The <<api-rest-get-watch, Get Watch API>> will automatically filter out 
 When Shield is installed, it is possible configure watcher to use shield and encrypt this sensitive
 data prior to indexing the watch. This can be done by:
 
-* Ensuring Shield's {shield-ref}/getting-started.html#message-authentication[System Key] is set up
+* Ensuring Shield's {shield-ref}/enable-message-authentication.html[System Key] is set up
   and used
 * Add the following settings in the `elasticsearch.yml` file:
 +

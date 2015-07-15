@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.integration;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -25,7 +24,6 @@ import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basic
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-shield/issues/947")
 public class ShieldCachePermissionTests extends ShieldIntegrationTest {
 
     static final String READ_ONE_IDX_USER = "read_user";
@@ -104,7 +102,8 @@ public class ShieldCachePermissionTests extends ShieldIntegrationTest {
                     .execute().actionGet();
             fail("search phase exception should have been thrown! response was:\n" + response.toString());
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.toString(), containsString("AuthorizationException"));
+            assertThat(e.toString(), containsString("ElasticsearchSecurityException[action"));
+            assertThat(e.toString(), containsString("unauthorized"));
         }
     }
 
@@ -128,7 +127,8 @@ public class ShieldCachePermissionTests extends ShieldIntegrationTest {
                     .execute().actionGet();
             fail("search phase exception should have been thrown! response was:\n" + response.toString());
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.toString(), containsString("AuthorizationException"));
+            assertThat(e.toString(), containsString("ElasticsearchSecurityException[action"));
+            assertThat(e.toString(), containsString("unauthorized"));
         }
     }
 }

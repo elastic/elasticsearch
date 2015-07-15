@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.authc.ldap;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
@@ -15,6 +16,8 @@ import org.elasticsearch.shield.authc.ldap.support.SessionFactory;
 import org.elasticsearch.shield.authc.support.DnRoleMapper;
 import org.elasticsearch.shield.ssl.ClientSSLService;
 import org.elasticsearch.watcher.ResourceWatcherService;
+
+import java.io.IOException;
 
 /**
  * Authenticates username/password tokens against ldap, locates groups and maps them to roles.
@@ -46,12 +49,16 @@ public class LdapRealm extends AbstractLdapRealm {
 
         @Override
         public LdapRealm create(RealmConfig config) {
-            SessionFactory sessionFactory = sessionFactory(config, clientSSLService);
-            DnRoleMapper roleMapper = new DnRoleMapper(TYPE, config, watcherService, null);
-            return new LdapRealm(config, sessionFactory, roleMapper);
+            try {
+                SessionFactory sessionFactory = sessionFactory(config, clientSSLService);
+                DnRoleMapper roleMapper = new DnRoleMapper(TYPE, config, watcherService, null);
+                return new LdapRealm(config, sessionFactory, roleMapper);
+            } catch (IOException e) {
+                throw new ElasticsearchException("failed to create realm [{}/{}]", e, LdapRealm.TYPE, config.name());
+            }
         }
 
-        static SessionFactory sessionFactory(RealmConfig config, ClientSSLService clientSSLService) {
+        static SessionFactory sessionFactory(RealmConfig config, ClientSSLService clientSSLService) throws IOException {
             Settings searchSettings = config.settings().getAsSettings("user_search");
             if (!searchSettings.names().isEmpty()) {
                 if (config.settings().getAsArray(LdapSessionFactory.USER_DN_TEMPLATES_SETTING).length > 0) {

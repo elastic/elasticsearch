@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.integration.ldap;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.junit.Test;
 
@@ -15,7 +14,6 @@ import java.io.IOException;
  * This tests the mapping of multiple groups to a role
  */
 @Network
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-shield/issues/947")
 public class MultiGroupMappingTests extends AbstractAdLdapRealmTests {
 
     @Override

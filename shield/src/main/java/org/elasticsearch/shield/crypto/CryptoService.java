@@ -6,6 +6,7 @@
 package org.elasticsearch.shield.crypto;
 
 import javax.crypto.SecretKey;
+import java.io.IOException;
 
 /**
  * Service that provides cryptographic methods based on a shared system key
@@ -16,11 +17,11 @@ public interface CryptoService {
      * Signs the given text and returns the signed text (original text + signature)
      * @param text the string to sign
      */
-    String sign(String text);
+    String sign(String text) throws IOException;
 
     /**
      * Unsigns the given signed text, verifies the original text with the attached signature and if valid returns
-     * the unsigned (original) text. If signature verification fails a {@link SignatureException} is thrown.
+     * the unsigned (original) text. If signature verification fails a {@link IllegalArgumentException} is thrown.
      * @param text the string to unsign and verify
      */
     String unsignAndVerify(String text);
@@ -30,11 +31,11 @@ public interface CryptoService {
      * @param text the string to sign
      * @param key the key to sign the text with
      */
-    String sign(String text, SecretKey key);
+    String sign(String text, SecretKey key) throws IOException;
 
     /**
      * Unsigns the given signed text, verifies the original text with the attached signature and if valid returns
-     * the unsigned (original) text. If signature verification fails a {@link SignatureException} is thrown.
+     * the unsigned (original) text. If signature verification fails a {@link IllegalArgumentException} is thrown.
      * @param text the string to unsign and verify
      * @param key the key to unsign the text with
      */
@@ -121,8 +122,8 @@ public interface CryptoService {
          * service. This provides the old keys back to the clients so that they may perform decryption and re-encryption
          * of data after a key has been changed
          *
-         * @param oldSystemKey
-         * @param oldEncryptionKey
+         * @param oldSystemKey the pre-existing system key
+         * @param oldEncryptionKey the pre-existing encryption key
          */
         void onKeyChange(SecretKey oldSystemKey, SecretKey oldEncryptionKey);
     }

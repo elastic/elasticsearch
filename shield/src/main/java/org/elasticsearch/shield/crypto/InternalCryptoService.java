@@ -139,12 +139,12 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
     }
 
     @Override
-    public String sign(String text) {
+    public String sign(String text) throws IOException {
         return sign(text, this.systemKey);
     }
 
     @Override
-    public String sign(String text, SecretKey key) {
+    public String sign(String text, SecretKey key) throws IOException {
         if (key == null) {
             return text;
         }
@@ -310,8 +310,7 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
     private byte[] decryptInternal(byte[] bytes, SecretKey key) {
         if (bytes.length < ivLength) {
             logger.error("received data for decryption with size [{}] that is less than IV length [{}]", bytes.length, ivLength);
-            // TODO consider changing to IllegalArgumentException
-            throw new ElasticsearchException("invalid data to decrypt");
+            throw new IllegalArgumentException("invalid data to decrypt");
         }
 
         byte[] iv = new byte[ivLength];
@@ -337,15 +336,10 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
         }
     }
 
-    private static String signInternal(String text, SecretKey key) {
+    private static String signInternal(String text, SecretKey key) throws IOException {
         Mac mac = createMac(key);
         byte[] sig = mac.doFinal(text.getBytes(Charsets.UTF_8));
-        try {
-            return Base64.encodeBytes(sig, 0, sig.length, Base64.URL_SAFE);
-        } catch (IOException e) {
-            // TODO consider bubbling the IOException up
-            throw new IllegalArgumentException("unable to encode signed data", e);
-        }
+        return Base64.encodeBytes(sig, 0, sig.length, Base64.URL_SAFE);
     }
 
 

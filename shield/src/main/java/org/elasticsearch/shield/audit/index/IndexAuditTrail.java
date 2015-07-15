@@ -660,7 +660,11 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
         bulkProcessor = BulkProcessor.builder(client, new BulkProcessor.Listener() {
             @Override
             public void beforeBulk(long executionId, BulkRequest request) {
-                authenticationService.attachUserHeaderIfMissing(request, auditUser.user());
+                try {
+                    authenticationService.attachUserHeaderIfMissing(request, auditUser.user());
+                } catch (IOException e) {
+                    throw new ElasticsearchException("failed to attach user header", e);
+                }
             }
 
             @Override

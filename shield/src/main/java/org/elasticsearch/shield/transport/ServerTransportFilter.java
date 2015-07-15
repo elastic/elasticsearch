@@ -19,6 +19,7 @@ import org.jboss.netty.channel.Channel;
 import org.jboss.netty.handler.ssl.SslHandler;
 
 import javax.net.ssl.SSLPeerUnverifiedException;
+import java.io.IOException;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 
@@ -37,7 +38,7 @@ public interface ServerTransportFilter {
      * thrown by this method will stop the request from being handled and the error will
      * be sent back to the sender.
      */
-    void inbound(String action, TransportRequest request, TransportChannel transportChannel);
+    void inbound(String action, TransportRequest request, TransportChannel transportChannel) throws IOException;
 
     /**
      * The server trasnport filter that should be used in nodes as it ensures that an incoming
@@ -59,7 +60,7 @@ public interface ServerTransportFilter {
         }
 
         @Override
-        public void inbound(String action, TransportRequest request, TransportChannel transportChannel) {
+        public void inbound(String action, TransportRequest request, TransportChannel transportChannel) throws IOException {
             /*
              here we don't have a fallback user, as all incoming request are
              expected to have a user attached (either in headers or in context)
@@ -108,7 +109,7 @@ public interface ServerTransportFilter {
         }
 
         @Override
-        public void inbound(String action, TransportRequest request, TransportChannel transportChannel) {
+        public void inbound(String action, TransportRequest request, TransportChannel transportChannel) throws IOException {
             // TODO is ']' sufficient to mark as shard action?
             boolean isInternalOrShardAction = action.startsWith("internal:") || action.endsWith("]");
             if (isInternalOrShardAction) {

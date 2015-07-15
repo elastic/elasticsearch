@@ -105,7 +105,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
     }
 
     @Override
-    public User authenticate(String action, TransportMessage message, User fallbackUser) {
+    public User authenticate(String action, TransportMessage message, User fallbackUser) throws IOException {
         User user = message.getFromContext(USER_KEY);
         if (user != null) {
             return user;
@@ -127,7 +127,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
     }
 
     @Override
-    public void attachUserHeaderIfMissing(TransportMessage message, User user) {
+    public void attachUserHeaderIfMissing(TransportMessage message, User user) throws IOException {
         if (message.hasHeader(USER_KEY)) {
             return;
         }

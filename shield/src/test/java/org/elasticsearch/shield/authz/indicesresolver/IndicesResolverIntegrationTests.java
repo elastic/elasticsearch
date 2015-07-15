@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authz.indicesresolver;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -25,7 +24,6 @@ import java.util.List;
 import static org.elasticsearch.test.ShieldTestsUtils.assertAuthorizationException;
 import static org.hamcrest.CoreMatchers.*;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-shield/issues/947")
 public class IndicesResolverIntegrationTests extends ShieldIntegrationTest {
 
     @Override
@@ -173,7 +171,7 @@ public class IndicesResolverIntegrationTests extends ShieldIntegrationTest {
                 .add(Requests.searchRequest())
                 .add(Requests.searchRequest("test4")).get();
         assertReturnedIndices(multiSearchResponse.getResponses()[0].getResponse(), "test1", "test2", "test3");
-        assertThat(multiSearchResponse.getResponses()[1].getFailure().toString(), equalTo("[test4] no such index"));
+        assertThat(multiSearchResponse.getResponses()[1].getFailure().toString(), equalTo("[test4] IndexNotFoundException[no such index]"));
     }
 
     @Test(expected = IndexNotFoundException.class)

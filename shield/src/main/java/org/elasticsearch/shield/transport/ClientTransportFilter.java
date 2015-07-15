@@ -10,6 +10,8 @@ import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.transport.TransportRequest;
 
+import java.io.IOException;
+
 /**
  * This interface allows clients, that connect to an elasticsearch cluster, to execute
  * additional logic before an operation is sent.
@@ -23,7 +25,7 @@ public interface ClientTransportFilter {
      * thrown by this method will stop the request from being sent and the error will
      * be sent back to the sender.
      */
-    void outbound(String action, TransportRequest request);
+    void outbound(String action, TransportRequest request) throws IOException;
 
     /**
      * The client transport filter that should be used in transport clients
@@ -48,7 +50,7 @@ public interface ClientTransportFilter {
         }
 
         @Override
-        public void outbound(String action, TransportRequest request) {
+        public void outbound(String action, TransportRequest request) throws IOException {
             /**
                 this will check if there's a user associated with the request. If there isn't,
                 the system user will be attached. There cannot be a request outgoing from this

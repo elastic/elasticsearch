@@ -6,7 +6,6 @@
 package org.elasticsearch.integration;
 
 import com.google.common.collect.ImmutableSet;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -41,7 +40,6 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-shield/issues/947")
 public class LicensingTests extends ShieldIntegrationTest {
 
     public static final String ROLES =

@@ -17,6 +17,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import javax.crypto.SecretKey;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -347,13 +348,17 @@ public class InternalCryptoServiceTests extends ElasticsearchTestCase {
         service.register(new CryptoService.Listener() {
             @Override
             public void onKeyChange(SecretKey oldSystemKey, SecretKey oldEncryptionKey) {
-                assertThat(oldSystemKey, notNullValue());
-                final String unsigned = service.unsignAndVerify(signed, oldSystemKey);
-                assertThat(unsigned, equalTo(text));
-                final String newSigned = service.sign(unsigned);
-                assertThat(newSigned, not(equalTo(signed)));
-                assertThat(newSigned, not(equalTo(text)));
-                latch.countDown();
+                try {
+                    assertThat(oldSystemKey, notNullValue());
+                    final String unsigned = service.unsignAndVerify(signed, oldSystemKey);
+                    assertThat(unsigned, equalTo(text));
+                    final String newSigned = service.sign(unsigned);
+                    assertThat(newSigned, not(equalTo(signed)));
+                    assertThat(newSigned, not(equalTo(text)));
+                    latch.countDown();
+                } catch (IOException e) {
+                    logger.error("caught exception in key change listener", e);
+                }
             }
         });
 

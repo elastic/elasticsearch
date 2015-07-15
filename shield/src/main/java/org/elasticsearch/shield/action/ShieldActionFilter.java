@@ -27,6 +27,7 @@ import org.elasticsearch.shield.crypto.CryptoService;
 import org.elasticsearch.shield.license.LicenseEventsNotifier;
 import org.elasticsearch.shield.license.LicenseService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -148,7 +149,7 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
         }
     }
 
-    <Response extends ActionResponse> Response sign(Response response) {
+    <Response extends ActionResponse> Response sign(Response response) throws IOException {
 
         if (response instanceof SearchResponse) {
             SearchResponse searchResponse = (SearchResponse) response;
@@ -174,8 +175,12 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
 
         @Override @SuppressWarnings("unchecked")
         public void onResponse(Response response) {
-            response = this.filter.sign(response);
-            innerListener.onResponse(response);
+            try {
+                response = this.filter.sign(response);
+                innerListener.onResponse(response);
+            } catch (IOException e) {
+                onFailure(e);
+            }
         }
 
         @Override

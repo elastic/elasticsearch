@@ -20,7 +20,6 @@ package org.elasticsearch.index.mapper.core;
 
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import org.apache.lucene.analysis.TokenStreamToAutomaton;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.search.suggest.xdocument.*;
@@ -86,7 +85,6 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
         public static final ParseField TYPE = new ParseField("type");
         public static final ParseField CONTEXTS = new ParseField("contexts");
         public static final ParseField MAX_INPUT_LENGTH = new ParseField("max_input_length", "max_input_len");
-        public static final ParseField FORCE_NEW = new ParseField("force_new");
         // Content field names
         public static final String CONTENT_FIELD_NAME_INPUT = "input";
         public static final String CONTENT_FIELD_NAME_WEIGHT = "weight";
@@ -101,10 +99,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
         @Override
         public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             if (parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
-                Object forceNew = node.get(Fields.FORCE_NEW.getPreferredName());
-                if (forceNew == null || Boolean.parseBoolean(forceNew.toString()) == false) {
-                    return new OldCompletionFieldMapper.TypeParser().parse(name, node, parserContext);
-                }
+                return new OldCompletionFieldMapper.TypeParser().parse(name, node, parserContext);
             }
             CompletionFieldMapper.Builder builder = completionField(name);
             NamedAnalyzer indexAnalyzer = null;
@@ -137,9 +132,6 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
                     builder.contextMappings(ContextMappings.load(fieldNode, parserContext.indexVersionCreated()));
                     iterator.remove();
                 } else if (parseMultiField(builder, name, parserContext, fieldName, fieldNode)) {
-                    iterator.remove();
-                } else if (parserContext.parseFieldMatcher().match(fieldName, Fields.FORCE_NEW)) {
-                    builder.forceNew(Boolean.parseBoolean(fieldNode.toString()));
                     iterator.remove();
                 }
             }
@@ -290,7 +282,6 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
 
         private int maxInputLength = Defaults.DEFAULT_MAX_INPUT_LENGTH;
         private ContextMappings contextMappings = null;
-        private boolean forceNew = false;
 
         /**
          * @param name of the completion field to build
@@ -322,26 +313,19 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
             return this;
         }
 
-        public Builder forceNew(boolean forceNew) {
-            this.forceNew = forceNew;
-            return this;
-        }
-
         @Override
         public CompletionFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             ((CompletionFieldType) fieldType).setContextMappings(contextMappings);
-            return new CompletionFieldMapper(name, fieldType, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, maxInputLength, forceNew);
+            return new CompletionFieldMapper(name, fieldType, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, maxInputLength);
         }
     }
 
     private int maxInputLength;
-    private boolean forceNew;
 
-    public CompletionFieldMapper(String name, MappedFieldType fieldType, Settings indexSettings, MultiFields multiFields, CopyTo copyTo, int maxInputLength, boolean forceNew) {
+    public CompletionFieldMapper(String name, MappedFieldType fieldType, Settings indexSettings, MultiFields multiFields, CopyTo copyTo, int maxInputLength) {
         super(name, fieldType, Defaults.FIELD_TYPE, indexSettings, multiFields, copyTo);
         this.maxInputLength = maxInputLength;
-        this.forceNew = forceNew;
     }
 
     @Override
@@ -471,9 +455,6 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(simpleName())
                 .field(Fields.TYPE.getPreferredName(), CONTENT_TYPE);
-        if (forceNew) {
-            builder.field(Fields.FORCE_NEW.getPreferredName(), true);
-        }
         builder.field(Fields.INDEX_ANALYZER.getPreferredName(), fieldType().indexAnalyzer().name());
         if (fieldType().indexAnalyzer().name().equals(fieldType().searchAnalyzer().name()) == false) {
             builder.field(Fields.SEARCH_ANALYZER.getPreferredName(), fieldType().searchAnalyzer().name());

@@ -38,6 +38,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.percolator.PercolatorService;
@@ -182,6 +183,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion("foo").field(FIELD).text("sugg");
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX, otherIndex).addSuggestion(prefix).execute().actionGet();
         assertSuggestions(suggestResponse, "foo", "suggestion10", "suggestion9", "suggestion8", "suggestion7", "suggestion6");
+        // back-compat
+        assertSuggestions(suggestResponse, "foo_old", "suggestion10", "suggestion9", "suggestion8", "suggestion7", "suggestion6");
     }
 
     @Test

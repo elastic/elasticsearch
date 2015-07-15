@@ -1,60 +1,53 @@
 [[introduction]]
 == Introduction
 
-This document discusses securing your Elasticsearch deployment, from initial installation to configuration.
+_Shield_ is a plugin for Elasticsearch that enables you to easily secure a cluster. With Shield,
+you can password-protect your data as well as implement more advanced security measures such as encrypting communications, role-based access control, IP filtering, and auditing. This guide 
+describes how to install Shield, configure the security features you need, and interact with your secured cluster.  
 
 [float]
-=== Why Security?
+=== Security for Elasticsearch
 
-An Elasticsearch cluster benefits from properly implemented security in the following ways:
+Shield protects Elasticsearch clusters by:
 
-* <<roles,Role-based>> access control at the index level and <<ldap,LDAP>> authentication integration to _prevent
-unauthorized access_
-* <<ssl-tls,Encryption>> to _preserve the integrity of your data_, keeping confidential data confidential.
-* An _<<configuring-auditing,Audit>> trail_ to analyze access patterns.
-
-[float]
-==== Prevent Unauthorized Access
-
-The term 'unauthorized access' properly covers two distinct security concepts: _Authentication_ and _Authorization_.
-Authentication validates that a user is who they claim to be. A proper authentication setup enforces that only the
-person named, for example, Kelsey Andorra can authenticate to Elasticsearch as the user `kandorra`. Shield ships with
-out-of-the-box internal authentication mechanism and also integrates with LDAP and the Active Directory to provide
-user authentication. Authorization enforces a set of privileges that are available to a specific user. To continue the
-example, an authorization framework enforces that the user `kandorra` has the ability to perform specific actions on the
-Elasticsearch cluster. These specific actions are called _privileges_. See the <<reference,Reference>> section for a
-complete list of privileges. Privileges are bundled into sets, and a set of privileges is called a _role_.
-Shield also provides for authorization based on the client's IP address. You may whitelist and blacklist subnets to
-control network-level access to a server.
+* <<preventing-unauthorized-access, Preventing unauthorized access>> with password protection, role-based access control, and IP filtering.
+* <<preserving-data-integrity, Preserving the integrity of your data>> with message authentication and SSL/TLS encryption.
+* <<maintaining-audit-trail, Maintaining an audit trail>> so you know who's doing what to your 
+data.
 
 [float]
-==== Preserve Data Integrity
+[[preventing-unauthortized-access]]
+==== Preventing Unauthorized Access
 
-A standard Elasticsearch cluster provides functionality that provides redundancy to protect against _accidental_ data
-loss and corruption. By providing <<ssl-tls,_encryption_>> for data that is being transmitted from node to node within
-the cluster, Elasticsearch security protects data from _deliberate_ tampering or unauthorized access.
+To prevent unauthorized access to your Elasticsearch cluster, you must have a way to _authenticate_ users. This simply means that you need a way to validate that a user is who they claim to be. For example, you have to make sure only the person named _Kelsey Andorra_ can sign in as the user `kandorra`. Shield provides a standalone authentication mechanism that enables you to quickly <<enable-basic-auth, password-protect your cluster>>. If you're already using <<ldap, LDAP>>, <<active-directory, Active Directory>>, or <<pki, PKI>>, Shield easily integrates with those systems to perform user authentication. 
 
-[float]
-==== Provides an Audit Trail
+In many cases, simply authenticating users isn't enough. You also need a way to control what data users have access to and what tasks they can perform. Shield enables you to _authorize_ users by 
+assigning access _privileges_ to a _role_, and assigning those roles to users. For example, this <<configuring-rbac,role-based access control>> mechanism enables you to specify that the user `kandorra`can only perform read  operations on the `events` index and can't do anything at all with other indices. 
 
-Knowing who requested which actions on your data, and when, is an important part of security. Keeping an auditable log
-of the activity in your cluster can not only help diagnose performance issues, but provide insight into attacks and
-attempted breaches.
+Shield also supports <<ip-filtering, IP-based authorization>>. You can whitelist and blacklist specific IP addresses or subnets to control network-level access to a server.
 
 [float]
-=== Security as a Plugin
+[[preserving-data-integrity]]
+==== Preserving Data Integrity
 
-Security features for Elasticsearch are implemented in a plugin that you <<getting-started,install>> on each node in
-your cluster.
+A critical part of security is keeping confidential data confidential. Elasticsearch has built-in protections against accidental data loss and corruption. However, there's nothing to stop deliberate tampering or data interception. Shield preserves the integrity of your data by <<ssl-tls, encrypting communications>> to and from nodes and <<enable-message-authentication, authenticating messages>> to verify that they have not been tampered with or corrupted in transit. For even greater protection, you can increase the <<ciphers, encryption strength>> and <<separating-node-client-traffic, separate client traffic from node-to-node communications>>.
+
 
 [float]
-=== What's In This Document
+[[maintaining-audit-trail]]
+==== Maintaining an Audit Trail
 
-The information in this document covers the following broad categories:
+Keeping a system secure takes vigilance. By using Shield to maintain an audit trail, you can easily see who is accessing your cluster and what they're doing. By analyzing access patterns and failed attempts to access your cluster, you can gain insights into attempted attacks and data breaches. Keeping an auditable log of the activity in your cluster can also help diagnose operational issues.
 
-* To learn about the architecture of the Elasticsearch security plugin and how the various elements of security
-interact, see <<how-shield-works, How Shield Works>>.
-* To get started with Elasticsearch security, from installation to initial configuration, see the
-<<getting-started,Getting Started>> section.
-* To answer specific questions about configuration elements and privileges in Elasticsearch security, see the
-<<reference,Reference>> section.
+[float]
+=== Where to Go Next
+
+* <<getting-started, Getting Started>> steps through how to install and start using Shield for basic authentication.
+* <<how-shield-works, How Shield Works>> provides more information about how Shield supports user authentication, authorization, and encryption.
+* <<configuring-clients-integrations, Configuring Clients and Integrations>> shows you how to 
+interact with an Elasticsearch cluster protected by Shield.
+* <<reference,Reference>> provides detailed information about the access privileges you can grant to users, the settings you can configure for Shield in `elasticsearch.yml`, and the files where Shield configuration information is stored.
+
+=== Have Comments, Questions, or Feedback?
+
+Head over to our https://discuss.elastic.co/c/shield[Shield Discussion Forum] to share your experience, questions, and suggestions.

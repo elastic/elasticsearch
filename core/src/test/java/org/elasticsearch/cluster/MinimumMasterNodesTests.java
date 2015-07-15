@@ -165,6 +165,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
     }
 
     @Test @Slow
+    @AwaitsFix(bugUrl = "boaz is looking a this. Example failure: http://build-us-00.elastic.co/job/es_g1gc_master_metal/11653/")
     public void multipleNodesShutdownNonMasterNodes() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")

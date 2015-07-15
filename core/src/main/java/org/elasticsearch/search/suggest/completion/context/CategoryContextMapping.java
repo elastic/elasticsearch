@@ -170,7 +170,7 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
         } else if (token == Token.START_OBJECT) {
             String currentFieldName = null;
             String context = null;
-            boolean isExact = true;
+            boolean isPrefix = false;
             int boost = 1;
             while ((token = parser.nextToken()) != Token.END_OBJECT) {
                 if (token == Token.FIELD_NAME) {
@@ -180,7 +180,7 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
                     if (CONTEXT_VALUE.equals(currentFieldName)) {
                         context = parser.text();
                     } else if (CONTEXT_PREFIX.equals(currentFieldName)) {
-                        isExact = Boolean.valueOf(parser.text());
+                        isPrefix = Boolean.valueOf(parser.text());
                     } else if (CONTEXT_BOOST.equals(currentFieldName)) {
                         Number number;
                         try {
@@ -203,14 +203,14 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
                 } else if (token == Token.VALUE_BOOLEAN) {
                     // exact
                     if (CONTEXT_PREFIX.equals(currentFieldName)) {
-                        isExact = parser.booleanValue();
+                        isPrefix = parser.booleanValue();
                     }
                 }
             }
             if (context == null) {
                 throw new ElasticsearchParseException("no context provided");
             }
-            return new CategoryQueryContext(context, boost, isExact);
+            return new CategoryQueryContext(context, boost, isPrefix);
         } else {
             throw new ElasticsearchParseException("expected string or object");
         }

@@ -216,13 +216,12 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
     }
 
     private GeoQueryContext innerParseQueryContext(XContentParser parser) throws IOException, ElasticsearchParseException {
-        GeoPoint point = new GeoPoint();
         Token token = parser.currentToken();
         if (token == Token.VALUE_STRING) {
-            GeoUtils.parseGeoPoint(parser, point);
-            return new GeoQueryContext(point);
+            return new GeoQueryContext(GeoUtils.parseGeoPoint(parser));
         } else if (token == Token.START_OBJECT) {
             String currentFieldName = null;
+            GeoPoint point = null;
             double lat = Double.NaN;
             double lon = Double.NaN;
             List<Integer> neighbours = new ArrayList<>();
@@ -244,7 +243,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
                             throw new ElasticsearchParseException("only lat/lon is allowed");
                         }
                     } else if (CONTEXT_VALUE.equals(currentFieldName)) {
-                        point = GeoUtils.parseGeoPoint(parser, point);
+                        point = GeoUtils.parseGeoPoint(parser);
                     } else if (CONTEXT_BOOST.equals(currentFieldName)) {
                         Number number;
                         try {
@@ -291,7 +290,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
                     }
                 } else if (token == Token.START_OBJECT) {
                     if (CONTEXT_VALUE.equals(currentFieldName)) {
-                        point = GeoUtils.parseGeoPoint(parser, point);
+                        point = GeoUtils.parseGeoPoint(parser);
                     } else {
                         throw new ElasticsearchParseException("unknown field [" + currentFieldName + "] for object value");
                     }

@@ -37,6 +37,18 @@ be used for highlighting if it mapped to have `store` set to `true`.
 The field name supports wildcard notation. For example, using `comment_*`
 will cause all fields that match the expression to be highlighted.
 
+[[plain-highlighter]]
+==== Plain highlighter
+
+The default choice of highlighter is of type `plain` and uses the Lucene highlighter.
+It tries hard to reflect the query matching logic in terms of understanding word importance and any word positioning criteria in phrase queries.
+
+[WARNING]
+If you want to highlight a lot of fields in a lot of documents with complex queries this highlighter will not be fast.
+In its efforts to accurately reflect query logic it creates a tiny in-memory index and re-runs the original query criteria through 
+Lucene's query execution planner to get access to low-level match information on the current document. 
+This is repeated for every field and every document that needs highlighting. If this presents a performance issue in your system consider using an alternative highlighter. 
+
 [[postings-highlighter]]
 ==== Postings highlighter
 

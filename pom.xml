@@ -896,6 +896,7 @@
                                         <overWrite>true</overWrite>
                                     </artifactItem>
                                 </artifactItems>
+                                <useBaseVersion>true</useBaseVersion>
                                 <outputDirectory>${integ.deps}</outputDirectory>
                             </configuration>
                         </execution>

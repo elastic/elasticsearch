@@ -906,7 +906,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
 
         logger.info("--> truncate snapshot file to make it unreadable");
-        Path snapshotPath = repo.resolve("snapshot-test-snap-1");
+        Path snapshotPath = repo.resolve("snap-test-snap-1.dat");
         try(SeekableByteChannel outChan = Files.newByteChannel(snapshotPath, StandardOpenOption.WRITE)) {
             outChan.truncate(randomInt(10));
         }

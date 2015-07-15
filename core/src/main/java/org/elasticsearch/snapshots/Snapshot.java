@@ -20,20 +20,22 @@
 package org.elasticsearch.snapshots;
 
 import com.google.common.collect.ImmutableList;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.xcontent.*;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+
+import static java.util.Collections.*;
 
 /**
  * Represent information about snapshot
  */
-public class Snapshot implements Comparable<Snapshot>, ToXContent {
+public class Snapshot implements Comparable<Snapshot>, ToXContent, FromXContentBuilder<Snapshot> {
 
     private final String name;
 
@@ -56,6 +58,8 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent {
     private final List<SnapshotShardFailure> shardFailures;
 
     private final static List<SnapshotShardFailure> NO_FAILURES = ImmutableList.of();
+
+    public final static Snapshot PROTO = new Snapshot();
 
     private Snapshot(String name, List<String> indices, SnapshotState state, String reason, Version version, long startTime, long endTime,
                               int totalShard, int successfulShards, List<SnapshotShardFailure> shardFailures) {
@@ -84,6 +88,13 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent {
                              int totalShard, List<SnapshotShardFailure> shardFailures) {
         this(name, indices, snapshotState(reason, shardFailures), reason, Version.CURRENT,
                 startTime, endTime, totalShard, totalShard - shardFailures.size(), shardFailures);
+    }
+
+    /**
+     * Special constructor for the prototype object
+     */
+    private Snapshot() {
+        this("", (List<String>) EMPTY_LIST, 0);
     }
 
     private static SnapshotState snapshotState(String reason, List<SnapshotShardFailure> shardFailures) {
@@ -221,6 +232,11 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent {
         return result;
     }
 
+    @Override
+    public Snapshot fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
+        return fromXContent(parser);
+    }
+
     static final class Fields {
         static final XContentBuilderString SNAPSHOT = new XContentBuilderString("snapshot");
         static final XContentBuilderString NAME = new XContentBuilderString("name");
@@ -277,9 +293,14 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent {
         int totalShard = 0;
         int successfulShards = 0;
         List<SnapshotShardFailure> shardFailures = NO_FAILURES;
-
-        XContentParser.Token token = parser.currentToken();
-        if (token == XContentParser.Token.START_OBJECT) {
+        if (parser.currentToken() == null) { // fresh parser? move to the first token
+            parser.nextToken();
+        }
+        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {  // on a start object move to next token
+            parser.nextToken();
+        }
+        XContentParser.Token token;
+        if ((token = parser.nextToken()) == XContentParser.Token.START_OBJECT) {
             String currentFieldName = parser.currentName();
             if ("snapshot".equals(currentFieldName)) {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -328,6 +349,8 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent {
                     }
                 }
             }
+        } else {
+            throw new ElasticsearchParseException("unexpected token  [" + token + "]");
         }
         return new Snapshot(name, indices, state, reason, version, startTime, endTime, totalShard, successfulShards, shardFailures);
     }

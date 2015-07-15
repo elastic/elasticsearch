@@ -33,6 +33,7 @@ import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -46,7 +47,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
@@ -63,6 +63,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositoryVerificationException;
+import org.elasticsearch.repositories.blobstore.*;
 
 import java.io.FilterInputStream;
 import java.io.IOException;
@@ -72,7 +73,6 @@ import java.util.*;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.testBlobPrefix;
-import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.toStreamOutput;
 
 /**
  * Blob store based implementation of IndexShardRepository
@@ -104,13 +104,29 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
 
     private final ParseFieldMatcher parseFieldMatcher;
 
-    protected static final String SNAPSHOT_PREFIX = "snapshot-";
+    protected static final String LEGACY_SNAPSHOT_PREFIX = "snapshot-";
+
+    protected static final String LEGACY_SNAPSHOT_NAME_FORMAT = LEGACY_SNAPSHOT_PREFIX + "%s";
+
+    protected static final String SNAPSHOT_PREFIX = "snap-";
+
+    protected static final String SNAPSHOT_NAME_FORMAT = SNAPSHOT_PREFIX + "%s.dat";
+
+    protected static final String SNAPSHOT_CODEC = "snapshot";
 
     protected static final String SNAPSHOT_INDEX_PREFIX = "index-";
 
-    protected static final String SNAPSHOT_TEMP_PREFIX = "pending-";
+    protected static final String SNAPSHOT_INDEX_NAME_FORMAT = SNAPSHOT_INDEX_PREFIX + "%s";
+
+    protected static final String SNAPSHOT_INDEX_CODEC = "snapshots";
 
     protected static final String DATA_BLOB_PREFIX = "__";
+
+    private ChecksumBlobStoreFormat<BlobStoreIndexShardSnapshot> indexShardSnapshotFormat;
+
+    private LegacyBlobStoreFormat<BlobStoreIndexShardSnapshot> indexShardSnapshotLegacyFormat;
+
+    private ChecksumBlobStoreFormat<BlobStoreIndexShardSnapshots> indexShardSnapshotsFormat;
 
     @Inject
     public BlobStoreIndexShardRepository(Settings settings, RepositoryName repositoryName, IndicesService indicesService, ClusterService clusterService) {
@@ -144,6 +160,9 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             }
         };
         this.compress = compress;
+        indexShardSnapshotFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_CODEC, SNAPSHOT_NAME_FORMAT, BlobStoreIndexShardSnapshot.PROTO, parseFieldMatcher, isCompress());
+        indexShardSnapshotLegacyFormat = new LegacyBlobStoreFormat<>(LEGACY_SNAPSHOT_NAME_FORMAT, BlobStoreIndexShardSnapshot.PROTO, parseFieldMatcher);
+        indexShardSnapshotsFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_INDEX_CODEC, SNAPSHOT_INDEX_NAME_FORMAT, BlobStoreIndexShardSnapshots.PROTO, parseFieldMatcher, isCompress());
     }
 
     /**
@@ -174,8 +193,8 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
      * {@inheritDoc}
      */
     @Override
-    public void restore(SnapshotId snapshotId, ShardId shardId, ShardId snapshotShardId, RecoveryState recoveryState) {
-        final RestoreContext snapshotContext = new RestoreContext(snapshotId, shardId, snapshotShardId, recoveryState);
+    public void restore(SnapshotId snapshotId, Version version, ShardId shardId, ShardId snapshotShardId, RecoveryState recoveryState) {
+        final RestoreContext snapshotContext = new RestoreContext(snapshotId, version, shardId, snapshotShardId, recoveryState);
         try {
             snapshotContext.restore();
         } catch (Throwable e) {
@@ -187,8 +206,8 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
      * {@inheritDoc}
      */
     @Override
-    public IndexShardSnapshotStatus snapshotStatus(SnapshotId snapshotId, ShardId shardId) {
-        Context context = new Context(snapshotId, shardId);
+    public IndexShardSnapshotStatus snapshotStatus(SnapshotId snapshotId, Version version, ShardId shardId) {
+        Context context = new Context(snapshotId, version, shardId);
         BlobStoreIndexShardSnapshot snapshot = context.loadSnapshot();
         IndexShardSnapshotStatus status = new IndexShardSnapshotStatus();
         status.updateStage(IndexShardSnapshotStatus.Stage.DONE);
@@ -223,8 +242,8 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
      * @param snapshotId snapshot id
      * @param shardId    shard id
      */
-    public void delete(SnapshotId snapshotId, ShardId shardId) {
-        Context context = new Context(snapshotId, shardId, shardId);
+    public void delete(SnapshotId snapshotId, Version version, ShardId shardId) {
+        Context context = new Context(snapshotId, version, shardId, shardId);
         context.delete();
     }
 
@@ -237,64 +256,20 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
     }
 
     /**
-     * Returns shard snapshot metadata file name
-     *
-     * @param snapshotId snapshot id
-     * @return shard snapshot metadata file name
-     */
-    private String snapshotBlobName(SnapshotId snapshotId) {
-        return SNAPSHOT_PREFIX + snapshotId.getSnapshot();
-    }
-
-    /**
-     * Serializes snapshot to JSON
-     *
-     * @param snapshot snapshot
-     * @param output the stream to output the snapshot JSON representation to
-     * @throws IOException if an IOException occurs
-     */
-    public void writeSnapshot(BlobStoreIndexShardSnapshot snapshot, StreamOutput output) throws IOException {
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, output).prettyPrint();
-        BlobStoreIndexShardSnapshot.toXContent(snapshot, builder, ToXContent.EMPTY_PARAMS);
-        builder.flush();
-    }
-
-    /**
-     * Parses JSON representation of a snapshot
-     *
-     * @param stream JSON
-     * @return snapshot
-     * @throws IOException if an IOException occurs
-     */
-    public static BlobStoreIndexShardSnapshot readSnapshot(InputStream stream, ParseFieldMatcher parseFieldMatcher) throws IOException {
-        byte[] data = ByteStreams.toByteArray(stream);
-        try (XContentParser parser = XContentHelper.createParser(new BytesArray(data))) {
-            parser.nextToken();
-            return BlobStoreIndexShardSnapshot.fromXContent(parser, parseFieldMatcher);
-        }
-    }
-
-    /**
-     * Parses JSON representation of a snapshot
-     *
-     * @param stream JSON
-     * @return snapshot
-     * @throws IOException if an IOException occurs
-     * */
-    public static BlobStoreIndexShardSnapshots readSnapshots(InputStream stream, ParseFieldMatcher parseFieldMatcher) throws IOException {
-        byte[] data = ByteStreams.toByteArray(stream);
-        try (XContentParser parser = XContentHelper.createParser(new BytesArray(data))) {
-            parser.nextToken();
-            return BlobStoreIndexShardSnapshots.fromXContent(parser, parseFieldMatcher);
-        }
-    }
-    /**
      * Returns true if metadata files should be compressed
      *
      * @return true if compression is needed
      */
     protected boolean isCompress() {
         return compress;
+    }
+
+    BlobStoreFormat<BlobStoreIndexShardSnapshot> indexShardSnapshotFormat(Version version) {
+        if (BlobStoreRepository.legacyMetaData(version)) {
+            return indexShardSnapshotLegacyFormat;
+        } else {
+            return indexShardSnapshotFormat;
+        }
     }
 
     /**
@@ -308,12 +283,15 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
 
         protected final BlobContainer blobContainer;
 
-        public Context(SnapshotId snapshotId, ShardId shardId) {
-            this(snapshotId, shardId, shardId);
+        protected final Version version;
+
+        public Context(SnapshotId snapshotId, Version version, ShardId shardId) {
+            this(snapshotId, version, shardId, shardId);
         }
 
-        public Context(SnapshotId snapshotId, ShardId shardId, ShardId snapshotShardId) {
+        public Context(SnapshotId snapshotId, Version version, ShardId shardId, ShardId snapshotShardId) {
             this.snapshotId = snapshotId;
+            this.version = version;
             this.shardId = shardId;
             blobContainer = blobStore.blobContainer(basePath.add("indices").add(snapshotShardId.getIndex()).add(Integer.toString(snapshotShardId.getId())));
         }
@@ -333,10 +311,8 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             BlobStoreIndexShardSnapshots snapshots = tuple.v1();
             int fileListGeneration = tuple.v2();
 
-            String commitPointName = snapshotBlobName(snapshotId);
-
             try {
-                blobContainer.deleteBlob(commitPointName);
+                indexShardSnapshotFormat(version).delete(blobContainer, snapshotId.getSnapshot());
             } catch (IOException e) {
                 logger.debug("[{}] [{}] failed to delete shard snapshot file", shardId, snapshotId);
             }
@@ -356,13 +332,11 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          * Loads information about shard snapshot
          */
         public BlobStoreIndexShardSnapshot loadSnapshot() {
-            BlobStoreIndexShardSnapshot snapshot;
-            try (InputStream stream = blobContainer.openInput(snapshotBlobName(snapshotId))) {
-                snapshot = readSnapshot(stream, parseFieldMatcher);
+            try {
+                return indexShardSnapshotFormat(version).read(blobContainer, snapshotId.getSnapshot());
             } catch (IOException ex) {
                 throw new IndexShardRestoreFailedException(shardId, "failed to read shard snapshot file", ex);
             }
-            return snapshot;
         }
 
         /**
@@ -381,7 +355,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             // delete old index files first
             for (String blobName : blobs.keySet()) {
                 // delete old file lists
-                if (blobName.startsWith(SNAPSHOT_TEMP_PREFIX) || blobName.startsWith(SNAPSHOT_INDEX_PREFIX)) {
+                if (indexShardSnapshotsFormat.isTempBlobName(blobName) || blobName.startsWith(SNAPSHOT_INDEX_PREFIX)) {
                     try {
                         blobContainer.deleteBlob(blobName);
                     } catch (IOException e) {
@@ -408,19 +382,10 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
 
             // If we deleted all snapshots - we don't need to create the index file
             if (snapshots.size() > 0) {
-                String newSnapshotIndexName = SNAPSHOT_INDEX_PREFIX + fileListGeneration;
-                try (OutputStream output = blobContainer.createOutput(SNAPSHOT_TEMP_PREFIX + fileListGeneration)) {
-                    StreamOutput stream = compressIfNeeded(output);
-                    XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, stream);
-                    newSnapshots.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                    builder.flush();
+                try {
+                    indexShardSnapshotsFormat.writeAtomic(newSnapshots, blobContainer, Integer.toString(fileListGeneration));
                 } catch (IOException e) {
                     throw new IndexShardSnapshotFailedException(shardId, "Failed to write file list", e);
-                }
-                try {
-                    blobContainer.move(SNAPSHOT_TEMP_PREFIX + fileListGeneration, newSnapshotIndexName);
-                } catch (IOException e) {
-                    throw new IndexShardSnapshotFailedException(shardId, "Failed to rename file list", e);
                 }
             }
         }
@@ -481,8 +446,8 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 }
             }
             if (latest >= 0) {
-                try (InputStream stream = blobContainer.openInput(SNAPSHOT_INDEX_PREFIX + latest)) {
-                    return new Tuple<>(readSnapshots(stream, parseFieldMatcher), latest);
+                try {
+                    return new Tuple<>(indexShardSnapshotsFormat.read(blobContainer, Integer.toString(latest)), latest);
                 } catch (IOException e) {
                     logger.warn("failed to read index file  [{}]", e, SNAPSHOT_INDEX_PREFIX + latest);
                 }
@@ -491,22 +456,22 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             // We couldn't load the index file - falling back to loading individual snapshots
             List<SnapshotFiles> snapshots = Lists.newArrayList();
             for (String name : blobs.keySet()) {
-                if (name.startsWith(SNAPSHOT_PREFIX)) {
-                    try (InputStream stream = blobContainer.openInput(name)) {
-                        BlobStoreIndexShardSnapshot snapshot = readSnapshot(stream, parseFieldMatcher);
-                        snapshots.add(new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles()));
-                    } catch (IOException e) {
-                        logger.warn("failed to read commit point [{}]", e, name);
+                try {
+                    BlobStoreIndexShardSnapshot snapshot = null;
+                    if (name.startsWith(SNAPSHOT_PREFIX)) {
+                        snapshot = indexShardSnapshotFormat.readBlob(blobContainer, name);
+                    } else if (name.startsWith(LEGACY_SNAPSHOT_PREFIX)) {
+                        snapshot = indexShardSnapshotLegacyFormat.readBlob(blobContainer, name);
                     }
+                    if (snapshot != null) {
+                        snapshots.add(new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles()));
+                    }
+                } catch (IOException e) {
+                    logger.warn("failed to read commit point [{}]", e, name);
                 }
             }
             return new Tuple<>(new BlobStoreIndexShardSnapshots(snapshots), -1);
         }
-
-        protected StreamOutput compressIfNeeded(OutputStream output) throws IOException {
-            return toStreamOutput(output, isCompress());
-        }
-
     }
 
     /**
@@ -526,7 +491,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          * @param snapshotStatus snapshot status to report progress
          */
         public SnapshotContext(SnapshotId snapshotId, ShardId shardId, IndexShardSnapshotStatus snapshotStatus) {
-            super(snapshotId, shardId);
+            super(snapshotId, Version.CURRENT, shardId);
             IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
             store = indexService.shardInjectorSafe(shardId.id()).getInstance(Store.class);
             this.snapshotStatus = snapshotStatus;
@@ -627,15 +592,14 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 // now create and write the commit point
                 snapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.FINALIZE);
 
-                String snapshotBlobName = snapshotBlobName(snapshotId);
                 BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getSnapshot(),
                         snapshotIndexCommit.getGeneration(), indexCommitPointFiles, snapshotStatus.startTime(),
                         // snapshotStatus.startTime() is assigned on the same machine, so it's safe to use with VLong
                         System.currentTimeMillis() - snapshotStatus.startTime(), indexNumberOfFiles, indexTotalFilesSize);
                 //TODO: The time stored in snapshot doesn't include cleanup time.
                 logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
-                try (StreamOutput output = compressIfNeeded(blobContainer.createOutput(snapshotBlobName))) {
-                    writeSnapshot(snapshot, output);
+                try {
+                    indexShardSnapshotFormat.write(snapshot, blobContainer, snapshotId.getSnapshot());
                 } catch (IOException e) {
                     throw new IndexShardSnapshotFailedException(shardId, "Failed to write commit point", e);
                 }
@@ -815,8 +779,8 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          * @param snapshotShardId shard in the snapshot that data should be restored from
          * @param recoveryState   recovery state to report progress
          */
-        public RestoreContext(SnapshotId snapshotId, ShardId shardId, ShardId snapshotShardId, RecoveryState recoveryState) {
-            super(snapshotId, shardId, snapshotShardId);
+        public RestoreContext(SnapshotId snapshotId, Version version, ShardId shardId, ShardId snapshotShardId, RecoveryState recoveryState) {
+            super(snapshotId, version, shardId, snapshotShardId);
             store = indicesService.indexServiceSafe(shardId.getIndex()).shardInjectorSafe(shardId.id()).getInstance(Store.class);
             this.recoveryState = recoveryState;
         }

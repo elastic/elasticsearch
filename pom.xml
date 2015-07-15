@@ -105,6 +105,7 @@
         <skip.unit.tests>${skipTests}</skip.unit.tests>
         <skip.integ.tests>${skipTests}</skip.integ.tests>
         <integ.scratch>${project.build.directory}/integ-tests</integ.scratch>
+        <integ.deps>${project.build.directory}/integ-deps</integ.deps>
         <integ.temp>${integ.scratch}/temp</integ.temp>
         <no.commit.pattern>\bno(n|)commit\b</no.commit.pattern>
     </properties>
@@ -463,6 +464,10 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-dependency-plugin</artifactId>
                 </plugin>
                 <plugin>
                     <groupId>org.codehaus.mojo</groupId>
@@ -874,10 +879,30 @@
                     </configuration>
                 </plugin>
                 <plugin>
-                    <!-- We just declare which plugin version to use. Each project can have then its own settings -->
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-dependency-plugin</artifactId>
                     <version>2.10</version>
+                    <executions>
+                        <execution>
+                            <id>integ-setup-dependencies</id>
+                            <phase>pre-integration-test</phase>
+                            <goals>
+                                <goal>copy</goal>
+                            </goals>
+                            <configuration>
+                                <artifactItems>
+                                    <artifactItem>
+                                        <groupId>org.elasticsearch</groupId>
+                                        <artifactId>elasticsearch</artifactId>
+                                        <version>${elasticsearch.version}</version>
+                                        <type>zip</type>
+                                        <overWrite>true</overWrite>
+                                    </artifactItem>
+                                </artifactItems>
+                                <outputDirectory>${integ.deps}</outputDirectory>
+                            </configuration>
+                        </execution>
+                    </executions>
                 </plugin>
                 <plugin>
                     <!-- We just declare which plugin version to use. Each project can have then its own settings -->

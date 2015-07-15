@@ -66,16 +66,16 @@ public class ShardStateActionTest extends ElasticsearchTestCase {
         ArrayList<ShardStateAction.ShardRoutingEntry> listToFilter = new ArrayList<>();
         ArrayList<ShardStateAction.ShardRoutingEntry> expectedToBeApplied = new ArrayList<>();
 
-        listToFilter.add(new ShardStateAction.ShardRoutingEntry(initShard, indexMetaData.indexUUID() + "_suffix", "wrong_uuid"));
+        listToFilter.add(new ShardStateAction.ShardRoutingEntry(initShard, indexMetaData.indexUUID() + "_suffix", "wrong_uuid", null));
 
-        listToFilter.add(new ShardStateAction.ShardRoutingEntry(relocatingShard.buildTargetRelocatingShard(), indexMetaData.indexUUID(), "relocating_to_node"));
+        listToFilter.add(new ShardStateAction.ShardRoutingEntry(relocatingShard.buildTargetRelocatingShard(), indexMetaData.indexUUID(), "relocating_to_node", null));
         expectedToBeApplied.add(listToFilter.get(listToFilter.size() - 1));
 
-        listToFilter.add(new ShardStateAction.ShardRoutingEntry(startedShard, indexMetaData.indexUUID(), "started shard"));
+        listToFilter.add(new ShardStateAction.ShardRoutingEntry(startedShard, indexMetaData.indexUUID(), "started shard", null));
         expectedToBeApplied.add(listToFilter.get(listToFilter.size() - 1));
 
         listToFilter.add(new ShardStateAction.ShardRoutingEntry(TestShardRouting.newShardRouting(initShard.index() + "_NA", initShard.id(),
-                initShard.currentNodeId(), initShard.primary(), initShard.state(), initShard.version()), indexMetaData.indexUUID(), "wrong_uuid"));
+                initShard.currentNodeId(), initShard.primary(), initShard.state(), initShard.version()), indexMetaData.indexUUID(), "wrong_uuid", null));
 
         List<ShardStateAction.ShardRoutingEntry> toBeApplied = ShardStateAction.extractShardsToBeApplied(listToFilter, "for testing", state.metaData(), logger);
         if (toBeApplied.size() != expectedToBeApplied.size()) {

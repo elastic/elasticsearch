@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -39,19 +40,18 @@ public class FailedRerouteAllocation extends RoutingAllocation {
      */
     public static class FailedShard {
         public final ShardRouting shard;
-        public final String details;
+        public final String message;
+        public final Throwable failure;
 
-        public FailedShard(ShardRouting shard, String details) {
+        public FailedShard(ShardRouting shard, String message, Throwable failure) {
             this.shard = shard;
-            this.details = details;
+            this.message = message;
+            this.failure = failure;
         }
 
         @Override
         public String toString() {
-            return "FailedShard{" +
-                    "shard=" + shard +
-                    ", details='" + details + '\'' +
-                    '}';
+            return "failed shard, shard " + shard + ", message [" + message + "], failure [" + ExceptionsHelper.detailedMessage(failure) + "]";
         }
     }
 

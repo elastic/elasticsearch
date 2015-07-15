@@ -898,9 +898,8 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                                 onReplicaFailure(nodeId, exp);
                                 logger.trace("[{}] transport failure during replica request [{}] ", exp, node, replicaRequest);
                                 if (ignoreReplicaException(exp) == false) {
-                                    logger.warn("failed to perform " + actionName + " on remote replica " + node + shardIt.shardId(), exp);
-                                    shardStateAction.shardFailed(shard, indexMetaData.getIndexUUID(),
-                                            "Failed to perform [" + actionName + "] on replica, message [" + ExceptionsHelper.detailedMessage(exp) + "]");
+                                    logger.warn("{} failed to perform {} on node {}", exp, shardIt.shardId(), actionName, node);
+                                    shardStateAction.shardFailed(shard, indexMetaData.getIndexUUID(), "failed to perform " + actionName + " on replica on node " + node, exp);
                                 }
                             }
 

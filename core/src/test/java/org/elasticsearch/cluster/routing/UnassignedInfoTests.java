@@ -76,6 +76,7 @@ public class UnassignedInfoTests extends ElasticsearchAllocationTestCase {
         UnassignedInfo read = new UnassignedInfo(StreamInput.wrap(out.bytes()));
         assertThat(read.getReason(), equalTo(meta.getReason()));
         assertThat(read.getTimestampInMillis(), equalTo(meta.getTimestampInMillis()));
+        assertThat(read.getMessage(), equalTo(meta.getMessage()));
         assertThat(read.getDetails(), equalTo(meta.getDetails()));
     }
 
@@ -248,12 +249,13 @@ public class UnassignedInfoTests extends ElasticsearchAllocationTestCase {
         assertThat(clusterState.routingNodes().hasUnassigned(), equalTo(false));
         // fail shard
         ShardRouting shardToFail = clusterState.routingNodes().shardsWithState(STARTED).get(0);
-        clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyFailedShards(clusterState, ImmutableList.of(new FailedRerouteAllocation.FailedShard(shardToFail, "test fail")))).build();
+        clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyFailedShards(clusterState, ImmutableList.of(new FailedRerouteAllocation.FailedShard(shardToFail, "test fail", null)))).build();
         // verify the reason and details
         assertThat(clusterState.routingNodes().hasUnassigned(), equalTo(true));
         assertThat(clusterState.routingNodes().shardsWithState(UNASSIGNED).size(), equalTo(1));
         assertThat(clusterState.routingNodes().shardsWithState(UNASSIGNED).get(0).unassignedInfo(), notNullValue());
         assertThat(clusterState.routingNodes().shardsWithState(UNASSIGNED).get(0).unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
+        assertThat(clusterState.routingNodes().shardsWithState(UNASSIGNED).get(0).unassignedInfo().getMessage(), equalTo("test fail"));
         assertThat(clusterState.routingNodes().shardsWithState(UNASSIGNED).get(0).unassignedInfo().getDetails(), equalTo("test fail"));
         assertThat(clusterState.routingNodes().shardsWithState(UNASSIGNED).get(0).unassignedInfo().getTimestampInMillis(), greaterThan(0l));
     }

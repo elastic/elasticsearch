@@ -318,7 +318,7 @@ public class FailedShardsRoutingTests extends ElasticsearchAllocationTestCase {
             String n = "node" + Integer.toString(randomInt(numberOfReplicas));
             logger.info("failing shard on node [{}]", n);
             ShardRouting shardToFail = routingNodes.node(n).get(0);
-            failedShards.add(new FailedRerouteAllocation.FailedShard(new ShardRouting(shardToFail), null));
+            failedShards.add(new FailedRerouteAllocation.FailedShard(new ShardRouting(shardToFail), null, null));
         }
 
         routingTable = strategy.applyFailedShards(clusterState, failedShards).routingTable();

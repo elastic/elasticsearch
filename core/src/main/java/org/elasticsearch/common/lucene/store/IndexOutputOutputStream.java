@@ -17,34 +17,41 @@
  * under the License.
  */
 
-package org.elasticsearch.snapshots;
+package org.elasticsearch.common.lucene.store;
 
-import org.elasticsearch.cluster.metadata.SnapshotId;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.rest.RestStatus;
+import org.apache.lucene.store.IndexOutput;
 
 import java.io.IOException;
+import java.io.OutputStream;
 
 /**
- * Thrown if requested snapshot doesn't exist
+ * {@link OutputStream} that writes into underlying IndexOutput
  */
-public class SnapshotMissingException extends SnapshotException {
+public class IndexOutputOutputStream extends OutputStream {
 
-    public SnapshotMissingException(SnapshotId snapshot, Throwable cause) {
-        super(snapshot, "is missing", cause);
-    }
+    private final IndexOutput out;
 
-    public SnapshotMissingException(SnapshotId snapshot) {
-        super(snapshot, "is missing");
-    }
-
-    public SnapshotMissingException(StreamInput in) throws IOException {
-        super(in);
+    public IndexOutputOutputStream(IndexOutput out) {
+        this.out = out;
     }
 
     @Override
-    public RestStatus status() {
-        return RestStatus.NOT_FOUND;
+    public void write(int b) throws IOException {
+        out.writeByte((byte) b);
     }
 
+    @Override
+    public void write(byte[] b) throws IOException {
+        out.writeBytes(b, b.length);
+    }
+
+    @Override
+    public void write(byte[] b, int off, int len) throws IOException {
+        out.writeBytes(b, off, len);
+    }
+
+    @Override
+    public void close() throws IOException {
+        out.close();
+    }
 }

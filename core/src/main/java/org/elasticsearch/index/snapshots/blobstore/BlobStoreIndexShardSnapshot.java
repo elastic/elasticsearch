@@ -29,10 +29,7 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.store.StoreFileMetaData;
 
 import java.io.IOException;
@@ -43,7 +40,9 @@ import static com.google.common.collect.Lists.newArrayList;
 /**
  * Shard snapshot metadata
  */
-public class BlobStoreIndexShardSnapshot {
+public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuilder<BlobStoreIndexShardSnapshot> {
+
+    public static final BlobStoreIndexShardSnapshot PROTO = new BlobStoreIndexShardSnapshot();
 
     /**
      * Information about snapshotted file
@@ -351,6 +350,19 @@ public class BlobStoreIndexShardSnapshot {
     }
 
     /**
+     * Special constructor for the prototype
+     */
+    private BlobStoreIndexShardSnapshot() {
+        this.snapshot = "";
+        this.indexVersion = 0;
+        this.indexFiles = ImmutableList.of();
+        this.startTime = 0;
+        this.time = 0;
+        this.numberOfFiles = 0;
+        this.totalSize = 0;
+    }
+
+    /**
      * Returns index version
      *
      * @return index version
@@ -429,25 +441,24 @@ public class BlobStoreIndexShardSnapshot {
     /**
      * Serializes shard snapshot metadata info into JSON
      *
-     * @param snapshot shard snapshot metadata
      * @param builder  XContent builder
      * @param params   parameters
      * @throws IOException
      */
-    public static void toXContent(BlobStoreIndexShardSnapshot snapshot, XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startObject();
-        builder.field(Fields.NAME, snapshot.snapshot);
-        builder.field(Fields.INDEX_VERSION, snapshot.indexVersion);
-        builder.field(Fields.START_TIME, snapshot.startTime);
-        builder.field(Fields.TIME, snapshot.time);
-        builder.field(Fields.NUMBER_OF_FILES, snapshot.numberOfFiles);
-        builder.field(Fields.TOTAL_SIZE, snapshot.totalSize);
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field(Fields.NAME, snapshot);
+        builder.field(Fields.INDEX_VERSION, indexVersion);
+        builder.field(Fields.START_TIME, startTime);
+        builder.field(Fields.TIME, time);
+        builder.field(Fields.NUMBER_OF_FILES, numberOfFiles);
+        builder.field(Fields.TOTAL_SIZE, totalSize);
         builder.startArray(Fields.FILES);
-        for (FileInfo fileInfo : snapshot.indexFiles) {
+        for (FileInfo fileInfo : indexFiles) {
             FileInfo.toXContent(fileInfo, builder, params);
         }
         builder.endArray();
-        builder.endObject();
+        return builder;
     }
 
     /**
@@ -457,7 +468,7 @@ public class BlobStoreIndexShardSnapshot {
      * @return shard snapshot metadata
      * @throws IOException
      */
-    public static BlobStoreIndexShardSnapshot fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
+    public BlobStoreIndexShardSnapshot fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
 
         String snapshot = null;
         long indexVersion = -1;
@@ -467,7 +478,9 @@ public class BlobStoreIndexShardSnapshot {
         long totalSize = 0;
 
         List<FileInfo> indexFiles = newArrayList();
-
+        if (parser.currentToken() == null) { // fresh parser? move to the first token
+            parser.nextToken();
+        }
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.START_OBJECT) {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -510,5 +523,4 @@ public class BlobStoreIndexShardSnapshot {
         return new BlobStoreIndexShardSnapshot(snapshot, indexVersion, ImmutableList.copyOf(indexFiles),
                 startTime, time, numberOfFiles, totalSize);
     }
-
 }

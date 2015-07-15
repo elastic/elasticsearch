@@ -17,40 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.common.lucene.store;
+package org.elasticsearch.common.xcontent;
 
-import org.apache.lucene.store.IndexOutput;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.io.stream.StreamableReader;
 
 import java.io.IOException;
-import java.io.OutputStream;
 
 /**
+ * Indicates that the class supports XContent deserialization.
+ *
+ * This interface is similar to what {@link StreamableReader} does, only it works with XContent serialization
+ * instead of binary serialization.
  */
-public class OutputStreamIndexOutput extends OutputStream {
-
-    private final IndexOutput out;
-
-    public OutputStreamIndexOutput(IndexOutput out) {
-        this.out = out;
-    }
-
-    @Override
-    public void write(int b) throws IOException {
-        out.writeByte((byte) b);
-    }
-
-    @Override
-    public void write(byte[] b) throws IOException {
-        out.writeBytes(b, b.length);
-    }
-
-    @Override
-    public void write(byte[] b, int off, int len) throws IOException {
-        out.writeBytes(b, off, len);
-    }
-
-    @Override
-    public void close() throws IOException {
-        out.close();
-    }
+public interface FromXContentBuilder<T> {
+    /**
+     * Parses an object with the type T from parser
+     */
+    T fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException;
 }

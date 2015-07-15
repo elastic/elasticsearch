@@ -317,7 +317,7 @@ public class StoreRecoveryService extends AbstractIndexShardComponent implements
             if (!shardId.getIndex().equals(restoreSource.index())) {
                 snapshotShardId = new ShardId(restoreSource.index(), shardId.id());
             }
-            indexShardRepository.restore(restoreSource.snapshotId(), shardId, snapshotShardId, recoveryState);
+            indexShardRepository.restore(restoreSource.snapshotId(), restoreSource.version(), shardId, snapshotShardId, recoveryState);
             indexShard.skipTranslogRecovery(true);
             indexShard.finalizeRecovery();
             indexShard.postRecovery("restore done");

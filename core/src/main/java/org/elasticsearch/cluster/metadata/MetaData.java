@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -60,7 +61,7 @@ import java.util.*;
 
 import static org.elasticsearch.common.settings.Settings.*;
 
-public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
+public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, FromXContentBuilder<MetaData>, ToXContent {
 
     public static final MetaData PROTO = builder().build();
 
@@ -633,6 +634,17 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
     @Override
     public Diff<MetaData> readDiffFrom(StreamInput in) throws IOException {
         return new MetaDataDiff(in);
+    }
+
+    @Override
+    public MetaData fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
+        return Builder.fromXContent(parser);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        Builder.toXContent(this, builder, params);
+        return builder;
     }
 
     private static class MetaDataDiff implements Diff<MetaData> {

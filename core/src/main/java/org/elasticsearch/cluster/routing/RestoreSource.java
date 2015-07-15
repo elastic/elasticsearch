@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -37,11 +38,14 @@ public class RestoreSource implements Streamable, ToXContent {
 
     private String index;
 
+    private Version version;
+
     RestoreSource() {
     }
 
-    public RestoreSource(SnapshotId snapshotId, String index) {
+    public RestoreSource(SnapshotId snapshotId, Version version, String index) {
         this.snapshotId = snapshotId;
+        this.version = version;
         this.index = index;
     }
 
@@ -51,6 +55,10 @@ public class RestoreSource implements Streamable, ToXContent {
 
     public String index() {
         return index;
+    }
+
+    public Version version() {
+        return version;
     }
 
     public static RestoreSource readRestoreSource(StreamInput in) throws IOException {
@@ -66,12 +74,14 @@ public class RestoreSource implements Streamable, ToXContent {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         snapshotId = SnapshotId.readSnapshotId(in);
+        version = Version.readVersion(in);
         index = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         snapshotId.writeTo(out);
+        Version.writeVersion(version, out);
         out.writeString(index);
     }
 
@@ -80,6 +90,7 @@ public class RestoreSource implements Streamable, ToXContent {
         return builder.startObject()
                 .field("repository", snapshotId.getRepository())
                 .field("snapshot", snapshotId.getSnapshot())
+                .field("version", version.toString())
                 .field("index", index)
                 .endObject();
     }

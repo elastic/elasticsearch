@@ -196,7 +196,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
 
     @Override
     public QueryContexts<GeoQueryContext> parseQueryContext(String name, XContentParser parser) throws IOException, ElasticsearchParseException {
-        QueryContexts<GeoQueryContext> queryContexts = new QueryContexts<>(null);
+        QueryContexts<GeoQueryContext> queryContexts = new QueryContexts<>(name);
         Token token = parser.nextToken();
         if (token == Token.START_ARRAY) {
             while (parser.nextToken() != Token.END_ARRAY) {

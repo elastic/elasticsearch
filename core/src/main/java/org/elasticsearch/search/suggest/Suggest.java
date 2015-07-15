@@ -31,7 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
-import org.elasticsearch.search.suggest.completion.old.CompletionSuggestion;
+import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 
@@ -118,11 +118,11 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             case TermSuggestion.TYPE:
                 suggestion = new TermSuggestion();
                 break;
-            case org.elasticsearch.search.suggest.completion.CompletionSuggestion.TYPE:
-                suggestion = new org.elasticsearch.search.suggest.completion.CompletionSuggestion();
-                break;
             case CompletionSuggestion.TYPE:
                 suggestion = new CompletionSuggestion();
+                break;
+            case org.elasticsearch.search.suggest.completion.old.CompletionSuggestion.TYPE:
+                suggestion = new org.elasticsearch.search.suggest.completion.old.CompletionSuggestion();
                 break;
             case PhraseSuggestion.TYPE:
                 suggestion = new PhraseSuggestion();
@@ -183,10 +183,41 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
     public static List<Suggestion<? extends Entry<? extends Option>>> reduce(Map<String, List<Suggest.Suggestion>> groupedSuggestions) {
         List<Suggestion<? extends Entry<? extends Option>>> reduced = new ArrayList<>(groupedSuggestions.size());
         for (java.util.Map.Entry<String, List<Suggestion>> unmergedResults : groupedSuggestions.entrySet()) {
-            List<Suggestion> value = unmergedResults.getValue();
-            Suggestion reduce = value.get(0).reduce(value);
-            reduce.trim();
-            reduced.add(reduce);
+            Map<Class<? extends Suggestion>, List<Suggestion>> values = new HashMap<>(2);
+            for (Suggestion suggestion : unmergedResults.getValue()) {
+                List<Suggestion> suggestions = values.get(suggestion.getClass());
+                if (suggestions == null) {
+                    suggestions = new ArrayList<>();
+                    values.put(suggestion.getClass(), suggestions);
+                }
+                suggestions.add(suggestion);
+            }
+            if (values.size() == 2) {
+                // for back-compat, we can have suggestions from old and new completion suggester with the same name
+                // the old suggestion name is appended with "_old", better ideas?
+                if (values.containsKey(org.elasticsearch.search.suggest.completion.old.CompletionSuggestion.class) == false
+                        || values.containsKey(CompletionSuggestion.class) == false) {
+                    throw new IllegalStateException("multiple suggestion sets under one suggest name-space");
+                }
+
+                List<Suggestion> oldSuggestions = values.get(org.elasticsearch.search.suggest.completion.old.CompletionSuggestion.class);
+                Suggestion oldSuggestionReduced = oldSuggestions.get(0).reduce(oldSuggestions);
+                oldSuggestionReduced.name = oldSuggestionReduced.name + "_old";
+                oldSuggestionReduced.trim();
+                reduced.add(oldSuggestionReduced);
+                List<Suggestion> newSuggestions = values.get(CompletionSuggestion.class);
+                Suggestion newSuggestionReduced = newSuggestions.get(0).reduce(newSuggestions);
+                newSuggestionReduced.trim();
+                reduced.add(newSuggestionReduced);
+            } else if (values.size() == 1) {
+                for (List<Suggestion> suggestions : values.values()) {
+                    Suggestion reduce = suggestions.get(0).reduce(suggestions);
+                    reduce.trim();
+                    reduced.add(reduce);
+                }
+            } else {
+                throw new IllegalStateException("multiple suggestion sets under one suggest name-space");
+            }
         }
         return reduced;
     }

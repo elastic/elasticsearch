@@ -193,42 +193,20 @@ public class CompletionFieldMapperTests extends ElasticsearchSingleNodeTest {
             assertFalse(fields[0] instanceof org.apache.lucene.search.suggest.xdocument.SuggestField);
             assertAcked(client().admin().indices().prepareDelete("test").execute().get());
         }
-
-        // creating completion field for pre 2.0 indices with explicit force_new should create new completion fields
-        mapping = jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("completion")
-                .field("type", "completion")
-                .field("force_new", true)
-                .endObject().endObject()
-                .endObject().endObject().string();
-        for (Version version : Arrays.asList(V_1_7_0, V_1_1_0, randomVersionBetween(random(), V_1_1_1, V_1_6_1))) {
-            Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version.id).build();
-            DocumentMapper defaultMapper = createIndex("test", settings)
-                    .mapperService().documentMapperParser().parse(mapping);
-            FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
-            assertTrue(fieldMapper instanceof CompletionFieldMapper);
-            MappedFieldType completionFieldType = fieldMapper.fieldType();
-            ParsedDocument parsedDocument = defaultMapper.parse("type1", "1", XContentFactory.jsonBuilder()
-                    .startObject()
-                    .field("completion", "suggestion")
-                    .endObject()
-                    .bytes());
-            IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.names().indexName());
-            assertThat(fields.length, equalTo(1));
-            assertTrue(fields[0] instanceof org.apache.lucene.search.suggest.xdocument.SuggestField);
-            assertAcked(client().admin().indices().prepareDelete("test").execute().get());
-
-            // when force_new is specified, ensure it gets serialized
-            XContentBuilder builder = JsonXContent.contentBuilder().startObject();
-            fieldMapper.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject();
-            builder.close();
-            Map<String, Object> serializedMap;
-            try (XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes())) {
-                serializedMap = parser.map();
-                serializedMap = ((Map<String, Object>) serializedMap.get("completion"));
-            }
-            assertThat(((boolean)serializedMap.get("force_new")), equalTo(true));
-        }
+        // for 2.0 indices and onwards, should create new completion fields
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
+        assertTrue(fieldMapper instanceof CompletionFieldMapper);
+        MappedFieldType completionFieldType = fieldMapper.fieldType();
+        ParsedDocument parsedDocument = defaultMapper.parse("type1", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("completion", "suggestion")
+                .endObject()
+                .bytes());
+        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.names().indexName());
+        assertThat(fields.length, equalTo(1));
+        assertTrue(fields[0] instanceof org.apache.lucene.search.suggest.xdocument.SuggestField);
+        assertAcked(client().admin().indices().prepareDelete("test").execute().get());
     }
 
     @Test

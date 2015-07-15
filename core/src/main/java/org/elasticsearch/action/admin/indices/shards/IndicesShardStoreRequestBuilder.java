@@ -27,16 +27,16 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  * Request builder for {@link IndicesShardStoresRequest}
  */
-public class IndicesShardsStoreRequestBuilder extends MasterNodeReadOperationRequestBuilder<IndicesShardStoresRequest, IndicesShardStoresResponse, IndicesShardsStoreRequestBuilder> {
+public class IndicesShardStoreRequestBuilder extends MasterNodeReadOperationRequestBuilder<IndicesShardStoresRequest, IndicesShardStoresResponse, IndicesShardStoreRequestBuilder> {
 
-    public IndicesShardsStoreRequestBuilder(ElasticsearchClient client, Action<IndicesShardStoresRequest, IndicesShardStoresResponse, IndicesShardsStoreRequestBuilder> action, String... indices) {
+    public IndicesShardStoreRequestBuilder(ElasticsearchClient client, Action<IndicesShardStoresRequest, IndicesShardStoresResponse, IndicesShardStoreRequestBuilder> action, String... indices) {
         super(client, action, new IndicesShardStoresRequest(indices));
     }
 
     /**
      * Sets the indices for the shard stores request
      */
-    public IndicesShardsStoreRequestBuilder setIndices(String... indices) {
+    public IndicesShardStoreRequestBuilder setIndices(String... indices) {
         request.indices(indices);
         return this;
     }
@@ -45,17 +45,17 @@ public class IndicesShardsStoreRequestBuilder extends MasterNodeReadOperationReq
      * Specifies what type of requested indices to ignore and wildcard indices expressions
      * By default, expands wildcards to both open and closed indices
      */
-    public IndicesShardsStoreRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
+    public IndicesShardStoreRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
         request.indicesOptions(indicesOptions);
         return this;
     }
 
     /**
      * Set statuses to filter shards to get stores info on.
-     * @param shardStatuses acceptable values are "green", "yellow" and "red"
+     * @param shardStatuses acceptable values are "green", "yellow", "red" and "all"
      * see {@link org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus} for details
      */
-    public IndicesShardsStoreRequestBuilder setShardStatuses(String... shardStatuses) {
+    public IndicesShardStoreRequestBuilder setShardStatuses(String... shardStatuses) {
         request.shardStatuses(shardStatuses);
         return this;
     }

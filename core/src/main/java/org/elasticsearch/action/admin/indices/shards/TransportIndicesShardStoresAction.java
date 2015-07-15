@@ -23,6 +23,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.cluster.health.ClusterShardHealth;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -48,8 +49,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
-
-import static org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest.*;
 
 /**
  * Transport action that reads the cluster state for shards with the requested criteria (see {@link ClusterHealthStatus}) of specific indices
@@ -85,33 +84,14 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
 
         // collect relevant shard ids of the requested indices for fetching store infos
         for (String index : concreteIndices) {
-            for (IndexShardRoutingTable routing : routingTables.index(index)) {
-                for (ClusterHealthStatus status : request.shardStatuses()) {
-                    switch (status) {
-                        case GREEN:
-                            // all shard copies are assigned
-                            if (routing.size() == routing.getAssignedShards().size()) {
-                                shardIdsToFetch.add(routing.shardId());
-                            }
-                            break;
-                        case YELLOW:
-                            // primary copy is assigned and at least one replica copy is unassigned
-                            if (routing.primaryShard().assignedToNode() &&
-                                    routing.replicaShardsWithState(ShardRoutingState.UNASSIGNED).isEmpty() == false) {
-                                shardIdsToFetch.add(routing.shardId());
-                            }
-                            break;
-                        case RED:
-                            // primary copy is unassigned
-                            if (routing.primaryShard().unassigned()) {
-                                shardIdsToFetch.add(routing.shardId());
-                            }
-                            break;
-                        default:
-                            // bogus
-                            listener.onFailure(new IllegalArgumentException("Invalid status criteria"));
-                            return;
-                    }
+            IndexRoutingTable indexShardRoutingTables = routingTables.index(index);
+            if (indexShardRoutingTables == null) {
+                continue;
+            }
+            for (IndexShardRoutingTable routing : indexShardRoutingTables) {
+                ClusterShardHealth shardHealth = new ClusterShardHealth(routing.shardId().id(), routing);
+                if (request.shardStatuses().contains(shardHealth.getStatus())) {
+                    shardIdsToFetch.add(routing.shardId());
                 }
             }
         }
@@ -121,7 +101,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
         // we could fetch all shard store info from every node once (nNodes requests)
         // we have to implement a TransportNodesAction instead of using TransportNodesListGatewayStartedShards
         // for fetching shard stores info, that operates on a list of shards instead of a single shard
-        new AsyncShardsStoresInfoFetches(state.nodes(), routingNodes, state.metaData(), shardIdsToFetch, listener).start();
+        new AsyncShardStoresInfoFetches(state.nodes(), routingNodes, state.metaData(), shardIdsToFetch, listener).start();
     }
 
     @Override
@@ -129,7 +109,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
     }
 
-    private class AsyncShardsStoresInfoFetches {
+    private class AsyncShardStoresInfoFetches {
         private final DiscoveryNodes nodes;
         private final RoutingNodes routingNodes;
         private final MetaData metaData;
@@ -138,7 +118,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
         private CountDown expectedOps;
         private final Queue<InternalAsyncFetch.Response> fetchResponses;
 
-        AsyncShardsStoresInfoFetches(DiscoveryNodes nodes, RoutingNodes routingNodes, MetaData metaData, Set<ShardId> shardIds, ActionListener<IndicesShardStoresResponse> listener) {
+        AsyncShardStoresInfoFetches(DiscoveryNodes nodes, RoutingNodes routingNodes, MetaData metaData, Set<ShardId> shardIds, ActionListener<IndicesShardStoresResponse> listener) {
             this.nodes = nodes;
             this.routingNodes = routingNodes;
             this.metaData = metaData;

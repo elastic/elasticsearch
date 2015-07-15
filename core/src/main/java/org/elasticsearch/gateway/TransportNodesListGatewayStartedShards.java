@@ -124,12 +124,12 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
                     try {
                         shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, metaData.settings());
                         if (shardPath == null) {
-                            throw new IllegalStateException(shardId + " no shard state found");
+                            throw new IllegalStateException(shardId + " no shard path found");
                         }
                         Store.tryOpenIndex(shardPath.resolveIndex());
                     } catch (Exception exception) {
                         logger.trace("{} can't open index for shard [{}] in path [{}]", exception, shardId, shardStateMetaData, (shardPath != null) ? shardPath.resolveIndex() : "");
-                        return new NodeGatewayStartedShards(clusterService.localNode(), -1, exception);
+                        return new NodeGatewayStartedShards(clusterService.localNode(), shardStateMetaData.version, exception);
                     }
                 }
                 // old shard metadata doesn't have the actual index UUID so we need to check if the actual uuid in the metadata

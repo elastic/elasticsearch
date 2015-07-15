@@ -199,11 +199,17 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
 
         @Override
         public int compareTo(StoreStatus other) {
-            int compare = Long.compare(other.version, version);
-            if (compare == 0) {
-                return Integer.compare(allocation.id, other.allocation.id);
+            if (storeException != null && other.storeException == null) {
+                return 1;
+            } else if (other.storeException != null && storeException == null) {
+                return -1;
+            } else {
+                int compare = Long.compare(other.version, version);
+                if (compare == 0) {
+                    return Integer.compare(allocation.id, other.allocation.id);
+                }
+                return compare;
             }
-            return compare;
         }
     }
 

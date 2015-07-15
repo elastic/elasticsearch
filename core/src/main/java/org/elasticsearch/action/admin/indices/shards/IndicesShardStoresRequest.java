@@ -40,7 +40,7 @@ public class IndicesShardStoresRequest extends MasterNodeReadRequest<IndicesShar
     private EnumSet<ClusterHealthStatus> statuses = EnumSet.of(ClusterHealthStatus.YELLOW, ClusterHealthStatus.RED);
 
     /**
-     * Create a request for shards stores info for <code>indices</code>
+     * Create a request for shard stores info for <code>indices</code>
      */
     public IndicesShardStoresRequest(String... indices) {
         this.indices = indices;
@@ -53,11 +53,15 @@ public class IndicesShardStoresRequest extends MasterNodeReadRequest<IndicesShar
      * Set statuses to filter shards to get stores info on.
      * see {@link ClusterHealthStatus} for details.
      * Defaults to "yellow" and "red" status
-     * @param shardStatuses acceptable values are "green", "yellow" and "red"
+     * @param shardStatuses acceptable values are "green", "yellow", "red" and "all"
      */
     public IndicesShardStoresRequest shardStatuses(String... shardStatuses) {
         statuses = EnumSet.noneOf(ClusterHealthStatus.class);
         for (String statusString : shardStatuses) {
+            if ("all".equalsIgnoreCase(statusString)) {
+                statuses = EnumSet.allOf(ClusterHealthStatus.class);
+                return this;
+            }
             statuses.add(ClusterHealthStatus.fromString(statusString));
         }
         return this;

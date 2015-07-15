@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -34,22 +36,47 @@ public class ClusterShardHealth implements Streamable {
 
     ClusterHealthStatus status = ClusterHealthStatus.RED;
 
-    int activeShards = 0;
+    private int activeShards = 0;
 
-    int relocatingShards = 0;
+    private int relocatingShards = 0;
 
-    int initializingShards = 0;
+    private int initializingShards = 0;
 
-    int unassignedShards = 0;
+    private int unassignedShards = 0;
 
-    boolean primaryActive = false;
+    private boolean primaryActive = false;
 
     private ClusterShardHealth() {
 
     }
 
-    ClusterShardHealth(int shardId) {
+    public ClusterShardHealth(int shardId, final IndexShardRoutingTable shardRoutingTable) {
         this.shardId = shardId;
+        for (ShardRouting shardRouting : shardRoutingTable) {
+            if (shardRouting.active()) {
+                activeShards++;
+                if (shardRouting.relocating()) {
+                    // the shard is relocating, the one it is relocating to will be in initializing state, so we don't count it
+                    relocatingShards++;
+                }
+                if (shardRouting.primary()) {
+                    primaryActive = true;
+                }
+            } else if (shardRouting.initializing()) {
+                initializingShards++;
+            } else if (shardRouting.unassigned()) {
+                unassignedShards++;
+            }
+        }
+        if (primaryActive) {
+            if (activeShards == shardRoutingTable.size()) {
+                status = ClusterHealthStatus.GREEN;
+            } else {
+                status = ClusterHealthStatus.YELLOW;
+            }
+        } else {
+            status = ClusterHealthStatus.RED;
+        }
     }
 
     public int getId() {

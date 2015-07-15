@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.segments;
 
 import com.google.common.collect.ImmutableList;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
@@ -38,7 +39,7 @@ import java.util.*;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class IndicesShardsStoreResponseTest extends ElasticsearchTestCase {
+public class IndicesShardStoreResponseTest extends ElasticsearchTestCase {
 
     @Test
     public void testBasicSerialization() throws Exception {
@@ -51,7 +52,7 @@ public class IndicesShardsStoreResponseTest extends ElasticsearchTestCase {
         List<IndicesShardStoresResponse.StoreStatus> storeStatusList = new ArrayList<>();
         storeStatusList.add(new IndicesShardStoresResponse.StoreStatus(node1, 3, IndicesShardStoresResponse.StoreStatus.Allocation.PRIMARY, null));
         storeStatusList.add(new IndicesShardStoresResponse.StoreStatus(node2, 2, IndicesShardStoresResponse.StoreStatus.Allocation.REPLICA, null));
-        storeStatusList.add(new IndicesShardStoresResponse.StoreStatus(node1, -1, IndicesShardStoresResponse.StoreStatus.Allocation.UNUSED, new IOException("corrupted")));
+        storeStatusList.add(new IndicesShardStoresResponse.StoreStatus(node1, 1, IndicesShardStoresResponse.StoreStatus.Allocation.UNUSED, new IOException("corrupted")));
         storeStatuses.put(0, storeStatusList);
         storeStatuses.put(1, storeStatusList);
         ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>> storesMap = storeStatuses.build();
@@ -114,6 +115,7 @@ public class IndicesShardsStoreResponseTest extends ElasticsearchTestCase {
         orderedStoreStatuses.add(new IndicesShardStoresResponse.StoreStatus(node1, 1, IndicesShardStoresResponse.StoreStatus.Allocation.PRIMARY, null));
         orderedStoreStatuses.add(new IndicesShardStoresResponse.StoreStatus(node1, 1, IndicesShardStoresResponse.StoreStatus.Allocation.REPLICA, null));
         orderedStoreStatuses.add(new IndicesShardStoresResponse.StoreStatus(node1, 1, IndicesShardStoresResponse.StoreStatus.Allocation.UNUSED, null));
+        orderedStoreStatuses.add(new IndicesShardStoresResponse.StoreStatus(node1, 3, IndicesShardStoresResponse.StoreStatus.Allocation.REPLICA, new IOException("corrupted")));
 
         List<IndicesShardStoresResponse.StoreStatus> storeStatuses = new ArrayList<>(orderedStoreStatuses);
         Collections.shuffle(storeStatuses);

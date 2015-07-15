@@ -176,7 +176,7 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
-import org.elasticsearch.action.admin.indices.shards.IndicesShardsStoreRequestBuilder;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoreRequestBuilder;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
@@ -1499,18 +1499,18 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
-        public ActionFuture<IndicesShardStoresResponse> shardsStores(IndicesShardStoresRequest request) {
+        public ActionFuture<IndicesShardStoresResponse> shardStores(IndicesShardStoresRequest request) {
             return execute(IndicesShardStoresAction.INSTANCE, request);
         }
 
         @Override
-        public void shardsStores(IndicesShardStoresRequest request, ActionListener<IndicesShardStoresResponse> listener) {
+        public void shardStores(IndicesShardStoresRequest request, ActionListener<IndicesShardStoresResponse> listener) {
             execute(IndicesShardStoresAction.INSTANCE, request, listener);
         }
 
         @Override
-        public IndicesShardsStoreRequestBuilder prepareShardStores(String... indices) {
-            return new IndicesShardsStoreRequestBuilder(this, IndicesShardStoresAction.INSTANCE, indices);
+        public IndicesShardStoreRequestBuilder prepareShardStores(String... indices) {
+            return new IndicesShardStoreRequestBuilder(this, IndicesShardStoresAction.INSTANCE, indices);
         }
 
         @Override

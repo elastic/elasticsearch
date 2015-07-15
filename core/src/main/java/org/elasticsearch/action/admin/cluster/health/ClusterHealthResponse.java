@@ -107,11 +107,11 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         status = ClusterHealthStatus.GREEN;
 
         for (ClusterIndexHealth indexHealth : indices.values()) {
-            activePrimaryShards += indexHealth.activePrimaryShards;
-            activeShards += indexHealth.activeShards;
-            relocatingShards += indexHealth.relocatingShards;
-            initializingShards += indexHealth.initializingShards;
-            unassignedShards += indexHealth.unassignedShards;
+            activePrimaryShards += indexHealth.getActivePrimaryShards();
+            activeShards += indexHealth.getActiveShards();
+            relocatingShards += indexHealth.getRelocatingShards();
+            initializingShards += indexHealth.getInitializingShards();
+            unassignedShards += indexHealth.getUnassignedShards();
             if (indexHealth.getStatus() == ClusterHealthStatus.RED) {
                 status = ClusterHealthStatus.RED;
             } else if (indexHealth.getStatus() == ClusterHealthStatus.YELLOW && status != ClusterHealthStatus.RED) {

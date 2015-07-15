@@ -72,7 +72,7 @@ public class IndicesShardStoreRequestTests extends ElasticsearchIntegrationTest 
         assertThat(response.getStoreStatuses().size(), equalTo(0));
 
         // all shards
-        response = client().admin().indices().shardsStores(Requests.indicesShardsStoresRequest(index).shardStatuses("red", "yellow", "green")).get();
+        response = client().admin().indices().shardStores(Requests.indicesShardStoresRequest(index).shardStatuses("all")).get();
         assertThat(response.getStoreStatuses().containsKey(index), equalTo(true));
         ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>> shardStores = response.getStoreStatuses().get(index);
         assertThat(shardStores.values().size(), equalTo(2));
@@ -91,7 +91,7 @@ public class IndicesShardStoreRequestTests extends ElasticsearchIntegrationTest 
         logger.info("--> stop random node");
         internalCluster().stopRandomNode(new IndexNodePredicate(index));
         List<ShardRouting> unassignedShards = clusterService().state().routingTable().index(index).shardsWithState(ShardRoutingState.UNASSIGNED);
-        response = client().admin().indices().shardsStores(Requests.indicesShardsStoresRequest(index)).get();
+        response = client().admin().indices().shardStores(Requests.indicesShardStoresRequest(index)).get();
         assertThat(response.getStoreStatuses().containsKey(index), equalTo(true));
         ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>> shardStoresStatuses = response.getStoreStatuses().get(index);
         assertThat(shardStoresStatuses.size(), equalTo(unassignedShards.size()));
@@ -117,7 +117,7 @@ public class IndicesShardStoreRequestTests extends ElasticsearchIntegrationTest 
         indexRandomData(index1);
         indexRandomData(index2);
         ensureGreen();
-        IndicesShardStoresResponse response = client().admin().indices().shardsStores(Requests.indicesShardsStoresRequest().shardStatuses("red", "yellow", "green")).get();
+        IndicesShardStoresResponse response = client().admin().indices().shardStores(Requests.indicesShardStoresRequest().shardStatuses("all")).get();
         ImmutableOpenMap<String, ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>>> shardStatuses = response.getStoreStatuses();
         assertThat(shardStatuses.containsKey(index1), equalTo(true));
         assertThat(shardStatuses.containsKey(index2), equalTo(true));
@@ -125,7 +125,7 @@ public class IndicesShardStoreRequestTests extends ElasticsearchIntegrationTest 
         assertThat(shardStatuses.get(index2).size(), equalTo(2));
 
         // ensure index filtering works
-        response = client().admin().indices().shardsStores(Requests.indicesShardsStoresRequest(index1).shardStatuses("red", "yellow", "green")).get();
+        response = client().admin().indices().shardStores(Requests.indicesShardStoresRequest(index1).shardStatuses("all")).get();
         shardStatuses = response.getStoreStatuses();
         assertThat(shardStatuses.containsKey(index1), equalTo(true));
         assertThat(shardStatuses.containsKey(index2), equalTo(false));
@@ -165,7 +165,7 @@ public class IndicesShardStoreRequestTests extends ElasticsearchIntegrationTest 
             }
         }
 
-        IndicesShardStoresResponse rsp = client().admin().indices().prepareShardStores(index).setShardStatuses("red", "yellow", "green").get();
+        IndicesShardStoresResponse rsp = client().admin().indices().prepareShardStores(index).setShardStatuses("all").get();
         ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>> shardStatuses = rsp.getStoreStatuses().get(index);
         assertNotNull(shardStatuses);
         assertThat(shardStatuses.size(), greaterThan(0));
@@ -173,7 +173,7 @@ public class IndicesShardStoreRequestTests extends ElasticsearchIntegrationTest 
             for (IndicesShardStoresResponse.StoreStatus status : shardStatus.value) {
                 if (corruptedShardIDMap.containsKey(shardStatus.key)
                         && corruptedShardIDMap.get(shardStatus.key).contains(status.getNode().name())) {
-                    assertThat(status.getVersion(), equalTo(-1l));
+                    assertThat(status.getVersion(), greaterThanOrEqualTo(0l));
                     assertThat(status.getStoreException(), notNullValue());
                 } else {
                     assertThat(status.getVersion(), greaterThanOrEqualTo(0l));

@@ -53,7 +53,7 @@ public class RestIndicesShardStoresAction extends BaseRestHandler {
             indicesShardStoresRequest.shardStatuses(Strings.splitStringByCommaToArray(request.param("status")));
         }
         indicesShardStoresRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesShardStoresRequest.indicesOptions()));
-        client.admin().indices().shardsStores(indicesShardStoresRequest, new RestBuilderListener<IndicesShardStoresResponse>(channel) {
+        client.admin().indices().shardStores(indicesShardStoresRequest, new RestBuilderListener<IndicesShardStoresResponse>(channel) {
             @Override
             public RestResponse buildResponse(IndicesShardStoresResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();

@@ -20,6 +20,7 @@
 package org.elasticsearch.transport;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.settings.ClusterDynamicSettings;
 import org.elasticsearch.cluster.settings.DynamicSettings;
@@ -105,7 +106,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         this.transport = transport;
         this.threadPool = threadPool;
         this.tracerLogInclude = settings.getAsArray(SETTING_TRACE_LOG_INCLUDE, Strings.EMPTY_ARRAY, true);
-        this.tracelLogExclude = settings.getAsArray(SETTING_TRACE_LOG_EXCLUDE, new String[]{"internal:discovery/zen/fd*"}, true);
+        this.tracelLogExclude = settings.getAsArray(SETTING_TRACE_LOG_EXCLUDE, new String[]{"internal:discovery/zen/fd*", TransportLivenessAction.NAME}, true);
         tracerLog = Loggers.getLogger(logger, ".tracer");
         adapter = createAdapter();
     }

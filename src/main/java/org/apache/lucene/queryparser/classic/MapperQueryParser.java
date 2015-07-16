@@ -28,6 +28,7 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.automaton.RegExp;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -755,6 +756,15 @@ public class MapperQueryParser extends QueryParser {
         }
 
         return super.getWildcardQuery(field, aggStr.toString());
+    }
+
+    @Override
+    protected WildcardQuery newWildcardQuery(Term t) {
+        // Backport: https://issues.apache.org/jira/browse/LUCENE-6677
+        assert Version.LATEST == Version.LUCENE_4_10_4;
+        WildcardQuery query = new WildcardQuery(t, maxDeterminizedStates);
+        query.setRewriteMethod(multiTermRewriteMethod);
+        return query;
     }
 
     @Override

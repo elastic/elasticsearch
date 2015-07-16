@@ -705,7 +705,6 @@ public class ElasticsearchAssertions {
      */
     public static SearchResponse assertSearchResponse(SearchResponse response) {
         assertNoFailures(response);
-        assertThat("One or more shards were not successful but didn't trigger a failure", response.getSuccessfulShards(), equalTo(response.getTotalShards()));
         return response;
     }
 

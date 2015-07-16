@@ -251,7 +251,7 @@ public abstract class MovAvgModel {
 
         protected void checkUnrecognizedParams(@Nullable Map<String, Object> settings) throws ParseException {
             if (settings != null && settings.size() > 0) {
-                throw new ParseException("Unrecognized parameter(s): [" + String.join(", ", settings.keySet()) + "]", 0);
+                throw new ParseException("Unrecognized parameter(s): [" + settings.keySet() + "]", 0);
             }
         }
     }

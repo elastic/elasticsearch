@@ -19,7 +19,9 @@
 
 package org.elasticsearch.script.groovy;
 
+import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.hash.Hashing;
 import groovy.lang.Binding;
 import groovy.lang.GroovyClassLoader;
 import groovy.lang.Script;
@@ -49,7 +51,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Provides the infrastructure for Groovy as a scripting language for Elasticsearch
@@ -60,7 +61,6 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
     public static String GROOVY_SCRIPT_SANDBOX_ENABLED = "script.groovy.sandbox.enabled";
     public static String GROOVY_SCRIPT_BLACKLIST_PATCH = "script.groovy.sandbox.method_blacklist_patch";
 
-    private final AtomicLong counter = new AtomicLong();
     private final boolean sandboxed;
     private volatile GroovyClassLoader loader;
     private volatile Set<String> blacklistAdditions;
@@ -141,7 +141,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
     @Override
     public Object compile(String script) {
         try {
-            return loader.parseClass(script, generateScriptName());
+            return loader.parseClass(script, Hashing.sha1().hashString(script, Charsets.UTF_8).toString());
         } catch (Throwable e) {
             if (logger.isTraceEnabled()) {
                 logger.trace("exception compiling Groovy script:", e);
@@ -210,10 +210,6 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
     @Override
     public Object unwrap(Object value) {
         return value;
-    }
-
-    private String generateScriptName() {
-        return "Script" + counter.incrementAndGet() + ".groovy";
     }
 
     public static final class GroovyScript implements ExecutableScript, SearchScript {

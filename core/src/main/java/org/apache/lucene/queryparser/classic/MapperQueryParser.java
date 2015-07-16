@@ -19,8 +19,6 @@
 
 package org.apache.lucene.queryparser.classic;
 
-import com.google.common.base.Objects;
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
@@ -33,6 +31,8 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.WildcardQuery;
+import org.apache.lucene.util.Version;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -41,6 +41,9 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.support.QueryParsers;
+
+import com.google.common.base.Objects;
+import com.google.common.collect.ImmutableMap;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -719,6 +722,15 @@ public class MapperQueryParser extends QueryParser {
         }
 
         return super.getWildcardQuery(field, aggStr.toString());
+    }
+
+    @Override
+    protected WildcardQuery newWildcardQuery(Term t) {
+        // Backport: https://issues.apache.org/jira/browse/LUCENE-6677
+        assert Version.LATEST == Version.LUCENE_5_2_1;
+        WildcardQuery query = new WildcardQuery(t, maxDeterminizedStates);
+        query.setRewriteMethod(multiTermRewriteMethod);
+        return query;
     }
 
     @Override

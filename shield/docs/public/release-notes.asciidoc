@@ -86,7 +86,7 @@ version of Shield. We recommend copying the changes listed below to your `roles.
 [float]
 ==== 1.2.1
 
-* Several bug fixes including a fix to ensure that {ref}/index-modules-allocation.html#disk[Disk-based Shard Allocation]
+* Several bug fixes including a fix to ensure that {ref}/disk.html[Disk-based Shard Allocation]
 works properly with Shield
 
 [float]
@@ -97,7 +97,7 @@ works properly with Shield
 [float]
 ==== 1.1.1
 
-* Several bug fixes including a fix to ensure that {ref}/index-modules-allocation.html#disk[Disk-based Shard Allocation]
+* Several bug fixes including a fix to ensure that {ref}/disk.html[Disk-based Shard Allocation]
 works properly with Shield
 
 [float]

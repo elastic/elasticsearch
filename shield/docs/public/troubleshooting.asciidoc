@@ -26,7 +26,7 @@ The snippet above will also hide the `url` settings of the `ldap1` realm and all
 I configured the appropriate roles and the users, but I still get an authorization exception::
 +
 --
-Verify that the role names associated with the users match the roles defined in the `roles.yml` file. You 
+Verify that the role names associated with the users match the roles defined in the `roles.yml` file. You
 can use the `esusers` tool to list all the users. Any unknown roles are marked with `*`.
 
 [source, shell]
@@ -56,15 +56,15 @@ a parameter separator; in other words `-r role1,role2` is translated to `-r role
 Certain users are being frequently locked out of Active Directory::
 +
 --
-Check your realm configuration; realms are checked serially, one after another. If your Active Directory realm is being checked before other realms and there are usernames 
-that appear in both Active Directory and another realm, a valid login for one realm may be causing failed login attempts in another realm. 
+Check your realm configuration; realms are checked serially, one after another. If your Active Directory realm is being checked before other realms and there are usernames
+that appear in both Active Directory and another realm, a valid login for one realm may be causing failed login attempts in another realm.
 
 For example, if `UserA` exists in both Active Directory and esusers, and the Active Directory realm is checked first and
 esusers is checked second, an attempt to authenticate as `UserA` in the esusers realm would first attempt to authenticate
 against Active Directory and fail, before successfully authenticating against the esusers realm. Because authentication is
 verified on each request, the Active Directory realm would be checked - and fail - on each request for `UserA` in the esusers
 realm. In this case, while the Shield request completed successfully, the account on Active Directory would have received
-several failed login attempts, and that account may become temporarily locked out. Plan the order of your realms accordingly.  
+several failed login attempts, and that account may become temporarily locked out. Plan the order of your realms accordingly.
 
 Also note that it is not typically necessary to define multiple Active Directory realms to handle domain controller failures. When using Microsoft DNS, the DNS entry for
 the domain should always point to an available domain controller.
@@ -224,13 +224,13 @@ WARN: Failed to execute IndicesStatsAction for ClusterInfoUpdateJob::
 +
 --
 This warning occurs in the logs every 30 seconds when the Shield license is expired or invalid. It is caused by a periodic
-internal request to gather disk usage information from the nodes and indices, to enable {ref}/index-modules-allocation.html#disk[disk-based shard allocation].
-Disk-based shard allocation is not required, though it is enabled by default. 
+internal request to gather disk usage information from the nodes and indices, to enable {ref}/disk.html[disk-based shard allocation].
+Disk-based shard allocation is not required, though it is enabled by default.
 
 If you are using Elasticsearch 1.4.3 or higher with disk-based shard allocation enabled, it will be automatically disabled when the Shield
-license is expired or invalid, and will be automatically re-enabled when a valid Shield license is installed. 
+license is expired or invalid, and will be automatically re-enabled when a valid Shield license is installed.
 
 If you are using Elasticsearch 1.4.2 with disk-based shard allocation enabled, we recommend manually disabling disk-based shard
-allocation while your Shield license is expired, and re-enabling it after installing a valid Shield license. Instructions for 
-disabling disk-based shard allocation are {ref}/index-modules-allocation.html#disk[here].
+allocation while your Shield license is expired, and re-enabling it after installing a valid Shield license. Instructions for
+disabling disk-based shard allocation are {ref}/disk.html[here].
 --

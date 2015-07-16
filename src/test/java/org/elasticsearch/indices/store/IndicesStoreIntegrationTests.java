@@ -20,7 +20,6 @@
 package org.elasticsearch.indices.store;
 
 import com.google.common.base.Predicate;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterService;
@@ -43,6 +42,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.SlowClusterStateProcessing;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.File;
@@ -75,7 +75,7 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/11989")
+    @Ignore("https://github.com/elastic/elasticsearch/issues/11989")
     @TestLogging("indices.store:TRACE")
     public void indexCleanup() throws Exception {
         final String masterNode = internalCluster().startNode(ImmutableSettings.builder().put(SETTINGS).put("node.data", false));

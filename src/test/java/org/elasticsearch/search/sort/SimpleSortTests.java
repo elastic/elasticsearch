@@ -48,6 +48,7 @@ import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -69,7 +70,7 @@ import static org.hamcrest.Matchers.*;
 public class SimpleSortTests extends ElasticsearchIntegrationTest {
 
     @TestLogging("action.search.type:TRACE")
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/9421")
+    @Ignore("https://github.com/elasticsearch/elasticsearch/issues/9421")
     public void testIssue8226() {
         int numIndices = between(5, 10);
         for (int i = 0; i < numIndices; i++) {

@@ -535,7 +535,7 @@ public class DoubleTermsTests extends AbstractTermsTests {
                 .addAggregation(terms("terms")
                         .field(MULTI_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .script(new Script("(long) _value / 1000 + 1")))
+                                .script(new Script("(long) (_value / 1000 + 1)")))
                 .execute().actionGet();
 
         assertSearchResponse(response);

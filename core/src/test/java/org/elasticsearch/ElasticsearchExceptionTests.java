@@ -295,9 +295,10 @@ public class ElasticsearchExceptionTests extends ElasticsearchTestCase {
                 new EOFException("dadada"),
                 new ElasticsearchSecurityException("nono!"),
                 new NumberFormatException("not a number"),
-                new CorruptIndexException("baaaam", "this is my resource"),
-                new IndexFormatTooNewException("tooo new", 1, 1, 1),
-                new IndexFormatTooOldException("tooo new", 1, 1, 1),
+                new CorruptIndexException("baaaam booom", "this is my resource"),
+                new IndexFormatTooNewException("tooo new", 1, 2, 3),
+                new IndexFormatTooOldException("tooo new", 1, 2, 3),
+                new IndexFormatTooOldException("tooo new", "very old version"),
                 new ArrayIndexOutOfBoundsException("booom"),
                 new StringIndexOutOfBoundsException("booom"),
                 new FileNotFoundException("booom"),
@@ -315,12 +316,7 @@ public class ElasticsearchExceptionTests extends ElasticsearchTestCase {
             StreamInput in = StreamInput.wrap(out.bytes());
             ElasticsearchException e = in.readThrowable();
             assertEquals(e.getMessage(), ex.getMessage());
-            if (t instanceof IndexFormatTooNewException || t instanceof IndexFormatTooOldException) {
-                // these don't work yet - missing ctors
-                assertNotEquals(e.getCause().getMessage(), ex.getCause().getMessage());
-            } else {
-                assertEquals(ex.getCause().getClass().getName(), e.getCause().getMessage(), ex.getCause().getMessage());
-            }
+            assertEquals(ex.getCause().getClass().getName(), e.getCause().getMessage(), ex.getCause().getMessage());
             if (ex.getCause().getClass() != Throwable.class) { // throwable is not directly mapped
                 assertEquals(e.getCause().getClass(), ex.getCause().getClass());
             } else {

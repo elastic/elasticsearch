@@ -35,7 +35,7 @@ The `preference` is a query string parameter which can be set to:
 
 `_only_nodes`::
     Restricts the operation to nodes specified in node specification
-    https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster.html coming[1.7.0]
+    https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster.html added[1.7.0]
 
 Custom (string) value:: 
 	A custom value will be used to guarantee that

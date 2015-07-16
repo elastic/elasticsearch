@@ -60,7 +60,7 @@ public class SimpleModel extends MovAvgModel {
     protected <T extends Number> double[] doPredict(Collection<T> values, int numPredictions) {
         double[] predictions = new double[numPredictions];
 
-        // EWMA just emits the same final prediction repeatedly.
+        // Simple just emits the same final prediction repeatedly.
         Arrays.fill(predictions, next(values));
 
         return predictions;
@@ -100,7 +100,9 @@ public class SimpleModel extends MovAvgModel {
         }
 
         @Override
-        public MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName, int windowSize, ParseFieldMatcher parseFieldMatcher) throws ParseException {
+        public MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName, int windowSize,
+                                 ParseFieldMatcher parseFieldMatcher) throws ParseException {
+            checkUnrecognizedParams(settings);
             return new SimpleModel();
         }
     }

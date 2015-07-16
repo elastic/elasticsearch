@@ -394,15 +394,14 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * Mark a shard as started and adjusts internal statistics.
      */
     public void started(ShardRouting shard) {
-        if (!shard.active() && shard.relocatingNodeId() == null) {
+        assert !shard.active() : "expected an intializing shard " + shard;
+        if (shard.relocatingNodeId() == null) {
+            // if this is not a target shard for relocation, we need to update statistics
             inactiveShardCount--;
             if (shard.primary()) {
                 inactivePrimaryCount--;
             }
-        } else if (shard.relocating()) {
-            relocatingShards--;
         }
-        assert !shard.started();
         shard.moveToStarted();
     }
 
@@ -757,6 +756,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         private final RoutingNode iterable;
         private ShardRouting shard;
         private final Iterator<ShardRouting> delegate;
+        private boolean removed = false;
 
         public RoutingNodeIterator(RoutingNode iterable) {
             this.delegate = iterable.mutableIterator();
@@ -770,6 +770,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
         @Override
         public ShardRouting next() {
+            removed = false;
             return shard = delegate.next();
         }
 
@@ -777,6 +778,13 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         public void remove() {
             delegate.remove();
             RoutingNodes.this.remove(shard);
+            removed = true;
+        }
+
+
+        /** returns true if {@link #remove()} or {@link #moveToUnassigned(UnassignedInfo)} were called on the current shard */
+        public boolean isRemoved() {
+            return removed;
         }
 
         @Override
@@ -785,10 +793,16 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         }
 
         public void moveToUnassigned(UnassignedInfo unassignedInfo) {
-            remove();
+            if (isRemoved() == false) {
+                remove();
+            }
             ShardRouting unassigned = new ShardRouting(shard); // protective copy of the mutable shard
             unassigned.moveToUnassigned(unassignedInfo);
             unassigned().add(unassigned);
+        }
+
+        public ShardRouting current() {
+            return shard;
         }
     }
 }

@@ -394,15 +394,14 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * Mark a shard as started and adjusts internal statistics.
      */
     public void started(ShardRouting shard) {
-        if (!shard.active() && shard.relocatingNodeId() == null) {
+        assert !shard.active() : "expected an intializing shard " + shard;
+        if (shard.relocatingNodeId() == null) {
+            // if this is not a target shard for relocation, we need to update statistics
             inactiveShardCount--;
             if (shard.primary()) {
                 inactivePrimaryCount--;
             }
-        } else if (shard.relocating()) {
-            relocatingShards--;
         }
-        assert !shard.started();
         shard.moveToStarted();
     }
 
@@ -789,6 +788,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             ShardRouting unassigned = new ShardRouting(shard); // protective copy of the mutable shard
             unassigned.moveToUnassigned(unassignedInfo);
             unassigned().add(unassigned);
+        }
+
+        public ShardRouting current() {
+            return shard;
         }
     }
 }

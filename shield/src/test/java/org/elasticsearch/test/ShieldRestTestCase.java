@@ -38,32 +38,16 @@ import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basic
 @Slow
 public abstract class ShieldRestTestCase extends ShieldIntegrationTest {
 
-    private final ElasticsearchRestTestCase delegate;
+    private final DelegatedRestTestCase delegate;
 
     public ShieldRestTestCase(@Name("yaml") RestTestCandidate testCandidate) {
-        delegate = new ElasticsearchRestTestCase(testCandidate) {
-            @Override
-            protected Settings restClientSettings() {
-                return Settings.builder()
-                        .put(Headers.PREFIX + "." + UsernamePasswordToken.BASIC_AUTH_HEADER, basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
-                                new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))).build();
-            }
-
-            @Override
-            protected Settings nodeSettings(int nodeOrdinal) {
-                return ShieldRestTestCase.this.nodeSettings(nodeOrdinal);
-            }
-
-            @Override
-            protected Settings transportClientSettings() {
-                return ShieldRestTestCase.this.transportClientSettings();
-            }
-        };
+        delegate = new DelegatedRestTestCase(testCandidate);
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
+                .put(delegate.nodeSettings(nodeOrdinal))
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(Node.HTTP_ENABLED, true)
                 .build();
@@ -87,5 +71,29 @@ public abstract class ShieldRestTestCase extends ShieldIntegrationTest {
     @Before
     public void reset() throws IOException, RestException {
         delegate.reset();
+    }
+
+    class DelegatedRestTestCase extends ElasticsearchRestTestCase {
+
+        DelegatedRestTestCase(RestTestCandidate candidate) {
+            super(candidate);
+        }
+
+        @Override
+        protected Settings restClientSettings() {
+            return Settings.builder()
+                    .put(Headers.PREFIX + "." + UsernamePasswordToken.BASIC_AUTH_HEADER, basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
+                            new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))).build();
+        }
+
+        @Override
+        public Settings nodeSettings(int ordinal) {
+            return super.nodeSettings(ordinal);
+        }
+
+        @Override
+        protected Settings transportClientSettings() {
+            return ShieldRestTestCase.this.transportClientSettings();
+        }
     }
 }

@@ -143,20 +143,8 @@ longitude (default is `true`). *Note*: Validation only works when
 normalization has been disabled. This option will be deprecated and removed
 in upcoming releases.
 
-|`validate_lat` |Set to `false` to accept geo points with an invalid
-latitude (default is `true`). This option will be deprecated and removed
-in upcoming releases.
-
-|`validate_lon` |Set to `false` to accept geo points with an invalid
-longitude (default is `true`). This option will be deprecated and removed
-in upcoming releases.
-
 |`normalize` |Set to `true` to normalize latitude and longitude (default
 is `true`).
-
-|`normalize_lat` |Set to `true` to normalize latitude.
-
-|`normalize_lon` |Set to `true` to normalize longitude.
 
 |`precision_step` |The precision step (influences the number of terms 
 generated for each number value) for `.lat` and `.lon` fields 

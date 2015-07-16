@@ -27,6 +27,30 @@ points. Here is an example:
 --------------------------------------------------
 
 [float]
+==== Filter Options
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Option |Description
+|`_name` |Optional name field to identify the filter
+
+|`_cache` |Set to `true` to cache the *result* of the filter.
+Defaults to `false`. See <<Caching,Caching>> below.
+
+|`_cache_key` |Associate a unique custom cache key to use instead of
+the actual filter.
+
+|`validate` |Set to `false` to accept geo points with invalid latitude or
+longitude (default is `true`). *Note*: Validation only works when
+normalization has been disabled. This option will be deprecated and removed
+in upcoming releases.
+
+|`normalize` |Set to `false` to prevent latitude and longitude from auto converting
+to proper lat/lon bounds.
+Default is `true'.
+|=======================================================================
+
+[float]
 ==== Allowed Formats
 
 [float]

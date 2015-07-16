@@ -74,8 +74,8 @@ public class GeoPolygonFilterParser implements FilterParser {
 
         List<GeoPoint> shell = Lists.newArrayList();
 
-        boolean normalizeLon = true;
-        boolean normalizeLat = true;
+        boolean validate = true;
+        boolean normalize = true;
 
         String filterName = null;
         String currentFieldName = null;
@@ -109,9 +109,10 @@ public class GeoPolygonFilterParser implements FilterParser {
                     cache = parser.booleanValue();
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                     cacheKey = new CacheKeyFilter.Key(parser.text());
+                } else if ("validate".equals(currentFieldName)) {
+                    validate = parser.booleanValue();
                 } else if ("normalize".equals(currentFieldName)) {
-                    normalizeLat = parser.booleanValue();
-                    normalizeLon = parser.booleanValue();
+                    normalize = parser.booleanValue();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[geo_polygon] filter does not support [" + currentFieldName + "]");
                 }
@@ -135,9 +136,18 @@ public class GeoPolygonFilterParser implements FilterParser {
             }
         }
 
-        if (normalizeLat || normalizeLon) {
+        if (normalize) {
             for (GeoPoint point : shell) {
-                GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);
+                GeoUtils.normalizePoint(point, normalize, normalize);
+            }
+        } else if (validate) {
+            for (GeoPoint point : shell) {
+                if (point.lat() > 90.0 || point.lat() < -90.0) {
+                    throw new QueryParsingException(parseContext.index(), "illegal latitude value [" + point.lat() + "] for " + filterName);
+                }
+                if (point.lon() > 180.0 || point.lon() < -180) {
+                    throw new QueryParsingException(parseContext.index(), "illegal longitude value [" + point.lon() + "] for " + filterName);
+                }
             }
         }
 

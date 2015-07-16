@@ -66,8 +66,8 @@ public class GeoDistanceSortParser implements SortParser {
         MultiValueMode sortMode = null;
         NestedInnerQueryParseSupport nestedHelper = null;
 
-        boolean normalizeLon = true;
-        boolean normalizeLat = true;
+        boolean validate = true;
+        boolean normalize = true;
 
         XContentParser.Token token;
         String currentName = parser.currentName();
@@ -100,9 +100,10 @@ public class GeoDistanceSortParser implements SortParser {
                     unit = DistanceUnit.fromString(parser.text());
                 } else if (currentName.equals("distance_type") || currentName.equals("distanceType")) {
                     geoDistance = GeoDistance.fromString(parser.text());
+                } else if ("validate".equals(currentName)) {
+                    validate = parser.booleanValue();
                 } else if ("normalize".equals(currentName)) {
-                    normalizeLat = parser.booleanValue();
-                    normalizeLon = parser.booleanValue();
+                    normalize = parser.booleanValue();
                 } else if ("sort_mode".equals(currentName) || "sortMode".equals(currentName) || "mode".equals(currentName)) {
                     sortMode = MultiValueMode.fromString(parser.text());
                 } else if ("nested_path".equals(currentName) || "nestedPath".equals(currentName)) {
@@ -119,9 +120,18 @@ public class GeoDistanceSortParser implements SortParser {
             }
         }
 
-        if (normalizeLat || normalizeLon) {
+        if (normalize) {
             for (GeoPoint point : geoPoints) {
-                GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);
+                GeoUtils.normalizePoint(point, normalize, normalize);
+            }
+        } else if (validate) {
+            for (GeoPoint point : geoPoints) {
+                if (point.lat() > 90.0 || point.lat() < -90.0) {
+                    throw new ElasticsearchIllegalArgumentException("illegal latitude value [" + point.lat() + "] for geo distance sort");
+                }
+                if (point.lon() > 180.0 || point.lon() < -180) {
+                    throw new ElasticsearchIllegalArgumentException("illegal longitude value [" + point.lon() + "] for geo distance sort");
+                }
             }
         }
 

@@ -45,6 +45,33 @@ Then the following simple query can be executed with a
 --------------------------------------------------
 
 [float]
+==== Filter Options
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Option |Description
+|`_name` |Optional name field to identify the filter
+
+|`_cache` |Set to `true` to cache the *result* of the filter.
+Defaults to `false`. See <<Caching,Caching>> below for further details.
+
+|`_cache_key` |Associate a unique custom cache key to use instead of
+the actual filter.
+
+|`validate` |Set to `false` to accept geo points with invalid latitude or
+longitude (default is `true`). *Note*: Validation only works when
+normalization has been disabled. This option will be deprecated and removed
+in upcoming releases.
+
+|`normalize` |Set to `true` to normalize latitude and longitude (default
+is `true`).
+
+|`type` |Set to one of `indexed` or `memory` to defines whether this filter will
+be executed in memory or indexed. See <<Type,Type>> below for further details
+Default is `memory`.
+|=======================================================================
+
+[float]
 ==== Accepted Formats
 
 In much the same way the geo_point type can accept different

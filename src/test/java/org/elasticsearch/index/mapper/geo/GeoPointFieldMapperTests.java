@@ -488,9 +488,9 @@ public class GeoPointFieldMapperTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapper.MergeResult mergeResult = stage1.merge(stage2, mergeFlags().simulate(false));
         assertThat(mergeResult.hasConflicts(), equalTo(true));
-        assertThat(mergeResult.conflicts().length, equalTo(2));
+        assertThat(mergeResult.conflicts().length, equalTo(1));
         // todo better way of checking conflict?
-        assertThat("mapper [point] has different validate_lat", isIn(new ArrayList<>(Arrays.asList(mergeResult.conflicts()))));
+        assertThat("mapper [point] has different validate", isIn(new ArrayList<>(Arrays.asList(mergeResult.conflicts()))));
 
         // correct mapping and ensure no failures
         stage2Mapping = XContentFactory.jsonBuilder().startObject().startObject("type")

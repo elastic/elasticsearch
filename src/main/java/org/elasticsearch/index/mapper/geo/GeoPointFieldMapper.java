@@ -29,6 +29,7 @@ import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoDistance;
@@ -90,10 +91,13 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
         public static final boolean ENABLE_GEOHASH = false;
         public static final boolean ENABLE_GEOHASH_PREFIX = false;
         public static final int GEO_HASH_PRECISION = GeoHashUtils.PRECISION;
+        public static final boolean BACK_COMPAT = true;
         public static final boolean NORMALIZE_LAT = true;
         public static final boolean NORMALIZE_LON = true;
         public static final boolean VALIDATE_LAT = true;
         public static final boolean VALIDATE_LON = true;
+        public static final boolean NORMALIZE = true;
+        public static final boolean VALIDATE = true;
 
         public static final FieldType FIELD_TYPE = new FieldType(StringFieldMapper.Defaults.FIELD_TYPE);
 
@@ -120,10 +124,13 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
 
         private int geoHashPrecision = Defaults.GEO_HASH_PRECISION;
 
+        boolean backCompat = Defaults.BACK_COMPAT;
         boolean validateLat = Defaults.VALIDATE_LAT;
         boolean validateLon = Defaults.VALIDATE_LON;
         boolean normalizeLat = Defaults.NORMALIZE_LAT;
         boolean normalizeLon = Defaults.NORMALIZE_LON;
+        boolean validate = Defaults.VALIDATE;
+        boolean normalize = Defaults.NORMALIZE;
 
         public Builder(String name) {
             super(name, new FieldType(Defaults.FIELD_TYPE));
@@ -196,10 +203,10 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
             // store them as a single token.
             fieldType.setTokenized(false);
 
-            return new GeoPointFieldMapper(buildNames(context), fieldType, docValues, indexAnalyzer, searchAnalyzer, postingsProvider, docValuesProvider,
+            return new GeoPointFieldMapper(buildNames(context), fieldType, docValues, indexAnalyzer, postingsProvider, docValuesProvider,
                     similarity, fieldDataSettings, context.indexSettings(), origPathType, enableLatLon, enableGeoHash, enableGeohashPrefix, precisionStep,
-                    geoHashPrecision, latMapper, lonMapper, geohashMapper, validateLon, validateLat, normalizeLon, normalizeLat
-            , multiFieldsBuilder.build(this, context));
+                    geoHashPrecision, latMapper, lonMapper, geohashMapper, backCompat, validate, validateLat, validateLon, normalize,
+                    normalizeLat, normalizeLon, multiFieldsBuilder.build(this, context));
         }
     }
 
@@ -207,6 +214,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
         @Override
         public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = geoPointField(name);
+            builder.backCompat = parserContext.indexVersionCreated().before(Version.V_1_7_1);
             parseField(builder, name, node, parserContext);
             for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
@@ -231,18 +239,24 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
                         builder.geoHashPrecision(GeoUtils.geoHashLevelsForPrecision(fieldNode.toString()));
                     }
                 } else if (fieldName.equals("validate")) {
-                    builder.validateLat = XContentMapValues.nodeBooleanValue(fieldNode);
+                    builder.validate = XContentMapValues.nodeBooleanValue(fieldNode);
+                    if (builder.backCompat) {
+                        builder.validateLat = builder.validate;
+                        builder.validateLon = builder.validate;
+                    }
+                } else if (builder.backCompat && fieldName.equals("validate_lon")) {
+                    builder.validate = false;
                     builder.validateLon = XContentMapValues.nodeBooleanValue(fieldNode);
-                } else if (fieldName.equals("validate_lon")) {
-                    builder.validateLon = XContentMapValues.nodeBooleanValue(fieldNode);
-                } else if (fieldName.equals("validate_lat")) {
+                } else if (builder.backCompat && fieldName.equals("validate_lat")) {
+                    builder.validate = false;
                     builder.validateLat = XContentMapValues.nodeBooleanValue(fieldNode);
                 } else if (fieldName.equals("normalize")) {
+                    builder.normalize = XContentMapValues.nodeBooleanValue(fieldNode);
+                } else if (builder.backCompat && fieldName.equals("normalize_lat")) {
+                    builder.normalize = false;
                     builder.normalizeLat = XContentMapValues.nodeBooleanValue(fieldNode);
-                    builder.normalizeLon = XContentMapValues.nodeBooleanValue(fieldNode);
-                } else if (fieldName.equals("normalize_lat")) {
-                    builder.normalizeLat = XContentMapValues.nodeBooleanValue(fieldNode);
-                } else if (fieldName.equals("normalize_lon")) {
+                } else if (builder.backCompat && fieldName.equals("normalize_lon")) {
+                    builder.normalize = false;
                     builder.normalizeLon = XContentMapValues.nodeBooleanValue(fieldNode);
                 } else {
                     parseMultiField(builder, name, parserContext, fieldName, fieldNode);
@@ -395,20 +409,22 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
 
     private final StringFieldMapper geohashMapper;
 
+    private boolean backCompat;
+
     private boolean validateLon;
     private boolean validateLat;
+    private boolean validate;
 
     private final boolean normalizeLon;
     private final boolean normalizeLat;
+    private boolean normalize;
 
-    public GeoPointFieldMapper(FieldMapper.Names names, FieldType fieldType, Boolean docValues,
-            NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
-            PostingsFormatProvider postingsFormat, DocValuesFormatProvider docValuesFormat,
-            SimilarityProvider similarity, @Nullable Settings fieldDataSettings, Settings indexSettings,
-            ContentPath.Type pathType, boolean enableLatLon, boolean enableGeoHash, boolean enableGeohashPrefix, Integer precisionStep, int geoHashPrecision,
-            DoubleFieldMapper latMapper, DoubleFieldMapper lonMapper, StringFieldMapper geohashMapper,
-            boolean validateLon, boolean validateLat,
-            boolean normalizeLon, boolean normalizeLat, MultiFields multiFields) {
+    public GeoPointFieldMapper(FieldMapper.Names names, FieldType fieldType, Boolean docValues, NamedAnalyzer indexAnalyzer,
+            PostingsFormatProvider postingsFormat, DocValuesFormatProvider docValuesFormat, SimilarityProvider similarity,
+            @Nullable Settings fieldDataSettings, Settings indexSettings, ContentPath.Type pathType, boolean enableLatLon,
+            boolean enableGeoHash, boolean enableGeohashPrefix, Integer precisionStep, int geoHashPrecision, DoubleFieldMapper latMapper,
+            DoubleFieldMapper lonMapper, StringFieldMapper geohashMapper, boolean backCompat, boolean validate, boolean validateLat,
+            boolean validateLon, boolean normalize, boolean normalizeLat, boolean normalizeLon, MultiFields multiFields) {
         super(names, 1f, fieldType, docValues, null, indexAnalyzer, postingsFormat, docValuesFormat, similarity, null, fieldDataSettings, indexSettings, multiFields, null);
         this.pathType = pathType;
         this.enableLatLon = enableLatLon;
@@ -421,9 +437,13 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
         this.lonMapper = lonMapper;
         this.geohashMapper = geohashMapper;
 
+        this.backCompat = backCompat;
+
+        this.validate = validate;
         this.validateLat = validateLat;
         this.validateLon = validateLon;
 
+        this.normalize = normalize;
         this.normalizeLat = normalizeLat;
         this.normalizeLon = normalizeLon;
     }
@@ -553,17 +573,14 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
     }
 
     private void parse(ParseContext context, GeoPoint point, String geohash) throws IOException {
-        if (normalizeLat || normalizeLon) {
-            GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);
-        }
-
-        if (validateLat) {
-            if (point.lat() > 90.0 || point.lat() < -90.0) {
+        // if the coordinate is normalized there is no need for a validation check
+        if (backCompat || normalize) {
+            GeoUtils.normalizePoint(point, (backCompat) ? normalizeLat : normalize, (backCompat) ? normalizeLon : normalize);
+        } else if (backCompat || validate) {
+            if ((validate || (backCompat && validateLat)) && (point.lat() > 90.0 || point.lat() < -90.0)) {
                 throw new ElasticsearchIllegalArgumentException("illegal latitude value [" + point.lat() + "] for " + name());
             }
-        }
-        if (validateLon) {
-            if (point.lon() > 180.0 || point.lon() < -180) {
+            if ((validate || (backCompat && validateLon)) && (point.lon() > 180.0 || point.lon() < -180)) {
                 throw new ElasticsearchIllegalArgumentException("illegal longitude value [" + point.lon() + "] for " + name());
             }
         }
@@ -628,19 +645,25 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
         if (this.enableGeohashPrefix != fieldMergeWith.enableGeohashPrefix) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different geohash_prefix");
         }
-        if (this.normalizeLat != fieldMergeWith.normalizeLat) {
+        if (!this.backCompat && this.normalize != fieldMergeWith.normalize) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different normalize");
+        }
+        if (this.backCompat && this.normalizeLat != fieldMergeWith.normalizeLat) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different normalize_lat");
         }
-        if (this.normalizeLon != fieldMergeWith.normalizeLon) {
+        if (this.backCompat && this.normalizeLon != fieldMergeWith.normalizeLon) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different normalize_lon");
         }
         if (!Objects.equal(this.precisionStep, fieldMergeWith.precisionStep)) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different precision_step");
         }
-        if (this.validateLat != fieldMergeWith.validateLat) {
+        if (!this.backCompat && this.validate != fieldMergeWith.validate) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different validate");
+        }
+        if (this.backCompat && this.validateLat != fieldMergeWith.validateLat) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different validate_lat");
         }
-        if (this.validateLon != fieldMergeWith.validateLon) {
+        if (this.backCompat && this.validateLon != fieldMergeWith.validateLon) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different validate_lon");
         }
     }
@@ -682,7 +705,10 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
         if (includeDefaults || precisionStep != null) {
             builder.field("precision_step", precisionStep);
         }
-        if (includeDefaults || validateLat != Defaults.VALIDATE_LAT || validateLon != Defaults.VALIDATE_LON) {
+        if (!backCompat && (includeDefaults || validate != Defaults.VALIDATE)) {
+            builder.field("validate", validate);
+        }
+        if (backCompat && (includeDefaults || validateLat != Defaults.VALIDATE_LAT || validateLon != Defaults.VALIDATE_LON)) {
             if (validateLat && validateLon) {
                 builder.field("validate", true);
             } else if (!validateLat && !validateLon) {
@@ -696,7 +722,10 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
                 }
             }
         }
-        if (includeDefaults || normalizeLat != Defaults.NORMALIZE_LAT || normalizeLon != Defaults.NORMALIZE_LON) {
+        if (!backCompat && (includeDefaults || normalize != Defaults.NORMALIZE)) {
+            builder.field("normalize", normalize);
+        }
+        if (backCompat && (includeDefaults || normalizeLat != Defaults.NORMALIZE_LAT || normalizeLon != Defaults.NORMALIZE_LON)) {
             if (normalizeLat && normalizeLon) {
                 builder.field("normalize", true);
             } else if (!normalizeLat && !normalizeLon) {

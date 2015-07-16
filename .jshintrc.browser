@@ -1,0 +1,14 @@
+{
+  "extends": "./.jshintrc",
+  "node": false,
+  "browser": true,
+
+  "predef": {
+    // require.js
+    "define": true,
+    "require": true,
+    "console": false,
+    "-event": true,
+    "-name": true
+  }
+}

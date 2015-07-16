@@ -105,7 +105,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         this.transport = transport;
         this.threadPool = threadPool;
         this.tracerLogInclude = settings.getAsArray(SETTING_TRACE_LOG_INCLUDE, Strings.EMPTY_ARRAY, true);
-        this.tracelLogExclude = settings.getAsArray(SETTING_TRACE_LOG_EXCLUDE, new String[]{"internal:discovery/zen/fd*"}, true);
+        this.tracelLogExclude = settings.getAsArray(SETTING_TRACE_LOG_EXCLUDE, new String[]{"internal:discovery/zen/fd*", "cluster:monitor/nodes/liveness"}, true);
         tracerLog = Loggers.getLogger(logger, ".tracer");
         adapter = createAdapter();
     }

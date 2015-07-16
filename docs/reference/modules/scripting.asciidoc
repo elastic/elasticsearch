@@ -7,9 +7,37 @@ as part of a search request, or can be used to evaluate a custom score
 for a query and so on.
 
 The scripting module uses by default http://groovy.codehaus.org/[groovy]
-(previously http://mvel.codehaus.org/[mvel] in 1.3.x and earlier) as the
-scripting language with some extensions. Groovy is used since it is extremely
+as the scripting language with some extensions. Groovy is used since it is extremely
 fast and very simple to use.
+
+[WARNING]
+.Change in Groovy casting behavour
+====================================================
+
+The Groovy upgrade in Elasticsearch 1.6.1 fixed a casting bug, which may
+change the behaviour of existing scripts which relied on this bug.  For
+instance, before the upgrade, the following script would have returned a
+`long` value:
+
+[source,js]
+-------------------------
+(long) _value / 1000 + 1
+-------------------------
+
+After the upgrade, the above script will now return a `float` value.  To
+return a `long` value, the script should be rewritten as follows:
+
+[source,js]
+-------------------------
+(long) (_value / 1000 + 1)
+-------------------------
+
+See https://issues.apache.org/jira/browse/GROOVY-4421[GROOVY-4421]
+and https://issues.apache.org/jira/browse/GROOVY-5185[GROVY-5185]
+for more information.
+
+====================================================
+
 
 .Groovy dynamic scripting disabled by default from v1.4.3
 [IMPORTANT]

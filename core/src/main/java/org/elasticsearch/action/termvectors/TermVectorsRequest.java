@@ -167,6 +167,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         this.version = other.version();
         this.versionType = VersionType.fromValue(other.versionType().getValue());
         this.startTime = other.startTime();
+        this.filterSettings = other.filterSettings();
     }
 
     public TermVectorsRequest(MultiGetRequest.Item item) {

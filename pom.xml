@@ -582,7 +582,6 @@
                         <leaveTemporary>true</leaveTemporary>
                         <parallelism>${tests.jvms}</parallelism>
                         <ifNoTests>${tests.ifNoTests}</ifNoTests>
-                        <report-execution-times historyLength="20" file="${basedir}/${execution.hint.file}"/>
                         <assertions enableSystemAssertions="true">
                             <enable/>
                             <disable package="${tests.assertion.disabled}"/>
@@ -681,6 +680,7 @@
                                     <containsregex pattern="^(\s+at )(org\.apache\.lucene.util\.AbstractBeforeAfterRule)" />
                                 </filtertrace>
                             </report-text>
+                            <report-execution-times historyLength="20" file="${basedir}/${execution.hint.file}"/>
                         </listeners>
                     </configuration>
                     <executions>

@@ -5,7 +5,7 @@ The mapper attachments plugin adds the `attachment` type to Elasticsearch using 
 The `attachment` type allows to index different "attachment" type field (encoded as `base64`), for example,
 microsoft office formats, open document formats, ePub, HTML, and so on (full list can be found [here](http://tika.apache.org/1.8/formats.html)).
 
-In order to install the plugin, run: 
+In order to install the plugin, run:
 
 ```sh
 bin/plugin install elasticsearch/elasticsearch-mapper-attachments/2.7.0
@@ -16,7 +16,7 @@ You need to install a version matching your Elasticsearch version:
 |       Elasticsearch    | Attachments Plugin|                                                             Docs                                                                   |
 |------------------------|-------------------|------------------------------------------------------------------------------------------------------------------------------------|
 |    master              | Build from source | See below                                                                                                                          |
-|    es-1.x              |     2.7.0         | [2.7.0](https://github.com/elastic/elasticsearch-mapper-attachments/tree/v2.7.0/#version-270-for-elasticsearch-17)                  |
+|    es-1.7              |     2.7.0         | [2.7.0](https://github.com/elastic/elasticsearch-mapper-attachments/tree/v2.7.0/#version-270-for-elasticsearch-17)                  |
 |    es-1.6              |     2.6.0         | [2.6.0](https://github.com/elastic/elasticsearch-mapper-attachments/tree/v2.6.0/#version-260-for-elasticsearch-16)                  |
 |    es-1.5              |     2.5.0         | [2.5.0](https://github.com/elastic/elasticsearch-mapper-attachments/tree/v2.5.0/#version-250-for-elasticsearch-15)                  |
 |    es-1.4              |     2.4.3         | [2.4.3](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/v2.4.3/#version-243-for-elasticsearch-14)                  |
@@ -30,7 +30,7 @@ To build a `SNAPSHOT` version, you need to build it with Maven:
 
 ```bash
 mvn clean install
-plugin --install mapper-attachments \ 
+plugin --install mapper-attachments \
        --url file:target/releases/elasticsearch-mapper-attachments-X.X.X-SNAPSHOT.zip
 ```
 
@@ -73,7 +73,7 @@ PUT /test/person/1
 }
 ```
 
-The `attachment` type not only indexes the content of the doc, but also automatically adds meta data on the attachment 
+The `attachment` type not only indexes the content of the doc, but also automatically adds meta data on the attachment
 as well (when available).
 
 The metadata supported are:
@@ -89,7 +89,7 @@ The metadata supported are:
 
 They can be queried using the "dot notation", for example: `my_attachment.author`.
 
-Both the meta data and the actual content are simple core type mappers (string, date, ...), thus, they can be controlled 
+Both the meta data and the actual content are simple core type mappers (string, date, ...), thus, they can be controlled
 in the mappings. For example:
 
 ```javascript
@@ -115,8 +115,8 @@ PUT /test/person/_mapping
 }
 ```
 
-In the above example, the actual content indexed is mapped under `fields` name `file`, and we decide not to index it, so 
-it will only be available in the `_all` field. The other fields map to their respective metadata names, but there is no 
+In the above example, the actual content indexed is mapped under `fields` name `file`, and we decide not to index it, so
+it will only be available in the `_all` field. The other fields map to their respective metadata names, but there is no
 need to specify the `type` (like `string` or `date`) since it is already known.
 
 Copy To feature
@@ -181,7 +181,7 @@ PUT /test/person/1?refresh=true
 }
 GET /test/person/_search
 {
-  "fields": [ "file.content_type" ], 
+  "fields": [ "file.content_type" ],
   "query": {
     "match": {
       "file.content_type": "text plain"
@@ -224,9 +224,9 @@ Will give you:
 Indexed Characters
 ------------------
 
-By default, `100000` characters are extracted when indexing the content. This default value can be changed by setting 
-the `index.mapping.attachment.indexed_chars` setting. It can also be provided on a per document indexed using the 
-`_indexed_chars` parameter. `-1` can be set to extract all text, but note that all the text needs to be allowed to be 
+By default, `100000` characters are extracted when indexing the content. This default value can be changed by setting
+the `index.mapping.attachment.indexed_chars` setting. It can also be provided on a per document indexed using the
+`_indexed_chars` parameter. `-1` can be set to extract all text, but note that all the text needs to be allowed to be
 represented in memory:
 
 ```
@@ -298,7 +298,7 @@ PUT /test/person/1?refresh=true
 }
 GET /test/person/_search
 {
-  "fields": [], 
+  "fields": [],
   "query": {
     "match": {
       "file": "king queen"

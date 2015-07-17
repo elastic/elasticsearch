@@ -53,6 +53,8 @@
         <elasticsearch.thirdparty.config>unshaded</elasticsearch.thirdparty.config>
         <elasticsearch.license.header>${elasticsearch.tools.directory}/license-check/elasticsearch_license_header.txt</elasticsearch.license.header>
         <elasticsearch.license.headerDefinition>${elasticsearch.tools.directory}/license-check/license_header_definition.xml</elasticsearch.license.headerDefinition>
+        <elasticsearch.integ.antfile.default>${elasticsearch.tools.directory}/ant/integration-tests.xml</elasticsearch.integ.antfile.default>
+        <elasticsearch.integ.antfile>${elasticsearch.integ.antfile.default}</elasticsearch.integ.antfile>
 
         <!-- Test properties -->
         <tests.jvms>auto</tests.jvms>

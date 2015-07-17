@@ -21,8 +21,6 @@
     <properties>
         <elasticsearch.assembly.descriptor>${basedir}/src/main/assemblies/plugin.xml</elasticsearch.assembly.descriptor>
         <elasticsearch.assembly.appendId>false</elasticsearch.assembly.appendId>
-        <elasticsearch.integ.antfile.default>${elasticsearch.tools.directory}/ant/integration-tests.xml</elasticsearch.integ.antfile.default>
-        <elasticsearch.integ.antfile>${elasticsearch.integ.antfile.default}</elasticsearch.integ.antfile>
     </properties>
 
     <dependencies>
@@ -309,8 +307,7 @@
                             </goals>
                             <configuration>
                                 <target>
-                                    <ant antfile="${elasticsearch.integ.antfile}"
-                                         target="start-external-cluster-with-plugin"/>
+                                    <ant antfile="${elasticsearch.integ.antfile}" target="start-external-cluster-with-plugin"/>
                                 </target>
                             </configuration>
                         </execution>
@@ -323,13 +320,9 @@
                             </goals>
                             <configuration>
                                 <target>
-                                    <ant antfile="${elasticsearch.integ.antfile}"
-                                         target="stop-external-cluster"/>
+                                    <ant antfile="${elasticsearch.integ.antfile}" target="stop-external-cluster"/>
                                     <!-- TODO: remove this and the xslt when junit4 is fixed -->
-                                    <xslt in="${project.build.directory}/failsafe-reports/failsafe-summary-buggy.xml" 
-                                          out="${project.build.directory}/failsafe-reports/failsafe-summary.xml" 
-                                          style="${elasticsearch.tools.directory}/ant/fixup-failsafe-summary.xslt">
-                                    </xslt>
+                                    <ant antfile="${elasticsearch.integ.antfile}" target="fixup-failsafe-summary"/>
                                 </target>
                             </configuration>
                         </execution>

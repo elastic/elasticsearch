@@ -164,4 +164,12 @@
     </exec>
     <delete file="${integ.pidfile}"/>
   </target>
+
+  <!-- TODO: remove this and the xslt when junit4 is fixed -->
+  <target name="fixup-failsafe-summary" unless="${shouldskip}">
+    <xslt in="${project.build.directory}/failsafe-reports/failsafe-summary-buggy.xml"
+          out="${project.build.directory}/failsafe-reports/failsafe-summary.xml"
+          style="${elasticsearch.tools.directory}/ant/fixup-failsafe-summary.xslt"/>
+  </target>
+
 </project>

@@ -1039,8 +1039,7 @@
                         </goals>
                         <configuration>
                             <target>
-                                <ant antfile="${elasticsearch.tools.directory}/ant/integration-tests.xml"
-                                     target="start-external-cluster"/>
+                                <ant antfile="${elasticsearch.integ.antfile}" target="start-external-cluster"/>
                             </target>
                         </configuration>
                     </execution>
@@ -1053,21 +1052,13 @@
                         </goals>
                         <configuration>
                             <target>
-                                <ant antfile="${elasticsearch.tools.directory}/ant/integration-tests.xml"
-                                     target="stop-external-cluster"/>
+                                <ant antfile="${elasticsearch.integ.antfile}" target="stop-external-cluster"/>
+                                <!-- TODO: remove this and the xslt when junit4 is fixed -->
+                                <ant antfile="${elasticsearch.integ.antfile}" target="fixup-failsafe-summary"/>
                             </target>
                         </configuration>
                     </execution>
                 </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-failsafe-plugin</artifactId>
-                <configuration>
-                    <systemPropertyVariables>
-                        <tests.cluster>127.0.0.1:9300</tests.cluster>
-                    </systemPropertyVariables>
-                </configuration>
             </plugin>
         </plugins>
       <pluginManagement>

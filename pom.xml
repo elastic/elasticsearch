@@ -379,7 +379,7 @@
             <dependency>
                 <groupId>io.netty</groupId>
                 <artifactId>netty</artifactId>
-                <version>3.10.0.Final</version>
+                <version>3.10.3.Final</version>
             </dependency>
 
             <dependency>
@@ -1489,7 +1489,6 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
         </profile>
     </profiles>
     <modules>
-        <module>securemock</module>
         <module>dev-tools</module>
         <module>rest-api-spec</module>
         <module>plugins</module>

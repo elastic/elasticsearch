@@ -75,6 +75,7 @@ import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.IndicesWarmer.TerminationHandle;
 import org.elasticsearch.indices.IndicesWarmer.WarmerContext;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script.ScriptParseException;
 import org.elasticsearch.script.ScriptContext;
@@ -101,6 +102,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.common.Strings.hasLength;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 
 /**
@@ -111,7 +113,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     public static final String NORMS_LOADING_KEY = "index.norms.loading";
     public static final String DEFAULT_KEEPALIVE_KEY = "search.default_keep_alive";
     public static final String KEEPALIVE_INTERVAL_KEY = "search.keep_alive_interval";
+    public static final String DEFAULT_SEARCH_TIMEOUT = "search.default_search_timeout";
 
+    public static final TimeValue NO_TIMEOUT = timeValueMillis(-1);
 
     private final ThreadPool threadPool;
 
@@ -137,6 +141,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     private final long defaultKeepAlive;
 
+    private volatile TimeValue defaultSearchTimeout;
+
     private final ScheduledFuture<?> keepAliveReaper;
 
     private final AtomicLong idGenerator = new AtomicLong();
@@ -148,7 +154,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     private final ParseFieldMatcher parseFieldMatcher;
 
     @Inject
-    public SearchService(Settings settings, ClusterService clusterService, IndicesService indicesService,IndicesWarmer indicesWarmer, ThreadPool threadPool,
+    public SearchService(Settings settings, NodeSettingsService nodeSettingsService, ClusterService clusterService, IndicesService indicesService,IndicesWarmer indicesWarmer, ThreadPool threadPool,
                          ScriptService scriptService, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, DfsPhase dfsPhase, QueryPhase queryPhase, FetchPhase fetchPhase,
                          IndicesRequestCache indicesQueryCache) {
         super(settings);
@@ -202,6 +208,20 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         this.indicesWarmer.addListener(new NormsWarmer());
         this.indicesWarmer.addListener(new FieldDataWarmer());
         this.indicesWarmer.addListener(new SearchWarmer());
+
+        defaultSearchTimeout = settings.getAsTime(DEFAULT_SEARCH_TIMEOUT, NO_TIMEOUT);
+        nodeSettingsService.addListener(new SearchSettingsListener());
+    }
+
+    class SearchSettingsListener implements NodeSettingsService.Listener {
+        @Override
+        public void onRefreshSettings(Settings settings) {
+            final TimeValue maybeNewDefaultSearchTimeout = settings.getAsTime(SearchService.DEFAULT_SEARCH_TIMEOUT, SearchService.this.defaultSearchTimeout);
+            if (!maybeNewDefaultSearchTimeout.equals(SearchService.this.defaultSearchTimeout)) {
+                logger.info("updating [{}] from [{}] to [{}]", SearchService.DEFAULT_SEARCH_TIMEOUT, SearchService.this.defaultSearchTimeout, maybeNewDefaultSearchTimeout);
+                SearchService.this.defaultSearchTimeout = maybeNewDefaultSearchTimeout;
+            }
+        }
     }
 
     protected void putContext(SearchContext context) {
@@ -619,7 +639,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
         Engine.Searcher engineSearcher = searcher == null ? indexShard.acquireSearcher("search") : searcher;
 
-        SearchContext context = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget, engineSearcher, indexService, indexShard, scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher);
+        SearchContext context = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget, engineSearcher, indexService, indexShard, scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher, defaultSearchTimeout);
         SearchContext.setCurrent(context);
         try {
             context.scroll(request.scroll());

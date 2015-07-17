@@ -45,11 +45,6 @@ import static org.hamcrest.Matchers.is;
 @ElasticsearchIntegrationTest.ClusterScope(minNumDataNodes = 2)
 public class SearchWhileRelocatingTests extends ElasticsearchIntegrationTest {
 
-// @LuceneTestCase.AwaitsFix(bugUrl = "problem with search searching on 1 shard (no replica), " +
-//   "and between getting the cluster state to do the search, and executing it, " +
-//   "the shard has fully relocated (moved from started on one node, to fully started on another node")
-//   ^^ the current impl of the test handles this case gracefully since it can happen with 1 replica as well
-//   we just make sure if we get a partial result without a failure that the postsearch is ok!
     @Test
     @Nightly
     public void testSearchAndRelocateConcurrently0Replicas() throws Exception {

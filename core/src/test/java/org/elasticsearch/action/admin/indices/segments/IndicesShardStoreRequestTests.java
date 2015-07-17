@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.indices.segments;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import com.google.common.base.Predicate;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;

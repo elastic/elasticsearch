@@ -302,7 +302,7 @@ Meta fields can no longer be specified within a document. They should be specifi
 via the API.  For example, instead of adding a field `_parent` within a document,
 use the `parent` url parameter when indexing that document.
 
-==== Default date format now is `strictDateOptionalDate`
+==== Default date format now is `strictDateOptionalTime`
 
 Instead of `dateOptionalTime` the new default date format now is `strictDateOptionalTime`,
 which is more strict in parsing dates. This means, that dates now need to have a four digit year,

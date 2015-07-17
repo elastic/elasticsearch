@@ -64,7 +64,8 @@ def index_documents(es, index_name, type, num_docs):
   for id in range(0, num_docs):
     es.index(index=index_name, doc_type=type, id=id, body={'string': str(random.randint(0, 100)),
                                                            'long_sort': random.randint(0, 100),
-                                                           'double_sort' : float(random.randint(0, 100))})
+                                                           'double_sort' : float(random.randint(0, 100)),
+                                                           'bool' : random.choice([True, False])})
     if rarely():
       es.indices.refresh(index=index_name)
     if rarely():
@@ -90,7 +91,7 @@ def delete_by_query(es, version, index_name, doc_type):
     return
 
   deleted_count = es.count(index=index_name, doc_type=doc_type, body=query)['count']
-
+    
   result = es.delete_by_query(index=index_name,
                               doc_type=doc_type,
                               body=query)
@@ -193,11 +194,58 @@ def generate_index(client, version, index_name):
       'search_analyzer': 'keyword',
       'search_quote_analyzer': 'english',
     }
+    mappings['index_name_and_path'] = {
+      'properties': {
+        'parent_multi_field': {
+          'type': 'string',
+          'path': 'just_name',
+          'fields': {
+            'raw': {'type': 'string', 'index': 'not_analyzed', 'index_name': 'raw_multi_field'}
+          }
+        },
+        'field_with_index_name': {
+          'type': 'string',
+          'index_name': 'custom_index_name_for_field'
+        }
+      }
+    }
+    mappings['meta_fields'] = {
+      '_id': {
+        'path': 'myid'
+      },
+      '_routing': {
+        'path': 'myrouting'
+      },
+      '_boost': {
+        'null_value': 2.0
+      }     
+    }
+    mappings['custom_formats'] = {
+      'properties': {
+        'string_with_custom_postings': {
+          'type': 'string',
+          'postings_format': 'Lucene41'
+        },
+        'long_with_custom_doc_values': {
+          'type': 'long',
+          'doc_values_format': 'Lucene42'
+        }
+      }
+    }
+    mappings['auto_boost'] = {
+      '_all': {
+        'auto_boost': True
+      }
+    }
 
   client.indices.create(index=index_name, body={
       'settings': {
           'number_of_shards': 1,
-          'number_of_replicas': 0
+          'number_of_replicas': 0,
+          # Same as ES default (60 seconds), but missing the units to make sure they are inserted on upgrade:
+          "gc_deletes": '60000',
+          # Same as ES default (5 GB), but missing the units to make sure they are inserted on upgrade:
+          "merge.policy.max_merged_segment": '5368709120'
       },
       'mappings': mappings
   })
@@ -214,11 +262,15 @@ def generate_index(client, version, index_name):
   logging.info('Running basic asserts on the data added')
   run_basic_asserts(client, index_name, 'doc', num_docs)
 
-def snapshot_index(client, cfg, version, repo_dir):
+def snapshot_index(client, version, repo_dir):
   # Add bogus persistent settings to make sure they can be restored
-  client.cluster.put_settings(body = {
+  client.cluster.put_settings(body={
     'persistent': {
-      'cluster.routing.allocation.exclude.version_attr': version
+      'cluster.routing.allocation.exclude.version_attr': version,
+      # Same as ES default (30 seconds), but missing the units to make sure they are inserted on upgrade:
+      'discovery.zen.publish_timeout': '30000',
+      # Same as ES default (512 KB), but missing the units to make sure they are inserted on upgrade:
+      'indices.recovery.file_chunk_size': '524288',
     }
   })
   client.indices.put_template(name='template_' + version.lower(), order=0, body={
@@ -226,9 +278,9 @@ def snapshot_index(client, cfg, version, repo_dir):
     "settings": {
       "number_of_shards" : 1
     },
-    "mappings" : {
-      "type1" : {
-        "_source" : { "enabled" : False }
+    "mappings": {
+      "type1": {
+        "_source": { "enabled" : False }
       }
     },
     "aliases": {
@@ -237,11 +289,11 @@ def snapshot_index(client, cfg, version, repo_dir):
         "filter": {
           "term": {"version" : version }
         },
-        "routing" : "kimchy"
+        "routing": "kimchy"
       },
-      "{index}-alias" : {}
+      "{index}-alias": {}
     }
-  });
+  })
   client.snapshot.create_repository(repository='test_repo', body={
     'type': 'fs',
     'settings': {
@@ -318,7 +370,7 @@ def create_bwc_index(cfg, version):
     index_name = 'index-%s' % version.lower()
     generate_index(client, version, index_name)
     if snapshot_supported:
-      snapshot_index(client, cfg, version, repo_dir)
+      snapshot_index(client, version, repo_dir)
 
     # 10067: get a delete-by-query into the translog on upgrade.  We must do
     # this after the snapshot, because it calls flush.  Otherwise the index

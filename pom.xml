@@ -731,6 +731,8 @@
                                     <tests.slow>true</tests.slow>
                                     <!-- use external cluster -->
                                     <tests.cluster>127.0.0.1:9300</tests.cluster>
+                                    <!-- let framework know we are running integ tests, for correct 'reproduce with' line -->
+                                    <tests.verify.phase>true</tests.verify.phase>
                                 </systemProperties>
                             </configuration>
                         </execution>

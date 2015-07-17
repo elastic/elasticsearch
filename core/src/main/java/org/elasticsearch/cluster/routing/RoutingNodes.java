@@ -756,6 +756,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         private final RoutingNode iterable;
         private ShardRouting shard;
         private final Iterator<ShardRouting> delegate;
+        private boolean removed = false;
 
         public RoutingNodeIterator(RoutingNode iterable) {
             this.delegate = iterable.mutableIterator();
@@ -769,6 +770,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
         @Override
         public ShardRouting next() {
+            removed = false;
             return shard = delegate.next();
         }
 
@@ -776,6 +778,13 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         public void remove() {
             delegate.remove();
             RoutingNodes.this.remove(shard);
+            removed = true;
+        }
+
+
+        /** returns true if {@link #remove()} or {@link #moveToUnassigned(UnassignedInfo)} were called on the current shard */
+        public boolean isRemoved() {
+            return removed;
         }
 
         @Override
@@ -784,7 +793,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         }
 
         public void moveToUnassigned(UnassignedInfo unassignedInfo) {
-            remove();
+            if (isRemoved() == false) {
+                remove();
+            }
             ShardRouting unassigned = new ShardRouting(shard); // protective copy of the mutable shard
             unassigned.moveToUnassigned(unassignedInfo);
             unassigned().add(unassigned);

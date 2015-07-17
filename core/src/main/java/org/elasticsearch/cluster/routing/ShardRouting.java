@@ -530,6 +530,7 @@ public final class ShardRouting implements Streamable, ToXContent {
         result = 31 * result + (primary ? 1 : 0);
         result = 31 * result + (state != null ? state.hashCode() : 0);
         result = 31 * result + (restoreSource != null ? restoreSource.hashCode() : 0);
+        result = 31 * result + (allocationId != null ? allocationId.hashCode() : 0);
         return hashCode = result;
     }
 

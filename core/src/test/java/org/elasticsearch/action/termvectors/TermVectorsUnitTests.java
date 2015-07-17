@@ -302,8 +302,8 @@ public class TermVectorsUnitTests extends ElasticsearchTestCase {
         request = new MultiTermVectorsRequest();
         request.add(new TermVectorsRequest(), bytes);
         checkParsedParameters(request);
-        
     }
+
     void checkParsedParameters(MultiTermVectorsRequest request) {
         Set<String> ids = new HashSet<>();
         ids.add("1");
@@ -324,5 +324,31 @@ public class TermVectorsUnitTests extends ElasticsearchTestCase {
             assertThat(singleRequest.selectedFields(), equalTo(fields));
         }
     }
-    
+
+    @Test // issue #12311
+    public void testMultiParserFilter() throws Exception {
+        byte[] data = Streams.copyToBytesFromClasspath("/org/elasticsearch/action/termvectors/multiRequest3.json");
+        BytesReference bytes = new BytesArray(data);
+        MultiTermVectorsRequest request = new MultiTermVectorsRequest();
+        request.add(new TermVectorsRequest(), bytes);
+        checkParsedFilterParameters(request);
+    }
+
+    void checkParsedFilterParameters(MultiTermVectorsRequest multiRequest) {
+        int id = 1;
+        for (TermVectorsRequest request : multiRequest.requests) {
+            assertThat(request.index(), equalTo("testidx"));
+            assertThat(request.type(), equalTo("test"));
+            assertThat(request.id(), equalTo(id+""));
+            assertNotNull(request.filterSettings());
+            assertThat(request.filterSettings().maxNumTerms, equalTo(20));
+            assertThat(request.filterSettings().minTermFreq, equalTo(1));
+            assertThat(request.filterSettings().maxTermFreq, equalTo(20));
+            assertThat(request.filterSettings().minDocFreq, equalTo(1));
+            assertThat(request.filterSettings().maxDocFreq, equalTo(20));
+            assertThat(request.filterSettings().minWordLength, equalTo(1));
+            assertThat(request.filterSettings().maxWordLength, equalTo(20));
+            id++;
+        }
+    }
 }

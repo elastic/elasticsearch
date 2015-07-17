@@ -1039,8 +1039,7 @@
                         </goals>
                         <configuration>
                             <target>
-                                <ant antfile="${elasticsearch.tools.directory}/ant/integration-tests.xml"
-                                     target="start-external-cluster"/>
+                                <ant antfile="${elasticsearch.integ.antfile}" target="start-external-cluster"/>
                             </target>
                         </configuration>
                     </execution>
@@ -1053,13 +1052,9 @@
                         </goals>
                         <configuration>
                             <target>
-                                <ant antfile="${elasticsearch.tools.directory}/ant/integration-tests.xml"
-                                     target="stop-external-cluster"/>
+                                <ant antfile="${elasticsearch.integ.antfile}" target="stop-external-cluster"/>
                                 <!-- TODO: remove this and the xslt when junit4 is fixed -->
-                                <xslt in="${project.build.directory}/failsafe-reports/failsafe-summary-buggy.xml"
-                                  out="${project.build.directory}/failsafe-reports/failsafe-summary.xml"
-                                  style="${elasticsearch.tools.directory}/ant/fixup-failsafe-summary.xslt">
-                                </xslt>
+                                <ant antfile="${elasticsearch.integ.antfile}" target="fixup-failsafe-summary"/>
                             </target>
                         </configuration>
                     </execution>

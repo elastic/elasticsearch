@@ -253,7 +253,7 @@ public class PrioritizedExecutorsTests extends ElasticsearchTestCase {
                              public void run() {
                                  invoked.countDown();
                              }
-                         }, timer, TimeValue.timeValueMillis(1000), new Runnable() {
+                         }, timer, TimeValue.timeValueHours(1), new Runnable() {
                     @Override
                     public void run() {
                         // We should never get here

@@ -31,7 +31,7 @@ server. These certificates should be put into each node's keystore/truststore.
 
 ==== Active Directory Realm Configuration
 
-Like all realms, the `active-directory` realm is configured under the `shield.authc.realms` settings namespace in the
+Like all realms, the `active_directory` realm is configured under the `shield.authc.realms` settings namespace in the
 `elasticsearch.yml` file. The following snippet shows an example of such configuration:
 
 .Example Active Directory Configuration
@@ -40,8 +40,8 @@ Like all realms, the `active-directory` realm is configured under the `shield.au
 shield:
   authc:
     realms:
-      active-directory:
-        type: active-directory
+      active_directory:
+        type: active_directory
         order: 0
         domain_name: example.com
         unmapped_groups_as_roles: true
@@ -53,7 +53,7 @@ shield:
 .Active Directory Realm Settings
 |=======================
 | Setting                    | Required  | Description
-| `type`                     | yes       | Indicates the realm type and must be set to `active-directory`
+| `type`                     | yes       | Indicates the realm type and must be set to `active_directory`
 | `order`                    | no        | Indicates the priority of this realm within the realm chain. Realms with lower order will be consulted first. Although not required, it is highly recommended to explicitly set this value when multiple realms are configured. Defaults to `Integer.MAX_VALUE`.
 | `enabled`                  | no        | Indicates whether this realm is enabled/disabled. Provides an easy way to disable realms in the chain without removing their configuration. Defaults to `true`.
 | `domain_name`              | yes       | Specifies the domain name of the Active Directory. The cluster can derive the LDAP URL and `user_search_dn` fields from values in this element if those fields are not otherwise specified.

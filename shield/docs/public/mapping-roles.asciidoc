@@ -7,7 +7,7 @@ For other types of realms, you configure role mappings for users and groups in a
 the name and location of the mapping file by configuring the appropriate `role_mapping` setting in `elasticsearch.yml`:
 
  `shield.authc.ldap.files.role_mapping` :: The location of the role mapping file for LDAP realms.
- `shield.authc.active-directory.files.role_mapping` :: The location of the role mapping file for Active Directory realms.
+ `shield.authc.active_directory.files.role_mapping` :: The location of the role mapping file for Active Directory realms.
  `shield.authc.pki.files.role_mapping` :: The location of the role mapping file for PKI realms.
 
 Within the role mapping file, Elasticsearch roles are keys and groups

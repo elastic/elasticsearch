@@ -200,7 +200,7 @@ shield.authc.realms:
         ...
 
     realm3:
-        type: active-directory
+        type: active_directory
         order: 2
         ...
     ...
@@ -210,7 +210,7 @@ shield.authc.realms:
 [options="header"]
 |======
 | Name          | Required    | Default              | Description
-| `type`        | yes         | -                    | The type of the reamlm (currently `esusers`, `ldap` or `active-directory`)
+| `type`        | yes         | -                    | The type of the reamlm (currently `esusers`, `ldap` or `active_directory`)
 | `order`       | no          | Integer.MAX_VALUE    | The priority of the realm within the realm chain
 | `enabled`     | no          | true                 | Enable/disable the realm
 |======

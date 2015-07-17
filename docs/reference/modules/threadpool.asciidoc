@@ -16,7 +16,7 @@ There are several thread pools, but the important ones include:
 
 `search`::
     For count/search operations. Defaults to `fixed`
-    with a size of `3x # of available processors`,
+    with a size of `int((# of available_processors * 3) / 2) + 1`,
     queue_size of `1000`.
 
 `suggest`::

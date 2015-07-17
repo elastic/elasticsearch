@@ -102,6 +102,41 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.CCW));
     }
 
+    /**
+     * Test that orientation parameter correctly parses
+     * @throws IOException
+     */
+    public void testCoerceParsing() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("location")
+                .field("type", "geo_shape")
+                .field("coerce", "true")
+                .endObject().endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+
+        boolean coerce = ((GeoShapeFieldMapper)fieldMapper).coerce().value();
+        assertThat(coerce, equalTo(true));
+
+        // explicit false coerce test
+        mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("location")
+                .field("type", "geo_shape")
+                .field("coerce", "false")
+                .endObject().endObject()
+                .endObject().endObject().string();
+
+        defaultMapper = createIndex("test2").mapperService().documentMapperParser().parse(mapping);
+        fieldMapper = defaultMapper.mappers().getMapper("location");
+        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+
+        coerce = ((GeoShapeFieldMapper)fieldMapper).coerce().value();
+        assertThat(coerce, equalTo(false));
+    }
+
     @Test
     public void testGeohashConfiguration() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")

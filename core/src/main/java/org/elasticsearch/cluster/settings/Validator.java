@@ -57,6 +57,25 @@ public interface Validator {
         }
     };
 
+    public static final Validator TIMEOUT = new Validator() {
+        @Override
+        public String validate(String setting, String value) {
+            try {
+                if (value == null) {
+                    throw new NullPointerException("value must not be null");
+                }
+                TimeValue timeValue = TimeValue.parseTimeValue(value, null, setting);
+                assert timeValue != null;
+                if (timeValue.millis() < 0 && timeValue.millis() != -1) {
+                    return "cannot parse value [" + value + "] as a timeout";
+                }
+            } catch (ElasticsearchParseException ex) {
+                return ex.getMessage();
+            }
+            return null;
+        }
+    };
+
     public static final Validator TIME_NON_NEGATIVE = new Validator() {
         @Override
         public String validate(String setting, String value) {

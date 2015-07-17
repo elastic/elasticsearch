@@ -1206,7 +1206,7 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                                 <target>
                                     <taskdef resource="com/carrotsearch/junit4/antlib.xml" classpathref="maven.plugin.classpath"/>
                                     <tophints max="${tests.topn}">
-                                        <file file="${basedir}/${execution.hint.file}"/>
+                                        <fileset dir="${basedir}" includes="${execution.hint.file}"/>
                                     </tophints>
                                 </target>
                             </configuration>

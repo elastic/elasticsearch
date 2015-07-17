@@ -48,6 +48,7 @@ indices:data/write/delete[r]
 indices:data/write/index[r]
 indices:monitor/recovery[s]
 indices:monitor/segments[s]
+indices:monitor/shard_stores
 indices:monitor/stats[s]
 indices:monitor/upgrade[s]
 indices:monitor/upgrade

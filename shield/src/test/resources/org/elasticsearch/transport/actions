@@ -48,6 +48,7 @@ indices:admin/warmers/put
 indices:monitor/recovery
 indices:monitor/segments
 indices:monitor/settings/get
+indices:monitor/shard_stores
 indices:monitor/stats
 indices:monitor/upgrade
 indices:data/read/count

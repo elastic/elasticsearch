@@ -10,6 +10,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.watcher.WatcherBuild;
+import org.elasticsearch.watcher.WatcherMetaData;
 import org.elasticsearch.watcher.WatcherState;
 import org.elasticsearch.watcher.WatcherVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,6 +31,7 @@ public class WatcherStatsResponse extends ActionResponse implements ToXContent {
     private WatcherState watcherState;
     private long threadPoolQueueSize;
     private long threadPoolMaxSize;
+    private WatcherMetaData watcherMetaData;
 
     private List<WatchExecutionSnapshot> snapshots;
     private List<QueuedWatch> queuedWatches;
@@ -121,6 +123,14 @@ public class WatcherStatsResponse extends ActionResponse implements ToXContent {
         this.queuedWatches = queuedWatches;
     }
 
+    public WatcherMetaData getWatcherMetaData() {
+        return watcherMetaData;
+    }
+
+    public void setWatcherMetaData(WatcherMetaData watcherMetaData) {
+        this.watcherMetaData = watcherMetaData;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -145,6 +155,7 @@ public class WatcherStatsResponse extends ActionResponse implements ToXContent {
                 queuedWatches.add(new QueuedWatch(in));
             }
         }
+        watcherMetaData = (WatcherMetaData) WatcherMetaData.PROTO.readFrom(in);
     }
 
     @Override
@@ -175,6 +186,7 @@ public class WatcherStatsResponse extends ActionResponse implements ToXContent {
         } else {
             out.writeBoolean(false);
         }
+        watcherMetaData.writeTo(out);
     }
 
     @Override
@@ -201,6 +213,7 @@ public class WatcherStatsResponse extends ActionResponse implements ToXContent {
             }
             builder.endArray();
         }
+        watcherMetaData.toXContent(builder, params);
 
         builder.endObject();
         return builder;

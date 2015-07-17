@@ -3,3 +3,4 @@
 
   - do: {watcher.stats: {}}
   - match: { "watcher_state": "started" }
+  - match: { "manually_stopped": false }

@@ -18,7 +18,7 @@ documents that remain.
       "match": { "tweet": "full text search" }
     },
     "filter": {
-      "range": { "created": { "gte": "now - 1d / d" }}
+      "range": { "created": { "gte": "now-1d/d" }}
     }
   }
 }
@@ -37,7 +37,7 @@ curl -XGET localhost:9200/_search -d '
         "match": { "tweet": "full text search" }
       },
       "filter": {
-        "range": { "created": { "gte": "now - 1d / d" }}
+        "range": { "created": { "gte": "now-1d/d" }}
       }
     }
   }
@@ -61,7 +61,7 @@ curl -XGET localhost:9200/_search -d '
   "query": {
     "filtered": { <1>
       "filter": {
-        "range": { "created": { "gte": "now - 1d / d" }}
+        "range": { "created": { "gte": "now-1d/d" }}
       }
     }
   }
@@ -83,7 +83,7 @@ Multiple filters can be applied by wrapping them in a
     "query": { "match": { "tweet": "full text search" }},
     "filter": {
       "bool": {
-        "must": { "range": { "created": { "gte": "now - 1d / d" }}},
+        "must": { "range": { "created": { "gte": "now-1d/d" }}},
         "should": [
           { "term": { "featured": true }},
           { "term": { "starred":  true }}

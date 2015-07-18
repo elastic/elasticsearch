@@ -102,7 +102,7 @@ include::indices/segments.asciidoc[]
 
 include::indices/recovery.asciidoc[]
 
-include::indices/shards-stores.asciidoc[]
+include::indices/shard-stores.asciidoc[]
 
 include::indices/clearcache.asciidoc[]
 

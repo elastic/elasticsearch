@@ -1,11 +1,44 @@
 [[mapping-id-field]]
-=== `_id`
+=== `_id` field
 
-Each document indexed is associated with an id and a type. The `_id`
-field allows accessing only the id of a document.
+Each document indexed is associated with a <<mapping-type-field,`_type`>> (see
+<<all-mapping-types,Mapping Types>>) and an <<mapping-id-field,`_id`>>.  The
+`_id` field is not indexed as its value can be derived automatically from the
+<<mapping-uid-field,`_uid`>> field.
 
-Note, even though the `_id` is not indexed, all the APIs still work
-(since they work with the `_uid` field), as well as fetching by ids
-using `term`, `terms` or `prefix` queries/filters (including the
-specific `ids` query/filter).
+The value of the `_id` field is accessible in queries and scripts, but _not_
+in aggregations or when sorting, where the <<mapping-uid-field,`_uid`>> field
+should be used instead:
+
+[source,js]
+--------------------------
+# Example documents
+PUT my_index/my_type/1
+{
+  "text": "Document with ID 1"
+}
+
+PUT my_index/my_type/2
+{
+  "text": "Document with ID 2"
+}
+
+GET my_index/_search
+{
+  "query": {
+    "terms": {
+      "_id": [ "1", "2" ] <1>
+    }
+  },
+  "script_fields": {
+    "UID": {
+      "script": "doc['_id']" <2>
+    }
+  }
+}
+--------------------------
+// AUTOSENSE
+
+<1> Querying on the `_id` field (also see the <<query-dsl-ids-query,`ids` query>>)
+<2> Accessing the `_id` field in scripts (inline scripts must be <<enable-dynamic-scripting,enabled>> for this example to work)
 

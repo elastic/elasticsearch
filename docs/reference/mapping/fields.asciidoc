@@ -1,27 +1,78 @@
 [[mapping-fields]]
-== Fields
+== Meta-Fields
 
-Each mapping has a number of fields associated with it
-which can be used to control how the document metadata
-(eg <<mapping-all-field>>) is indexed.
+Each document has metadata associated with it, such as the `_index`, mapping
+<<mapping-type-field,`_type`>>, and `_id` meta-fields.  The behaviour of some of these meta-fields
+can be customised when a mapping type is created.
+
+The meta-fields are:
+
+[horizontal]
+<<mapping-index-field,`_index`>>::
+
+    The index to which the document belongs.
+
+<<mapping-uid-field,`_uid`>>::
+
+    A composite field consisting of the `_type` and the `_id`.
+
+<<mapping-type-field,`_type`>>::
+
+    The document's <<all-mapping-types,mapping type>>.
+
+<<mapping-id-field,`_id`>>::
+
+    The document's ID.
+
+<<mapping-source-field,`_source`>>::
+
+    The original JSON representing the body of the document.
+
+<<mapping-all-field,`_all`>>::
+
+    A _catch-all_  field that indexes the values of all other fields.
+
+<<mapping-field-names-field,`_field_names`>>::
+
+    All fields in the document which contain non-null values.
+
+<<mapping-parent-field,`_parent`>>::
+
+    Used to create a parent-child relationship between two mapping types.
+
+<<mapping-routing-field,`_routing`>>::
+
+    A custom routing value which routes a document to a particular shard.
+
+<<mapping-size-field,`_size`>>::
+
+    The size of the `_source` field in bytes.
+
+<<mapping-timestamp-field,`_timestamp`>>::
+
+    A timestamp associated with the document, either specified manually or auto-generated.
+
+<<mapping-ttl-field,`_ttl`>>::
+
+    How long a document should live before it is automatically deleted.
+
+include::fields/index-field.asciidoc[]
 
 include::fields/uid-field.asciidoc[]
 
-include::fields/id-field.asciidoc[]
-
 include::fields/type-field.asciidoc[]
+
+include::fields/id-field.asciidoc[]
 
 include::fields/source-field.asciidoc[]
 
 include::fields/all-field.asciidoc[]
 
-include::fields/parent-field.asciidoc[]
-
 include::fields/field-names-field.asciidoc[]
 
-include::fields/routing-field.asciidoc[]
+include::fields/parent-field.asciidoc[]
 
-include::fields/index-field.asciidoc[]
+include::fields/routing-field.asciidoc[]
 
 include::fields/size-field.asciidoc[]
 

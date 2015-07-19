@@ -69,6 +69,14 @@ public class FunctionScoreFieldValueTests extends ElasticsearchIntegrationTest {
                 .get();
         assertOrderedSearchHits(response, "2", "1");
 
+        // try again, but this time explicitly use the do-nothing modifier
+        response = client().prepareSearch("test")
+                .setExplain(randomBoolean())
+                .setQuery(functionScoreQuery(simpleQueryStringQuery("foo"),
+                        fieldValueFactorFunction("test").modifier(FieldValueFactorFunction.Modifier.NONE)))
+                .get();
+        assertOrderedSearchHits(response, "2", "1");
+
         // document 1 scores higher because 1/5 > 1/17
         response = client().prepareSearch("test")
                 .setExplain(randomBoolean())

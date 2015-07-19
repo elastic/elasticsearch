@@ -51,7 +51,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.gateway.GatewayAllocator;
+import org.elasticsearch.gateway.PrimaryShardAllocator;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.translog.TranslogService;
@@ -514,7 +514,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         internalCluster().ensureAtLeastNumDataNodes(2);
 
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
-                        .put(GatewayAllocator.INDEX_RECOVERY_INITIAL_SHARDS, "one")
+                        .put(PrimaryShardAllocator.INDEX_RECOVERY_INITIAL_SHARDS, "one")
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, cluster().numDataNodes() - 1)
                         .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                         .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose

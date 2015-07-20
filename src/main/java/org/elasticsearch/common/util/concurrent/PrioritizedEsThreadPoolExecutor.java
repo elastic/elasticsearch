@@ -84,6 +84,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
         } else if (!(command instanceof PrioritizedFutureTask)) { // it might be a callable wrapper...
             command = new TieBreakingPrioritizedRunnable(command, Priority.NORMAL, insertionOrder.incrementAndGet());
         }
+        super.execute(command);
         if (timeout.nanos() >= 0) {
             if (command instanceof TieBreakingPrioritizedRunnable) {
                 ((TieBreakingPrioritizedRunnable) command).scheduleTimeout(timer, timeoutCallback, timeout);
@@ -93,7 +94,6 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
                 throw new UnsupportedOperationException("Execute with timeout is not supported for future tasks");
             }
         }
-        super.execute(command);
     }
 
     @Override
@@ -140,7 +140,8 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
         private Runnable runnable;
         private final long insertionOrder;
-        private ScheduledFuture<?> timeoutFuture;
+        private volatile ScheduledFuture<?> timeoutFuture;
+        private volatile boolean started = false;
 
         TieBreakingPrioritizedRunnable(PrioritizedRunnable runnable, long insertionOrder) {
             this(runnable, runnable.priority(), insertionOrder);
@@ -154,6 +155,9 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
         @Override
         public void run() {
+            // make the task as stared. This is needed for synchronization with the timeout handling
+            // see  #scheduleTimeout()
+            started = true;
             FutureUtils.cancel(timeoutFuture);
             runAndClean(runnable);
         }
@@ -176,6 +180,10 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
                     }
                 }
             }, timeValue.nanos(), TimeUnit.NANOSECONDS);
+            if (started) {
+                // if the actual action already it might have missed the setting of the future. Clean it ourselves.
+                FutureUtils.cancel(timeoutFuture);
+            }
         }
 
         /**

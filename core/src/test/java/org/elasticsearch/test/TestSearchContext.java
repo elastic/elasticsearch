@@ -82,6 +82,8 @@ public class TestSearchContext extends SearchContext {
     private String[] types;
     private SearchContextAggregations aggregations;
 
+    private final long originNanoTime = System.nanoTime();
+
     public TestSearchContext(ThreadPool threadPool,PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, IndexService indexService, QueryCache filterCache, IndexFieldDataService indexFieldDataService) {
         super(ParseFieldMatcher.STRICT);
         this.pageCacheRecycler = pageCacheRecycler;
@@ -168,6 +170,11 @@ public class TestSearchContext extends SearchContext {
     @Override
     public SearchContext queryBoost(float queryBoost) {
         return null;
+    }
+
+    @Override
+    public long getOriginNanoTime() {
+        return originNanoTime;
     }
 
     @Override

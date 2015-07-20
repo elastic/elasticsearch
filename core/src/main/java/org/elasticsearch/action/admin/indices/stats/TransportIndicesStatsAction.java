@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
@@ -37,9 +38,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -57,9 +58,10 @@ public class TransportIndicesStatsAction extends TransportBroadcastAction<Indice
     private final IndicesService indicesService;
 
     @Inject
-    public TransportIndicesStatsAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                       IndicesService indicesService, ActionFilters actionFilters) {
-        super(settings, IndicesStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
+    public TransportIndicesStatsAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                                       TransportService transportService, IndicesService indicesService,
+                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, IndicesStatsAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 IndicesStatsRequest.class, IndexShardStatsRequest.class, ThreadPool.Names.MANAGEMENT);
         this.indicesService = indicesService;
     }
@@ -123,7 +125,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastAction<Indice
         IndexShard indexShard = indexService.shardSafe(request.shardId().id());
         // if we don't have the routing entry yet, we need it stats wise, we treat it as if the shard is not ready yet
         if (indexShard.routingEntry() == null) {
-            throw new IndexShardMissingException(indexShard.shardId());
+            throw new ShardNotFoundException(indexShard.shardId());
         }
 
         CommonStatsFlags flags = new CommonStatsFlags().clear();

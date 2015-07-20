@@ -198,8 +198,14 @@ public class GatewayAllocator extends AbstractComponent {
             for (TransportNodesListGatewayStartedShards.NodeGatewayStartedShards nodeShardState : shardState.getData().values()) {
                 long version = nodeShardState.version();
                 // -1 version means it does not exists, which is what the API returns, and what we expect to
-                logger.trace("[{}] on node [{}] has version [{}] of shard", shard, nodeShardState.getNode(), version);
-                nodesState.put(nodeShardState.getNode(), version);
+                if (nodeShardState.storeException() == null) {
+                    logger.trace("[{}] on node [{}] has version [{}] of shard", shard, nodeShardState.getNode(), version);
+                    nodesState.put(nodeShardState.getNode(), version);
+                } else {
+                    // when there is an store exception, we disregard the reported version and assign it as -1 (same as shard does not exist)
+                    logger.trace("[{}] on node [{}] has version [{}] but the store can not be opened, treating as version -1", nodeShardState.storeException(), shard, nodeShardState.getNode(), version);
+                    nodesState.put(nodeShardState.getNode(), -1);
+                }
             }
 
             int numberOfAllocationsFound = 0;
@@ -339,7 +345,7 @@ public class GatewayAllocator extends AbstractComponent {
                     // we found a match
                     changed = true;
                     // make sure we create one with the version from the recovered state
-                    routingNodes.assign(new ShardRouting(shard, highestVersion), node.nodeId());
+                    routingNodes.initialize(new ShardRouting(shard, highestVersion), node.nodeId());
                     unassignedIterator.remove();
 
                     // found a node, so no throttling, no "no", and break out of the loop
@@ -359,7 +365,7 @@ public class GatewayAllocator extends AbstractComponent {
                     // we found a match
                     changed = true;
                     // make sure we create one with the version from the recovered state
-                    routingNodes.assign(new ShardRouting(shard, highestVersion), node.nodeId());
+                    routingNodes.initialize(new ShardRouting(shard, highestVersion), node.nodeId());
                     unassignedIterator.remove();
                 }
             } else {
@@ -514,7 +520,7 @@ public class GatewayAllocator extends AbstractComponent {
                     }
                     // we found a match
                     changed = true;
-                    routingNodes.assign(shard, lastNodeMatched.nodeId());
+                    routingNodes.initialize(shard, lastNodeMatched.nodeId());
                     unassignedIterator.remove();
                 }
             } else if (hasReplicaData == false) {

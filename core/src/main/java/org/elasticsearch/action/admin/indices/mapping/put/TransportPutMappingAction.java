@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -42,8 +43,9 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
 
     @Inject
     public TransportPutMappingAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                     ThreadPool threadPool, MetaDataMappingService metaDataMappingService, ActionFilters actionFilters) {
-        super(settings, PutMappingAction.NAME, transportService, clusterService, threadPool, actionFilters, PutMappingRequest.class);
+                                     ThreadPool threadPool, MetaDataMappingService metaDataMappingService,
+                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, PutMappingAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, PutMappingRequest.class);
         this.metaDataMappingService = metaDataMappingService;
     }
 
@@ -60,12 +62,12 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
 
     @Override
     protected ClusterBlockException checkBlock(PutMappingRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, clusterService.state().metaData().concreteIndices(request.indicesOptions(), request.indices()));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndices(state, request));
     }
 
     @Override
     protected void masterOperation(final PutMappingRequest request, final ClusterState state, final ActionListener<PutMappingResponse> listener) {
-        final String[] concreteIndices = clusterService.state().metaData().concreteIndices(request.indicesOptions(), request.indices());
+        final String[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         PutMappingClusterStateUpdateRequest updateRequest = new PutMappingClusterStateUpdateRequest()
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
                 .indices(concreteIndices).type(request.type())

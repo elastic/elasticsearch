@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.FileStore;
 import java.nio.file.Files;
@@ -176,6 +177,52 @@ public class Environment {
      */
     public Path resolveRepoFile(String location) {
         return PathUtils.get(repoFiles, location);
+    }
+
+    /**
+     * Checks if the specified URL is pointing to the local file system and if it does, resolves the specified url
+     * against the list of configured repository roots
+     *
+     * If the specified url doesn't match any of the roots, returns null.
+     */
+    public URL resolveRepoURL(URL url) {
+        try {
+            if ("file".equalsIgnoreCase(url.getProtocol())) {
+                if (url.getHost() == null || "".equals(url.getHost())) {
+                    // only local file urls are supported
+                    Path path = PathUtils.get(repoFiles, url.toURI());
+                    if (path == null) {
+                        // Couldn't resolve against known repo locations
+                        return null;
+                    }
+                    // Normalize URL
+                    return path.toUri().toURL();
+                }
+                return null;
+            } else if ("jar".equals(url.getProtocol())) {
+                String file = url.getFile();
+                int pos = file.indexOf("!/");
+                if (pos < 0) {
+                    return null;
+                }
+                String jarTail = file.substring(pos);
+                String filePath = file.substring(0, pos);
+                URL internalUrl = new URL(filePath);
+                URL normalizedUrl = resolveRepoURL(internalUrl);
+                if (normalizedUrl == null) {
+                    return null;
+                }
+                return new URL("jar", "", normalizedUrl.toExternalForm() + jarTail);
+            } else {
+                // It's not file or jar url and it didn't match the white list - reject
+                return null;
+            }
+        } catch (MalformedURLException ex) {
+            // cannot make sense of this file url
+            return null;
+        } catch (URISyntaxException ex) {
+            return null;
+        }
     }
 
     /**

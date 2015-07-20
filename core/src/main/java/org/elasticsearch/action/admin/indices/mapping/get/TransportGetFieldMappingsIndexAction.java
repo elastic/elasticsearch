@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
@@ -65,11 +66,10 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
     private final IndicesService indicesService;
 
     @Inject
-    public TransportGetFieldMappingsIndexAction(Settings settings, ClusterService clusterService,
-                                                TransportService transportService,
-                                                IndicesService indicesService,
-                                                ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters, GetFieldMappingsIndexRequest.class, ThreadPool.Names.MANAGEMENT);
+    public TransportGetFieldMappingsIndexAction(Settings settings, ClusterService clusterService, TransportService transportService,
+                                                IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
+                                                IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, GetFieldMappingsIndexRequest.class, ThreadPool.Names.MANAGEMENT);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
     }

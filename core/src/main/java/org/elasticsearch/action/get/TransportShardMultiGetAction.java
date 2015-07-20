@@ -26,6 +26,7 @@ import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -47,8 +48,9 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
 
     @Inject
     public TransportShardMultiGetAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                                        IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
+                                        IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
+                                        IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 MultiGetShardRequest.class, ThreadPool.Names.GET);
         this.indicesService = indicesService;
 
@@ -103,7 +105,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                     throw (ElasticsearchException) t;
                 } else {
                     logger.debug("{} failed to execute multi_get for [{}]/[{}]", t, shardId, item.type(), item.id());
-                    response.add(request.locations.get(i), new MultiGetResponse.Failure(request.index(), item.type(), item.id(), ExceptionsHelper.detailedMessage(t)));
+                    response.add(request.locations.get(i), new MultiGetResponse.Failure(request.index(), item.type(), item.id(), t));
                 }
             }
         }

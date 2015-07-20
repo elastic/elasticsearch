@@ -94,7 +94,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            if (parserContext.indexVersionCreated().onOrAfter(Version.V_2_0_0)) {
+            if (parserContext.indexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
                 throw new MapperParsingException(NAME + " is not configurable");
             }
             Builder builder = new Builder(parserContext.mapperService().fullName(NAME));

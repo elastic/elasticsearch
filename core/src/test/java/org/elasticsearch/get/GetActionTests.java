@@ -54,13 +54,7 @@ import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.Matchers.*;
 
 public class GetActionTests extends ElasticsearchIntegrationTest {
 
@@ -600,7 +594,8 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         assertThat(response.getResponses()[1].getResponse().getSourceAsMap().get("field").toString(), equalTo("value1"));
         assertThat(response.getResponses()[2].getFailure(), notNullValue());
         assertThat(response.getResponses()[2].getFailure().getId(), equalTo("1"));
-        assertThat(response.getResponses()[2].getFailure().getMessage(), startsWith("VersionConflictEngineException"));
+        assertThat(response.getResponses()[2].getFailure().getMessage(), startsWith("[type1][1]: version conflict, current [1], provided [2]"));
+        assertThat(response.getResponses()[2].getFailure().getFailure(), instanceOf(VersionConflictEngineException.class));
 
         //Version from Lucene index
         refresh();
@@ -622,7 +617,9 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         assertThat(response.getResponses()[1].getResponse().getSourceAsMap().get("field").toString(), equalTo("value1"));
         assertThat(response.getResponses()[2].getFailure(), notNullValue());
         assertThat(response.getResponses()[2].getFailure().getId(), equalTo("1"));
-        assertThat(response.getResponses()[2].getFailure().getMessage(), startsWith("VersionConflictEngineException"));
+        assertThat(response.getResponses()[2].getFailure().getMessage(), startsWith("[type1][1]: version conflict, current [1], provided [2]"));
+        assertThat(response.getResponses()[2].getFailure().getFailure(), instanceOf(VersionConflictEngineException.class));
+
 
 
         for (int i = 0; i < 3; i++) {
@@ -645,7 +642,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         assertThat(response.getResponses()[1].getFailure(), notNullValue());
         assertThat(response.getResponses()[1].getFailure().getId(), equalTo("2"));
         assertThat(response.getResponses()[1].getIndex(), equalTo("test"));
-        assertThat(response.getResponses()[1].getFailure().getMessage(), startsWith("VersionConflictEngineException"));
+        assertThat(response.getResponses()[1].getFailure().getMessage(), startsWith("[type1][2]: version conflict, current [2], provided [1]"));
         assertThat(response.getResponses()[2].getId(), equalTo("2"));
         assertThat(response.getResponses()[2].getIndex(), equalTo("test"));
         assertThat(response.getResponses()[2].getFailure(), nullValue());
@@ -671,7 +668,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         assertThat(response.getResponses()[1].getFailure(), notNullValue());
         assertThat(response.getResponses()[1].getFailure().getId(), equalTo("2"));
         assertThat(response.getResponses()[1].getIndex(), equalTo("test"));
-        assertThat(response.getResponses()[1].getFailure().getMessage(), startsWith("VersionConflictEngineException"));
+        assertThat(response.getResponses()[1].getFailure().getMessage(), startsWith("[type1][2]: version conflict, current [2], provided [1]"));
         assertThat(response.getResponses()[2].getId(), equalTo("2"));
         assertThat(response.getResponses()[2].getIndex(), equalTo("test"));
         assertThat(response.getResponses()[2].getFailure(), nullValue());

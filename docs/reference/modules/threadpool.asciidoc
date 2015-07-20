@@ -16,7 +16,7 @@ There are several thread pools, but the important ones include:
 
 `search`::
     For count/search operations. Defaults to `fixed`
-    with a size of `3x # of available processors`,
+    with a size of `int((# of available_processors * 3) / 2) + 1`,
     queue_size of `1000`.
 
 `suggest`::
@@ -40,16 +40,16 @@ There are several thread pools, but the important ones include:
     queue_size of `1000`.
 
 `snapshot`::
-    For snapshot/restore operations. Defaults to `scaling`,
-    keep-alive `5m` with a size of `(# of available processors)/2`.
+    For snapshot/restore operations. Defaults to `scaling` with a
+    keep-alive of `5m` and a size of `min(5, (# of available processors)/2)`.
 
 `warmer`::
-    For segment warm-up operations. Defaults to `scaling`
-    with a `5m` keep-alive.
+    For segment warm-up operations. Defaults to `scaling` with a
+    keep-alive of `5m` and a size of `min(5, (# of available processors)/2)`.
 
 `refresh`::
-    For refresh operations. Defaults to `scaling`
-    with a `5m` keep-alive.
+    For refresh operations. Defaults to `scaling` with a
+    keep-alive of `5m` and a size of `min(10, (# of available processors)/2)`.
 
 `listener`::
     Mainly for java client executing of action when listener threaded is set to true.
@@ -114,6 +114,25 @@ threadpool:
         type: fixed
         size: 30
         queue_size: 1000
+--------------------------------------------------
+
+[float]
+==== `scaling`
+
+The `scaling` thread pool holds a dynamic number of threads. This number is
+proportional to the workload and varies between 1 and the value of the
+`size` parameter.
+
+The `keep_alive` parameter determines how long a thread should be kept
+around in the thread pool without it doing any work.
+
+[source,js]
+--------------------------------------------------
+threadpool:
+    warmer:
+        type: scaling
+        size: 8
+        keep_alive: 2m
 --------------------------------------------------
 
 [float]

@@ -23,7 +23,7 @@ in the `config/scripts/` directory on every node.
 To convert an inline script to a file, take this simple script
 as an example:
 
-[source,json]
+[source,js]
 -----------------------------------
 GET /_search
 {
@@ -48,7 +48,7 @@ on every data node in the cluster:
 
 Now you can access the script by file name (without the extension):
 
-[source,json]
+[source,js]
 -----------------------------------
 GET /_search
 {

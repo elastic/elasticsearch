@@ -53,7 +53,7 @@ public class PrefixQueryParser extends BaseQueryParserTemp {
         String rewriteMethod = null;
         String queryName = null;
 
-        Object value = null;
+        String value = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String currentFieldName = null;
         XContentParser.Token token;
@@ -71,7 +71,7 @@ public class PrefixQueryParser extends BaseQueryParserTemp {
                         if ("_name".equals(currentFieldName)) {
                             queryName = parser.text();
                         } else if ("value".equals(currentFieldName) || "prefix".equals(currentFieldName)) {
-                            value = parser.objectBytes();
+                            value = parser.textOrNull();
                         } else if ("boost".equals(currentFieldName)) {
                             boost = parser.floatValue();
                         } else if ("rewrite".equals(currentFieldName)) {
@@ -86,7 +86,7 @@ public class PrefixQueryParser extends BaseQueryParserTemp {
                     queryName = parser.text();
                 } else {
                     fieldName = currentFieldName;
-                    value = parser.objectBytes();
+                    value = parser.textOrNull();
                 }
             }
         }

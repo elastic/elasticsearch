@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -70,8 +71,9 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
 
     @Inject
     public TransportNodesListShardStoreMetaData(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                                IndicesService indicesService, NodeEnvironment nodeEnv, ActionFilters actionFilters) {
-        super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
+                                                IndicesService indicesService, NodeEnvironment nodeEnv, ActionFilters actionFilters,
+                                                IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 Request.class, NodeRequest.class, ThreadPool.Names.FETCH_SHARD_STORE);
         this.indicesService = indicesService;
         this.nodeEnv = nodeEnv;

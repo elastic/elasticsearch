@@ -16,6 +16,13 @@ The `preference` is a query string parameter which can be set to:
 	The operation will go and be executed on the primary
 	shard, and if not available (failover), will execute on other shards.
 
+`_replica`::
+  The operation will go and be executed only on a replica shard.
+
+`_replica_first`::
+  The operation will go and be executed only on a replica shard, and if
+  not available (failover), will execute on other shards.
+
 `_local`:: 
 	The operation will prefer to be executed on a local
 	allocated shard if possible.

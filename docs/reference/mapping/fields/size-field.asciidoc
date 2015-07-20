@@ -1,15 +1,76 @@
 [[mapping-size-field]]
-=== `_size`
+=== `_size` field
 
-The `_size` field allows to automatically index the size of the original
-`_source` indexed. By default, it's disabled. In order to enable it, set
-the mapping to:
+The `_size` field, when enabled, indexes the size in bytes of the original
+<<mapping-source-field,`_source`>>. In order to enable it, set
+the mapping as follows:
 
 [source,js]
---------------------------------------------------
+--------------------------
+PUT my_index
 {
-    "tweet" : {
-        "_size" : {"enabled" : true}
+  "mappings": {
+    "my_type": {
+      "_size": {
+        "enabled": true
+      }
     }
+  }
 }
---------------------------------------------------
+--------------------------
+// AUTOSENSE
+
+The value of the `_size` field is accessible in queries, aggregations, scripts,
+and when sorting:
+
+[source,js]
+--------------------------
+# Example documents
+PUT my_index/my_type/1
+{
+  "text": "This is a document"
+}
+
+PUT my_index/my_type/2
+{
+  "text": "This is another document"
+}
+
+GET my_index/_search
+{
+  "query": {
+    "range": {
+      "_size": { <1>
+        "gt": 10
+      }
+    }
+  },
+  "aggs": {
+    "Sizes": {
+      "terms": {
+        "field": "_size", <2>
+        "size": 10
+      }
+    }
+  },
+  "sort": [
+    {
+      "_size": { <3>
+        "order": "desc"
+      }
+    }
+  ],
+  "script_fields": {
+    "Size": {
+      "script": "doc['_size']"  <4>
+    }
+  }
+}
+--------------------------
+// AUTOSENSE
+
+<1> Querying on the `_size` field
+<2> Aggregating on the `_size` field
+<3> Sorting on the `_size` field
+<4> Accessing the `_size` field in scripts (inline scripts must be <<enable-dynamic-scripting,enabled>> for this example to work)
+

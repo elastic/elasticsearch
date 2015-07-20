@@ -333,14 +333,6 @@ generates an edit distance based on the length of the term. For lengths:
 `AUTO` should generally be the preferred value for `fuzziness`.
 --
 
-`0.0..1.0`::
-
-converted into an edit distance using the formula: `length(term) * (1.0 -
-fuzziness)`, eg a `fuzziness` of `0.6` with a term of length 10 would result
-in an edit distance of `4`. Note: in all APIs the maximum allowed edit distance is `2`.
-
-
-
 [float]
 === Result Casing
 

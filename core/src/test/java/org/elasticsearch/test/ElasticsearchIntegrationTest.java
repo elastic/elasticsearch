@@ -31,6 +31,7 @@ import com.google.common.collect.Lists;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
@@ -1086,7 +1087,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     // Check that the non-master node has the same version of the cluster state as the master and that this node didn't disconnect from the master
                     if (masterClusterState.version() == localClusterState.version() && localClusterState.nodes().nodes().containsKey(masterId)) {
                         try {
-                            assertEquals("clusterstate UUID does not match", masterClusterState.uuid(), localClusterState.uuid());
+                            assertEquals("clusterstate UUID does not match", masterClusterState.stateUUID(), localClusterState.stateUUID());
                             // We cannot compare serialization bytes since serialization order of maps is not guaranteed
                             // but we can compare serialization sizes - they should be the same
                             assertEquals("clusterstate size does not match", masterClusterStateSize, localClusterStateSize);
@@ -1226,6 +1227,24 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     protected boolean indexExists(String index) {
         IndicesExistsResponse actionGet = client().admin().indices().prepareExists(index).execute().actionGet();
         return actionGet.isExists();
+    }
+
+    /**
+     * Syntactic sugar for enabling allocation for <code>indices</code>
+     */
+    protected final void enableAllocation(String... indices) {
+        client().admin().indices().prepareUpdateSettings(indices).setSettings(Settings.builder().put(
+                EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "all"
+        )).get();
+    }
+
+    /**
+     * Syntactic sugar for disabling allocation for <code>indices</code>
+     */
+    protected final void disableAllocation(String... indices) {
+        client().admin().indices().prepareUpdateSettings(indices).setSettings(Settings.builder().put(
+                EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "none"
+        )).get();
     }
 
     /**

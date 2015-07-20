@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery.zen;
 
-import com.google.common.collect.Iterables;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -48,9 +47,7 @@ import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.lang.ref.Reference;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -219,7 +216,7 @@ public class ZenDiscoveryTests extends ElasticsearchIntegrationTest {
         });
         latch.await();
         assertThat(reference.get(), notNullValue());
-        assertThat(ExceptionsHelper.detailedMessage(reference.get()), containsString("cluster state from a different master then the current one, rejecting "));
+        assertThat(ExceptionsHelper.detailedMessage(reference.get()), containsString("cluster state from a different master than the current one, rejecting"));
     }
 
     @Test
@@ -228,7 +225,7 @@ public class ZenDiscoveryTests extends ElasticsearchIntegrationTest {
                 .put("discovery.type", "zen") // <-- To override the local setting if set externally
                 .put("node.mode", "local")  // <-- force local transport so we can fake a network address
                 .build();
-        String nodeName = internalCluster().startNode(nodeSettings, Version.V_2_0_0);
+        String nodeName = internalCluster().startNode(nodeSettings, Version.V_2_0_0_beta1);
         ZenDiscovery zenDiscovery = (ZenDiscovery) internalCluster().getInstance(Discovery.class, nodeName);
 
         DiscoveryNode node = new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), Version.V_1_6_0);
@@ -245,14 +242,14 @@ public class ZenDiscoveryTests extends ElasticsearchIntegrationTest {
         });
 
         assertThat(holder.get(), notNullValue());
-        assertThat(holder.get().getMessage(), equalTo("Can't handle join request from a node with a version [1.6.0] that is lower than the minimum compatible version [2.0.0-SNAPSHOT]"));
+        assertThat(holder.get().getMessage(), equalTo("Can't handle join request from a node with a version [1.6.0] that is lower than the minimum compatible version [" + Version.V_2_0_0_beta1.minimumCompatibilityVersion() + "]"));
     }
 
     @Test
     public void testJoinElectedMaster_incompatibleMinVersion() {
-        ElectMasterService electMasterService = new ElectMasterService(Settings.EMPTY, Version.V_2_0_0);
+        ElectMasterService electMasterService = new ElectMasterService(Settings.EMPTY, Version.V_2_0_0_beta1);
 
-        DiscoveryNode node = new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), Version.V_2_0_0);
+        DiscoveryNode node = new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), Version.V_2_0_0_beta1);
         assertThat(electMasterService.electMaster(Collections.singletonList(node)), sameInstance(node));
         node = new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), Version.V_1_6_0);
         assertThat("Can't join master because version 1.6.0 is lower than the minimum compatable version 2.0.0 can support", electMasterService.electMaster(Collections.singletonList(node)), nullValue());

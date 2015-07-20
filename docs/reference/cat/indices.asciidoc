@@ -4,7 +4,7 @@
 The `indices` command provides a cross-section of each index.  This
 information *spans nodes*.
 
-[source,shell]
+[source,sh]
 --------------------------------------------------
 % curl 'localhost:9200/_cat/indices/twi*?v'
 health status index    pri rep docs.count docs.deleted store.size pri.store.size
@@ -30,7 +30,7 @@ the view of relevant stats in the context of only the primaries.
 
 Which indices are yellow?
 
-[source,shell]
+[source,sh]
 --------------------------------------------------
 % curl localhost:9200/_cat/indices | grep ^yell
 yellow open  wiki     2 1  6401 1115 151.4mb 151.4mb
@@ -39,7 +39,7 @@ yellow open  twitter  5 1 11434    0    32mb    32mb
 
 What's my largest index by disk usage not including replicas?
 
-[source,shell]
+[source,sh]
 --------------------------------------------------
 % curl 'localhost:9200/_cat/indices?bytes=b' | sort -rnk8
 green open  wiki     2 0  6401 1115 158843725 158843725
@@ -49,7 +49,7 @@ green open  twitter2 2 0  2030    0   6125085   6125085
 
 How many merge operations have the shards for the `wiki` completed?
 
-[source,shell]
+[source,sh]
 --------------------------------------------------
 % curl 'localhost:9200/_cat/indices/wiki?pri&v&h=health,index,prirep,docs.count,mt'
 health index docs.count mt pri.mt
@@ -58,7 +58,7 @@ green  wiki        9646 16     16
 
 How much memory is used per index?
 
-[source,shell]
+[source,sh]
 --------------------------------------------------
 % curl 'localhost:9200/_cat/indices?v&h=i,tm'
 i     tm

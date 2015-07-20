@@ -95,7 +95,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
                 if (fieldName.equals("enabled")) {
                     builder.enabled(nodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED);
                     iterator.remove();
-                } else if (fieldName.equals("store") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+                } else if (fieldName.equals("store") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
                     builder.store(parseStore(fieldName, fieldNode.toString()));
                     iterator.remove();
                 }

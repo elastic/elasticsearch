@@ -24,6 +24,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -38,7 +39,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.MultiDataPathUpgrader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.index.IndexException;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.MergePolicyConfig;
@@ -304,8 +304,8 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
         try {
             client().admin().indices().prepareOpen(indexName).get();
             fail("Shouldn't be able to open an old index");
-        } catch (IndexException ex) {
-            assertThat(ex.getMessage(), containsString("cannot open the index due to upgrade failure"));
+        } catch (IllegalStateException ex) {
+            assertThat(ex.getMessage(), containsString("was created before v0.90.0 and wasn't upgraded"));
         }
         unloadIndex(indexName);
         logger.info("--> Done testing " + index + ", took " + ((System.currentTimeMillis() - startTime) / 1000.0) + " seconds");

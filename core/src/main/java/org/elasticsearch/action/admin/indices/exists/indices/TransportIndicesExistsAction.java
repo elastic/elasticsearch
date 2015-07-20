@@ -27,9 +27,10 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -40,8 +41,8 @@ public class TransportIndicesExistsAction extends TransportMasterNodeReadAction<
 
     @Inject
     public TransportIndicesExistsAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                        ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, IndicesExistsAction.NAME, transportService, clusterService, threadPool, actionFilters, IndicesExistsRequest.class);
+                                        ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, IndicesExistsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, IndicesExistsRequest.class);
     }
 
     @Override
@@ -59,7 +60,7 @@ public class TransportIndicesExistsAction extends TransportMasterNodeReadAction<
     protected ClusterBlockException checkBlock(IndicesExistsRequest request, ClusterState state) {
         //make sure through indices options that the concrete indices call never throws IndexMissingException
         IndicesOptions indicesOptions = IndicesOptions.fromOptions(true, true, request.indicesOptions().expandWildcardsOpen(), request.indicesOptions().expandWildcardsClosed());
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, clusterService.state().metaData().concreteIndices(indicesOptions, request.indices()));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndices(state, indicesOptions, request.indices()));
     }
 
     @Override
@@ -67,9 +68,9 @@ public class TransportIndicesExistsAction extends TransportMasterNodeReadAction<
         boolean exists;
         try {
             // Similar as the previous behaviour, but now also aliases and wildcards are supported.
-            clusterService.state().metaData().concreteIndices(request.indicesOptions(), request.indices());
+            indexNameExpressionResolver.concreteIndices(state, request);
             exists = true;
-        } catch (IndexMissingException e) {
+        } catch (IndexNotFoundException e) {
             exists = false;
         }
         listener.onResponse(new IndicesExistsResponse(exists));

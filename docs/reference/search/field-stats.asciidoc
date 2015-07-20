@@ -100,7 +100,7 @@ curl -XGET "http://localhost:9200/_field_stats?fields=rating,answer_count,creati
 
 Response:
 
-[source,json]
+[source,js]
 --------------------------------------------------
 {
    "_shards": {

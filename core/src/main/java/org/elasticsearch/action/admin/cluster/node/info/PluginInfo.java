@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.admin.cluster.node.info;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

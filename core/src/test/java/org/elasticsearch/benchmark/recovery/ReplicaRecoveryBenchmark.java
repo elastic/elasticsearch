@@ -29,7 +29,7 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.transport.TransportModule;
@@ -81,7 +81,7 @@ public class ReplicaRecoveryBenchmark {
         indexer.setMaxFieldSize(150);
         try {
             client1.admin().indices().prepareDelete(INDEX_NAME).get();
-        } catch (IndexMissingException e) {
+        } catch (IndexNotFoundException e) {
         }
         client1.admin().indices().prepareCreate(INDEX_NAME).get();
         indexer.start(DOC_COUNT / 2);

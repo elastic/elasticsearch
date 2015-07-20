@@ -49,7 +49,6 @@ import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentTypeListener;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.index.mapper.MapperService;
@@ -95,7 +94,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
 
     @Override
     public AtomicParentChildFieldData load(LeafReaderContext context) {
-        if (Version.indexCreated(indexSettings).onOrAfter(Version.V_2_0_0)) {
+        if (Version.indexCreated(indexSettings).onOrAfter(Version.V_2_0_0_beta1)) {
             final LeafReader reader = context.reader();
             final NavigableSet<String> parentTypes;
             synchronized (lock) {
@@ -398,6 +397,10 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         @Override
         public SortedDocValues getOrdinalsValues(String type) {
             final OrdinalMapAndAtomicFieldData atomicFD = this.atomicFD.get(type);
+            if (atomicFD == null) {
+                return DocValues.emptySorted();
+            }
+
             final OrdinalMap ordMap = atomicFD.ordMap;
             final SortedDocValues[] allSegmentValues = new SortedDocValues[atomicFD.fieldData.length];
             for (int i = 0; i < allSegmentValues.length; ++i) {

@@ -208,7 +208,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
     // TODO will have to ammend this for shadow replicas so we don't delete the shared copy...
     private void deleteShardIfExistElseWhere(ClusterState state, IndexShardRoutingTable indexShardRoutingTable) {
         List<Tuple<DiscoveryNode, ShardActiveRequest>> requests = new ArrayList<>(indexShardRoutingTable.size());
-        String indexUUID = state.getMetaData().index(indexShardRoutingTable.shardId().getIndex()).getUUID();
+        String indexUUID = state.getMetaData().index(indexShardRoutingTable.shardId().getIndex()).getIndexUUID();
         ClusterName clusterName = state.getClusterName();
         for (ShardRouting shardRouting : indexShardRoutingTable) {
             // Node can't be null, because otherwise shardCanBeDeleted() would have returned false

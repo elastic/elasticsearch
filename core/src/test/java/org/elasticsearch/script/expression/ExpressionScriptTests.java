@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
+import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService.ScriptType;
@@ -360,8 +361,12 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
 
         SearchRequestBuilder req = client().prepareSearch().setIndices("test");
         req.setQuery(QueryBuilders.matchAllQuery())
-                .addAggregation(AggregationBuilders.stats("int_agg").field("x").script("_value * 3").lang(ExpressionScriptEngineService.NAME))
-                .addAggregation(AggregationBuilders.stats("double_agg").field("y").script("_value - 1.1").lang(ExpressionScriptEngineService.NAME));
+                .addAggregation(
+                        AggregationBuilders.stats("int_agg").field("x")
+                                .script(new Script("_value * 3", ScriptType.INLINE, ExpressionScriptEngineService.NAME, null)))
+                .addAggregation(
+                        AggregationBuilders.stats("double_agg").field("y")
+                                .script(new Script("_value - 1.1", ScriptType.INLINE, ExpressionScriptEngineService.NAME, null)));
 
         SearchResponse rsp = req.get();
         assertEquals(3, rsp.getHits().getTotalHits());
@@ -414,8 +419,9 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
         vars.put("xyz", -1);
 
         Expression expr = JavascriptCompiler.compile("a+b+xyz");
+        CompiledScript compiledScript = new CompiledScript(ScriptType.INLINE, "", "expression", expr);
 
-        ExpressionExecutableScript ees = new ExpressionExecutableScript(expr, vars);
+        ExpressionExecutableScript ees = new ExpressionExecutableScript(compiledScript, vars);
         assertEquals((Double) ees.run(), 4.5, 0.001);
 
         ees.setNextVar("b", -2.5);
@@ -431,7 +437,7 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
         try {
             vars = new HashMap<>();
             vars.put("a", 1);
-            ees = new ExpressionExecutableScript(expr, vars);
+            ees = new ExpressionExecutableScript(compiledScript, vars);
             ees.run();
             fail("An incorrect number of variables were allowed to be used in an expression.");
         } catch (ScriptException se) {
@@ -444,7 +450,7 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
             vars.put("a", 1);
             vars.put("b", 3);
             vars.put("c", -1);
-            ees = new ExpressionExecutableScript(expr, vars);
+            ees = new ExpressionExecutableScript(compiledScript, vars);
             ees.run();
             fail("A variable was allowed to be set that does not exist in the expression.");
         } catch (ScriptException se) {
@@ -457,7 +463,7 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
             vars.put("a", 1);
             vars.put("b", 3);
             vars.put("xyz", "hello");
-            ees = new ExpressionExecutableScript(expr, vars);
+            ees = new ExpressionExecutableScript(compiledScript, vars);
             ees.run();
             fail("A non-number was allowed to be use in the expression.");
         } catch (ScriptException se) {

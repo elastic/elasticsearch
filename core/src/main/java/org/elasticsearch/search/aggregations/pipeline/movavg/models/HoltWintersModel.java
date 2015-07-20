@@ -356,7 +356,8 @@ public class HoltWintersModel extends MovAvgModel {
         }
 
         @Override
-        public MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName, int windowSize, ParseFieldMatcher parseFieldMatcher) throws ParseException {
+        public MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName, int windowSize,
+                                 ParseFieldMatcher parseFieldMatcher) throws ParseException {
 
             double alpha = parseDoubleParam(settings, "alpha", 0.3);
             double beta = parseDoubleParam(settings, "beta", 0.1);
@@ -376,6 +377,7 @@ public class HoltWintersModel extends MovAvgModel {
                 if (value != null) {
                     if (value instanceof String) {
                         seasonalityType = SeasonalityType.parse((String)value, parseFieldMatcher);
+                        settings.remove("type");
                     } else {
                         throw new ParseException("Parameter [type] must be a String, type `"
                                 + value.getClass().getSimpleName() + "` provided instead", 0);
@@ -385,6 +387,7 @@ public class HoltWintersModel extends MovAvgModel {
 
             boolean pad = parseBoolParam(settings, "pad", seasonalityType.equals(SeasonalityType.MULTIPLICATIVE));
 
+            checkUnrecognizedParams(settings);
             return new HoltWintersModel(alpha, beta, gamma, period, seasonalityType, pad);
         }
     }

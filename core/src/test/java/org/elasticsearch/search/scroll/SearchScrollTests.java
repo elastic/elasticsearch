@@ -38,6 +38,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -573,6 +574,33 @@ public class SearchScrollTests extends ElasticsearchIntegrationTest {
         } catch (Exception e) {
             assertThat(e, instanceOf(IllegalArgumentException.class));
             assertThat(e.getMessage(), startsWith("Unknown parameter [unknown]"));
+        }
+    }
+
+    public void testCloseAndReopenOrDeleteWithActiveScroll() throws IOException {
+        createIndex("test");
+        for (int i = 0; i < 100; i++) {
+            client().prepareIndex("test", "type1", Integer.toString(i)).setSource(jsonBuilder().startObject().field("field", i).endObject()).execute().actionGet();
+        }
+        refresh();
+        SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .setSize(35)
+                .setScroll(TimeValue.timeValueMinutes(2))
+                .addSort("field", SortOrder.ASC)
+                .execute().actionGet();
+        long counter = 0;
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(100l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(35));
+        for (SearchHit hit : searchResponse.getHits()) {
+            assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
+        }
+        if (randomBoolean()) {
+            client().admin().indices().prepareClose("test").get();
+            client().admin().indices().prepareOpen("test").get();
+            ensureGreen("test");
+        } else {
+            client().admin().indices().prepareDelete("test").get();
         }
     }
 

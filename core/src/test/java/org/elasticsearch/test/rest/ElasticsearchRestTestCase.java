@@ -35,6 +35,7 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.repositories.uri.URLRepository;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.rest.client.RestException;
@@ -155,6 +156,7 @@ public abstract class ElasticsearchRestTestCase extends ElasticsearchIntegration
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
+            .putArray(URLRepository.ALLOWED_URLS_SETTING, "http://snapshot.test*")
             .put(Node.HTTP_ENABLED, true)
             .put(super.nodeSettings(nodeOrdinal)).build();
     }

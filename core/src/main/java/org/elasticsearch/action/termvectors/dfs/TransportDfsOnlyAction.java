@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
@@ -61,8 +62,8 @@ public class TransportDfsOnlyAction extends TransportBroadcastAction<DfsOnlyRequ
 
     @Inject
     public TransportDfsOnlyAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                  ActionFilters actionFilters, SearchService searchService, SearchPhaseController searchPhaseController) {
-        super(settings, NAME, threadPool, clusterService, transportService, actionFilters,
+                                  ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, SearchService searchService, SearchPhaseController searchPhaseController) {
+        super(settings, NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 DfsOnlyRequest.class, ShardDfsOnlyRequest.class, ThreadPool.Names.SEARCH);
         this.searchService = searchService;
         this.searchPhaseController = searchPhaseController;
@@ -76,7 +77,7 @@ public class TransportDfsOnlyAction extends TransportBroadcastAction<DfsOnlyRequ
 
     @Override
     protected ShardDfsOnlyRequest newShardRequest(int numShards, ShardRouting shard, DfsOnlyRequest request) {
-        String[] filteringAliases = clusterService.state().metaData().filteringAliases(shard.index(), request.indices());
+        String[] filteringAliases = indexNameExpressionResolver.filteringAliases(clusterService.state(), shard.index(), request.indices());
         return new ShardDfsOnlyRequest(shard, numShards, filteringAliases, request.nowInMillis, request);
     }
 
@@ -87,8 +88,8 @@ public class TransportDfsOnlyAction extends TransportBroadcastAction<DfsOnlyRequ
 
     @Override
     protected GroupShardsIterator shards(ClusterState clusterState, DfsOnlyRequest request, String[] concreteIndices) {
-        Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(request.routing(), request.indices());
-        return clusterService.operationRouting().searchShards(clusterState, request.indices(), concreteIndices, routingMap, request.preference());
+        Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, request.routing(), request.indices());
+        return clusterService.operationRouting().searchShards(clusterState, concreteIndices, routingMap, request.preference());
     }
 
     @Override

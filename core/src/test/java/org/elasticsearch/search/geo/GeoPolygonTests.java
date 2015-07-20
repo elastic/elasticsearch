@@ -27,9 +27,8 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoPolygonQuery;
-import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.anyOf;
@@ -88,12 +87,28 @@ public class GeoPolygonTests extends ElasticsearchIntegrationTest {
     public void simplePolygonTest() throws Exception {
 
         SearchResponse searchResponse = client().prepareSearch("test") // from NY
-                .setQuery(filteredQuery(matchAllQuery(), geoPolygonQuery("location")
+                .setQuery(boolQuery().must(geoPolygonQuery("location")
                         .addPoint(40.7, -74.0)
                         .addPoint(40.7, -74.1)
                         .addPoint(40.8, -74.1)
                         .addPoint(40.8, -74.0)
                         .addPoint(40.7, -74.0)))
+                .execute().actionGet();
+        assertHitCount(searchResponse, 4);
+        assertThat(searchResponse.getHits().hits().length, equalTo(4));
+        for (SearchHit hit : searchResponse.getHits()) {
+            assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
+        }
+    }
+
+    @Test
+    public void simpleUnclosedPolygon() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("test") // from NY
+                .setQuery(boolQuery().must(geoPolygonQuery("location")
+                        .addPoint(40.7, -74.0)
+                        .addPoint(40.7, -74.1)
+                        .addPoint(40.8, -74.1)
+                        .addPoint(40.8, -74.0)))
                 .execute().actionGet();
         assertHitCount(searchResponse, 4);
         assertThat(searchResponse.getHits().hits().length, equalTo(4));

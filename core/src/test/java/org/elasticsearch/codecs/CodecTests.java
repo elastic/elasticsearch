@@ -51,11 +51,11 @@ public class CodecTests extends ElasticsearchSingleNodeTest {
             DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
             try {
                 parser.parse(mapping);
-                if (v.onOrAfter(Version.V_2_0_0)) {
+                if (v.onOrAfter(Version.V_2_0_0_beta1)) {
                     fail("Elasticsearch 2.0 should not support custom postings formats");
                 }
             } catch (MapperParsingException e) {
-                if (v.before(Version.V_2_0_0)) {
+                if (v.before(Version.V_2_0_0_beta1)) {
                     // Elasticsearch 1.x should ignore custom postings formats
                     throw e;
                 }
@@ -74,11 +74,11 @@ public class CodecTests extends ElasticsearchSingleNodeTest {
             DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
             try {
                 parser.parse(mapping);
-                if (v.onOrAfter(Version.V_2_0_0)) {
+                if (v.onOrAfter(Version.V_2_0_0_beta1)) {
                     fail("Elasticsearch 2.0 should not support custom postings formats");
                 }
             } catch (MapperParsingException e) {
-                if (v.before(Version.V_2_0_0)) {
+                if (v.before(Version.V_2_0_0_beta1)) {
                     // Elasticsearch 1.x should ignore custom postings formats
                     throw e;
                 }

@@ -23,7 +23,9 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -88,10 +90,6 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
         reset();
     }
 
-    private String randomRidiculouslySmallLimit() {
-        return randomFrom(Arrays.asList("100b", "100"));
-    }
-
     /** Returns true if any of the nodes used a noop breaker */
     private boolean noopBreakerUsed() {
         NodesStatsResponse stats = client().admin().cluster().prepareNodesStats().setBreaker(true).get();
@@ -107,7 +105,6 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/8710")
     public void testMemoryBreaker() throws Exception {
         if (noopBreakerUsed()) {
             logger.info("--> noop breakers used, skipping test");
@@ -124,22 +121,19 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
         }
         indexRandom(true, false, true, reqs);
 
-        // execute a search that loads field data (sorting on the "test" field)
-        SearchRequestBuilder searchRequest = client.prepareSearch("cb-test").setQuery(matchAllQuery()).addSort("test", SortOrder.DESC);
-        searchRequest.get();
-
         // clear field data cache (thus setting the loaded field data back to 0)
         clearFieldData();
 
         // Update circuit breaker settings
         Settings settings = settingsBuilder()
-                .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING, randomRidiculouslySmallLimit())
+                .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING, "100b")
                 .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING, 1.05)
                 .build();
         assertAcked(client.admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
 
         // execute a search that loads field data (sorting on the "test" field)
         // again, this time it should trip the breaker
+        SearchRequestBuilder searchRequest = client.prepareSearch("cb-test").setQuery(matchAllQuery()).addSort("test", SortOrder.DESC);
         assertFailures(searchRequest, RestStatus.INTERNAL_SERVER_ERROR,
                 containsString("Data too large, data for [test] would be larger than limit of [100/100b]"));
 
@@ -153,7 +147,6 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/9270")
     public void testRamAccountingTermsEnum() throws Exception {
         if (noopBreakerUsed()) {
             logger.info("--> noop breakers used, skipping test");
@@ -165,7 +158,7 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("ramtest").setSource("{\"mappings\": {\"type\": {\"properties\": {\"test\": " +
                 "{\"type\": \"string\",\"fielddata\": {\"filter\": {\"regex\": {\"pattern\": \"^value.*\"}}}}}}}}"));
 
-        ensureGreen(TimeValue.timeValueSeconds(10), "ramtest");
+        ensureGreen("ramtest");
 
         // index some different terms so we have some field data for loading
         int docCount = scaledRandomIntBetween(300, 1000);
@@ -173,7 +166,7 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
         for (long id = 0; id < docCount; id++) {
             reqs.add(client.prepareIndex("ramtest", "type", Long.toString(id)).setSource("test", "value" + id));
         }
-        indexRandom(true, reqs);
+        indexRandom(true, false, true, reqs);
 
         // execute a search that loads field data (sorting on the "test" field)
         client.prepareSearch("ramtest").setQuery(matchAllQuery()).addSort("test", SortOrder.DESC).get();
@@ -183,7 +176,7 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
 
         // Update circuit breaker settings
         Settings settings = settingsBuilder()
-                .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING, randomRidiculouslySmallLimit())
+                .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING, "100b")
                 .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING, 1.05)
                 .build();
         assertAcked(client.admin().cluster().prepareUpdateSettings().setTransientSettings(settings));

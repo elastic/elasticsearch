@@ -37,5 +37,7 @@
               foo: bar
 
   - match:  { responses.0.total:     1  }
-  - match:  { responses.1.error: "/IndexMissingException.no.such.index./"  }
+  - match:  { responses.1.error.root_cause.0.type: index_not_found_exception }
+  - match:  { responses.1.error.root_cause.0.reason: "/no.such.index/" }
+  - match:  { responses.1.error.root_cause.0.index: percolator_index1 }
   - match:  { responses.2.total:     1  }

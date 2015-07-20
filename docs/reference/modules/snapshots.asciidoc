@@ -118,11 +118,23 @@ The following settings are supported:
 ===== Read-only URL Repository
 
 The URL repository (`"type": "url"`) can be used as an alternative read-only way to access data created by the shared file
-system repository. The URL specified in the `url` parameter should
-point to the root of the shared filesystem repository. The following settings are supported:
+system repository. The URL specified in the `url` parameter should point to the root of the shared filesystem repository.
+The following settings are supported:
 
 [horizontal]
 `url`:: Location of the snapshots. Mandatory.
+
+URL Repository supports the following protocols: "http", "https", "ftp", "file" and "jar". URL repositories with `http:`,
+`https:`, and `ftp:` URLs has to be whitelisted by specifying allowed URLs in the `repositories.url.allowed_urls` setting.
+This setting supports wildcards in the place of host, path, query, and fragment. For example:
+
+[source,yaml]
+-----------------------------------
+repositories.url.allowed_urls: ["http://www.example.org/root/*", "https://*.mydomain.com/*?*#*"]
+-----------------------------------
+
+URL repositories with `file:` URLs can only point to locations registered in the `repo.path` setting similiar to
+shared file system repository.
 
 [float]
 ===== Repository plugins
@@ -224,7 +236,7 @@ filtering settings and rebalancing algorithm) once the snapshot is finished.
 
 Once a snapshot is created information about this snapshot can be obtained using the following command:
 
-[source,shell]
+[source,sh]
 -----------------------------------
 GET /_snapshot/my_backup/snapshot_1
 -----------------------------------
@@ -232,7 +244,7 @@ GET /_snapshot/my_backup/snapshot_1
 
 All snapshots currently stored in the repository can be listed using the following command:
 
-[source,shell]
+[source,sh]
 -----------------------------------
 GET /_snapshot/my_backup/_all
 -----------------------------------
@@ -240,14 +252,14 @@ GET /_snapshot/my_backup/_all
 
 coming[2.0] A currently running snapshot can be retrieved using the following command:
 
-[source,shell]
+[source,sh]
 -----------------------------------
 $ curl -XGET "localhost:9200/_snapshot/my_backup/_current"
 -----------------------------------
 
 A snapshot can be deleted from the repository using the following command:
 
-[source,shell]
+[source,sh]
 -----------------------------------
 DELETE /_snapshot/my_backup/snapshot_1
 -----------------------------------
@@ -261,7 +273,7 @@ started by mistake.
 
 A repository can be deleted using the following command:
 
-[source,shell]
+[source,sh]
 -----------------------------------
 DELETE /_snapshot/my_backup
 -----------------------------------
@@ -275,7 +287,7 @@ the snapshots. The snapshots themselves are left untouched and in place.
 
 A snapshot can be restored using the following command:
 
-[source,shell]
+[source,sh]
 -----------------------------------
 POST /_snapshot/my_backup/snapshot_1/_restore
 -----------------------------------
@@ -368,7 +380,7 @@ index will not be successfully restored unless these index allocation settings a
 
 A list of currently running snapshots with their detailed status information can be obtained using the following command:
 
-[source,shell]
+[source,sh]
 -----------------------------------
 GET /_snapshot/_status
 -----------------------------------
@@ -377,7 +389,7 @@ GET /_snapshot/_status
 In this format, the command will return information about all currently running snapshots. By specifying a repository name, it's possible
 to limit the results to a particular repository:
 
-[source,shell]
+[source,sh]
 -----------------------------------
 GET /_snapshot/my_backup/_status
 -----------------------------------
@@ -386,7 +398,7 @@ GET /_snapshot/my_backup/_status
 If both repository name and snapshot id are specified, this command will return detailed status information for the given snapshot even
 if it's not currently running:
 
-[source,shell]
+[source,sh]
 -----------------------------------
 GET /_snapshot/my_backup/snapshot_1/_status
 -----------------------------------
@@ -394,7 +406,7 @@ GET /_snapshot/my_backup/snapshot_1/_status
 
 Multiple ids are also supported:
 
-[source,shell]
+[source,sh]
 -----------------------------------
 GET /_snapshot/my_backup/snapshot_1,snapshot_2/_status
 -----------------------------------
@@ -409,7 +421,7 @@ the simplest method that can be used to get notified about operation completion.
 
 The snapshot operation can be also monitored by periodic calls to the snapshot info:
 
-[source,shell]
+[source,sh]
 -----------------------------------
 GET /_snapshot/my_backup/snapshot_1
 -----------------------------------
@@ -421,7 +433,7 @@ for available resources before returning the result. On very large shards the wa
 
 To get more immediate and complete information about snapshots the snapshot status command can be used instead:
 
-[source,shell]
+[source,sh]
 -----------------------------------
 GET /_snapshot/my_backup/snapshot_1/_status
 -----------------------------------

@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Strings;
@@ -57,8 +58,11 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
     private final TransportNodesSnapshotsStatus transportNodesSnapshotsStatus;
 
     @Inject
-    public TransportSnapshotsStatusAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, SnapshotsService snapshotsService, TransportNodesSnapshotsStatus transportNodesSnapshotsStatus, ActionFilters actionFilters) {
-        super(settings, SnapshotsStatusAction.NAME, transportService, clusterService, threadPool, actionFilters, SnapshotsStatusRequest.class);
+    public TransportSnapshotsStatusAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                          ThreadPool threadPool, SnapshotsService snapshotsService,
+                                          TransportNodesSnapshotsStatus transportNodesSnapshotsStatus,
+                                          ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, SnapshotsStatusAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, SnapshotsStatusRequest.class);
         this.snapshotsService = snapshotsService;
         this.transportNodesSnapshotsStatus = transportNodesSnapshotsStatus;
     }

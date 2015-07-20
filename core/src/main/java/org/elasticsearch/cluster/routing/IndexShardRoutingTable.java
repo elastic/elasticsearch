@@ -53,6 +53,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     final ImmutableList<ShardRouting> shards;
     final ImmutableList<ShardRouting> activeShards;
     final ImmutableList<ShardRouting> assignedShards;
+    final static ImmutableList<ShardRouting> NO_SHARDS = ImmutableList.of();
     final boolean allShardsStarted;
 
     /**
@@ -280,6 +281,16 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     }
 
     /**
+     * Returns true if no primaries are active or initializing for this shard
+     */
+    private boolean noPrimariesActive() {
+        if (!primaryAsList.isEmpty() && !primaryAsList.get(0).active() && !primaryAsList.get(0).initializing()) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * Returns an iterator only on the primary shard.
      */
     public ShardIterator primaryShardIt() {
@@ -287,9 +298,8 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     }
 
     public ShardIterator primaryActiveInitializingShardIt() {
-        if (!primaryAsList.isEmpty() && !primaryAsList.get(0).active() && !primaryAsList.get(0).initializing()) {
-            List<ShardRouting> primaryList = ImmutableList.of();
-            return new PlainShardIterator(shardId, primaryList);
+        if (noPrimariesActive()) {
+            return new PlainShardIterator(shardId, NO_SHARDS);
         }
         return primaryShardIt();
     }
@@ -306,6 +316,49 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             }
         }
         // no need to worry about primary first here..., its temporal
+        if (!allInitializingShards.isEmpty()) {
+            ordered.addAll(allInitializingShards);
+        }
+        return new PlainShardIterator(shardId, ordered);
+    }
+
+    public ShardIterator replicaActiveInitializingShardIt() {
+        // If the primaries are unassigned, return an empty list (there aren't
+        // any replicas to query anyway)
+        if (noPrimariesActive()) {
+            return new PlainShardIterator(shardId, NO_SHARDS);
+        }
+
+        LinkedList<ShardRouting> ordered = new LinkedList<>();
+        for (ShardRouting replica : shuffler.shuffle(replicas)) {
+            if (replica.active()) {
+                ordered.addFirst(replica);
+            } else if (replica.initializing()) {
+                ordered.addLast(replica);
+            }
+        }
+        return new PlainShardIterator(shardId, ordered);
+    }
+
+    public ShardIterator replicaFirstActiveInitializingShardsIt() {
+        // If the primaries are unassigned, return an empty list (there aren't
+        // any replicas to query anyway)
+        if (noPrimariesActive()) {
+            return new PlainShardIterator(shardId, NO_SHARDS);
+        }
+
+        ArrayList<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
+        // fill it in a randomized fashion with the active replicas
+        for (ShardRouting replica : shuffler.shuffle(replicas)) {
+            if (replica.active()) {
+                ordered.add(replica);
+            }
+        }
+
+        // Add the primary shard
+        ordered.add(primary);
+
+        // Add initializing shards last
         if (!allInitializingShards.isEmpty()) {
             ordered.addAll(allInitializingShards);
         }

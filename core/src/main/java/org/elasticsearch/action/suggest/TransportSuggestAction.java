@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -65,8 +66,9 @@ public class TransportSuggestAction extends TransportBroadcastAction<SuggestRequ
 
     @Inject
     public TransportSuggestAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                  IndicesService indicesService, SuggestPhase suggestPhase, ActionFilters actionFilters) {
-        super(settings, SuggestAction.NAME, threadPool, clusterService, transportService, actionFilters,
+                                  IndicesService indicesService, SuggestPhase suggestPhase, ActionFilters actionFilters,
+                                  IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, SuggestAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 SuggestRequest.class, ShardSuggestRequest.class, ThreadPool.Names.SUGGEST);
         this.indicesService = indicesService;
         this.suggestPhase = suggestPhase;
@@ -84,8 +86,8 @@ public class TransportSuggestAction extends TransportBroadcastAction<SuggestRequ
 
     @Override
     protected GroupShardsIterator shards(ClusterState clusterState, SuggestRequest request, String[] concreteIndices) {
-        Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(request.routing(), request.indices());
-        return clusterService.operationRouting().searchShards(clusterState, request.indices(), concreteIndices, routingMap, request.preference());
+        Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, request.routing(), request.indices());
+        return clusterService.operationRouting().searchShards(clusterState, concreteIndices, routingMap, request.preference());
     }
 
     @Override

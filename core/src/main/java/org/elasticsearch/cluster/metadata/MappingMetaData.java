@@ -167,10 +167,10 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
                                                   Version version) throws TimestampParsingException {
             try {
                 // no need for unix timestamp parsing in 2.x
-                FormatDateTimeFormatter formatter = version.onOrAfter(Version.V_2_0_0) ? dateTimeFormatter : EPOCH_MILLIS_PARSER;
+                FormatDateTimeFormatter formatter = version.onOrAfter(Version.V_2_0_0_beta1) ? dateTimeFormatter : EPOCH_MILLIS_PARSER;
                 return Long.toString(formatter.parser().parseMillis(timestampAsString));
             } catch (RuntimeException e) {
-                if (version.before(Version.V_2_0_0)) {
+                if (version.before(Version.V_2_0_0_beta1)) {
                     try {
                         return Long.toString(dateTimeFormatter.parser().parseMillis(timestampAsString));
                     } catch (RuntimeException e1) {

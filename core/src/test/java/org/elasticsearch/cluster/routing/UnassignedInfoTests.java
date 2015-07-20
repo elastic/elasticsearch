@@ -76,6 +76,7 @@ public class UnassignedInfoTests extends ElasticsearchAllocationTestCase {
         UnassignedInfo read = new UnassignedInfo(StreamInput.wrap(out.bytes()));
         assertThat(read.getReason(), equalTo(meta.getReason()));
         assertThat(read.getTimestampInMillis(), equalTo(meta.getTimestampInMillis()));
+        assertThat(read.getMessage(), equalTo(meta.getMessage()));
         assertThat(read.getDetails(), equalTo(meta.getDetails()));
     }
 
@@ -125,7 +126,7 @@ public class UnassignedInfoTests extends ElasticsearchAllocationTestCase {
                 .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
                 .metaData(metaData)
-                .routingTable(RoutingTable.builder().addAsNewRestore(metaData.index("test"), new RestoreSource(new SnapshotId("rep1", "snp1"), "test"), new IntHashSet())).build();
+                .routingTable(RoutingTable.builder().addAsNewRestore(metaData.index("test"), new RestoreSource(new SnapshotId("rep1", "snp1"), Version.CURRENT, "test"), new IntHashSet())).build();
         for (ShardRouting shard : clusterState.routingNodes().shardsWithState(UNASSIGNED)) {
             assertThat(shard.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.NEW_INDEX_RESTORED));
         }
@@ -138,7 +139,7 @@ public class UnassignedInfoTests extends ElasticsearchAllocationTestCase {
                 .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
                 .metaData(metaData)
-                .routingTable(RoutingTable.builder().addAsRestore(metaData.index("test"), new RestoreSource(new SnapshotId("rep1", "snp1"), "test"))).build();
+                .routingTable(RoutingTable.builder().addAsRestore(metaData.index("test"), new RestoreSource(new SnapshotId("rep1", "snp1"), Version.CURRENT, "test"))).build();
         for (ShardRouting shard : clusterState.routingNodes().shardsWithState(UNASSIGNED)) {
             assertThat(shard.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED));
         }
@@ -189,7 +190,7 @@ public class UnassignedInfoTests extends ElasticsearchAllocationTestCase {
         ShardRouting shard = TestShardRouting.newShardRouting("test", 1, null, null, null, true, ShardRoutingState.UNASSIGNED, 1, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
         ShardRouting mutable = new ShardRouting(shard);
         assertThat(mutable.unassignedInfo(), notNullValue());
-        mutable.assignToNode("test_node");
+        mutable.initialize("test_node");
         assertThat(mutable.state(), equalTo(ShardRoutingState.INITIALIZING));
         assertThat(mutable.unassignedInfo(), notNullValue());
         mutable.moveToStarted();
@@ -248,12 +249,13 @@ public class UnassignedInfoTests extends ElasticsearchAllocationTestCase {
         assertThat(clusterState.routingNodes().hasUnassigned(), equalTo(false));
         // fail shard
         ShardRouting shardToFail = clusterState.routingNodes().shardsWithState(STARTED).get(0);
-        clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyFailedShards(clusterState, ImmutableList.of(new FailedRerouteAllocation.FailedShard(shardToFail, "test fail")))).build();
+        clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyFailedShards(clusterState, ImmutableList.of(new FailedRerouteAllocation.FailedShard(shardToFail, "test fail", null)))).build();
         // verify the reason and details
         assertThat(clusterState.routingNodes().hasUnassigned(), equalTo(true));
         assertThat(clusterState.routingNodes().shardsWithState(UNASSIGNED).size(), equalTo(1));
         assertThat(clusterState.routingNodes().shardsWithState(UNASSIGNED).get(0).unassignedInfo(), notNullValue());
         assertThat(clusterState.routingNodes().shardsWithState(UNASSIGNED).get(0).unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
+        assertThat(clusterState.routingNodes().shardsWithState(UNASSIGNED).get(0).unassignedInfo().getMessage(), equalTo("test fail"));
         assertThat(clusterState.routingNodes().shardsWithState(UNASSIGNED).get(0).unassignedInfo().getDetails(), equalTo("test fail"));
         assertThat(clusterState.routingNodes().shardsWithState(UNASSIGNED).get(0).unassignedInfo().getTimestampInMillis(), greaterThan(0l));
     }

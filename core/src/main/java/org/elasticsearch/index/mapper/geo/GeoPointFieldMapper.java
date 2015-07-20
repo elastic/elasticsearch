@@ -220,7 +220,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
-                if (fieldName.equals("path") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+                if (fieldName.equals("path") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
                     builder.multiFieldPathType(parsePathType(name, fieldNode.toString()));
                     iterator.remove();
                 } else if (fieldName.equals("lat_lon")) {
@@ -636,9 +636,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
                         double lon = context.parser().doubleValue();
                         token = context.parser().nextToken();
                         double lat = context.parser().doubleValue();
-                        while ((token = context.parser().nextToken()) != XContentParser.Token.END_ARRAY) {
-
-                        }
+                        while ((token = context.parser().nextToken()) != XContentParser.Token.END_ARRAY);
                         parse(context, sparse.reset(lat, lon), null);
                     } else {
                         while (token != XContentParser.Token.END_ARRAY) {

@@ -437,7 +437,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     @Test
     public void testFuzzyQueryWithFieldsBuilder() throws IOException {
         IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(fuzzyQuery("name.first", "sh").fuzziness(Fuzziness.fromSimilarity(0.1f)).prefixLength(1).boost(2.0f).buildAsBytes()).query();
+        Query parsedQuery = queryParser.parse(fuzzyQuery("name.first", "sh").fuzziness(Fuzziness.ONE).prefixLength(1).boost(2.0f).buildAsBytes()).query();
         assertThat(parsedQuery, instanceOf(FuzzyQuery.class));
         FuzzyQuery fuzzyQuery = (FuzzyQuery) parsedQuery;
         assertThat(fuzzyQuery.getTerm(), equalTo(new Term("name.first", "sh")));
@@ -454,7 +454,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         assertThat(parsedQuery, instanceOf(FuzzyQuery.class));
         FuzzyQuery fuzzyQuery = (FuzzyQuery) parsedQuery;
         assertThat(fuzzyQuery.getTerm(), equalTo(new Term("name.first", "sh")));
-        assertThat(fuzzyQuery.getMaxEdits(), equalTo(FuzzyQuery.floatToEdits(0.1f, "sh".length())));
+        assertThat(fuzzyQuery.getMaxEdits(), equalTo(Fuzziness.AUTO.asDistance("sh")));
         assertThat(fuzzyQuery.getPrefixLength(), equalTo(1));
         assertThat(fuzzyQuery.getBoost(), equalTo(2.0f));
     }
@@ -1202,6 +1202,28 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
                 new TermQuery(new Term("name.first", "shay")),
                 new TermQuery(new Term("name.last", "banon")));
         assertEquals(expected, parsedQuery.query());
+    }
+
+    @Test
+    public void testTermQueryParserShouldOnlyAllowSingleTerm() throws Exception {
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/term-filter-broken-multi-terms.json");
+        assertQueryParsingFailureDueToMultipleTermsInTermFilter(query);
+    }
+
+    @Test
+    public void testTermQueryParserShouldOnlyAllowSingleTermInAlternateFormat() throws Exception {
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/term-filter-broken-multi-terms-2.json");
+        assertQueryParsingFailureDueToMultipleTermsInTermFilter(query);
+    }
+
+    private void assertQueryParsingFailureDueToMultipleTermsInTermFilter(String query) throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        try {
+            queryParser.parse(query);
+            fail("Expected Query Parsing Exception but did not happen");
+        } catch (QueryParsingException e) {
+            assertThat(e.getMessage(), containsString("[term] query does not support different field names, use [bool] query instead"));
+        }
     }
 
     @Test

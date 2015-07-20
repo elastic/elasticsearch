@@ -56,7 +56,7 @@ operating system limits on mmap counts is likely to be too low, which may
 result in out of memory exceptions.  On Linux, you can increase the limits by
 running the following command as `root`:
 
-[source,bash]
+[source,sh]
 -------------------------------------
 sysctl -w vm.max_map_count=262144
 -------------------------------------

@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.routing.HashFunction;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -40,10 +41,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
@@ -64,7 +62,7 @@ import static org.elasticsearch.common.settings.Settings.*;
 /**
  *
  */
-public class IndexMetaData implements Diffable<IndexMetaData> {
+public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuilder<IndexMetaData>, ToXContent  {
 
     public static final IndexMetaData PROTO = IndexMetaData.builder("")
             .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
@@ -169,7 +167,7 @@ public class IndexMetaData implements Diffable<IndexMetaData> {
     public static final String SETTING_CREATION_DATE = "index.creation_date";
     public static final String SETTING_PRIORITY = "index.priority";
     public static final String SETTING_CREATION_DATE_STRING = "index.creation_date_string";
-    public static final String SETTING_UUID = "index.uuid";
+    public static final String SETTING_INDEX_UUID = "index.uuid";
     public static final String SETTING_LEGACY_ROUTING_HASH_FUNCTION = "index.legacy.routing.hash.type";
     public static final String SETTING_LEGACY_ROUTING_USE_TYPE = "index.legacy.routing.use_type";
     public static final String SETTING_DATA_PATH = "index.data_path";
@@ -268,12 +266,12 @@ public class IndexMetaData implements Diffable<IndexMetaData> {
         return index();
     }
 
-    public String uuid() {
-        return settings.get(SETTING_UUID, INDEX_UUID_NA_VALUE);
+    public String indexUUID() {
+        return settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
     }
 
-    public String getUUID() {
-        return uuid();
+    public String getIndexUUID() {
+        return indexUUID();
     }
 
     /**
@@ -281,11 +279,11 @@ public class IndexMetaData implements Diffable<IndexMetaData> {
      */
     public boolean isSameUUID(String otherUUID) {
         assert otherUUID != null;
-        assert uuid() != null;
-        if (INDEX_UUID_NA_VALUE.equals(otherUUID) || INDEX_UUID_NA_VALUE.equals(uuid())) {
+        assert indexUUID() != null;
+        if (INDEX_UUID_NA_VALUE.equals(otherUUID) || INDEX_UUID_NA_VALUE.equals(indexUUID())) {
             return true;
         }
-        return otherUUID.equals(getUUID());
+        return otherUUID.equals(getIndexUUID());
     }
 
     public long version() {
@@ -513,6 +511,17 @@ public class IndexMetaData implements Diffable<IndexMetaData> {
     @Override
     public Diff<IndexMetaData> readDiffFrom(StreamInput in) throws IOException {
         return new IndexMetaDataDiff(in);
+    }
+
+    @Override
+    public IndexMetaData fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
+        return Builder.fromXContent(parser);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        Builder.toXContent(this, builder, params);
+        return builder;
     }
 
     private static class IndexMetaDataDiff implements Diff<IndexMetaData> {

@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -48,9 +49,11 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
     final String transportShardAction;
     final String executor;
 
-    protected TransportSingleCustomOperationAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
+    protected TransportSingleCustomOperationAction(Settings settings, String actionName, ThreadPool threadPool,
+                                                   ClusterService clusterService, TransportService transportService,
+                                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                                    Class<Request> request, String executor) {
-        super(settings, actionName, threadPool, transportService, actionFilters, request);
+        super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, request);
         this.clusterService = clusterService;
         this.transportService = transportService;
 
@@ -110,7 +113,7 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
 
             String concreteSingleIndex;
             if (resolveIndex(request)) {
-                concreteSingleIndex = clusterState.metaData().concreteSingleIndex(request.index(), request.indicesOptions());
+                concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, request);
             } else {
                 concreteSingleIndex = request.index();
             }

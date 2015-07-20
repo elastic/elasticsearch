@@ -154,27 +154,13 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startArray(Fields.RESPONSES);
         for (Item item : items) {
+            builder.startObject();
             if (item.isFailure()) {
-                builder.startObject();
-                builder.startObject(Fields.ERROR);
-                final Throwable t = item.getFailure();
-                final ElasticsearchException[] rootCauses = ElasticsearchException.guessRootCauses(t);
-                builder.field(Fields.ROOT_CAUSE);
-                builder.startArray();
-                for (ElasticsearchException rootCause : rootCauses){
-                    builder.startObject();
-                    rootCause.toXContent(builder, new ToXContent.DelegatingMapParams(Collections.singletonMap(ElasticsearchException.REST_EXCEPTION_SKIP_CAUSE, "true"), params));
-                    builder.endObject();
-                }
-                builder.endArray();
-                ElasticsearchException.toXContent(builder, params, t);
-                builder.endObject();
-                builder.endObject();
+                ElasticsearchException.renderThrowable(builder, params, item.getFailure());
             } else {
-                builder.startObject();
                 item.getResponse().toXContent(builder, params);
-                builder.endObject();
             }
+            builder.endObject();
         }
         builder.endArray();
         return builder;

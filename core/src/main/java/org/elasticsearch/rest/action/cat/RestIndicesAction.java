@@ -30,7 +30,9 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
@@ -47,9 +49,12 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestIndicesAction extends AbstractCatAction {
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
+
     @Inject
-    public RestIndicesAction(Settings settings, RestController controller, Client client) {
+    public RestIndicesAction(Settings settings, RestController controller, Client client, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, controller, client);
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         controller.registerHandler(GET, "/_cat/indices", this);
         controller.registerHandler(GET, "/_cat/indices/{index}", this);
     }
@@ -71,8 +76,9 @@ public class RestIndicesAction extends AbstractCatAction {
         client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
-                final String[] concreteIndices = clusterStateResponse.getState().metaData().concreteIndices(IndicesOptions.fromOptions(false, true, true, true), indices);
-                final String[] openIndices = clusterStateResponse.getState().metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), indices);
+                ClusterState state = clusterStateResponse.getState();
+                final String[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, IndicesOptions.fromOptions(false, true, true, true), indices);
+                final String[] openIndices = indexNameExpressionResolver.concreteIndices(state, IndicesOptions.lenientExpandOpen(), indices);
                 ClusterHealthRequest clusterHealthRequest = Requests.clusterHealthRequest(openIndices);
                 clusterHealthRequest.local(request.paramAsBoolean("local", clusterHealthRequest.local()));
                 client.admin().cluster().health(clusterHealthRequest, new RestActionListener<ClusterHealthResponse>(channel) {
@@ -243,6 +249,15 @@ public class RestIndicesAction extends AbstractCatAction {
 
         table.addCell("search.query_total", "sibling:pri;alias:sqto,searchQueryTotal;default:false;text-align:right;desc:total query phase ops");
         table.addCell("pri.search.query_total", "default:false;text-align:right;desc:total query phase ops");
+
+        table.addCell("search.scroll_current", "sibling:pri;alias:scc,searchScrollCurrent;default:false;text-align:right;desc:open scroll contexts");
+        table.addCell("pri.search.scroll_current", "default:false;text-align:right;desc:open scroll contexts");
+
+        table.addCell("search.scroll_time", "sibling:pri;alias:scti,searchScrollTime;default:false;text-align:right;desc:time scroll contexts held open");
+        table.addCell("pri.search.scroll_time", "default:false;text-align:right;desc:time scroll contexts held open");
+
+        table.addCell("search.scroll_total", "sibling:pri;alias:scto,searchScrollTotal;default:false;text-align:right;desc:completed scroll contexts");
+        table.addCell("pri.search.scroll_total", "default:false;text-align:right;desc:completed scroll contexts");
 
         table.addCell("segments.count", "sibling:pri;alias:sc,segmentsCount;default:false;text-align:right;desc:number of segments");
         table.addCell("pri.segments.count", "default:false;text-align:right;desc:number of segments");
@@ -442,6 +457,15 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getSearch().getTotal().getQueryCount());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSearch().getTotal().getQueryCount());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getSearch().getTotal().getScrollCurrent());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSearch().getTotal().getScrollCurrent());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getSearch().getTotal().getScrollTime());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSearch().getTotal().getScrollTime());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getSearch().getTotal().getScrollCount());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSearch().getTotal().getScrollCount());
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getSegments().getCount());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSegments().getCount());

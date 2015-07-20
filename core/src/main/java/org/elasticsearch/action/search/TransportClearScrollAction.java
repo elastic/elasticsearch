@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.Tuple;
@@ -50,8 +51,10 @@ public class TransportClearScrollAction extends HandledTransportAction<ClearScro
     private final SearchServiceTransportAction searchServiceTransportAction;
 
     @Inject
-    public TransportClearScrollAction(Settings settings, TransportService transportService, ThreadPool threadPool, ClusterService clusterService, SearchServiceTransportAction searchServiceTransportAction, ActionFilters actionFilters) {
-        super(settings, ClearScrollAction.NAME, threadPool, transportService, actionFilters, ClearScrollRequest.class);
+    public TransportClearScrollAction(Settings settings, TransportService transportService, ThreadPool threadPool,
+                                      ClusterService clusterService, SearchServiceTransportAction searchServiceTransportAction,
+                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, ClearScrollAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, ClearScrollRequest.class);
         this.clusterService = clusterService;
         this.searchServiceTransportAction = searchServiceTransportAction;
     }

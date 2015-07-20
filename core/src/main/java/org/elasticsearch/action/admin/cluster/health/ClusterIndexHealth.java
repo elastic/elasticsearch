@@ -51,21 +51,21 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
 
     private int numberOfReplicas;
 
-    int activeShards = 0;
+    private int activeShards = 0;
 
-    int relocatingShards = 0;
+    private int relocatingShards = 0;
 
-    int initializingShards = 0;
+    private int initializingShards = 0;
 
-    int unassignedShards = 0;
+    private int unassignedShards = 0;
 
-    int activePrimaryShards = 0;
+    private int activePrimaryShards = 0;
 
-    ClusterHealthStatus status = ClusterHealthStatus.RED;
+    private ClusterHealthStatus status = ClusterHealthStatus.RED;
 
-    final Map<Integer, ClusterShardHealth> shards = Maps.newHashMap();
+    private final Map<Integer, ClusterShardHealth> shards = Maps.newHashMap();
 
-    List<String> validationFailures;
+    private List<String> validationFailures;
 
     private ClusterIndexHealth() {
     }
@@ -77,33 +77,8 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
         this.validationFailures = indexRoutingTable.validate(indexMetaData);
 
         for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
-            ClusterShardHealth shardHealth = new ClusterShardHealth(shardRoutingTable.shardId().id());
-            for (ShardRouting shardRouting : shardRoutingTable) {
-                if (shardRouting.active()) {
-                    shardHealth.activeShards++;
-                    if (shardRouting.relocating()) {
-                        // the shard is relocating, the one it is relocating to will be in initializing state, so we don't count it
-                        shardHealth.relocatingShards++;
-                    }
-                    if (shardRouting.primary()) {
-                        shardHealth.primaryActive = true;
-                    }
-                } else if (shardRouting.initializing()) {
-                    shardHealth.initializingShards++;
-                } else if (shardRouting.unassigned()) {
-                    shardHealth.unassignedShards++;
-                }
-            }
-            if (shardHealth.primaryActive) {
-                if (shardHealth.activeShards == shardRoutingTable.size()) {
-                    shardHealth.status = ClusterHealthStatus.GREEN;
-                } else {
-                    shardHealth.status = ClusterHealthStatus.YELLOW;
-                }
-            } else {
-                shardHealth.status = ClusterHealthStatus.RED;
-            }
-            shards.put(shardHealth.getId(), shardHealth);
+            int shardId = shardRoutingTable.shardId().id();
+            shards.put(shardId, new ClusterShardHealth(shardId, shardRoutingTable));
         }
 
         // update the index status
@@ -113,10 +88,10 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
             if (shardHealth.isPrimaryActive()) {
                 activePrimaryShards++;
             }
-            activeShards += shardHealth.activeShards;
-            relocatingShards += shardHealth.relocatingShards;
-            initializingShards += shardHealth.initializingShards;
-            unassignedShards += shardHealth.unassignedShards;
+            activeShards += shardHealth.getActiveShards();
+            relocatingShards += shardHealth.getRelocatingShards();
+            initializingShards += shardHealth.getInitializingShards();
+            unassignedShards += shardHealth.getUnassignedShards();
 
             if (shardHealth.getStatus() == ClusterHealthStatus.RED) {
                 status = ClusterHealthStatus.RED;

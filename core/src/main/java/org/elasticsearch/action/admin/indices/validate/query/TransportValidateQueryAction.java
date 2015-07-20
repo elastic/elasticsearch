@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
@@ -45,6 +46,7 @@ import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.DefaultSearchContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchLocalRequest;
@@ -74,9 +76,12 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
     private final BigArrays bigArrays;
 
     @Inject
-    public TransportValidateQueryAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService, ScriptService scriptService, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, ActionFilters actionFilters) {
+    public TransportValidateQueryAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                                        TransportService transportService, IndicesService indicesService,
+                                        ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
+                                        BigArrays bigArrays, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ValidateQueryAction.NAME, threadPool, clusterService, transportService, actionFilters,
-                ValidateQueryRequest.class, ShardValidateQueryRequest.class, ThreadPool.Names.SEARCH);
+                indexNameExpressionResolver, ValidateQueryRequest.class, ShardValidateQueryRequest.class, ThreadPool.Names.SEARCH);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
         this.pageCacheRecycler = pageCacheRecycler;
@@ -91,7 +96,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
 
     @Override
     protected ShardValidateQueryRequest newShardRequest(int numShards, ShardRouting shard, ValidateQueryRequest request) {
-        String[] filteringAliases = clusterService.state().metaData().filteringAliases(shard.index(), request.indices());
+        String[] filteringAliases = indexNameExpressionResolver.filteringAliases(clusterService.state(), shard.index(), request.indices());
         return new ShardValidateQueryRequest(shard.shardId(), filteringAliases, request);
     }
 
@@ -103,8 +108,8 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
     @Override
     protected GroupShardsIterator shards(ClusterState clusterState, ValidateQueryRequest request, String[] concreteIndices) {
         // Hard-code routing to limit request to a single shard, but still, randomize it...
-        Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(Integer.toString(ThreadLocalRandom.current().nextInt(1000)), request.indices());
-        return clusterService.operationRouting().searchShards(clusterState, request.indices(), concreteIndices, routingMap, "_local");
+        Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, Integer.toString(ThreadLocalRandom.current().nextInt(1000)), request.indices());
+        return clusterService.operationRouting().searchShards(clusterState, concreteIndices, routingMap, "_local");
     }
 
     @Override
@@ -168,7 +173,8 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
         DefaultSearchContext searchContext = new DefaultSearchContext(0,
                 new ShardSearchLocalRequest(request.types(), request.nowInMillis(), request.filteringAliases()),
                 null, searcher, indexService, indexShard,
-                scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher
+                scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher,
+                SearchService.NO_TIMEOUT
         );
         SearchContext.setCurrent(searchContext);
         try {

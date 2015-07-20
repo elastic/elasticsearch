@@ -142,7 +142,7 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
 
         @Override
         public TimestampFieldMapper build(BuilderContext context) {
-            if (explicitStore == false && context.indexCreatedVersion().before(Version.V_2_0_0)) {
+            if (explicitStore == false && context.indexCreatedVersion().before(Version.V_2_0_0_beta1)) {
                 fieldType.setStored(false);
             }
 
@@ -158,7 +158,7 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
 
     private static FormatDateTimeFormatter getDateTimeFormatter(Settings indexSettings) {
         Version indexCreated = Version.indexCreated(indexSettings);
-        if (indexCreated.onOrAfter(Version.V_2_0_0)) {
+        if (indexCreated.onOrAfter(Version.V_2_0_0_beta1)) {
             return Defaults.DATE_TIME_FORMATTER;
         } else {
             return Defaults.DATE_TIME_FORMATTER_BEFORE_2_0;
@@ -169,7 +169,7 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
-            if (parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+            if (parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
                 parseField(builder, builder.name, node, parserContext);
             }
             boolean defaultSet = false;
@@ -182,7 +182,7 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
                     EnabledAttributeMapper enabledState = nodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED;
                     builder.enabled(enabledState);
                     iterator.remove();
-                } else if (fieldName.equals("path") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+                } else if (fieldName.equals("path") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
                     builder.path(fieldNode.toString());
                     iterator.remove();
                 } else if (fieldName.equals("format")) {
@@ -246,7 +246,7 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
         if (existing != null) {
             return existing;
         }
-        return Version.indexCreated(settings).onOrAfter(Version.V_2_0_0) ? Defaults.FIELD_TYPE : Defaults.PRE_20_FIELD_TYPE;
+        return Version.indexCreated(settings).onOrAfter(Version.V_2_0_0_beta1) ? Defaults.FIELD_TYPE : Defaults.PRE_20_FIELD_TYPE;
     }
 
     private EnabledAttributeMapper enabledState;

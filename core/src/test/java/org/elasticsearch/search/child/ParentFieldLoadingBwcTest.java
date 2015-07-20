@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.child;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
@@ -41,7 +40,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.MergePolicyConfig;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -49,9 +47,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.child.ChildQuerySearchTests.hasChildQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -66,35 +62,20 @@ public class ParentFieldLoadingBwcTest extends ElasticsearchIntegrationTest {
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_6_0)
             .build();
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/9270")
     public void testParentFieldDataCacheBug() throws Exception {
         assertAcked(prepareCreate("test")
-                .setSettings(Settings.builder().put(indexSettings())
-                    .put("index.refresh_interval", -1)) // Disable automatic refresh, so that the _parent doesn't get warmed
+                .setSettings(Settings.builder().put(indexSettings)
+                        .put("index.refresh_interval", -1)) // Disable automatic refresh, so that the _parent doesn't get warmed
                 .addMapping("parent", XContentFactory.jsonBuilder().startObject().startObject("parent")
-                    .startObject("properties")
-                    .startObject("p_field")
-                    .field("type", "string")
-                    .startObject("fielddata")
-                    .field(FieldDataType.FORMAT_KEY, MappedFieldType.Loading.LAZY)
-                    .endObject()
-                    .endObject()
-                    .endObject().endObject().endObject()));
-
-        ensureGreen();
-
-        client().prepareIndex("test", "parent", "p0").setSource("p_field", "p_value0").get();
-        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").get();
-
-        refresh();
-        // No _parent field yet, there shouldn't be anything in the field data for _parent field
-        IndicesStatsResponse indicesStatsResponse = client().admin().indices()
-                .prepareStats("test").setFieldData(true).get();
-        assertThat(indicesStatsResponse.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0l));
-
-        // Now add mapping + children
-        client().admin().indices().preparePutMapping("test").setType("child")
-                .setSource(XContentFactory.jsonBuilder().startObject().startObject("child")
+                        .startObject("properties")
+                        .startObject("p_field")
+                        .field("type", "string")
+                        .startObject("fielddata")
+                        .field(FieldDataType.FORMAT_KEY, MappedFieldType.Loading.LAZY)
+                        .endObject()
+                        .endObject()
+                        .endObject().endObject().endObject())
+                .addMapping("child", XContentFactory.jsonBuilder().startObject().startObject("child")
                         .startObject("_parent")
                         .field("type", "parent")
                         .endObject()
@@ -105,22 +86,23 @@ public class ParentFieldLoadingBwcTest extends ElasticsearchIntegrationTest {
                         .field(FieldDataType.FORMAT_KEY, MappedFieldType.Loading.LAZY)
                         .endObject()
                         .endObject()
-                        .endObject().endObject().endObject())
-                .get();
+                        .endObject().endObject().endObject()));
 
-        // index simple data
+        ensureGreen();
+
+        client().prepareIndex("test", "parent", "p0").setSource("p_field", "p_value0").get();
+        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").get();
         client().prepareIndex("test", "child", "c1").setSource("c_field", "red").setParent("p1").get();
         client().prepareIndex("test", "child", "c2").setSource("c_field", "yellow").setParent("p1").get();
         client().prepareIndex("test", "parent", "p2").setSource("p_field", "p_value2").get();
         client().prepareIndex("test", "child", "c3").setSource("c_field", "blue").setParent("p2").get();
         client().prepareIndex("test", "child", "c4").setSource("c_field", "red").setParent("p2").get();
-
         refresh();
 
-        indicesStatsResponse = client().admin().indices()
+        IndicesStatsResponse statsResponse = client().admin().indices()
                 .prepareStats("test").setFieldData(true).setFieldDataFields("_parent").get();
-        assertThat(indicesStatsResponse.getTotal().getFieldData().getMemorySizeInBytes(), greaterThan(0l));
-        assertThat(indicesStatsResponse.getTotal().getFieldData().getFields().get("_parent"), greaterThan(0l));
+        assertThat(statsResponse.getTotal().getFieldData().getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(statsResponse.getTotal().getFieldData().getFields().get("_parent"), greaterThan(0l));
 
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(constantScoreQuery(hasChildQuery("child", termQuery("c_field", "blue"))))
@@ -128,18 +110,18 @@ public class ParentFieldLoadingBwcTest extends ElasticsearchIntegrationTest {
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
-        indicesStatsResponse = client().admin().indices()
+        statsResponse = client().admin().indices()
                 .prepareStats("test").setFieldData(true).setFieldDataFields("_parent").get();
-        assertThat(indicesStatsResponse.getTotal().getFieldData().getMemorySizeInBytes(), greaterThan(0l));
-        assertThat(indicesStatsResponse.getTotal().getFieldData().getFields().get("_parent"), greaterThan(0l));
+        assertThat(statsResponse.getTotal().getFieldData().getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(statsResponse.getTotal().getFieldData().getFields().get("_parent"), greaterThan(0l));
 
         ClearIndicesCacheResponse clearCacheResponse = client().admin().indices().prepareClearCache("test").setFieldDataCache(true).get();
         assertNoFailures(clearCacheResponse);
         assertAllSuccessful(clearCacheResponse);
-        indicesStatsResponse = client().admin().indices()
+        statsResponse = client().admin().indices()
                 .prepareStats("test").setFieldData(true).setFieldDataFields("_parent").get();
-        assertThat(indicesStatsResponse.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0l));
-        assertThat(indicesStatsResponse.getTotal().getFieldData().getFields().get("_parent"), equalTo(0l));
+        assertThat(statsResponse.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0l));
+        assertThat(statsResponse.getTotal().getFieldData().getFields().get("_parent"), equalTo(0l));
     }
 
     public void testEagerParentFieldLoading() throws Exception {

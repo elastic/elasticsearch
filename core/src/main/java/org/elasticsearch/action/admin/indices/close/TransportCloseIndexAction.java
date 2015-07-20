@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -45,8 +46,10 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
 
     @Inject
     public TransportCloseIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                     ThreadPool threadPool, MetaDataIndexStateService indexStateService, NodeSettingsService nodeSettingsService, ActionFilters actionFilters) {
-        super(settings, CloseIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, CloseIndexRequest.class);
+                                     ThreadPool threadPool, MetaDataIndexStateService indexStateService,
+                                     NodeSettingsService nodeSettingsService, ActionFilters actionFilters,
+                                     IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, CloseIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, CloseIndexRequest.class);
         this.indexStateService = indexStateService;
         this.destructiveOperations = new DestructiveOperations(logger, settings, nodeSettingsService);
     }
@@ -70,12 +73,12 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
 
     @Override
     protected ClusterBlockException checkBlock(CloseIndexRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndices(state, request));
     }
 
     @Override
     protected void masterOperation(final CloseIndexRequest request, final ClusterState state, final ActionListener<CloseIndexResponse> listener) {
-        final String[] concreteIndices = state.metaData().concreteIndices(request.indicesOptions(), request.indices());
+        final String[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         CloseIndexClusterStateUpdateRequest updateRequest = new CloseIndexClusterStateUpdateRequest()
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
                 .indices(concreteIndices);

@@ -1733,7 +1733,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         for (Path indexFile : indexes.subList(0, scaledRandomIntBetween(1, indexes.size() / 2))) {
             final String indexName = indexFile.getFileName().toString().replace(".zip", "").toLowerCase(Locale.ROOT);
             Version version = Version.fromString(indexName.replace("index-", ""));
-            if (version.onOrAfter(Version.V_2_0_0)) {
+            if (version.onOrAfter(Version.V_2_0_0_beta1)) {
                 continue;
             }
             Path unzipDir = createTempDir();

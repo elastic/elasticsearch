@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -246,7 +247,7 @@ public class ShardReplicationTests extends ElasticsearchTestCase {
 
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         state.nodes(discoBuilder);
-        state.metaData(MetaData.builder().put(indexMetaData, false).generateUuidIfNeeded());
+        state.metaData(MetaData.builder().put(indexMetaData, false).generateClusterUuidIfNeeded());
         state.routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(index).addIndexShard(indexShardRoutingBuilder.build())));
         return state.build();
     }
@@ -693,7 +694,7 @@ public class ShardReplicationTests extends ElasticsearchTestCase {
                ThreadPool threadPool) {
             super(settings, actionName, transportService, clusterService, null, threadPool,
                     new ShardStateAction(settings, clusterService, transportService, null, null), null,
-                    new ActionFilters(new HashSet<ActionFilter>()), Request.class, Request.class, ThreadPool.Names.SAME);
+                    new ActionFilters(new HashSet<ActionFilter>()), new IndexNameExpressionResolver(), Request.class, Request.class, ThreadPool.Names.SAME);
         }
 
         @Override

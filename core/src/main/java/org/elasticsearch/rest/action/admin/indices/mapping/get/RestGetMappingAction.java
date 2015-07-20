@@ -32,7 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
@@ -71,7 +71,7 @@ public class RestGetMappingAction extends BaseRestHandler {
                     if (indices.length != 0 && types.length != 0) {
                         return new BytesRestResponse(OK, builder.endObject());
                     } else if (indices.length != 0) {
-                        return new BytesRestResponse(channel, new IndexMissingException(new Index(indices[0])));
+                        return new BytesRestResponse(channel, new IndexNotFoundException(indices[0]));
                     } else if (types.length != 0) {
                         return new BytesRestResponse(channel, new TypeMissingException(new Index("_all"), types[0]));
                     } else {

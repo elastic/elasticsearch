@@ -19,13 +19,13 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexException;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -33,7 +33,7 @@ import java.io.IOException;
 /**
  *
  */
-public class QueryParsingException extends IndexException {
+public class QueryParsingException extends ElasticsearchException {
 
     static final int UNKNOWN_POSITION = -1;
     private final int lineNumber;
@@ -44,7 +44,8 @@ public class QueryParsingException extends IndexException {
     }
 
     public QueryParsingException(QueryParseContext parseContext, String msg, Throwable cause, Object... args) {
-        super(parseContext.index(), msg, cause, args);
+        super(msg, cause, args);
+        setIndex(parseContext.index());
         int lineNumber = UNKNOWN_POSITION;
         int columnNumber = UNKNOWN_POSITION;
         XContentParser parser = parseContext.parser();
@@ -64,7 +65,8 @@ public class QueryParsingException extends IndexException {
      * {@link QueryParseContext} may not be available
      */
     public QueryParsingException(Index index, int line, int col, String msg, Throwable cause) {
-        super(index, msg, cause);
+        super(msg, cause);
+        setIndex(index);
         this.lineNumber = line;
         this.columnNumber = col;
     }

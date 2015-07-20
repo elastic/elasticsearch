@@ -81,7 +81,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
      * If the index does not need upgrade it returns the index metadata unchanged, otherwise it returns a modified index metadata. If index
      * cannot be updated the method throws an exception.
      */
-    public IndexMetaData upgradeIndexMetaData(IndexMetaData indexMetaData) throws Exception {
+    public IndexMetaData upgradeIndexMetaData(IndexMetaData indexMetaData) {
         // Throws an exception if there are too-old segments:
         checkSupportedVersion(indexMetaData);
         IndexMetaData newMetaData = upgradeLegacyRoutingSettings(indexMetaData);
@@ -94,7 +94,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
      * that were created before Elasticsearch v0.90.0 should be upgraded using upgrade plugin before they can
      * be open by this version of elasticsearch.
      */
-    private void checkSupportedVersion(IndexMetaData indexMetaData) throws Exception {
+    private void checkSupportedVersion(IndexMetaData indexMetaData) {
         if (indexMetaData.getState() == IndexMetaData.State.OPEN && isSupportedVersion(indexMetaData) == false) {
             throw new IllegalStateException("The index [" + indexMetaData.getIndex() + "] was created before v0.90.0 and wasn't upgraded."
                     + " This index should be open using a version before " + Version.CURRENT.minimumCompatibilityVersion()
@@ -122,9 +122,9 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
      * Elasticsearch 2.0 deprecated custom routing hash functions. So what we do here is that for old indices, we
      * move this old and deprecated node setting to an index setting so that we can keep things backward compatible.
      */
-    private IndexMetaData upgradeLegacyRoutingSettings(IndexMetaData indexMetaData) throws Exception {
+    private IndexMetaData upgradeLegacyRoutingSettings(IndexMetaData indexMetaData) {
         if (indexMetaData.settings().get(IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION) == null
-                && indexMetaData.getCreationVersion().before(Version.V_2_0_0)) {
+                && indexMetaData.getCreationVersion().before(Version.V_2_0_0_beta1)) {
             // these settings need an upgrade
             Settings indexSettings = Settings.builder().put(indexMetaData.settings())
                     .put(IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION, pre20HashFunction)
@@ -134,11 +134,11 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
                     .version(indexMetaData.version())
                     .settings(indexSettings)
                     .build();
-        } else if (indexMetaData.getCreationVersion().onOrAfter(Version.V_2_0_0)) {
+        } else if (indexMetaData.getCreationVersion().onOrAfter(Version.V_2_0_0_beta1)) {
             if (indexMetaData.getSettings().get(IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION) != null
                     || indexMetaData.getSettings().get(IndexMetaData.SETTING_LEGACY_ROUTING_USE_TYPE) != null) {
-                throw new IllegalStateException("Indices created on or after 2.0 should NOT contain [" + IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION
-                        + "] + or [" + IndexMetaData.SETTING_LEGACY_ROUTING_USE_TYPE + "] in their index settings");
+                throw new IllegalStateException("Index [" + indexMetaData.getIndex() + "] created on or after 2.0 should NOT contain [" + IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION
+                        + "] + or [" + IndexMetaData.SETTING_LEGACY_ROUTING_USE_TYPE + "] in its index settings");
             }
         }
         return indexMetaData;
@@ -188,7 +188,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
      * missing units.
      */
     private IndexMetaData addDefaultUnitsIfNeeded(IndexMetaData indexMetaData) {
-        if (indexMetaData.getCreationVersion().before(Version.V_2_0_0)) {
+        if (indexMetaData.getCreationVersion().before(Version.V_2_0_0_beta1)) {
             // TODO: can we somehow only do this *once* for a pre-2.0 index?  Maybe we could stuff a "fake marker setting" here?  Seems hackish...
             // Created lazily if we find any settings that are missing units:
             Settings settings = indexMetaData.settings();

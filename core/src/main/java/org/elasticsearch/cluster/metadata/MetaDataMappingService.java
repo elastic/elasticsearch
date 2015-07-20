@@ -37,13 +37,12 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
-import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.percolator.PercolatorService;
@@ -347,7 +346,7 @@ public class MetaDataMappingService extends AbstractComponent {
                 try {
                     for (String index : request.indices()) {
                         if (!currentState.metaData().hasIndex(index)) {
-                            throw new IndexMissingException(new Index(index));
+                            throw new IndexNotFoundException(index);
                         }
                     }
 
@@ -396,7 +395,7 @@ public class MetaDataMappingService extends AbstractComponent {
                                 // For example in MapperService we can't distinguish between a create index api call
                                 // and a put mapping api call, so we don't which type did exist before.
                                 // Also the order of the mappings may be backwards.
-                                if (Version.indexCreated(indexService.getIndexSettings()).onOrAfter(Version.V_2_0_0) && newMapper.parentFieldMapper().active()) {
+                                if (Version.indexCreated(indexService.getIndexSettings()).onOrAfter(Version.V_2_0_0_beta1) && newMapper.parentFieldMapper().active()) {
                                     IndexMetaData indexMetaData = currentState.metaData().index(index);
                                     for (ObjectCursor<MappingMetaData> mapping : indexMetaData.mappings().values()) {
                                         if (newMapper.parentFieldMapper().type().equals(mapping.value.type())) {
@@ -472,7 +471,7 @@ public class MetaDataMappingService extends AbstractComponent {
                     for (String indexName : request.indices()) {
                         IndexMetaData indexMetaData = currentState.metaData().index(indexName);
                         if (indexMetaData == null) {
-                            throw new IndexMissingException(new Index(indexName));
+                            throw new IndexNotFoundException(indexName);
                         }
                         MappingMetaData mappingMd = mappings.get(indexName);
                         if (mappingMd != null) {

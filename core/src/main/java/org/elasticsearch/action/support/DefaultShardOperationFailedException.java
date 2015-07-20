@@ -24,9 +24,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -46,12 +44,12 @@ public class DefaultShardOperationFailedException implements ShardOperationFaile
 
     private RestStatus status;
 
-    private DefaultShardOperationFailedException() {
+    protected DefaultShardOperationFailedException() {
     }
 
-    public DefaultShardOperationFailedException(IndexShardException e) {
-        this.index = e.shardId().index().name();
-        this.shardId = e.shardId().id();
+    public DefaultShardOperationFailedException(ElasticsearchException e) {
+        this.index = e.getIndex();
+        this.shardId = e.getShardId().id();
         this.reason = e;
         this.status = e.status();
     }

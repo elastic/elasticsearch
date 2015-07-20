@@ -25,13 +25,14 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.gateway.GatewayAllocator;
-import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -44,9 +45,10 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
     private final GatewayAllocator gatewayAllocator;
 
     @Inject
-    public TransportClusterHealthAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                        ClusterName clusterName, ActionFilters actionFilters, GatewayAllocator gatewayAllocator) {
-        super(settings, ClusterHealthAction.NAME, transportService, clusterService, threadPool, actionFilters, ClusterHealthRequest.class);
+    public TransportClusterHealthAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                        ThreadPool threadPool, ClusterName clusterName, ActionFilters actionFilters,
+                                        IndexNameExpressionResolver indexNameExpressionResolver, GatewayAllocator gatewayAllocator) {
+        super(settings, ClusterHealthAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, ClusterHealthRequest.class);
         this.clusterName = clusterName;
         this.gatewayAllocator = gatewayAllocator;
     }
@@ -199,9 +201,9 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         }
         if (request.indices().length > 0) {
             try {
-                clusterState.metaData().concreteIndices(IndicesOptions.strictExpand(), request.indices());
+                indexNameExpressionResolver.concreteIndices(clusterState, IndicesOptions.strictExpand(), request.indices());
                 waitForCounter++;
-            } catch (IndexMissingException e) {
+            } catch (IndexNotFoundException e) {
                 response.status = ClusterHealthStatus.RED; // no indices, make sure its RED
                 // missing indices, wait a bit more...
             }
@@ -266,8 +268,8 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
 
         String[] concreteIndices;
         try {
-            concreteIndices = clusterState.metaData().concreteIndices(request.indicesOptions(), request.indices());
-        } catch (IndexMissingException e) {
+            concreteIndices = indexNameExpressionResolver.concreteIndices(clusterState, request);
+        } catch (IndexNotFoundException e) {
             // one of the specified indices is not there - treat it as RED.
             ClusterHealthResponse response = new ClusterHealthResponse(clusterName.value(), Strings.EMPTY_ARRAY, clusterState,
                     numberOfPendingTasks, numberOfInFlightFetch, UnassignedInfo.getNumberOfDelayedUnassigned(settings, clusterState),

@@ -123,24 +123,36 @@ public class VersionTests extends ElasticsearchTestCase {
     }
 
     public void testIndexCreatedVersion() {
-        // an actual index has a IndexMetaData.SETTING_UUID
+        // an actual index has a IndexMetaData.SETTING_INDEX_UUID
         final Version version = randomFrom(Version.V_0_18_0, Version.V_0_90_13, Version.V_1_3_0);
-        assertEquals(version, Version.indexCreated(Settings.builder().put(IndexMetaData.SETTING_UUID, "foo").put(IndexMetaData.SETTING_VERSION_CREATED, version).build()));
+        assertEquals(version, Version.indexCreated(Settings.builder().put(IndexMetaData.SETTING_INDEX_UUID, "foo").put(IndexMetaData.SETTING_VERSION_CREATED, version).build()));
     }
     
     public void testMinCompatVersion() {
-        assertThat(Version.V_2_0_0.minimumCompatibilityVersion(), equalTo(Version.V_2_0_0));
+        assertThat(Version.V_2_0_0_beta1.minimumCompatibilityVersion(), equalTo(Version.V_2_0_0_beta1));
         assertThat(Version.V_1_3_0.minimumCompatibilityVersion(), equalTo(Version.V_1_0_0));
         assertThat(Version.V_1_2_0.minimumCompatibilityVersion(), equalTo(Version.V_1_0_0));
         assertThat(Version.V_1_2_3.minimumCompatibilityVersion(), equalTo(Version.V_1_0_0));
         assertThat(Version.V_1_0_0_RC2.minimumCompatibilityVersion(), equalTo(Version.V_1_0_0_RC2));
+    }
+
+    public void testToString() {
+        // with 2.0.beta we lowercase
+        assertEquals("2.0.0-beta1", Version.V_2_0_0_beta1.number());
+        assertEquals("1.4.0.Beta1", Version.V_1_4_0_Beta1.number());
+        assertEquals("1.4.0", Version.V_1_4_0.number());
+    }
+
+    public void testIsBeta() {
+        assertTrue(Version.V_2_0_0_beta1.isBeta());
+        assertTrue(Version.V_1_4_0_Beta1.isBeta());
+        assertFalse(Version.V_1_4_0.isBeta());
     }
     
     public void testParseVersion() {
         final int iters = scaledRandomIntBetween(100, 1000);
         for (int i = 0; i < iters; i++) {
             Version version = randomVersion(random());
-            String stringVersion = version.toString();
             if (version.snapshot() == false && random().nextBoolean()) {
                 version = new Version(version.id, true, version.luceneVersion);
             }
@@ -177,7 +189,17 @@ public class VersionTests extends ElasticsearchTestCase {
                 logger.info("Checking " + v);
                 assertEquals("Version id " + field.getName() + " does not point to " + constantName, v, Version.fromId(versionId));
                 assertEquals("Version " + constantName + " does not have correct id", versionId, v.id);
-                assertEquals("V_" + v.number().replace('.', '_'), constantName);
+                if (v.major >= 2) {
+                    String number = v.number();
+                    if (v.isBeta()) {
+                        number = number.replace("-beta", "_beta");
+                    } else if (v.isRC()) {
+                        number = number.replace("-rc", "_rc");
+                    }
+                    assertEquals("V_" + number.replace('.', '_'), constantName);
+                } else {
+                    assertEquals("V_" + v.number().replace('.', '_'), constantName);
+                }
                 
                 // only the latest version for a branch should be a snapshot (ie unreleased)
                 String branchName = "" + v.major + "." + v.minor;

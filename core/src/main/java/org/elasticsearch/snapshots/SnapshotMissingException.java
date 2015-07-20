@@ -34,6 +34,10 @@ public class SnapshotMissingException extends SnapshotException {
         super(snapshot, "is missing", cause);
     }
 
+    public SnapshotMissingException(SnapshotId snapshot) {
+        super(snapshot, "is missing");
+    }
+
     public SnapshotMissingException(StreamInput in) throws IOException {
         super(in);
     }

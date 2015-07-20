@@ -12,7 +12,7 @@ way for shards to be loaded from disk when a node starts up.
 As an example, here is what the recovery state of a cluster may look like when there
 are no shards in transit from one node to another:
 
-[source,shell]
+[source,sh]
 ----------------------------------------------------------------------------
 > curl -XGET 'localhost:9200/_cat/recovery?v'
 index shard time type    stage source target files percent bytes     percent
@@ -28,7 +28,7 @@ Now let's see what a live recovery looks like. By increasing the replica count
 of our index and bringing another node online to host the replicas, we can see
 what a live shard recovery looks like.
 
-[source,shell]
+[source,sh]
 ----------------------------------------------------------------------------
 > curl -XPUT 'localhost:9200/wiki/_settings' -d'{"number_of_replicas":1}'
 {"acknowledged":true}
@@ -51,7 +51,7 @@ Finally, let's see what a snapshot recovery looks like. Assuming I have previous
 made a backup of my index, I can restore it using the <<modules-snapshots,snapshot and restore>>
 API.
 
-[source,shell]
+[source,sh]
 --------------------------------------------------------------------------------
 > curl -XPOST 'localhost:9200/_snapshot/imdb/snapshot_2/_restore'
 {"acknowledged":true}

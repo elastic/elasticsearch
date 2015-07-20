@@ -26,6 +26,7 @@ import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -44,8 +45,9 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
 
     @Inject
     public TransportShardMultiTermsVectorAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                                                IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
+                                                IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
+                                                IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 MultiTermVectorsShardRequest.class, ThreadPool.Names.GET);
         this.indicesService = indicesService;
     }

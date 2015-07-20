@@ -39,7 +39,7 @@
               match: {foo: bar}
 
   - match:  { responses.0.hits.total:     3  }
-  - match:  { responses.1.error.root_cause.0.type: index_missing_exception }
+  - match:  { responses.1.error.root_cause.0.type: index_not_found_exception }
   - match:  { responses.1.error.root_cause.0.reason: "/no.such.index/" }
   - match:  { responses.1.error.root_cause.0.index: test_2 }
   - match:  { responses.2.hits.total:     1  }

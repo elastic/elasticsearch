@@ -1,6 +1,55 @@
 [[mapping-field-names-field]]
-=== `_field_names`
+=== `_field_names` field
 
-The `_field_names` field indexes the field names of a document, which can later
-be used to search for documents based on the fields that they contain typically
-using the `exists` and `missing` filters.
+The `_field_names` field indexes the names of every field in a document that
+contains any value other than `null`.  This field is used by the
+<<query-dsl-exists-query,`exists`>> and <<query-dsl-missing-query,`missing`>>
+queries to find documents that either have or don't have any non-+null+ value
+for a particular field.
+
+The value of the `_field_name` field is accessible in queries, aggregations, and
+scripts:
+
+[source,js]
+--------------------------
+# Example documents
+PUT my_index/my_type/1
+{
+  "title": "This is a document"
+}
+
+PUT my_index/my_type/1
+{
+  "title": "This is another document",
+  "body": "This document has a body"
+}
+
+GET my_index/_search
+{
+  "query": {
+    "terms": {
+      "_field_names": [ "title" ] <1>
+    }
+  },
+  "aggs": {
+    "Field names": {
+      "terms": {
+        "field": "_field_names", <2>
+        "size": 10
+      }
+    }
+  },
+  "script_fields": {
+    "Field names": {
+      "script": "doc['_field_names']" <3>
+    }
+  }
+}
+
+--------------------------
+// AUTOSENSE
+
+<1> Querying on the `_field_names` field (also see the <<query-dsl-exists-query,`exists`>> and <<query-dsl-missing-query,`missing`>> queries)
+<2> Aggregating on the `_field_names` field
+<3> Accessing the `_field_names` field in scripts (inline scripts must be <<enable-dynamic-scripting,enabled>> for this example to work)
+

@@ -21,6 +21,7 @@ package org.elasticsearch.cluster;
 
 import com.google.common.base.Predicate;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
@@ -44,6 +45,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
+@LuceneTestCase.AwaitsFix(bugUrl = "boaz is looking at failures in this test class. Example failure: http://build-us-00.elastic.co/job/es_g1gc_master_metal/11653/")
 public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
 
     @Test

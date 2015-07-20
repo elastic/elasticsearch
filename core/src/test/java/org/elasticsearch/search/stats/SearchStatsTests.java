@@ -33,13 +33,11 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.search.stats.SearchStats.Stats;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -162,33 +160,47 @@ public class SearchStatsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testOpenContexts() {
-        createIndex("test1");
-        ensureGreen("test1");
+        String index = "test1";
+        createIndex(index);
+        ensureGreen(index);
+
+        // create shards * docs number of docs and attempt to distribute them equally
+        // this distribution will not be perfect; each shard will have an integer multiple of docs (possibly zero)
+        // we do this so we have a lot of pages to scroll through
         final int docs = scaledRandomIntBetween(20, 50);
-        for (int i = 0; i < docs; i++) {
-            client().prepareIndex("test1", "type", Integer.toString(i)).setSource("field", "value").execute().actionGet();
+        for (int s = 0; s < numAssignedShards(index); s++) {
+            for (int i = 0; i < docs; i++) {
+                client()
+                        .prepareIndex(index, "type", Integer.toString(s * docs + i))
+                        .setSource("field", "value")
+                        .setRouting(Integer.toString(s))
+                        .execute()
+                        .actionGet();
+            }
         }
-        IndicesStatsResponse indicesStats = client().admin().indices().prepareStats().execute().actionGet();
+        client().admin().indices().prepareRefresh(index).execute().actionGet();
+
+        IndicesStatsResponse indicesStats = client().admin().indices().prepareStats(index).execute().actionGet();
         assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0l));
 
+        int size = scaledRandomIntBetween(1, docs);
         SearchResponse searchResponse = client().prepareSearch()
                 .setSearchType(SearchType.SCAN)
                 .setQuery(matchAllQuery())
-                .setSize(5)
+                .setSize(size)
                 .setScroll(TimeValue.timeValueMinutes(2))
                 .execute().actionGet();
         assertSearchResponse(searchResponse);
 
-        indicesStats = client().admin().indices().prepareStats().execute().actionGet();
-        assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo((long) numAssignedShards("test1")));
-        assertThat(indicesStats.getTotal().getSearch().getTotal().getScrollCurrent(), equalTo((long) numAssignedShards("test1")));
+        // refresh the stats now that scroll contexts are opened
+        indicesStats = client().admin().indices().prepareStats(index).execute().actionGet();
 
-        // force the scan to complete measuring the time taken
-        // the total time the scroll is open should be greater than this
-        // the number of queries should equal the number of pages in the scan times the number of shards
-        int count = 0;
+        assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo((long) numAssignedShards(index)));
+        assertThat(indicesStats.getTotal().getSearch().getTotal().getScrollCurrent(), equalTo((long) numAssignedShards(index)));
+
+        int hits = 0;
         while (true) {
-            count++;
+            hits += searchResponse.getHits().getHits().length;
             searchResponse = client().prepareSearchScroll(searchResponse.getScrollId())
                     .setScroll(TimeValue.timeValueMinutes(2))
                     .execute().actionGet();
@@ -196,10 +208,18 @@ public class SearchStatsTests extends ElasticsearchIntegrationTest {
                 break;
             }
         }
+        long expected = 0;
+
+        // the number of queries executed is equal to the sum of 1 + number of pages in shard over all shards
+        IndicesStatsResponse r = client().admin().indices().prepareStats(index).execute().actionGet();
+        for (int s = 0; s < numAssignedShards(index); s++) {
+            expected += 1 + (long)Math.ceil(r.getShards()[s].getStats().getDocs().getCount() / size);
+        }
         indicesStats = client().admin().indices().prepareStats().execute().actionGet();
         Stats stats = indicesStats.getTotal().getSearch().getTotal();
-        assertThat(stats.getQueryCount(), equalTo(count * (long)numAssignedShards("test1")));
-        assertThat(stats.getScrollCount(), equalTo((long)numAssignedShards("test1")));
+        assertEquals(hits, docs * numAssignedShards(index));
+        assertThat(stats.getQueryCount(), equalTo(expected));
+        assertThat(stats.getScrollCount(), equalTo((long)numAssignedShards(index)));
         assertThat(stats.getScrollTimeInMillis(), greaterThan(0l));
 
         // scroll, but with no timeout (so no context)

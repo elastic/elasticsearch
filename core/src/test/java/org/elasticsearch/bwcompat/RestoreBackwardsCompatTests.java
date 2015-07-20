@@ -40,6 +40,7 @@ import org.junit.Test;
 import java.io.IOException;
 import java.lang.reflect.Modifier;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -59,10 +60,25 @@ public class RestoreBackwardsCompatTests extends AbstractSnapshotTests {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return settingsBuilder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("path.repo", reposRoot())
-                .build();
+        if (randomBoolean()) {
+            // Configure using path.repo
+            return settingsBuilder()
+                    .put(super.nodeSettings(nodeOrdinal))
+                    .put("path.repo", reposRoot())
+                    .build();
+        } else {
+            // Configure using url white list
+            try {
+                URI repoJarPatternUri = new URI("jar:" + reposRoot().toUri().toString() + "*.zip!/repo/");
+                return settingsBuilder()
+                        .put(super.nodeSettings(nodeOrdinal))
+                        .putArray("repositories.url.allowed_urls", repoJarPatternUri.toString())
+                        .build();
+            } catch (URISyntaxException ex) {
+                throw new IllegalArgumentException(ex);
+            }
+
+        }
     }
 
     @Test
@@ -142,7 +158,7 @@ public class RestoreBackwardsCompatTests extends AbstractSnapshotTests {
 
     private void createRepo(String prefix, String version, String repo) throws Exception {
         String repoFile = prefix + "-" + version + ".zip";
-        URI repoFileUri = getClass().getResource(repoFile).toURI();
+        URI repoFileUri = getDataPath(repoFile).toUri();
         URI repoJarUri = new URI("jar:" + repoFileUri.toString() + "!/repo/");
         logger.info("-->  creating repository [{}] for version [{}]", repo, version);
         assertAcked(client().admin().cluster().preparePutRepository(repo)

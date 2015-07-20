@@ -191,7 +191,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
                             CheckIndex.Status status = checkIndex.checkIndex();
                             if (!status.clean) {
                                 logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
-                                throw new IndexShardException(sid, "index check failure");
+                                throw new IOException("index check failure");
                             }
                         }
                     } catch (Throwable t) {
@@ -728,17 +728,5 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
             }
         }
         return files;
-    }
-
-    private void disableAllocation(String index) {
-        client().admin().indices().prepareUpdateSettings(index).setSettings(Settings.builder().put(
-                "index.routing.allocation.enable", "none"
-        )).get();
-    }
-
-    private void enableAllocation(String index) {
-        client().admin().indices().prepareUpdateSettings(index).setSettings(Settings.builder().put(
-                "index.routing.allocation.enable", "all"
-        )).get();
     }
 }

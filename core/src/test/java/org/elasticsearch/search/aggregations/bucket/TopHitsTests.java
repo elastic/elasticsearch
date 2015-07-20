@@ -474,21 +474,15 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testFieldCollapsing() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("field-collapsing")
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .setTypes("field-collapsing")
                 .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
                 .setQuery(matchQuery("text", "term rare"))
-                .addAggregation(terms("terms")
-                                .executionHint(randomExecutionHint())
-                                .field("group")
-                                .order(Terms.Order.aggregation("max_score", false))
-                                .subAggregation(
-                                        topHits("hits").setSize(1)
-                                )
-                                .subAggregation(
-                                        max("max_score").script("_score.doubleValue()")
-                                )
-                )
-                .get();
+                .addAggregation(
+                        terms("terms").executionHint(randomExecutionHint()).field("group")
+                                .order(Terms.Order.aggregation("max_score", false)).subAggregation(topHits("hits").setSize(1))
+                                .subAggregation(max("max_score").script(new Script("_score.doubleValue()")))).get();
         assertSearchResponse(response);
 
         Terms terms = response.getAggregations().get("terms");

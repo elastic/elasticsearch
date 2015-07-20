@@ -12,7 +12,7 @@ node to other nodes in the cluster before shutting it down.
 
 For instance, we could decomission a node using its IP address as follows:
 
-[source,json]
+[source,js]
 --------------------------------------------------
 PUT /_cluster/settings
 {
@@ -57,7 +57,7 @@ These special attributes are also supported:
 
 All attribute values can be specified with wildcards, eg:
 
-[source,json]
+[source,js]
 ------------------------
 PUT _cluster/settings
 {

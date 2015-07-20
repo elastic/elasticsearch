@@ -19,10 +19,9 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
-import java.io.ByteArrayOutputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Files;
@@ -54,7 +53,7 @@ public class JarHellTests extends ElasticsearchTestCase {
     URL makeFile(Path dir, String name) throws IOException {
         Path filepath = dir.resolve(name);
         Files.newOutputStream(filepath, StandardOpenOption.CREATE).close();
-        return filepath.toUri().toURL();
+        return dir.toUri().toURL();
     }
 
     public void testDifferentJars() throws Exception {
@@ -62,6 +61,7 @@ public class JarHellTests extends ElasticsearchTestCase {
         URL[] jars = {makeJar(dir, "foo.jar", null, "DuplicateClass.class"), makeJar(dir, "bar.jar", null, "DuplicateClass.class")};
         try {
             JarHell.checkJarHell(jars);
+            fail("did not get expected exception");
         } catch (IllegalStateException e) {
             assertTrue(e.getMessage().contains("jar hell!"));
             assertTrue(e.getMessage().contains("DuplicateClass"));
@@ -95,6 +95,7 @@ public class JarHellTests extends ElasticsearchTestCase {
         URL[] dirs = {makeFile(dir1, "DuplicateClass.class"), makeFile(dir2, "DuplicateClass.class")};
         try {
             JarHell.checkJarHell(dirs);
+            fail("did not get expected exception");
         } catch (IllegalStateException e) {
             assertTrue(e.getMessage().contains("jar hell!"));
             assertTrue(e.getMessage().contains("DuplicateClass"));
@@ -109,6 +110,7 @@ public class JarHellTests extends ElasticsearchTestCase {
         URL[] dirs = {makeJar(dir1, "foo.jar", null, "DuplicateClass.class"), makeFile(dir2, "DuplicateClass.class")};
         try {
             JarHell.checkJarHell(dirs);
+            fail("did not get expected exception");
         } catch (IllegalStateException e) {
             assertTrue(e.getMessage().contains("jar hell!"));
             assertTrue(e.getMessage().contains("DuplicateClass"));
@@ -135,6 +137,7 @@ public class JarHellTests extends ElasticsearchTestCase {
         URL[] jars = {JarHellTests.class.getResource("duplicate-classes.jar")};
         try {
             JarHell.checkJarHell(jars);
+            fail("did not get expected exception");
         } catch (IllegalStateException e) {
             assertTrue(e.getMessage().contains("jar hell!"));
             assertTrue(e.getMessage().contains("DuplicateClass"));
@@ -154,12 +157,15 @@ public class JarHellTests extends ElasticsearchTestCase {
         System.setProperty("java.specification.version", "1.7");
 
         Manifest manifest = new Manifest();
-        manifest.getMainAttributes().put(new Attributes.Name("X-Compile-Target-JDK"), "1.8");
+        Attributes attributes = manifest.getMainAttributes();
+        attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
+        attributes.put(new Attributes.Name("X-Compile-Target-JDK"), "1.8");
         URL[] jars = {makeJar(dir, "foo.jar", manifest, "Foo.class")};
         try {
             JarHell.checkJarHell(jars);
+            fail("did not get expected exception");
         } catch (IllegalStateException e) {
-            assertTrue(e.getMessage().contains("requires java 1.8"));
+            assertTrue(e.getMessage().contains("requires Java 1.8"));
             assertTrue(e.getMessage().contains("your system: 1.7"));
         } finally {
             System.setProperty("java.specification.version", previousJavaVersion);
@@ -172,7 +178,9 @@ public class JarHellTests extends ElasticsearchTestCase {
         System.setProperty("java.specification.version", "1.7");
 
         Manifest manifest = new Manifest();
-        manifest.getMainAttributes().put(new Attributes.Name("X-Compile-Target-JDK"), "1.7");
+        Attributes attributes = manifest.getMainAttributes();
+        attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
+        attributes.put(new Attributes.Name("X-Compile-Target-JDK"), "1.7");
         URL[] jars = {makeJar(dir, "foo.jar", manifest, "Foo.class")};
         try {
             JarHell.checkJarHell(jars);
@@ -187,7 +195,9 @@ public class JarHellTests extends ElasticsearchTestCase {
         System.setProperty("java.specification.version", "bogus");
 
         Manifest manifest = new Manifest();
-        manifest.getMainAttributes().put(new Attributes.Name("X-Compile-Target-JDK"), "1.7");
+        Attributes attributes = manifest.getMainAttributes();
+        attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
+        attributes.put(new Attributes.Name("X-Compile-Target-JDK"), "1.7");
         URL[] jars = {makeJar(dir, "foo.jar", manifest, "Foo.class")};
         try {
             JarHell.checkJarHell(jars);
@@ -199,8 +209,37 @@ public class JarHellTests extends ElasticsearchTestCase {
     public void testBadJDKVersionInJar() throws Exception {
         Path dir = createTempDir();
         Manifest manifest = new Manifest();
-        manifest.getMainAttributes().put(new Attributes.Name("X-Compile-Target-JDK"), "bogus");
+        Attributes attributes = manifest.getMainAttributes();
+        attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
+        attributes.put(new Attributes.Name("X-Compile-Target-JDK"), "bogus");
         URL[] jars = {makeJar(dir, "foo.jar", manifest, "Foo.class")};
         JarHell.checkJarHell(jars);
+    }
+
+    /** make sure if a plugin is compiled against the same ES version, it works */
+    public void testGoodESVersionInJar() throws Exception {
+        Path dir = createTempDir();
+        Manifest manifest = new Manifest();
+        Attributes attributes = manifest.getMainAttributes();
+        attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
+        attributes.put(new Attributes.Name("X-Compile-Elasticsearch-Version"), Version.CURRENT.toString());
+        URL[] jars = {makeJar(dir, "foo.jar", manifest, "Foo.class")};
+        JarHell.checkJarHell(jars);
+    }
+
+    /** make sure if a plugin is compiled against a different ES version, it fails */
+    public void testBadESVersionInJar() throws Exception {
+        Path dir = createTempDir();
+        Manifest manifest = new Manifest();
+        Attributes attributes = manifest.getMainAttributes();
+        attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
+        attributes.put(new Attributes.Name("X-Compile-Elasticsearch-Version"), "1.0-bogus");
+        URL[] jars = {makeJar(dir, "foo.jar", manifest, "Foo.class")};
+        try {
+            JarHell.checkJarHell(jars);
+            fail("did not get expected exception");
+        } catch (IllegalStateException e) {
+            assertTrue(e.getMessage().contains("requires Elasticsearch 1.0-bogus"));
+        }
     }
 }

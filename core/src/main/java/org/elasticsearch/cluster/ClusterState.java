@@ -76,7 +76,7 @@ import java.util.Map;
  * to a node if this node was present in the previous version of the cluster state. If a node is not present was
  * not present in the previous version of the cluster state, such node is unlikely to have the previous cluster
  * state version and should be sent a complete version. In order to make sure that the differences are applied to
- * correct version of the cluster state, each cluster state version update generates {@link #uuid} that uniquely
+ * correct version of the cluster state, each cluster state version update generates {@link #stateUUID} that uniquely
  * identifies this version of the state. This uuid is verified by the {@link ClusterStateDiff#apply} method to
  * makes sure that the correct diffs are applied. If uuids don’t match, the {@link ClusterStateDiff#apply} method
  * throws the {@link IncompatibleClusterStateVersionException}, which should cause the publishing mechanism to send
@@ -144,7 +144,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
     private final long version;
 
-    private final String uuid;
+    private final String stateUUID;
 
     private final RoutingTable routingTable;
 
@@ -165,13 +165,13 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
     private volatile ClusterStateStatus status;
 
-    public ClusterState(long version, String uuid, ClusterState state) {
-        this(state.clusterName, version, uuid, state.metaData(), state.routingTable(), state.nodes(), state.blocks(), state.customs(), false);
+    public ClusterState(long version, String stateUUID, ClusterState state) {
+        this(state.clusterName, version, stateUUID, state.metaData(), state.routingTable(), state.nodes(), state.blocks(), state.customs(), false);
     }
 
-    public ClusterState(ClusterName clusterName, long version, String uuid, MetaData metaData, RoutingTable routingTable, DiscoveryNodes nodes, ClusterBlocks blocks, ImmutableOpenMap<String, Custom> customs, boolean wasReadFromDiff) {
+    public ClusterState(ClusterName clusterName, long version, String stateUUID, MetaData metaData, RoutingTable routingTable, DiscoveryNodes nodes, ClusterBlocks blocks, ImmutableOpenMap<String, Custom> customs, boolean wasReadFromDiff) {
         this.version = version;
-        this.uuid = uuid;
+        this.stateUUID = stateUUID;
         this.clusterName = clusterName;
         this.metaData = metaData;
         this.routingTable = routingTable;
@@ -200,11 +200,11 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
     }
 
     /**
-     * This uuid is automatically generated for for each version of cluster state. It is used to make sure that
+     * This stateUUID is automatically generated for for each version of cluster state. It is used to make sure that
      * we are applying diffs to the right previous state.
      */
-    public String uuid() {
-        return this.uuid;
+    public String stateUUID() {
+        return this.stateUUID;
     }
 
     public DiscoveryNodes nodes() {
@@ -283,7 +283,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
     public String prettyPrint() {
         StringBuilder sb = new StringBuilder();
         sb.append("version: ").append(version).append("\n");
-        sb.append("uuid: ").append(uuid).append("\n");
+        sb.append("state uuid: ").append(stateUUID).append("\n");
         sb.append("from_diff: ").append(wasReadFromDiff).append("\n");
         sb.append("meta data version: ").append(metaData.version()).append("\n");
         sb.append(nodes().prettyPrint());
@@ -362,7 +362,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
         if (metrics.contains(Metric.VERSION)) {
             builder.field("version", version);
-            builder.field("uuid", uuid);
+            builder.field("state_uuid", stateUUID);
         }
 
         if (metrics.contains(Metric.MASTER_NODE)) {
@@ -398,18 +398,8 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         // nodes
         if (metrics.contains(Metric.NODES)) {
             builder.startObject("nodes");
-            for (DiscoveryNode node : nodes()) {
-                builder.startObject(node.id(), XContentBuilder.FieldCaseConversion.NONE);
-                builder.field("name", node.name());
-                builder.field("transport_address", node.address().toString());
-
-                builder.startObject("attributes");
-                for (Map.Entry<String, String> attr : node.attributes().entrySet()) {
-                    builder.field(attr.getKey(), attr.getValue());
-                }
-                builder.endObject();
-
-                builder.endObject();
+            for (DiscoveryNode node : nodes) {
+                node.toXContent(builder, params);
             }
             builder.endObject();
         }
@@ -417,7 +407,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         // meta data
         if (metrics.contains(Metric.METADATA)) {
             builder.startObject("metadata");
-
+            builder.field("cluster_uuid", metaData().clusterUUID());
             builder.startObject("templates");
             for (ObjectCursor<IndexTemplateMetaData> cursor : metaData().templates().values()) {
                 IndexTemplateMetaData templateMetaData = cursor.value;
@@ -571,7 +561,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         public Builder(ClusterState state) {
             this.clusterName = state.clusterName;
             this.version = state.version();
-            this.uuid = state.uuid();
+            this.uuid = state.stateUUID();
             this.nodes = state.nodes();
             this.routingTable = state.routingTable();
             this.metaData = state.metaData();
@@ -637,7 +627,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             return this;
         }
 
-        public Builder uuid(String uuid) {
+        public Builder stateUUID(String uuid) {
             this.uuid = uuid;
             return this;
         }
@@ -734,7 +724,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
     public void writeTo(StreamOutput out) throws IOException {
         clusterName.writeTo(out);
         out.writeLong(version);
-        out.writeString(uuid);
+        out.writeString(stateUUID);
         metaData.writeTo(out);
         routingTable.writeTo(out);
         nodes.writeTo(out);
@@ -767,8 +757,8 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         private final Diff<ImmutableOpenMap<String, Custom>> customs;
 
         public ClusterStateDiff(ClusterState before, ClusterState after) {
-            fromUuid = before.uuid;
-            toUuid = after.uuid;
+            fromUuid = before.stateUUID;
+            toUuid = after.stateUUID;
             toVersion = after.version;
             clusterName = after.clusterName;
             routingTable = after.routingTable.diff(before.routingTable);
@@ -816,14 +806,14 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         @Override
         public ClusterState apply(ClusterState state) {
             Builder builder = new Builder(clusterName);
-            if (toUuid.equals(state.uuid)) {
+            if (toUuid.equals(state.stateUUID)) {
                 // no need to read the rest - cluster state didn't change
                 return state;
             }
-            if (fromUuid.equals(state.uuid) == false) {
-                throw new IncompatibleClusterStateVersionException(state.version, state.uuid, toVersion, fromUuid);
+            if (fromUuid.equals(state.stateUUID) == false) {
+                throw new IncompatibleClusterStateVersionException(state.version, state.stateUUID, toVersion, fromUuid);
             }
-            builder.uuid(toUuid);
+            builder.stateUUID(toUuid);
             builder.version(toVersion);
             builder.routingTable(routingTable.apply(state.routingTable));
             builder.nodes(nodes.apply(state.nodes));

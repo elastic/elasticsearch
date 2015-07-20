@@ -89,6 +89,19 @@ Further issues remain with the retry mechanism:
 See {GIT}9967[#9967]. (STATUS: ONGOING)
 
 [float]
+=== Wait on incoming joins before electing local node as master (STATUS: ONGOING)
+
+During master election each node pings in order to discover other nodes and validate the liveness of existing
+nodes. Based on this information the node either discovers an existing master or, if enough nodes are found
+(see https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-discovery-zen.html#master-election[`discovery.zen.minimum_master_nodes`]) a new master will be elected. Currently, the node that is
+elected as master will update the cluster state to indicate the result of the election. Other nodes will submit
+a join request to the newly elected master node. Instead of immediately processing the election result, the elected master
+node should wait for the incoming joins from other nodes, thus validating that the result of the election is properly applied. As soon as enough
+nodes have sent their joins request (based on the `minimum_master_nodes` settings) the cluster state is updated.
+{GIT}12161[#12161]
+
+
+[float]
 === Write index metadata on data nodes where shards allocated (STATUS: ONGOING)
 
 Today, index metadata is written only on nodes that are master-eligible, not on
@@ -127,7 +140,7 @@ will operate with its local data type but, if the shard is relocated, the
 data type from the cluster state will be applied to the new shard, which
 can result in a corrupt shard.  To prevent this, new fields should not
 be added to a shard's mapping until confirmed by the master.
-{GIT}8688[#8688] (STATUS: ONGOING)
+{GIT}8688[#8688] (STATUS: DONE)
 
 [float]
 === Loss of documents during network partition (STATUS: ONGOING)
@@ -161,7 +174,7 @@ Make write calls return the number of total/successful/missing shards in the sam
 [float]
 === Jepsen Test Failures (STATUS: ONGOING)
 
-We have increased our test coverage to include scenarios tested by Jepsen. We make heavy use of randomization to expand on the scenarios that can be tested and to introduce new error conditions. You can follow the work on the master branch of the https://github.com/elasticsearch/elasticsearch/blob/master/src/test/java/org/elasticsearch/discovery/DiscoveryWithServiceDisruptions.java[`DiscoveryWithServiceDisruptions` class], where we will add more tests as time progresses.
+We have increased our test coverage to include scenarios tested by Jepsen. We make heavy use of randomization to expand on the scenarios that can be tested and to introduce new error conditions. You can follow the work on the master branch of the https://github.com/elastic/elasticsearch/blob/master/core/src/test/java/org/elasticsearch/discovery/DiscoveryWithServiceDisruptionsTests.java[`DiscoveryWithServiceDisruptions` class], where we will add more tests as time progresses.
 
 [float]
 === Document guarantees and handling of failure (STATUS: ONGOING)

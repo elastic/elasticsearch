@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.child;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.count.CountResponse;
@@ -2013,7 +2012,6 @@ public class ChildQuerySearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/9461")
     public void testParentFieldToNonExistingType() {
         assertAcked(prepareCreate("test").addMapping("parent").addMapping("child", "_parent", "type=parent2"));
         client().prepareIndex("test", "parent", "1").setSource("{}").get();
@@ -2030,19 +2028,6 @@ public class ChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
         SearchResponse response = client().prepareSearch("test")
                 .setQuery(QueryBuilders.hasParentQuery("parent", matchAllQuery()))
-                .get();
-        assertHitCount(response, 0);
-
-        try {
-            client().prepareSearch("test")
-                    .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.hasChildQuery("child", matchAllQuery())))
-                    .get();
-            fail();
-        } catch (SearchPhaseExecutionException e) {
-        }
-
-        response = client().prepareSearch("test")
-                .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.hasParentQuery("parent", matchAllQuery())))
                 .get();
         assertHitCount(response, 0);
     }

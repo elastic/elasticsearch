@@ -19,6 +19,7 @@
 package org.elasticsearch.script.mustache;
 
 import com.github.mustachejava.Mustache;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -98,20 +100,13 @@ public class MustacheScriptEngineService extends AbstractComponent implements Sc
      * @return the processed string with all given variables substitued.
      * */
     @Override
-    public Object execute(Object template, Map<String, Object> vars) {
+    public Object execute(CompiledScript template, Map<String, Object> vars) {
         BytesStreamOutput result = new BytesStreamOutput();
-        UTF8StreamWriter writer = utf8StreamWriter().setOutput(result);
-        ((Mustache) template).execute(writer, vars);
-        try {
-            writer.flush();
-        } catch (IOException e) {
-            logger.error("Could not execute query template (failed to flush writer): ", e);
-        } finally {
-            try {
-                writer.close();
-            } catch (IOException e) {
-                logger.error("Could not execute query template (failed to close writer): ", e);
-            }
+        try (UTF8StreamWriter writer = utf8StreamWriter().setOutput(result)) {
+            ((Mustache) template.compiled()).execute(writer, vars);
+        } catch (Exception e) {
+            logger.error("Error executing " + template, e);
+            throw new ScriptException("Error executing " + template, e);
         }
         return result.bytes();
     }
@@ -132,13 +127,13 @@ public class MustacheScriptEngineService extends AbstractComponent implements Sc
     }
 
     @Override
-    public ExecutableScript executable(Object mustache,
+    public ExecutableScript executable(CompiledScript compiledScript,
             @Nullable Map<String, Object> vars) {
-        return new MustacheExecutableScript((Mustache) mustache, vars);
+        return new MustacheExecutableScript(compiledScript, vars);
     }
 
     @Override
-    public SearchScript search(Object compiledScript, SearchLookup lookup,
+    public SearchScript search(CompiledScript compiledScript, SearchLookup lookup,
             @Nullable Map<String, Object> vars) {
         throw new UnsupportedOperationException();
     }
@@ -162,18 +157,17 @@ public class MustacheScriptEngineService extends AbstractComponent implements Sc
      * Used at query execution time by script service in order to execute a query template.
      * */
     private class MustacheExecutableScript implements ExecutableScript {
-        /** Compiled template object. */
-        private Mustache mustache;
+        /** Compiled template object wrapper. */
+        private CompiledScript template;
         /** Parameters to fill above object with. */
         private Map<String, Object> vars;
 
         /**
-         * @param mustache the compiled template object
+         * @param template the compiled template object wrapper
          * @param vars the parameters to fill above object with
          **/
-        public MustacheExecutableScript(Mustache mustache,
-                Map<String, Object> vars) {
-            this.mustache = mustache;
+        public MustacheExecutableScript(CompiledScript template, Map<String, Object> vars) {
+            this.template = template;
             this.vars = vars == null ? Collections.<String, Object>emptyMap() : vars;
         }
 
@@ -185,18 +179,11 @@ public class MustacheScriptEngineService extends AbstractComponent implements Sc
         @Override
         public Object run() {
             BytesStreamOutput result = new BytesStreamOutput();
-            UTF8StreamWriter writer = utf8StreamWriter().setOutput(result);
-            mustache.execute(writer, vars);
-            try {
-                writer.flush();
-            } catch (IOException e) {
-                logger.error("Could not execute query template (failed to flush writer): ", e);
-            } finally {
-                try {
-                    writer.close();
-                } catch (IOException e) {
-                    logger.error("Could not execute query template (failed to close writer): ", e);
-                }
+            try (UTF8StreamWriter writer = utf8StreamWriter().setOutput(result)) {
+                ((Mustache) template.compiled()).execute(writer, vars);
+            } catch (Exception e) {
+                logger.error("Error running " + template, e);
+                throw new ScriptException("Error running " + template, e);
             }
             return result.bytes();
         }

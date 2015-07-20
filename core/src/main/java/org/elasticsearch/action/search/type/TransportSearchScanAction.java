@@ -25,6 +25,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -43,8 +44,9 @@ public class TransportSearchScanAction extends TransportSearchTypeAction {
 
     @Inject
     public TransportSearchScanAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                     SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController, ActionFilters actionFilters) {
-        super(settings, threadPool, clusterService, searchService, searchPhaseController, actionFilters);
+                                     SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController,
+                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, threadPool, clusterService, searchService, searchPhaseController, actionFilters, indexNameExpressionResolver);
     }
 
     @Override

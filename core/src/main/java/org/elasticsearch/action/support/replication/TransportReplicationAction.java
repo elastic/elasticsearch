@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionWriteResponse;
@@ -39,6 +40,7 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.Nullable;
@@ -57,7 +59,6 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
@@ -92,8 +93,9 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                                          ClusterService clusterService, IndicesService indicesService,
                                          ThreadPool threadPool, ShardStateAction shardStateAction,
                                          MappingUpdatedAction mappingUpdatedAction, ActionFilters actionFilters,
-                                         Class<Request> request, Class<ReplicaRequest> replicaRequest, String executor) {
-        super(settings, actionName, threadPool, actionFilters);
+                                         IndexNameExpressionResolver indexNameExpressionResolver, Class<Request> request,
+                                         Class<ReplicaRequest> replicaRequest, String executor) {
+        super(settings, actionName, threadPool, actionFilters, indexNameExpressionResolver);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
@@ -240,10 +242,11 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         }
     }
 
-    public static class RetryOnReplicaException extends IndexShardException {
+    public static class RetryOnReplicaException extends ElasticsearchException {
 
         public RetryOnReplicaException(ShardId shardId, String msg) {
-            super(shardId, msg);
+            super(msg);
+            setShard(shardId);
         }
 
         public RetryOnReplicaException(StreamInput in) throws IOException{
@@ -323,9 +326,10 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         }
     }
 
-    public static class RetryOnPrimaryException extends IndexShardException {
+    public static class RetryOnPrimaryException extends ElasticsearchException {
         public RetryOnPrimaryException(ShardId shardId, String msg) {
-            super(shardId, msg);
+            super(msg);
+            setShard(shardId);
         }
 
         public RetryOnPrimaryException(StreamInput in) throws IOException{
@@ -398,7 +402,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 return false;
             }
             if (resolveIndex()) {
-                internalRequest.concreteIndex(observer.observedState().metaData().concreteSingleIndex(internalRequest.request().index(), internalRequest.request().indicesOptions()));
+                internalRequest.concreteIndex(indexNameExpressionResolver.concreteSingleIndex(observer.observedState(), internalRequest.request()));
             } else {
                 internalRequest.concreteIndex(internalRequest.request().index());
             }
@@ -894,9 +898,8 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                                 onReplicaFailure(nodeId, exp);
                                 logger.trace("[{}] transport failure during replica request [{}] ", exp, node, replicaRequest);
                                 if (ignoreReplicaException(exp) == false) {
-                                    logger.warn("failed to perform " + actionName + " on remote replica " + node + shardIt.shardId(), exp);
-                                    shardStateAction.shardFailed(shard, indexMetaData.getUUID(),
-                                            "Failed to perform [" + actionName + "] on replica, message [" + ExceptionsHelper.detailedMessage(exp) + "]");
+                                    logger.warn("{} failed to perform {} on node {}", exp, shardIt.shardId(), actionName, node);
+                                    shardStateAction.shardFailed(shard, indexMetaData.getIndexUUID(), "failed to perform " + actionName + " on replica on node " + node, exp);
                                 }
                             }
 

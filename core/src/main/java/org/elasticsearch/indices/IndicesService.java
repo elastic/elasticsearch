@@ -270,12 +270,12 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     }
 
     /**
-     * Returns an IndexService for the specified index if exists otherwise a {@link IndexMissingException} is thrown.
+     * Returns an IndexService for the specified index if exists otherwise a {@link IndexNotFoundException} is thrown.
      */
-    public IndexService indexServiceSafe(String index) throws IndexMissingException {
+    public IndexService indexServiceSafe(String index) {
         IndexService indexService = indexService(index);
         if (indexService == null) {
-            throw new IndexMissingException(new Index(index));
+            throw new IndexNotFoundException(index);
         }
         return indexService;
     }
@@ -448,7 +448,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             try {
                 if (clusterState.metaData().hasIndex(indexName)) {
                     final IndexMetaData index = clusterState.metaData().index(indexName);
-                    throw new IllegalStateException("Can't delete closed index store for [" + indexName + "] - it's still part of the cluster state [" + index.getUUID() + "] [" + metaData.getUUID() + "]");
+                    throw new IllegalStateException("Can't delete closed index store for [" + indexName + "] - it's still part of the cluster state [" + index.getIndexUUID() + "] [" + metaData.getIndexUUID() + "]");
                 }
                 deleteIndexStore(reason, metaData, clusterState);
             } catch (IOException e) {
@@ -467,13 +467,13 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                 String indexName = metaData.index();
                 if (indices.containsKey(indexName)) {
                     String localUUid = indices.get(indexName).v1().indexUUID();
-                    throw new IllegalStateException("Can't delete index store for [" + indexName + "] - it's still part of the indices service [" + localUUid+ "] [" + metaData.getUUID() + "]");
+                    throw new IllegalStateException("Can't delete index store for [" + indexName + "] - it's still part of the indices service [" + localUUid + "] [" + metaData.getIndexUUID() + "]");
                 }
                 if (clusterState.metaData().hasIndex(indexName) && (clusterState.nodes().localNode().masterNode() == true)) {
                     // we do not delete the store if it is a master eligible node and the index is still in the cluster state
                     // because we want to keep the meta data for indices around even if no shards are left here
                     final IndexMetaData index = clusterState.metaData().index(indexName);
-                    throw new IllegalStateException("Can't delete closed index store for [" + indexName + "] - it's still part of the cluster state [" + index.getUUID() + "] [" + metaData.getUUID() + "]");
+                    throw new IllegalStateException("Can't delete closed index store for [" + indexName + "] - it's still part of the cluster state [" + index.getIndexUUID() + "] [" + metaData.getIndexUUID() + "]");
                 }
             }
             Index index = new Index(metaData.index());

@@ -20,6 +20,7 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -49,6 +50,7 @@ import org.junit.Test;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -317,7 +319,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testPrimaryRelocationWithConcurrentIndexing() throws Exception {
+    public void testPrimaryRelocationWithConcurrentIndexing() throws Throwable {
         Settings nodeSettings = nodeSettings();
 
         String node1 = internalCluster().startNode(nodeSettings);
@@ -346,15 +348,19 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
         final int numPhase2Docs = scaledRandomIntBetween(25, 200);
         final CountDownLatch phase1finished = new CountDownLatch(1);
         final CountDownLatch phase2finished = new CountDownLatch(1);
-
+        final CopyOnWriteArrayList<Throwable> exceptions = new CopyOnWriteArrayList<>();
         Thread thread = new Thread() {
             @Override
             public void run() {
                 started.countDown();
                 while (counter.get() < (numPhase1Docs + numPhase2Docs)) {
-                    final IndexResponse indexResponse = client().prepareIndex(IDX, "doc",
-                            Integer.toString(counter.incrementAndGet())).setSource("foo", "bar").get();
-                    assertTrue(indexResponse.isCreated());
+                    try {
+                        final IndexResponse indexResponse = client().prepareIndex(IDX, "doc",
+                                Integer.toString(counter.incrementAndGet())).setSource("foo", "bar").get();
+                        assertTrue(indexResponse.isCreated());
+                    } catch (Throwable t) {
+                        exceptions.add(t);
+                    }
                     final int docCount = counter.get();
                     if (docCount == numPhase1Docs) {
                         phase1finished.countDown();
@@ -374,6 +380,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
         // wait for more documents to be indexed post-recovery, also waits for
         // indexing thread to stop
         phase2finished.await();
+        ExceptionsHelper.rethrowAndSuppress(exceptions);
         ensureGreen(IDX);
         thread.join();
         logger.info("--> performing query");

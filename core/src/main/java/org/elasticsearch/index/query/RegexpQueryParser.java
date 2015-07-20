@@ -55,7 +55,7 @@ public class RegexpQueryParser extends BaseQueryParserTemp {
         String fieldName = parser.currentName();
         String rewriteMethod = null;
 
-        Object value = null;
+        String value = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         int flagsValue = DEFAULT_FLAGS_VALUE;
         int maxDeterminizedStates = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
@@ -74,7 +74,7 @@ public class RegexpQueryParser extends BaseQueryParserTemp {
                         currentFieldName = parser.currentName();
                     } else {
                         if ("value".equals(currentFieldName)) {
-                            value = parser.objectBytes();
+                            value = parser.textOrNull();
                         } else if ("boost".equals(currentFieldName)) {
                             boost = parser.floatValue();
                         } else if ("rewrite".equals(currentFieldName)) {
@@ -98,7 +98,7 @@ public class RegexpQueryParser extends BaseQueryParserTemp {
                     queryName = parser.text();
                 } else {
                     fieldName = currentFieldName;
-                    value = parser.objectBytes();
+                    value = parser.textOrNull();
                 }
             }
         }

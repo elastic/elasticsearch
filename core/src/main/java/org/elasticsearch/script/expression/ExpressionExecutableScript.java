@@ -20,6 +20,7 @@
 package org.elasticsearch.script.expression;
 
 import org.apache.lucene.expressions.Expression;
+import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptException;
 
@@ -34,16 +35,18 @@ public class ExpressionExecutableScript implements ExecutableScript {
 
     private final int NO_DOCUMENT = -1;
 
-    public final Expression expression;
+    public final CompiledScript compiledScript;
     public final Map<String, ReplaceableConstFunctionValues> functionValuesMap;
     public final ReplaceableConstFunctionValues[] functionValuesArray;
 
-    public ExpressionExecutableScript(Object compiledScript, Map<String, Object> vars) {
-        expression = (Expression)compiledScript;
+    public ExpressionExecutableScript(CompiledScript compiledScript, Map<String, Object> vars) {
+        this.compiledScript = compiledScript;
+        Expression expression = (Expression)this.compiledScript.compiled();
         int functionValuesLength = expression.variables.length;
 
         if (vars.size() != functionValuesLength) {
-            throw new ScriptException("The number of variables in an executable expression script [" +
+            throw new ScriptException("Error using " + compiledScript + ". " +
+                    "The number of variables in an executable expression script [" +
                     functionValuesLength + "] must match the number of variables in the variable map" +
                     " [" + vars.size() + "].");
         }
@@ -69,17 +72,23 @@ public class ExpressionExecutableScript implements ExecutableScript {
                 double doubleValue = ((Number)value).doubleValue();
                 functionValuesMap.get(name).setValue(doubleValue);
             } else {
-                throw new ScriptException("Executable expressions scripts can only process numbers." +
+                throw new ScriptException("Error using " + compiledScript + ". " +
+                        "Executable expressions scripts can only process numbers." +
                         "  The variable [" + name + "] is not a number.");
             }
         } else {
-            throw new ScriptException("The variable [" + name + "] does not exist in the executable expressions script.");
+            throw new ScriptException("Error using " + compiledScript + ". " +
+                    "The variable [" + name + "] does not exist in the executable expressions script.");
         }
     }
 
     @Override
     public Object run() {
-        return expression.evaluate(NO_DOCUMENT, functionValuesArray);
+        try {
+            return ((Expression) compiledScript.compiled()).evaluate(NO_DOCUMENT, functionValuesArray);
+        } catch (Exception exception) {
+            throw new ScriptException("Error evaluating " + compiledScript, exception);
+        }
     }
 
     @Override

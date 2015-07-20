@@ -20,7 +20,9 @@
 package org.elasticsearch.script.python;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.After;
 import org.junit.Test;
@@ -50,6 +52,7 @@ public class PythonScriptMultiThreadedTest extends ElasticsearchTestCase {
     public void testExecutableNoRuntimeParams() throws Exception {
         final PythonScriptEngineService se = new PythonScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
         final Object compiled = se.compile("x + y");
+        final CompiledScript compiledScript = new CompiledScript(ScriptService.ScriptType.INLINE, "testExecutableNoRuntimeParams", "python", compiled);
         final AtomicBoolean failed = new AtomicBoolean();
 
         Thread[] threads = new Thread[4];
@@ -67,7 +70,7 @@ public class PythonScriptMultiThreadedTest extends ElasticsearchTestCase {
                         Map<String, Object> vars = new HashMap<String, Object>();
                         vars.put("x", x);
                         vars.put("y", y);
-                        ExecutableScript script = se.executable(compiled, vars);
+                        ExecutableScript script = se.executable(compiledScript, vars);
                         for (int i = 0; i < 10000; i++) {
                             long result = ((Number) script.run()).longValue();
                             assertThat(result, equalTo(addition));
@@ -136,6 +139,7 @@ public class PythonScriptMultiThreadedTest extends ElasticsearchTestCase {
     public void testExecute() throws Exception {
         final PythonScriptEngineService se = new PythonScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
         final Object compiled = se.compile("x + y");
+        final CompiledScript compiledScript = new CompiledScript(ScriptService.ScriptType.INLINE, "testExecute", "python", compiled);
         final AtomicBoolean failed = new AtomicBoolean();
 
         Thread[] threads = new Thread[4];
@@ -154,7 +158,7 @@ public class PythonScriptMultiThreadedTest extends ElasticsearchTestCase {
                             long addition = x + y;
                             runtimeVars.put("x", x);
                             runtimeVars.put("y", y);
-                            long result = ((Number) se.execute(compiled, runtimeVars)).longValue();
+                            long result = ((Number) se.execute(compiledScript, runtimeVars)).longValue();
                             assertThat(result, equalTo(addition));
                         }
                     } catch (Throwable t) {

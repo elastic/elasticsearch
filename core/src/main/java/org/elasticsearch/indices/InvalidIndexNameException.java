@@ -19,9 +19,9 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexException;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -29,10 +29,11 @@ import java.io.IOException;
 /**
  *
  */
-public class InvalidIndexNameException extends IndexException {
+public class InvalidIndexNameException extends ElasticsearchException {
 
     public InvalidIndexNameException(Index index, String name, String desc) {
-        super(index, "Invalid index name [" + name + "], " + desc);
+        super("Invalid index name [" + name + "], " + desc);
+        setIndex(index);
     }
 
     public InvalidIndexNameException(StreamInput in) throws IOException{

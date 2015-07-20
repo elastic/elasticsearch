@@ -103,5 +103,4 @@ public abstract class AbstractNumericTests extends ElasticsearchIntegrationTest 
 
     public abstract void testScript_MultiValued_WithParams() throws Exception;
 
-
 }

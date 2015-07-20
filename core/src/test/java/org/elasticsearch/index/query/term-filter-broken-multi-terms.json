@@ -1,0 +1,10 @@
+{
+  "filtered":{
+    "query":{
+      "term":{
+        "name.first": "shay",
+        "name.last" : "banon"
+      }
+    }
+  }
+}

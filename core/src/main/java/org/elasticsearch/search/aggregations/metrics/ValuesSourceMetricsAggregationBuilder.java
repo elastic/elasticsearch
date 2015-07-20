@@ -19,12 +19,10 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import com.google.common.collect.Maps;
-
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.script.Script;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  *
@@ -32,10 +30,8 @@ import java.util.Map;
 public abstract class ValuesSourceMetricsAggregationBuilder<B extends ValuesSourceMetricsAggregationBuilder<B>> extends MetricsAggregationBuilder<B> {
 
     private String field;
-    private String script;
-    private String lang;
+    private Script script;
     private String format;
-    private Map<String, Object> params;
     private Object missing;
 
     protected ValuesSourceMetricsAggregationBuilder(String name, String type) {
@@ -48,40 +44,18 @@ public abstract class ValuesSourceMetricsAggregationBuilder<B extends ValuesSour
         return (B) this;
     }
 
+    /**
+     * The script to use for this aggregation
+     */
     @SuppressWarnings("unchecked")
-    public B script(String script) {
+    public B script(Script script) {
         this.script = script;
-        return (B) this;
-    }
-
-    @SuppressWarnings("unchecked")
-    public B lang(String lang) {
-        this.lang = lang;
         return (B) this;
     }
 
     @SuppressWarnings("unchecked")
     public B format(String format) {
         this.format = format;
-        return (B) this;
-    }
-
-    @SuppressWarnings("unchecked")
-    public B params(Map<String, Object> params) {
-        if (this.params == null) {
-            this.params = params;
-        } else {
-            this.params.putAll(params);
-        }
-        return (B) this;
-    }
-
-    @SuppressWarnings("unchecked")
-    public B param(String name, Object value) {
-        if (this.params == null) {
-            this.params = Maps.newHashMap();
-        }
-        this.params.put(name, value);
         return (B) this;
     }
 
@@ -103,16 +77,8 @@ public abstract class ValuesSourceMetricsAggregationBuilder<B extends ValuesSour
             builder.field("script", script);
         }
 
-        if (lang != null) {
-            builder.field("lang", lang);
-        }
-
         if (format != null) {
             builder.field("format", format);
-        }
-
-        if (this.params != null && !this.params.isEmpty()) {
-            builder.field("params").map(this.params);
         }
 
         if (missing != null) {

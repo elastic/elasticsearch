@@ -30,10 +30,11 @@ import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasAction;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.action.admin.indices.alias.delete.AliasesMissingException;
+import org.elasticsearch.rest.action.admin.indices.alias.delete.AliasesNotFoundException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -48,8 +49,9 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
 
     @Inject
     public TransportIndicesAliasesAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                         ThreadPool threadPool, MetaDataIndexAliasesService indexAliasesService, ActionFilters actionFilters) {
-        super(settings, IndicesAliasesAction.NAME, transportService, clusterService, threadPool, actionFilters, IndicesAliasesRequest.class);
+                                         ThreadPool threadPool, MetaDataIndexAliasesService indexAliasesService,
+                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, IndicesAliasesAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, IndicesAliasesRequest.class);
         this.indexAliasesService = indexAliasesService;
     }
 
@@ -85,7 +87,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
         Set<String> aliases = new HashSet<>();
         for (AliasActions action : actions) {
             //expand indices
-            String[] concreteIndices = state.metaData().concreteIndices(request.indicesOptions(), action.indices());
+            String[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request.indicesOptions(), action.indices());
             //collect the aliases
             Collections.addAll(aliases, action.aliases());
             for (String index : concreteIndices) {
@@ -100,7 +102,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
             }
         }
         if (hasOnlyDeletesButNoneCanBeDone && actions.size() != 0) {
-            throw new AliasesMissingException(aliases.toArray(new String[aliases.size()]));
+            throw new AliasesNotFoundException(aliases.toArray(new String[aliases.size()]));
         }
         request.aliasActions().clear();
         IndicesAliasesClusterStateUpdateRequest updateRequest = new IndicesAliasesClusterStateUpdateRequest()

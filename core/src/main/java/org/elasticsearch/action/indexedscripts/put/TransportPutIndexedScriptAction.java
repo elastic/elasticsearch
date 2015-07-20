@@ -24,6 +24,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DelegatingActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService;
@@ -38,9 +39,10 @@ public class TransportPutIndexedScriptAction extends HandledTransportAction<PutI
     private final ScriptService scriptService;
 
     @Inject
-    public TransportPutIndexedScriptAction(Settings settings, ThreadPool threadPool,
-                                           ScriptService scriptService, TransportService transportService, ActionFilters actionFilters) {
-        super(settings, PutIndexedScriptAction.NAME, threadPool, transportService, actionFilters, PutIndexedScriptRequest.class);
+    public TransportPutIndexedScriptAction(Settings settings, ThreadPool threadPool, ScriptService scriptService,
+                                           TransportService transportService, ActionFilters actionFilters,
+                                           IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, PutIndexedScriptAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, PutIndexedScriptRequest.class);
         this.scriptService = scriptService;
     }
 

@@ -84,7 +84,7 @@ import static org.elasticsearch.cluster.metadata.MetaDataIndexStateService.INDEX
  * {@link StoreRecoveryService#recover(IndexShard, boolean, StoreRecoveryService.RecoveryListener)}
  * method, which detects that shard should be restored from snapshot rather than recovered from gateway by looking
  * at the {@link org.elasticsearch.cluster.routing.ShardRouting#restoreSource()} property. If this property is not null
- * {@code recover} method uses {@link StoreRecoveryService#restore(org.elasticsearch.indices.recovery.RecoveryState)}
+ * {@code recover} method uses {@link StoreRecoveryService#restore}
  * method to start shard restore process.
  * <p/>
  * At the end of the successful restore process {@code IndexShardSnapshotAndRestoreService} calls {@link #indexShardRestoreCompleted(SnapshotId, ShardId)},
@@ -100,7 +100,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             SETTING_VERSION_CREATED,
             SETTING_LEGACY_ROUTING_HASH_FUNCTION,
             SETTING_LEGACY_ROUTING_USE_TYPE,
-            SETTING_UUID,
+            SETTING_INDEX_UUID,
             SETTING_CREATION_DATE);
 
     // It's OK to change some settings, but we shouldn't allow simply removing them
@@ -162,7 +162,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             MetaData metaDataIn = repository.readSnapshotMetaData(snapshotId, snapshot, filteredIndices);
 
             final MetaData metaData;
-            if (snapshot.version().before(Version.V_2_0_0)) {
+            if (snapshot.version().before(Version.V_2_0_0_beta1)) {
                 // ES 2.0 now requires units for all time and byte-sized settings, so we add the default unit if it's missing in this snapshot:
                 metaData = MetaData.addDefaultUnitsIfNeeded(logger, metaDataIn);
             } else {
@@ -203,7 +203,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                         for (Map.Entry<String, String> indexEntry : renamedIndices.entrySet()) {
                             String index = indexEntry.getValue();
                             boolean partial = checkPartial(index);
-                            RestoreSource restoreSource = new RestoreSource(snapshotId, index);
+                            RestoreSource restoreSource = new RestoreSource(snapshotId, snapshot.version(), index);
                             String renamedIndex = indexEntry.getKey();
                             IndexMetaData snapshotIndexMetaData = metaData.index(index);
                             snapshotIndexMetaData = updateIndexSettings(snapshotIndexMetaData, request.indexSettings, request.ignoreIndexSettings);
@@ -221,7 +221,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                                 createIndexService.validateIndexName(renamedIndex, currentState);
                                 createIndexService.validateIndexSettings(renamedIndex, snapshotIndexMetaData.settings());
                                 IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(snapshotIndexMetaData).state(IndexMetaData.State.OPEN).index(renamedIndex);
-                                indexMdBuilder.settings(Settings.settingsBuilder().put(snapshotIndexMetaData.settings()).put(IndexMetaData.SETTING_UUID, Strings.randomBase64UUID()));
+                                indexMdBuilder.settings(Settings.settingsBuilder().put(snapshotIndexMetaData.settings()).put(IndexMetaData.SETTING_INDEX_UUID, Strings.randomBase64UUID()));
                                 if (!request.includeAliases() && !snapshotIndexMetaData.aliases().isEmpty()) {
                                     // Remove all aliases - they shouldn't be restored
                                     indexMdBuilder.removeAllAliases();
@@ -255,7 +255,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                                         aliases.add(alias.value);
                                     }
                                 }
-                                indexMdBuilder.settings(Settings.settingsBuilder().put(snapshotIndexMetaData.settings()).put(IndexMetaData.SETTING_UUID, currentIndexMetaData.uuid()));
+                                indexMdBuilder.settings(Settings.settingsBuilder().put(snapshotIndexMetaData.settings()).put(IndexMetaData.SETTING_INDEX_UUID, currentIndexMetaData.indexUUID()));
                                 IndexMetaData updatedIndexMetaData = indexMdBuilder.index(renamedIndex).build();
                                 rtBuilder.addAsRestore(updatedIndexMetaData, restoreSource);
                                 blocks.removeIndexBlock(renamedIndex, INDEX_CLOSED_BLOCK);

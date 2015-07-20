@@ -64,7 +64,7 @@ public class RoutingBackwardCompatibilityTests extends ElasticsearchTestCase {
                         RoutingTable routingTable = RoutingTable.builder().addAsNew(indexMetaData).build();
                         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
                         final int shardId = operationRouting.indexShards(clusterState, index, type, id, routing).shardId().getId();
-                        if (version.before(Version.V_2_0_0)) {
+                        if (version.before(Version.V_2_0_0_beta1)) {
                             assertEquals(pre20ExpectedShardId, shardId);
                         } else {
                             assertEquals(currentExpectedShard, shardId);

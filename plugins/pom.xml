@@ -7,7 +7,7 @@
 
     <groupId>org.elasticsearch.plugin</groupId>
     <artifactId>elasticsearch-plugin</artifactId>
-    <version>2.0.0-SNAPSHOT</version>
+    <version>2.0.0-beta1-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>Elasticsearch Plugin POM</name>
     <inceptionYear>2009</inceptionYear>
@@ -15,14 +15,12 @@
     <parent>
         <groupId>org.elasticsearch</groupId>
         <artifactId>elasticsearch-parent</artifactId>
-        <version>2.0.0-SNAPSHOT</version>
+        <version>2.0.0-beta1-SNAPSHOT</version>
     </parent>
 
     <properties>
         <elasticsearch.assembly.descriptor>${basedir}/src/main/assemblies/plugin.xml</elasticsearch.assembly.descriptor>
         <elasticsearch.assembly.appendId>false</elasticsearch.assembly.appendId>
-        <elasticsearch.integ.antfile.default>${elasticsearch.tools.directory}/ant/integration-tests.xml</elasticsearch.integ.antfile.default>
-        <elasticsearch.integ.antfile>${elasticsearch.integ.antfile.default}</elasticsearch.integ.antfile>
     </properties>
 
     <dependencies>
@@ -41,12 +39,6 @@
             <groupId>org.elasticsearch</groupId>
             <artifactId>elasticsearch</artifactId>
             <type>test-jar</type>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.elasticsearch</groupId>
-            <artifactId>elasticsearch</artifactId>
-            <type>zip</type>
             <scope>test</scope>
         </dependency>
 
@@ -315,8 +307,7 @@
                             </goals>
                             <configuration>
                                 <target>
-                                    <ant antfile="${elasticsearch.integ.antfile}"
-                                         target="start-external-cluster-with-plugin"/>
+                                    <ant antfile="${elasticsearch.integ.antfile}" target="start-external-cluster-with-plugin"/>
                                 </target>
                             </configuration>
                         </execution>
@@ -329,21 +320,13 @@
                             </goals>
                             <configuration>
                                 <target>
-                                    <ant antfile="${elasticsearch.integ.antfile}"
-                                         target="stop-external-cluster"/>
+                                    <ant antfile="${elasticsearch.integ.antfile}" target="stop-external-cluster"/>
+                                    <!-- TODO: remove this and the xslt when junit4 is fixed -->
+                                    <ant antfile="${elasticsearch.integ.antfile}" target="fixup-failsafe-summary"/>
                                 </target>
                             </configuration>
                         </execution>
                     </executions>
-                </plugin>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-failsafe-plugin</artifactId>
-                    <configuration>
-                        <systemPropertyVariables>
-                            <tests.cluster>127.0.0.1:9300</tests.cluster>
-                        </systemPropertyVariables>
-                    </configuration>
                 </plugin>
         </plugins>
 

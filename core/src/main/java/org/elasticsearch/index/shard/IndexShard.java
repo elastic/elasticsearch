@@ -168,6 +168,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     protected volatile IndexShardState state;
     protected final AtomicReference<Engine> currentEngineReference = new AtomicReference<>();
     protected final EngineFactory engineFactory;
+    private final IndexSearcherWrappingService wrappingService;
 
     @Nullable
     private RecoveryState recoveryState;
@@ -197,12 +198,13 @@ public class IndexShard extends AbstractIndexShardComponent {
                       IndicesQueryCache indicesQueryCache, ShardPercolateService shardPercolateService, CodecService codecService,
                       ShardTermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, IndexService indexService,
                       @Nullable IndicesWarmer warmer, SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService, EngineFactory factory,
-                      ClusterService clusterService, ShardPath path, BigArrays bigArrays) {
+                      ClusterService clusterService, ShardPath path, BigArrays bigArrays, IndexSearcherWrappingService wrappingService) {
         super(shardId, indexSettingsService.getSettings());
         this.codecService = codecService;
         this.warmer = warmer;
         this.deletionPolicy = deletionPolicy;
         this.similarityService = similarityService;
+        this.wrappingService = wrappingService;
         Preconditions.checkNotNull(store, "Store must be provided to the index shard");
         Preconditions.checkNotNull(deletionPolicy, "Snapshot deletion policy must be provided to the index shard");
         this.engineFactory = factory;
@@ -1361,7 +1363,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         };
         return new EngineConfig(shardId,
                 threadPool, indexingService, indexSettingsService.indexSettings(), warmer, store, deletionPolicy, mergePolicyConfig.getMergePolicy(), mergeSchedulerConfig,
-                mapperService.indexAnalyzer(), similarityService.similarity(), codecService, failedEngineListener, translogRecoveryPerformer, indexCache.query(), cachingPolicy, translogConfig);
+                mapperService.indexAnalyzer(), similarityService.similarity(), codecService, failedEngineListener, translogRecoveryPerformer, indexCache.query(), cachingPolicy, wrappingService, translogConfig);
     }
 
     private static class IndexShardOperationCounter extends AbstractRefCounted {

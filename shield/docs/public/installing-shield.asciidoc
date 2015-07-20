@@ -1,7 +1,7 @@
 [[installing-shield]]
 == Installing Shield
 
-The <<getting-started, Getting Started Guide>> steps through a basic Shield installation. This section provides some additional information about the installation prerequisites, deployment options, and the installation process for RPM/DEB package installations.
+The <<getting-started-with-shield, Getting Started Guide>> steps through a basic Shield installation. This section provides some additional information about the installation prerequisites, deployment options, and the installation process for RPM/DEB package installations.
 
 IMPORTANT: The Shield plugin must be installed on every node in the cluster and every
 node must be restarted after installation. Plan for a complete cluster restart before beginning the installation process.
@@ -75,7 +75,7 @@ bin/plugin -i shield -u file://PATH_TO_ZIP_FILE <1>
 === Installing Shield on Tribe Nodes
 
 Shield supports the {ref}/modules-tribe.html[Tribe Node], which acts as a federated client across multiple clusters. When using Tribe Nodes with Shield, you must have the same Shield configuration (users, roles, user-role mappings, SSL/TLS CA) on each cluster, and on the Tribe Node itself, where security checking is primarily done. This, of course, also means
-that all clusters must be running Shield. 
+that all clusters must be running Shield.
 
 To use a Tribe Node with Shield:
 

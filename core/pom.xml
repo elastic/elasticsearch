@@ -1033,8 +1033,6 @@
                         <configuration>
                             <target>
                                 <ant antfile="${elasticsearch.integ.antfile}" target="stop-external-cluster"/>
-                                <!-- TODO: remove this and the xslt when junit4 is fixed -->
-                                <ant antfile="${elasticsearch.integ.antfile}" target="fixup-failsafe-summary"/>
                             </target>
                         </configuration>
                     </execution>

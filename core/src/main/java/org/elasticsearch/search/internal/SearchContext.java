@@ -142,6 +142,8 @@ public abstract class SearchContext implements Releasable, HasContextAndHeaders 
 
     public abstract SearchContext queryBoost(float queryBoost);
 
+    public abstract long getOriginNanoTime();
+
     public final long nowInMillis() {
         nowInMillisUsed = true;
         return nowInMillisImpl();

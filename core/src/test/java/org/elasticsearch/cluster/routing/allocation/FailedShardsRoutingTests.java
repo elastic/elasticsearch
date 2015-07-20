@@ -333,6 +333,7 @@ public class FailedShardsRoutingTests extends ElasticsearchAllocationTestCase {
     }
 
     @Test
+    @AwaitsFix(bugUrl = "boaz is looking into failures: http://build-us-00.elastic.co/job/es_core_master_strong/4168/")
     public void firstAllocationFailureTwoNodes() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)

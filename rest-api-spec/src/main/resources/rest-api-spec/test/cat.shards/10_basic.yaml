@@ -60,6 +60,9 @@
                     search.query_current             .+   \n
                     search.query_time                .+   \n
                     search.query_total               .+   \n
+                    search.scroll_current            .+   \n
+                    search.scroll_time               .+   \n
+                    search.scroll_total              .+   \n
                     segments.count                   .+   \n
                     segments.memory                  .+   \n
                     segments.index_writer_memory     .+   \n

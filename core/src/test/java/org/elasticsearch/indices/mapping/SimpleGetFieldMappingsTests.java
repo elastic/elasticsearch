@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -40,7 +39,7 @@ import static org.hamcrest.Matchers.*;
 
 public class SimpleGetFieldMappingsTests extends ElasticsearchIntegrationTest {
     
-    public void getMappingsWhereThereAreNone() {
+    public void testGetMappingsWhereThereAreNone() {
         createIndex("index");
         ensureYellow();
         GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings().get();
@@ -57,7 +56,7 @@ public class SimpleGetFieldMappingsTests extends ElasticsearchIntegrationTest {
                 .endObject().endObject().endObject();
     }
     
-    public void simpleGetFieldMappings() throws Exception {
+    public void testSimpleGetFieldMappings() throws Exception {
 
         assertAcked(prepareCreate("indexa")
                 .addMapping("typeA", getMappingForType("typeA"))
@@ -128,7 +127,7 @@ public class SimpleGetFieldMappingsTests extends ElasticsearchIntegrationTest {
     }
 
     @SuppressWarnings("unchecked")
-    public void simpleGetFieldMappingsWithDefaults() throws Exception {
+    public void testSimpleGetFieldMappingsWithDefaults() throws Exception {
         assertAcked(prepareCreate("test").addMapping("type", getMappingForType("type")));
 
         client().prepareIndex("test", "type", "1").setSource("num", 1).get();
@@ -147,7 +146,7 @@ public class SimpleGetFieldMappingsTests extends ElasticsearchIntegrationTest {
     }
 
     //fix #6552
-    public void simpleGetFieldMappingsWithPretty() throws Exception {
+    public void testSimpleGetFieldMappingsWithPretty() throws Exception {
         assertAcked(prepareCreate("index").addMapping("type", getMappingForType("type")));
         Map<String, String> params = Maps.newHashMap();
         params.put("pretty", "true");
@@ -179,7 +178,6 @@ public class SimpleGetFieldMappingsTests extends ElasticsearchIntegrationTest {
 
     }
 
-    @Test
     public void testGetFieldMappingsWithBlocks() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("typeA", getMappingForType("typeA"))

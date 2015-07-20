@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -333,7 +334,6 @@ public class FailedShardsRoutingTests extends ElasticsearchAllocationTestCase {
     }
 
     @Test
-    @AwaitsFix(bugUrl = "boaz is looking into failures: http://build-us-00.elastic.co/job/es_core_master_strong/4168/")
     public void firstAllocationFailureTwoNodes() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
@@ -372,11 +372,14 @@ public class FailedShardsRoutingTests extends ElasticsearchAllocationTestCase {
 
         logger.info("fail the first shard, will start INITIALIZING on the second node");
         prevRoutingTable = routingTable;
-        final ShardRouting firstShard = clusterState.routingNodes().node("node1").get(0);
+        final ShardRouting firstShard = clusterState.routingNodes().node(nodeHoldingPrimary).get(0);
         routingTable = strategy.applyFailedShard(clusterState, firstShard).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
-
         assertThat(prevRoutingTable != routingTable, equalTo(true));
+
+        final String nodeHoldingPrimary2 = routingTable.index("test").shard(0).primaryShard().currentNodeId();
+        assertThat(nodeHoldingPrimary2, not(equalTo(nodeHoldingPrimary)));
+
         assertThat(routingTable.index("test").shards().size(), equalTo(1));
         for (int i = 0; i < routingTable.index("test").shards().size(); i++) {
             assertThat(routingTable.index("test").shard(i).size(), equalTo(2));

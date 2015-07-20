@@ -83,6 +83,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
         final String[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         final Set<ShardId> shardIdsToFetch = new HashSet<>();
 
+        logger.trace("cluster state used to determine shards [{}]", state.prettyPrint());
         // collect relevant shard ids of the requested indices for fetching store infos
         for (String index : concreteIndices) {
             IndexRoutingTable indexShardRoutingTables = routingTables.index(index);

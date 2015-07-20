@@ -18,8 +18,12 @@
  */
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.HDRPercentileRanksAggregator;
+import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.InternalTDigestPercentileRanks;
+import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestPercentileRanksAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
@@ -29,26 +33,36 @@ import org.elasticsearch.search.internal.SearchContext;
  */
 public class PercentileRanksParser extends AbstractPercentilesParser {
 
+    public static final ParseField VALUES_FIELD = new ParseField("values");
+
     public PercentileRanksParser() {
         super(false);
     }
 
     @Override
     public String type() {
-        return InternalPercentileRanks.TYPE.name();
+        return InternalTDigestPercentileRanks.TYPE.name();
     }
 
     @Override
-    protected String keysFieldName() {
-        return "values";
+    protected ParseField keysField() {
+        return VALUES_FIELD;
     }
-    
+
     @Override
-    protected AggregatorFactory buildFactory(SearchContext context, String aggregationName, ValuesSourceConfig<Numeric> valuesSourceConfig, double[] keys, double compression, boolean keyed) {
+    protected AggregatorFactory buildFactory(SearchContext context, String aggregationName, ValuesSourceConfig<Numeric> valuesSourceConfig,
+            double[] keys, PercentilesMethod method, Double compression, Integer numberOfSignificantValueDigits, boolean keyed) {
         if (keys == null) {
             throw new SearchParseException(context, "Missing token values in [" + aggregationName + "].", null);
         }
-        return new PercentileRanksAggregator.Factory(aggregationName, valuesSourceConfig, keys, compression, keyed);
+        if (method == PercentilesMethod.TDIGEST) {
+            return new TDigestPercentileRanksAggregator.Factory(aggregationName, valuesSourceConfig, keys, compression, keyed);
+        } else if (method == PercentilesMethod.HDR) {
+            return new HDRPercentileRanksAggregator.Factory(aggregationName, valuesSourceConfig, keys, numberOfSignificantValueDigits,
+                    keyed);
+        } else {
+            throw new AssertionError();
+        }
     }
 
 }

@@ -16,13 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.metrics.percentiles;
+package org.elasticsearch.search.aggregations.metrics.percentiles.hdr;
 
 import com.google.common.collect.UnmodifiableIterator;
 
+import org.HdrHistogram.DoubleHistogram;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationStreams;
-import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestState;
+import org.elasticsearch.search.aggregations.metrics.percentiles.InternalPercentile;
+import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
+import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanks;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
@@ -34,14 +37,14 @@ import java.util.Map;
 /**
 *
 */
-public class InternalPercentileRanks extends AbstractInternalPercentiles implements PercentileRanks {
+public class InternalHDRPercentileRanks extends AbstractInternalHDRPercentiles implements PercentileRanks {
 
-    public final static Type TYPE = new Type("percentile_ranks");
+    public final static Type TYPE = new Type(PercentileRanks.TYPE_NAME, "hdr_percentile_ranks");
 
     public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
-        public InternalPercentileRanks readResult(StreamInput in) throws IOException {
-            InternalPercentileRanks result = new InternalPercentileRanks();
+        public InternalHDRPercentileRanks readResult(StreamInput in) throws IOException {
+            InternalHDRPercentileRanks result = new InternalHDRPercentileRanks();
             result.readFrom(in);
             return result;
         }
@@ -51,9 +54,10 @@ public class InternalPercentileRanks extends AbstractInternalPercentiles impleme
         AggregationStreams.registerStream(STREAM, TYPE.stream());
     }
 
-    InternalPercentileRanks() {} // for serialization
+    InternalHDRPercentileRanks() {
+    } // for serialization
 
-    public InternalPercentileRanks(String name, double[] cdfValues, TDigestState state, boolean keyed, ValueFormatter formatter,
+    public InternalHDRPercentileRanks(String name, double[] cdfValues, DoubleHistogram state, boolean keyed, ValueFormatter formatter,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, cdfValues, state, keyed, formatter, pipelineAggregators, metaData);
     }
@@ -79,9 +83,9 @@ public class InternalPercentileRanks extends AbstractInternalPercentiles impleme
     }
 
     @Override
-    protected AbstractInternalPercentiles createReduced(String name, double[] keys, TDigestState merged, boolean keyed,
+    protected AbstractInternalHDRPercentiles createReduced(String name, double[] keys, DoubleHistogram merged, boolean keyed,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalPercentileRanks(name, keys, merged, keyed, valueFormatter, pipelineAggregators, metaData);
+        return new InternalHDRPercentileRanks(name, keys, merged, keyed, valueFormatter, pipelineAggregators, metaData);
     }
 
     @Override
@@ -89,24 +93,26 @@ public class InternalPercentileRanks extends AbstractInternalPercentiles impleme
         return TYPE;
     }
 
-    static double percentileRank(TDigestState state, double value) {
-        double percentileRank = state.cdf(value);
+    static double percentileRank(DoubleHistogram state, double value) {
+        if (state.getTotalCount() == 0) {
+            return Double.NaN;
+        }
+        double percentileRank = state.getPercentileAtOrBelowValue(value);
         if (percentileRank < 0) {
             percentileRank = 0;
+        } else if (percentileRank > 100) {
+            percentileRank = 100;
         }
-        else if (percentileRank > 1) {
-            percentileRank = 1;
-        }
-        return percentileRank * 100;
+        return percentileRank;
     }
 
     public static class Iter extends UnmodifiableIterator<Percentile> {
 
         private final double[] values;
-        private final TDigestState state;
+        private final DoubleHistogram state;
         private int i;
 
-        public Iter(double[] values, TDigestState state) {
+        public Iter(double[] values, DoubleHistogram state) {
             this.values = values;
             this.state = state;
             i = 0;

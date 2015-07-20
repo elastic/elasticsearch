@@ -58,7 +58,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
         final RoutingNodes routingNodes = allocation.routingNodes();
         final MetaData metaData = routingNodes.metaData();
 
-        final Iterator<ShardRouting> unassignedIterator = routingNodes.unassigned().iterator();
+        final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = routingNodes.unassigned().iterator();
         while (unassignedIterator.hasNext()) {
             ShardRouting shard = unassignedIterator.next();
 
@@ -69,8 +69,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
             AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> shardState = fetchData(shard, allocation);
             if (shardState.hasData() == false) {
                 logger.trace("{}: ignoring allocation, still fetching shard started state", shard);
-                unassignedIterator.remove();
-                routingNodes.ignoredUnassigned().add(shard);
+                unassignedIterator.removeAndIgnore();
                 continue;
             }
 
@@ -83,8 +82,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
                 // if we are restoring this shard we still can allocate
                 if (shard.restoreSource() == null) {
                     // we can't really allocate, so ignore it and continue
-                    unassignedIterator.remove();
-                    routingNodes.ignoredUnassigned().add(shard);
+                    unassignedIterator.removeAndIgnore();
                     logger.debug("[{}][{}]: not allocating, number_of_allocated_shards_found [{}]", shard.index(), shard.id(), nodesAndVersions.allocationsFound);
                 } else {
                     logger.debug("[{}][{}]: missing local data, will restore from [{}]", shard.index(), shard.id(), shard.restoreSource());
@@ -97,19 +95,16 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
                 DiscoveryNode node = nodesToAllocate.yesNodes.get(0);
                 logger.debug("[{}][{}]: allocating [{}] to [{}] on primary allocation", shard.index(), shard.id(), shard, node);
                 changed = true;
-                routingNodes.initialize(new ShardRouting(shard, nodesAndVersions.highestVersion), node.id());
-                unassignedIterator.remove();
+                unassignedIterator.initialize(node.id(), nodesAndVersions.highestVersion);
             } else if (nodesToAllocate.throttleNodes.isEmpty() == true && nodesToAllocate.noNodes.isEmpty() == false) {
                 DiscoveryNode node = nodesToAllocate.noNodes.get(0);
                 logger.debug("[{}][{}]: forcing allocating [{}] to [{}] on primary allocation", shard.index(), shard.id(), shard, node);
                 changed = true;
-                routingNodes.initialize(new ShardRouting(shard, nodesAndVersions.highestVersion), node.id());
-                unassignedIterator.remove();
+                unassignedIterator.initialize(node.id(), nodesAndVersions.highestVersion);
             } else {
                 // we are throttling this, but we have enough to allocate to this node, ignore it for now
                 logger.debug("[{}][{}]: throttling allocation [{}] to [{}] on primary allocation", shard.index(), shard.id(), shard, nodesToAllocate.throttleNodes);
-                unassignedIterator.remove();
-                routingNodes.ignoredUnassigned().add(shard);
+                unassignedIterator.removeAndIgnore();
             }
         }
         return changed;

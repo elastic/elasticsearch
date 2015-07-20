@@ -30,7 +30,7 @@ import java.util.Map;
 public class PriorityComparatorTests extends ElasticsearchTestCase {
 
     public void testPriorityComparatorSort() {
-        RoutingNodes.UnassignedShards shards = new RoutingNodes.UnassignedShards();
+        RoutingNodes.UnassignedShards shards = new RoutingNodes.UnassignedShards((RoutingNodes) null);
         int numIndices = randomIntBetween(3, 99);
         IndexMeta[] indices = new IndexMeta[numIndices];
         final Map<String, IndexMeta> map = new HashMap<>();

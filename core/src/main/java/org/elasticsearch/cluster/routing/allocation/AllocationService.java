@@ -460,22 +460,6 @@ public class AllocationService extends AbstractComponent {
                 }
             }
 
-            // move all the shards matching the failed shard to the end of the unassigned list
-            // so we give a chance for other allocations and won't create poison failed allocations
-            // that can keep other shards from being allocated (because of limits applied on how many
-            // shards we can start per node)
-            List<ShardRouting> shardsToMove = Lists.newArrayList();
-            for (Iterator<ShardRouting> unassignedIt = routingNodes.unassigned().iterator(); unassignedIt.hasNext(); ) {
-                ShardRouting unassignedShardRouting = unassignedIt.next();
-                if (unassignedShardRouting.shardId().equals(failedShard.shardId())) {
-                    unassignedIt.remove();
-                    shardsToMove.add(unassignedShardRouting);
-                }
-            }
-            if (!shardsToMove.isEmpty()) {
-                routingNodes.unassigned().addAll(shardsToMove);
-            }
-
             matchedNode.moveToUnassigned(unassignedInfo);
         }
         assert matchedNode.isRemoved() : "failedShard " + failedShard + " was matched but wasn't removed";

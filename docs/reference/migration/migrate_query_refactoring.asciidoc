@@ -22,6 +22,11 @@ static factory methods in QueryBuilders accordingly.
 Removed setter for mandatory slop parameter, needs to be set in constructor now.
 Updated the static factory methods in QueryBuilders accordingly.
 
+==== SpanNotQueryBuilder
+
+Removed setter for mandatory include/exclude span query clause, needs to be set in constructor now.
+Updated the static factory methods in QueryBuilders and tests accordingly.
+
 ==== QueryFilterBuilder
 
 Removed the setter `queryName(String queryName)` since this field is not supported

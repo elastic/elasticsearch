@@ -19,9 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.spans.SpanNotQuery;
-import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -31,7 +28,7 @@ import java.io.IOException;
 /**
  *
  */
-public class SpanNotQueryParser extends BaseQueryParserTemp {
+public class SpanNotQueryParser extends BaseQueryParser {
 
     @Inject
     public SpanNotQueryParser() {
@@ -43,13 +40,13 @@ public class SpanNotQueryParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
 
-        SpanQuery include = null;
-        SpanQuery exclude = null;
+        SpanQueryBuilder include = null;
+        SpanQueryBuilder exclude = null;
 
         Integer dist = null;
         Integer pre  = null;
@@ -64,17 +61,17 @@ public class SpanNotQueryParser extends BaseQueryParserTemp {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("include".equals(currentFieldName)) {
-                    Query query = parseContext.parseInnerQuery();
-                    if (!(query instanceof SpanQuery)) {
+                    QueryBuilder query = parseContext.parseInnerQueryBuilder();
+                    if (!(query instanceof SpanQueryBuilder)) {
                         throw new QueryParsingException(parseContext, "spanNot [include] must be of type span query");
                     }
-                    include = (SpanQuery) query;
+                    include = (SpanQueryBuilder) query;
                 } else if ("exclude".equals(currentFieldName)) {
-                    Query query = parseContext.parseInnerQuery();
-                    if (!(query instanceof SpanQuery)) {
+                    QueryBuilder query = parseContext.parseInnerQueryBuilder();
+                    if (!(query instanceof SpanQueryBuilder)) {
                         throw new QueryParsingException(parseContext, "spanNot [exclude] must be of type span query");
                     }
-                    exclude = (SpanQuery) query;
+                    exclude = (SpanQueryBuilder) query;
                 } else {
                     throw new QueryParsingException(parseContext, "[span_not] query does not support [" + currentFieldName + "]");
                 }
@@ -104,27 +101,19 @@ public class SpanNotQueryParser extends BaseQueryParserTemp {
             throw new QueryParsingException(parseContext, "spanNot can either use [dist] or [pre] & [post] (or none)");
         }
 
-        // set appropriate defaults
-        if (pre != null && post == null) {
-            post = 0;
-        } else if (pre == null && post != null){
-            pre = 0;
+        SpanNotQueryBuilder spanNotQuery = new SpanNotQueryBuilder(include, exclude);
+        if (dist != null) {
+            spanNotQuery.dist(dist);
         }
-
-        SpanNotQuery query;
-        if (pre != null && post != null) {
-            query = new SpanNotQuery(include, exclude, pre, post);
-        } else if (dist != null) {
-            query = new SpanNotQuery(include, exclude, dist);
-        } else {
-            query = new SpanNotQuery(include, exclude);
+        if (pre != null) {
+            spanNotQuery.pre(pre);
         }
-
-        query.setBoost(boost);
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
+        if (post != null) {
+            spanNotQuery.post(post);
         }
-        return query;
+        spanNotQuery.boost(boost);
+        spanNotQuery.queryName(queryName);
+        return spanNotQuery;
     }
 
     @Override

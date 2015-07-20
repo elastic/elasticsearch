@@ -316,8 +316,8 @@ public abstract class QueryBuilders {
         return new SpanNearQueryBuilder(slop);
     }
 
-    public static SpanNotQueryBuilder spanNotQuery() {
-        return new SpanNotQueryBuilder();
+    public static SpanNotQueryBuilder spanNotQuery(SpanQueryBuilder include, SpanQueryBuilder exclude) {
+        return new SpanNotQueryBuilder(include, exclude);
     }
 
     public static SpanOrQueryBuilder spanOrQuery() {

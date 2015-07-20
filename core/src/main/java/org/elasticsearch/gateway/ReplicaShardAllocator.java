@@ -52,7 +52,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
         final RoutingNodes routingNodes = allocation.routingNodes();
         final MetaData metaData = routingNodes.metaData();
 
-        final Iterator<ShardRouting> unassignedIterator = routingNodes.unassigned().iterator();
+        final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = routingNodes.unassigned().iterator();
         while (unassignedIterator.hasNext()) {
             ShardRouting shard = unassignedIterator.next();
             if (shard.primary()) {
@@ -77,16 +77,14 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
 
             if (!canBeAllocatedToAtLeastOneNode) {
                 logger.trace("{}: ignoring allocation, can't be allocated on any node", shard);
-                unassignedIterator.remove();
-                routingNodes.ignoredUnassigned().add(shard);
+                unassignedIterator.removeAndIgnore();
                 continue;
             }
 
             AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> shardStores = fetchData(shard, allocation);
             if (shardStores.hasData() == false) {
                 logger.trace("{}: ignoring allocation, still fetching shard stores", shard);
-                unassignedIterator.remove();
-                routingNodes.ignoredUnassigned().add(shard);
+                unassignedIterator.removeAndIgnore();
                 continue; // still fetching
             }
 
@@ -175,16 +173,14 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                         logger.debug("[{}][{}]: throttling allocation [{}] to [{}] in order to reuse its unallocated persistent store with total_size [{}]", shard.index(), shard.id(), shard, lastDiscoNodeMatched, new ByteSizeValue(lastSizeMatched));
                     }
                     // we are throttling this, but we have enough to allocate to this node, ignore it for now
-                    unassignedIterator.remove();
-                    routingNodes.ignoredUnassigned().add(shard);
+                    unassignedIterator.removeAndIgnore();
                 } else {
                     if (logger.isDebugEnabled()) {
                         logger.debug("[{}][{}]: allocating [{}] to [{}] in order to reuse its unallocated persistent store with total_size [{}]", shard.index(), shard.id(), shard, lastDiscoNodeMatched, new ByteSizeValue(lastSizeMatched));
                     }
                     // we found a match
                     changed = true;
-                    routingNodes.initialize(shard, lastNodeMatched.nodeId());
-                    unassignedIterator.remove();
+                    unassignedIterator.initialize(lastNodeMatched.nodeId());
                 }
             } else if (hasReplicaData == false) {
                 // if we didn't manage to find *any* data (regardless of matching sizes), check if the allocation
@@ -200,8 +196,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                      * see {@link org.elasticsearch.cluster.routing.RoutingService#clusterChanged(ClusterChangedEvent)}).
                      */
                     changed = true;
-                    unassignedIterator.remove();
-                    routingNodes.ignoredUnassigned().add(shard);
+                    unassignedIterator.removeAndIgnore();
                 }
             }
         }

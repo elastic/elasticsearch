@@ -220,12 +220,11 @@ public class AllocateAllocationCommand implements AllocationCommand {
             throw new IllegalArgumentException("[allocate] allocation of " + shardId + " on node " + discoNode + " is not allowed, reason: " + decision);
         }
         // go over and remove it from the unassigned
-        for (Iterator<ShardRouting> it = routingNodes.unassigned().iterator(); it.hasNext(); ) {
+        for (RoutingNodes.UnassignedShards.UnassignedIterator it = routingNodes.unassigned().iterator(); it.hasNext(); ) {
             if (it.next() != shardRouting) {
                 continue;
             }
-            it.remove();
-            routingNodes.initialize(shardRouting, routingNode.nodeId());
+            it.initialize(routingNode.nodeId());
             if (shardRouting.primary()) {
                 // we need to clear the post allocation flag, since its an explicit allocation of the primary shard
                 // and we want to force allocate it (and create a new index for it)

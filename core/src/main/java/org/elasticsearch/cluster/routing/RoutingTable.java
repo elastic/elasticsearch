@@ -362,7 +362,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                     indexBuilder.addShard(refData, shardRoutingEntry);
                 }
             }
-            for (ShardRouting shardRoutingEntry : Iterables.concat(routingNodes.unassigned(), routingNodes.ignoredUnassigned())) {
+            for (ShardRouting shardRoutingEntry : Iterables.concat(routingNodes.unassigned(), routingNodes.unassigned().ignored())) {
                 String index = shardRoutingEntry.index();
                 IndexRoutingTable.Builder indexBuilder = indexRoutingTableBuilders.get(index);
                 if (indexBuilder == null) {

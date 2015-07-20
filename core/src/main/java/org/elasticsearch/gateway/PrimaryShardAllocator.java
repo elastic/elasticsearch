@@ -187,8 +187,8 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
     /**
      * Builds a list of nodes and version
      */
-    private NodesAndVersions buildNodesAndVersions(ShardRouting shard, boolean recoveryOnAnyNode, Set<String> ignoreNodes,
-                                                   AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> shardState) {
+    NodesAndVersions buildNodesAndVersions(ShardRouting shard, boolean recoveryOnAnyNode, Set<String> ignoreNodes,
+                                           AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> shardState) {
         final Map<DiscoveryNode, Long> nodesWithVersion = Maps.newHashMap();
         int numberOfAllocationsFound = 0;
         long highestVersion = -1;

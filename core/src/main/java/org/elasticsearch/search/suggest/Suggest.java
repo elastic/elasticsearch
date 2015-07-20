@@ -182,42 +182,20 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
     public static List<Suggestion<? extends Entry<? extends Option>>> reduce(Map<String, List<Suggest.Suggestion>> groupedSuggestions) {
         List<Suggestion<? extends Entry<? extends Option>>> reduced = new ArrayList<>(groupedSuggestions.size());
+        Set<Class<? extends Suggestion>> suggestionClasses = new HashSet<>(1);
         for (java.util.Map.Entry<String, List<Suggestion>> unmergedResults : groupedSuggestions.entrySet()) {
-            Map<Class<? extends Suggestion>, List<Suggestion>> values = new HashMap<>(2);
-            for (Suggestion suggestion : unmergedResults.getValue()) {
-                List<Suggestion> suggestions = values.get(suggestion.getClass());
-                if (suggestions == null) {
-                    suggestions = new ArrayList<>();
-                    values.put(suggestion.getClass(), suggestions);
+            List<Suggestion> value = unmergedResults.getValue();
+            for (Suggestion suggestion : value) {
+                if (suggestionClasses.isEmpty()) {
+                    suggestionClasses.add(suggestion.getClass());
+                } else if (suggestionClasses.contains(suggestion.getClass()) == false) {
+                    throw new IllegalArgumentException("detected mixed suggestion results, due to querying on old and new completion suggester," +
+                            " query on a single completion suggester version");
                 }
-                suggestions.add(suggestion);
             }
-            if (values.size() == 2) {
-                // for back-compat, we can have suggestions from old and new completion suggester with the same name
-                // the old suggestion name is appended with "_old", better ideas?
-                if (values.containsKey(org.elasticsearch.search.suggest.completion.old.CompletionSuggestion.class) == false
-                        || values.containsKey(CompletionSuggestion.class) == false) {
-                    throw new IllegalStateException("multiple suggestion sets under one suggest name-space");
-                }
-
-                List<Suggestion> oldSuggestions = values.get(org.elasticsearch.search.suggest.completion.old.CompletionSuggestion.class);
-                Suggestion oldSuggestionReduced = oldSuggestions.get(0).reduce(oldSuggestions);
-                oldSuggestionReduced.name = oldSuggestionReduced.name + "_old";
-                oldSuggestionReduced.trim();
-                reduced.add(oldSuggestionReduced);
-                List<Suggestion> newSuggestions = values.get(CompletionSuggestion.class);
-                Suggestion newSuggestionReduced = newSuggestions.get(0).reduce(newSuggestions);
-                newSuggestionReduced.trim();
-                reduced.add(newSuggestionReduced);
-            } else if (values.size() == 1) {
-                for (List<Suggestion> suggestions : values.values()) {
-                    Suggestion reduce = suggestions.get(0).reduce(suggestions);
-                    reduce.trim();
-                    reduced.add(reduce);
-                }
-            } else {
-                throw new IllegalStateException("multiple suggestion sets under one suggest name-space");
-            }
+            Suggestion reduce = value.get(0).reduce(value);
+            reduce.trim();
+            reduced.add(reduce);
         }
         return reduced;
     }

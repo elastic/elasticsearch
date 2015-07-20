@@ -181,10 +181,12 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         }
         indexRandom(true, indexRequestBuilders);
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion("foo").field(FIELD).text("sugg");
-        SuggestResponse suggestResponse = client().prepareSuggest(INDEX, otherIndex).addSuggestion(prefix).execute().actionGet();
-        assertSuggestions(suggestResponse, "foo", "suggestion10", "suggestion9", "suggestion8", "suggestion7", "suggestion6");
-        // back-compat
-        assertSuggestions(suggestResponse, "foo_old", "suggestion10", "suggestion9", "suggestion8", "suggestion7", "suggestion6");
+        try {
+            client().prepareSuggest(INDEX, otherIndex).addSuggestion(prefix).execute().actionGet();
+            fail("querying on mixed completion suggester should throw an error");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
     }
 
     @Test

@@ -156,8 +156,8 @@ image::images/watch-execution.jpg[align="center"]
 Watcher supports both time-based and acknowledgment-based throttling. This enables you to prevent
 actions from being repeatedly executed for the same event. 
 
-By default, Watcher uses time-based throttling with a throttle period of 5 minutes. This means that
-if a watch is executed every minute, its actions are performed a maximum of once every 5 minutes,
+By default, Watcher uses time-based throttling with a throttle period of 5 seconds. This means that
+if a watch is executed every second, its actions are performed a maximum of once every 5 seconds,
 even when the condition is met. You can configure the throttle period on a per-action basis, at the
 watch level, or  change the  <<configuring-default-throttle-period, default throttle period>> in 
 `elasticsearch.yml`.

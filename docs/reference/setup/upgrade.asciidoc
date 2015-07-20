@@ -1,18 +1,19 @@
 [[setup-upgrade]]
 == Upgrading
 
-Elasticsearch can usually be upgraded using a rolling upgrade process, resulting in no interruption of service.  This section details how to perform both rolling and restart upgrades.  To determine whether a rolling upgrade is supported for your release, please consult this table:
+Elasticsearch can usually be upgraded using a rolling upgrade process, resulting in no interruption of service.  This section details how to perform both rolling and restart upgrades.
 
-[cols="1,2,3",options="header",]
+To determine whether a rolling upgrade is supported for your release, please
+consult this table:
+
+[cols="1<m,1<m,3",options="header",]
 |=======================================================================
-|Upgrade From |Upgrade To |Supported Upgrade Type
-|0.90.x |1.x |Restart Upgrade
-
-|< 0.90.7 |0.90.x |Restart Upgrade
-
-|>= 0.90.7 |0.90.x |Rolling Upgrade
-
-|1.x |1.x |Rolling Upgrade
+|Upgrade From   |Upgrade To     |Supported Upgrade Type
+|0.90.x         |1.x            |<<restart-upgrade,Full cluster restart>>
+|< 0.90.7       |0.90.x         |<<restart-upgrade,Full cluster restart>>
+|>= 0.90.7      |0.90.x         |<<rolling-upgrades,Rolling upgrade>>
+|1.0.0 - 1.3.1  |1.x            |<<rolling-upgrades,Rolling upgrade>> (if <<recovery,`indices.recovery.compress`>> set to `false`)
+|>= 1.3.2       |1.x            |<<rolling-upgrades,Rolling upgrade>>
 |=======================================================================
 
 TIP: Before upgrading Elasticsearch, it is a good idea to consult the

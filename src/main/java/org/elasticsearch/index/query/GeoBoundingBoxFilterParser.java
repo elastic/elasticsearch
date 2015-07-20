@@ -85,8 +85,8 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
         String filterName = null;
         String currentFieldName = null;
         XContentParser.Token token;
-        boolean validate = true;
-        boolean normalize = true;
+        boolean ignoreMalformed = false;
+        boolean coerce = false;
 
         GeoPoint sparse = new GeoPoint();
         
@@ -144,10 +144,10 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
                     cache = parser.booleanValue();
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                     cacheKey = new CacheKeyFilter.Key(parser.text());
-                } else if ("validate".equals(currentFieldName)) {
-                    validate = parser.booleanValue();
-                } else if ("normalize".equals(currentFieldName)) {
-                    normalize = parser.booleanValue();
+                } else if ("ignore_malformed".equals(currentFieldName)) {
+                    ignoreMalformed = parser.booleanValue();
+                } else if ("coerce".equals(currentFieldName)) {
+                    coerce = parser.booleanValue();
                 } else if ("type".equals(currentFieldName)) {
                     type = parser.text();
                 } else {
@@ -159,7 +159,7 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
         final GeoPoint topLeft = sparse.reset(top, left);  //just keep the object
         final GeoPoint bottomRight = new GeoPoint(bottom, right);
 
-        if (normalize) {
+        if (coerce) {
             // Special case: if the difference between the left and right is 360 and the right is greater than the left, we are asking for
             // the complete longitude range so need to set longitude to the complete longitude range
             boolean completeLonRange = ((right - left) % 360 == 0 && right > left);
@@ -169,7 +169,7 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
                 topLeft.resetLon(-180);
                 bottomRight.resetLon(180);
             }
-        } else if (validate) {
+        } else if (!ignoreMalformed) {
             if (topLeft.lat() > 90.0 || topLeft.lat() < -90.0) {
                 throw new QueryParsingException(parseContext.index(), "illegal latitude value [" + topLeft.lat() + "] for " + filterName);
             }

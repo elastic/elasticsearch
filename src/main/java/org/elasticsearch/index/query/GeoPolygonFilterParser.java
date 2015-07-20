@@ -74,8 +74,8 @@ public class GeoPolygonFilterParser implements FilterParser {
 
         List<GeoPoint> shell = Lists.newArrayList();
 
-        boolean validate = true;
-        boolean normalize = true;
+        boolean ignoreMalformed = false;
+        boolean coerce = false;
 
         String filterName = null;
         String currentFieldName = null;
@@ -109,10 +109,10 @@ public class GeoPolygonFilterParser implements FilterParser {
                     cache = parser.booleanValue();
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                     cacheKey = new CacheKeyFilter.Key(parser.text());
-                } else if ("validate".equals(currentFieldName)) {
-                    validate = parser.booleanValue();
-                } else if ("normalize".equals(currentFieldName)) {
-                    normalize = parser.booleanValue();
+                } else if ("ignore_malformed".equals(currentFieldName)) {
+                    ignoreMalformed = parser.booleanValue();
+                } else if ("coerce".equals(currentFieldName)) {
+                    coerce = parser.booleanValue();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[geo_polygon] filter does not support [" + currentFieldName + "]");
                 }
@@ -136,11 +136,11 @@ public class GeoPolygonFilterParser implements FilterParser {
             }
         }
 
-        if (normalize) {
+        if (coerce) {
             for (GeoPoint point : shell) {
-                GeoUtils.normalizePoint(point, normalize, normalize);
+                GeoUtils.normalizePoint(point, coerce, coerce);
             }
-        } else if (validate) {
+        } else if (!ignoreMalformed) {
             for (GeoPoint point : shell) {
                 if (point.lat() > 90.0 || point.lat() < -90.0) {
                     throw new QueryParsingException(parseContext.index(), "illegal latitude value [" + point.lat() + "] for " + filterName);

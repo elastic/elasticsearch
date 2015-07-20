@@ -77,8 +77,8 @@ public class GeoDistanceFilterParser implements FilterParser {
         GeoDistance geoDistance = GeoDistance.DEFAULT;
         String optimizeBbox = "memory";
 
-        boolean validate = true;
-        boolean normalize = true;
+        boolean ignoreMalformed = false;
+        boolean coerce = false;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -133,10 +133,10 @@ public class GeoDistanceFilterParser implements FilterParser {
                     cacheKey = new CacheKeyFilter.Key(parser.text());
                 } else if ("optimize_bbox".equals(currentFieldName) || "optimizeBbox".equals(currentFieldName)) {
                     optimizeBbox = parser.textOrNull();
-                } else if ("validate".equals(currentFieldName)) {
-                    validate = parser.booleanValue();
-                } else if ("normalize".equals(currentFieldName)) {
-                    normalize = parser.booleanValue();
+                } else if ("ignore_malformed".equals(currentFieldName)) {
+                    ignoreMalformed = parser.booleanValue();
+                } else if ("coerce".equals(currentFieldName)) {
+                    coerce = parser.booleanValue();
                 } else {
                     point.resetFromString(parser.text());
                     fieldName = currentFieldName;
@@ -144,9 +144,9 @@ public class GeoDistanceFilterParser implements FilterParser {
             }
         }
 
-        if (normalize) {
-            GeoUtils.normalizePoint(point, normalize, normalize);
-        } else if (validate) {
+        if (coerce) {
+            GeoUtils.normalizePoint(point, coerce, coerce);
+        } else if (!ignoreMalformed) {
             if (point.lat() > 90.0 || point.lat() < -90.0) {
                 throw new QueryParsingException(parseContext.index(), "illegal latitude value [" + point.lat() + "] for " + filterName);
             }

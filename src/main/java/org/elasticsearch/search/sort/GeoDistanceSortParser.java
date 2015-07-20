@@ -66,8 +66,8 @@ public class GeoDistanceSortParser implements SortParser {
         MultiValueMode sortMode = null;
         NestedInnerQueryParseSupport nestedHelper = null;
 
-        boolean validate = true;
-        boolean normalize = true;
+        boolean ignoreMalformed = false;
+        boolean coerce = false;
 
         XContentParser.Token token;
         String currentName = parser.currentName();
@@ -100,10 +100,10 @@ public class GeoDistanceSortParser implements SortParser {
                     unit = DistanceUnit.fromString(parser.text());
                 } else if (currentName.equals("distance_type") || currentName.equals("distanceType")) {
                     geoDistance = GeoDistance.fromString(parser.text());
-                } else if ("validate".equals(currentName)) {
-                    validate = parser.booleanValue();
-                } else if ("normalize".equals(currentName)) {
-                    normalize = parser.booleanValue();
+                } else if ("ignore_malformed".equals(currentName)) {
+                    ignoreMalformed = parser.booleanValue();
+                } else if ("coerce".equals(currentName)) {
+                    coerce = parser.booleanValue();
                 } else if ("sort_mode".equals(currentName) || "sortMode".equals(currentName) || "mode".equals(currentName)) {
                     sortMode = MultiValueMode.fromString(parser.text());
                 } else if ("nested_path".equals(currentName) || "nestedPath".equals(currentName)) {
@@ -120,11 +120,11 @@ public class GeoDistanceSortParser implements SortParser {
             }
         }
 
-        if (normalize) {
+        if (coerce) {
             for (GeoPoint point : geoPoints) {
-                GeoUtils.normalizePoint(point, normalize, normalize);
+                GeoUtils.normalizePoint(point, coerce, coerce);
             }
-        } else if (validate) {
+        } else if (!ignoreMalformed) {
             for (GeoPoint point : geoPoints) {
                 if (point.lat() > 90.0 || point.lat() < -90.0) {
                     throw new ElasticsearchIllegalArgumentException("illegal latitude value [" + point.lat() + "] for geo distance sort");

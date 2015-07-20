@@ -171,16 +171,15 @@ The following are options allowed on the filter:
 
     Associate a unique custom cache key to use instead of the actual filter.
 
-`validate`::
+`ignore_malformed`::
 
-    Set to `false` to accept geo points with invalid latitude or
-    longitude (default is `true`). *Note*: Validation only works when
-    normalization has been disabled. This option will be deprecated and removed
-    in upcoming releases.
+    Set to `true` to accept geo points with invalid latitude or
+    longitude (default is `false`).
 
-`normalize`::
+`coerce`::
 
-    Set to `true` to normalize latitude and longitude. Defaults to `true`.
+    Set to `true` to normalize longitude and latitude values to a standard -180:180 / -90:90
+    coordinate system. (default is `false`).
 
 [float]
 ==== geo_point Type

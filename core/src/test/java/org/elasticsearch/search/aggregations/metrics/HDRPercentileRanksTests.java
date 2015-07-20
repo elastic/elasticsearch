@@ -29,7 +29,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Order;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanks;
-import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanksBuilder;
+import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesMethod;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.sameInstance;
 /**
  *
  */
-public class PercentileRanksTests extends AbstractNumericTests {
+public class HDRPercentileRanksTests extends AbstractNumericTests {
 
     private static double[] randomPercents(long minValue, long maxValue) {
 
@@ -70,18 +70,15 @@ public class PercentileRanksTests extends AbstractNumericTests {
             }
         }
         Arrays.sort(percents);
-        Loggers.getLogger(PercentileRanksTests.class).info("Using percentiles={}", Arrays.toString(percents));
+        Loggers.getLogger(HDRPercentileRanksTests.class).info("Using percentiles={}", Arrays.toString(percents));
         return percents;
     }
 
-    private static PercentileRanksBuilder randomCompression(PercentileRanksBuilder builder) {
-        if (randomBoolean()) {
-            builder.compression(randomIntBetween(20, 120) + randomDouble());
-        }
-        return builder;
+    private static int randomSignificantDigits() {
+        return randomIntBetween(0, 5);
     }
 
-    private void assertConsistent(double[] pcts, PercentileRanks percentiles, long minValue, long maxValue) {
+    private void assertConsistent(double[] pcts, PercentileRanks percentiles, long minValue, long maxValue, int numberSigDigits) {
         final List<Percentile> percentileList = Lists.newArrayList(percentiles);
         assertEquals(pcts.length, percentileList.size());
         for (int i = 0; i < pcts.length; ++i) {
@@ -91,10 +88,12 @@ public class PercentileRanksTests extends AbstractNumericTests {
             assertThat(percentile.getPercent(), lessThanOrEqualTo(100.0));
 
             if (percentile.getPercent() == 0) {
-                assertThat(percentile.getValue(), lessThanOrEqualTo((double) minValue));
+                double allowedError = minValue / Math.pow(10, numberSigDigits);
+                assertThat(percentile.getValue(), lessThanOrEqualTo(minValue + allowedError));
             }
             if (percentile.getPercent() == 100) {
-                assertThat(percentile.getValue(), greaterThanOrEqualTo((double) maxValue));
+                double allowedError = maxValue / Math.pow(10, numberSigDigits);
+                assertThat(percentile.getValue(), greaterThanOrEqualTo(maxValue - allowedError));
             }
         }
 
@@ -107,12 +106,18 @@ public class PercentileRanksTests extends AbstractNumericTests {
     @Test
     public void testEmptyAggregation() throws Exception {
 
-        SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
+        int sigDigits = randomSignificantDigits();
+        SearchResponse searchResponse = client()
+                .prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0)
-                        .subAggregation(randomCompression(percentileRanks("percentile_ranks"))
-                                .percentiles(10, 15)))
-                .execute().actionGet();
+                .addAggregation(
+                        histogram("histo")
+                                .field("value")
+                                .interval(1l)
+                                .minDocCount(0)
+                                .subAggregation(
+                                        percentileRanks("percentile_ranks").method(PercentilesMethod.HDR)
+                                                .numberOfSignificantValueDigits(sigDigits).percentiles(10, 15))).execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
         Histogram histo = searchResponse.getAggregations().get("histo");
@@ -130,12 +135,13 @@ public class PercentileRanksTests extends AbstractNumericTests {
     @Override
     @Test
     public void testUnmapped() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx_unmapped")
+        int sigDigits = randomSignificantDigits();
+        SearchResponse searchResponse = client()
+                .prepareSearch("idx_unmapped")
                 .setQuery(matchAllQuery())
-                .addAggregation(randomCompression(percentileRanks("percentile_ranks"))
-                        .field("value")
-                        .percentiles(0, 10, 15, 100))
-                .execute().actionGet();
+                .addAggregation(
+                        percentileRanks("percentile_ranks").method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
+                                .field("value").percentiles(0, 10, 15, 100)).execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(0l));
 
@@ -151,31 +157,33 @@ public class PercentileRanksTests extends AbstractNumericTests {
     @Override
     @Test
     public void testSingleValuedField() throws Exception {
+        int sigDigits = randomSignificantDigits();
         final double[] pcts = randomPercents(minValue, maxValue);
-        SearchResponse searchResponse = client().prepareSearch("idx")
+        SearchResponse searchResponse = client()
+                .prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(randomCompression(percentileRanks("percentile_ranks"))
-                        .field("value")
-                        .percentiles(pcts))
-                .execute().actionGet();
+                .addAggregation(
+                        percentileRanks("percentile_ranks").method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
+                                .field("value").percentiles(pcts)).execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
-        assertConsistent(pcts, percentiles, minValue, maxValue);
+        assertConsistent(pcts, percentiles, minValue, maxValue, sigDigits);
     }
 
     @Override
     @Test
     public void testSingleValuedField_getProperty() throws Exception {
+        int sigDigits = randomSignificantDigits();
         final double[] pcts = randomPercents(minValue, maxValue);
         SearchResponse searchResponse = client()
                 .prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(
                         global("global").subAggregation(
-                                randomCompression(percentileRanks("percentile_ranks")).field("value").percentiles(pcts))).execute()
-                .actionGet();
+                                percentileRanks("percentile_ranks").method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
+                                        .field("value").percentiles(pcts))).execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 
@@ -195,266 +203,285 @@ public class PercentileRanksTests extends AbstractNumericTests {
 
     @Test
     public void testSingleValuedFieldOutsideRange() throws Exception {
-        final double[] pcts = new double[] {minValue - 1, maxValue + 1};
-        SearchResponse searchResponse = client().prepareSearch("idx")
+        int sigDigits = randomSignificantDigits();
+        final double[] pcts = new double[] { minValue - 1, maxValue + 1 };
+        SearchResponse searchResponse = client()
+                .prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(randomCompression(percentileRanks("percentile_ranks"))
-                        .field("value")
-                        .percentiles(pcts))
-                .execute().actionGet();
+                .addAggregation(
+                        percentileRanks("percentile_ranks").method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
+                                .field("value").percentiles(pcts)).execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
-        assertConsistent(pcts, percentiles, minValue, maxValue);
+        assertConsistent(pcts, percentiles, minValue, maxValue, sigDigits);
     }
 
     @Override
     @Test
     public void testSingleValuedField_PartiallyUnmapped() throws Exception {
+        int sigDigits = randomSignificantDigits();
         final double[] pcts = randomPercents(minValue, maxValue);
-        SearchResponse searchResponse = client().prepareSearch("idx", "idx_unmapped")
+        SearchResponse searchResponse = client()
+                .prepareSearch("idx", "idx_unmapped")
                 .setQuery(matchAllQuery())
-                .addAggregation(randomCompression(percentileRanks("percentile_ranks"))
-                        .field("value")
-                        .percentiles(pcts))
-                .execute().actionGet();
+                .addAggregation(
+                        percentileRanks("percentile_ranks").method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
+                                .field("value").percentiles(pcts)).execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
-        assertConsistent(pcts, percentiles, minValue, maxValue);
+        assertConsistent(pcts, percentiles, minValue, maxValue, sigDigits);
     }
 
     @Override
     @Test
     public void testSingleValuedField_WithValueScript() throws Exception {
+        int sigDigits = randomSignificantDigits();
         final double[] pcts = randomPercents(minValue - 1, maxValue - 1);
-        SearchResponse searchResponse = client().prepareSearch("idx")
+        SearchResponse searchResponse = client()
+                .prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(randomCompression(percentileRanks("percentile_ranks"))
-.field("value").script(new Script("_value - 1"))
-                        .percentiles(pcts))
-                .execute().actionGet();
+                .addAggregation(
+                        percentileRanks("percentile_ranks").method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
+                                .field("value").script(new Script("_value - 1")).percentiles(pcts)).execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
-        assertConsistent(pcts, percentiles, minValue - 1, maxValue - 1);
+        assertConsistent(pcts, percentiles, minValue - 1, maxValue - 1, sigDigits);
     }
 
     @Override
     @Test
     public void testSingleValuedField_WithValueScript_WithParams() throws Exception {
+        int sigDigits = randomSignificantDigits();
         Map<String, Object> params = new HashMap<>();
         params.put("dec", 1);
         final double[] pcts = randomPercents(minValue - 1, maxValue - 1);
-        SearchResponse searchResponse = client().prepareSearch("idx")
+        SearchResponse searchResponse = client()
+                .prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(randomCompression(percentileRanks("percentile_ranks"))
-.field("value")
-                                .script(new Script("_value - dec", ScriptType.INLINE, null, params))
-                        .percentiles(pcts))
+                .addAggregation(
+                        percentileRanks("percentile_ranks").method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
+                                .field("value").script(new Script("_value - dec", ScriptType.INLINE, null, params)).percentiles(pcts))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
-        assertConsistent(pcts, percentiles, minValue - 1, maxValue - 1);
+        assertConsistent(pcts, percentiles, minValue - 1, maxValue - 1, sigDigits);
     }
 
     @Override
     @Test
     public void testMultiValuedField() throws Exception {
+        int sigDigits = randomSignificantDigits();
         final double[] pcts = randomPercents(minValues, maxValues);
-        SearchResponse searchResponse = client().prepareSearch("idx")
+        SearchResponse searchResponse = client()
+                .prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(randomCompression(percentileRanks("percentile_ranks"))
-                        .field("values")
-                        .percentiles(pcts))
-                .execute().actionGet();
+                .addAggregation(
+                        percentileRanks("percentile_ranks").method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
+                                .field("values").percentiles(pcts)).execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
-        assertConsistent(pcts, percentiles, minValues, maxValues);
+        assertConsistent(pcts, percentiles, minValues, maxValues, sigDigits);
     }
 
     @Override
     @Test
     public void testMultiValuedField_WithValueScript() throws Exception {
+        int sigDigits = randomSignificantDigits();
         final double[] pcts = randomPercents(minValues - 1, maxValues - 1);
-        SearchResponse searchResponse = client().prepareSearch("idx")
+        SearchResponse searchResponse = client()
+                .prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(randomCompression(percentileRanks("percentile_ranks"))
-.field("values").script(new Script("_value - 1"))
-                        .percentiles(pcts))
-                .execute().actionGet();
+                .addAggregation(
+                        percentileRanks("percentile_ranks").method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
+                                .field("values").script(new Script("_value - 1")).percentiles(pcts)).execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
-        assertConsistent(pcts, percentiles, minValues - 1, maxValues - 1);
+        assertConsistent(pcts, percentiles, minValues - 1, maxValues - 1, sigDigits);
     }
 
     @Test
     public void testMultiValuedField_WithValueScript_Reverse() throws Exception {
-        final double[] pcts = randomPercents(-maxValues, -minValues);
-        SearchResponse searchResponse = client().prepareSearch("idx")
+        int sigDigits = randomSignificantDigits();
+        final double[] pcts = randomPercents(20 - maxValues, 20 - minValues);
+        SearchResponse searchResponse = client()
+                .prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(randomCompression(percentileRanks("percentile_ranks"))
-.field("values").script(new Script("_value * -1"))
-                        .percentiles(pcts))
-                .execute().actionGet();
+                .addAggregation(
+                        percentileRanks("percentile_ranks").method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
+                                .field("values").script(new Script("20 - _value")).percentiles(pcts)).execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
-        assertConsistent(pcts, percentiles, -maxValues, -minValues);
+        assertConsistent(pcts, percentiles, 20 - maxValues, 20 - minValues, sigDigits);
     }
 
     @Override
     @Test
     public void testMultiValuedField_WithValueScript_WithParams() throws Exception {
+        int sigDigits = randomSignificantDigits();
         Map<String, Object> params = new HashMap<>();
         params.put("dec", 1);
         final double[] pcts = randomPercents(minValues - 1, maxValues - 1);
-        SearchResponse searchResponse = client().prepareSearch("idx")
+        SearchResponse searchResponse = client()
+                .prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(randomCompression(percentileRanks("percentile_ranks"))
-.field("values")
-                                .script(new Script("_value - dec", ScriptType.INLINE, null, params))
-                        .percentiles(pcts))
+                .addAggregation(
+                        percentileRanks("percentile_ranks").method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
+                                .field("values").script(new Script("_value - dec", ScriptType.INLINE, null, params)).percentiles(pcts))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
-        assertConsistent(pcts, percentiles, minValues - 1, maxValues - 1);
+        assertConsistent(pcts, percentiles, minValues - 1, maxValues - 1, sigDigits);
     }
 
     @Override
     @Test
     public void testScript_SingleValued() throws Exception {
+        int sigDigits = randomSignificantDigits();
         final double[] pcts = randomPercents(minValue, maxValue);
-        SearchResponse searchResponse = client().prepareSearch("idx")
+        SearchResponse searchResponse = client()
+                .prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(randomCompression(percentileRanks("percentile_ranks"))
-.script(new Script("doc['value'].value"))
-                        .percentiles(pcts))
-                .execute().actionGet();
+                .addAggregation(
+                        percentileRanks("percentile_ranks").method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
+                                .script(new Script("doc['value'].value")).percentiles(pcts)).execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
-        assertConsistent(pcts, percentiles, minValue, maxValue);
+        assertConsistent(pcts, percentiles, minValue, maxValue, sigDigits);
     }
 
     @Override
     @Test
     public void testScript_SingleValued_WithParams() throws Exception {
+        int sigDigits = randomSignificantDigits();
         Map<String, Object> params = new HashMap<>();
         params.put("dec", 1);
         final double[] pcts = randomPercents(minValue - 1, maxValue - 1);
-        SearchResponse searchResponse = client().prepareSearch("idx")
+        SearchResponse searchResponse = client()
+                .prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(randomCompression(percentileRanks("percentile_ranks"))
-.script(
-                                new Script("doc['value'].value - dec", ScriptType.INLINE, null, params))
-                        .percentiles(pcts))
+                .addAggregation(
+                        percentileRanks("percentile_ranks").method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
+                                .script(new Script("doc['value'].value - dec", ScriptType.INLINE, null, params)).percentiles(pcts))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
-        assertConsistent(pcts, percentiles, minValue - 1, maxValue - 1);
+        assertConsistent(pcts, percentiles, minValue - 1, maxValue - 1, sigDigits);
     }
 
     @Override
     @Test
     public void testScript_ExplicitSingleValued_WithParams() throws Exception {
+        int sigDigits = randomSignificantDigits();
         Map<String, Object> params = new HashMap<>();
         params.put("dec", 1);
-        final double[] pcts = randomPercents(minValue -1 , maxValue - 1);
-        SearchResponse searchResponse = client().prepareSearch("idx")
+        final double[] pcts = randomPercents(minValue - 1, maxValue - 1);
+        SearchResponse searchResponse = client()
+                .prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(randomCompression(percentileRanks("percentile_ranks"))
-.script(
-                                new Script("doc['value'].value - dec", ScriptType.INLINE, null, params))
-                        .percentiles(pcts))
+                .addAggregation(
+                        percentileRanks("percentile_ranks").method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
+                                .script(new Script("doc['value'].value - dec", ScriptType.INLINE, null, params)).percentiles(pcts))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
-        assertConsistent(pcts, percentiles, minValue - 1, maxValue - 1);
+        assertConsistent(pcts, percentiles, minValue - 1, maxValue - 1, sigDigits);
     }
 
     @Override
     @Test
     public void testScript_MultiValued() throws Exception {
+        int sigDigits = randomSignificantDigits();
         final double[] pcts = randomPercents(minValues, maxValues);
-        SearchResponse searchResponse = client().prepareSearch("idx")
+        SearchResponse searchResponse = client()
+                .prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(randomCompression(percentileRanks("percentile_ranks"))
-.script(new Script("doc['values'].values"))
-                        .percentiles(pcts))
-                .execute().actionGet();
+                .addAggregation(
+                        percentileRanks("percentile_ranks").method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
+                                .script(new Script("doc['values'].values")).percentiles(pcts)).execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
-        assertConsistent(pcts, percentiles, minValues, maxValues);
+        assertConsistent(pcts, percentiles, minValues, maxValues, sigDigits);
     }
 
     @Override
     @Test
     public void testScript_ExplicitMultiValued() throws Exception {
+        int sigDigits = randomSignificantDigits();
         final double[] pcts = randomPercents(minValues, maxValues);
-        SearchResponse searchResponse = client().prepareSearch("idx")
+        SearchResponse searchResponse = client()
+                .prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(randomCompression(percentileRanks("percentile_ranks"))
-.script(new Script("doc['values'].values"))
-                        .percentiles(pcts))
-                .execute().actionGet();
+                .addAggregation(
+                        percentileRanks("percentile_ranks").method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
+                                .script(new Script("doc['values'].values")).percentiles(pcts)).execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
-        assertConsistent(pcts, percentiles, minValues, maxValues);
+        assertConsistent(pcts, percentiles, minValues, maxValues, sigDigits);
     }
 
     @Override
     @Test
     public void testScript_MultiValued_WithParams() throws Exception {
+        int sigDigits = randomSignificantDigits();
         Map<String, Object> params = new HashMap<>();
         params.put("dec", 1);
         final double[] pcts = randomPercents(minValues - 1, maxValues - 1);
-        SearchResponse searchResponse = client().prepareSearch("idx")
+        SearchResponse searchResponse = client()
+                .prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(randomCompression(percentileRanks("percentile_ranks"))
+                .addAggregation(
+                        percentileRanks("percentile_ranks")
+                                .method(PercentilesMethod.HDR)
+                                .numberOfSignificantValueDigits(sigDigits)
                                 .script(new Script(
                                         "List values = doc['values'].values; double[] res = new double[values.size()]; for (int i = 0; i < res.length; i++) { res[i] = values.get(i) - dec; }; return res;",
-                                        ScriptType.INLINE, null, params))
-                        .percentiles(pcts))
-                .execute().actionGet();
+                                        ScriptType.INLINE, null, params)).percentiles(pcts)).execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
-        assertConsistent(pcts, percentiles, minValues - 1, maxValues - 1);
+        assertConsistent(pcts, percentiles, minValues - 1, maxValues - 1, sigDigits);
     }
 
     @Test
     public void testOrderBySubAggregation() {
+        int sigDigits = randomSignificantDigits();
         boolean asc = randomBoolean();
-        SearchResponse searchResponse = client().prepareSearch("idx")
+        SearchResponse searchResponse = client()
+                .prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(
                         histogram("histo").field("value").interval(2l)
-                            .subAggregation(randomCompression(percentileRanks("percentile_ranks").percentiles(99)))
-                            .order(Order.aggregation("percentile_ranks", "99", asc)))
-                .execute().actionGet();
+                                .subAggregation(
+                                        percentileRanks("percentile_ranks").method(PercentilesMethod.HDR)
+                                                .numberOfSignificantValueDigits(sigDigits).percentiles(99))
+                                .order(Order.aggregation("percentile_ranks", "99", asc))).execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 

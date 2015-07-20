@@ -17,31 +17,33 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.metrics.percentiles;
+package org.elasticsearch.search.aggregations.metrics.percentiles.hdr;
 
+import org.HdrHistogram.DoubleHistogram;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
-import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestState;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
+import java.util.zip.DataFormatException;
 
-abstract class AbstractInternalPercentiles extends InternalNumericMetricsAggregation.MultiValue {
+abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggregation.MultiValue {
 
     protected double[] keys;
-    protected TDigestState state;
+    protected DoubleHistogram state;
     private boolean keyed;
 
-    AbstractInternalPercentiles() {} // for serialization
+    AbstractInternalHDRPercentiles() {} // for serialization
 
-    public AbstractInternalPercentiles(String name, double[] keys, TDigestState state, boolean keyed, ValueFormatter formatter,
+    public AbstractInternalHDRPercentiles(String name, double[] keys, DoubleHistogram state, boolean keyed, ValueFormatter formatter,
             List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
@@ -58,20 +60,25 @@ abstract class AbstractInternalPercentiles extends InternalNumericMetricsAggrega
 
     public abstract double value(double key);
 
+    public long getEstimatedMemoryFootprint() {
+        return state.getEstimatedFootprintInBytes();
+    }
+
     @Override
-    public AbstractInternalPercentiles doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        TDigestState merged = null;
+    public AbstractInternalHDRPercentiles doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        DoubleHistogram merged = null;
         for (InternalAggregation aggregation : aggregations) {
-            final AbstractInternalPercentiles percentiles = (AbstractInternalPercentiles) aggregation;
+            final AbstractInternalHDRPercentiles percentiles = (AbstractInternalHDRPercentiles) aggregation;
             if (merged == null) {
-                merged = new TDigestState(percentiles.state.compression());
+                merged = new DoubleHistogram(percentiles.state);
+                merged.setAutoResize(true);
             }
             merged.add(percentiles.state);
         }
         return createReduced(getName(), keys, merged, keyed, pipelineAggregators(), getMetaData());
     }
 
-    protected abstract AbstractInternalPercentiles createReduced(String name, double[] keys, TDigestState merged, boolean keyed,
+    protected abstract AbstractInternalHDRPercentiles createReduced(String name, double[] keys, DoubleHistogram merged, boolean keyed,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData);
 
     @Override
@@ -81,7 +88,13 @@ abstract class AbstractInternalPercentiles extends InternalNumericMetricsAggrega
         for (int i = 0; i < keys.length; ++i) {
             keys[i] = in.readDouble();
         }
-        state = TDigestState.read(in);
+        long minBarForHighestToLowestValueRatio = in.readLong();
+        ByteBuffer stateBuffer = ByteBuffer.wrap(in.readByteArray());
+        try {
+            state = DoubleHistogram.decodeFromCompressedByteBuffer(stateBuffer, minBarForHighestToLowestValueRatio);
+        } catch (DataFormatException e) {
+            throw new IOException("Failed to decode DoubleHistogram for aggregation [" + name + "]", e);
+        }
         keyed = in.readBoolean();
     }
 
@@ -92,7 +105,10 @@ abstract class AbstractInternalPercentiles extends InternalNumericMetricsAggrega
         for (int i = 0 ; i < keys.length; ++i) {
             out.writeDouble(keys[i]);
         }
-        TDigestState.write(state, out);
+        out.writeLong(state.getHighestToLowestValueRatio());
+        ByteBuffer stateBuffer = ByteBuffer.allocate(state.getNeededByteBufferCapacity());
+        state.encodeIntoCompressedByteBuffer(stateBuffer);
+        out.writeByteArray(stateBuffer.array());
         out.writeBoolean(keyed);
     }
 

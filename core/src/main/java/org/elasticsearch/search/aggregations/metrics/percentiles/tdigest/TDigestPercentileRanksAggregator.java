@@ -16,11 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.metrics.percentiles;
+package org.elasticsearch.search.aggregations.metrics.percentiles.tdigest;
 
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestState;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -36,9 +35,9 @@ import java.util.Map;
 /**
  *
  */
-public class PercentileRanksAggregator extends AbstractPercentilesAggregator {
+public class TDigestPercentileRanksAggregator extends AbstractTDigestPercentilesAggregator {
 
-    public PercentileRanksAggregator(String name, Numeric valuesSource, AggregationContext context, Aggregator parent, double[] percents,
+    public TDigestPercentileRanksAggregator(String name, Numeric valuesSource, AggregationContext context, Aggregator parent, double[] percents,
             double compression, boolean keyed, ValueFormatter formatter, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData)
             throws IOException {
@@ -51,13 +50,13 @@ public class PercentileRanksAggregator extends AbstractPercentilesAggregator {
         if (state == null) {
             return buildEmptyAggregation();
         } else {
-            return new InternalPercentileRanks(name, keys, state, keyed, formatter, pipelineAggregators(), metaData());
+            return new InternalTDigestPercentileRanks(name, keys, state, keyed, formatter, pipelineAggregators(), metaData());
         }
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalPercentileRanks(name, keys, new TDigestState(compression), keyed, formatter, pipelineAggregators(), metaData());
+        return new InternalTDigestPercentileRanks(name, keys, new TDigestState(compression), keyed, formatter, pipelineAggregators(), metaData());
     }
 
     @Override
@@ -66,7 +65,7 @@ public class PercentileRanksAggregator extends AbstractPercentilesAggregator {
         if (state == null) {
             return Double.NaN;
         } else {
-            return InternalPercentileRanks.percentileRank(state, Double.valueOf(name));
+            return InternalTDigestPercentileRanks.percentileRank(state, Double.valueOf(name));
         }
     }
 
@@ -78,7 +77,7 @@ public class PercentileRanksAggregator extends AbstractPercentilesAggregator {
 
         public Factory(String name, ValuesSourceConfig<ValuesSource.Numeric> valuesSourceConfig,
                 double[] values, double compression, boolean keyed) {
-            super(name, InternalPercentiles.TYPE.name(), valuesSourceConfig);
+            super(name, InternalTDigestPercentiles.TYPE.name(), valuesSourceConfig);
             this.values = values;
             this.compression = compression;
             this.keyed = keyed;
@@ -87,7 +86,7 @@ public class PercentileRanksAggregator extends AbstractPercentilesAggregator {
         @Override
         protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
                 List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            return new PercentileRanksAggregator(name, null, aggregationContext, parent, values, compression, keyed, config.formatter(),
+            return new TDigestPercentileRanksAggregator(name, null, aggregationContext, parent, values, compression, keyed, config.formatter(),
                     pipelineAggregators, metaData);
         }
 
@@ -95,7 +94,7 @@ public class PercentileRanksAggregator extends AbstractPercentilesAggregator {
         protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent,
                 boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
                 throws IOException {
-            return new PercentileRanksAggregator(name, valuesSource, aggregationContext, parent, values, compression, keyed,
+            return new TDigestPercentileRanksAggregator(name, valuesSource, aggregationContext, parent, values, compression, keyed,
                     config.formatter(), pipelineAggregators, metaData);
         }
     }

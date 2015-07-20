@@ -19,23 +19,21 @@
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.metrics.ValuesSourceMetricsAggregationBuilder;
 
 import java.io.IOException;
+
 
 /**
  * Builder for the {@link Percentiles} aggregation.
  */
-public class PercentilesBuilder extends ValuesSourceMetricsAggregationBuilder<PercentilesBuilder> {
+public class PercentilesBuilder extends AbstractPercentilesBuilder<PercentilesBuilder> {
 
-    private double[] percentiles;
-    private Double compression;
-
+    double[] percentiles;
     /**
      * Sole constructor.
      */
     public PercentilesBuilder(String name) {
-        super(name, InternalPercentiles.TYPE.name());
+        super(name, Percentiles.TYPE_NAME);
     }
 
     /**
@@ -52,24 +50,11 @@ public class PercentilesBuilder extends ValuesSourceMetricsAggregationBuilder<Pe
         return this;
     }
 
-    /**
-     * Expert: set the compression. Higher values improve accuracy but also memory usage.
-     */
-    public PercentilesBuilder compression(double compression) {
-        this.compression = compression;
-        return this;
-    }
-
     @Override
-    protected void internalXContent(XContentBuilder builder, Params params) throws IOException {
-        super.internalXContent(builder, params);
-
+    protected void doInternalXContent(XContentBuilder builder, Params params) throws IOException {
         if (percentiles != null) {
-            builder.field("percents", percentiles);
-        }
-
-        if (compression != null) {
-            builder.field("compression", compression);
+            builder.field(PercentilesParser.PERCENTS_FIELD.getPreferredName(), percentiles);
         }
     }
+
 }

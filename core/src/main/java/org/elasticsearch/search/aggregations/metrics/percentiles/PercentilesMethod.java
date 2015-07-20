@@ -19,22 +19,43 @@
 
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
-import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 
 /**
- * An aggregation that computes approximate percentiles given values.
+ * An enum representing the methods for calculating percentiles
  */
-public interface PercentileRanks extends NumericMetricsAggregation.MultiValue, Iterable<Percentile> {
+public enum PercentilesMethod {
+    /**
+     * The TDigest method for calculating percentiles
+     */
+    TDIGEST("tdigest"),
+    /**
+     * The HDRHistogram method of calculating percentiles
+     */
+    HDR("hdr");
 
-    public static final String TYPE_NAME = "percentile_ranks";
+    private String name;
+
+    private PercentilesMethod(String name) {
+        this.name = name;
+    }
 
     /**
-     * Return the percentile for the given value.
+     * @return the name of the method
      */
-    double percent(double value);
+    public String getName() {
+        return name;
+    }
 
     /**
-     * Return the percentile for the given value as a String.
+     * Returns the {@link PercentilesMethod} for this method name. returns
+     * <code>null</code> if no {@link PercentilesMethod} exists for the name.
      */
-    String percentAsString(double value);
+    public static PercentilesMethod resolveFromName(String name) {
+        for (PercentilesMethod method : values()) {
+            if (method.name.equalsIgnoreCase(name)) {
+                return method;
+            }
+        }
+        return null;
+    }
 }

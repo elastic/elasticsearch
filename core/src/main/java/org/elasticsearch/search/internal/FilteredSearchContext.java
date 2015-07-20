@@ -140,6 +140,11 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
+    public long getOriginNanoTime() {
+        return in.getOriginNanoTime();
+    }
+
+    @Override
     protected long nowInMillisImpl() {
         return in.nowInMillisImpl();
     }

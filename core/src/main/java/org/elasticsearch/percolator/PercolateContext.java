@@ -98,6 +98,7 @@ public class PercolateContext extends SearchContext {
     private final ConcurrentMap<BytesRef, Query> percolateQueries;
     private final int numberOfShards;
     private final Query aliasFilter;
+    private final long originNanoTime = System.nanoTime();
     private final long startTime;
     private String[] types;
 
@@ -335,6 +336,11 @@ public class PercolateContext extends SearchContext {
     @Override
     public SearchContext queryBoost(float queryBoost) {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public long getOriginNanoTime() {
+        return originNanoTime;
     }
 
     @Override

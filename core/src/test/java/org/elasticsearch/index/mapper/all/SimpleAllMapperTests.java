@@ -390,7 +390,6 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
         Map<String, String> rootTypes = new HashMap<>();
         //just pick some example from DocumentMapperParser.rootTypeParsers
         rootTypes.put(SizeFieldMapper.NAME, "{\"enabled\" : true}");
-        rootTypes.put(IndexFieldMapper.NAME, "{\"enabled\" : true}");
         rootTypes.put("include_in_all", "true");
         rootTypes.put("dynamic_date_formats", "[\"yyyy-MM-dd\", \"dd-MM-yyyy\"]");
         rootTypes.put("numeric_detection", "true");

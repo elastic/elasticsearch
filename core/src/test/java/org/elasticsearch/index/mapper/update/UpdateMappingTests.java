@@ -115,8 +115,8 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test
-    public void testIndexFieldParsing() throws IOException {
-        IndexService indexService = createIndex("test", Settings.settingsBuilder().build());
+    public void testIndexFieldParsingBackcompat() throws IOException {
+        IndexService indexService = createIndex("test", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build());
         XContentBuilder indexMapping = XContentFactory.jsonBuilder();
         boolean enabled = randomBoolean();
         indexMapping.startObject()

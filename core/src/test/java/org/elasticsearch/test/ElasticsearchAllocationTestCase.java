@@ -137,7 +137,7 @@ public abstract class ElasticsearchAllocationTestCase extends ElasticsearchTestC
         return new AllocationDeciders(Settings.EMPTY, new AllocationDecider[] {new TestAllocateDecision(Decision.THROTTLE)});
     }
 
-    static class TestAllocateDecision extends AllocationDecider {
+    public static class TestAllocateDecision extends AllocationDecider {
 
         private final Decision decision;
 

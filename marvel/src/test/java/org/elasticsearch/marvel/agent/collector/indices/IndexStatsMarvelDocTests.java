@@ -10,7 +10,7 @@ import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class IndexMarvelDocTests extends ElasticsearchTestCase {
+public class IndexStatsMarvelDocTests extends ElasticsearchTestCase {
 
     @Test
     public void testCreateMarvelDoc() {
@@ -23,7 +23,7 @@ public class IndexMarvelDocTests extends ElasticsearchTestCase {
         long storeThrottle = randomLong();
         long indexingThrottle = randomLong();
 
-        IndexMarvelDoc marvelDoc = IndexMarvelDoc.createMarvelDoc(cluster, type, timestamp,
+        IndexStatsMarvelDoc marvelDoc = IndexStatsMarvelDoc.createMarvelDoc(cluster, type, timestamp,
                 index, docsCount, storeSize, storeThrottle, indexingThrottle);
 
         assertNotNull(marvelDoc);

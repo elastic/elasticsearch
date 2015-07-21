@@ -21,19 +21,19 @@ import java.util.Collection;
 /**
  * Collector for indices statistics.
  *
- * This collector runs on the master node only and collect a {@link IndexMarvelDoc} document
+ * This collector runs on the master node only and collect a {@link IndexStatsMarvelDoc} document
  * for each existing index in the cluster.
  */
-public class IndexCollector extends AbstractCollector<IndexCollector> {
+public class IndexStatsCollector extends AbstractCollector<IndexStatsCollector> {
 
-    public static final String NAME = "index-collector";
+    public static final String NAME = "index-stats-collector";
     protected static final String TYPE = "marvel_index";
 
     private final ClusterName clusterName;
     private final Client client;
 
     @Inject
-    public IndexCollector(Settings settings, ClusterService clusterService, ClusterName clusterName, Client client) {
+    public IndexStatsCollector(Settings settings, ClusterService clusterService, ClusterName clusterName, Client client) {
         super(settings, NAME, clusterService);
         this.client = client;
         this.clusterName = clusterName;
@@ -62,7 +62,7 @@ public class IndexCollector extends AbstractCollector<IndexCollector> {
     }
 
     protected MarvelDoc buildMarvelDoc(String clusterName, String type, long timestamp, IndexStats indexStats) {
-        return IndexMarvelDoc.createMarvelDoc(clusterName, type, timestamp,
+        return IndexStatsMarvelDoc.createMarvelDoc(clusterName, type, timestamp,
                 indexStats.getIndex(),
                 indexStats.getTotal().getDocs().getCount(),
                 indexStats.getTotal().getStore().sizeInBytes(), indexStats.getTotal().getStore().throttleTime().millis(),

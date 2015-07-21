@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.AgentService;
-import org.elasticsearch.marvel.agent.collector.indices.IndexMarvelDoc;
+import org.elasticsearch.marvel.agent.collector.indices.IndexStatsMarvelDoc;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
@@ -224,7 +224,7 @@ public class HttpESExporterTests extends ElasticsearchIntegrationTest {
     final static AtomicLong timeStampGenerator = new AtomicLong();
 
     private MarvelDoc newRandomMarvelDoc() {
-        return IndexMarvelDoc.createMarvelDoc(internalCluster().getClusterName(), "test_marvelDoc", timeStampGenerator.incrementAndGet(),
+        return IndexStatsMarvelDoc.createMarvelDoc(internalCluster().getClusterName(), "test_marvelDoc", timeStampGenerator.incrementAndGet(),
                 "test_index", randomInt(), randomLong(), randomLong(), randomLong());
     }
 }

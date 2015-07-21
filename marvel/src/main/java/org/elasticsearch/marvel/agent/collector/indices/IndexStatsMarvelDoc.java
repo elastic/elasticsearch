@@ -14,15 +14,15 @@ import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
-public class IndexMarvelDoc extends MarvelDoc<IndexMarvelDoc> {
+public class IndexStatsMarvelDoc extends MarvelDoc<IndexStatsMarvelDoc> {
 
     private final String index;
     private final Docs docs;
     private final Store store;
     private final Indexing indexing;
 
-    public IndexMarvelDoc(String clusterName, String type, long timestamp,
-                          String index, Docs docs, Store store, Indexing indexing) {
+    public IndexStatsMarvelDoc(String clusterName, String type, long timestamp,
+                               String index, Docs docs, Store store, Indexing indexing) {
         super(clusterName, type, timestamp);
         this.index = index;
         this.docs = docs;
@@ -31,7 +31,7 @@ public class IndexMarvelDoc extends MarvelDoc<IndexMarvelDoc> {
     }
 
     @Override
-    public IndexMarvelDoc payload() {
+    public IndexStatsMarvelDoc payload() {
         return this;
     }
 
@@ -69,9 +69,9 @@ public class IndexMarvelDoc extends MarvelDoc<IndexMarvelDoc> {
         return builder;
     }
 
-    public static IndexMarvelDoc createMarvelDoc(String clusterName, String type, long timestamp,
+    public static IndexStatsMarvelDoc createMarvelDoc(String clusterName, String type, long timestamp,
                                                  String index, long docsCount, long storeSizeInBytes, long storeThrottleTimeInMillis, long indexingThrottleTimeInMillis) {
-        return new IndexMarvelDoc(clusterName, type, timestamp, index,
+        return new IndexStatsMarvelDoc(clusterName, type, timestamp, index,
                                     new Docs(docsCount),
                                     new Store(storeSizeInBytes, storeThrottleTimeInMillis),
                                     new Indexing(indexingThrottleTimeInMillis));

@@ -17,6 +17,8 @@
 
     <properties>
         <elasticsearch.integ.antfile>dev-tools/integration-tests.xml</elasticsearch.integ.antfile>
+        <!-- FIXME add a integration test -->
+        <skip.integ.tests>true</skip.integ.tests>
     </properties>
 
     <dependencies>

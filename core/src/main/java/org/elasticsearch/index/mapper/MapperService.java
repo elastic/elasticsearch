@@ -53,7 +53,6 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
@@ -104,7 +103,6 @@ public class MapperService extends AbstractIndexComponent  {
     };
 
     private final AnalysisService analysisService;
-    private final IndexFieldDataService fieldDataService;
 
     /**
      * Will create types automatically if they do not exists in the mapping definition yet
@@ -139,12 +137,11 @@ public class MapperService extends AbstractIndexComponent  {
     private volatile ImmutableSet<String> parentTypes = ImmutableSet.of();
 
     @Inject
-    public MapperService(Index index, @IndexSettings Settings indexSettings, AnalysisService analysisService, IndexFieldDataService fieldDataService,
+    public MapperService(Index index, @IndexSettings Settings indexSettings, AnalysisService analysisService,
                          SimilarityLookupService similarityLookupService,
                          ScriptService scriptService) {
         super(index, indexSettings);
         this.analysisService = analysisService;
-        this.fieldDataService = fieldDataService;
         this.fieldTypes = new FieldTypeLookup();
         this.documentParser = new DocumentMapperParser(indexSettings, this, analysisService, similarityLookupService, scriptService);
         this.indexAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultIndexAnalyzer(), INDEX_ANALYZER_EXTRACTOR);
@@ -291,7 +288,6 @@ public class MapperService extends AbstractIndexComponent  {
                         logger.debug("merging mapping for type [{}] resulted in conflicts: [{}]", mapper.type(), Arrays.toString(result.buildConflicts()));
                     }
                 }
-                fieldDataService.onMappingUpdate();
                 return oldMapper;
             } else {
                 List<ObjectMapper> newObjectMappers = new ArrayList<>();

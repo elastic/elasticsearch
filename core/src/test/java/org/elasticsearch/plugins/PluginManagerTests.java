@@ -85,7 +85,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         String pluginName = "plugin-test";
         Tuple<Settings, Environment> initialSettings = buildInitialSettings();
         Environment env = initialSettings.v2();
-        Path binDir = env.homeFile().resolve("bin");
+        Path binDir = env.binFile();
         if (!Files.exists(binDir)) {
             Files.createDirectories(binDir);
         }
@@ -212,7 +212,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         String pluginName = "plugin-test";
         Tuple<Settings, Environment> initialSettings = buildInitialSettings();
         Environment env = initialSettings.v2();
-        Path binDir = env.homeFile().resolve("bin");
+        Path binDir = env.binFile();
         if (!Files.exists(binDir)) {
             Files.createDirectories(binDir);
         }

@@ -117,11 +117,11 @@ final class Security {
 
     /** returns dynamic Permissions to configured paths */
     static Permissions createPermissions(Environment environment) throws IOException {
-        // TODO: improve test infra so we can reduce permissions where read/write
-        // is not really needed...
         Permissions policy = new Permissions();
+        // read-only dirs
+        addPath(policy, environment.binFile(), "read,readlink");
+        addPath(policy, environment.libFile(), "read,readlink");
         addPath(policy, environment.tmpFile(), "read,readlink,write,delete");
-        addPath(policy, environment.homeFile(), "read,readlink,write,delete");
         addPath(policy, environment.configFile(), "read,readlink,write,delete");
         addPath(policy, environment.logsFile(), "read,readlink,write,delete");
         addPath(policy, environment.pluginsFile(), "read,readlink,write,delete");

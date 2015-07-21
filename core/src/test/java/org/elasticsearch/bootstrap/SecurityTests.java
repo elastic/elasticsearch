@@ -53,7 +53,7 @@ public class SecurityTests extends ElasticsearchTestCase {
         }
       
         // the fake es home
-        assertTrue(permissions.implies(new FilePermission(esHome.toString(), "read")));
+        assertFalse(permissions.implies(new FilePermission(esHome.toString(), "read")));
         // its parent
         assertFalse(permissions.implies(new FilePermission(path.toString(), "read")));
         // some other sibling
@@ -88,9 +88,8 @@ public class SecurityTests extends ElasticsearchTestCase {
         }
 
         // check that all directories got permissions:
-        // homefile: this is needed unless we break out rules for "lib" dir.
-        // TODO: make read-only
-        assertTrue(permissions.implies(new FilePermission(environment.homeFile().toString(), "read,readlink,write,delete")));
+        assertTrue(permissions.implies(new FilePermission(environment.binFile().toString(), "read")));
+        assertTrue(permissions.implies(new FilePermission(environment.libFile().toString(), "read")));
         // config file
         // TODO: make read-only
         assertTrue(permissions.implies(new FilePermission(environment.configFile().toString(), "read,readlink,write,delete")));

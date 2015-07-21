@@ -74,12 +74,6 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     public void setup() throws Exception {
         initialSettings = buildInitialSettings();
         System.setProperty("es.default.path.home", initialSettings.v1().get("path.home"));
-        try {
-            Files.createDirectories(initialSettings.v2().pluginsFile());
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-
         Path binDir = initialSettings.v2().homeFile().resolve("bin");
         if (!Files.exists(binDir)) {
             Files.createDirectories(binDir);
@@ -319,6 +313,13 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testListInstalledEmpty() throws IOException {
+        assertStatusOk("list");
+        assertThat(terminal.getTerminalOutput(), hasItem(containsString("No plugin detected")));
+    }
+
+    @Test
+    public void testListInstalledEmptyWithExistingPluginDirectory() throws IOException {
+        Files.createDirectory(initialSettings.v2().pluginsFile());
         assertStatusOk("list");
         assertThat(terminal.getTerminalOutput(), hasItem(containsString("No plugin detected")));
     }

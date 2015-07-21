@@ -1,0 +1,12 @@
+NAME
+
+    list - List all plugins
+
+SYNOPSIS
+
+    plugin list
+
+DESCRIPTION
+
+    This command lists all installed elasticsearch plugins
+

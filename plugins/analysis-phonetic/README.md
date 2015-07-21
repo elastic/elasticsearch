@@ -28,7 +28,7 @@ To build a `SNAPSHOT` version, you need to build it with Maven:
 
 ```bash
 mvn clean install
-plugin --install analysis-phonetic \
+plugin install analysis-phonetic \
        --url file:target/releases/elasticsearch-analysis-phonetic-X.X.X-SNAPSHOT.zip
 ```
 

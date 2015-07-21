@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.*;
@@ -135,21 +136,11 @@ public class HttpDownloadHelper {
     /**
      * verbose progress system prints to some output stream
      */
-    @SuppressForbidden(reason = "System#out")
     public static class VerboseProgress implements DownloadProgress {
         private int dots = 0;
         // CheckStyle:VisibilityModifier OFF - bc
         PrintWriter writer;
         // CheckStyle:VisibilityModifier ON
-
-        /**
-         * Construct a verbose progress reporter.
-         *
-         * @param out the output stream.
-         */
-        public VerboseProgress(PrintStream out) {
-            this.writer = new PrintWriter(out);
-        }
 
         /**
          * Construct a verbose progress reporter.

@@ -22,7 +22,7 @@ This plugin can be installed using the plugin manager:
 
 [source,sh]
 ----------------------------------------------------------------
-bin/plugin -i elasticsearch/elasticsearch-delete-by-query
+bin/plugin install elasticsearch/elasticsearch-delete-by-query
 ----------------------------------------------------------------
 
 The plugin must be installed on every node in the cluster, and each node must
@@ -34,7 +34,7 @@ The plugin can be removed with the following command:
 
 [source,sh]
 ----------------------------------------------------------------
-bin/plugin -r elasticsearch/elasticsearch-delete-by-query
+bin/plugin remove elasticsearch/elasticsearch-delete-by-query
 ----------------------------------------------------------------
 
 The node must be stopped before removing the plugin.

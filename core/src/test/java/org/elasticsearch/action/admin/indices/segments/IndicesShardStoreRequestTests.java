@@ -58,7 +58,7 @@ public class IndicesShardStoreRequestTests extends ElasticsearchIntegrationTest 
     }
 
     @Test
-    @TestLogging("action.admin.indices.shards:TRACE")
+    @TestLogging("action.admin.indices.shards:TRACE,cluster.service:TRACE")
     public void testBasic() throws Exception {
         String index = "test";
         internalCluster().ensureAtLeastNumDataNodes(2);

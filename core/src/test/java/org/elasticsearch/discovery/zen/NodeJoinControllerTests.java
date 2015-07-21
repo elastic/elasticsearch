@@ -157,7 +157,7 @@ public class NodeJoinControllerTests extends ElasticsearchTestCase {
 
             @Override
             protected void doRun() throws Exception {
-                nodeJoinController.waitToBeElectedAsMaster(requiredJoins, TimeValue.timeValueHours(30), new NodeJoinController.Callback() {
+                nodeJoinController.waitToBeElectedAsMaster(requiredJoins, TimeValue.timeValueHours(30), new NodeJoinController.ElectionCallback() {
                     @Override
                     public void onElectedAsMaster(ClusterState state) {
                         assertThat("callback called with elected as master, but state disagrees", state.nodes().localNodeMaster(), equalTo(true));
@@ -205,7 +205,7 @@ public class NodeJoinControllerTests extends ElasticsearchTestCase {
 
             @Override
             protected void doRun() throws Exception {
-                nodeJoinController.waitToBeElectedAsMaster(requiredJoins, TimeValue.timeValueHours(30), new NodeJoinController.Callback() {
+                nodeJoinController.waitToBeElectedAsMaster(requiredJoins, TimeValue.timeValueHours(30), new NodeJoinController.ElectionCallback() {
                     @Override
                     public void onElectedAsMaster(ClusterState state) {
                         assertThat("callback called with elected as master, but state disagrees", state.nodes().localNodeMaster(), equalTo(true));
@@ -323,7 +323,7 @@ public class NodeJoinControllerTests extends ElasticsearchTestCase {
 
         final AtomicReference<Throwable> failure = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        nodeJoinController.waitToBeElectedAsMaster(requiredJoins, TimeValue.timeValueMillis(1), new NodeJoinController.Callback() {
+        nodeJoinController.waitToBeElectedAsMaster(requiredJoins, TimeValue.timeValueMillis(1), new NodeJoinController.ElectionCallback() {
             @Override
             public void onElectedAsMaster(ClusterState state) {
                 assertThat("callback called with elected as master, but state disagrees", state.nodes().localNodeMaster(), equalTo(true));
@@ -440,7 +440,7 @@ public class NodeJoinControllerTests extends ElasticsearchTestCase {
         logger.info("--> waiting to be elected as master (required joins [{}])", requiredJoins);
         final AtomicReference<Throwable> failure = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        nodeJoinController.waitToBeElectedAsMaster(requiredJoins, TimeValue.timeValueHours(30), new NodeJoinController.Callback() {
+        nodeJoinController.waitToBeElectedAsMaster(requiredJoins, TimeValue.timeValueHours(30), new NodeJoinController.ElectionCallback() {
             @Override
             public void onElectedAsMaster(ClusterState state) {
                 assertThat("callback called with elected as master, but state disagrees", state.nodes().localNodeMaster(), equalTo(true));

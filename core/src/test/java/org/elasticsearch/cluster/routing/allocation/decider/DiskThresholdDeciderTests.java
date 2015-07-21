@@ -834,11 +834,11 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
         RoutingNode firstRoutingNode = new RoutingNode("node1", discoveryNode1, Arrays.asList(firstRouting, secondRouting));
         RoutingTable.Builder builder = RoutingTable.builder().add(
                 IndexRoutingTable.builder("test")
-                        .addIndexShard(new IndexShardRoutingTable.Builder(new ShardId("test", 0), false)
+                        .addIndexShard(new IndexShardRoutingTable.Builder(new ShardId("test", 0))
                                         .addShard(firstRouting)
                                         .build()
                         )
-                        .addIndexShard(new IndexShardRoutingTable.Builder(new ShardId("test", 1), false)
+                        .addIndexShard(new IndexShardRoutingTable.Builder(new ShardId("test", 1))
                                         .addShard(secondRouting)
                                         .build()
                         )
@@ -854,11 +854,11 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
         firstRoutingNode = new RoutingNode("node1", discoveryNode1, Arrays.asList(firstRouting, secondRouting));
         builder = RoutingTable.builder().add(
                 IndexRoutingTable.builder("test")
-                        .addIndexShard(new IndexShardRoutingTable.Builder(new ShardId("test", 0), false)
+                        .addIndexShard(new IndexShardRoutingTable.Builder(new ShardId("test", 0))
                                         .addShard(firstRouting)
                                         .build()
                         )
-                        .addIndexShard(new IndexShardRoutingTable.Builder(new ShardId("test", 1), false)
+                        .addIndexShard(new IndexShardRoutingTable.Builder(new ShardId("test", 1))
                                         .addShard(secondRouting)
                                         .build()
                         )

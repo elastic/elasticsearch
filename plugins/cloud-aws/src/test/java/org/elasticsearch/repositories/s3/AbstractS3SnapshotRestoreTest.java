@@ -33,6 +33,7 @@ import org.elasticsearch.cloud.aws.AbstractAwsTest;
 import org.elasticsearch.cloud.aws.AwsS3Service;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugin.cloud.aws.CloudAwsPlugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
@@ -63,7 +64,7 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTest {
                 .put(MockFSDirectoryService.RANDOM_PREVENT_DOUBLE_WRITE, false)
                 .put(MockFSDirectoryService.RANDOM_NO_DELETE_OPEN_FILE, false)
                 .put("cloud.enabled", true)
-                .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
+                .put("plugin.types", CloudAwsPlugin.class.getName())
                 .build();
     }
 

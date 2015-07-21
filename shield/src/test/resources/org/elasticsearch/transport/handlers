@@ -46,6 +46,7 @@ indices:data/write/bulk[s]
 indices:data/write/bulk[s][r]
 indices:data/write/delete[r]
 indices:data/write/index[r]
+indices:data/write/update[s]
 indices:monitor/recovery[s]
 indices:monitor/segments[s]
 indices:monitor/shard_stores

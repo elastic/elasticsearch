@@ -150,7 +150,7 @@ public abstract class Privilege<P extends Privilege<P>> {
         public static final Index SEARCH =          new Index("search",         SearchAction.NAME + "*", MultiSearchAction.NAME + "*", SuggestAction.NAME + "*");
         public static final Index GET =             new Index("get",            GetAction.NAME + "*", MultiGetAction.NAME + "*");
         public static final Index SUGGEST =         new Index("suggest",        SuggestAction.NAME + "*");
-        public static final Index INDEX =           new Index("index",          "indices:data/write/index*", "indices:data/write/update");
+        public static final Index INDEX =           new Index("index",          "indices:data/write/index*", "indices:data/write/update*");
         public static final Index DELETE =          new Index("delete",         "indices:data/write/delete*");
         public static final Index WRITE =           new Index("write",          "indices:data/write/*");
 

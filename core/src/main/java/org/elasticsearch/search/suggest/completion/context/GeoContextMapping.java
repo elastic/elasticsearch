@@ -138,7 +138,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
                         throw new ElasticsearchParseException("only two values expected");
                     }
                 } else {
-                    throw new ElasticsearchParseException("latitue must be a numeric value");
+                    throw new ElasticsearchParseException("latitude must be a numeric value");
                 }
             } else {
                 while (token != Token.END_ARRAY) {
@@ -322,7 +322,8 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
                     neighbourValues[i] = neighbours.get(i);
                 }
             } else {
-                neighbourValues = new int[0];
+                neighbourValues = new int[1];
+                neighbourValues[0] = precision;
             }
             return new GeoQueryContext(point, boost, neighbourValues);
         } else {

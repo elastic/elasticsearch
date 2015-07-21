@@ -22,6 +22,7 @@ import com.google.common.base.Predicate;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -60,6 +61,7 @@ import static org.hamcrest.Matchers.*;
 @LuceneTestCase.SuppressFileSystems("*") // TODO: clean up this test to allow extra files
 // TODO: jimfs is really broken here (throws wrong exception from detection method).
 // if its in your classpath, then do not use plugins!!!!!!
+@AwaitsFix(bugUrl = "fix these tests to not create jar hell")
 public class PluginManagerTests extends ElasticsearchIntegrationTest {
 
     @Test(expected = IllegalArgumentException.class)

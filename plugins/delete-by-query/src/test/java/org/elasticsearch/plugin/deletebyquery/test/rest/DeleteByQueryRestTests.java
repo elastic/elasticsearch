@@ -21,7 +21,10 @@ package org.elasticsearch.plugin.deletebyquery.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugin.deletebyquery.DeleteByQueryPlugin;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.rest.ElasticsearchRestTestCase;
 import org.elasticsearch.test.rest.ElasticsearchRestTestCase.Rest;
@@ -45,6 +48,13 @@ public class DeleteByQueryRestTests extends ElasticsearchRestTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
         return ElasticsearchRestTestCase.createParameters(0, 1);
+    }
+    
+    protected Settings nodeSettings(int nodeOrdinal) {
+        Settings.Builder settings = Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put("plugin.types", DeleteByQueryPlugin.class.getName());
+        return settings.build();
     }
 }
 

@@ -1346,6 +1346,7 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
             <properties>
                 <skip.unit.tests>true</skip.unit.tests>
                 <skip.integ.tests>true</skip.integ.tests>
+                <enforcer.skip>true</enforcer.skip>
             </properties>
             <build>
                 <plugins>

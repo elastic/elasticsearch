@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.admin.cluster.node.info;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -29,23 +28,26 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import java.io.IOException;
 
 public class PluginInfo implements Streamable, ToXContent {
-    public static final String DESCRIPTION_NOT_AVAILABLE = "No description found.";
-    public static final String VERSION_NOT_AVAILABLE = "NA";
 
     static final class Fields {
         static final XContentBuilderString NAME = new XContentBuilderString("name");
         static final XContentBuilderString DESCRIPTION = new XContentBuilderString("description");
         static final XContentBuilderString URL = new XContentBuilderString("url");
-        static final XContentBuilderString JVM = new XContentBuilderString("jvm");
         static final XContentBuilderString SITE = new XContentBuilderString("site");
         static final XContentBuilderString VERSION = new XContentBuilderString("version");
+        static final XContentBuilderString JVM = new XContentBuilderString("jvm");
+        static final XContentBuilderString CLASSNAME = new XContentBuilderString("classname");
+        static final XContentBuilderString ISOLATED = new XContentBuilderString("isolated");
     }
 
     private String name;
     private String description;
     private boolean site;
-    private boolean jvm;
     private String version;
+    
+    private boolean jvm;
+    private String classname;
+    private boolean isolated;
 
     public PluginInfo() {
     }
@@ -57,18 +59,16 @@ public class PluginInfo implements Streamable, ToXContent {
      * @param description Its description
      * @param site        true if it's a site plugin
      * @param jvm         true if it's a jvm plugin
-     * @param version     Version number is applicable (NA otherwise)
+     * @param version     Version number
      */
-    public PluginInfo(String name, String description, boolean site, boolean jvm, String version) {
+    public PluginInfo(String name, String description, boolean site, String version, boolean jvm, String classname, boolean isolated) {
         this.name = name;
         this.description = description;
         this.site = site;
         this.jvm = jvm;
-        if (Strings.hasText(version)) {
-            this.version = version;
-        } else {
-            this.version = VERSION_NOT_AVAILABLE;
-        }
+        this.version = version;
+        this.classname = classname;
+        this.isolated = isolated;
     }
 
     /**
@@ -97,6 +97,20 @@ public class PluginInfo implements Streamable, ToXContent {
      */
     public boolean isJvm() {
         return jvm;
+    }
+    
+    /**
+     * @return true if jvm plugin has isolated classloader
+     */
+    public boolean isIsolated() {
+        return isolated;
+    }
+    
+    /**
+     * @return jvm plugin's classname
+     */
+    public String getClassname() {
+        return classname;
     }
 
     /**
@@ -132,6 +146,8 @@ public class PluginInfo implements Streamable, ToXContent {
         this.site = in.readBoolean();
         this.jvm = in.readBoolean();
         this.version = in.readString();
+        this.classname = in.readString();
+        this.isolated = in.readBoolean();
     }
 
     @Override
@@ -141,6 +157,8 @@ public class PluginInfo implements Streamable, ToXContent {
         out.writeBoolean(site);
         out.writeBoolean(jvm);
         out.writeString(version);
+        out.writeString(classname);
+        out.writeBoolean(isolated);
     }
 
     @Override
@@ -153,6 +171,10 @@ public class PluginInfo implements Streamable, ToXContent {
             builder.field(Fields.URL, getUrl());
         }
         builder.field(Fields.JVM, jvm);
+        if (jvm) {
+            builder.field(Fields.CLASSNAME, classname);
+            builder.field(Fields.ISOLATED, isolated);
+        }
         builder.field(Fields.SITE, site);
         builder.endObject();
 
@@ -184,6 +206,10 @@ public class PluginInfo implements Streamable, ToXContent {
         sb.append(", description='").append(description).append('\'');
         sb.append(", site=").append(site);
         sb.append(", jvm=").append(jvm);
+        if (jvm) {
+            sb.append(", classname=").append(classname);
+            sb.append(", isolated=").append(isolated);
+        }
         sb.append(", version='").append(version).append('\'');
         sb.append('}');
         return sb.toString();

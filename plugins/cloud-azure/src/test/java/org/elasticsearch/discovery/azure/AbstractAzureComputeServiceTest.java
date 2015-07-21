@@ -24,7 +24,7 @@ import org.elasticsearch.cloud.azure.management.AzureComputeService;
 import org.elasticsearch.cloud.azure.management.AzureComputeService.Discovery;
 import org.elasticsearch.cloud.azure.management.AzureComputeService.Management;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugin.cloud.azure.CloudAzurePlugin;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
 public abstract class AbstractAzureComputeServiceTest extends ElasticsearchIntegrationTest {
@@ -40,7 +40,7 @@ public abstract class AbstractAzureComputeServiceTest extends ElasticsearchInteg
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder settings = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true);
+                .put("plugin.types", CloudAzurePlugin.class.getName());
         return settings.build();
     }
 

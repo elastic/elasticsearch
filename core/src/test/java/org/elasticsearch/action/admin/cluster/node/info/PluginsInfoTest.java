@@ -33,11 +33,11 @@ public class PluginsInfoTest extends ElasticsearchTestCase {
     @Test
     public void testPluginListSorted() {
         PluginsInfo pluginsInfo = new PluginsInfo(5);
-        pluginsInfo.add(new PluginInfo("c", "foo", true, true, "dummy"));
-        pluginsInfo.add(new PluginInfo("b", "foo", true, true, "dummy"));
-        pluginsInfo.add(new PluginInfo("e", "foo", true, true, "dummy"));
-        pluginsInfo.add(new PluginInfo("a", "foo", true, true, "dummy"));
-        pluginsInfo.add(new PluginInfo("d", "foo", true, true, "dummy"));
+        pluginsInfo.add(new PluginInfo("c", "foo", true, "dummy", true, "dummyclass", true));
+        pluginsInfo.add(new PluginInfo("b", "foo", true, "dummy", true, "dummyclass", true));
+        pluginsInfo.add(new PluginInfo("e", "foo", true, "dummy", true, "dummyclass", true));
+        pluginsInfo.add(new PluginInfo("a", "foo", true, "dummy", true, "dummyclass", true));
+        pluginsInfo.add(new PluginInfo("d", "foo", true, "dummy", true, "dummyclass", true));
 
         final List<PluginInfo> infos = pluginsInfo.getInfos();
         List<String> names = Lists.transform(infos, new Function<PluginInfo, String>() {

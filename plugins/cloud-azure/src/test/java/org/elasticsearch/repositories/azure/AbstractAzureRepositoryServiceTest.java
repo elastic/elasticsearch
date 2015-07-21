@@ -20,11 +20,13 @@
 package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.StorageException;
+
 import org.elasticsearch.cloud.azure.AbstractAzureTest;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugin.cloud.azure.CloudAzurePlugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.test.store.MockFSDirectoryService;
@@ -65,7 +67,7 @@ public abstract class AbstractAzureRepositoryServiceTest extends AbstractAzureTe
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.settingsBuilder()
-                .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
+                .put("plugin.types", CloudAzurePlugin.class.getName())
                 .put(Storage.API_IMPLEMENTATION, mock)
                 .put(Storage.CONTAINER, "snapshots");
 

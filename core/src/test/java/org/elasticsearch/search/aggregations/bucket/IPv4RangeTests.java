@@ -25,6 +25,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.Range.Bucket;
+import org.elasticsearch.search.aggregations.bucket.range.ipv4.IPv4RangeBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -868,5 +869,74 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
         assertThat(buckets.get(0).getFromAsString(), equalTo("10.0.0.1"));
         assertThat(buckets.get(0).getToAsString(), equalTo("10.0.0.10"));
         assertThat(buckets.get(0).getDocCount(), equalTo(0l));
+    }
+
+    @Test
+    public void cidr0Mask0() {
+        SearchResponse response = client().prepareSearch("idx_unmapped")
+                .addAggregation(ipRange("range")
+                        .field("ip")
+                        .addMaskRange("0.0.0.0/0"))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+
+        Range range = response.getAggregations().get("range");
+        assertThat(range, notNullValue());
+        assertThat(range.getName(), equalTo("range"));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(range.getBuckets().size(), equalTo(1));
+
+        Range.Bucket bucket = buckets.get(0);
+        assertThat((String) bucket.getKey(), equalTo("0.0.0.0/0"));
+
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("255.255.255.255"));
+    }
+
+    @Test
+    public void cidr0Mask1() {
+        SearchResponse response = client().prepareSearch("idx_unmapped")
+                .addAggregation(ipRange("range")
+                        .field("ip")
+                        .addMaskRange("0.0.0.0/1"))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+
+        Range range = response.getAggregations().get("range");
+        assertThat(range, notNullValue());
+        assertThat(range.getName(), equalTo("range"));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(range.getBuckets().size(), equalTo(1));
+
+        Range.Bucket bucket = buckets.get(0);
+        assertThat((String) bucket.getKey(), equalTo("0.0.0.0/1"));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("128.0.0.0"));
+    }
+
+    @Test
+    public void cidr0Mask2() {
+        SearchResponse response = client().prepareSearch("idx_unmapped")
+                .addAggregation(ipRange("range")
+                        .field("ip")
+                        .addMaskRange("0.0.0.0/2"))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+
+        Range range = response.getAggregations().get("range");
+        assertThat(range, notNullValue());
+        assertThat(range.getName(), equalTo("range"));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(range.getBuckets().size(), equalTo(1));
+
+        Range.Bucket bucket = buckets.get(0);
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("64.0.0.0"));
     }
 }

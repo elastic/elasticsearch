@@ -289,7 +289,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             try {
                 path = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
             } catch (IllegalStateException ex) {
-                logger.warn("{} failed to load shard path, trying to archive leftover", shardId);
+                logger.warn("{} failed to load shard path, trying to remove leftover", shardId);
                 try {
                     ShardPath.deleteLeftoverShardDirectory(logger, nodeEnv, lock, indexSettings);
                     path = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);

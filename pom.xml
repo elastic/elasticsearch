@@ -130,5 +130,6 @@
         <module>license</module>
         <module>shield</module>
         <module>watcher</module>
+        <module>marvel</module>
     </modules>
 </project>

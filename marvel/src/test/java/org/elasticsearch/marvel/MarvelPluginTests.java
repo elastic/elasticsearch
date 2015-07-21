@@ -9,6 +9,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.info.PluginInfo;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.marvel.agent.AgentService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -26,7 +27,7 @@ public class MarvelPluginTests extends ElasticsearchIntegrationTest {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("plugin.types", MarvelPlugin.class.getName())
+                .put("plugin.types", MarvelPlugin.class.getName() + "," + LicensePlugin.class.getName())
                 .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
                 .build();
     }

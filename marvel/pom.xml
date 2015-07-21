@@ -7,10 +7,10 @@
 
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch-marvel</artifactId>
-    <name>Elastic X-Plugins - Marvel</name>
+    <name>Elasticsearch X-Plugins - Marvel</name>
 
     <parent>
-        <groupId>org.elasticsearch</groupId>
+        <groupId>org.elasticsearch.plugin</groupId>
         <artifactId>x-plugins</artifactId>
         <version>2.0.0-beta1-SNAPSHOT</version>
     </parent>

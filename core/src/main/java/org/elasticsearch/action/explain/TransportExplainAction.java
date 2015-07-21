@@ -88,7 +88,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     }
 
     @Override
-    protected boolean resolveIndex() {
+    protected boolean resolveIndex(ExplainRequest request) {
         return true;
     }
 

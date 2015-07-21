@@ -45,6 +45,7 @@ import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.*;
 
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST)
@@ -91,8 +92,9 @@ public class IndicesShardStoreRequestTests extends ElasticsearchIntegrationTest 
         logger.info("--> disable allocation");
         disableAllocation(index);
         logger.info("--> stop random node");
+        int num = client().admin().cluster().prepareState().get().getState().nodes().getSize();
         internalCluster().stopRandomNode(new IndexNodePredicate(index));
-        ensureYellow(index);
+        assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes("" + (num - 1)));
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         List<ShardRouting> unassignedShards = clusterState.routingTable().index(index).shardsWithState(ShardRoutingState.UNASSIGNED);
         response = client().admin().indices().shardStores(Requests.indicesShardStoresRequest(index)).get();

@@ -42,7 +42,7 @@ public class IndexTypeMapperTests extends ElasticsearchSingleNodeTest {
         IndexFieldMapper indexMapper = docMapper.indexMapper();
         assertThat(indexMapper.enabled(), equalTo(true));
 
-        ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
                 .endObject()
@@ -60,7 +60,7 @@ public class IndexTypeMapperTests extends ElasticsearchSingleNodeTest {
         IndexFieldMapper indexMapper = docMapper.rootMapper(IndexFieldMapper.class);
         assertThat(indexMapper.enabled(), equalTo(false));
 
-        ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
                 .endObject()
@@ -77,7 +77,7 @@ public class IndexTypeMapperTests extends ElasticsearchSingleNodeTest {
         IndexFieldMapper indexMapper = docMapper.rootMapper(IndexFieldMapper.class);
         assertThat(indexMapper.enabled(), equalTo(false));
 
-        ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
                 .endObject()
@@ -132,7 +132,7 @@ public class IndexTypeMapperTests extends ElasticsearchSingleNodeTest {
         assertThat(indexMapper.enabled(), equalTo(true));
         assertThat(indexMapper.fieldType().stored(), equalTo(true));
 
-        ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
             .startObject()
             .field("field", "value")
             .endObject()

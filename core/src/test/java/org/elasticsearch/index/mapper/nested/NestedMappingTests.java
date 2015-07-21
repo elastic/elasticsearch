@@ -41,7 +41,7 @@ public class NestedMappingTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
-        ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
                 .nullField("nested1")
@@ -50,7 +50,7 @@ public class NestedMappingTests extends ElasticsearchSingleNodeTest {
 
         assertThat(doc.docs().size(), equalTo(1));
 
-        doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        doc = docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
                 .startArray("nested").endArray()
@@ -72,7 +72,7 @@ public class NestedMappingTests extends ElasticsearchSingleNodeTest {
         ObjectMapper nested1Mapper = docMapper.objectMappers().get("nested1");
         assertThat(nested1Mapper.nested().isNested(), equalTo(true));
 
-        ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
                 .startObject("nested1").field("field1", "1").field("field2", "2").endObject()
@@ -87,7 +87,7 @@ public class NestedMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(doc.docs().get(1).get("field"), equalTo("value"));
 
 
-        doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        doc = docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
                 .startArray("nested1")
@@ -128,7 +128,7 @@ public class NestedMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(nested2Mapper.nested().isIncludeInParent(), equalTo(false));
         assertThat(nested2Mapper.nested().isIncludeInRoot(), equalTo(false));
 
-        ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
                 .startArray("nested1")
@@ -180,7 +180,7 @@ public class NestedMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(nested2Mapper.nested().isIncludeInParent(), equalTo(true));
         assertThat(nested2Mapper.nested().isIncludeInRoot(), equalTo(false));
 
-        ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
                 .startArray("nested1")
@@ -232,7 +232,7 @@ public class NestedMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(nested2Mapper.nested().isIncludeInParent(), equalTo(true));
         assertThat(nested2Mapper.nested().isIncludeInRoot(), equalTo(false));
 
-        ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
                 .startArray("nested1")
@@ -284,7 +284,7 @@ public class NestedMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(nested2Mapper.nested().isIncludeInParent(), equalTo(false));
         assertThat(nested2Mapper.nested().isIncludeInRoot(), equalTo(true));
 
-        ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
                 .startArray("nested1")
@@ -331,7 +331,7 @@ public class NestedMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(nested1Mapper.nested().isNested(), equalTo(true));
         assertThat(nested1Mapper.dynamic(), equalTo(Dynamic.STRICT));
 
-        ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
                 .startArray("nested1")

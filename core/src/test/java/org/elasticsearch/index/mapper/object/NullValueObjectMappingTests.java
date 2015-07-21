@@ -42,7 +42,7 @@ public class NullValueObjectMappingTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
-        ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("obj1").endObject()
                 .field("value1", "test1")
@@ -51,7 +51,7 @@ public class NullValueObjectMappingTests extends ElasticsearchSingleNodeTest {
 
         assertThat(doc.rootDoc().get("value1"), equalTo("test1"));
 
-        doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .nullField("obj1")
                 .field("value1", "test1")
@@ -60,7 +60,7 @@ public class NullValueObjectMappingTests extends ElasticsearchSingleNodeTest {
 
         assertThat(doc.rootDoc().get("value1"), equalTo("test1"));
 
-        doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("obj1").field("field", "value").endObject()
                 .field("value1", "test1")

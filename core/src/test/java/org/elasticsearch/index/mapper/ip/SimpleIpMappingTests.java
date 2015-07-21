@@ -47,7 +47,7 @@ public class SimpleIpMappingTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
-        ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("ip", "127.0.0.1")
                 .endObject()
@@ -91,20 +91,20 @@ public class SimpleIpMappingTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
-        ParsedDocument doc = defaultMapper.parse("type", "1",
+        ParsedDocument doc = defaultMapper.parse("test", "type", "1",
                 XContentFactory.jsonBuilder().startObject().field("field1", "").field("field2", "10.20.30.40").endObject().bytes());
         assertThat(doc.rootDoc().getField("field1"), nullValue());
         assertThat(doc.rootDoc().getField("field2"), notNullValue());
 
         try {
-            defaultMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject().field("field2", "").endObject().bytes());
+            defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject().field("field2", "").endObject().bytes());
         } catch (MapperParsingException e) {
             assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         }
 
         // Verify that the default is false
         try {
-            defaultMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject().field("field3", "").endObject().bytes());
+            defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject().field("field3", "").endObject().bytes());
         } catch (MapperParsingException e) {
             assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         }
@@ -112,12 +112,12 @@ public class SimpleIpMappingTests extends ElasticsearchSingleNodeTest {
         // Unless the global ignore_malformed option is set to true
         Settings indexSettings = settingsBuilder().put("index.mapping.ignore_malformed", true).build();
         defaultMapper = createIndex("test2", indexSettings).mapperService().documentMapperParser().parse(mapping);
-        doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject().field("field3", "").endObject().bytes());
+        doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject().field("field3", "").endObject().bytes());
         assertThat(doc.rootDoc().getField("field3"), nullValue());
 
         // This should still throw an exception, since field2 is specifically set to ignore_malformed=false
         try {
-            defaultMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject().field("field2", "").endObject().bytes());
+            defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject().field("field2", "").endObject().bytes());
         } catch (MapperParsingException e) {
             assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         }

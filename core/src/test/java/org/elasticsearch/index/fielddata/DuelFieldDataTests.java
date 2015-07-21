@@ -77,7 +77,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
 
             doc = doc.endObject();
 
-            final ParsedDocument d = mapper.parse("type", Integer.toString(i), doc.bytes());
+            final ParsedDocument d = mapper.parse("test", "type", Integer.toString(i), doc.bytes());
 
             writer.addDocument(d.rootDoc());
 
@@ -169,7 +169,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
             }
             doc = doc.endObject();
 
-            final ParsedDocument d = mapper.parse("type", Integer.toString(i), doc.bytes());
+            final ParsedDocument d = mapper.parse("test", "type", Integer.toString(i), doc.bytes());
 
             writer.addDocument(d.rootDoc());
             if (random.nextInt(10) == 0) {
@@ -255,7 +255,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
             }
             doc = doc.endArray().endObject();
 
-            final ParsedDocument d = mapper.parse("type", Integer.toString(i), doc.bytes());
+            final ParsedDocument d = mapper.parse("test", "type", Integer.toString(i), doc.bytes());
 
             writer.addDocument(d.rootDoc());
             if (random.nextInt(10) == 0) {
@@ -423,7 +423,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
                 }
             }
             doc = doc.endArray().endObject();
-            final ParsedDocument d = mapper.parse("type", Integer.toString(i), doc.bytes());
+            final ParsedDocument d = mapper.parse("test", "type", Integer.toString(i), doc.bytes());
 
             writer.addDocument(d.rootDoc());
             if (random.nextInt(10) == 0) {

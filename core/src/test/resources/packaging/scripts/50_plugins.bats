@@ -37,14 +37,10 @@ setup() {
     # Cleans everything for every test execution
     clean_before_test
 
-    # Download Marvel and Shield
-    MARVEL_ZIP="$PWD/marvel.zip"
+    # Download Shield
     SHIELD_ZIP="$PWD/shield.zip"
 
     if [ "$BATS_TEST_NUMBER" -eq 1 ]; then
-        if [ ! -e "$MARVEL_ZIP" ]; then
-            wget --quiet -O "$MARVEL_ZIP" "http://download.elasticsearch.org/elasticsearch/marvel/marvel-latest.zip"
-        fi
         if [ ! -e "$SHIELD_ZIP" ]; then
             wget --quiet -O "$SHIELD_ZIP" "http://download.elasticsearch.org/elasticsearch/shield/shield-latest.zip"
         fi
@@ -66,91 +62,6 @@ install_package() {
 ##################################
 # Install plugins with DEB/RPM package
 ##################################
-@test "[PLUGINS] install marvel plugin" {
-
-    # Install the package
-    install_package
-
-    # Checks that the package is correctly installed
-    verify_package_installation
-
-    # Checks that plugin archive is available
-    [ -e "$MARVEL_ZIP" ]
-
-    # Install Marvel
-    run /usr/share/elasticsearch/bin/plugin -i elasticsearch/marvel/latest -u "file://$MARVEL_ZIP"
-    [ "$status" -eq 0 ]
-
-    # Checks that Marvel is correctly installed
-    assert_file_exist "/usr/share/elasticsearch/plugins/marvel"
-
-    start_elasticsearch_service
-
-    run curl -XGET 'http://localhost:9200/_cat/plugins?v=false&h=component'
-    [ "$status" -eq 0 ]
-    echo "$output" | grep -w "marvel"
-
-    stop_elasticsearch_service
-
-    # Remove the plugin
-    run /usr/share/elasticsearch/bin/plugin -r elasticsearch/marvel/latest
-    [ "$status" -eq 0 ]
-
-    # Checks that the plugin is correctly removed
-    assert_file_not_exist "/usr/share/elasticsearch/plugins/marvel"
-}
-
-@test "[PLUGINS] install marvel plugin with a custom path.plugins" {
-
-    # Install the package
-    install_package
-
-    # Checks that the package is correctly installed
-    verify_package_installation
-
-    # Creates a temporary directory
-    TEMP_PLUGINS_DIR=`mktemp -d 2>/dev/null || mktemp -d -t 'tmp'`
-
-    # Modify the path.plugins setting in configuration file
-    echo "path.plugins: $TEMP_PLUGINS_DIR" >> "/etc/elasticsearch/elasticsearch.yml"
-
-    # Sets privileges
-    run chown -R root:elasticsearch "$TEMP_PLUGINS_DIR"
-    [ "$status" -eq 0 ]
-
-    run chmod -R 750 "$TEMP_PLUGINS_DIR"
-    [ "$status" -eq 0 ]
-
-    # Checks that plugin archive is available
-    [ -e "$MARVEL_ZIP" ]
-
-    # Install Marvel
-    run /usr/share/elasticsearch/bin/plugin -i elasticsearch/marvel/latest -u "file://$MARVEL_ZIP"
-    [ "$status" -eq 0 ]
-
-    # Checks that Marvel is correctly installed
-    assert_file_exist "$TEMP_PLUGINS_DIR/marvel"
-
-    start_elasticsearch_service
-
-    run curl -XGET 'http://localhost:9200/_cat/plugins?v=false&h=component'
-    [ "$status" -eq 0 ]
-    echo "$output" | grep -w "marvel"
-
-    stop_elasticsearch_service
-
-    # Remove the plugin
-    run /usr/share/elasticsearch/bin/plugin -r elasticsearch/marvel/latest
-    [ "$status" -eq 0 ]
-
-    # Checks that the plugin is correctly removed
-    assert_file_not_exist "$TEMP_PLUGINS_DIR/marvel"
-
-    # Delete the custom plugins directory
-    run rm -rf "$TEMP_PLUGINS_DIR"
-    [ "$status" -eq 0 ]
-}
-
 @test "[PLUGINS] install shield plugin" {
 
     # Install the package
@@ -163,7 +74,7 @@ install_package() {
     [ -e "$SHIELD_ZIP" ]
 
     # Install Shield
-    run /usr/share/elasticsearch/bin/plugin -i elasticsearch/shield/latest -u "file://$SHIELD_ZIP"
+    run /usr/share/elasticsearch/bin/plugin install elasticsearch/shield/latest -u "file://$SHIELD_ZIP"
     [ "$status" -eq 0 ]
 
     # Checks that Shield is correctly installed
@@ -178,7 +89,7 @@ install_package() {
     assert_file_exist "/usr/share/elasticsearch/plugins/shield"
 
     # Remove the plugin
-    run /usr/share/elasticsearch/bin/plugin -r elasticsearch/shield/latest
+    run /usr/share/elasticsearch/bin/plugin remove elasticsearch/shield/latest
     [ "$status" -eq 0 ]
 
     # Checks that the plugin is correctly removed
@@ -216,7 +127,7 @@ install_package() {
     [ -e "$SHIELD_ZIP" ]
 
     # Install Shield
-    run /usr/share/elasticsearch/bin/plugin -i elasticsearch/shield/latest -u "file://$SHIELD_ZIP"
+    run /usr/share/elasticsearch/bin/plugin install elasticsearch/shield/latest -u "file://$SHIELD_ZIP"
     [ "$status" -eq 0 ]
 
     # Checks that Shield is correctly installed
@@ -231,7 +142,7 @@ install_package() {
     assert_file_exist "$TEMP_PLUGINS_DIR/shield"
 
     # Remove the plugin
-    run /usr/share/elasticsearch/bin/plugin -r elasticsearch/shield/latest
+    run /usr/share/elasticsearch/bin/plugin remove elasticsearch/shield/latest
     [ "$status" -eq 0 ]
 
     # Checks that the plugin is correctly removed
@@ -241,7 +152,7 @@ install_package() {
     assert_file_exist "/etc/elasticsearch/shield/roles.yml"
     assert_file_exist "/etc/elasticsearch/shield/users"
     assert_file_exist "/etc/elasticsearch/shield/users_roles"
-    assert_file_not_exist "$TEMP_PLUGINS_DIR/marvel"
+    assert_file_not_exist "$TEMP_PLUGINS_DIR/shield"
 
     # Delete the custom plugins directory
     run rm -rf "$TEMP_PLUGINS_DIR"
@@ -283,7 +194,7 @@ install_package() {
     [ -e "$SHIELD_ZIP" ]
 
     # Install Shield
-    run /usr/share/elasticsearch/bin/plugin -i elasticsearch/shield/latest -u "file://$SHIELD_ZIP"
+    run /usr/share/elasticsearch/bin/plugin install elasticsearch/shield/latest -u "file://$SHIELD_ZIP"
     [ "$status" -eq 0 ]
 
     # Checks that Shield is correctly installed
@@ -298,7 +209,7 @@ install_package() {
     assert_file_exist "/usr/share/elasticsearch/plugins/shield"
 
     # Remove the plugin
-    run /usr/share/elasticsearch/bin/plugin -r elasticsearch/shield/latest
+    run /usr/share/elasticsearch/bin/plugin remove elasticsearch/shield/latest
     [ "$status" -eq 0 ]
 
     # Checks that the plugin is correctly removed
@@ -347,7 +258,7 @@ install_package() {
     [ -e "$SHIELD_ZIP" ]
 
     # Install Shield
-    run /usr/share/elasticsearch/bin/plugin -i elasticsearch/shield/latest -u "file://$SHIELD_ZIP"
+    run /usr/share/elasticsearch/bin/plugin install elasticsearch/shield/latest -u "file://$SHIELD_ZIP"
     [ "$status" -eq 0 ]
 
     # Checks that Shield is correctly installed
@@ -362,7 +273,7 @@ install_package() {
     assert_file_exist "/usr/share/elasticsearch/plugins/shield"
 
     # Remove the plugin
-    run /usr/share/elasticsearch/bin/plugin -r elasticsearch/shield/latest
+    run /usr/share/elasticsearch/bin/plugin remove elasticsearch/shield/latest
     [ "$status" -eq 0 ]
 
     # Checks that the plugin is correctly removed

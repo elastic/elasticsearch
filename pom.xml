@@ -581,7 +581,6 @@
                         <jvmOutputAction>warn</jvmOutputAction>
                         <leaveTemporary>true</leaveTemporary>
                         <parallelism>${tests.jvms}</parallelism>
-                        <ifNoTests>${tests.ifNoTests}</ifNoTests>
                         <assertions enableSystemAssertions="true">
                             <enable/>
                             <disable package="${tests.assertion.disabled}"/>
@@ -691,6 +690,7 @@
                                 <goal>junit4</goal>
                             </goals>
                             <configuration>
+                                <ifNoTests>${tests.ifNoTests}</ifNoTests>
                                 <skipTests>${skip.unit.tests}</skipTests>
                                 <listeners>
                                     <report-ant-xml mavenExtensions="true"
@@ -713,6 +713,7 @@
                                 <goal>junit4</goal>
                             </goals>
                             <configuration>
+                                <ifNoTests>warn</ifNoTests>
                                 <haltOnFailure>false</haltOnFailure>
                                 <skipTests>${skip.integ.tests}</skipTests>
                                 <listeners>
@@ -753,6 +754,7 @@
                     <version>2.18.1</version>
                     <configuration>
                         <skip>${skip.integ.tests}</skip>
+                        <failIfNoTests>true</failIfNoTests>
                     </configuration>
                     <executions>
                         <execution>

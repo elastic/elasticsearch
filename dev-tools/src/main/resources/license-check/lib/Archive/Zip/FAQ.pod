@@ -1,0 +1,344 @@
+=head1 NAME
+
+Archive::Zip::FAQ - Answers to a few frequently asked questions about Archive::Zip
+
+=head1 DESCRIPTION
+
+It seems that I keep answering the same questions over and over again. I
+assume that this is because my documentation is deficient, rather than that
+people don't read the documentation.
+
+So this FAQ is an attempt to cut down on the number of personal answers I have
+to give. At least I can now say "You I<did> read the FAQ, right?".
+
+The questions are not in any particular order. The answers assume the current
+version of Archive::Zip; some of the answers depend on newly added/fixed
+functionality.
+
+=head1 Install problems on RedHat 8 or 9 with Perl 5.8.0
+
+B<Q:> Archive::Zip won't install on my RedHat 9 system! It's broke!
+
+B<A:> This has become something of a FAQ.
+Basically, RedHat broke some versions of Perl by setting LANG to UTF8.
+They apparently have a fixed version out as an update.
+
+You might try running CPAN or creating your Makefile after exporting the LANG
+environment variable as
+
+C<LANG=C>
+
+L<https://bugzilla.redhat.com/bugzilla/show_bug.cgi?id=87682>
+
+=head1 Why is my zip file so big?
+
+B<Q:> My zip file is actually bigger than what I stored in it! Why?
+
+B<A:> Some things to make sure of:
+
+=over 4
+
+=item Make sure that you are requesting COMPRESSION_DEFLATED if you are storing strings.
+
+$member->desiredCompressionMethod( COMPRESSION_DEFLATED );
+
+=item Don't make lots of little files if you can help it.
+
+Since zip computes the compression tables for each member, small
+members without much entropy won't compress well.  Instead, if you've
+got lots of repeated strings in your data, try to combine them into
+one big member.
+
+=item Make sure that you are requesting COMPRESSION_STORED if you are storing things that are already compressed.
+
+If you're storing a .zip, .jpg, .mp3, or other compressed file in a zip,
+then don't compress them again. They'll get bigger.
+
+=back
+
+=head1 Sample code?
+
+B<Q:> Can you send me code to do (whatever)?
+
+B<A:> Have you looked in the C<examples/> directory yet? It contains:
+
+=over 4
+
+=item examples/calcSizes.pl    -- How to find out how big a Zip file will be before writing it
+
+=item examples/copy.pl         -- Copies one Zip file to another
+
+=item examples/extract.pl      -- extract file(s) from a Zip
+
+=item examples/mailZip.pl      -- make and mail a zip file
+
+=item examples/mfh.pl          -- demo for use of MockFileHandle
+
+=item examples/readScalar.pl   -- shows how to use IO::Scalar as the source of a Zip read
+
+=item examples/selfex.pl       -- a brief example of a self-extracting Zip
+
+=item examples/unzipAll.pl     -- uses Archive::Zip::Tree to unzip an entire Zip
+
+=item examples/updateZip.pl    -- shows how to read/modify/write a Zip
+
+=item examples/updateTree.pl   -- shows how to update a Zip in place
+
+=item examples/writeScalar.pl  -- shows how to use IO::Scalar as the destination of a Zip write
+
+=item examples/writeScalar2.pl -- shows how to use IO::String as the destination of a Zip write
+
+=item examples/zip.pl          -- Constructs a Zip file
+
+=item examples/zipcheck.pl     -- One way to check a Zip file for validity
+
+=item examples/zipinfo.pl      -- Prints out information about a Zip archive file
+
+=item examples/zipGrep.pl      -- Searches for text in Zip files
+
+=item examples/ziptest.pl      -- Lists a Zip file and checks member CRCs
+
+=item examples/ziprecent.pl    -- Puts recent files into a zipfile
+
+=item examples/ziptest.pl      -- Another way to check a Zip file for validity
+
+=back
+
+=head1 Can't Read/modify/write same Zip file
+
+B<Q:> Why can't I open a Zip file, add a member, and write it back? I get an
+error message when I try.
+
+B<A:> Because Archive::Zip doesn't (and can't, generally) read file contents into memory,
+the original Zip file is required to stay around until the writing of the new
+file is completed.
+
+The best way to do this is to write the Zip to a temporary file and then
+rename the temporary file to have the old name (possibly after deleting the
+old one).
+
+Archive::Zip v1.02 added the archive methods C<overwrite()> and
+C<overwriteAs()> to do this simply and carefully.
+
+See C<examples/updateZip.pl> for an example of this technique.
+
+=head1 File creation time not set
+
+B<Q:> Upon extracting files, I see that their modification (and access) times are
+set to the time in the Zip archive. However, their creation time is not set to
+the same time. Why?
+
+B<A:> Mostly because Perl doesn't give cross-platform access to I<creation time>.
+Indeed, many systems (like Unix) don't support such a concept.
+However, if yours does, you can easily set it. Get the modification time from
+the member using C<lastModTime()>.
+
+=head1 Can't use Archive::Zip on gzip files
+
+B<Q:> Can I use Archive::Zip to extract Unix gzip files?
+
+B<A:> No.
+
+There is a distinction between Unix gzip files, and Zip archives that 
+also can use the gzip compression.
+
+Depending on the format of the gzip file, you can use L<Compress::Raw::Zlib>, or
+L<Archive::Tar> to decompress it (and de-archive it in the case of Tar files).
+
+You can unzip PKZIP/WinZip/etc/ archives using Archive::Zip (that's what 
+it's for) as long as any compressed members are compressed using 
+Deflate compression.
+
+=head1 Add a directory/tree to a Zip
+
+B<Q:> How can I add a directory (or tree) full of files to a Zip?
+
+B<A:> You can use the Archive::Zip::addTree*() methods:
+
+   use Archive::Zip;
+   my $zip = Archive::Zip->new();
+   # add all readable files and directories below . as xyz/*
+   $zip->addTree( '.', 'xyz' );	
+   # add all readable plain files below /abc as def/*
+   $zip->addTree( '/abc', 'def', sub { -f && -r } );	
+   # add all .c files below /tmp as stuff/*
+   $zip->addTreeMatching( '/tmp', 'stuff', '\.c$' );
+   # add all .o files below /tmp as stuff/* if they aren't writable
+   $zip->addTreeMatching( '/tmp', 'stuff', '\.o$', sub { ! -w } );
+   # add all .so files below /tmp that are smaller than 200 bytes as stuff/*
+   $zip->addTreeMatching( '/tmp', 'stuff', '\.o$', sub { -s < 200 } );
+   # and write them into a file
+   $zip->writeToFileNamed('xxx.zip');
+
+=head1 Extract a directory/tree
+
+B<Q:> How can I extract some (or all) files from a Zip into a different
+directory?
+
+B<A:> You can use the Archive::Zip::extractTree() method:
+??? ||
+
+   # now extract the same files into /tmpx
+   $zip->extractTree( 'stuff', '/tmpx' );
+
+=head1 Update a directory/tree
+
+B<Q:> How can I update a Zip from a directory tree, adding or replacing only
+the newer files?
+
+B<A:> You can use the Archive::Zip::updateTree() method that was added in version 1.09.
+
+=head1 Zip times might be off by 1 second
+
+B<Q:> It bothers me greatly that my file times are wrong by one second about half
+the time. Why don't you do something about it?
+
+B<A:> Get over it. This is a result of the Zip format storing times in DOS
+format, which has a resolution of only two seconds.
+
+=head1 Zip times don't include time zone information
+
+B<Q:> My file times don't respect time zones. What gives?
+
+B<A:> If this is important to you, please submit patches to read the various
+Extra Fields that encode times with time zones. I'm just using the DOS
+Date/Time, which doesn't have a time zone.
+
+=head1 How do I make a self-extracting Zip
+
+B<Q:> I want to make a self-extracting Zip file. Can I do this?
+
+B<A:> Yes. You can write a self-extracting archive stub (that is, a version of
+unzip) to the output filehandle that you pass to writeToFileHandle(). See
+examples/selfex.pl for how to write a self-extracting archive.
+
+However, you should understand that this will only work on one kind of
+platform (the one for which the stub was compiled).
+
+=head1 How can I deal with Zips with prepended garbage (i.e. from Sircam)
+
+B<Q:> How can I tell if a Zip has been damaged by adding garbage to the
+beginning or inside the file?
+
+B<A:> I added code for this for the Amavis virus scanner. You can query archives
+for their 'eocdOffset' property, which should be 0:
+
+  if ($zip->eocdOffset > 0)
+    { warn($zip->eocdOffset . " bytes of garbage at beginning or within Zip") }
+
+When members are extracted, this offset will be used to adjust the start of
+the member if necessary.
+
+=head1 Can't extract Shrunk files
+
+B<Q:> I'm trying to extract a file out of a Zip produced by PKZIP, and keep
+getting this error message:
+
+  error: Unsupported compression combination: read 6, write 0
+
+B<A:> You can't uncompress this archive member. Archive::Zip only supports uncompressed
+members, and compressed members that are compressed using the compression
+supported by Compress::Raw::Zlib. That means only Deflated and Stored members.
+
+Your file is compressed using the Shrink format, which is not supported by
+Compress::Raw::Zlib.
+
+You could, perhaps, use a command-line UnZip program (like the Info-Zip
+one) to extract this.
+
+=head1 Can't do decryption
+
+B<Q:> How do I decrypt encrypted Zip members?
+
+B<A:> With some other program or library. Archive::Zip doesn't support decryption,
+and probably never will (unless I<you> write it).
+
+=head1 How to test file integrity?
+
+B<Q:> How can Archive::Zip can test the validity of a Zip file?
+
+B<A:> If you try to decompress the file, the gzip streams will report errors 
+if you have garbage. Most of the time.
+
+If you try to open the file and a central directory structure can't be 
+found, an error will be reported.
+
+When a file is being read, if we can't find a proper PK.. signature in 
+the right places we report a format error.
+
+If there is added garbage at the beginning of a Zip file (as inserted 
+by some viruses), you can find out about it, but Archive::Zip will ignore it, 
+and you can still use the archive. When it gets written back out the 
+added stuff will be gone.
+
+There are two ready-to-use utilities in the examples directory that can
+be used to test file integrity, or that you can use as examples
+for your own code:
+
+=over 4
+
+=item examples/zipcheck.pl shows how to use an attempted extraction to test a file.
+
+=item examples/ziptest.pl shows how to test CRCs in a file.
+
+=back
+
+=head1 Duplicate files in Zip?
+
+B<Q:> Archive::Zip let me put the same file in my Zip twice! Why don't you prevent this?
+
+B<A:> As far as I can tell, this is not disallowed by the Zip spec. If you
+think it's a bad idea, check for it yourself:
+
+  $zip->addFile($someFile, $someName) unless $zip->memberNamed($someName);
+
+I can even imagine cases where this might be useful (for instance, multiple
+versions of files).
+
+=head1 File ownership/permissions/ACLS/etc
+
+B<Q:> Why doesn't Archive::Zip deal with file ownership, ACLs, etc.?
+
+B<A:> There is no standard way to represent these in the Zip file format. If
+you want to send me code to properly handle the various extra fields that
+have been used to represent these through the years, I'll look at it.
+
+=head1 I can't compile but ActiveState only has an old version of Archive::Zip
+
+B<Q:> I've only installed modules using ActiveState's PPM program and
+repository. But they have a much older version of Archive::Zip than is in CPAN. Will
+you send me a newer PPM?
+
+B<A:> Probably not, unless I get lots of extra time. But there's no reason you
+can't install the version from CPAN. Archive::Zip is pure Perl, so all you need is
+NMAKE, which you can get for free from Microsoft (see the FAQ in the
+ActiveState documentation for details on how to install CPAN modules).
+
+=head1 My JPEGs (or MP3's) don't compress when I put them into Zips!
+
+B<Q:> How come my JPEGs and MP3's don't compress much when I put them into Zips?
+
+B<A:> Because they're already compressed.
+
+=head1 Under Windows, things lock up/get damaged
+
+B<Q:> I'm using Windows. When I try to use Archive::Zip, my machine locks up/makes
+funny sounds/displays a BSOD/corrupts data. How can I fix this?
+
+B<A:> First, try the newest version of Compress::Raw::Zlib. I know of
+Windows-related problems prior to v1.14 of that library.
+
+=head1 Zip contents in a scalar
+
+B<Q:> I want to read a Zip file from (or write one to) a scalar variable instead
+of a file. How can I do this?
+
+B<A:> Use C<IO::String> and the C<readFromFileHandle()> and
+C<writeToFileHandle()> methods.
+See C<examples/readScalar.pl> and C<examples/writeScalar.pl>.
+
+=head1 Reading from streams
+
+B<Q:> How do I read from a stream (like for the Info-Zip C<funzip> program)?
+
+B<A:> This is not currently supported, though writing to a stream is.

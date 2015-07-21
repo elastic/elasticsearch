@@ -172,59 +172,33 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                 listener.onFailure(failure);
                 return;
             }
-            if (shardRouting.currentNodeId().equals(nodes.localNodeId())) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("executing [{}] on shard [{}]", internalRequest.request(), shardRouting.shardId());
-                }
-                try {
-                    if (internalRequest.request().operationThreaded()) {
-                        threadPool.executor(executor).execute(new Runnable() {
-                            @Override
-                            public void run() {
-                                try {
-                                    Response response = shardOperation(internalRequest.request(), shardRouting.shardId());
-                                    listener.onResponse(response);
-                                } catch (Throwable e) {
-                                    onFailure(shardRouting, e);
-                                }
-                            }
-                        });
-                    } else {
-                        final Response response = shardOperation(internalRequest.request(), shardRouting.shardId());
+            DiscoveryNode node = nodes.get(shardRouting.currentNodeId());
+            if (node == null) {
+                onFailure(shardRouting, new NoShardAvailableActionException(shardIt.shardId()));
+            } else {
+                internalRequest.request().internalShardId = shardRouting.shardId();
+                transportService.sendRequest(node, transportShardAction, internalRequest.request(), new BaseTransportResponseHandler<Response>() {
+
+                    @Override
+                    public Response newInstance() {
+                        return newResponse();
+                    }
+
+                    @Override
+                    public String executor() {
+                        return ThreadPool.Names.SAME;
+                    }
+
+                    @Override
+                    public void handleResponse(final Response response) {
                         listener.onResponse(response);
                     }
-                } catch (Throwable e) {
-                    onFailure(shardRouting, e);
-                }
-            } else {
-                DiscoveryNode node = nodes.get(shardRouting.currentNodeId());
-                if (node == null) {
-                    onFailure(shardRouting, new NoShardAvailableActionException(shardIt.shardId()));
-                } else {
-                    internalRequest.request().internalShardId = shardRouting.shardId();
-                    transportService.sendRequest(node, transportShardAction, internalRequest.request(), new BaseTransportResponseHandler<Response>() {
 
-                        @Override
-                        public Response newInstance() {
-                            return newResponse();
-                        }
-
-                        @Override
-                        public String executor() {
-                            return ThreadPool.Names.SAME;
-                        }
-
-                        @Override
-                        public void handleResponse(final Response response) {
-                            listener.onResponse(response);
-                        }
-
-                        @Override
-                        public void handleException(TransportException exp) {
-                            onFailure(shardRouting, exp);
-                        }
-                    });
-                }
+                    @Override
+                    public void handleException(TransportException exp) {
+                        onFailure(shardRouting, exp);
+                    }
+                });
             }
         }
     }

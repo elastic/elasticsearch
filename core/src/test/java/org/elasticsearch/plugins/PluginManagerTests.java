@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.plugins;
 
-import com.google.common.base.Joiner;
 import com.google.common.base.Predicate;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.util.LuceneTestCase;
@@ -28,7 +27,6 @@ import org.elasticsearch.action.admin.cluster.node.info.PluginInfo;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolTestCase.CaptureOutputTerminal;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
@@ -474,33 +472,6 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         } catch (IllegalArgumentException e) {
             // We expect that error
         }
-    }
-
-    @Test
-    public void testHelpWorks() throws IOException {
-        assertStatusOk("--help");
-        assertHelp("/org/elasticsearch/plugins/plugin.help");
-
-        terminal.getTerminalOutput().clear();
-        assertStatusOk("install -h");
-        assertHelp("/org/elasticsearch/plugins/plugin-install.help");
-        for (String plugin : PluginManager.OFFICIAL_PLUGINS) {
-            assertThat(terminal.getTerminalOutput(), hasItem(containsString(plugin)));
-        }
-
-        terminal.getTerminalOutput().clear();
-        assertStatusOk("remove --help");
-        assertHelp("/org/elasticsearch/plugins/plugin-remove.help");
-
-        terminal.getTerminalOutput().clear();
-        assertStatusOk("list -h");
-        assertHelp("/org/elasticsearch/plugins/plugin-list.help");
-    }
-
-    private void assertHelp(String classPath) throws IOException {
-        String expectedDocs = Streams.copyToStringFromClasspath(classPath);
-        String returnedDocs = Joiner.on("").join(terminal.getTerminalOutput());
-        assertThat(returnedDocs.trim(), is(expectedDocs.trim()));
     }
 
     /**

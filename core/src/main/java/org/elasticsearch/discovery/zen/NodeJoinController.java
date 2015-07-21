@@ -21,12 +21,14 @@ package org.elasticsearch.discovery.zen;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateNonMasterUpdateTask;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -77,11 +79,11 @@ public class NodeJoinController extends AbstractComponent {
      * @param callback            the result of the election (success or failure) will be communicated by calling methods on this
      *                            object
      **/
-    public void waitToBeElectedAsMaster(int requiredMasterJoins, TimeValue timeValue, final Callback callback) {
+    public void waitToBeElectedAsMaster(int requiredMasterJoins, TimeValue timeValue, final ElectionCallback callback) {
         assert accumulateJoins.get() : "waitToBeElectedAsMaster is called we are not accumulating joins";
 
         final CountDownLatch done = new CountDownLatch(1);
-        final ElectionContext newContext = new ElectionContext(callback, requiredMasterJoins) {
+        final ElectionContext newContext = new ElectionContext(callback, requiredMasterJoins, clusterService) {
             @Override
             void onClose() {
                 if (electionContext.compareAndSet(this, null)) {
@@ -95,7 +97,7 @@ public class NodeJoinController extends AbstractComponent {
 
         if (electionContext.compareAndSet(null, newContext) == false) {
             // should never happen, but be conservative
-            callback.onFailure(new IllegalStateException("double waiting for election"));
+            failContext(newContext, new IllegalStateException("double waiting for election"));
             return;
         }
         try {
@@ -118,11 +120,33 @@ public class NodeJoinController extends AbstractComponent {
                 logger.trace("timed out waiting to be elected. waited [{}]. pending node joins [{}]", timeValue, pendingNodes);
             }
             // callback will clear the context, if it's active
-            newContext.onFailure(new ElasticsearchTimeoutException("timed out waiting to be elected"));
+            failContext(newContext, new ElasticsearchTimeoutException("timed out waiting to be elected"));
         } catch (Throwable t) {
             logger.error("unexpected failure while waiting for incoming joins", t);
-            newContext.onFailure(t);
+            failContext(newContext, "unexpected failure while waiting for pending joins", t);
         }
+    }
+
+    private void failContext(final ElectionContext context, final Throwable throwable) {
+        failContext(context, throwable.getMessage(), throwable);
+    }
+
+    /** utility method to fail the given election context under the cluster state thread */
+    private void failContext(final ElectionContext context, final String reason, final Throwable throwable) {
+        clusterService.submitStateUpdateTask("zen-disco-join(failure [" + reason + "])", Priority.IMMEDIATE, new ClusterStateNonMasterUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                context.onFailure(throwable);
+                return currentState;
+            }
+
+            @Override
+            public void onFailure(String source, Throwable updateFailure) {
+                logger.warn("unexpected error while trying to fail election context due to [{}]. original exception [{}]", updateFailure, reason, throwable);
+                context.onFailure(updateFailure);
+            }
+        });
+
     }
 
     /**
@@ -252,23 +276,33 @@ public class NodeJoinController extends AbstractComponent {
     }
 
 
-    public interface Callback {
+    public interface ElectionCallback {
+        /**
+         * called when the local node is successfully elected as master
+         * Guaranteed to be called on the cluster state update thread
+         **/
         void onElectedAsMaster(ClusterState state);
 
+        /**
+         * called when the local node failed to be elected as master
+         * Guaranteed to be called on the cluster state update thread
+         **/
         void onFailure(Throwable t);
     }
 
-    static abstract class ElectionContext implements Callback {
-        private final Callback callback;
+    static abstract class ElectionContext implements ElectionCallback {
+        private final ElectionCallback callback;
         private final int requiredMasterJoins;
+        private final ClusterService clusterService;
 
         /** set to true after enough joins have been seen and a cluster update task is submitted to become master */
         final AtomicBoolean pendingSetAsMasterTask = new AtomicBoolean();
         final AtomicBoolean closed = new AtomicBoolean();
 
-        ElectionContext(Callback callback, int requiredMasterJoins) {
+        ElectionContext(ElectionCallback callback, int requiredMasterJoins, ClusterService clusterService) {
             this.callback = callback;
             this.requiredMasterJoins = requiredMasterJoins;
+            this.clusterService = clusterService;
         }
 
         abstract void onClose();
@@ -276,6 +310,8 @@ public class NodeJoinController extends AbstractComponent {
         @Override
         public void onElectedAsMaster(ClusterState state) {
             assert pendingSetAsMasterTask.get() : "onElectedAsMaster called but pendingSetAsMasterTask is not set";
+            assertClusterStateThread();
+            assert state.nodes().localNodeMaster() : "onElectedAsMaster called but local node is not master";
             if (closed.compareAndSet(false, true)) {
                 try {
                     onClose();
@@ -287,6 +323,7 @@ public class NodeJoinController extends AbstractComponent {
 
         @Override
         public void onFailure(Throwable t) {
+            assertClusterStateThread();
             if (closed.compareAndSet(false, true)) {
                 try {
                     onClose();
@@ -294,6 +331,10 @@ public class NodeJoinController extends AbstractComponent {
                     callback.onFailure(t);
                 }
             }
+        }
+
+        private void assertClusterStateThread() {
+            assert clusterService instanceof InternalClusterService == false || ((InternalClusterService) clusterService).assertClusterStateThread();
         }
     }
 

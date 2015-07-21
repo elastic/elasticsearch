@@ -194,7 +194,8 @@ public class TestClusterService implements ClusterService {
         try {
             newState = updateTask.execute(previousClusterState);
         } catch (Exception e) {
-            throw new ElasticsearchException("failed to process cluster state update task [" + source + "]", e);
+            updateTask.onFailure(source, new ElasticsearchException("failed to process cluster state update task [" + source + "]", e));
+            return;
         }
         setStateAndNotifyListeners(newState);
         if (updateTask instanceof ProcessedClusterStateUpdateTask) {

@@ -21,25 +21,172 @@ package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.suggest.xdocument.ContextSuggestField;
 import org.elasticsearch.common.xcontent.*;
-import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.search.suggest.completion.context.CategoryContextMapping;
 import org.elasticsearch.search.suggest.completion.context.CategoryQueryContext;
 import org.elasticsearch.search.suggest.completion.context.ContextBuilder;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
 import java.util.*;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isIn;
 
-public class CategoryContextMappingTest extends ElasticsearchTestCase {
+public class CategoryContextMappingTest extends ElasticsearchSingleNodeTest {
 
     @Test
-    public void testParsingQueryContextBasic() throws Exception {
-        XContentBuilder builder = XContentFactory.jsonBuilder().value("context1");
+    public void testIndexingWithNoContexts() throws Exception {
+        String mapping = jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("completion")
+                .field("type", "completion")
+                .startArray("contexts")
+                .startObject()
+                .field("name", "ctx")
+                .field("type", "category")
+                .endObject()
+                .endArray()
+                .endObject().endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
+        MappedFieldType completionFieldType = fieldMapper.fieldType();
+        ParsedDocument parsedDocument = defaultMapper.parse("test", "type1", "1", jsonBuilder()
+                .startObject()
+                .startArray("completion")
+                .startObject()
+                .array("input", "suggestion1", "suggestion2")
+                .field("weight", 3)
+                .endObject()
+                .startObject()
+                .array("input", "suggestion3", "suggestion4")
+                .field("weight", 4)
+                .endObject()
+                .startObject()
+                .field("input", "suggestion5", "suggestion6", "suggestion7")
+                .field("weight", 5)
+                .endObject()
+                .endArray()
+                .endObject()
+                .bytes());
+        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.names().indexName());
+        assertContextSuggestFields(fields, 7);
+    }
+
+    @Test
+    public void testIndexingWithSimpleContexts() throws Exception {
+        String mapping = jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("completion")
+                .field("type", "completion")
+                .startArray("contexts")
+                .startObject()
+                .field("name", "ctx")
+                .field("type", "category")
+                .endObject()
+                .endArray()
+                .endObject().endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
+        MappedFieldType completionFieldType = fieldMapper.fieldType();
+        ParsedDocument parsedDocument = defaultMapper.parse("test", "type1", "1", jsonBuilder()
+                .startObject()
+                .startArray("completion")
+                .startObject()
+                .field("input", "suggestion5", "suggestion6", "suggestion7")
+                .startObject("contexts")
+                .field("ctx", "ctx1")
+                .endObject()
+                .field("weight", 5)
+                .endObject()
+                .endArray()
+                .endObject()
+                .bytes());
+        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.names().indexName());
+        assertContextSuggestFields(fields, 3);
+    }
+
+    @Test
+    public void testIndexingWithContextList() throws Exception {
+        String mapping = jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("completion")
+                .field("type", "completion")
+                .startArray("contexts")
+                .startObject()
+                .field("name", "ctx")
+                .field("type", "category")
+                .endObject()
+                .endArray()
+                .endObject().endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
+        MappedFieldType completionFieldType = fieldMapper.fieldType();
+        ParsedDocument parsedDocument = defaultMapper.parse("test", "type1", "1", jsonBuilder()
+                .startObject()
+                .startObject("completion")
+                .field("input", "suggestion5", "suggestion6", "suggestion7")
+                .startObject("contexts")
+                .array("ctx", "ctx1", "ctx2", "ctx3")
+                .endObject()
+                .field("weight", 5)
+                .endObject()
+                .endObject()
+                .bytes());
+        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.names().indexName());
+        assertContextSuggestFields(fields, 3);
+    }
+
+    @Test
+    public void testIndexingWithMultipleContexts() throws Exception {
+        String mapping = jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("completion")
+                .field("type", "completion")
+                .startArray("contexts")
+                .startObject()
+                .field("name", "ctx")
+                .field("type", "category")
+                .endObject()
+                .startObject()
+                .field("name", "type")
+                .field("type", "category")
+                .endObject()
+                .endArray()
+                .endObject().endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
+        MappedFieldType completionFieldType = fieldMapper.fieldType();
+        XContentBuilder builder = jsonBuilder()
+                .startObject()
+                .startArray("completion")
+                .startObject()
+                .field("input", "suggestion5", "suggestion6", "suggestion7")
+                .field("weight", 5)
+                .startObject("contexts")
+                .array("ctx", "ctx1", "ctx2", "ctx3")
+                .array("type", "typr3", "ftg")
+                .endObject()
+                .endObject()
+                .endArray()
+                .endObject();
+        ParsedDocument parsedDocument = defaultMapper.parse("test", "type1", "1", builder.bytes());
+        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.names().indexName());
+        assertContextSuggestFields(fields, 3);
+    }
+
+    @Test
+    public void testQueryContextParsingBasic() throws Exception {
+        XContentBuilder builder = jsonBuilder().value("context1");
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.bytes());
         CategoryContextMapping mapping = ContextBuilder.category("cat").build();
         ContextMapping.QueryContexts<CategoryQueryContext> queryContexts = mapping.parseQueryContext("cat", parser);
@@ -49,12 +196,11 @@ public class CategoryContextMappingTest extends ElasticsearchTestCase {
         assertThat(queryContext.context.toString(), equalTo("context1"));
         assertThat(queryContext.boost, equalTo(1));
         assertThat(queryContext.isPrefix, equalTo(false));
-
     }
 
     @Test
-    public void testParsingQueryContextArray() throws Exception {
-        XContentBuilder builder = XContentFactory.jsonBuilder().startArray()
+    public void testQueryContextParsingArray() throws Exception {
+        XContentBuilder builder = jsonBuilder().startArray()
                 .value("context1")
                 .value("context2")
                 .endArray();
@@ -72,8 +218,8 @@ public class CategoryContextMappingTest extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testParsingQueryContextObject() throws Exception {
-        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+    public void testQueryContextParsingObject() throws Exception {
+        XContentBuilder builder = jsonBuilder().startObject()
                 .field("context", "context1")
                 .field("boost", 10)
                 .field("prefix", true)
@@ -89,9 +235,10 @@ public class CategoryContextMappingTest extends ElasticsearchTestCase {
         assertThat(queryContext.isPrefix, equalTo(true));
     }
 
+
     @Test
-    public void testParsingQueryContextObjectArray() throws Exception {
-        XContentBuilder builder = XContentFactory.jsonBuilder().startArray()
+    public void testQueryContextParsingObjectArray() throws Exception {
+        XContentBuilder builder = jsonBuilder().startArray()
                 .startObject()
                 .field("context", "context1")
                 .field("boost", 2)
@@ -120,6 +267,32 @@ public class CategoryContextMappingTest extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testQueryContextParsingMixed() throws Exception {
+        XContentBuilder builder = jsonBuilder().startArray()
+                .startObject()
+                .field("context", "context1")
+                .field("boost", 2)
+                .field("prefix", true)
+                .endObject()
+                .value("context2")
+                .endArray();
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.bytes());
+        CategoryContextMapping mapping = ContextBuilder.category("cat").build();
+        ContextMapping.QueryContexts<CategoryQueryContext> queryContexts = mapping.parseQueryContext("cat", parser);
+        Iterator<CategoryQueryContext> iterator = queryContexts.iterator();
+        assertTrue(iterator.hasNext());
+        CategoryQueryContext queryContext = iterator.next();
+        assertThat(queryContext.context.toString(), equalTo("context1"));
+        assertThat(queryContext.boost, equalTo(2));
+        assertThat(queryContext.isPrefix, equalTo(true));
+        assertTrue(iterator.hasNext());
+        queryContext = iterator.next();
+        assertThat(queryContext.context.toString(), equalTo("context2"));
+        assertThat(queryContext.boost, equalTo(1));
+        assertThat(queryContext.isPrefix, equalTo(false));
+    }
+
+    @Test
     public void testParsingContextFromDocument() throws Exception {
         CategoryContextMapping mapping = ContextBuilder.category("cat").field("category").build();
         ParseContext.Document document = new ParseContext.Document();
@@ -127,5 +300,15 @@ public class CategoryContextMappingTest extends ElasticsearchTestCase {
         Set<CharSequence> context = mapping.parseContext(document);
         assertThat(context.size(), equalTo(1));
         assertTrue(context.contains("category1"));
+    }
+
+    static void assertContextSuggestFields(IndexableField[] fields, int expected) {
+        int actualFieldCount = 0;
+        for (IndexableField field : fields) {
+            if (field instanceof ContextSuggestField) {
+                actualFieldCount++;
+            }
+        }
+        assertThat(actualFieldCount, equalTo(expected));
     }
 }

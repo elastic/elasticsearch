@@ -27,7 +27,7 @@ To build a `SNAPSHOT` version, you need to build it with Maven:
 
 ```bash
 mvn clean install
-plugin --install analysis-stempel \
+plugin install analysis-stempel \
        --url file:target/releases/elasticsearch-analysis-stempel-X.X.X-SNAPSHOT.zip
 ```
 

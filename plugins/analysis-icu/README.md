@@ -29,7 +29,7 @@ To build a `SNAPSHOT` version, you need to build it with Maven:
 
 ```bash
 mvn clean install
-plugin --install analysis-icu \
+plugin install analysis-icu \
        --url file:target/releases/elasticsearch-analysis-icu-X.X.X-SNAPSHOT.zip
 ```
 

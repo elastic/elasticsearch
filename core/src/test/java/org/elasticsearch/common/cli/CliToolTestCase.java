@@ -49,7 +49,7 @@ public abstract class CliToolTestCase extends ElasticsearchTestCase {
         System.clearProperty("es.default.path.home");
     }
 
-    protected static String[] args(String command) {
+    public static String[] args(String command) {
         if (!Strings.hasLength(command)) {
             return Strings.EMPTY_ARRAY;
         }

@@ -28,7 +28,7 @@ To build a `SNAPSHOT` version, you need to build it with Maven:
 
 ```bash
 mvn clean install
-plugin --install analysis-smartcn \
+plugin install analysis-smartcn \
        --url file:target/releases/elasticsearch-analysis-smartcn-X.X.X-SNAPSHOT.zip
 ```
 

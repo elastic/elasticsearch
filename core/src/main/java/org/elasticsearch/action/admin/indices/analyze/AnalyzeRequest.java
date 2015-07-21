@@ -19,7 +19,7 @@
 package org.elasticsearch.action.admin.indices.analyze;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.single.custom.SingleCustomOperationRequest;
+import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,7 +32,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * A request to analyze a text associated with a specific index. Allow to provide
  * the actual analyzer name to perform the analysis with.
  */
-public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest> {
+public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
 
     private String[] text;
 
@@ -114,7 +114,7 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = super.validate();
+        ActionRequestValidationException validationException = null;
         if (text == null || text.length == 0) {
             validationException = addValidationError("text is missing", validationException);
         }

@@ -118,7 +118,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> {
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = super.validate();
+        ActionRequestValidationException validationException = super.validateNonNullIndex();
         if (type == null) {
             validationException = ValidateActions.addValidationError("type is missing", validationException);
         }

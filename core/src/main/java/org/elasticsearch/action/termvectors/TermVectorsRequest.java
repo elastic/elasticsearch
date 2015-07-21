@@ -472,7 +472,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = super.validate();
+        ActionRequestValidationException validationException = super.validateNonNullIndex();
         if (type == null) {
             validationException = ValidateActions.addValidationError("type is missing", validationException);
         }

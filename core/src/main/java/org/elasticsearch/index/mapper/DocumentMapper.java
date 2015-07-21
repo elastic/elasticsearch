@@ -84,8 +84,6 @@ public class DocumentMapper implements ToXContent {
 
         private List<SourceTransform> sourceTransforms = new ArrayList<>(1);
 
-        private final String index;
-
         private final Settings indexSettings;
 
         private final RootObjectMapper rootObjectMapper;
@@ -94,8 +92,7 @@ public class DocumentMapper implements ToXContent {
 
         private final Mapper.BuilderContext builderContext;
 
-        public Builder(String index, Settings indexSettings, RootObjectMapper.Builder builder, MapperService mapperService) {
-            this.index = index;
+        public Builder(Settings indexSettings, RootObjectMapper.Builder builder, MapperService mapperService) {
             this.indexSettings = indexSettings;
             this.builderContext = new Mapper.BuilderContext(indexSettings, new ContentPath(1));
             this.rootObjectMapper = builder.build(builderContext);
@@ -150,7 +147,7 @@ public class DocumentMapper implements ToXContent {
 
         public DocumentMapper build(MapperService mapperService, DocumentMapperParser docMapperParser) {
             Preconditions.checkNotNull(rootObjectMapper, "Mapper builder must have the root object mapper set");
-            return new DocumentMapper(mapperService, index, indexSettings, docMapperParser, rootObjectMapper, meta, rootMappers, sourceTransforms, mapperService.mappingLock);
+            return new DocumentMapper(mapperService, indexSettings, docMapperParser, rootObjectMapper, meta, rootMappers, sourceTransforms, mapperService.mappingLock);
         }
     }
 
@@ -176,7 +173,7 @@ public class DocumentMapper implements ToXContent {
     private final ReleasableLock mappingWriteLock;
     private final ReentrantReadWriteLock mappingLock;
 
-    public DocumentMapper(MapperService mapperService, String index, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser,
+    public DocumentMapper(MapperService mapperService, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser,
                           RootObjectMapper rootObjectMapper,
                           ImmutableMap<String, Object> meta,
                           Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> rootMappers,
@@ -191,7 +188,7 @@ public class DocumentMapper implements ToXContent {
                 rootMappers.values().toArray(new MetadataFieldMapper[rootMappers.values().size()]),
                 sourceTransforms.toArray(new SourceTransform[sourceTransforms.size()]),
                 meta);
-        this.documentParser = new DocumentParser(index, indexSettings, docMapperParser, this, new ReleasableLock(mappingLock.readLock()));
+        this.documentParser = new DocumentParser(indexSettings, docMapperParser, this, new ReleasableLock(mappingLock.readLock()));
 
         this.typeFilter = typeMapper().fieldType().termQuery(type, null);
         this.mappingWriteLock = new ReleasableLock(mappingLock.writeLock());
@@ -325,6 +322,11 @@ public class DocumentMapper implements ToXContent {
         return this.objectMappers;
     }
 
+    public ParsedDocument parse(String index, String type, String id, BytesReference source) throws MapperParsingException {
+        return parse(SourceToParse.source(source).index(index).type(type).id(id));
+    }
+
+    // TODO: remove this, replace all uses with version including index above
     public ParsedDocument parse(String type, String id, BytesReference source) throws MapperParsingException {
         return parse(SourceToParse.source(source).type(type).id(id));
     }

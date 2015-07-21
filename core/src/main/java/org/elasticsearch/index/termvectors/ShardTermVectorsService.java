@@ -309,7 +309,7 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
 
         // TODO: make parsing not dynamically create fields not in the original mapping
         Tuple<DocumentMapper, Mapping> docMapper = mapperService.documentMapperWithAutoCreate(type);
-        ParsedDocument parsedDocument = docMapper.v1().parse(source(doc).type(type).flyweight(true));
+        ParsedDocument parsedDocument = docMapper.v1().parse(source(doc).index(index).type(type).flyweight(true));
         if (docMapper.v2() != null) {
             parsedDocument.addDynamicMappingsUpdate(docMapper.v2());
         }

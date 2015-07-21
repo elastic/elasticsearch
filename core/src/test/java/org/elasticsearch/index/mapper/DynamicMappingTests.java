@@ -197,7 +197,7 @@ public class DynamicMappingTests extends ElasticsearchSingleNodeTest {
 
     private Mapper parse(DocumentMapper mapper, DocumentMapperParser parser, XContentBuilder builder) throws Exception {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        ParseContext.InternalParseContext ctx = new ParseContext.InternalParseContext("test", settings, parser, mapper, new ContentPath(0));
+        ParseContext.InternalParseContext ctx = new ParseContext.InternalParseContext(settings, parser, mapper, new ContentPath(0));
         SourceToParse source = SourceToParse.source(builder.bytes());
         ctx.reset(XContentHelper.createParser(source.source()), new ParseContext.Document(), source);
         assertEquals(XContentParser.Token.START_OBJECT, ctx.parser().nextToken());

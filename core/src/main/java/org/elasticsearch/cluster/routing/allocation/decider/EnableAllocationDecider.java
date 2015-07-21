@@ -98,7 +98,7 @@ public class EnableAllocationDecider extends AllocationDecider implements NodeSe
             case NONE:
                 return allocation.decision(Decision.NO, NAME, "no allocations are allowed");
             case NEW_PRIMARIES:
-                if (shardRouting.primary() && !allocation.routingNodes().routingTable().index(shardRouting.index()).shard(shardRouting.id()).primaryAllocatedPostApi()) {
+                if (shardRouting.primary() && shardRouting.allocatedPostIndexCreate() == false) {
                     return allocation.decision(Decision.YES, NAME, "new primary allocations are allowed");
                 } else {
                     return allocation.decision(Decision.NO, NAME, "non-new primary allocations are forbidden");

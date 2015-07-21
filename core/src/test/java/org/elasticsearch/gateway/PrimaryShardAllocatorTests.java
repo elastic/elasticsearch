@@ -66,7 +66,13 @@ public class PrimaryShardAllocatorTests extends ElasticsearchAllocationTestCase 
     @Test
     public void testNoProcessReplica() {
         ShardRouting shard = TestShardRouting.newShardRouting("test", 0, null, null, null, false, ShardRoutingState.UNASSIGNED, 0, new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null));
-        assertThat(testAllocator.needToFindPrimaryCopy(shard, null), equalTo(false));
+        assertThat(testAllocator.needToFindPrimaryCopy(shard), equalTo(false));
+    }
+
+    @Test
+    public void testNoProcessPrimayNotAllcoatedBefore() {
+        ShardRouting shard = TestShardRouting.newShardRouting("test", 0, null, null, null, true, ShardRoutingState.UNASSIGNED, 0, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
+        assertThat(testAllocator.needToFindPrimaryCopy(shard), equalTo(false));
     }
 
     /**

@@ -96,7 +96,7 @@ public abstract class CatAllocationTestBase extends ElasticsearchAllocationTestC
             IndexRoutingTable.Builder tableBuilder = new IndexRoutingTable.Builder(idx.name).initializeAsRecovery(idxMeta);
             Map<Integer, IndexShardRoutingTable> shardIdToRouting = new HashMap<>();
             for (ShardRouting r : idx.routing) {
-                IndexShardRoutingTable refData = new IndexShardRoutingTable.Builder(new ShardId(idx.name, r.id()), true).addShard(r).build();
+                IndexShardRoutingTable refData = new IndexShardRoutingTable.Builder(new ShardId(idx.name, r.id())).addShard(r).build();
                 if (shardIdToRouting.containsKey(r.getId())) {
                     refData = new IndexShardRoutingTable.Builder(shardIdToRouting.get(r.getId())).addShard(r).build();
                 }

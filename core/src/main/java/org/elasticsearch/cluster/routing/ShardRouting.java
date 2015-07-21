@@ -257,6 +257,21 @@ public final class ShardRouting implements Streamable, ToXContent {
         return shardIdentifier;
     }
 
+    public boolean allocatedPostIndexCreate() {
+        if (active()) {
+            return true;
+        }
+
+        // unassigned info is only cleared when a shard moves to started, so
+        // for unassigned and initializing (we checked for active() before),
+        // we can safely assume it is there
+        if (unassignedInfo.getReason() == UnassignedInfo.Reason.INDEX_CREATED) {
+            return false;
+        }
+
+        return true;
+    }
+
     /**
      * A shard iterator with just this shard in it.
      */
@@ -362,6 +377,11 @@ public final class ShardRouting implements Streamable, ToXContent {
         writeToThin(out);
     }
 
+    public void updateUnassignedInfo(UnassignedInfo unassignedInfo) {
+        ensureNotFrozen();
+        assert this.unassignedInfo != null : "can only update unassign info if they are already set";
+        this.unassignedInfo = unassignedInfo;
+    }
 
     // package private mutators start here
 
@@ -431,6 +451,7 @@ public final class ShardRouting implements Streamable, ToXContent {
         version++;
         state = ShardRoutingState.INITIALIZING;
         allocationId = AllocationId.newInitializing();
+        this.unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, null);
     }
 
     /**

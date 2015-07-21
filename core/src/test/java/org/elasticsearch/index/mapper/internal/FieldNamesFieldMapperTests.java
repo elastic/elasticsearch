@@ -80,7 +80,7 @@ public class FieldNamesFieldMapperTests extends ElasticsearchSingleNodeTest {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
-        ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                     .field("a", "100")
                     .startObject("b")
@@ -100,7 +100,7 @@ public class FieldNamesFieldMapperTests extends ElasticsearchSingleNodeTest {
         FieldNamesFieldMapper fieldNamesMapper = docMapper.rootMapper(FieldNamesFieldMapper.class);
         assertTrue(fieldNamesMapper.fieldType().isEnabled());
 
-        ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
             .startObject()
             .field("field", "value")
             .endObject()
@@ -117,7 +117,7 @@ public class FieldNamesFieldMapperTests extends ElasticsearchSingleNodeTest {
         FieldNamesFieldMapper fieldNamesMapper = docMapper.rootMapper(FieldNamesFieldMapper.class);
         assertFalse(fieldNamesMapper.fieldType().isEnabled());
 
-        ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
             .startObject()
             .field("field", "value")
             .endObject()
@@ -145,7 +145,7 @@ public class FieldNamesFieldMapperTests extends ElasticsearchSingleNodeTest {
         FieldNamesFieldMapper fieldNamesMapper = docMapper.rootMapper(FieldNamesFieldMapper.class);
         assertFalse(fieldNamesMapper.fieldType().isEnabled());
 
-        ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
             .startObject()
             .field("field", "value")
             .endObject()

@@ -38,7 +38,7 @@ public class SimpleObjectMappingTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         try {
-            defaultMapper.parse("type", "1", new BytesArray(" {\n" +
+            defaultMapper.parse("test", "type", "1", new BytesArray(" {\n" +
                     "      \"object\": {\n" +
                     "        \"array\":[\n" +
                     "        {\n" +

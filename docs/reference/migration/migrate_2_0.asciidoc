@@ -290,7 +290,7 @@ to provide special features.  They now have limited configuration options.
 
 * `_id` configuration can no longer be changed.  If you need to sort, use `_uid` instead.
 * `_type` configuration can no longer be changed.
-* `_index` configuration is limited to enabling the field.
+* `_index` configuration can no longer be changed.
 * `_routing` configuration is limited to requiring the field.
 * `_boost` has been removed.
 * `_field_names` configuration is limited to disabling the field.
@@ -545,6 +545,12 @@ DSL; it detects when scores are not needed and automatically optimizes the
 query to not compute scores and optionally caches the result.
 
 As a consequence the `query` filter serves no purpose anymore and is deprecated.
+
+=== Timezone for date field
+
+Specifying the `time_zone` parameter on queries or aggregations of `date` type fields
+must now be either an ISO 8601 UTC offset, or a timezone id. For example, the value
+`+1:00` must now be `+01:00`.
 
 === Snapshot and Restore
 

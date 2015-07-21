@@ -40,7 +40,7 @@ public class CamelCaseFieldNameTests extends ElasticsearchSingleNodeTest {
         client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping).get();
         DocumentMapper documentMapper = index.mapperService().documentMapper("type");
 
-        ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
+        ParsedDocument doc = documentMapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("thisIsCamelCase", "value1")
                 .endObject().bytes());
 

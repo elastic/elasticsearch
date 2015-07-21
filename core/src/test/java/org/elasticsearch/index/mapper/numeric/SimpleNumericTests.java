@@ -63,7 +63,7 @@ public class SimpleNumericTests extends ElasticsearchSingleNodeTest {
         client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping).get();
         DocumentMapper defaultMapper = index.mapperService().documentMapper("type");
 
-        ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("s_long", "100")
                 .field("s_double", "100.0")
@@ -88,7 +88,7 @@ public class SimpleNumericTests extends ElasticsearchSingleNodeTest {
         client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping).get();
         DocumentMapper defaultMapper = index.mapperService().documentMapper("type");
 
-        ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("s_long", "100")
                 .field("s_double", "100.0")
@@ -116,7 +116,7 @@ public class SimpleNumericTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
-        ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field1", "a")
                 .field("field2", "1")
@@ -126,7 +126,7 @@ public class SimpleNumericTests extends ElasticsearchSingleNodeTest {
         assertThat(doc.rootDoc().getField("field2"), notNullValue());
 
         try {
-            defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+            defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                     .startObject()
                     .field("field2", "a")
                     .endObject()
@@ -137,7 +137,7 @@ public class SimpleNumericTests extends ElasticsearchSingleNodeTest {
 
         // Verify that the default is false
         try {
-            defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+            defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                     .startObject()
                     .field("field3", "a")
                     .endObject()
@@ -149,7 +149,7 @@ public class SimpleNumericTests extends ElasticsearchSingleNodeTest {
         // Unless the global ignore_malformed option is set to true
         Settings indexSettings = settingsBuilder().put("index.mapping.ignore_malformed", true).build();
         defaultMapper = createIndex("test2", indexSettings).mapperService().documentMapperParser().parse(mapping);
-        doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field3", "a")
                 .endObject()
@@ -158,7 +158,7 @@ public class SimpleNumericTests extends ElasticsearchSingleNodeTest {
 
         // This should still throw an exception, since field2 is specifically set to ignore_malformed=false
         try {
-            defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+            defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                     .startObject()
                     .field("field2", "a")
                     .endObject()
@@ -190,7 +190,7 @@ public class SimpleNumericTests extends ElasticsearchSingleNodeTest {
 
             //Test numbers passed as strings
             String invalidJsonNumberAsString="1";
-            ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+            ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                     .startObject()
                     .field("noErrorNoCoerceField", invalidJsonNumberAsString)
                     .field("noErrorCoerceField", invalidJsonNumberAsString)
@@ -204,7 +204,7 @@ public class SimpleNumericTests extends ElasticsearchSingleNodeTest {
             
             //Test valid case of numbers passed as numbers
             int validNumber=1;
-            doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+            doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                     .startObject()
                     .field("noErrorNoCoerceField", validNumber)
                     .field("noErrorCoerceField", validNumber)
@@ -217,7 +217,7 @@ public class SimpleNumericTests extends ElasticsearchSingleNodeTest {
             
             //Test valid case of negative numbers passed as numbers
             int validNegativeNumber=-1;
-            doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+            doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                     .startObject()
                     .field("noErrorNoCoerceField", validNegativeNumber)
                     .field("noErrorCoerceField", validNegativeNumber)
@@ -230,7 +230,7 @@ public class SimpleNumericTests extends ElasticsearchSingleNodeTest {
             
 
             try {
-                defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                         .startObject()
                         .field("errorNoCoerce", invalidJsonNumberAsString)
                         .endObject()
@@ -243,7 +243,7 @@ public class SimpleNumericTests extends ElasticsearchSingleNodeTest {
             //Test questionable case of floats passed to ints
             float invalidJsonForInteger=1.9f;
             int coercedFloatValue=1; //This is what the JSON parser will do to a float - truncate not round
-            doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+            doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                     .startObject()
                     .field("noErrorNoCoerceField", invalidJsonForInteger)
                     .field("noErrorCoerceField", invalidJsonForInteger)
@@ -256,7 +256,7 @@ public class SimpleNumericTests extends ElasticsearchSingleNodeTest {
             assertEquals(coercedFloatValue,doc.rootDoc().getField("errorDefaultCoerce").numericValue().intValue());
             
             try {
-                defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                         .startObject()
                         .field("errorNoCoerce", invalidJsonForInteger)
                         .endObject()
@@ -288,7 +288,7 @@ public class SimpleNumericTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
-        ParsedDocument parsedDoc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument parsedDoc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("int", "1234")
                 .field("double", "1234")
@@ -324,7 +324,7 @@ public class SimpleNumericTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
-        ParsedDocument parsedDoc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument parsedDoc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                     .startArray("nested")
                         .startObject()
@@ -357,7 +357,7 @@ public class SimpleNumericTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
-        ParsedDocument doc = mapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("long",   "100")
                 .field("double", "100.0")
@@ -408,7 +408,7 @@ public class SimpleNumericTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         
-        ParsedDocument doc = mapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("int",    "100")
                 .field("float",  "100.0")
@@ -479,7 +479,7 @@ public class SimpleNumericTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         
-        ParsedDocument doc = mapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("int",    "100")
                 .field("float",  "100.0")

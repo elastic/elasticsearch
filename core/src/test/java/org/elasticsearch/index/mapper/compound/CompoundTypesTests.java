@@ -40,7 +40,7 @@ public class CompoundTypesTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
-        ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field1", "value1")
                 .field("field2", "value2")
@@ -50,7 +50,7 @@ public class CompoundTypesTests extends ElasticsearchSingleNodeTest {
         assertThat((double) doc.rootDoc().getField("field1").boost(), closeTo(1.0d, 0.000001d));
         assertThat(doc.rootDoc().get("field2"), equalTo("value2"));
 
-        doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("field1").field("value", "value1").field("boost", 2.0f).endObject()
                 .field("field2", "value2")
@@ -60,7 +60,7 @@ public class CompoundTypesTests extends ElasticsearchSingleNodeTest {
         assertThat((double) doc.rootDoc().getField("field1").boost(), closeTo(2.0d, 0.000001d));
         assertThat(doc.rootDoc().get("field2"), equalTo("value2"));
 
-        doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field1", "value1")
                 .field("field2", "value2")

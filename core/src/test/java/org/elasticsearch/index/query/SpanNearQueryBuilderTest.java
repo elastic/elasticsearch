@@ -50,15 +50,7 @@ public class SpanNearQueryBuilderTest extends BaseQueryTestCase<SpanNearQueryBui
         String fieldName = new SpanTermQueryBuilderTest().createTestQueryBuilder().fieldName();
         for (int i = 0; i < clauses; i++) {
             // we need same field name in all clauses, so we only randomize value
-            Object value;
-            switch (fieldName) {
-                case BOOLEAN_FIELD_NAME: value = randomBoolean(); break;
-                case INT_FIELD_NAME: value = randomInt(); break;
-                case DOUBLE_FIELD_NAME: value = randomDouble(); break;
-                case STRING_FIELD_NAME: value = randomAsciiOfLengthBetween(1, 10); break;
-                default : value = randomAsciiOfLengthBetween(1, 10);
-            }
-            queryBuilder.clause(new SpanTermQueryBuilder(fieldName, value));
+            queryBuilder.clause(new SpanTermQueryBuilder(fieldName, randomValueForField(fieldName)));
         }
         queryBuilder.inOrder(randomBoolean());
         queryBuilder.collectPayloads(randomBoolean());

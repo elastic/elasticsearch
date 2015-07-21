@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -28,14 +27,7 @@ import java.util.List;
 
 import static com.google.common.collect.Lists.newArrayList;
 
-/**
- *
- */
 public class SpanOrQueryParser extends BaseQueryParser {
-
-    @Inject
-    public SpanOrQueryParser() {
-    }
 
     @Override
     public String[] names() {

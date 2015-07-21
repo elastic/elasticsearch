@@ -143,6 +143,6 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     protected String buildKey(String blobName) {
-        return keyPath + blobName;
+        return keyPath + (blobName == null ? "" : blobName);
     }
 }

@@ -43,7 +43,7 @@
         <!-- libraries -->
         <lucene.version>5.2.1</lucene.version>
         <lucene.maven.version>5.2.1</lucene.maven.version>
-        <testframework.version>2.1.15</testframework.version>
+        <testframework.version>2.1.16</testframework.version>
         <jackson.version>2.5.3</jackson.version>
         <slf4j.version>1.6.2</slf4j.version>
         <log4j.version>1.2.17</log4j.version>
@@ -718,7 +718,7 @@
                                 <listeners>
                                     <report-ant-xml 
                                         mavenExtensions="true" 
-                                        summaryFile="${project.build.directory}/failsafe-reports/failsafe-summary-buggy.xml"
+                                        summaryFile="${project.build.directory}/failsafe-reports/failsafe-summary.xml"
                                         dir="${project.build.directory}/failsafe-reports"/>
                                 </listeners>
                                 <!-- currently only 1 cpu works, because integ tests don't make "unique" test directories? -->

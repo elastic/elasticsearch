@@ -22,6 +22,8 @@ package org.elasticsearch.cluster.routing;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -34,7 +36,7 @@ import java.io.IOException;
  * relocationId. Once relocation is done, the new allocation id is set to the relocationId. This is similar
  * behavior to how ShardRouting#currentNodeId is used.
  */
-public class AllocationId {
+public class AllocationId implements ToXContent {
 
     private final String id;
     private final String relocationId;
@@ -67,7 +69,7 @@ public class AllocationId {
      */
     public static AllocationId newTargetRelocation(AllocationId allocationId) {
         assert allocationId.getRelocationId() != null;
-        return new AllocationId(allocationId.getRelocationId(), null);
+        return new AllocationId(allocationId.getRelocationId(), allocationId.getId());
     }
 
     /**
@@ -81,19 +83,24 @@ public class AllocationId {
 
     /**
      * Creates a new allocation id representing a cancelled relocation.
-     */
+     *
+     * Note that this is expected to be called on the allocation id
+     * of the *source* shard
+     * */
     public static AllocationId cancelRelocation(AllocationId allocationId) {
         assert allocationId.getRelocationId() != null;
         return new AllocationId(allocationId.getId(), null);
     }
 
     /**
-     * Creates a new allocation id finalizing a relocation, moving the transient
-     * relocation id to be the actual id.
+     * Creates a new allocation id finalizing a relocation.
+     *
+     * Note that this is expected to be called on the allocation id
+     * of the *target* shard and thus it only needs to clear the relocating id.
      */
     public static AllocationId finishRelocation(AllocationId allocationId) {
         assert allocationId.getRelocationId() != null;
-        return new AllocationId(allocationId.getRelocationId(), null);
+        return new AllocationId(allocationId.getId(), null);
     }
 
     /**
@@ -125,5 +132,21 @@ public class AllocationId {
         int result = id.hashCode();
         result = 31 * result + (relocationId != null ? relocationId.hashCode() : 0);
         return result;
+    }
+
+    @Override
+    public String toString() {
+        return "[id=" + id + (relocationId == null ? "" : ", rId=" + relocationId) + "]";
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject("allocation_id");
+        builder.field("id", id);
+        if (relocationId != null) {
+            builder.field("relocation_id", relocationId);
+        }
+        builder.endObject();
+        return builder;
     }
 }

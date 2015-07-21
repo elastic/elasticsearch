@@ -23,13 +23,16 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocators;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecidersModule;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -120,5 +123,42 @@ public abstract class ElasticsearchAllocationTestCase extends ElasticsearchTestC
         }
         RoutingTable routingTable = strategy.applyStartedShards(clusterState, newArrayList(initializingShards.get(randomInt(initializingShards.size() - 1)))).routingTable();
         return ClusterState.builder(clusterState).routingTable(routingTable).build();
+    }
+
+    public static AllocationDeciders yesAllocationDeciders() {
+        return new AllocationDeciders(Settings.EMPTY, new AllocationDecider[] {new TestAllocateDecision(Decision.YES)});
+    }
+
+    public static AllocationDeciders noAllocationDeciders() {
+        return new AllocationDeciders(Settings.EMPTY, new AllocationDecider[] {new TestAllocateDecision(Decision.NO)});
+    }
+
+    public static AllocationDeciders throttleAllocationDeciders() {
+        return new AllocationDeciders(Settings.EMPTY, new AllocationDecider[] {new TestAllocateDecision(Decision.THROTTLE)});
+    }
+
+    static class TestAllocateDecision extends AllocationDecider {
+
+        private final Decision decision;
+
+        public TestAllocateDecision(Decision decision) {
+            super(Settings.EMPTY);
+            this.decision = decision;
+        }
+
+        @Override
+        public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            return decision;
+        }
+
+        @Override
+        public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
+            return decision;
+        }
+
+        @Override
+        public Decision canAllocate(RoutingNode node, RoutingAllocation allocation) {
+            return decision;
+        }
     }
 }

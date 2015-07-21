@@ -145,17 +145,12 @@ public class ShardStateAction extends AbstractComponent {
                     return currentState;
                 }
 
-                final MetaData metaData = currentState.getMetaData();
-
-
                 List<FailedRerouteAllocation.FailedShard> shardRoutingsToBeApplied = new ArrayList<>(shardRoutingEntries.size());
-                for (ShardRoutingEntry entry : extractShardsToBeApplied(shardRoutingEntries, "failed", metaData, logger)) {
-                    shardRoutingsToBeApplied.add(new FailedRerouteAllocation.FailedShard(entry.shardRouting, entry.message, entry.failure));
-                }
 
                 // mark all entries as processed
                 for (ShardRoutingEntry entry : shardRoutingEntries) {
                     entry.processed = true;
+                    shardRoutingsToBeApplied.add(new FailedRerouteAllocation.FailedShard(entry.shardRouting, entry.message, entry.failure));
                 }
 
                 RoutingAllocation.Result routingResult = allocationService.applyFailedShards(currentState, shardRoutingsToBeApplied);
@@ -178,31 +173,6 @@ public class ShardStateAction extends AbstractComponent {
                 }
             }
         });
-    }
-
-    static List<ShardRoutingEntry> extractShardsToBeApplied(List<ShardRoutingEntry> shardRoutingEntries, String type, MetaData metaData, ESLogger logger) {
-        List<ShardRoutingEntry> shardRoutingsToBeApplied = new ArrayList<>(shardRoutingEntries.size());
-        for (int i = 0; i < shardRoutingEntries.size(); i++) {
-            ShardRoutingEntry shardRoutingEntry = shardRoutingEntries.get(i);
-            ShardRouting shardRouting = shardRoutingEntry.shardRouting;
-            IndexMetaData indexMetaData = metaData.index(shardRouting.index());
-            // if there is no metadata or the current index is not of the right uuid, the index has been deleted while it was being allocated
-            // which is fine, we should just ignore this
-            if (indexMetaData == null) {
-                logger.debug("{} ignoring shard {}, unknown index in {}", shardRouting.shardId(), type, shardRoutingEntry);
-                continue;
-            }
-            if (!indexMetaData.isSameUUID(shardRoutingEntry.indexUUID)) {
-                logger.debug("{} ignoring shard {}, different index uuid, current {}, got {}", shardRouting.shardId(), type, indexMetaData.getIndexUUID(), shardRoutingEntry);
-                continue;
-            }
-
-            // more debug info will be logged by the allocation service
-            logger.trace("{} will apply shard {} {}", shardRouting.shardId(), type, shardRoutingEntry);
-            shardRoutingsToBeApplied.add(shardRoutingEntry);
-        }
-        return shardRoutingsToBeApplied;
-
     }
 
     private void shardStartedOnMaster(final ShardRoutingEntry shardRoutingEntry) {
@@ -230,18 +200,12 @@ public class ShardStateAction extends AbstractComponent {
                             return currentState;
                         }
 
-                        RoutingTable routingTable = currentState.routingTable();
-                        MetaData metaData = currentState.getMetaData();
-
-
                         List<ShardRouting> shardRoutingToBeApplied = new ArrayList<>(shardRoutingEntries.size());
-                        for (ShardRoutingEntry entry : extractShardsToBeApplied(shardRoutingEntries, "started", metaData, logger)) {
-                            shardRoutingToBeApplied.add(entry.shardRouting);
-                        }
 
                         // mark all entries as processed
                         for (ShardRoutingEntry entry : shardRoutingEntries) {
                             entry.processed = true;
+                            shardRoutingToBeApplied.add(entry.shardRouting);
                         }
 
                         if (shardRoutingToBeApplied.isEmpty()) {

@@ -546,6 +546,12 @@ query to not compute scores and optionally caches the result.
 
 As a consequence the `query` filter serves no purpose anymore and is deprecated.
 
+=== Timezone for date field
+
+Specifying the `time_zone` parameter on queries or aggregations of `date` type fields
+must now be either an ISO 8601 UTC offset, or a timezone id. For example, the value
+`+1:00` must now be `+01:00`.
+
 === Snapshot and Restore
 
 Locations of the shared file system repositories and the URL repositories with `file:` URLs has to be now registered

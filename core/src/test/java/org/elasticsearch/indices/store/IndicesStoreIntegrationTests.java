@@ -47,6 +47,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
@@ -204,19 +205,15 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
 
     @Test @Slow
     public void testShardActiveElseWhere() throws Exception {
-        boolean node1IsMasterEligible = randomBoolean();
-        boolean node2IsMasterEligible = !node1IsMasterEligible || randomBoolean();
-        Future<String> node_1_future = internalCluster().startNodeAsync(Settings.builder().put("node.master", node1IsMasterEligible).build());
-        Future<String> node_2_future = internalCluster().startNodeAsync(Settings.builder().put("node.master", node2IsMasterEligible).build());
-        final String node_1 = node_1_future.get();
-        final String node_2 = node_2_future.get();
-        final String node_1_id = internalCluster().getInstance(DiscoveryService.class, node_1).localNode().getId();
-        final String node_2_id = internalCluster().getInstance(DiscoveryService.class, node_2).localNode().getId();
+        List<String> nodes = internalCluster().startNodesAsync(2).get();
 
-        logger.debug("node {} (node_1) is {}master eligible", node_1, node1IsMasterEligible ? "" : "not ");
-        logger.debug("node {} (node_2) is {}master eligible", node_2, node2IsMasterEligible ? "" : "not ");
-        logger.debug("node {} became master", internalCluster().getMasterName());
-        final int numShards = scaledRandomIntBetween(2, 20);
+        final String masterNode = internalCluster().getMasterName();
+        final String nonMasterNode = nodes.get(0).equals(masterNode) ? nodes.get(1) : nodes.get(0);
+
+        final String masterId = internalCluster().clusterService(masterNode).localNode().id();
+        final String nonMasterId = internalCluster().clusterService(nonMasterNode).localNode().id();
+
+        final int numShards = scaledRandomIntBetween(2, 10);
         assertAcked(prepareCreate("test")
                         .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numShards))
         );
@@ -225,14 +222,14 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
         waitNoPendingTasksOnAll();
         ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
 
-        RoutingNode routingNode = stateResponse.getState().routingNodes().node(node_2_id);
+        RoutingNode routingNode = stateResponse.getState().routingNodes().node(nonMasterId);
         final int[] node2Shards = new int[routingNode.numberOfOwningShards()];
         int i = 0;
         for (ShardRouting shardRouting : routingNode) {
             node2Shards[i] = shardRouting.shardId().id();
             i++;
         }
-        logger.info("Node 2 has shards: {}", Arrays.toString(node2Shards));
+        logger.info("Node [{}] has shards: {}", nonMasterNode, Arrays.toString(node2Shards));
         final long shardVersions[] = new long[numShards];
         final int shardIds[] = new int[numShards];
         i = 0;
@@ -241,17 +238,18 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
             shardIds[i] = shardRouting.getId();
             i++;
         }
+
         // disable relocations when we do this, to make sure the shards are not relocated from node2
         // due to rebalancing, and delete its content
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)).get();
-        internalCluster().getInstance(ClusterService.class, node_2).submitStateUpdateTask("test", Priority.IMMEDIATE, new ClusterStateUpdateTask() {
+        internalCluster().getInstance(ClusterService.class, nonMasterNode).submitStateUpdateTask("test", Priority.IMMEDIATE, new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder("test");
                 for (int i = 0; i < numShards; i++) {
                     indexRoutingTableBuilder.addIndexShard(
                             new IndexShardRoutingTable.Builder(new ShardId("test", i), false)
-                                    .addShard(TestShardRouting.newShardRouting("test", i, node_1_id, true, ShardRoutingState.STARTED, shardVersions[shardIds[i]]))
+                                    .addShard(TestShardRouting.newShardRouting("test", i, masterId, true, ShardRoutingState.STARTED, shardVersions[shardIds[i]]))
                                     .build()
                     );
                 }
@@ -271,7 +269,7 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
         waitNoPendingTasksOnAll();
         logger.info("Checking if shards aren't removed");
         for (int shard : node2Shards) {
-            assertTrue(waitForShardDeletion(node_2, "test", shard));
+            assertTrue(waitForShardDeletion(nonMasterNode, "test", shard));
         }
     }
 

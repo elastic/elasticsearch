@@ -51,6 +51,7 @@ and warmers.
 * <<indices-stats>>
 * <<indices-segments>>
 * <<indices-recovery>>
+* <<indices-shards-stores>>
 
 [float]
 [[status-management]]
@@ -93,11 +94,15 @@ include::indices/templates.asciidoc[]
 
 include::indices/warmers.asciidoc[]
 
+include::indices/shadow-replicas.asciidoc[]
+
 include::indices/stats.asciidoc[]
 
 include::indices/segments.asciidoc[]
 
 include::indices/recovery.asciidoc[]
+
+include::indices/shard-stores.asciidoc[]
 
 include::indices/clearcache.asciidoc[]
 
@@ -106,8 +111,6 @@ include::indices/flush.asciidoc[]
 include::indices/refresh.asciidoc[]
 
 include::indices/optimize.asciidoc[]
-
-include::indices/shadow-replicas.asciidoc[]
 
 include::indices/upgrade.asciidoc[]
 

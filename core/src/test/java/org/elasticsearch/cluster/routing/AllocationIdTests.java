@@ -62,16 +62,15 @@ public class AllocationIdTests extends ElasticsearchTestCase {
         assertThat(shard.allocationId(), not(equalTo(allocationId)));
         assertThat(shard.allocationId().getId(), equalTo(allocationId.getId()));
         assertThat(shard.allocationId().getRelocationId(), notNullValue());
-        allocationId = shard.allocationId();
 
         ShardRouting target = shard.buildTargetRelocatingShard();
         assertThat(target.allocationId().getId(), equalTo(shard.allocationId().getRelocationId()));
-        assertThat(target.allocationId().getRelocationId(), nullValue());
+        assertThat(target.allocationId().getRelocationId(), equalTo(shard.allocationId().getId()));
 
         logger.info("-- finalize the relocation");
-        shard.moveToStarted();
-        assertThat(shard.allocationId().getId(), equalTo(target.allocationId().getId()));
-        assertThat(shard.allocationId().getRelocationId(), nullValue());
+        target.moveToStarted();
+        assertThat(target.allocationId().getId(), equalTo(shard.allocationId().getRelocationId()));
+        assertThat(target.allocationId().getRelocationId(), nullValue());
     }
 
     @Test

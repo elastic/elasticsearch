@@ -175,7 +175,7 @@ public final class ShardSearchStats {
 
     public void onFreeScrollContext(SearchContext context) {
         totalStats.scrollCurrent.dec();
-        totalStats.scrollMetric.inc(TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis() - context.nowInMillis()));
+        totalStats.scrollMetric.inc(System.nanoTime() - context.getOriginNanoTime());
     }
 
     public void onRefreshSettings(Settings settings) {

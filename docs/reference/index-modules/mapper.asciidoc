@@ -52,7 +52,7 @@ creating a new index.
 [float]
 === Mapper settings
 
-`index.mapper.dynamic` (_static_)::
+`index.mapper.dynamic` (_dynamic_)::
 
     Dynamic creation of mappings for unmapped types can be completely
     disabled by setting `index.mapper.dynamic` to `false`.

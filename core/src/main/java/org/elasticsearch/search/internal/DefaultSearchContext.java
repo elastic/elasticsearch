@@ -122,6 +122,7 @@ public class DefaultSearchContext extends SearchContext {
     private boolean queryRewritten;
     private volatile long keepAlive;
     private ScoreDoc lastEmittedDoc;
+    private final long originNanoTime = System.nanoTime();
     private volatile long lastAccessTime = -1;
     private InnerHitsContext innerHitsContext;
 
@@ -267,6 +268,11 @@ public class DefaultSearchContext extends SearchContext {
     public SearchContext queryBoost(float queryBoost) {
         this.queryBoost = queryBoost;
         return this;
+    }
+
+    @Override
+    public long getOriginNanoTime() {
+        return originNanoTime;
     }
 
     @Override

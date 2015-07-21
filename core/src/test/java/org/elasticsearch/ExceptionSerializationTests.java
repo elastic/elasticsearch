@@ -192,17 +192,18 @@ public class ExceptionSerializationTests extends ElasticsearchTestCase {
     }
 
     public void testIllegalShardRoutingStateException() throws IOException {
-        ShardRouting routing = TestShardRouting.newShardRouting("test", 0, "xyz", "def", false, ShardRoutingState.STARTED, 0);
+        final ShardRouting routing = TestShardRouting.newShardRouting("test", 0, "xyz", "def", false, ShardRoutingState.STARTED, 0);
+        final String routingAsString = routing.toString();
         IllegalShardRoutingStateException serialize = serialize(new IllegalShardRoutingStateException(routing, "foo", new NullPointerException()));
         assertNotNull(serialize.shard());
         assertEquals(routing, serialize.shard());
-        assertEquals("[test][0], node[xyz], relocating [def], [R], s[STARTED]: foo", serialize.getMessage());
+        assertEquals(routingAsString + ": foo", serialize.getMessage());
         assertTrue(serialize.getCause() instanceof NullPointerException);
 
         serialize = serialize(new IllegalShardRoutingStateException(routing, "bar", null));
         assertNotNull(serialize.shard());
         assertEquals(routing, serialize.shard());
-        assertEquals("[test][0], node[xyz], relocating [def], [R], s[STARTED]: bar", serialize.getMessage());
+        assertEquals(routingAsString + ": bar", serialize.getMessage());
         assertNull(serialize.getCause());
     }
 

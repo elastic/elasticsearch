@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.segments;
+package org.elasticsearch.action.admin.indices.shards;
 
 import com.google.common.collect.ImmutableList;
 import org.apache.lucene.index.CorruptIndexException;

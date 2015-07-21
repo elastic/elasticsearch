@@ -218,7 +218,7 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
         int shardCount = randomInt(10);
 
         for (int i = 0; i < shardCount; i++) {
-            IndexShardRoutingTable.Builder indexShard = new IndexShardRoutingTable.Builder(new ShardId(index, i), randomBoolean());
+            IndexShardRoutingTable.Builder indexShard = new IndexShardRoutingTable.Builder(new ShardId(index, i));
             int replicaCount = randomIntBetween(1, 10);
             for (int j = 0; j < replicaCount; j++) {
                 indexShard.addShard(

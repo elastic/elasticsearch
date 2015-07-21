@@ -24,13 +24,11 @@ import com.google.common.base.Preconditions;
 
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.CheckIndex;
-import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.ThreadInterruptedException;
-import org.elasticsearch.ElasticsearchCorruptionException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -39,7 +37,6 @@ import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RestoreSource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -1039,10 +1036,11 @@ public class IndexShard extends AbstractIndexShardComponent {
         return path;
     }
 
-    public void recoverFromStore(IndexShardRoutingTable shardRoutingTable, StoreRecoveryService.RecoveryListener recoveryListener) {
+    public void recoverFromStore(ShardRouting shard, StoreRecoveryService.RecoveryListener recoveryListener) {
         // we are the first primary, recover from the gateway
         // if its post api allocation, the index should exists
-        final boolean shouldExist = shardRoutingTable.primaryAllocatedPostApi();
+        assert shard.primary() : "recover from store only makes sense if the shard is a primary shard";
+        final boolean shouldExist = shard.allocatedPostIndexCreate();
         storeRecoveryService.recover(this, shouldExist, recoveryListener);
     }
 

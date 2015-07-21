@@ -311,7 +311,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
 
         // a flag for whether the primary shard has been previously allocated
-        boolean primaryHasBeenAllocated = allocation.routingTable().index(shardRouting.index()).shard(shardRouting.id()).primaryAllocatedPostApi();
+        boolean primaryHasBeenAllocated = shardRouting.primary() && shardRouting.allocatedPostIndexCreate();
 
         // checks for exact byte comparisons
         if (freeBytes < freeBytesThresholdLow.bytes()) {

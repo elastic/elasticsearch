@@ -64,68 +64,57 @@ public class StartedShardsRoutingTests extends ElasticsearchAllocationTestCase {
 
         RoutingAllocation.Result result = allocation.applyStartedShards(state, Arrays.asList(
                 TestShardRouting.newShardRouting(initShard.index(), initShard.id(), initShard.currentNodeId(), initShard.relocatingNodeId(), initShard.primary(),
-                        ShardRoutingState.INITIALIZING, randomInt())), false);
+                        ShardRoutingState.INITIALIZING, initShard.allocationId(), randomInt())), false);
         assertTrue("failed to start " + initShard + "\ncurrent routing table:" + result.routingTable().prettyPrint(), result.changed());
         assertTrue(initShard + "isn't started \ncurrent routing table:" + result.routingTable().prettyPrint(),
                 result.routingTable().index("test").shard(initShard.id()).allShardsStarted());
 
 
-        logger.info("--> testing shard variants that shouldn't match the started shard");
+        logger.info("--> testing shard variants that shouldn't match the initializing shard");
 
         result = allocation.applyStartedShards(state, Arrays.asList(
-                TestShardRouting.newShardRouting(initShard.index(), initShard.id(), initShard.currentNodeId(), initShard.relocatingNodeId(), !initShard.primary(),
+                TestShardRouting.newShardRouting(initShard.index(), initShard.id(), initShard.currentNodeId(), initShard.relocatingNodeId(), initShard.primary(),
                         ShardRoutingState.INITIALIZING, 1)), false);
-        assertFalse("wrong primary flag shouldn't start shard " + initShard + "\ncurrent routing table:" + result.routingTable().prettyPrint(), result.changed());
+        assertFalse("wrong allocation id flag shouldn't start shard " + initShard + "\ncurrent routing table:" + result.routingTable().prettyPrint(), result.changed());
 
         result = allocation.applyStartedShards(state, Arrays.asList(
                 TestShardRouting.newShardRouting(initShard.index(), initShard.id(), "some_node", initShard.currentNodeId(), initShard.primary(),
-                        ShardRoutingState.INITIALIZING, 1)), false);
+                        ShardRoutingState.INITIALIZING, AllocationId.newTargetRelocation(AllocationId.newRelocation(initShard.allocationId()))
+                        , 1)), false);
         assertFalse("relocating shard from node shouldn't start shard " + initShard + "\ncurrent routing table:" + result.routingTable().prettyPrint(), result.changed());
 
-        result = allocation.applyStartedShards(state, Arrays.asList(
-                TestShardRouting.newShardRouting(initShard.index(), initShard.id(), initShard.currentNodeId(), "some_node", initShard.primary(),
-                        ShardRoutingState.INITIALIZING, 1)), false);
-        assertFalse("relocating shard to node shouldn't start shard " + initShard + "\ncurrent routing table:" + result.routingTable().prettyPrint(), result.changed());
 
 
         logger.info("--> testing double starting");
 
         result = allocation.applyStartedShards(state, Arrays.asList(
                 TestShardRouting.newShardRouting(startedShard.index(), startedShard.id(), startedShard.currentNodeId(), startedShard.relocatingNodeId(), startedShard.primary(),
-                        ShardRoutingState.INITIALIZING, 1)), false);
+                        ShardRoutingState.INITIALIZING, startedShard.allocationId(), 1)), false);
         assertFalse("duplicate starting of the same shard should be ignored \ncurrent routing table:" + result.routingTable().prettyPrint(), result.changed());
 
         logger.info("--> testing starting of relocating shards");
+        final AllocationId targetAllocationId = AllocationId.newTargetRelocation(relocatingShard.allocationId());
         result = allocation.applyStartedShards(state, Arrays.asList(
                 TestShardRouting.newShardRouting(relocatingShard.index(), relocatingShard.id(), relocatingShard.relocatingNodeId(), relocatingShard.currentNodeId(), relocatingShard.primary(),
-                        ShardRoutingState.INITIALIZING, randomInt())), false);
+                        ShardRoutingState.INITIALIZING, targetAllocationId, randomInt())), false);
+
         assertTrue("failed to start " + relocatingShard + "\ncurrent routing table:" + result.routingTable().prettyPrint(), result.changed());
         ShardRouting shardRouting = result.routingTable().index("test").shard(relocatingShard.id()).getShards().get(0);
         assertThat(shardRouting.state(), equalTo(ShardRoutingState.STARTED));
         assertThat(shardRouting.currentNodeId(), equalTo("node2"));
         assertThat(shardRouting.relocatingNodeId(), nullValue());
 
-        logger.info("--> testing shard variants that shouldn't match the relocating shard");
+        logger.info("--> testing shard variants that shouldn't match the initializing relocating shard");
 
         result = allocation.applyStartedShards(state, Arrays.asList(
-                TestShardRouting.newShardRouting(relocatingShard.index(), relocatingShard.id(), relocatingShard.relocatingNodeId(), relocatingShard.currentNodeId(), !relocatingShard.primary(),
-                        ShardRoutingState.INITIALIZING, 1)), false);
-        assertFalse("wrong primary flag shouldn't start shard " + relocatingShard + "\ncurrent routing table:" + result.routingTable().prettyPrint(), result.changed());
+                TestShardRouting.newShardRouting(relocatingShard.index(), relocatingShard.id(), relocatingShard.relocatingNodeId(), relocatingShard.currentNodeId(), relocatingShard.primary(),
+                        ShardRoutingState.INITIALIZING, relocatingShard.version())));
+        assertFalse("wrong allocation id shouldn't start shard" + relocatingShard + "\ncurrent routing table:" + result.routingTable().prettyPrint(), result.changed());
 
         result = allocation.applyStartedShards(state, Arrays.asList(
-                TestShardRouting.newShardRouting(relocatingShard.index(), relocatingShard.id(), "some_node", relocatingShard.currentNodeId(), relocatingShard.primary(),
-                        ShardRoutingState.INITIALIZING, 1)), false);
-        assertFalse("relocating shard to a different node shouldn't start shard " + relocatingShard + "\ncurrent routing table:" + result.routingTable().prettyPrint(), result.changed());
-
-        result = allocation.applyStartedShards(state, Arrays.asList(
-                TestShardRouting.newShardRouting(relocatingShard.index(), relocatingShard.id(), relocatingShard.relocatingNodeId(), "some_node", relocatingShard.primary(),
-                        ShardRoutingState.INITIALIZING, 1)), false);
-        assertFalse("relocating shard from a different node shouldn't start shard " + relocatingShard + "\ncurrent routing table:" + result.routingTable().prettyPrint(), result.changed());
-
-        result = allocation.applyStartedShards(state, Arrays.asList(
-                TestShardRouting.newShardRouting(relocatingShard.index(), relocatingShard.id(), relocatingShard.relocatingNodeId(), relocatingShard.primary(),
-                        ShardRoutingState.INITIALIZING, 1)), false);
-        assertFalse("non-relocating shard shouldn't start shard" + relocatingShard + "\ncurrent routing table:" + result.routingTable().prettyPrint(), result.changed());
+                TestShardRouting.newShardRouting(relocatingShard.index(), relocatingShard.id(), relocatingShard.relocatingNodeId(), relocatingShard.currentNodeId(), relocatingShard.primary(),
+                        ShardRoutingState.INITIALIZING, relocatingShard.allocationId(), randomInt())), false);
+        assertFalse("wrong allocation id shouldn't start shard even if relocatingId==shard.id" + relocatingShard + "\ncurrent routing table:" + result.routingTable().prettyPrint(), result.changed());
 
     }
 }

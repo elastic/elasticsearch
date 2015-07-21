@@ -299,39 +299,6 @@
         </testResources>
 
         <plugins>
-          <plugin>
-            <groupId>org.codehaus.mojo</groupId>
-            <artifactId>exec-maven-plugin</artifactId>
-            <version>1.4.0</version>
-            <executions>
-              <execution>
-                <goals>
-                  <goal>exec</goal>
-                </goals>
-              </execution>
-            </executions>
-            <configuration>
-              <executable>${jvm.executable}</executable>
-              <arguments>
-                <argument>-Des.security.manager.enabled=false</argument>
-                <argument>-classpath</argument>
-                <classpath/>
-                <argument>org.elasticsearch.bootstrap.Bootstrap</argument>
-                <argument>-Xms256m</argument>
-                <argument>-Xmx1g</argument>
-                <argument>-Djava.awt.headless=true</argument>
-                <argument>-XX:+UseParNewGC</argument>
-                <argument>-XX:+UseConcMarkSweepGC</argument>
-                <argument>-XX:CMSInitiatingOccupancyFraction=75</argument>
-                <argument>-XX:+UseCMSInitiatingOccupancyOnly</argument>
-                <argument>-XX:+HeapDumpOnOutOfMemoryError</argument>
-                <argument>-XX:+DisableExplicitGC</argument>
-                <argument>-Dfile.encoding=UTF-8</argument>
-                <argument>-Djna.nosys=true</argument>
-                <argument>-Delasticsearch</argument>
-              </arguments>
-            </configuration>
-          </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-source-plugin</artifactId>
@@ -1025,11 +992,24 @@
                     </execution>
                 </executions>
             </plugin>
-            <!-- integration tests -->
+            <!-- execution and integration tests -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-antrun-plugin</artifactId>
                 <executions>
+                    <!-- start up elasticsearch in foreground -->
+                    <execution>
+                        <id>execute</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target if="${run}">
+                                <ant antfile="${elasticsearch.integ.antfile}" target="start-foreground"/>
+                            </target>
+                        </configuration>
+                    </execution>
                     <!-- start up external cluster -->
                     <execution>
                         <id>integ-setup</id>
@@ -1053,8 +1033,6 @@
                         <configuration>
                             <target>
                                 <ant antfile="${elasticsearch.integ.antfile}" target="stop-external-cluster"/>
-                                <!-- TODO: remove this and the xslt when junit4 is fixed -->
-                                <ant antfile="${elasticsearch.integ.antfile}" target="fixup-failsafe-summary"/>
                             </target>
                         </configuration>
                     </execution>

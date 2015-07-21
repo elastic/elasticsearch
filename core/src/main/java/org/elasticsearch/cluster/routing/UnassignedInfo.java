@@ -257,17 +257,20 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
         return nextDelay == Long.MAX_VALUE ? 0l : nextDelay;
     }
 
-    @Override
-    public String toString() {
+    public String shortSummary() {
         StringBuilder sb = new StringBuilder();
-        sb.append("unassigned_info[[reason=").append(reason).append("]");
+        sb.append("[reason=").append(reason).append("]");
         sb.append(", at[").append(DATE_TIME_FORMATTER.printer().print(timestamp)).append("]");
         String details = getDetails();
         if (details != null) {
             sb.append(", details[").append(details).append("]");
         }
-        sb.append("]");
         return sb.toString();
+    }
+
+    @Override
+    public String toString() {
+        return "unassigned_info[" + shortSummary() + "]";
     }
 
     @Override

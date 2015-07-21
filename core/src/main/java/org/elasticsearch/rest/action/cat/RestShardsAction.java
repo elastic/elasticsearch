@@ -146,6 +146,9 @@ public class RestShardsAction extends AbstractCatAction {
         table.addCell("search.query_current", "alias:sqc,searchQueryCurrent;default:false;text-align:right;desc:current query phase ops");
         table.addCell("search.query_time", "alias:sqti,searchQueryTime;default:false;text-align:right;desc:time spent in query phase");
         table.addCell("search.query_total", "alias:sqto,searchQueryTotal;default:false;text-align:right;desc:total query phase ops");
+        table.addCell("search.scroll_current", "alias:scc,searchScrollCurrent;default:false;text-align:right;desc:open scroll contexts");
+        table.addCell("search.scroll_time", "alias:scti,searchScrollTime;default:false;text-align:right;desc:time scroll contexts held open");
+        table.addCell("search.scroll_total", "alias:scto,searchScrollTotal;default:false;text-align:right;desc:completed scroll contexts");
 
         table.addCell("segments.count", "alias:sc,segmentsCount;default:false;text-align:right;desc:number of segments");
         table.addCell("segments.memory", "alias:sm,segmentsMemory;default:false;text-align:right;desc:memory used by segments");
@@ -277,6 +280,9 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(shardStats == null ? null : shardStats.getSearch().getTotal().getQueryCurrent());
             table.addCell(shardStats == null ? null : shardStats.getSearch().getTotal().getQueryTime());
             table.addCell(shardStats == null ? null : shardStats.getSearch().getTotal().getQueryCount());
+            table.addCell(shardStats == null ? null : shardStats.getSearch().getTotal().getScrollCurrent());
+            table.addCell(shardStats == null ? null : shardStats.getSearch().getTotal().getScrollTime());
+            table.addCell(shardStats == null ? null : shardStats.getSearch().getTotal().getScrollCount());
 
             table.addCell(shardStats == null ? null : shardStats.getSegments().getCount());
             table.addCell(shardStats == null ? null : shardStats.getSegments().getMemory());

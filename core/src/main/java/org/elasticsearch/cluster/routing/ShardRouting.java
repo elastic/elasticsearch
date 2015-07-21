@@ -441,11 +441,12 @@ public final class ShardRouting implements Streamable, ToXContent {
     void moveToStarted() {
         ensureNotFrozen();
         version++;
-        assert state == ShardRoutingState.INITIALIZING || state == ShardRoutingState.RELOCATING : this;
+        assert state == ShardRoutingState.INITIALIZING : "expected an initializing shard " + this;
         relocatingNodeId = null;
         restoreSource = null;
         unassignedInfo = null; // we keep the unassigned data until the shard is started
-        if (state == ShardRoutingState.RELOCATING) {
+        if (allocationId.getRelocationId() != null) {
+            // target relocation
             allocationId = AllocationId.finishRelocation(allocationId);
         }
         state = ShardRoutingState.STARTED;
@@ -502,6 +503,9 @@ public final class ShardRouting implements Streamable, ToXContent {
         if (relocatingNodeId != null ? !relocatingNodeId.equals(that.relocatingNodeId) : that.relocatingNodeId != null) {
             return false;
         }
+        if (allocationId != null ? !allocationId.equals(that.allocationId) : that.allocationId != null) {
+            return false;
+        }
         if (state != that.state) {
             return false;
         }
@@ -526,6 +530,7 @@ public final class ShardRouting implements Streamable, ToXContent {
         result = 31 * result + (primary ? 1 : 0);
         result = 31 * result + (state != null ? state.hashCode() : 0);
         result = 31 * result + (restoreSource != null ? restoreSource.hashCode() : 0);
+        result = 31 * result + (allocationId != null ? allocationId.hashCode() : 0);
         return hashCode = result;
     }
 
@@ -549,10 +554,14 @@ public final class ShardRouting implements Streamable, ToXContent {
         } else {
             sb.append("[R]");
         }
+        sb.append(", v[").append(version).append("]");
         if (this.restoreSource != null) {
             sb.append(", restoring[" + restoreSource + "]");
         }
         sb.append(", s[").append(state).append("]");
+        if (allocationId != null) {
+            sb.append(", a").append(allocationId);
+        }
         if (this.unassignedInfo != null) {
             sb.append(", ").append(unassignedInfo.toString());
         }
@@ -567,10 +576,15 @@ public final class ShardRouting implements Streamable, ToXContent {
                 .field("node", currentNodeId())
                 .field("relocating_node", relocatingNodeId())
                 .field("shard", shardId().id())
-                .field("index", shardId().index().name());
+                .field("index", shardId().index().name())
+                .field("version", version);
+
         if (restoreSource() != null) {
             builder.field("restore_source");
             restoreSource().toXContent(builder, params);
+        }
+        if (allocationId != null) {
+            allocationId.toXContent(builder, params);
         }
         if (unassignedInfo != null) {
             unassignedInfo.toXContent(builder, params);

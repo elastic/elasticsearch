@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.segments;
+package org.elasticsearch.action.admin.indices.shards;
 
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 
@@ -37,10 +37,10 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.junit.Test;
 
-import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
@@ -58,6 +58,7 @@ public class IndicesShardStoreRequestTests extends ElasticsearchIntegrationTest 
     }
 
     @Test
+    @TestLogging("action.admin.indices.shards:TRACE,cluster.service:TRACE")
     public void testBasic() throws Exception {
         String index = "test";
         internalCluster().ensureAtLeastNumDataNodes(2);
@@ -91,10 +92,13 @@ public class IndicesShardStoreRequestTests extends ElasticsearchIntegrationTest 
         disableAllocation(index);
         logger.info("--> stop random node");
         internalCluster().stopRandomNode(new IndexNodePredicate(index));
+        ensureYellow(index);
+        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        List<ShardRouting> unassignedShards = clusterState.routingTable().index(index).shardsWithState(ShardRoutingState.UNASSIGNED);
         response = client().admin().indices().shardStores(Requests.indicesShardStoresRequest(index)).get();
         assertThat(response.getStoreStatuses().containsKey(index), equalTo(true));
         ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>> shardStoresStatuses = response.getStoreStatuses().get(index);
-        assertThat(shardStoresStatuses.size(), greaterThan(0));
+        assertThat(shardStoresStatuses.size(), equalTo(unassignedShards.size()));
         for (IntObjectCursor<List<IndicesShardStoresResponse.StoreStatus>> storesStatus : shardStoresStatuses) {
             assertThat("must report for one store", storesStatus.value.size(), equalTo(1));
             assertThat("reported store should be primary", storesStatus.value.get(0).getAllocation(), equalTo(IndicesShardStoresResponse.StoreStatus.Allocation.PRIMARY));

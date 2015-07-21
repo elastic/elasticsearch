@@ -59,7 +59,7 @@ public class BooleanFieldMapperTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapper defaultMapper = parser.parse(mapping);
 
-        ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", true)
                 .endObject()

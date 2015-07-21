@@ -53,7 +53,7 @@ public class DoubleIndexingDocTest extends ElasticsearchSingleNodeTest {
         client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping).get();
         DocumentMapper mapper = index.mapperService().documentMapper("type");
 
-        ParsedDocument doc = mapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field1", "value1")
                 .field("field2", 1)

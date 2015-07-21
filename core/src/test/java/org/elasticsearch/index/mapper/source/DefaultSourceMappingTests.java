@@ -49,14 +49,14 @@ public class DefaultSourceMappingTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         DocumentMapper documentMapper = parser.parse(mapping);
-        ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
+        ParsedDocument doc = documentMapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field", "value")
                 .endObject().bytes());
 
         assertThat(XContentFactory.xContentType(doc.source()), equalTo(XContentType.JSON));
 
         documentMapper = parser.parse(mapping);
-        doc = documentMapper.parse("type", "1", XContentFactory.smileBuilder().startObject()
+        doc = documentMapper.parse("test", "type", "1", XContentFactory.smileBuilder().startObject()
                 .field("field", "value")
                 .endObject().bytes());
 
@@ -70,14 +70,14 @@ public class DefaultSourceMappingTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         DocumentMapper documentMapper = parser.parse(mapping);
-        ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
+        ParsedDocument doc = documentMapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field", "value")
                 .endObject().bytes());
 
         assertThat(XContentFactory.xContentType(doc.source()), equalTo(XContentType.JSON));
 
         documentMapper = parser.parse(mapping);
-        doc = documentMapper.parse("type", "1", XContentFactory.smileBuilder().startObject()
+        doc = documentMapper.parse("test", "type", "1", XContentFactory.smileBuilder().startObject()
             .field("field", "value")
             .endObject().bytes());
 
@@ -92,7 +92,7 @@ public class DefaultSourceMappingTests extends ElasticsearchSingleNodeTest {
         Settings backcompatSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
         DocumentMapperParser parser = createIndex("test", backcompatSettings).mapperService().documentMapperParser();
         DocumentMapper documentMapper = parser.parse(mapping);
-        ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
+        ParsedDocument doc = documentMapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field", "value")
                 .endObject().bytes());
 
@@ -101,7 +101,7 @@ public class DefaultSourceMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(XContentFactory.xContentType(uncompressed), equalTo(XContentType.JSON));
 
         documentMapper = parser.parse(mapping);
-        doc = documentMapper.parse("type", "1", XContentFactory.smileBuilder().startObject()
+        doc = documentMapper.parse("test", "type", "1", XContentFactory.smileBuilder().startObject()
                 .field("field", "value")
                 .endObject().bytes());
 
@@ -117,7 +117,7 @@ public class DefaultSourceMappingTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapper documentMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
-        ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
+        ParsedDocument doc = documentMapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject()
             .startObject("path1").field("field1", "value1").endObject()
             .startObject("path2").field("field2", "value2").endObject()
             .endObject().bytes());
@@ -138,7 +138,7 @@ public class DefaultSourceMappingTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapper documentMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
-        ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
+        ParsedDocument doc = documentMapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject()
             .startObject("path1").field("field1", "value1").endObject()
             .startObject("path2").field("field2", "value2").endObject()
             .endObject().bytes());

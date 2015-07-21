@@ -110,7 +110,7 @@ public class CopyToMapperTests extends ElasticsearchSingleNodeTest {
                 .field("int_to_str_test", 42)
                 .endObject().bytes();
 
-        ParsedDocument parsedDoc = docMapper.parse("type1", "1", json);
+        ParsedDocument parsedDoc = docMapper.parse("test", "type1", "1", json);
         ParseContext.Document doc = parsedDoc.rootDoc();
         assertThat(doc.getFields("copy_test").length, equalTo(2));
         assertThat(doc.getFields("copy_test")[0].stringValue(), equalTo("foo"));
@@ -165,7 +165,7 @@ public class CopyToMapperTests extends ElasticsearchSingleNodeTest {
                 .startObject("foo").startObject("bar").field("baz", "zoo").endObject().endObject()
                 .endObject().bytes();
 
-        ParseContext.Document doc = docMapper.parse("type1", "1", json).rootDoc();
+        ParseContext.Document doc = docMapper.parse("test", "type1", "1", json).rootDoc();
         assertThat(doc.getFields("copy_test").length, equalTo(1));
         assertThat(doc.getFields("copy_test")[0].stringValue(), equalTo("foo"));
 
@@ -193,7 +193,7 @@ public class CopyToMapperTests extends ElasticsearchSingleNodeTest {
                 .endObject().bytes();
 
         try {
-            docMapper.parse("type1", "1", json).rootDoc();
+            docMapper.parse("test", "type1", "1", json).rootDoc();
             fail();
         } catch (MapperParsingException ex) {
             assertThat(ex.getMessage(), startsWith("attempt to copy value to non-existing object"));
@@ -313,7 +313,7 @@ public class CopyToMapperTests extends ElasticsearchSingleNodeTest {
                         .endArray()
                     .endObject();
 
-            ParsedDocument doc = mapper.parse("type", "1", jsonDoc.bytes());
+            ParsedDocument doc = mapper.parse("test", "type", "1", jsonDoc.bytes());
             assertEquals(6, doc.docs().size());
 
             Document nested = doc.docs().get(0);

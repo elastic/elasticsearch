@@ -380,8 +380,6 @@ public abstract class ParseContext {
 
         private List<Document> documents = Lists.newArrayList();
 
-        private final String index;
-
         @Nullable
         private final Settings indexSettings;
 
@@ -402,8 +400,7 @@ public abstract class ParseContext {
 
         private Mapper dynamicMappingsUpdate = null;
 
-        public InternalParseContext(String index, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper, ContentPath path) {
-            this.index = index;
+        public InternalParseContext(@Nullable Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper, ContentPath path) {
             this.indexSettings = indexSettings;
             this.docMapper = docMapper;
             this.docMapperParser = docMapperParser;
@@ -443,7 +440,7 @@ public abstract class ParseContext {
 
         @Override
         public String index() {
-            return this.index;
+            return sourceToParse.index();
         }
 
         @Override

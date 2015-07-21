@@ -53,7 +53,7 @@ public class JavaMultiFieldMergeTests extends ElasticsearchSingleNodeTest {
         assertThat(docMapper.mappers().getMapper("name.indexed"), nullValue());
 
         BytesReference json = XContentFactory.jsonBuilder().startObject().field("name", "some name").endObject().bytes();
-        Document doc = docMapper.parse("person", "1", json).rootDoc();
+        Document doc = docMapper.parse("test", "person", "1", json).rootDoc();
         IndexableField f = doc.getField("name");
         assertThat(f, notNullValue());
         f = doc.getField("name.indexed");
@@ -75,7 +75,7 @@ public class JavaMultiFieldMergeTests extends ElasticsearchSingleNodeTest {
         assertThat(docMapper.mappers().getMapper("name.not_indexed2"), nullValue());
         assertThat(docMapper.mappers().getMapper("name.not_indexed3"), nullValue());
 
-        doc = docMapper.parse("person", "1", json).rootDoc();
+        doc = docMapper.parse("test", "person", "1", json).rootDoc();
         f = doc.getField("name");
         assertThat(f, notNullValue());
         f = doc.getField("name.indexed");
@@ -125,7 +125,7 @@ public class JavaMultiFieldMergeTests extends ElasticsearchSingleNodeTest {
         assertThat(docMapper.mappers().getMapper("name.indexed"), nullValue());
 
         BytesReference json = XContentFactory.jsonBuilder().startObject().field("name", "some name").endObject().bytes();
-        Document doc = docMapper.parse("person", "1", json).rootDoc();
+        Document doc = docMapper.parse("test", "person", "1", json).rootDoc();
         IndexableField f = doc.getField("name");
         assertThat(f, notNullValue());
         f = doc.getField("name.indexed");
@@ -148,7 +148,7 @@ public class JavaMultiFieldMergeTests extends ElasticsearchSingleNodeTest {
         assertThat(docMapper.mappers().getMapper("name.not_indexed2"), nullValue());
         assertThat(docMapper.mappers().getMapper("name.not_indexed3"), nullValue());
 
-        doc = docMapper.parse("person", "1", json).rootDoc();
+        doc = docMapper.parse("test", "person", "1", json).rootDoc();
         f = doc.getField("name");
         assertThat(f, notNullValue());
         f = doc.getField("name.indexed");

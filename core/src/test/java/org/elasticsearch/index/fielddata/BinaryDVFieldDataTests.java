@@ -60,16 +60,16 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTests {
         bytesList1.add(randomBytes());
         bytesList1.add(randomBytes());
         XContentBuilder doc = XContentFactory.jsonBuilder().startObject().startArray("field").value(bytesList1.get(0)).value(bytesList1.get(1)).endArray().endObject();
-        ParsedDocument d = mapper.parse("test", "1", doc.bytes());
+        ParsedDocument d = mapper.parse("test", "test", "1", doc.bytes());
         writer.addDocument(d.rootDoc());
 
         byte[] bytes1 = randomBytes();
         doc = XContentFactory.jsonBuilder().startObject().field("field", bytes1).endObject();
-        d = mapper.parse("test", "2", doc.bytes());
+        d = mapper.parse("test", "test", "2", doc.bytes());
         writer.addDocument(d.rootDoc());
 
         doc = XContentFactory.jsonBuilder().startObject().endObject();
-        d = mapper.parse("test", "3", doc.bytes());
+        d = mapper.parse("test", "test", "3", doc.bytes());
         writer.addDocument(d.rootDoc());
 
         // test remove duplicate value
@@ -77,7 +77,7 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTests {
         bytesList2.add(randomBytes());
         bytesList2.add(randomBytes());
         doc = XContentFactory.jsonBuilder().startObject().startArray("field").value(bytesList2.get(0)).value(bytesList2.get(1)).value(bytesList2.get(0)).endArray().endObject();
-        d = mapper.parse("test", "4", doc.bytes());
+        d = mapper.parse("test", "test", "4", doc.bytes());
         writer.addDocument(d.rootDoc());
 
         LeafReaderContext reader = refreshReader();

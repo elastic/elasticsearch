@@ -45,7 +45,7 @@ public class IdMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
-        ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .endObject()
                 .bytes());
@@ -54,7 +54,7 @@ public class IdMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(doc.rootDoc().get(IdFieldMapper.NAME), nullValue());
 
         try {
-            docMapper.parse("type", null, XContentFactory.jsonBuilder()
+            docMapper.parse("test", "type", null, XContentFactory.jsonBuilder()
                     .startObject()
                     .endObject()
                     .bytes());
@@ -71,7 +71,7 @@ public class IdMappingTests extends ElasticsearchSingleNodeTest {
         Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
         DocumentMapper docMapper = createIndex("test", indexSettings).mapperService().documentMapperParser().parse(mapping);
 
-        ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .endObject()
                 .bytes());

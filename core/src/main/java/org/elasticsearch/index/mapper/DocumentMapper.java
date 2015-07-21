@@ -326,11 +326,6 @@ public class DocumentMapper implements ToXContent {
         return parse(SourceToParse.source(source).index(index).type(type).id(id));
     }
 
-    // TODO: remove this, replace all uses with version including index above
-    public ParsedDocument parse(String type, String id, BytesReference source) throws MapperParsingException {
-        return parse(SourceToParse.source(source).type(type).id(id));
-    }
-
     public ParsedDocument parse(SourceToParse source) throws MapperParsingException {
         return documentParser.parseDocument(source);
     }

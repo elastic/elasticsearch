@@ -102,10 +102,11 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
-            if (parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
-                parseField(builder, builder.name, node, parserContext);
+            if (parserContext.indexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
+                return builder;
             }
 
+            parseField(builder, builder.name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());

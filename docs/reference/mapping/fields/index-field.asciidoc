@@ -1,10 +1,10 @@
 [[mapping-index-field]]
 === `_index` field
 
-The name of the index that contains the document.  This field is not indexed
-but can be automatically derived from the index itself.
-
-Its value is accessible in queries, aggregations, scripts, and when sorting:
+When performing queries across multiple indexes, it is sometimes desirable
+to add query clauses that are associated with documents of only certain
+indexes. The `_index` field allows matching on the index a document was
+indexed into. Its value is accessible in queries, aggregations, scripts, and when sorting:
 
 [source,js]
 --------------------------

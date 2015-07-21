@@ -27,7 +27,7 @@ To build a `SNAPSHOT` version, you need to build it with Maven:
 
 ```bash
 mvn clean install
-plugin --install cloud-gce \ 
+plugin install cloud-gce \
        --url file:target/releases/elasticsearch-cloud-gce-X.X.X-SNAPSHOT.zip
 ```
 
@@ -148,7 +148,7 @@ Install the plugin:
 
 ```sh
 # Use Plugin Manager to install it
-sudo /usr/share/elasticsearch/bin/plugin --install elasticsearch/elasticsearch-cloud-gce/2.2.0
+sudo /usr/share/elasticsearch/bin/plugin install elasticsearch/elasticsearch-cloud-gce/2.2.0
 
 # Configure it:
 sudo vi /etc/elasticsearch/elasticsearch.yml

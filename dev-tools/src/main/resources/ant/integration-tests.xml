@@ -86,7 +86,7 @@
 
       <!-- install plugin -->
       <echo>Installing plugin @{name}...</echo>
-      <run-script dir="@{home}" script="bin/plugin" args="-u ${url} -i @{name}"/>
+      <run-script dir="@{home}" script="bin/plugin" args="install @{name} -u ${url}"/>
 
       <!-- check that plugin was installed into correct place -->
       <local name="longname"/>

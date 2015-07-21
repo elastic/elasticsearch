@@ -27,7 +27,6 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.http.client.HttpDownloadHelper;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -36,7 +35,6 @@ import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.io.PrintStream;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -107,6 +105,11 @@ public class PluginManager {
             progress = new HttpDownloadHelper.NullProgress();
         } else {
             progress = new HttpDownloadHelper.VerboseProgress(terminal.writer());
+        }
+
+        if (!Files.exists(environment.pluginsFile())) {
+            terminal.println("Plugins directory [%s] does not exist. Creating...", environment.pluginsFile());
+            Files.createDirectory(environment.pluginsFile());
         }
 
         if (!Files.isWritable(environment.pluginsFile())) {
@@ -406,6 +409,10 @@ public class PluginManager {
     }
 
     public Path[] getListInstalledPlugins() throws IOException {
+        if (!Files.exists(environment.pluginsFile())) {
+            return new Path[0];
+        }
+
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(environment.pluginsFile())) {
             return Iterators.toArray(stream.iterator(), Path.class);
         }

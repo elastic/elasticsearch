@@ -115,7 +115,7 @@ if __name__ == '__main__':
       if name not in ('target', 'pom.xml'):
         url = 'file://%s/plugins/%s/target/releases/elasticsearch-%s-2.0.0-SNAPSHOT.zip' % (os.path.abspath('.'), name, name)
         print('  install plugin %s...' % name)
-        run('%s; %s --url %s -install %s' % (JAVA_ENV, es_plugin_path, url, name))
+        run('%s; %s install %s --url %s' % (JAVA_ENV, es_plugin_path, name, url))
         installed_plugin_names.add(name)
 
     print('Start Elasticsearch')

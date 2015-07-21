@@ -49,7 +49,8 @@ bin/plugin install plugin-name --url file:///path/to/plugin
 -----------------------------------
 
 
-You can run `bin/plugin -h`.
+You can run `bin/plugin -h`, or `bin/plugin install -h` for help on the install command
+as well as `bin/plugin remove -h` for help on the remove command..
 
 [float]
 [[site-plugins]]

@@ -19,21 +19,23 @@ but are costly to build and are stored in-memory.
 [[completion-suggester-mapping]]
 ==== Mapping
 
-To use this feature, specify a special mapping for
-this field, which indexes the field values for completions.
+To use this feature, specify a special mapping for this field,
+which indexes the field values for fast completions.
 
 [source,js]
 --------------------------------------------------
-curl -X PUT localhost:9200/music
-curl -X PUT localhost:9200/music/song/_mapping -d '{
+PUT music
+PUT music/song/_mapping
+{
   "song" : {
         "properties" : {
+            ...
             "suggest" : {
                 "type" : "completion",
             }
         }
     }
-}'
+}
 --------------------------------------------------
 
 Mapping supports the following parameters:
@@ -54,8 +56,8 @@ Mapping supports the following parameters:
     suggest for `foof`.
 
 `preserve_position_increments`::
-    Enables position increments, defaults
-    to `true`. If disabled and using stopwords analyzer, you could get a
+    Enables position increments, defaults to `true`.
+    If disabled and using stopwords analyzer, you could get a
     field starting with `The Beatles`, if you suggest for `b`. *Note*: You
     could also achieve this by indexing two inputs, `Beatles` and
     `The Beatles`, no need to change a simple analyzer, if you are able to
@@ -74,12 +76,13 @@ Mapping supports the following parameters:
 
 [source,js]
 --------------------------------------------------
-curl -X PUT 'localhost:9200/music/song/1?refresh=true' -d '{
+PUT music/song/1?refresh=true
+{
     "suggest" : {
         "input": [ "Nevermind", "Nirvana" ],
         "weight" : 34
     }
-}'
+}
 --------------------------------------------------
 
 The following parameters are supported:
@@ -111,14 +114,15 @@ type as `completion`.
 
 [source,js]
 --------------------------------------------------
-curl -X POST 'localhost:9200/music/_suggest?pretty' -d '{
+POST music/_suggest?pretty
+{
     "song-suggest" : {
         "prefix" : "n",
         "completion" : {
             "field" : "suggest"
         }
     }
-}'
+}
 
 {
   "_shards" : {
@@ -150,6 +154,9 @@ NOTE: The completion suggester considers all documents in the index.
 See <<suggester-context>> for an explanation of how to query a subset of
 documents instead.
 
+NOTE: It will be possible to return the associated documents
+with each suggestion in the future (TODO).
+
 [[fuzzy]]
 ==== Fuzzy queries
 
@@ -158,7 +165,8 @@ you can have a typo in your search and still get results back.
 
 [source,js]
 --------------------------------------------------
-curl -X POST 'localhost:9200/music/_suggest?pretty' -d '{
+POST music/_suggest?pretty
+{
     "song-suggest" : {
         "prefix" : "n",
         "completion" : {
@@ -168,7 +176,7 @@ curl -X POST 'localhost:9200/music/_suggest?pretty' -d '{
             }
         }
     }
-}'
+}
 --------------------------------------------------
 
 The fuzzy query can take specific fuzzy parameters.
@@ -208,14 +216,15 @@ you can express a prefix as a regular expression
 
 [source,js]
 --------------------------------------------------
-curl -X POST 'localhost:9200/music/_suggest?pretty' -d '{
+POST music/_suggest?pretty
+{
     "song-suggest" : {
         "regex" : "n[ever|i]r",
         "completion" : {
             "field" : "suggest",
         }
     }
-}'
+}
 --------------------------------------------------
 
 The regex query can take specific regex parameters.

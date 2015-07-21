@@ -92,6 +92,7 @@ public class IndicesShardStoreRequestTests extends ElasticsearchIntegrationTest 
         disableAllocation(index);
         logger.info("--> stop random node");
         internalCluster().stopRandomNode(new IndexNodePredicate(index));
+        ensureYellow(index);
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         List<ShardRouting> unassignedShards = clusterState.routingTable().index(index).shardsWithState(ShardRoutingState.UNASSIGNED);
         response = client().admin().indices().shardStores(Requests.indicesShardStoresRequest(index)).get();

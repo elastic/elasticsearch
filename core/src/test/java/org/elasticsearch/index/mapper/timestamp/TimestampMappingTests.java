@@ -767,7 +767,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
 
         // _timestamp in a document never worked, so backcompat is ignoring the field
         assertEquals(MappingMetaData.Timestamp.parseStringTimestamp("1970", Joda.forPattern("YYYY"), Version.V_1_4_2), request.timestamp());
-        assertNull(docMapper.parse("type", "1", doc.bytes()).rootDoc().get("_timestamp"));
+        assertNull(docMapper.parse("test", "type", "1", doc.bytes()).rootDoc().get("_timestamp"));
     }
 
     public void testThatEpochCanBeIgnoredWithCustomFormat() throws Exception {

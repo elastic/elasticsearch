@@ -52,7 +52,7 @@ public class DynamicMappingTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
-        ParsedDocument doc = defaultMapper.parse("type", "1", jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse("test", "type", "1", jsonBuilder()
                 .startObject()
                 .field("field1", "value1")
                 .field("field2", "value2")
@@ -72,7 +72,7 @@ public class DynamicMappingTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
-        ParsedDocument doc = defaultMapper.parse("type", "1", jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse("test", "type", "1", jsonBuilder()
                 .startObject()
                 .field("field1", "value1")
                 .field("field2", "value2")
@@ -94,7 +94,7 @@ public class DynamicMappingTests extends ElasticsearchSingleNodeTest {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
         try {
-            defaultMapper.parse("type", "1", jsonBuilder()
+            defaultMapper.parse("test", "type", "1", jsonBuilder()
                     .startObject()
                     .field("field1", "value1")
                     .field("field2", "value2")
@@ -105,7 +105,7 @@ public class DynamicMappingTests extends ElasticsearchSingleNodeTest {
         }
 
         try {
-            defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+            defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                     .startObject()
                     .field("field1", "value1")
                     .field("field2", (String) null)
@@ -128,7 +128,7 @@ public class DynamicMappingTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
-        ParsedDocument doc = defaultMapper.parse("type", "1", jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse("test", "type", "1", jsonBuilder()
                 .startObject().startObject("obj1")
                 .field("field1", "value1")
                 .field("field2", "value2")
@@ -152,7 +152,7 @@ public class DynamicMappingTests extends ElasticsearchSingleNodeTest {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
         try {
-            defaultMapper.parse("type", "1", jsonBuilder()
+            defaultMapper.parse("test", "type", "1", jsonBuilder()
                     .startObject().startObject("obj1")
                     .field("field1", "value1")
                     .field("field2", "value2")

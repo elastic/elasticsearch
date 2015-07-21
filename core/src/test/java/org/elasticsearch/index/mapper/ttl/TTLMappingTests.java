@@ -308,7 +308,7 @@ public class TTLMappingTests extends ElasticsearchSingleNodeTest {
 
         // _ttl in a document never worked, so backcompat is ignoring the field
         assertEquals(-1, request.ttl());
-        assertNull(docMapper.parse("type", "1", doc.bytes()).rootDoc().get("_ttl"));
+        assertNull(docMapper.parse("test", "type", "1", doc.bytes()).rootDoc().get("_ttl"));
     }
 
     private org.elasticsearch.common.xcontent.XContentBuilder getMappingWithTtlEnabled() throws IOException {

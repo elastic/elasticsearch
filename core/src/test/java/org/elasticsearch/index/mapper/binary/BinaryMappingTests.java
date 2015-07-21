@@ -85,7 +85,7 @@ public class BinaryMappingTests extends ElasticsearchSingleNodeTest {
         assertTrue(CompressorFactory.isCompressed(new BytesArray(binaryValue2)));
         
         for (byte[] value : Arrays.asList(binaryValue1, binaryValue2)) {
-            ParsedDocument doc = mapper.parse("type", "id", XContentFactory.jsonBuilder().startObject().field("field", value).endObject().bytes());
+            ParsedDocument doc = mapper.parse("test", "type", "id", XContentFactory.jsonBuilder().startObject().field("field", value).endObject().bytes());
             BytesRef indexedValue = doc.rootDoc().getBinaryValue("field");
             assertEquals(new BytesRef(value), indexedValue);
             FieldMapper fieldMapper = mapper.mappers().smartNameFieldMapper("field");
@@ -116,7 +116,7 @@ public class BinaryMappingTests extends ElasticsearchSingleNodeTest {
         final byte[] binaryValue = out.bytes().toBytes();
         assertTrue(CompressorFactory.isCompressed(new BytesArray(binaryValue)));
         
-        ParsedDocument doc = mapper.parse("type", "id", XContentFactory.jsonBuilder().startObject().field("field", binaryValue).endObject().bytes());
+        ParsedDocument doc = mapper.parse("test", "type", "id", XContentFactory.jsonBuilder().startObject().field("field", binaryValue).endObject().bytes());
         BytesRef indexedValue = doc.rootDoc().getBinaryValue("field");
         assertEquals(new BytesRef(binaryValue), indexedValue);
         FieldMapper fieldMapper = mapper.mappers().smartNameFieldMapper("field");

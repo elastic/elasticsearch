@@ -19,79 +19,47 @@
 
 package org.elasticsearch.plugins;
 
-import com.google.common.collect.ImmutableList;
-
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.admin.cluster.node.info.PluginInfo;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.loading.classpath.InClassPathPlugin;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.junit.Test;
+import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.test.ElasticsearchTestCase;
 
-import java.net.URISyntaxException;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.PathMatcher;
+import java.util.Properties;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.Matchers.instanceOf;
+public class PluginServiceTests extends ElasticsearchTestCase {
 
-@ClusterScope(scope= ElasticsearchIntegrationTest.Scope.TEST, numDataNodes=0, numClientNodes = 1, transportClientRatio = 0)
-@AwaitsFix(bugUrl = "adapt these test zips to be realistic")
-public class PluginServiceTests extends PluginTestCase {
-
-    @Test
-    public void testPluginLoadingFromClassName() throws URISyntaxException {
-        Settings settings = settingsBuilder()
-                                // Defines a plugin in settings
-                                .put("plugin.types", InSettingsPlugin.class.getName())
-                            .build();
-
-        startNodeWithPlugins(settings, "/org/elasticsearch/plugins/loading/");
-
-        Plugin plugin = getPlugin("in-settings-plugin");
-        assertNotNull("InSettingsPlugin (defined below in this class) must be loaded", plugin);
-        assertThat(plugin, instanceOf(InSettingsPlugin.class));
-
-        plugin = getPlugin("in-zip-plugin");
-        assertNotNull("InZipPlugin (packaged as a Zipped file in a plugins directory) must be loaded", plugin);
-        assertThat(plugin.getClass().getName(), endsWith("InZipPlugin"));
+    void writeProperties(Path pluginDir, String... stringProps) throws IOException {
+        assert stringProps.length % 2 == 0;
+        Path propertiesFile = pluginDir.resolve(PluginsService.ES_PLUGIN_PROPERTIES);
+        Properties properties =  new Properties();
+        for (int i = 0; i < stringProps.length; i += 2) {
+            properties.put(stringProps[i], stringProps[i + 1]);
+        }
+        try (OutputStream out = Files.newOutputStream(propertiesFile)) {
+            properties.store(out, "");
+        }
     }
 
-    private Plugin getPlugin(String pluginName) {
-        assertNotNull("cannot check plugin existence with a null plugin's name", pluginName);
-        PluginsService pluginsService = internalCluster().getInstance(PluginsService.class);
-        ImmutableList<Tuple<PluginInfo, Plugin>> plugins = pluginsService.plugins();
+    public void testMetadata() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        Files.createDirectories(pluginDir);
+        writeProperties(pluginDir,
+            "description", "fake desc",
+            "version", "1.0",
+            "jvm", "true",
+            "plugin", "FakePlugin");
+        PluginInfo info = PluginsService.readMetadata(pluginDir);
+        assertEquals("fake-plugin", info.getName());
+        assertEquals("fake desc", info.getDescription());
+        assertEquals("1.0", info.getVersion());
+        assertEquals("FakePlugin", info.getClassname());
+        assertTrue(info.isJvm());
+        assertFalse(info.isIsolated()); // TODO: isolated was not specified, default should be true
+        assertFalse(info.isSite());
+        assertNull(info.getUrl());
 
-        if ((plugins != null) && (!plugins.isEmpty())) {
-            for (Tuple<PluginInfo, Plugin> plugin:plugins) {
-                if (pluginName.equals(plugin.v1().getName())) {
-                    return plugin.v2();
-                }
-            }
-        }
-        return null;
-    }
-
-    static class InSettingsPlugin extends AbstractPlugin {
-
-        private final Settings settings;
-
-        public InSettingsPlugin(Settings settings) {
-            this.settings = settings;
-        }
-
-        @Override
-        public String name() {
-            return "in-settings-plugin";
-        }
-
-        @Override
-        public String description() {
-            return "A plugin defined in settings";
-        }
     }
 }

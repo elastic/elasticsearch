@@ -1307,7 +1307,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         private void assertClusterStateThread() {
             assert clusterService instanceof InternalClusterService == false || ((InternalClusterService) clusterService).assertClusterStateThread();
-            ;
         }
 
     }

@@ -17,8 +17,8 @@
 
     <properties>
         <elasticsearch.integ.antfile>dev-tools/integration-tests.xml</elasticsearch.integ.antfile>
-        <!-- FIXME add a integration test -->
-        <skip.integ.tests>true</skip.integ.tests>
+        <tests.rest.suite>marvel</tests.rest.suite>
+        <tests.rest.load_packaged>false</tests.rest.load_packaged>
     </properties>
 
     <dependencies>

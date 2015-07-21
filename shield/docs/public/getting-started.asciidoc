@@ -1,4 +1,4 @@
-[[getting-started-with-shield]]
+[[getting-started]]
 == Getting Started with Shield
 
 This getting started guide walks you through installing Shield, setting up basic authentication, and getting started with role-based
@@ -32,7 +32,7 @@ NOTE: If you are using a <<deb-rpm-install, DEB/RPM distribution>> of Elasticsea
 bin/elasticsearch
 ----------------------------------------------------------
 
-. To verify that Shield is up and running, check the startup log entries. When Shield is operating normally, the log indicates that the network transports are using Shield:
+. To verify that Shield is up and running, check the startup log entries. When Shield is operating normally, the log indicates that the network transports are using Shield: 
 +
 [source,shell]
 ----------------

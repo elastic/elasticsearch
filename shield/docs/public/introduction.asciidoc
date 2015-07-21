@@ -42,7 +42,7 @@ Keeping a system secure takes vigilance. By using Shield to maintain an audit tr
 [float]
 === Where to Go Next
 
-* <<getting-started-with-shield, Getting Started>> steps through how to install and start using Shield for basic authentication.
+* <<getting-started, Getting Started>> steps through how to install and start using Shield for basic authentication.
 * <<how-shield-works, How Shield Works>> provides more information about how Shield supports user authentication, authorization, and encryption.
 * <<configuring-clients-integrations, Configuring Clients and Integrations>> shows you how to
 interact with an Elasticsearch cluster protected by Shield.

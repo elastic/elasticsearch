@@ -145,7 +145,7 @@ public class TranslogRecoveryPerformer {
                 case CREATE:
                     Translog.Create create = (Translog.Create) operation;
                     Engine.Create engineCreate = IndexShard.prepareCreate(docMapper(create.type()),
-                            source(create.source()).type(create.type()).id(create.id())
+                            source(create.source()).index(shardId.getIndex()).type(create.type()).id(create.id())
                                     .routing(create.routing()).parent(create.parent()).timestamp(create.timestamp()).ttl(create.ttl()),
                             create.version(), create.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY, true, false);
                     maybeAddMappingUpdate(engineCreate.type(), engineCreate.parsedDoc().dynamicMappingsUpdate(), engineCreate.id(), allowMappingUpdates);

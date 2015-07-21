@@ -47,6 +47,8 @@ public class SourceToParse {
 
     private boolean flyweight = false;
 
+    private String index;
+
     private String type;
 
     private String id;
@@ -59,13 +61,13 @@ public class SourceToParse {
 
     private long ttl;
 
-    public SourceToParse(Origin origin, XContentParser parser) {
+    private SourceToParse(Origin origin, XContentParser parser) {
         this.origin = origin;
         this.parser = parser;
         this.source = null;
     }
 
-    public SourceToParse(Origin origin, BytesReference source) {
+    private SourceToParse(Origin origin, BytesReference source) {
         this.origin = origin;
         // we always convert back to byte array, since we store it and Field only supports bytes..
         // so, we might as well do it here, and improve the performance of working with direct byte arrays
@@ -83,6 +85,15 @@ public class SourceToParse {
 
     public BytesReference source() {
         return this.source;
+    }
+
+    public String index() {
+        return this.index;
+    }
+
+    public SourceToParse index(String index) {
+        this.index = index;
+        return this;
     }
 
     public String type() {

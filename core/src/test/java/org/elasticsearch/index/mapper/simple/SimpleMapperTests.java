@@ -45,7 +45,7 @@ public class SimpleMapperTests extends ElasticsearchSingleNodeTest {
         IndexService indexService = createIndex("test");
         Settings settings = indexService.settingsService().getSettings();
         DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
-        DocumentMapper docMapper = doc("test", settings,
+        DocumentMapper docMapper = doc(settings,
                 rootObject("person")
                         .add(object("name").add(stringField("first").store(true).index(false))),
             indexService.mapperService()).build(indexService.mapperService(), mapperParser);
@@ -123,7 +123,7 @@ public class SimpleMapperTests extends ElasticsearchSingleNodeTest {
         IndexService indexService = createIndex("test");
         Settings settings = indexService.settingsService().getSettings();
         DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
-        DocumentMapper docMapper = doc("test", settings,
+        DocumentMapper docMapper = doc(settings,
                 rootObject("person")
                         .add(object("name").add(stringField("first").store(true).index(false))),
             indexService.mapperService()).build(indexService.mapperService(), mapperParser);

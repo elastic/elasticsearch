@@ -45,6 +45,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchParseElement;
@@ -83,13 +84,15 @@ public class FetchPhase implements SearchPhase {
     private final FetchSubPhase[] fetchSubPhases;
 
     @Inject
-    public FetchPhase(HighlightPhase highlightPhase, ScriptFieldsFetchSubPhase scriptFieldsPhase,
-                      MatchedQueriesFetchSubPhase matchedQueriesPhase, ExplainFetchSubPhase explainPhase, VersionFetchSubPhase versionPhase,
-                      FetchSourceSubPhase fetchSourceSubPhase, FieldDataFieldsFetchSubPhase fieldDataFieldsFetchSubPhase, 
-                      InnerHitsFetchSubPhase innerHitsFetchSubPhase) {
+    public FetchPhase(Set<FetchSubPhase> fetchSubPhases, InnerHitsFetchSubPhase innerHitsFetchSubPhase) {
         innerHitsFetchSubPhase.setFetchPhase(this);
-        this.fetchSubPhases = new FetchSubPhase[]{scriptFieldsPhase, matchedQueriesPhase, explainPhase, highlightPhase,
-                fetchSourceSubPhase, versionPhase, fieldDataFieldsFetchSubPhase, innerHitsFetchSubPhase};
+        this.fetchSubPhases = new FetchSubPhase[fetchSubPhases.size() + 1];
+        int counter = 0;
+        for (FetchSubPhase phase : fetchSubPhases) {
+            this.fetchSubPhases[counter] = phase;
+            counter++;
+        }
+        this.fetchSubPhases[counter] = innerHitsFetchSubPhase;
     }
 
     @Override

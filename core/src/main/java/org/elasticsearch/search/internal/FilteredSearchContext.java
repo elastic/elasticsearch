@@ -45,6 +45,8 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.fetch.FetchSubPhaseContext;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
@@ -627,5 +629,15 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public void copyContextAndHeadersFrom(HasContextAndHeaders other) {
         in.copyContextAndHeadersFrom(other);
+    }
+
+    @Override
+    public FetchSubPhaseContext getFetchSubPhaseContext(FetchSubPhase.ContextFactory subPhase) {
+        return in.getFetchSubPhaseContext(subPhase);
+    }
+
+    @Override
+    public boolean hasFetchSubPhaseContext(FetchSubPhase.ContextFactory contextFactory) {
+        return in.hasFetchSubPhaseContext(contextFactory);
     }
 }

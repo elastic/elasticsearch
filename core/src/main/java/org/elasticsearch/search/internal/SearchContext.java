@@ -50,6 +50,8 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.fetch.FetchSubPhaseContext;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
@@ -162,6 +164,8 @@ public abstract class SearchContext implements Releasable, HasContextAndHeaders 
     public abstract SearchContextAggregations aggregations();
 
     public abstract SearchContext aggregations(SearchContextAggregations aggregations);
+
+    public abstract FetchSubPhaseContext getFetchSubPhaseContext(FetchSubPhase.ContextFactory contextFactory);
 
     public abstract SearchContextHighlight highlight();
 
@@ -359,6 +363,8 @@ public abstract class SearchContext implements Releasable, HasContextAndHeaders 
     public abstract ObjectMapper getObjectMapper(String name);
 
     public abstract Counter timeEstimateCounter();
+
+    public abstract boolean hasFetchSubPhaseContext(FetchSubPhase.ContextFactory contextFactory);
 
     /**
      * The life time of an object that is used during search execution.

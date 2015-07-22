@@ -114,4 +114,11 @@ public interface FetchSubPhase {
     boolean hitsExecutionNeeded(SearchContext context);
 
     void hitsExecute(SearchContext context, InternalSearchHit[] hits);
+
+    public interface ContextFactory {
+
+        public String getName();
+
+        public FetchSubPhaseContext newContextInstance();
+    }
 }

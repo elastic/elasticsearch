@@ -32,6 +32,7 @@ import org.elasticsearch.search.aggregations.AggregationModule;
 import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.search.fetch.FetchSubPhaseModule;
 import org.elasticsearch.search.fetch.explain.ExplainFetchSubPhase;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsFetchSubPhase;
@@ -63,7 +64,8 @@ public class SearchModule extends AbstractModule implements SpawnModules {
                 new HighlightModule(),
                 new SuggestModule(),
                 new FunctionScoreModule(),
-                new AggregationModule());
+                new AggregationModule(),
+                new FetchSubPhaseModule());
     }
 
     @Override
@@ -73,14 +75,6 @@ public class SearchModule extends AbstractModule implements SpawnModules {
         bind(SearchPhaseController.class).asEagerSingleton();
 
         bind(FetchPhase.class).asEagerSingleton();
-        bind(ExplainFetchSubPhase.class).asEagerSingleton();
-        bind(FieldDataFieldsFetchSubPhase.class).asEagerSingleton();
-        bind(ScriptFieldsFetchSubPhase.class).asEagerSingleton();
-        bind(FetchSourceSubPhase.class).asEagerSingleton();
-        bind(VersionFetchSubPhase.class).asEagerSingleton();
-        bind(MatchedQueriesFetchSubPhase.class).asEagerSingleton();
-        bind(HighlightPhase.class).asEagerSingleton();
-        bind(InnerHitsFetchSubPhase.class).asEagerSingleton();
 
         bind(SearchServiceTransportAction.class).asEagerSingleton();
         bind(MoreLikeThisFetchService.class).asEagerSingleton();

@@ -32,6 +32,7 @@ import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.*;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lease.Releasables;
@@ -58,6 +59,7 @@ import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.fetch.FetchSubPhaseContext;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
@@ -116,6 +118,7 @@ public class PercolateContext extends SearchContext {
     private SearchContextAggregations aggregations;
     private QuerySearchResult querySearchResult;
     private Sort sort;
+    private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
 
     public PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, IndexShard indexShard,
                             IndexService indexService, PageCacheRecycler pageCacheRecycler,
@@ -280,6 +283,20 @@ public class PercolateContext extends SearchContext {
     public SearchContext aggregations(SearchContextAggregations aggregations) {
         this.aggregations = aggregations;
         return this;
+    }
+
+    @Override
+    public FetchSubPhaseContext getFetchSubPhaseContext(FetchSubPhase.ContextFactory contextFactory) {
+        String subPhaseName = contextFactory.getName();
+        if (subPhaseContexts.get(subPhaseName) == null) {
+            subPhaseContexts.put(subPhaseName, contextFactory.newContextInstance());
+        }
+        return subPhaseContexts.get(subPhaseName);
+    }
+
+    @Override
+    public boolean hasFetchSubPhaseContext(FetchSubPhase.ContextFactory contextFactory) {
+        return subPhaseContexts.get(contextFactory.getName()) != null;
     }
 
     // Unused:

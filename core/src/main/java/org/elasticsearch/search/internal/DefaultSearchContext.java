@@ -53,6 +53,8 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.fetch.FetchSubPhaseContext;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
@@ -125,6 +127,8 @@ public class DefaultSearchContext extends SearchContext {
     private final long originNanoTime = System.nanoTime();
     private volatile long lastAccessTime = -1;
     private InnerHitsContext innerHitsContext;
+
+    private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
 
     public DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
                          Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard,
@@ -300,6 +304,15 @@ public class DefaultSearchContext extends SearchContext {
     public SearchContext aggregations(SearchContextAggregations aggregations) {
         this.aggregations = aggregations;
         return this;
+    }
+
+    @Override
+    public FetchSubPhaseContext getFetchSubPhaseContext(FetchSubPhase.ContextFactory contextFactory) {
+        String subPhaseName = contextFactory.getName();
+        if (subPhaseContexts.get(subPhaseName) == null) {
+            subPhaseContexts.put(subPhaseName, contextFactory.newContextInstance());
+        }
+        return subPhaseContexts.get(subPhaseName);
     }
 
     @Override
@@ -725,6 +738,11 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     public Counter timeEstimateCounter() {
         return timeEstimateCounter;
+    }
+
+    @Override
+    public boolean hasFetchSubPhaseContext(FetchSubPhase.ContextFactory contextFactory) {
+        return subPhaseContexts.get(contextFactory.getName()) != null;
     }
 
     @Override

@@ -50,14 +50,26 @@ public class CategoryQueryContext implements ToXContent {
      */
     public final int boost;
 
+    /**
+     * Creates a query context with a provided context and a
+     * boost of 1
+     */
     public CategoryQueryContext(CharSequence context) {
         this(context, 1);
     }
 
+    /**
+     * Creates a query context with a provided context and boost
+     */
     public CategoryQueryContext(CharSequence context, int boost) {
         this(context, boost, false);
     }
 
+    /**
+     * Creates a query context with a provided context and boost
+     * Allows specifying whether the context should be treated as
+     * a prefix or not
+     */
     public CategoryQueryContext(CharSequence context, int boost, boolean isPrefix) {
         this.context = context;
         this.boost = boost;

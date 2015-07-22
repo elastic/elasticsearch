@@ -374,9 +374,9 @@ public class MapperQueryParser extends QueryParser {
                 Query rangeQuery;
                 if (currentFieldType instanceof DateFieldMapper.DateFieldType && settings.timeZone() != null) {
                     DateFieldMapper.DateFieldType dateFieldType = (DateFieldMapper.DateFieldType) this.currentFieldType;
-                    rangeQuery = dateFieldType.rangeQuery(part1, part2, startInclusive, endInclusive, settings.timeZone(), null, parseContext);
+                    rangeQuery = dateFieldType.rangeQuery(part1, part2, startInclusive, endInclusive, settings.timeZone(), null);
                 } else {
-                    rangeQuery = currentFieldType.rangeQuery(part1, part2, startInclusive, endInclusive, parseContext);
+                    rangeQuery = currentFieldType.rangeQuery(part1, part2, startInclusive, endInclusive);
                 }
                 return rangeQuery;
             } catch (RuntimeException e) {

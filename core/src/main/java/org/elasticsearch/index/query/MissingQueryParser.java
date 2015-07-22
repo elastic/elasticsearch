@@ -133,7 +133,7 @@ public class MissingQueryParser implements QueryParser {
                 }
                 // if _field_names are not indexed, we need to go the slow way
                 if (filter == null && fieldType != null) {
-                    filter = fieldType.rangeQuery(null, null, true, true, parseContext);
+                    filter = fieldType.rangeQuery(null, null, true, true);
                 }
                 if (filter == null) {
                     filter = new TermRangeQuery(field, null, null, true, true);

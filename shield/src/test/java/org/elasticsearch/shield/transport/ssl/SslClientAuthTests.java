@@ -16,6 +16,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.ssl.ClientSSLService;
 import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.test.ShieldIntegrationTest;
@@ -101,6 +102,7 @@ public class SslClientAuthTests extends ShieldIntegrationTest {
 
         Settings settings = settingsBuilder()
                 .put("path.home", createTempDir())
+                .put("plugin.types", ShieldPlugin.class.getName())
                 .put("shield.transport.ssl", true)
                 .put("shield.ssl.keystore.path", store)
                 .put("shield.ssl.keystore.password", "testclient-client-profile")

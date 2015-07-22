@@ -16,6 +16,7 @@
     <description>The Japanese (kuromoji) Analysis plugin integrates Lucene kuromoji analysis module into elasticsearch.</description>
 
     <properties>
+        <elasticsearch.plugin.classname>org.elasticsearch.plugin.analysis.kuromoji.AnalysisKuromojiPlugin</elasticsearch.plugin.classname>
         <tests.rest.suite>analysis_kuromoji</tests.rest.suite>
         <tests.rest.load_packaged>false</tests.rest.load_packaged>
     </properties>

@@ -20,11 +20,13 @@
 package org.elasticsearch.discovery.gce;
 
 import com.google.common.collect.Lists;
+
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.cloud.gce.GceComputeService;
 import org.elasticsearch.cloud.gce.GceComputeService.Fields;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.gce.mock.*;
+import org.elasticsearch.plugin.cloud.gce.CloudGcePlugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Ignore;
@@ -73,7 +75,7 @@ public class GceComputeEngineTest extends ElasticsearchIntegrationTest {
                         // We disable http
                 .put("http.enabled", false)
                         // We force plugin loading
-                .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
+                .put("plugin.types", CloudGcePlugin.class.getName())
                 .put(settings)
                 .put(super.nodeSettings(nodeOrdinal));
 

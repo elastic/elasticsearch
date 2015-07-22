@@ -62,7 +62,6 @@ public class TransportClientRetryTests extends ElasticsearchIntegrationTest {
         Settings.Builder builder = settingsBuilder().put("client.transport.nodes_sampler_interval", "1s")
                 .put("name", "transport_client_retry_test")
                 .put("node.mode", InternalTestCluster.nodeMode())
-                .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
                 .put(ClusterName.SETTING, internalCluster().getClusterName())
                 .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true)
                 .put("path.home", createTempDir());

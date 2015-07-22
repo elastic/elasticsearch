@@ -26,7 +26,7 @@ governing permissions and limitations under the License. -->
     <description>The Azure Cloud plugin allows to use Azure API for the unicast discovery mechanism and add Azure storage repositories.</description>
 
     <properties>
-        <!-- You can add any specific project property here -->
+        <elasticsearch.plugin.classname>org.elasticsearch.plugin.cloud.azure.CloudAzurePlugin</elasticsearch.plugin.classname>
         <tests.jvms>1</tests.jvms>
         <tests.rest.suite>cloud_azure</tests.rest.suite>
         <tests.rest.load_packaged>false</tests.rest.load_packaged>

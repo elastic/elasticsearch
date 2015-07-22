@@ -15,7 +15,7 @@
     <description>The JavaScript language plugin allows to have javascript as the language of scripts to execute.</description>
 
     <properties>
-        <!-- You can add any specific project property here -->
+        <elasticsearch.plugin.classname>org.elasticsearch.plugin.javascript.JavaScriptPlugin</elasticsearch.plugin.classname>
         <tests.rest.suite>lang_javascript</tests.rest.suite>
         <tests.rest.load_packaged>false</tests.rest.load_packaged>
     </properties>

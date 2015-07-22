@@ -56,6 +56,11 @@ public final class DisabledIndexFieldData extends AbstractIndexFieldData<AtomicF
     }
 
     @Override
+    protected AtomicFieldData empty(int maxDoc) {
+        throw fail();
+    }
+
+    @Override
     public IndexFieldData.XFieldComparatorSource comparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
         throw fail();
     }

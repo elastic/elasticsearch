@@ -622,6 +622,10 @@ public class MapperService extends AbstractIndexComponent  {
         return META_FIELDS.contains(fieldName);
     }
 
+    public static String[] getAllMetaFields() {
+        return META_FIELDS.toArray(String.class);
+    }
+
     /** An analyzer wrapper that can lookup fields within the index mappings */
     final class MapperAnalyzerWrapper extends DelegatingAnalyzerWrapper {
 

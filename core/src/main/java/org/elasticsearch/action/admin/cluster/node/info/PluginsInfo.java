@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.plugins.PluginInfo;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -75,7 +76,7 @@ public class PluginsInfo implements Streamable, ToXContent {
     public void readFrom(StreamInput in) throws IOException {
         int plugins_size = in.readInt();
         for (int i = 0; i < plugins_size; i++) {
-            infos.add(PluginInfo.readPluginInfo(in));
+            infos.add(PluginInfo.readFromStream(in));
         }
     }
 

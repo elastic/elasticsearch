@@ -18,19 +18,14 @@
  */
 package org.elasticsearch.plugins;
 
-import com.google.common.base.Predicate;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.action.admin.cluster.node.info.PluginInfo;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolTestCase.CaptureOutputTerminal;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.junit.annotations.Network;
@@ -48,7 +43,6 @@ import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.Locale;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.cli.CliTool.ExitStatus.USAGE;
 import static org.elasticsearch.common.cli.CliToolTestCase.args;
@@ -90,21 +84,8 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testThatPluginNameMustBeSupplied() throws IOException {
-        String pluginUrl = getPluginUrlForResource("plugin_single_folder.zip");
+        String pluginUrl = getPluginUrlForResource("plugin_with_bin_and_config.zip");
         assertStatus("install --url " + pluginUrl, USAGE);
-    }
-
-    @Test
-    public void testLocalPluginInstallSingleFolder() throws Exception {
-        //When we have only a folder in top-level (no files either) we remove that folder while extracting
-        String pluginName = "plugin-test";
-        String pluginUrl = getPluginUrlForResource("plugin_single_folder.zip");
-        String installCommand = String.format(Locale.ROOT, "install %s --url %s", pluginName, pluginUrl);
-        assertStatusOk(installCommand);
-
-        internalCluster().startNode(initialSettings.v1());
-        assertPluginLoaded(pluginName);
-        assertPluginAvailable(pluginName);
     }
 
     @Test
@@ -216,97 +197,12 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testLocalPluginInstallSiteFolder() throws Exception {
-        //When we have only a folder in top-level (no files either) but it's called _site, we make it work
-        //we can either remove the folder while extracting and then re-add it manually or just leave it as it is
-        String pluginName = "plugin-test";
-        assertStatusOk(String.format(Locale.ROOT, "install %s --url %s --verbose", pluginName, getPluginUrlForResource("plugin_folder_site.zip")));
-
-        internalCluster().startNode(initialSettings.v1());
-
-        assertPluginLoaded(pluginName);
-        assertPluginAvailable(pluginName);
-    }
-
-    @Test
-    public void testLocalPluginWithoutFolders() throws Exception {
-        //When we don't have folders at all in the top-level, but only files, we don't modify anything
-        String pluginName = "plugin-test";
-        assertStatusOk(String.format(Locale.ROOT, "install %s --url %s --verbose", pluginName, getPluginUrlForResource("plugin_without_folders.zip")));
-
-        internalCluster().startNode(initialSettings.v1());
-
-        assertPluginLoaded(pluginName);
-        assertPluginAvailable(pluginName);
-    }
-
-    @Test
-    public void testLocalPluginFolderAndFile() throws Exception {
-        //When we have a single top-level folder but also files in the top-level, we don't modify anything
-        String pluginName = "plugin-test";
-        assertStatusOk(String.format(Locale.ROOT, "install %s --url %s --verbose", pluginName, getPluginUrlForResource("plugin_folder_file.zip")));
-
-        internalCluster().startNode(initialSettings.v1());
-
-        assertPluginLoaded(pluginName);
-        assertPluginAvailable(pluginName);
-    }
-
-    @Test
     public void testSitePluginWithSourceDoesNotInstall() throws Exception {
         String pluginName = "plugin-with-source";
         String cmd = String.format(Locale.ROOT, "install %s --url %s --verbose", pluginName, getPluginUrlForResource("plugin_with_sourcefiles.zip"));
         int status = new PluginManagerCliParser(terminal).execute(args(cmd));
         assertThat(status, is(USAGE.status()));
         assertThat(terminal.getTerminalOutput(), hasItem(containsString("Plugin installation assumed to be site plugin, but contains source code, aborting installation")));
-    }
-
-    private void assertPluginLoaded(String pluginName) {
-        NodesInfoResponse nodesInfoResponse = client().admin().cluster().prepareNodesInfo().clear().setPlugins(true).get();
-        assertThat(nodesInfoResponse.getNodes().length, equalTo(1));
-        assertThat(nodesInfoResponse.getNodes()[0].getPlugins().getInfos(), notNullValue());
-        assertThat(nodesInfoResponse.getNodes()[0].getPlugins().getInfos().size(), not(0));
-
-        boolean pluginFound = false;
-
-        for (PluginInfo pluginInfo : nodesInfoResponse.getNodes()[0].getPlugins().getInfos()) {
-            if (pluginInfo.getName().equals(pluginName)) {
-                pluginFound = true;
-                break;
-            }
-        }
-
-        assertThat(pluginFound, is(true));
-    }
-
-    private void assertPluginAvailable(String pluginName) throws InterruptedException, IOException {
-        final HttpRequestBuilder httpRequestBuilder = httpClient();
-
-        //checking that the http connector is working properly
-        // We will try it for some seconds as it could happen that the REST interface is not yet fully started
-        assertThat(awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object obj) {
-                try {
-                    HttpResponse response = httpRequestBuilder.method("GET").path("/").execute();
-                    if (response.getStatusCode() != RestStatus.OK.getStatus()) {
-                        // We want to trace what's going on here before failing the test
-                        logger.info("--> error caught [{}], headers [{}]", response.getStatusCode(), response.getHeaders());
-                        logger.info("--> cluster state [{}]", internalCluster().clusterService().state());
-                        return false;
-                    }
-                    return true;
-                } catch (IOException e) {
-                    throw new ElasticsearchException("HTTP problem", e);
-                }
-            }
-        }, 5, TimeUnit.SECONDS), equalTo(true));
-
-
-        //checking now that the plugin is available
-        HttpResponse response = httpClient().method("GET").path("/_plugin/" + pluginName + "/").execute();
-        assertThat(response, notNullValue());
-        assertThat(response.getReasonPhrase(), response.getStatusCode(), equalTo(RestStatus.OK.getStatus()));
     }
 
     @Test
@@ -394,7 +290,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
      * It should find it on github
      */
     @Test
-    @Network
+    @Network @AwaitsFix(bugUrl = "needs to be adapted to 2.0")
     public void testInstallPluginWithGithub() throws IOException {
         assumeTrue("github.com is accessible", isDownloadServiceWorking("github.com", 443, "/"));
         singlePluginInstallAndRemove("elasticsearch/kibana", "kibana", null);

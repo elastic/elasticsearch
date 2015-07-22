@@ -19,8 +19,11 @@
     </parent>
 
     <properties>
-        <elasticsearch.assembly.descriptor>${basedir}/src/main/assemblies/plugin.xml</elasticsearch.assembly.descriptor>
+        <elasticsearch.assembly.descriptor>${elasticsearch.tools.directory}/plugin-metadata/plugin-assembly.xml</elasticsearch.assembly.descriptor>
         <elasticsearch.assembly.appendId>false</elasticsearch.assembly.appendId>
+        <elasticsearch.plugin.jvm>true</elasticsearch.plugin.jvm>
+        <elasticsearch.plugin.isolated>true</elasticsearch.plugin.isolated>
+        <elasticsearch.plugin.site>false</elasticsearch.plugin.site>
     </properties>
 
     <dependencies>
@@ -346,6 +349,25 @@
                             <goals>
                                 <goal>single</goal>
                             </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-enforcer-plugin</artifactId>
+                    <executions>
+                        <execution>
+                            <id>enforce-plugin-classname</id>
+                            <goals>
+                                <goal>enforce</goal>
+                            </goals>
+                            <configuration>
+                                <rules>
+                                    <requireProperty>
+                                        <property>elasticsearch.plugin.classname</property>
+                                    </requireProperty>
+                                </rules>
+                            </configuration>
                         </execution>
                     </executions>
                 </plugin>

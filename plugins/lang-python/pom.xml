@@ -15,7 +15,7 @@
     <description>The Python language plugin allows to have python as the language of scripts to execute.</description>
 
     <properties>
-        <!-- You can add any specific project property here -->
+        <elasticsearch.plugin.classname>org.elasticsearch.plugin.python.PythonPlugin</elasticsearch.plugin.classname>
         <tests.rest.suite>lang_python</tests.rest.suite>
         <tests.rest.load_packaged>false</tests.rest.load_packaged>
     </properties>

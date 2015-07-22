@@ -23,7 +23,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.FailedToResolveConfigException;
-import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugin.cloud.azure.CloudAzurePlugin;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ThirdParty;
 
@@ -40,7 +40,7 @@ public abstract class AbstractAzureTest extends ElasticsearchIntegrationTest {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
+                .put("plugin.types", CloudAzurePlugin.class.getName())
                 .put(readSettingsFromFile())
                 .build();
     }

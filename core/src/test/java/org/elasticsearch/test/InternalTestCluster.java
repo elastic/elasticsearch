@@ -292,7 +292,6 @@ public final class InternalTestCluster extends TestCluster {
         builder.put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true);
         builder.put("node.mode", NODE_MODE);
         builder.put("http.pipelining", enableHttpPipelining);
-        builder.put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false);
         builder.put(NodeEnvironment.SETTING_CUSTOM_DATA_PATH_ENABLED, true);
         if (Strings.hasLength(System.getProperty("es.logger.level"))) {
             builder.put("logger.level", System.getProperty("es.logger.level"));
@@ -908,7 +907,6 @@ public final class InternalTestCluster extends TestCluster {
                     .put("client.transport.nodes_sampler_interval", "1s")
                     .put("path.home", baseDir)
                     .put("name", TRANSPORT_CLIENT_PREFIX + node.settings().get("name"))
-                    .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
                     .put(ClusterName.SETTING, clusterName).put("client.transport.sniff", sniff)
                     .put("node.mode", nodeSettings.get("node.mode", NODE_MODE))
                     .put("node.local", nodeSettings.get("node.local", ""))

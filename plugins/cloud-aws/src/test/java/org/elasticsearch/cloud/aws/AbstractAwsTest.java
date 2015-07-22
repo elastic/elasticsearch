@@ -25,6 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.FailedToResolveConfigException;
+import org.elasticsearch.plugin.cloud.aws.CloudAwsPlugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ThirdParty;
@@ -81,7 +82,7 @@ public abstract class AbstractAwsTest extends ElasticsearchIntegrationTest {
                 Settings.Builder settings = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("path.home", createTempDir())
-                .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
+                .put("plugin.types", CloudAwsPlugin.class.getName())
                 .put(AwsModule.S3_SERVICE_TYPE_KEY, TestAwsS3Service.class)
                 .put("cloud.aws.test.random", randomInt())
                 .put("cloud.aws.test.write_failures", 0.1)

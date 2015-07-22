@@ -15,6 +15,7 @@
     <description>Smart Chinese Analysis plugin integrates Lucene Smart Chinese analysis module into elasticsearch.</description>
 
     <properties>
+        <elasticsearch.plugin.classname>org.elasticsearch.plugin.analysis.smartcn.AnalysisSmartChinesePlugin</elasticsearch.plugin.classname>
         <tests.rest.suite>analysis_smartcn</tests.rest.suite>
         <tests.rest.load_packaged>false</tests.rest.load_packaged>
     </properties>

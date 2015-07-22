@@ -149,4 +149,20 @@
         </pluginManagement>
     </build>
 
+    <profiles>
+        <profile>
+            <id>deploy-internal</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <artifactId>maven-assembly-plugin</artifactId>
+                        <configuration>
+                            <attach>true</attach>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
 </project>

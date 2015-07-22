@@ -4,12 +4,6 @@
   <artifactId>elasticsearch-x-dev-tools</artifactId>
   <version>2.0.0-beta1-SNAPSHOT</version>
   <name>Elasticsearch Commercial Plugin Build Resources</name>
-  <parent>
-      <groupId>org.sonatype.oss</groupId>
-      <artifactId>oss-parent</artifactId>
-      <version>7</version>
-      <relativePath></relativePath>
-  </parent>
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   </properties>
@@ -34,5 +28,38 @@
       </plugin>
     </plugins>
   </build>
+  <profiles>
+    <profile>
+      <id>deploy-internal</id>
+      <distributionManagement>
+        <repository>
+          <id>elasticsearch-internal-releases</id>
+          <name>Elasticsearch Internal Releases</name>
+          <url>http://maven.elasticsearch.org/artifactory/internal-releases</url>
+        </repository>
+        <snapshotRepository>
+          <id>elasticsearch-internal-snapshots</id>
+          <name>Elasticsearch Internal Snapshots</name>
+          <url>http://maven.elasticsearch.org/artifactory/internal-snapshots</url>
+        </snapshotRepository>
+      </distributionManagement>
+    </profile>
+    <profile>
+      <id>deploy-public</id>
+      <distributionManagement>
+        <repository>
+          <id>elasticsearch-public-releases</id>
+          <name>Elasticsearch Public Releases</name>
+          <url>http://maven.elasticsearch.org/artifactory/public-releases</url>
+        </repository>
+      </distributionManagement>
+    </profile>
+    <profile>
+      <id>default</id>
+      <activation>
+        <activeByDefault>true</activeByDefault>
+      </activation>
+    </profile>
+  </profiles>
 </project>
 

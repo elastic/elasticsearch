@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.common.io.streams;
+package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Ignore;
 import org.junit.Test;
+
+import java.io.IOException;
+import java.util.Objects;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -302,6 +302,131 @@ public class BytesStreamsTests extends ESTestCase {
         assertThat(in.readGenericValue(), equalTo((Object)BytesRefs.toBytesRef("bytesref")));
         in.close();
         out.close();
+    }
+
+    @Test
+    public void testNamedWriteable() throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
+        namedWriteableRegistry.registerPrototype(BaseNamedWriteable.class, new TestNamedWriteable(null, null));
+        TestNamedWriteable namedWriteableIn = new TestNamedWriteable(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
+        out.writeNamedWriteable(namedWriteableIn);
+        StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(out.bytes().toBytes()), namedWriteableRegistry);
+        BaseNamedWriteable namedWriteableOut = in.readNamedWriteable(BaseNamedWriteable.class);
+        assertEquals(namedWriteableOut, namedWriteableIn);
+    }
+
+    @Test
+    public void testNamedWriteableDuplicates() throws IOException {
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
+        namedWriteableRegistry.registerPrototype(BaseNamedWriteable.class, new TestNamedWriteable(null, null));
+        try {
+            namedWriteableRegistry.registerPrototype(BaseNamedWriteable.class, new TestNamedWriteable(null, null));
+            fail("registerPrototype should have failed");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("named writeable of type [" + TestNamedWriteable.class.getName() + "] with name [" + TestNamedWriteable.NAME + "] is already registered by type ["
+                    + TestNamedWriteable.class.getName() + "] within category [" + BaseNamedWriteable.class.getName() + "]"));
+        }
+    }
+
+    @Test
+    public void testNamedWriteableUnknownCategory() throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeNamedWriteable(new TestNamedWriteable("test1", "test2"));
+        StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(out.bytes().toBytes()), new NamedWriteableRegistry());
+        try {
+            //no named writeable registered with given name, can write but cannot read it back
+            in.readNamedWriteable(BaseNamedWriteable.class);
+            fail("read should have failed");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("unknown named writeable category [" + BaseNamedWriteable.class.getName() + "]"));
+        }
+    }
+
+    @Test
+    public void testNamedWriteableUnknownNamedWriteable() throws IOException {
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
+        namedWriteableRegistry.registerPrototype(BaseNamedWriteable.class, new TestNamedWriteable(null, null));
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeNamedWriteable(new NamedWriteable() {
+            @Override
+            public String getWriteableName() {
+                return "unknown";
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+            }
+
+            @Override
+            public Object readFrom(StreamInput in) throws IOException {
+                return null;
+            }
+        });
+        StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(out.bytes().toBytes()), namedWriteableRegistry);
+        try {
+            //no named writeable registered with given name under test category, can write but cannot read it back
+            in.readNamedWriteable(BaseNamedWriteable.class);
+            fail("read should have failed");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("unknown named writeable with name [unknown] within category [" + BaseNamedWriteable.class.getName() + "]"));
+        }
+    }
+
+    @Test(expected = UnsupportedOperationException.class)
+    public void testNamedWriteableNotSupportedWithoutWrapping() throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        TestNamedWriteable testNamedWriteable = new TestNamedWriteable("test1", "test2");
+        out.writeNamedWriteable(testNamedWriteable);
+        StreamInput in = StreamInput.wrap(out.bytes().toBytes());
+        in.readNamedWriteable(BaseNamedWriteable.class);
+    }
+
+    private static abstract class BaseNamedWriteable<T> implements NamedWriteable<T> {
+
+    }
+
+    private static class TestNamedWriteable extends BaseNamedWriteable<TestNamedWriteable> {
+
+        private static final String NAME = "test-named-writeable";
+
+        private final String field1;
+        private final String field2;
+
+        TestNamedWriteable(String field1, String field2) {
+            this.field1 = field1;
+            this.field2 = field2;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(field1);
+            out.writeString(field2);
+        }
+
+        @Override
+        public TestNamedWriteable readFrom(StreamInput in) throws IOException {
+            return new TestNamedWriteable(in.readString(), in.readString());
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            TestNamedWriteable that = (TestNamedWriteable) o;
+            return Objects.equals(field1, that.field1) &&
+                    Objects.equals(field2, that.field2);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(field1, field2);
+        }
     }
 
     // we ignore this test for now since all existing callers of BytesStreamOutput happily

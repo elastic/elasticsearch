@@ -44,9 +44,9 @@ public abstract class CompressedStreamInput extends StreamInput {
     }
 
     @Override
-    public StreamInput setVersion(Version version) {
+    public void setVersion(Version version) {
         in.setVersion(version);
-        return super.setVersion(version);
+        super.setVersion(version);
     }
 
     /**

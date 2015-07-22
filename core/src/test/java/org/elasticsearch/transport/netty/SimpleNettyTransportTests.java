@@ -21,6 +21,7 @@ package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -37,7 +38,7 @@ public class SimpleNettyTransportTests extends AbstractSimpleTransportTests {
         int startPort = 11000 + randomIntBetween(0, 255);
         int endPort = startPort + 10;
         settings = Settings.builder().put(settings).put("transport.tcp.port", startPort + "-" + endPort).build();
-        MockTransportService transportService = new MockTransportService(settings, new NettyTransport(settings, threadPool, new NetworkService(settings), BigArrays.NON_RECYCLING_INSTANCE, version), threadPool);
+        MockTransportService transportService = new MockTransportService(settings, new NettyTransport(settings, threadPool, new NetworkService(settings), BigArrays.NON_RECYCLING_INSTANCE, version, new NamedWriteableRegistry()), threadPool);
         transportService.start();
         return transportService;
     }

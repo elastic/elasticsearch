@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.io.stream;
 
-import com.vividsolutions.jts.util.Assert;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -371,6 +370,7 @@ public abstract class StreamOutput extends OutputStream {
             } else {
                 writeByte((byte) 10);
             }
+            @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) value;
             writeVInt(map.size());
             for (Map.Entry<String, Object> entry : map.entrySet()) {
@@ -416,31 +416,31 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    public void writeIntArray(int[] value) throws IOException {
-        writeVInt(value.length);
-        for (int i=0; i<value.length; i++) {
-            writeInt(value[i]);
+    public void writeIntArray(int[] values) throws IOException {
+        writeVInt(values.length);
+        for (int value : values) {
+            writeInt(value);
         }
     }
 
-    public void writeLongArray(long[] value) throws IOException {
-        writeVInt(value.length);
-        for (int i=0; i<value.length; i++) {
-            writeLong(value[i]);
+    public void writeLongArray(long[] values) throws IOException {
+        writeVInt(values.length);
+        for (long value : values) {
+            writeLong(value);
         }
     }
 
-    public void writeFloatArray(float[] value) throws IOException {
-        writeVInt(value.length);
-        for (int i=0; i<value.length; i++) {
-            writeFloat(value[i]);
+    public void writeFloatArray(float[] values) throws IOException {
+        writeVInt(values.length);
+        for (float value : values) {
+            writeFloat(value);
         }
     }
 
-    public void writeDoubleArray(double[] value) throws IOException {
-        writeVInt(value.length);
-        for (int i=0; i<value.length; i++) {
-            writeDouble(value[i]);
+    public void writeDoubleArray(double[] values) throws IOException {
+        writeVInt(values.length);
+        for (double value : values) {
+            writeDouble(value);
         }
     }
 
@@ -612,5 +612,13 @@ public abstract class StreamOutput extends OutputStream {
             }
             ElasticsearchException.writeStackTraces(throwable, this);
         }
+    }
+
+    /**
+     * Writes a {@link NamedWriteable} to the current stream, by first writing its name and then the object itself
+     */
+    void writeNamedWriteable(NamedWriteable namedWriteable) throws IOException {
+        writeString(namedWriteable.getWriteableName());
+        namedWriteable.writeTo(this);
     }
 }

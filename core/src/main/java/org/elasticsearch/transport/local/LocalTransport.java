@@ -27,6 +27,8 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -65,13 +67,14 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     private final static ConcurrentMap<TransportAddress, LocalTransport> transports = newConcurrentMap();
     private static final AtomicLong transportAddressIdGenerator = new AtomicLong();
     private final ConcurrentMap<DiscoveryNode, LocalTransport> connectedNodes = newConcurrentMap();
+    private final NamedWriteableRegistry namedWriteableRegistry;
 
     public static final String TRANSPORT_LOCAL_ADDRESS = "transport.local.address";
     public static final String TRANSPORT_LOCAL_WORKERS = "transport.local.workers";
     public static final String TRANSPORT_LOCAL_QUEUE = "transport.local.queue";
 
     @Inject
-    public LocalTransport(Settings settings, ThreadPool threadPool, Version version) {
+    public LocalTransport(Settings settings, ThreadPool threadPool, Version version, NamedWriteableRegistry namedWriteableRegistry) {
         super(settings);
         this.threadPool = threadPool;
         this.version = version;
@@ -81,6 +84,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         logger.debug("creating [{}] workers, queue_size [{}]", workerCount, queueSize);
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(this.settings, LOCAL_TRANSPORT_THREAD_NAME_PREFIX);
         this.workers = EsExecutors.newFixed(LOCAL_TRANSPORT_THREAD_NAME_PREFIX, workerCount, queueSize, threadFactory);
+        this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
     @Override
@@ -256,6 +260,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     private void handleRequest(StreamInput stream, long requestId, LocalTransport sourceTransport, Version version) throws Exception {
+        stream = new NamedWriteableAwareStreamInput(stream, namedWriteableRegistry);
         final String action = stream.readString();
         transportServiceAdapter.onRequestReceived(requestId, action);
         final LocalTransportChannel transportChannel = new LocalTransportChannel(this, transportServiceAdapter, sourceTransport, action, requestId, version);

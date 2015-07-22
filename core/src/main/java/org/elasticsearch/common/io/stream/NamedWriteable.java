@@ -17,20 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.transport.local;
+package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.AbstractSimpleTransportTests;
+/**
+ * A {@link Writeable} object identified by its name.
+ * To be used for arbitrary serializable objects (e.g. queries); when reading them, their name tells
+ * which specific object needs to be created.
+ */
+public interface NamedWriteable<T> extends Writeable<T> {
 
-public class SimpleLocalTransportTests extends AbstractSimpleTransportTests {
-
-    @Override
-    protected MockTransportService build(Settings settings, Version version) {
-        MockTransportService transportService = new MockTransportService(Settings.EMPTY, new LocalTransport(settings, threadPool, version, new NamedWriteableRegistry()), threadPool);
-        transportService.start();
-        return transportService;
-    }
+    /**
+     * Returns the name of the writeable object
+     */
+    String getWriteableName();
 }

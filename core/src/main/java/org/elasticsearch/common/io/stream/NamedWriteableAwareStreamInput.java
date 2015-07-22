@@ -17,20 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.transport.local;
+package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.AbstractSimpleTransportTests;
+import java.io.IOException;
 
-public class SimpleLocalTransportTests extends AbstractSimpleTransportTests {
+/**
+ * Wraps a {@link StreamInput} and associates it with a {@link NamedWriteableRegistry}
+ */
+public class NamedWriteableAwareStreamInput extends FilterStreamInput {
+
+    private final NamedWriteableRegistry namedWriteableRegistry;
+
+    public NamedWriteableAwareStreamInput(StreamInput delegate, NamedWriteableRegistry namedWriteableRegistry) {
+        super(delegate);
+        this.namedWriteableRegistry = namedWriteableRegistry;
+    }
 
     @Override
-    protected MockTransportService build(Settings settings, Version version) {
-        MockTransportService transportService = new MockTransportService(Settings.EMPTY, new LocalTransport(settings, threadPool, version, new NamedWriteableRegistry()), threadPool);
-        transportService.start();
-        return transportService;
+    <C> C readNamedWriteable(Class<C> categoryClass) throws IOException {
+        String name = readString();
+        NamedWriteable<? extends C> namedWriteable = namedWriteableRegistry.getPrototype(categoryClass, name);
+        return namedWriteable.readFrom(this);
     }
 }

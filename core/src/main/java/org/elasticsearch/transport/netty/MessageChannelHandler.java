@@ -25,6 +25,7 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.compress.NotCompressedException;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -226,6 +227,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
     }
 
     protected String handleRequest(Channel channel, StreamInput buffer, long requestId, Version version) throws IOException {
+        buffer = new NamedWriteableAwareStreamInput(buffer, transport.namedWriteableRegistry);
         final String action = buffer.readString();
         transportServiceAdapter.onRequestReceived(requestId, action);
         final NettyTransportChannel transportChannel = new NettyTransportChannel(transport, transportServiceAdapter, action, channel, requestId, version, profileName);

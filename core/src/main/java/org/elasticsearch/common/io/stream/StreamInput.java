@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.io.stream;
 
-import com.fasterxml.jackson.core.JsonLocation;
-import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -28,7 +26,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -42,14 +39,10 @@ import org.joda.time.DateTimeZone;
 import java.io.*;
 import java.nio.file.NoSuchFileException;
 import java.util.*;
-import java.util.regex.Pattern;
 
 import static org.elasticsearch.ElasticsearchException.readException;
 import static org.elasticsearch.ElasticsearchException.readStackTrace;
 
-/**
- *
- */
 public abstract class StreamInput extends InputStream {
 
     private Version version = Version.CURRENT;
@@ -58,9 +51,8 @@ public abstract class StreamInput extends InputStream {
         return this.version;
     }
 
-    public StreamInput setVersion(Version version) {
+    public void setVersion(Version version) {
         this.version = version;
-        return this;
     }
 
     /**
@@ -256,7 +248,7 @@ public abstract class StreamInput extends InputStream {
         final int charCount = readVInt();
         spare.clear();
         spare.grow(charCount);
-        int c = 0;
+        int c;
         while (spare.length() < charCount) {
             c = readByte() & 0xff;
             switch (c >> 4) {
@@ -348,6 +340,7 @@ public abstract class StreamInput extends InputStream {
     }
 
     @Nullable
+    @SuppressWarnings("unchecked")
     public Map<String, Object> readMap() throws IOException {
         return (Map<String, Object>) readGenericValue();
     }
@@ -556,6 +549,16 @@ public abstract class StreamInput extends InputStream {
         return null;
     }
 
+    /**
+     * Reads a {@link NamedWriteable} from the current stream, by first reading its name and then looking for
+     * the corresponding entry in the registry by name, so that the proper object can be read and returned.
+     * Default implementation throws {@link UnsupportedOperationException} as StreamInput doesn't hold a registry.
+     * Use {@link FilterInputStream} instead which wraps a stream and supports a {@link NamedWriteableRegistry} too.
+     */
+    <C> C readNamedWriteable(@SuppressWarnings("unused") Class<C> categoryClass) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
     public static StreamInput wrap(BytesReference reference) {
         if (reference.hasArray() == false) {
             reference = reference.toBytesArray();
@@ -570,5 +573,4 @@ public abstract class StreamInput extends InputStream {
     public static StreamInput wrap(byte[] bytes, int offset, int length) {
         return new InputStreamStreamInput(new ByteArrayInputStream(bytes, offset, length));
     }
-
 }

@@ -24,7 +24,8 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import org.elasticsearch.*;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
@@ -149,6 +151,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     protected volatile TransportServiceAdapter transportServiceAdapter;
     protected volatile BoundTransportAddress boundAddress;
     protected final KeyedLock<String> connectionLock = new KeyedLock<>();
+    protected final NamedWriteableRegistry namedWriteableRegistry;
 
     // this lock is here to make sure we close this transport and disconnect all the client nodes
     // connections while no connect operations is going on... (this might help with 100% CPU when stopping the transport?)
@@ -158,7 +161,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     final ScheduledPing scheduledPing;
 
     @Inject
-    public NettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays, Version version) {
+    public NettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays, Version version, NamedWriteableRegistry namedWriteableRegistry) {
         super(settings);
         this.threadPool = threadPool;
         this.networkService = networkService;
@@ -214,6 +217,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         if (pingSchedule.millis() > 0) {
             threadPool.schedule(pingSchedule, ThreadPool.Names.GENERIC, scheduledPing);
         }
+        this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
     public Settings settings() {
@@ -969,7 +973,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     protected static class ClientChannelPipelineFactory implements ChannelPipelineFactory {
-        protected NettyTransport nettyTransport;
+        protected final NettyTransport nettyTransport;
 
         public ClientChannelPipelineFactory(NettyTransport nettyTransport) {
             this.nettyTransport = nettyTransport;

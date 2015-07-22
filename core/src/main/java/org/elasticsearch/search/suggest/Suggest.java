@@ -182,13 +182,13 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
     public static List<Suggestion<? extends Entry<? extends Option>>> reduce(Map<String, List<Suggest.Suggestion>> groupedSuggestions) {
         List<Suggestion<? extends Entry<? extends Option>>> reduced = new ArrayList<>(groupedSuggestions.size());
-        Set<Class<? extends Suggestion>> suggestionClasses = new HashSet<>(1);
         for (java.util.Map.Entry<String, List<Suggestion>> unmergedResults : groupedSuggestions.entrySet()) {
             List<Suggestion> value = unmergedResults.getValue();
+            Class<? extends Suggestion> suggestionClass = null;
             for (Suggestion suggestion : value) {
-                if (suggestionClasses.isEmpty()) {
-                    suggestionClasses.add(suggestion.getClass());
-                } else if (suggestionClasses.contains(suggestion.getClass()) == false) {
+                if (suggestionClass == null) {
+                    suggestionClass = suggestion.getClass();
+                } else if (suggestionClass != suggestion.getClass()) {
                     throw new IllegalArgumentException("detected mixed suggestion results, due to querying on old and new completion suggester," +
                             " query on a single completion suggester version");
                 }

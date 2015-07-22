@@ -60,11 +60,6 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
     }
 
     @Override
-    public Suggest.Suggestion<Entry> reduce(List<Suggest.Suggestion<Entry>> toReduce) {
-        return super.reduce(toReduce);
-    }
-
-    @Override
     protected Entry newEntry() {
         return new Entry();
     }

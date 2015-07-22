@@ -71,6 +71,10 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
 
     public static class Defaults {
         public static final MappedFieldType FIELD_TYPE = new CompletionFieldType();
+        static {
+            FIELD_TYPE.setOmitNorms(true);
+            FIELD_TYPE.freeze();
+        }
         public static final boolean DEFAULT_PRESERVE_SEPARATORS = true;
         public static final boolean DEFAULT_POSITION_INCREMENTS = true;
         public static final int DEFAULT_MAX_INPUT_LENGTH = 50;
@@ -161,7 +165,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
         }
     }
 
-    public static class CompletionFieldType extends MappedFieldType {
+    public static final class CompletionFieldType extends MappedFieldType {
 
         private static PostingsFormat postingsFormat;
         private ContextMappings contextMappings = null;
@@ -200,7 +204,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
          */
         public static synchronized PostingsFormat postingsFormat() {
             if (postingsFormat == null) {
-                postingsFormat = new org.apache.lucene.search.suggest.xdocument.Completion50PostingsFormat();
+                postingsFormat = new Completion50PostingsFormat();
             }
             return postingsFormat;
         }
@@ -231,7 +235,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
         }
 
         @Override
-        public MappedFieldType clone() {
+        public CompletionFieldType clone() {
             return new CompletionFieldType(this);
         }
 
@@ -323,14 +327,14 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
 
     private int maxInputLength;
 
-    public CompletionFieldMapper(String name, MappedFieldType fieldType, Settings indexSettings, MultiFields multiFields, CopyTo copyTo, int maxInputLength) {
-        super(name, fieldType, Defaults.FIELD_TYPE, indexSettings, multiFields, copyTo);
+    public CompletionFieldMapper(String simpleName, MappedFieldType fieldType, Settings indexSettings, MultiFields multiFields, CopyTo copyTo, int maxInputLength) {
+        super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, multiFields, copyTo);
         this.maxInputLength = maxInputLength;
     }
 
     @Override
     public CompletionFieldType fieldType() {
-        return ((CompletionFieldType) super.fieldType());
+        return (CompletionFieldType) super.fieldType();
     }
 
     /**
@@ -352,7 +356,9 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
         XContentParser parser = context.parser();
         Token token = parser.currentToken();
         CompletionInputs completionInputs = new CompletionInputs();
-        if (token == Token.VALUE_STRING) {
+        if (token == Token.VALUE_NULL) {
+            throw new MapperParsingException("completion field [" + fieldType().names().fullName() + "] does not support null values");
+        } else if (token == Token.VALUE_STRING) {
             completionInputs.add(parser.text(), 1, Collections.<String, Set<CharSequence>>emptyMap());
         } else if (token == Token.START_ARRAY) {
             while ((token = parser.nextToken()) != Token.END_ARRAY) {

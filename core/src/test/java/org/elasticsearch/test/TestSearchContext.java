@@ -246,16 +246,6 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean hasFieldDataFields() {
-        return false;
-    }
-
-    @Override
-    public FieldDataFieldsContext fieldDataFields() {
-        return null;
-    }
-
-    @Override
     public boolean hasScriptFields() {
         return false;
     }

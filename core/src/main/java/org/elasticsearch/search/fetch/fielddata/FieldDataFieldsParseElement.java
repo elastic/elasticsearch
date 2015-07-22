@@ -36,15 +36,16 @@ import org.elasticsearch.search.internal.SearchContext;
 public class FieldDataFieldsParseElement implements SearchParseElement {
     @Override
     public void parse(XContentParser parser, SearchContext context) throws Exception {
+        FieldDataFieldsContext fieldDataFieldsContext = (FieldDataFieldsContext)context.getFetchSubPhaseContext(FieldDataFieldsFetchSubPhase.CONTEXT_FACTORY);
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.START_ARRAY) {
             while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                 String fieldName = parser.text();
-                context.fieldDataFields().add(new FieldDataFieldsContext.FieldDataField(fieldName));
+                fieldDataFieldsContext.add(new FieldDataFieldsContext.FieldDataField(fieldName));
             }
         } else if (token == XContentParser.Token.VALUE_STRING) {
             String fieldName = parser.text();
-            context.fieldDataFields().add(new FieldDataFieldsContext.FieldDataField(fieldName));
+            fieldDataFieldsContext.add(new FieldDataFieldsContext.FieldDataField(fieldName));
         }  else {
             throw new IllegalStateException("Expected either a VALUE_STRING or an START_ARRAY but got " + token);
         }

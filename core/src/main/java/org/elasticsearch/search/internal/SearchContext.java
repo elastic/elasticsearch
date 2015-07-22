@@ -186,10 +186,6 @@ public abstract class SearchContext implements Releasable, HasContextAndHeaders 
 
     public abstract void addRescore(RescoreSearchContext rescore);
 
-    public abstract boolean hasFieldDataFields();
-
-    public abstract FieldDataFieldsContext fieldDataFields();
-
     public abstract boolean hasScriptFields();
 
     public abstract ScriptFieldsContext scriptFields();

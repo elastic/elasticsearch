@@ -396,16 +396,6 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public boolean hasFieldDataFields() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public FieldDataFieldsContext fieldDataFields() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public boolean hasScriptFields() {
         throw new UnsupportedOperationException();
     }

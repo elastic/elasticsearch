@@ -352,19 +352,6 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean hasFieldDataFields() {
-        return fieldDataFields != null;
-    }
-
-    @Override
-    public FieldDataFieldsContext fieldDataFields() {
-        if (fieldDataFields == null) {
-            fieldDataFields = new FieldDataFieldsContext();
-        }
-        return this.fieldDataFields;
-    }
-
-    @Override
     public boolean hasScriptFields() {
         return scriptFields != null;
     }

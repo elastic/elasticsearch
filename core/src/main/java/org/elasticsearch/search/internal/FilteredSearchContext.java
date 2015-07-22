@@ -212,16 +212,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean hasFieldDataFields() {
-        return in.hasFieldDataFields();
-    }
-
-    @Override
-    public FieldDataFieldsContext fieldDataFields() {
-        return in.fieldDataFields();
-    }
-
-    @Override
     public boolean hasScriptFields() {
         return in.hasScriptFields();
     }

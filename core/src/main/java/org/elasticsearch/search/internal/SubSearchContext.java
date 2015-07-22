@@ -133,19 +133,6 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public boolean hasFieldDataFields() {
-        return fieldDataFields != null;
-    }
-
-    @Override
-    public FieldDataFieldsContext fieldDataFields() {
-        if (fieldDataFields == null) {
-            fieldDataFields = new FieldDataFieldsContext();
-        }
-        return this.fieldDataFields;
-    }
-
-    @Override
     public boolean hasScriptFields() {
         return scriptFields != null;
     }

@@ -21,6 +21,7 @@ package org.elasticsearch.plugins;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
@@ -91,8 +92,8 @@ public class PluggableTransportModuleTests extends ElasticsearchIntegrationTest 
     public static final class CountingAssertingLocalTransport extends AssertingLocalTransport {
 
         @Inject
-        public CountingAssertingLocalTransport(Settings settings, ThreadPool threadPool, Version version) {
-            super(settings, threadPool, version);
+        public CountingAssertingLocalTransport(Settings settings, ThreadPool threadPool, Version version, NamedWriteableRegistry namedWriteableRegistry) {
+            super(settings, threadPool, version, namedWriteableRegistry);
         }
 
         @Override

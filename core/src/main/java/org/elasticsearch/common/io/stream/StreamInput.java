@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.io.stream;
 
-import com.fasterxml.jackson.core.JsonLocation;
-import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -28,7 +26,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -42,7 +39,6 @@ import org.joda.time.DateTimeZone;
 import java.io.*;
 import java.nio.file.NoSuchFileException;
 import java.util.*;
-import java.util.regex.Pattern;
 
 import static org.elasticsearch.ElasticsearchException.readException;
 import static org.elasticsearch.ElasticsearchException.readStackTrace;
@@ -52,7 +48,17 @@ import static org.elasticsearch.ElasticsearchException.readStackTrace;
  */
 public abstract class StreamInput extends InputStream {
 
+    private final NamedWriteableRegistry namedWriteableRegistry;
+
     private Version version = Version.CURRENT;
+
+    protected StreamInput() {
+        this.namedWriteableRegistry = new NamedWriteableRegistry();
+    }
+
+    protected StreamInput(NamedWriteableRegistry namedWriteableRegistry) {
+        this.namedWriteableRegistry = namedWriteableRegistry;
+    }
 
     public Version getVersion() {
         return this.version;
@@ -256,7 +262,7 @@ public abstract class StreamInput extends InputStream {
         final int charCount = readVInt();
         spare.clear();
         spare.grow(charCount);
-        int c = 0;
+        int c;
         while (spare.length() < charCount) {
             c = readByte() & 0xff;
             switch (c >> 4) {
@@ -348,6 +354,7 @@ public abstract class StreamInput extends InputStream {
     }
 
     @Nullable
+    @SuppressWarnings("unchecked")
     public Map<String, Object> readMap() throws IOException {
         return (Map<String, Object>) readGenericValue();
     }
@@ -554,6 +561,41 @@ public abstract class StreamInput extends InputStream {
             }
         }
         return null;
+    }
+
+    /**
+     * Reads a {@link NamedWriteable} from the current stream, by first reading its name and then looking for
+     * the corresponding entry in the registry by name, so that the proper object can be read and returned.
+     */
+    public <C> C readNamedWriteable() throws IOException {
+        String name = readString();
+        NamedWriteable<C> namedWriteable = namedWriteableRegistry.getPrototype(name);
+        return namedWriteable.readFrom(this);
+    }
+
+    /**
+     * Reads an optional {@link NamedWriteable} from the current stream, by first reading its name and then looking for
+     * the corresponding entry in the registry by name, so that the proper object can be read and returned.
+     */
+    public <C> C readOptionalNamedWriteable() throws IOException {
+        if (readBoolean()) {
+            return readNamedWriteable();
+        }
+        return null;
+    }
+
+    /**
+     * Reads a list of {@link NamedWriteable} from the current stream, by first reading its size and then
+     * reading the individual objects using {@link #readNamedWriteable()}.
+     */
+    public <C> List<C> readNamedWriteableList() throws IOException {
+        List<C> list = new ArrayList<>();
+        int size = readInt();
+        for (int i = 0; i < size; i++) {
+            C obj = readNamedWriteable();
+            list.add(obj);
+        }
+        return list;
     }
 
     public static StreamInput wrap(BytesReference reference) {

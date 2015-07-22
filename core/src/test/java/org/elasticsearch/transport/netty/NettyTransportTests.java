@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.network.NetworkService;
@@ -83,21 +84,21 @@ public class NettyTransportTests extends ElasticsearchIntegrationTest {
     public static final class ExceptionThrowingNettyTransport extends NettyTransport {
 
         @Inject
-        public ExceptionThrowingNettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays, Version version) {
-            super(settings, threadPool, networkService, bigArrays, version);
+        public ExceptionThrowingNettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays, Version version, NamedWriteableRegistry namedWriteableRegistry) {
+            super(settings, threadPool, networkService, bigArrays, version, namedWriteableRegistry);
         }
 
         @Override
         public ChannelPipelineFactory configureServerChannelPipelineFactory(String name, Settings groupSettings) {
-            return new ErrorPipelineFactory(this, name, groupSettings);
+            return new ErrorPipelineFactory(this, name, groupSettings, namedWriteableRegistry);
         }
 
         private static class ErrorPipelineFactory extends ServerChannelPipelineFactory {
 
             private final ESLogger logger;
 
-            public ErrorPipelineFactory(ExceptionThrowingNettyTransport exceptionThrowingNettyTransport, String name, Settings groupSettings) {
-                super(exceptionThrowingNettyTransport, name, groupSettings);
+            public ErrorPipelineFactory(ExceptionThrowingNettyTransport exceptionThrowingNettyTransport, String name, Settings groupSettings, NamedWriteableRegistry namedWriteableRegistry) {
+                super(exceptionThrowingNettyTransport, name, groupSettings, namedWriteableRegistry);
                 this.logger = exceptionThrowingNettyTransport.logger;
             }
 

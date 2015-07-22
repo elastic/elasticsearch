@@ -23,7 +23,6 @@ import com.google.common.collect.Lists;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.action.admin.cluster.node.info.PluginInfo;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.nodesinfo.plugin.dummy1.TestPlugin;

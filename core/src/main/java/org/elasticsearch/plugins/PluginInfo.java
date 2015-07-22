@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.admin.cluster.node.info;
+package org.elasticsearch.plugins;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -26,8 +27,14 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Properties;
 
 public class PluginInfo implements Streamable, ToXContent {
+
+    public static final String ES_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
 
     static final class Fields {
         static final XContentBuilderString NAME = new XContentBuilderString("name");
@@ -61,7 +68,7 @@ public class PluginInfo implements Streamable, ToXContent {
      * @param jvm         true if it's a jvm plugin
      * @param version     Version number
      */
-    public PluginInfo(String name, String description, boolean site, String version, boolean jvm, String classname, boolean isolated) {
+    PluginInfo(String name, String description, boolean site, String version, boolean jvm, String classname, boolean isolated) {
         this.name = name;
         this.description = description;
         this.site = site;
@@ -69,6 +76,42 @@ public class PluginInfo implements Streamable, ToXContent {
         this.version = version;
         this.classname = classname;
         this.isolated = isolated;
+    }
+
+    /** reads (and validates) plugin metadata descriptor file */
+    public static PluginInfo readFromProperties(Path dir) throws IOException {
+        Path descriptor = dir.resolve(ES_PLUGIN_PROPERTIES);
+        Properties props = new Properties();
+        try (InputStream stream = Files.newInputStream(descriptor)) {
+            props.load(stream);
+        }
+        String name = dir.getFileName().toString();
+        String description = props.getProperty("description");
+        if (description == null) {
+            throw new IllegalArgumentException("Property [description] is missing for plugin [" + name + "]");
+        }
+        String version = props.getProperty("version");
+        if (version == null) {
+            throw new IllegalArgumentException("Property [version] is missing for plugin [" + name + "]");
+        }
+        boolean jvm = Boolean.parseBoolean(props.getProperty("jvm"));
+        boolean site = Boolean.parseBoolean(props.getProperty("site"));
+        boolean isolated = true;
+        String classname = "NA";
+        if (jvm) {
+            isolated = Boolean.parseBoolean(props.getProperty("isolated", "true"));
+            classname = props.getProperty("plugin");
+            String esVersionString = props.getProperty("elasticsearch.version");
+            if (esVersionString == null) {
+                throw new IllegalArgumentException("Property [elasticsearch.version] is missing for jvm plugin [" + name + "]");
+            }
+            Version esVersion = Version.fromString(esVersionString);
+            if (esVersion.equals(Version.CURRENT) == false) {
+                throw new IllegalArgumentException("Elasticsearch version [" + esVersionString + "] is too old for plugin [" + name + "]");
+            }
+        }
+
+        return new PluginInfo(name, description, site, version, jvm, classname, isolated);
     }
 
     /**
@@ -133,7 +176,7 @@ public class PluginInfo implements Streamable, ToXContent {
         return version;
     }
 
-    public static PluginInfo readPluginInfo(StreamInput in) throws IOException {
+    public static PluginInfo readFromStream(StreamInput in) throws IOException {
         PluginInfo info = new PluginInfo();
         info.readFrom(in);
         return info;

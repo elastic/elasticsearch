@@ -20,7 +20,6 @@
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.node.info.PluginInfo;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
 import java.io.IOException;
@@ -31,103 +30,5 @@ import java.util.Properties;
 
 public class PluginServiceTests extends ElasticsearchTestCase {
 
-    void writeProperties(Path pluginDir, String... stringProps) throws IOException {
-        assert stringProps.length % 2 == 0;
-        Path propertiesFile = pluginDir.resolve(PluginsService.ES_PLUGIN_PROPERTIES);
-        Properties properties =  new Properties();
-        for (int i = 0; i < stringProps.length; i += 2) {
-            properties.put(stringProps[i], stringProps[i + 1]);
-        }
-        try (OutputStream out = Files.newOutputStream(propertiesFile)) {
-            properties.store(out, "");
-        }
-    }
 
-    public void testReadMetadata() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-plugin");
-        Files.createDirectories(pluginDir);
-        writeProperties(pluginDir,
-            "description", "fake desc",
-            "version", "1.0",
-            "elasticsearch.version", Version.CURRENT.toString(),
-            "jvm", "true",
-            "plugin", "FakePlugin");
-        PluginInfo info = PluginsService.readMetadata(pluginDir);
-        assertEquals("fake-plugin", info.getName());
-        assertEquals("fake desc", info.getDescription());
-        assertEquals("1.0", info.getVersion());
-        assertEquals("FakePlugin", info.getClassname());
-        assertTrue(info.isJvm());
-        assertTrue(info.isIsolated());
-        assertFalse(info.isSite());
-        assertNull(info.getUrl());
-    }
-
-    public void testReadMetadataDescriptionMissing() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-plugin");
-        Files.createDirectories(pluginDir);
-        writeProperties(pluginDir);
-        try {
-            PluginsService.readMetadata(pluginDir);
-            fail("expected missing description exception");
-        } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("[description] is missing"));
-        }
-    }
-
-    public void testReadMetadataVersionMissing() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-plugin");
-        Files.createDirectories(pluginDir);
-        writeProperties(pluginDir, "description", "fake desc");
-        try {
-            PluginsService.readMetadata(pluginDir);
-            fail("expected missing version exception");
-        } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("[version] is missing"));
-        }
-    }
-
-    public void testReadMetadataElasticsearchVersionMissing() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-plugin");
-        Files.createDirectories(pluginDir);
-        writeProperties(pluginDir,
-            "description", "fake desc",
-            "version", "1.0");
-        try {
-            PluginsService.readMetadata(pluginDir);
-            fail("expected missing elasticsearch version exception");
-        } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("[elasticsearch.version] is missing"));
-        }
-    }
-
-    public void testReadMetadataBogusElasticsearchVersion() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-plugin");
-        Files.createDirectories(pluginDir);
-        writeProperties(pluginDir,
-            "description", "fake desc",
-            "version", "1.0",
-            "elasticsearch.version", "bogus");
-        try {
-            PluginsService.readMetadata(pluginDir);
-            fail("expected bogus elasticsearch version exception");
-        } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("version needs to contain major, minor and revision"));
-        }
-    }
-
-    public void testReadMetadataOldElasticsearchVersion() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-plugin");
-        Files.createDirectories(pluginDir);
-        writeProperties(pluginDir,
-            "description", "fake desc",
-            "version", "1.0",
-            "elasticsearch.version", Version.V_1_7_0.toString());
-        try {
-            PluginsService.readMetadata(pluginDir);
-            fail("expected old elasticsearch version exception");
-        } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("Elasticsearch version [1.7.0] is too old"));
-        }
-    }
 }

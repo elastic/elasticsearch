@@ -84,7 +84,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testThatPluginNameMustBeSupplied() throws IOException {
-        String pluginUrl = getPluginUrlForResource("plugin_single_folder.zip");
+        String pluginUrl = getPluginUrlForResource("plugin_with_bin_and_config.zip");
         assertStatus("install --url " + pluginUrl, USAGE);
     }
 

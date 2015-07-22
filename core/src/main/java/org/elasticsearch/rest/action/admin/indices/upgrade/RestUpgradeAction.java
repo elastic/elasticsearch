@@ -19,11 +19,13 @@
 
 package org.elasticsearch.rest.action.admin.indices.upgrade;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusResponse;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -86,8 +88,11 @@ public class RestUpgradeAction extends BaseRestHandler {
                 builder.startObject();
                 buildBroadcastShardsHeader(builder, request, response);
                 builder.startObject("upgraded_indices");
-                for (Map.Entry<String, String> entry : response.versions().entrySet()) {
-                    builder.field(entry.getKey(), entry.getValue(), XContentBuilder.FieldCaseConversion.NONE);
+                for (Map.Entry<String, Tuple<Version, String>> entry : response.versions().entrySet()) {
+                    builder.startObject(entry.getKey(), XContentBuilder.FieldCaseConversion.NONE);
+                    builder.field("upgrade_version", entry.getValue().v1());
+                    builder.field("oldest_lucene_segment_version", entry.getValue().v2());
+                    builder.endObject();
                 }
                 builder.endObject();
                 builder.endObject();

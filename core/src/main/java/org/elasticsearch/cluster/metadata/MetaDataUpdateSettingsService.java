@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -334,7 +335,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
             @Override
             public ClusterState execute(ClusterState currentState) {
                 MetaData.Builder metaDataBuilder = MetaData.builder(currentState.metaData());
-                for (Map.Entry<String, String> entry : request.versions().entrySet()) {
+                for (Map.Entry<String, Tuple<Version, String>> entry : request.versions().entrySet()) {
                     String index = entry.getKey();
                     IndexMetaData indexMetaData = metaDataBuilder.get(index);
                     if (indexMetaData != null) {
@@ -342,8 +343,8 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                             // No reason to pollute the settings, we didn't really upgrade anything
                             metaDataBuilder.put(IndexMetaData.builder(indexMetaData)
                                             .settings(settingsBuilder().put(indexMetaData.settings())
-                                                            .put(IndexMetaData.SETTING_VERSION_MINIMUM_COMPATIBLE, entry.getValue())
-                                                            .put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.CURRENT)
+                                                            .put(IndexMetaData.SETTING_VERSION_MINIMUM_COMPATIBLE, entry.getValue().v2())
+                                                            .put(IndexMetaData.SETTING_VERSION_UPGRADED, entry.getValue().v1())
                                             )
                             );
                         }

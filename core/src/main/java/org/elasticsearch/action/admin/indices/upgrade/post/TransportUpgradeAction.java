@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.upgrade.post;
 
-import org.apache.lucene.util.Version;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.PrimaryMissingActionException;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
@@ -75,7 +76,7 @@ public class TransportUpgradeAction extends TransportBroadcastAction<UpgradeRequ
         int failedShards = 0;
         List<ShardOperationFailedException> shardFailures = null;
         Map<String, Integer> successfulPrimaryShards = newHashMap();
-        Map<String, Version> versions = newHashMap();
+        Map<String, Tuple<Version, org.apache.lucene.util.Version>> versions = newHashMap();
         for (int i = 0; i < shardsResponses.length(); i++) {
             Object shardResponse = shardsResponses.get(i);
             if (shardResponse == null) {
@@ -94,20 +95,35 @@ public class TransportUpgradeAction extends TransportBroadcastAction<UpgradeRequ
                     Integer count = successfulPrimaryShards.get(index);
                     successfulPrimaryShards.put(index, count == null ? 1 : count + 1);
                 }
-                Version version = versions.get(index);
-                if (version == null || shardUpgradeResponse.version().onOrAfter(version) == false) {
-                    versions.put(index, shardUpgradeResponse.version());
+                Tuple<Version, org.apache.lucene.util.Version> versionTuple = versions.get(index);
+                if (versionTuple == null) {
+                    versions.put(index, new Tuple<>(shardUpgradeResponse.upgradeVersion(), shardUpgradeResponse.oldestLuceneSegment()));
+                } else {
+                    // We already have versions for this index - let's see if we need to update them based on the current shard
+                    Version version = versionTuple.v1();
+                    org.apache.lucene.util.Version luceneVersion = versionTuple.v2();
+                    // For the metadata we are interested in the _latest_ elasticsearch version that was processing the metadata
+                    // Since we rewrite the mapping during upgrade the metadata is always rewritten by the latest version
+                    if (shardUpgradeResponse.upgradeVersion().after(versionTuple.v1())) {
+                        version = shardUpgradeResponse.upgradeVersion();
+                    }
+                    // For the lucene version we are interested in the _oldest_ lucene version since it determines the
+                    // oldest version that we need to support
+                    if (shardUpgradeResponse.oldestLuceneSegment().onOrAfter(versionTuple.v2()) == false) {
+                        luceneVersion = shardUpgradeResponse.oldestLuceneSegment();
+                    }
+                    versions.put(index, new Tuple<>(version, luceneVersion));
                 }
             }
         }
-        Map<String, String> updatedVersions = newHashMap();
+        Map<String, Tuple<org.elasticsearch.Version, String>> updatedVersions = newHashMap();
         MetaData metaData = clusterState.metaData();
-        for (Map.Entry<String, Version> versionEntry : versions.entrySet()) {
+        for (Map.Entry<String, Tuple<Version, org.apache.lucene.util.Version>> versionEntry : versions.entrySet()) {
             String index = versionEntry.getKey();
             Integer primaryCount = successfulPrimaryShards.get(index);
             int expectedPrimaryCount = metaData.index(index).getNumberOfShards();
             if (primaryCount == metaData.index(index).getNumberOfShards()) {
-                updatedVersions.put(index, versionEntry.getValue().toString());
+                updatedVersions.put(index, new Tuple<>(versionEntry.getValue().v1(), versionEntry.getValue().v2().toString()));
             } else {
                 logger.warn("Not updating settings for the index [{}] because upgraded of some primary shards failed - expected[{}], received[{}]", index,
                         expectedPrimaryCount, primaryCount == null ? 0 : primaryCount);
@@ -130,8 +146,9 @@ public class TransportUpgradeAction extends TransportBroadcastAction<UpgradeRequ
     @Override
     protected ShardUpgradeResponse shardOperation(ShardUpgradeRequest request) {
         IndexShard indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).shardSafe(request.shardId().id());
-        org.apache.lucene.util.Version version = indexShard.upgrade(request.upgradeRequest());
-        return new ShardUpgradeResponse(request.shardId(), indexShard.routingEntry().primary(), version);
+        org.apache.lucene.util.Version oldestLuceneSegment = indexShard.upgrade(request.upgradeRequest());
+        // We are using the current version of elasticsearch as upgrade version since we update mapping to match the current version
+        return new ShardUpgradeResponse(request.shardId(), indexShard.routingEntry().primary(), Version.CURRENT, oldestLuceneSegment);
     }
 
     /**

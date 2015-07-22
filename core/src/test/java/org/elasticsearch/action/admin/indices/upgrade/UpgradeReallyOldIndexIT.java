@@ -17,15 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.rest.action.admin.indices.upgrade;
+package org.elasticsearch.action.admin.indices.upgrade;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.bwcompat.StaticIndexBackwardCompatibilityIT;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.IndicesService;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.containsString;
 
 public class UpgradeReallyOldIndexIT extends StaticIndexBackwardCompatibilityIT {
 
@@ -38,11 +40,25 @@ public class UpgradeReallyOldIndexIT extends StaticIndexBackwardCompatibilityIT 
         assertTrue(UpgradeIT.hasAncientSegments(client(), indexName));
         assertNoFailures(client().admin().indices().prepareUpgrade(indexName).setUpgradeOnlyAncientSegments(true).get());
 
-        assertFalse(UpgradeIT.hasAncientSegments(client(), "index-0.90.6"));
+        assertFalse(UpgradeIT.hasAncientSegments(client(), indexName));
         // This index has only ancient segments, so it should now be fully upgraded:
         UpgradeIT.assertUpgraded(client(), indexName);
         assertEquals(Version.CURRENT.luceneVersion.toString(), client().admin().indices().prepareGetSettings(indexName).get().getSetting(indexName, IndexMetaData.SETTING_VERSION_MINIMUM_COMPATIBLE));
         assertMinVersion(indexName, Version.CURRENT.luceneVersion);
+
+        assertEquals(client().admin().indices().prepareGetSettings(indexName).get().getSetting(indexName, IndexMetaData.SETTING_VERSION_UPGRADED), Integer.toString(Version.CURRENT.id));
+    }
+
+    public void testUpgradeConflictingMapping() throws Exception {
+        String indexName = "index-conflicting-mappings-1.7.0";
+        logger.info("Checking static index " + indexName);
+        Settings nodeSettings = prepareBackwardsDataDir(getDataPath(indexName + ".zip"));
+        try {
+            internalCluster().startNode(nodeSettings);
+            fail("Should have failed to start the node");
+        } catch (Exception ex) {
+            assertThat(ex.getMessage(), containsString("conflicts with existing mapping in other types"));
+        }
     }
 
     private void assertMinVersion(String index, org.apache.lucene.util.Version version) {

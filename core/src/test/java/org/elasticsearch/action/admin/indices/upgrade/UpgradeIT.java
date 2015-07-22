@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.rest.action.admin.indices.upgrade;
+package org.elasticsearch.action.admin.indices.upgrade;
 
 import com.google.common.base.Predicate;
 import org.elasticsearch.ExceptionsHelper;

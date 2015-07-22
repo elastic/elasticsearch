@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.upgrade.post;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,7 +33,9 @@ import java.text.ParseException;
  */
 class ShardUpgradeResponse extends BroadcastShardResponse {
 
-    private org.apache.lucene.util.Version version;
+    private org.apache.lucene.util.Version oldestLuceneSegment;
+
+    private Version upgradeVersion;
 
     private boolean primary;
 
@@ -40,14 +43,19 @@ class ShardUpgradeResponse extends BroadcastShardResponse {
     ShardUpgradeResponse() {
     }
 
-    ShardUpgradeResponse(ShardId shardId, boolean primary, org.apache.lucene.util.Version version) {
+    ShardUpgradeResponse(ShardId shardId, boolean primary, Version upgradeVersion, org.apache.lucene.util.Version oldestLuceneSegment) {
         super(shardId);
         this.primary = primary;
-        this.version = version;
+        this.upgradeVersion = upgradeVersion;
+        this.oldestLuceneSegment = oldestLuceneSegment;
     }
 
-    public org.apache.lucene.util.Version version() {
-        return this.version;
+    public org.apache.lucene.util.Version oldestLuceneSegment() {
+        return this.oldestLuceneSegment;
+    }
+
+    public Version upgradeVersion() {
+        return this.upgradeVersion;
     }
 
     public boolean primary() {
@@ -59,18 +67,21 @@ class ShardUpgradeResponse extends BroadcastShardResponse {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         primary = in.readBoolean();
+        upgradeVersion = Version.readVersion(in);
         try {
-            version = org.apache.lucene.util.Version.parse(in.readString());
+            oldestLuceneSegment = org.apache.lucene.util.Version.parse(in.readString());
         } catch (ParseException ex) {
-            throw new IOException("failed to parse lucene version [" + version + "]", ex);
+            throw new IOException("failed to parse lucene version [" + oldestLuceneSegment + "]", ex);
         }
+
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(primary);
-        out.writeString(version.toString());
+        Version.writeVersion(upgradeVersion, out);
+        out.writeString(oldestLuceneSegment.toString());
     }
 
 }

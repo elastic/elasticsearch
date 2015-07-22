@@ -19,8 +19,10 @@
 
 package org.elasticsearch.action.admin.indices.upgrade.post;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -35,16 +37,17 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class UpgradeSettingsRequest extends AcknowledgedRequest<UpgradeSettingsRequest> {
 
-
-    private Map<String, String> versions;
+    private Map<String, Tuple<Version, String>> versions;
 
     UpgradeSettingsRequest() {
     }
 
     /**
      * Constructs a new request to update minimum compatible version settings for one or more indices
+     *
+     * @param versions a map from index name to elasticsearch version, oldest lucene segment version tuple
      */
-    public UpgradeSettingsRequest(Map<String, String> versions) {
+    public UpgradeSettingsRequest(Map<String, Tuple<Version, String>> versions) {
         this.versions = versions;
     }
 
@@ -59,14 +62,14 @@ public class UpgradeSettingsRequest extends AcknowledgedRequest<UpgradeSettingsR
     }
 
 
-    Map<String, String> versions() {
+    Map<String, Tuple<Version, String>> versions() {
         return versions;
     }
 
     /**
      * Sets the index versions to be updated
      */
-    public UpgradeSettingsRequest versions(Map<String, String> versions) {
+    public UpgradeSettingsRequest versions(Map<String, Tuple<Version, String>> versions) {
         this.versions = versions;
         return this;
     }
@@ -79,8 +82,9 @@ public class UpgradeSettingsRequest extends AcknowledgedRequest<UpgradeSettingsR
         versions = newHashMap();
         for (int i=0; i<size; i++) {
             String index = in.readString();
-            String version = in.readString();
-            versions.put(index, version);
+            Version upgradeVersion = Version.readVersion(in);
+            String oldestLuceneSegment = in.readString();
+            versions.put(index, new Tuple<>(upgradeVersion, oldestLuceneSegment));
         }
         readTimeout(in);
     }
@@ -89,9 +93,10 @@ public class UpgradeSettingsRequest extends AcknowledgedRequest<UpgradeSettingsR
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(versions.size());
-        for(Map.Entry<String, String> entry : versions.entrySet()) {
+        for(Map.Entry<String, Tuple<Version, String>> entry : versions.entrySet()) {
             out.writeString(entry.getKey());
-            out.writeString(entry.getValue());
+            Version.writeVersion(entry.getValue().v1(), out);
+            out.writeString(entry.getValue().v2());
         }
         writeTimeout(out);
     }

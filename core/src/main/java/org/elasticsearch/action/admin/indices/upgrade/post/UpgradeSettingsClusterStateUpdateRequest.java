@@ -19,7 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.upgrade.post;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
+import org.elasticsearch.common.collect.Tuple;
 
 import java.util.Map;
 
@@ -28,7 +30,7 @@ import java.util.Map;
  */
 public class UpgradeSettingsClusterStateUpdateRequest extends ClusterStateUpdateRequest<UpgradeSettingsClusterStateUpdateRequest> {
 
-    private Map<String, String> versions;
+    private Map<String, Tuple<Version, String>> versions;
 
     public UpgradeSettingsClusterStateUpdateRequest() {
 
@@ -37,14 +39,14 @@ public class UpgradeSettingsClusterStateUpdateRequest extends ClusterStateUpdate
     /**
      * Returns the index to version map for indices that should be updated
      */
-    public Map<String, String> versions() {
+    public Map<String, Tuple<Version, String>> versions() {
         return versions;
     }
 
     /**
      * Sets the index to version map for indices that should be updated
      */
-    public UpgradeSettingsClusterStateUpdateRequest versions(Map<String, String> versions) {
+    public UpgradeSettingsClusterStateUpdateRequest versions(Map<String, Tuple<Version, String>> versions) {
         this.versions = versions;
         return this;
     }

@@ -909,6 +909,7 @@
                                 <goal>copy</goal>
                             </goals>
                             <configuration>
+                                <skip>${skip.integ.tests}</skip>
                                 <artifactItems>
                                     <artifactItem>
                                         <groupId>org.elasticsearch</groupId>

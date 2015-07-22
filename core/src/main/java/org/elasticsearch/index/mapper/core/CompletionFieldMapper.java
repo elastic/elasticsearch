@@ -50,7 +50,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
  *
  * Type properties:<br>
  * <ul>
- *  <li>"index_analyzer": "simple", (default)</li>
+ *  <li>"analyzer": "simple", (default)</li>
  *  <li>"search_analyzer": "simple", (default)</li>
  *  <li>"preserve_separators" : true, (default)</li>
  *  <li>"preserve_position_increments" : true (default)</li>
@@ -82,7 +82,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
 
     public static class Fields {
         // Mapping field names
-        public static final ParseField INDEX_ANALYZER = new ParseField("index_analyzer", "analyzer");
+        public static final ParseField ANALYZER = new ParseField("analyzer");
         public static final ParseField SEARCH_ANALYZER = new ParseField("search_analyzer");
         public static final ParseField PRESERVE_SEPARATORS = new ParseField("preserve_separators");
         public static final ParseField PRESERVE_POSITION_INCREMENTS = new ParseField("preserve_position_increments");
@@ -117,7 +117,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
                 if (fieldName.equals("type")) {
                     continue;
                 }
-                if (parserContext.parseFieldMatcher().match(fieldName, Fields.INDEX_ANALYZER)) {
+                if (parserContext.parseFieldMatcher().match(fieldName, Fields.ANALYZER)) {
                     indexAnalyzer = getNamedAnalyzer(parserContext, fieldNode.toString());
                     iterator.remove();
                 } else if (parserContext.parseFieldMatcher().match(fieldName, Fields.SEARCH_ANALYZER)) {
@@ -461,7 +461,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(simpleName())
                 .field(Fields.TYPE.getPreferredName(), CONTENT_TYPE);
-        builder.field(Fields.INDEX_ANALYZER.getPreferredName(), fieldType().indexAnalyzer().name());
+        builder.field(Fields.ANALYZER.getPreferredName(), fieldType().indexAnalyzer().name());
         if (fieldType().indexAnalyzer().name().equals(fieldType().searchAnalyzer().name()) == false) {
             builder.field(Fields.SEARCH_ANALYZER.getPreferredName(), fieldType().searchAnalyzer().name());
         }

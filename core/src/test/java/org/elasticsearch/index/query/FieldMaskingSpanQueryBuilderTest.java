@@ -30,7 +30,7 @@ import java.io.IOException;
 public class FieldMaskingSpanQueryBuilderTest extends BaseQueryTestCase<FieldMaskingSpanQueryBuilder> {
 
     @Override
-    protected Query doCreateExpectedQuery(FieldMaskingSpanQueryBuilder testQueryBuilder, QueryParseContext context) throws IOException {
+    protected Query doCreateExpectedQuery(FieldMaskingSpanQueryBuilder testQueryBuilder, QueryGenerationContext context) throws IOException {
         String fieldInQuery = testQueryBuilder.fieldName();
         MappedFieldType fieldType = context.fieldMapper(fieldInQuery);
         if (fieldType != null) {

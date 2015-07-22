@@ -40,7 +40,7 @@ import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryGenerationContext;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
 
 import java.io.IOException;
@@ -117,7 +117,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
-            
+
             // parseField below will happily parse the doc_values setting, but it is then never passed to
             // the AllFieldMapper ctor in the builder since it is not valid. Here we validate
             // the doc values settings (old and new) are rejected
@@ -134,7 +134,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
                     throw new MapperParsingException("Field [" + name + "] is always tokenized and cannot have doc values");
                 }
             }
-            
+
             parseField(builder, builder.name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -186,7 +186,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, QueryParseContext context) {
+        public Query termQuery(Object value, QueryGenerationContext context) {
             return queryStringTermQuery(createTerm(value));
         }
     }
@@ -294,7 +294,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
         if (includeDefaults || fieldType().omitNorms() != Defaults.FIELD_TYPE.omitNorms()) {
             builder.field("omit_norms", fieldType().omitNorms());
         }
-        
+
         doXContentAnalyzers(builder, includeDefaults);
 
         if (fieldType().similarity() != null) {

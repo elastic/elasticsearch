@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper.internal;
 
 import com.google.common.collect.Iterables;
+
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
@@ -49,6 +50,7 @@ import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.query.QueryGenerationContext;
 import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
@@ -60,7 +62,7 @@ import java.util.Map;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
 /**
- * 
+ *
  */
 public class IdFieldMapper extends MetadataFieldMapper {
 
@@ -167,7 +169,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, @Nullable QueryParseContext context) {
+        public Query termQuery(Object value, @Nullable QueryGenerationContext context) {
             if (indexOptions() != IndexOptions.NONE || context == null) {
                 return super.termQuery(value, context);
             }
@@ -176,7 +178,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query termsQuery(List values, @Nullable QueryParseContext context) {
+        public Query termsQuery(List values, @Nullable QueryGenerationContext context) {
             if (indexOptions() != IndexOptions.NONE || context == null) {
                 return super.termsQuery(values, context);
             }
@@ -236,7 +238,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         super(NAME, fieldType, Defaults.FIELD_TYPE, indexSettings);
         this.path = path;
     }
-    
+
     private static MappedFieldType idFieldType(Settings indexSettings, MappedFieldType existing) {
         if (existing != null) {
             return existing.clone();

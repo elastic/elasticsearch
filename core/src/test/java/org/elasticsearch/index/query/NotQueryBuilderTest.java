@@ -30,7 +30,7 @@ import java.io.IOException;
 public class NotQueryBuilderTest extends BaseQueryTestCase<NotQueryBuilder> {
 
     @Override
-    protected Query doCreateExpectedQuery(NotQueryBuilder queryBuilder, QueryParseContext context) throws QueryParsingException, IOException {
+    protected Query doCreateExpectedQuery(NotQueryBuilder queryBuilder, QueryGenerationContext context) throws QueryParsingException, IOException {
         if (queryBuilder.filter().toQuery(context) == null) {
             return null;
         }

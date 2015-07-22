@@ -32,7 +32,7 @@ import java.io.IOException;
 public class AndQueryBuilderTest extends BaseQueryTestCase<AndQueryBuilder> {
 
     @Override
-    protected Query doCreateExpectedQuery(AndQueryBuilder queryBuilder, QueryParseContext context) throws QueryParsingException, IOException {
+    protected Query doCreateExpectedQuery(AndQueryBuilder queryBuilder, QueryGenerationContext context) throws QueryParsingException, IOException {
         if (queryBuilder.filters().isEmpty()) {
             return null;
         }
@@ -68,7 +68,7 @@ public class AndQueryBuilderTest extends BaseQueryTestCase<AndQueryBuilder> {
     @Test
     public void testNoInnerQueries() throws QueryParsingException, IOException {
         AndQueryBuilder andQuery = new AndQueryBuilder();
-        assertNull(andQuery.toQuery(createContext()));
+        assertNull(andQuery.toQuery(createGenerationContext()));
     }
 
     @Test(expected=QueryParsingException.class)

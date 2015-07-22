@@ -243,9 +243,9 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     }
 
     @Override
-    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
+    protected Query doToQuery(QueryGenerationContext generationContext) throws IOException {
         Query query = null;
-        MappedFieldType mapper = parseContext.fieldMapper(this.fieldName);
+        MappedFieldType mapper = generationContext.fieldMapper(this.fieldName);
         if (mapper != null) {
             if (mapper instanceof DateFieldMapper.DateFieldType) {
                 DateMathParser forcedDateParser = null;
@@ -256,18 +256,18 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                 if (this.timeZone != null) {
                     dateTimeZone = DateTimeZone.forID(this.timeZone);
                 }
-                query = ((DateFieldMapper.DateFieldType) mapper).rangeQuery(from, to, includeLower, includeUpper, dateTimeZone, forcedDateParser, parseContext);
+                query = ((DateFieldMapper.DateFieldType) mapper).rangeQuery(from, to, includeLower, includeUpper, dateTimeZone, forcedDateParser, null);
             } else  {
                 if (timeZone != null) {
-                    throw new QueryParsingException(parseContext, "[range] time_zone can not be applied to non date field ["
+                    throw new QueryGenerationException(generationContext, "[range] time_zone can not be applied to non date field ["
                             + fieldName + "]");
                 }
                 //LUCENE 4 UPGRADE Mapper#rangeQuery should use bytesref as well?
-                query = mapper.rangeQuery(from, to, includeLower, includeUpper, parseContext);
+                query = mapper.rangeQuery(from, to, includeLower, includeUpper, null);
             }
         } else {
             if (timeZone != null) {
-                throw new QueryParsingException(parseContext, "[range] time_zone can not be applied to non unmapped field ["
+                throw new QueryGenerationException(generationContext, "[range] time_zone can not be applied to non unmapped field ["
                         + fieldName + "]");
             }
         }

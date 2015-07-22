@@ -81,7 +81,7 @@ public class OrQueryBuilder extends AbstractQueryBuilder<OrQueryBuilder> {
     }
 
     @Override
-    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
+    protected Query doToQuery(QueryGenerationContext generationContext) throws IOException {
         if (filters.isEmpty()) {
             // no filters provided, this should be ignored upstream
             return null;
@@ -89,7 +89,7 @@ public class OrQueryBuilder extends AbstractQueryBuilder<OrQueryBuilder> {
 
         BooleanQuery query = new BooleanQuery();
         for (QueryBuilder f : filters) {
-            Query innerQuery = f.toQuery(parseContext);
+            Query innerQuery = f.toQuery(generationContext);
             // ignore queries that are null
             if (innerQuery != null) {
                 query.add(innerQuery, Occur.SHOULD);

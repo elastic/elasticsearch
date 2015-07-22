@@ -29,7 +29,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import java.io.IOException;
 
 public interface QueryBuilder<QB extends QueryBuilder> extends NamedWriteable<QB>, ToXContent {
-    
+
     /**
      * Validate the query.
      * @return a {@link QueryValidationException} containing error messages, {@code null} if query is valid.
@@ -42,12 +42,12 @@ public interface QueryBuilder<QB extends QueryBuilder> extends NamedWriteable<QB
      * Returns <tt>null</tt> if this query should be ignored in the context of
      * parent queries.
      *
-     * @param parseContext additional information needed to construct the queries
+     * @param generationContext additional information needed to construct the queries
      * @return the {@link Query} or <tt>null</tt> if this query should be ignored upstream
      * @throws QueryParsingException
      * @throws IOException
      */
-    Query toQuery(QueryParseContext parseContext) throws IOException;
+    Query toQuery(QueryGenerationContext generationContext) throws IOException;
 
     /**
      * Returns a {@link org.elasticsearch.common.bytes.BytesReference}

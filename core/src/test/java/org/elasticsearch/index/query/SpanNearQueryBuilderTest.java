@@ -30,7 +30,7 @@ import java.util.List;
 public class SpanNearQueryBuilderTest extends BaseQueryTestCase<SpanNearQueryBuilder> {
 
     @Override
-    protected Query doCreateExpectedQuery(SpanNearQueryBuilder testQueryBuilder, QueryParseContext context) throws IOException {
+    protected Query doCreateExpectedQuery(SpanNearQueryBuilder testQueryBuilder, QueryGenerationContext context) throws IOException {
         List<SpanQueryBuilder> clauses = testQueryBuilder.clauses();
         SpanQuery[] spanQueries = new SpanQuery[clauses.size()];
         for (int i = 0; i < clauses.size(); i++) {

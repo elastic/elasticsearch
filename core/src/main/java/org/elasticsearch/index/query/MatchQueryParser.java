@@ -68,7 +68,7 @@ public class MatchQueryParser extends BaseQueryParserTemp {
 
         Object value = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
-        MatchQuery matchQuery = new MatchQuery(parseContext);
+        MatchQuery matchQuery = new MatchQuery(new QueryGenerationContext(parseContext));
         String minimumShouldMatch = null;
         String queryName = null;
 

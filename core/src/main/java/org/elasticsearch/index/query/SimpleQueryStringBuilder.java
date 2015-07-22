@@ -260,21 +260,21 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     }
 
     @Override
-    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
+    protected Query doToQuery(QueryGenerationContext generationContext) throws IOException {
         // Use the default field (_all) if no fields specified
         if (fieldsAndWeights.isEmpty()) {
-            String field = parseContext.defaultField();
+            String field = generationContext.defaultField();
             fieldsAndWeights.put(field, 1.0F);
         }
 
         // Use standard analyzer by default if none specified
         Analyzer luceneAnalyzer;
         if (analyzer == null) {
-            luceneAnalyzer = parseContext.mapperService().searchAnalyzer();
+            luceneAnalyzer = generationContext.mapperService().searchAnalyzer();
         } else {
-            luceneAnalyzer = parseContext.analysisService().analyzer(analyzer);
+            luceneAnalyzer = generationContext.analysisService().analyzer(analyzer);
             if (luceneAnalyzer == null) {
-                throw new QueryParsingException(parseContext, "[" + SimpleQueryStringBuilder.NAME + "] analyzer [" + analyzer
+                throw new QueryGenerationException(generationContext, "[" + SimpleQueryStringBuilder.NAME + "] analyzer [" + analyzer
                         + "] not found");
             }
 

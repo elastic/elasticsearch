@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.query.QueryGenerationException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.rest.RestStatus;
@@ -588,7 +589,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 ResourceNotFoundException.class,
                 IndexNotFoundException.class,
                 ShardNotFoundException.class,
-                NotSerializableExceptionWrapper.class
+                NotSerializableExceptionWrapper.class,
+                QueryGenerationException.class
         };
         Map<String, Constructor<? extends ElasticsearchException>> mapping = new HashMap<>(exceptions.length);
         for (Class<? extends ElasticsearchException> e : exceptions) {

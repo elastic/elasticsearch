@@ -181,7 +181,7 @@ public class TermsQueryParser extends BaseQueryParserTemp {
         Query query;
         if (parseContext.isFilter()) {
             if (fieldType != null) {
-                query = fieldType.termsQuery(terms, parseContext);
+                query = fieldType.termsQuery(terms, new QueryGenerationContext(parseContext));
             } else {
                 BytesRef[] filterValues = new BytesRef[terms.size()];
                 for (int i = 0; i < filterValues.length; i++) {
@@ -193,7 +193,7 @@ public class TermsQueryParser extends BaseQueryParserTemp {
             BooleanQuery bq = new BooleanQuery();
             for (Object term : terms) {
                 if (fieldType != null) {
-                    bq.add(fieldType.termQuery(term, parseContext), Occur.SHOULD);
+                    bq.add(fieldType.termQuery(term, new QueryGenerationContext(parseContext)), Occur.SHOULD);
                 } else {
                     bq.add(new TermQuery(new Term(fieldName, BytesRefs.toBytesRef(term))), Occur.SHOULD);
                 }

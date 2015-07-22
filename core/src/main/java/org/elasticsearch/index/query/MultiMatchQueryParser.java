@@ -57,7 +57,7 @@ public class MultiMatchQueryParser extends BaseQueryParserTemp {
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         Float tieBreaker = null;
         MultiMatchQueryBuilder.Type type = null;
-        MultiMatchQuery multiMatchQuery = new MultiMatchQuery(parseContext);
+        MultiMatchQuery multiMatchQuery = new MultiMatchQuery(new QueryGenerationContext(parseContext));
         String minimumShouldMatch = null;
         Map<String, Float> fieldNameWithBoosts = Maps.newHashMap();
         String queryName = null;

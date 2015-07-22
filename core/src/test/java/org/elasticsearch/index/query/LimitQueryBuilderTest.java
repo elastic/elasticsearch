@@ -25,7 +25,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 public class LimitQueryBuilderTest extends BaseQueryTestCase<LimitQueryBuilder> {
 
     @Override
-    protected Query doCreateExpectedQuery(LimitQueryBuilder queryBuilder, QueryParseContext context) {
+    protected Query doCreateExpectedQuery(LimitQueryBuilder queryBuilder, QueryGenerationContext context) {
         // this filter is deprecated and parses to a filter that matches everything
         return Queries.newMatchAllQuery();
     }

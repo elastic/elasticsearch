@@ -82,13 +82,13 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
     }
 
     @Override
-    protected SpanQuery doToQuery(QueryParseContext parseContext) throws IOException {
+    protected SpanQuery doToQuery(QueryGenerationContext generationContext) throws IOException {
         String fieldInQuery = fieldName;
-        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
+        MappedFieldType fieldType = generationContext.fieldMapper(fieldName);
         if (fieldType != null) {
             fieldInQuery = fieldType.names().indexName();
         }
-        Query innerQuery = queryBuilder.toQuery(parseContext);
+        Query innerQuery = queryBuilder.toQuery(generationContext);
         assert innerQuery instanceof SpanQuery;
         return new FieldMaskingSpanQuery((SpanQuery)innerQuery, fieldInQuery);
     }

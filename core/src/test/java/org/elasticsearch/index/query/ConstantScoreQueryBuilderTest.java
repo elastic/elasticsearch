@@ -30,7 +30,7 @@ import java.io.IOException;
 public class ConstantScoreQueryBuilderTest extends BaseQueryTestCase<ConstantScoreQueryBuilder> {
 
     @Override
-    protected Query doCreateExpectedQuery(ConstantScoreQueryBuilder testBuilder, QueryParseContext context) throws QueryParsingException, IOException {
+    protected Query doCreateExpectedQuery(ConstantScoreQueryBuilder testBuilder, QueryGenerationContext context) throws QueryParsingException, IOException {
         Query innerQuery = testBuilder.query().toQuery(context);
         if (innerQuery != null) {
             return new ConstantScoreQuery(innerQuery);

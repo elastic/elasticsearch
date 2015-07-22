@@ -39,7 +39,7 @@ public class FilteredQueryBuilderTest extends BaseQueryTestCase<FilteredQueryBui
     }
 
     @Override
-    protected Query doCreateExpectedQuery(FilteredQueryBuilder qb, QueryParseContext context) throws IOException {
+    protected Query doCreateExpectedQuery(FilteredQueryBuilder qb, QueryGenerationContext context) throws IOException {
         Query query = qb.query().toQuery(context);
         Query filter = qb.filter().toQuery(context);
 

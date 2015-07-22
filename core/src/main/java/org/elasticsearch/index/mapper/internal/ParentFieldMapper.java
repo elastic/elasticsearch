@@ -19,6 +19,7 @@
 package org.elasticsearch.index.mapper.internal;
 
 import com.google.common.base.Objects;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.IndexOptions;
@@ -43,6 +44,7 @@ import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.query.QueryGenerationContext;
 import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
@@ -189,12 +191,12 @@ public class ParentFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, @Nullable QueryParseContext context) {
+        public Query termQuery(Object value, @Nullable QueryGenerationContext context) {
             return termsQuery(Collections.singletonList(value), context);
         }
 
         @Override
-        public Query termsQuery(List values, @Nullable QueryParseContext context) {
+        public Query termsQuery(List values, @Nullable QueryGenerationContext context) {
             if (context == null) {
                 return super.termsQuery(values, context);
             }

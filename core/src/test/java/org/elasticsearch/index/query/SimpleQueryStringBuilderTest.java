@@ -152,15 +152,15 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
     @Test
     public void testDefaultOperatorHandling() throws IOException {
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.");
-        BooleanQuery boolQuery = (BooleanQuery) qb.toQuery(createContext());
+        BooleanQuery boolQuery = (BooleanQuery) qb.toQuery(createGenerationContext());
         assertThat(shouldClauses(boolQuery), is(4));
 
         qb.defaultOperator(Operator.AND);
-        boolQuery = (BooleanQuery) qb.toQuery(createContext());
+        boolQuery = (BooleanQuery) qb.toQuery(createGenerationContext());
         assertThat(shouldClauses(boolQuery), is(0));
 
         qb.defaultOperator(Operator.OR);
-        boolQuery = (BooleanQuery) qb.toQuery(createContext());
+        boolQuery = (BooleanQuery) qb.toQuery(createGenerationContext());
         assertThat(shouldClauses(boolQuery), is(4));
     }
 
@@ -183,7 +183,7 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
         qb.analyzer(null);
         qb.minimumShouldMatch(null);
         qb.queryName(null);
-        assertEquals(qb.toQuery(createContext()), createExpectedQuery(qb, createContext()));
+        assertEquals(qb.toQuery(createGenerationContext()), createExpectedQuery(qb, createGenerationContext()));
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -231,7 +231,7 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
     }
 
     @Override
-    protected Query doCreateExpectedQuery(SimpleQueryStringBuilder queryBuilder, QueryParseContext context) throws IOException {
+    protected Query doCreateExpectedQuery(SimpleQueryStringBuilder queryBuilder, QueryGenerationContext context) throws IOException {
         Map<String, Float> fields = new TreeMap<>();
         // Use the default field (_all) if no fields specified
         if (queryBuilder.fields().isEmpty()) {

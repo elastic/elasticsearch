@@ -27,13 +27,13 @@ import java.io.IOException;
  * Class used during the query parsers refactoring. Will be removed once we can parse search requests on the coordinating node.
  * All query parsers that have a refactored "fromXContent" method can be changed to extend this instead of {@link BaseQueryParserTemp}.
  * Keeps old {@link QueryParser#parse(QueryParseContext)} method as a stub delegating to
- * {@link QueryParser#fromXContent(QueryParseContext)} and {@link QueryBuilder#toQuery(QueryParseContext)}}
+ * {@link QueryParser#fromXContent(QueryParseContext)} and {@link QueryBuilder#toQuery(QueryGenerationContext)}}
  */
 //norelease needs to be removed once we parse search requests on the coordinating node, as the parse method is not needed anymore at that point.
 public abstract class BaseQueryParser implements QueryParser {
 
     @Override
     public final Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
-        return fromXContent(parseContext).toQuery(parseContext);
+        return fromXContent(parseContext).toQuery(new QueryGenerationContext(parseContext));
     }
 }

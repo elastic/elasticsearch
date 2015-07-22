@@ -88,8 +88,8 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
     }
 
     @Override
-    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
-        Query innerSpanQuery = matchBuilder.toQuery(parseContext);
+    protected Query doToQuery(QueryGenerationContext generationContext) throws IOException {
+        Query innerSpanQuery = matchBuilder.toQuery(generationContext);
         assert innerSpanQuery instanceof SpanQuery;
         return new SpanFirstQuery((SpanQuery) innerSpanQuery, end);
     }

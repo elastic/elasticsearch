@@ -72,13 +72,13 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     }
 
     @Override
-    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
-        Query innerFilter = filterBuilder.toQuery(parseContext);
+    protected Query doToQuery(QueryGenerationContext generationContext) throws IOException {
+        Query innerFilter = filterBuilder.toQuery(generationContext);
         if (innerFilter == null ) {
             // return null so that parent queries (e.g. bool) also ignore this
             return null;
         }
-        return new ConstantScoreQuery(filterBuilder.toQuery(parseContext));
+        return new ConstantScoreQuery(filterBuilder.toQuery(generationContext));
     }
 
     @Override

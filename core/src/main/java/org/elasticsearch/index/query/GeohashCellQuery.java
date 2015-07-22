@@ -76,10 +76,10 @@ public class GeohashCellQuery {
         }
 
         if (geohashes == null || geohashes.size() == 0) {
-            return geoHashMapper.termQuery(geohash, context);
+            return geoHashMapper.termQuery(geohash, new QueryGenerationContext(context));
         } else {
             geohashes.add(geohash);
-            return geoHashMapper.termsQuery(geohashes, context);
+            return geoHashMapper.termsQuery(geohashes, new QueryGenerationContext(context));
         }
     }
 

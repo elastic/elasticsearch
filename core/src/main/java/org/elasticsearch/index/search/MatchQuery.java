@@ -22,15 +22,22 @@ package org.elasticsearch.index.search;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.MultiPhraseQuery;
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.QueryBuilder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryGenerationContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
@@ -49,7 +56,7 @@ public class MatchQuery {
         ALL
     }
 
-    protected final QueryParseContext parseContext;
+    protected final QueryGenerationContext context;
 
     protected String analyzer;
 
@@ -60,9 +67,9 @@ public class MatchQuery {
     protected int phraseSlop = 0;
 
     protected Fuzziness fuzziness = null;
-    
+
     protected int fuzzyPrefixLength = FuzzyQuery.defaultPrefixLength;
-    
+
     protected int maxExpansions = FuzzyQuery.defaultMaxExpansions;
 
     protected boolean transpositions = FuzzyQuery.defaultTranspositions;
@@ -72,11 +79,11 @@ public class MatchQuery {
     protected boolean lenient;
 
     protected ZeroTermsQuery zeroTermsQuery = ZeroTermsQuery.NONE;
-    
+
     protected Float commonTermsCutoff = null;
-    
-    public MatchQuery(QueryParseContext parseContext) {
-        this.parseContext = parseContext;
+
+    public MatchQuery(QueryGenerationContext context) {
+        this.context = context;
     }
 
     public void setAnalyzer(String analyzer) {
@@ -86,7 +93,7 @@ public class MatchQuery {
     public void setOccur(BooleanClause.Occur occur) {
         this.occur = occur;
     }
-    
+
     public void setCommonTermsCutoff(float cutoff) {
         this.commonTermsCutoff = Float.valueOf(cutoff);
     }
@@ -134,11 +141,11 @@ public class MatchQuery {
     protected Analyzer getAnalyzer(MappedFieldType fieldType) {
         if (this.analyzer == null) {
             if (fieldType != null) {
-                return parseContext.getSearchAnalyzer(fieldType);
+                return context.getSearchAnalyzer(fieldType);
             }
-            return parseContext.mapperService().searchAnalyzer();
+            return context.mapperService().searchAnalyzer();
         } else {
-            Analyzer analyzer = parseContext.mapperService().analysisService().analyzer(this.analyzer);
+            Analyzer analyzer = context.mapperService().analysisService().analyzer(this.analyzer);
             if (analyzer == null) {
                 throw new IllegalArgumentException("No analyzer found for [" + this.analyzer + "]");
             }
@@ -148,7 +155,7 @@ public class MatchQuery {
 
     public Query parse(Type type, String fieldName, Object value) throws IOException {
         final String field;
-        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType != null) {
             field = fieldType.names().indexName();
         } else {
@@ -157,14 +164,14 @@ public class MatchQuery {
 
         if (fieldType != null && fieldType.useTermQueryWithQueryString() && !forceAnalyzeQueryString()) {
             try {
-                return fieldType.termQuery(value, parseContext);
+                return fieldType.termQuery(value, context);
             } catch (RuntimeException e) {
                 if (lenient) {
                     return null;
                 }
                 throw e;
             }
-            
+
         }
         Analyzer analyzer = getAnalyzer(fieldType);
         assert analyzer != null;

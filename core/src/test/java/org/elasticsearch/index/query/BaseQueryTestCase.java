@@ -240,7 +240,7 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
     @Test
     public void testToQuery() throws IOException {
         QB testQuery = createTestQueryBuilder();
-        QueryParseContext context = createContext();
+        QueryGenerationContext context = new QueryGenerationContext(createContext());
         context.setAllowUnmappedFields(true);
 
         Query expectedQuery = createExpectedQuery(testQuery, context);
@@ -256,7 +256,7 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
         }
     }
 
-    protected final Query createExpectedQuery(QB queryBuilder, QueryParseContext context) throws IOException {
+    protected final Query createExpectedQuery(QB queryBuilder, QueryGenerationContext context) throws IOException {
         Query expectedQuery = doCreateExpectedQuery(queryBuilder, context);
         if (expectedQuery != null) {
             expectedQuery.setBoost(queryBuilder.boost());
@@ -266,15 +266,15 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
 
     /**
      * Creates the expected lucene query given the current {@link QueryBuilder} and {@link QueryParseContext}.
-     * The returned query will be compared with the result of {@link QueryBuilder#toQuery(QueryParseContext)} to test its behaviour.
+     * The returned query will be compared with the result of {@link QueryBuilder#toQuery(QueryGenerationContext)} to test its behaviour.
      */
-    protected abstract Query doCreateExpectedQuery(QB queryBuilder, QueryParseContext context) throws IOException;
+    protected abstract Query doCreateExpectedQuery(QB queryBuilder, QueryGenerationContext context) throws IOException;
 
     /**
-     * Run after default equality comparison between lucene expected query and result of {@link QueryBuilder#toQuery(QueryParseContext)}.
+     * Run after default equality comparison between lucene expected query and result of {@link QueryBuilder#toQuery(QueryGenerationContext)}.
      * Can contain additional assertions that are query specific. Default implementation verifies that names queries are properly handled.
      */
-    protected final void assertLuceneQuery(QB queryBuilder, Query query, QueryParseContext context) {
+    protected final void assertLuceneQuery(QB queryBuilder, Query query, QueryGenerationContext context) {
         if (queryBuilder.queryName() != null) {
             Query namedQuery = context.copyNamedQueries().get(queryBuilder.queryName());
             assertThat(namedQuery, equalTo(query));
@@ -304,6 +304,13 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
      */
     protected static QueryParseContext createContext() {
         return new QueryParseContext(index, queryParserService);
+    }
+
+    /**
+     * @return a new {@link QueryGenerationContext} based on the base test index and queryParserService
+     */
+    protected static QueryGenerationContext createGenerationContext() {
+        return new QueryGenerationContext(new QueryParseContext(index, queryParserService));
     }
 
     protected static void assertQueryHeader(XContentParser parser, String expectedParserName) throws IOException {

@@ -44,7 +44,7 @@ public class MatchAllQueryBuilder extends AbstractQueryBuilder<MatchAllQueryBuil
     }
 
     @Override
-    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
+    protected Query doToQuery(QueryGenerationContext generationContext) throws IOException {
         return Queries.newMatchAllQuery();
     }
 

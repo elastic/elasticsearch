@@ -137,7 +137,7 @@ public class MissingQueryParser extends BaseQueryParserTemp {
                     } else {
                         f = field;
                     }
-                    filter = fieldNamesFieldType.termQuery(f, parseContext);
+                    filter = fieldNamesFieldType.termQuery(f, new QueryGenerationContext(parseContext));
                 }
                 // if _field_names are not indexed, we need to go the slow way
                 if (filter == null && fieldType != null) {

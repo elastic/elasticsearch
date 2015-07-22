@@ -35,7 +35,7 @@ public class CommonTermsQueryBuilderTest extends BaseQueryTestCase<CommonTermsQu
     @Override
     protected CommonTermsQueryBuilder doCreateTestQueryBuilder() {
         CommonTermsQueryBuilder query;
-        
+
         // mapped or unmapped field
         String text = randomAsciiOfLengthBetween(1, 10);
         if (randomBoolean()) {
@@ -43,7 +43,7 @@ public class CommonTermsQueryBuilderTest extends BaseQueryTestCase<CommonTermsQu
         } else {
             query = new CommonTermsQueryBuilder(randomAsciiOfLengthBetween(1, 10), text);
         }
-        
+
         if (randomBoolean()) {
             query.cutoffFrequency((float) randomIntBetween(1, 10));
         }
@@ -51,7 +51,7 @@ public class CommonTermsQueryBuilderTest extends BaseQueryTestCase<CommonTermsQu
         if (randomBoolean()) {
             query.lowFreqOperator(randomFrom(Operator.values()));
         }
-            
+
         // number of low frequency terms that must match
         if (randomBoolean()) {
             query.lowFreqMinimumShouldMatch("" + randomIntBetween(1, 5));
@@ -65,11 +65,11 @@ public class CommonTermsQueryBuilderTest extends BaseQueryTestCase<CommonTermsQu
         if (randomBoolean()) {
             query.highFreqMinimumShouldMatch("" + randomIntBetween(1, 5));
         }
-        
+
         if (randomBoolean()) {
             query.analyzer(randomFrom("simple", "keyword", "whitespace"));
         }
-        
+
         if (randomBoolean()) {
             query.disableCoord(randomBoolean());
         }
@@ -77,7 +77,7 @@ public class CommonTermsQueryBuilderTest extends BaseQueryTestCase<CommonTermsQu
     }
 
     @Override
-    protected Query doCreateExpectedQuery(CommonTermsQueryBuilder queryBuilder, QueryParseContext context) throws IOException {
+    protected Query doCreateExpectedQuery(CommonTermsQueryBuilder queryBuilder, QueryGenerationContext context) throws IOException {
         String fieldName = queryBuilder.fieldName();
         Analyzer analyzer = context.mapperService().searchAnalyzer();
 
@@ -92,13 +92,13 @@ public class CommonTermsQueryBuilderTest extends BaseQueryTestCase<CommonTermsQu
         if (queryBuilder.analyzer() != null) {
             analyzer = context.analysisService().analyzer(queryBuilder.analyzer());
         }
-        
+
         Occur highFreqOccur = queryBuilder.highFreqOperator().toBooleanClauseOccur();
         Occur lowFreqOccur = queryBuilder.lowFreqOperator().toBooleanClauseOccur();
 
-        ExtendedCommonTermsQuery expectedQuery = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, queryBuilder.cutoffFrequency(), 
+        ExtendedCommonTermsQuery expectedQuery = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, queryBuilder.cutoffFrequency(),
                 queryBuilder.disableCoord(), fieldType);
-        CommonTermsQueryBuilder.parseQueryString(expectedQuery, queryBuilder.text(), fieldName, analyzer, 
+        CommonTermsQueryBuilder.parseQueryString(expectedQuery, queryBuilder.text(), fieldName, analyzer,
                 queryBuilder.lowFreqMinimumShouldMatch(), queryBuilder.highFreqMinimumShouldMatch());
         return expectedQuery;
     }
@@ -118,7 +118,7 @@ public class CommonTermsQueryBuilderTest extends BaseQueryTestCase<CommonTermsQu
     @Test
     public void testNoTermsFromQueryString() throws IOException {
         CommonTermsQueryBuilder builder = new CommonTermsQueryBuilder(STRING_FIELD_NAME, "");
-        QueryParseContext context = createContext();
+        QueryGenerationContext context = createGenerationContext();
         context.setAllowUnmappedFields(true);
         assertNull(builder.toQuery(context));
     }

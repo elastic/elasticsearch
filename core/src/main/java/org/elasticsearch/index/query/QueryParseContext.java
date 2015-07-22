@@ -265,7 +265,7 @@ public class QueryParseContext {
         QueryBuilder builder = parseInnerQueryBuilder();
         Query result = null;
         if (builder != null) {
-            result = builder.toQuery(this);
+            result = builder.toQuery(new QueryGenerationContext(this));
         }
         return result;
     }
@@ -279,7 +279,7 @@ public class QueryParseContext {
         QueryBuilder builder = parseInnerFilterToQueryBuilder();
         Query result = null;
         if (builder != null) {
-            result = builder.toQuery(this);
+            result = builder.toQuery(new QueryGenerationContext(this));
         }
         return result;
     }
@@ -321,7 +321,7 @@ public class QueryParseContext {
     @Deprecated
     public Query parseInnerFilter(String queryName) throws IOException, QueryParsingException {
         QueryBuilder builder = parseInnerFilterToQueryBuilder(queryName);
-        return (builder != null) ? builder.toQuery(this) : null;
+        return (builder != null) ? builder.toQuery(new QueryGenerationContext(this)) : null;
     }
 
     public Collection<String> simpleMatchToIndexNames(String pattern) {

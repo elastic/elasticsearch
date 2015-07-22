@@ -31,7 +31,7 @@ import java.util.Collection;
 public class DisMaxQueryBuilderTest extends BaseQueryTestCase<DisMaxQueryBuilder> {
 
     @Override
-    protected Query doCreateExpectedQuery(DisMaxQueryBuilder testBuilder, QueryParseContext context) throws QueryParsingException, IOException {
+    protected Query doCreateExpectedQuery(DisMaxQueryBuilder testBuilder, QueryGenerationContext context) throws QueryParsingException, IOException {
         Collection<Query> queries = AbstractQueryBuilder.toQueries(testBuilder.queries(), context);
         if (queries.isEmpty()) {
             return null;
@@ -63,7 +63,7 @@ public class DisMaxQueryBuilderTest extends BaseQueryTestCase<DisMaxQueryBuilder
     @Test
     public void testNoInnerQueries() throws QueryParsingException, IOException {
         DisMaxQueryBuilder disMaxBuilder = new DisMaxQueryBuilder();
-        assertNull(disMaxBuilder.toQuery(createContext()));
+        assertNull(disMaxBuilder.toQuery(createGenerationContext()));
         assertNull(disMaxBuilder.validate());
     }
 
@@ -84,7 +84,7 @@ public class DisMaxQueryBuilderTest extends BaseQueryTestCase<DisMaxQueryBuilder
                 .queryParser(queryId).fromXContent(context);
 
         DisMaxQueryBuilder disMaxBuilder = new DisMaxQueryBuilder().add(innerQueryBuilder);
-        assertNull(disMaxBuilder.toQuery(context));
+        assertNull(disMaxBuilder.toQuery(new QueryGenerationContext(context)));
     }
 
     @Test(expected=NullPointerException.class)

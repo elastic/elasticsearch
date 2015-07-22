@@ -29,7 +29,7 @@ import java.io.IOException;
 public class QueryFilterBuilderTest extends BaseQueryTestCase<QueryFilterBuilder> {
 
     @Override
-    protected Query doCreateExpectedQuery(QueryFilterBuilder queryBuilder, QueryParseContext context) throws QueryParsingException, IOException {
+    protected Query doCreateExpectedQuery(QueryFilterBuilder queryBuilder, QueryGenerationContext context) throws QueryParsingException, IOException {
         Query query = queryBuilder.innerQuery().toQuery(context);
         return query != null ? new ConstantScoreQuery(query) : query;
     }

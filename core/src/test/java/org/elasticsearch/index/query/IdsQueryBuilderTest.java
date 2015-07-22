@@ -51,7 +51,7 @@ public class IdsQueryBuilderTest extends BaseQueryTestCase<IdsQueryBuilder> {
     }
 
     @Override
-    protected Query doCreateExpectedQuery(IdsQueryBuilder queryBuilder, QueryParseContext context) throws IOException {
+    protected Query doCreateExpectedQuery(IdsQueryBuilder queryBuilder, QueryGenerationContext context) throws IOException {
         Query expectedQuery;
         if (queryBuilder.ids().size() == 0) {
             expectedQuery = Queries.newMatchNoDocsQuery();

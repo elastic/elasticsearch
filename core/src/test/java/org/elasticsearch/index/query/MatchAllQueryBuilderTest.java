@@ -25,7 +25,7 @@ import org.apache.lucene.search.Query;
 public class MatchAllQueryBuilderTest extends BaseQueryTestCase<MatchAllQueryBuilder> {
 
     @Override
-    protected Query doCreateExpectedQuery(MatchAllQueryBuilder queryBuilder, QueryParseContext context) {
+    protected Query doCreateExpectedQuery(MatchAllQueryBuilder queryBuilder, QueryGenerationContext context) {
         return new MatchAllDocsQuery();
     }
 

@@ -29,7 +29,7 @@ import java.io.IOException;
 public class SpanFirstQueryBuilderTest extends BaseQueryTestCase<SpanFirstQueryBuilder> {
 
     @Override
-    protected Query doCreateExpectedQuery(SpanFirstQueryBuilder testQueryBuilder, QueryParseContext context) throws IOException {
+    protected Query doCreateExpectedQuery(SpanFirstQueryBuilder testQueryBuilder, QueryGenerationContext context) throws IOException {
         SpanQuery innerQuery = (SpanQuery) testQueryBuilder.matchBuilder().toQuery(context);
         return new SpanFirstQuery(innerQuery, testQueryBuilder.end());
     }

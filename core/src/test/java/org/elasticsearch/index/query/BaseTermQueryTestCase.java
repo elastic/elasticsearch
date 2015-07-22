@@ -97,7 +97,7 @@ public abstract class BaseTermQueryTestCase<QB extends BaseTermQueryBuilder<QB>>
     }
 
     @Override
-    protected Query doCreateExpectedQuery(QB queryBuilder, QueryParseContext context) {
+    protected Query doCreateExpectedQuery(QB queryBuilder, QueryGenerationContext context) {
         BytesRef value = null;
         if (getCurrentTypes().length > 0) {
             if (queryBuilder.fieldName().equals(BOOLEAN_FIELD_NAME) || queryBuilder.fieldName().equals(INT_FIELD_NAME) || queryBuilder.fieldName().equals(DOUBLE_FIELD_NAME)) {

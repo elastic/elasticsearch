@@ -30,7 +30,7 @@ import java.util.Collection;
 
 public class ExistsQueryBuilderTest extends BaseQueryTestCase<ExistsQueryBuilder> {
 
-    private static Collection<String> getFieldNamePattern(String fieldName, QueryParseContext context) {
+    private static Collection<String> getFieldNamePattern(String fieldName, QueryGenerationContext context) {
         if (getCurrentTypes().length > 0 && fieldName.equals(BaseQueryTestCase.OBJECT_FIELD_NAME)) {
             // "object" field has two inner fields (age, price), so if query hits that field, we
             // extend field name with wildcard to match both nested fields. This is similar to what
@@ -41,7 +41,7 @@ public class ExistsQueryBuilderTest extends BaseQueryTestCase<ExistsQueryBuilder
     }
 
     @Override
-    protected Query doCreateExpectedQuery(ExistsQueryBuilder queryBuilder, QueryParseContext context) throws IOException {
+    protected Query doCreateExpectedQuery(ExistsQueryBuilder queryBuilder, QueryGenerationContext context) throws IOException {
         final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType)context.mapperService().fullName(FieldNamesFieldMapper.NAME);
         Collection<String> fields = getFieldNamePattern(queryBuilder.name(), context);
 
@@ -52,13 +52,13 @@ public class ExistsQueryBuilderTest extends BaseQueryTestCase<ExistsQueryBuilder
         BooleanQuery boolFilter = new BooleanQuery();
         for (String field : fields) {
             if (fieldNamesFieldType.isEnabled()) {
-                boolFilter.add(fieldNamesFieldType.termQuery(field, context), BooleanClause.Occur.SHOULD);
+                boolFilter.add(fieldNamesFieldType.termQuery(field, null), BooleanClause.Occur.SHOULD);
             } else {
                 MappedFieldType fieldType = context.fieldMapper(field);
                 if (fieldType == null) {
                     boolFilter.add(new TermRangeQuery(field, null, null, true, true), BooleanClause.Occur.SHOULD);
                 } else {
-                    boolFilter.add(fieldType.rangeQuery(null, null, true, true, context), BooleanClause.Occur.SHOULD);
+                    boolFilter.add(fieldType.rangeQuery(null, null, true, true, null), BooleanClause.Occur.SHOULD);
                 }
             }
         }

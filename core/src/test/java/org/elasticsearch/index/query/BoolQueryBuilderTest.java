@@ -66,7 +66,7 @@ public class BoolQueryBuilderTest extends BaseQueryTestCase<BoolQueryBuilder> {
     }
 
     @Override
-    protected Query doCreateExpectedQuery(BoolQueryBuilder queryBuilder, QueryParseContext context) throws IOException {
+    protected Query doCreateExpectedQuery(BoolQueryBuilder queryBuilder, QueryGenerationContext context) throws IOException {
         if (!queryBuilder.hasClauses()) {
             return new MatchAllDocsQuery();
         }
@@ -84,10 +84,10 @@ public class BoolQueryBuilderTest extends BaseQueryTestCase<BoolQueryBuilder> {
         return queryBuilder.adjustPureNegative() ? fixNegativeQueryIfNeeded(boolQuery) : boolQuery;
     }
 
-    private static void addBooleanClauses(QueryParseContext parseContext, BooleanQuery booleanQuery, List<QueryBuilder> clauses, Occur occurs)
+    private static void addBooleanClauses(QueryGenerationContext context, BooleanQuery booleanQuery, List<QueryBuilder> clauses, Occur occurs)
             throws IOException {
         for (QueryBuilder query : clauses) {
-            Query innerQuery = query.toQuery(parseContext);
+            Query innerQuery = query.toQuery(context);
             if (innerQuery != null) {
                 booleanQuery.add(new BooleanClause(innerQuery, occurs));
             }

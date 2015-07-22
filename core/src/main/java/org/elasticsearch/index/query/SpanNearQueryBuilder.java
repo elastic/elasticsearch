@@ -137,10 +137,10 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
     }
 
     @Override
-    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
+    protected Query doToQuery(QueryGenerationContext generationContext) throws IOException {
         SpanQuery[] spanQueries = new SpanQuery[clauses.size()];
         for (int i = 0; i < clauses.size(); i++) {
-            Query query = clauses.get(i).toQuery(parseContext);
+            Query query = clauses.get(i).toQuery(generationContext);
             assert query instanceof SpanQuery;
             spanQueries[i] = (SpanQuery) query;
         }

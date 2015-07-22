@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class SpanNotQueryBuilderTest extends BaseQueryTestCase<SpanNotQueryBuilder> {
 
     @Override
-    protected Query doCreateExpectedQuery(SpanNotQueryBuilder testQueryBuilder, QueryParseContext context) throws IOException {
+    protected Query doCreateExpectedQuery(SpanNotQueryBuilder testQueryBuilder, QueryGenerationContext context) throws IOException {
         SpanQuery include = (SpanQuery) testQueryBuilder.include().toQuery(context);
         SpanQuery exclude = (SpanQuery) testQueryBuilder.exclude().toQuery(context);
         return new SpanNotQuery(include, exclude, testQueryBuilder.pre(), testQueryBuilder.post());

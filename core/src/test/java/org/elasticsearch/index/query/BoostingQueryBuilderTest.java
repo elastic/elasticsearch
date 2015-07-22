@@ -35,7 +35,7 @@ public class BoostingQueryBuilderTest extends BaseQueryTestCase<BoostingQueryBui
     }
 
     @Override
-    protected Query doCreateExpectedQuery(BoostingQueryBuilder queryBuilder, QueryParseContext context) throws IOException {
+    protected Query doCreateExpectedQuery(BoostingQueryBuilder queryBuilder, QueryGenerationContext context) throws IOException {
         Query positive = queryBuilder.positive().toQuery(context);
         Query negative = queryBuilder.negative().toQuery(context);
         if (positive == null || negative == null) {

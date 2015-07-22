@@ -73,9 +73,9 @@ public class FQueryFilterBuilder extends AbstractQueryBuilder<FQueryFilterBuilde
     }
 
     @Override
-    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
+    protected Query doToQuery(QueryGenerationContext generationContext) throws IOException {
         // inner query builder can potentially be `null`, in that case we ignore it
-        Query innerQuery = this.queryBuilder.toQuery(parseContext);
+        Query innerQuery = this.queryBuilder.toQuery(generationContext);
         if (innerQuery == null) {
             return null;
         }

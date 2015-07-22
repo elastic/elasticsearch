@@ -31,7 +31,7 @@ import java.io.IOException;
 public class FQueryFilterBuilderTest extends BaseQueryTestCase<FQueryFilterBuilder> {
 
     @Override
-    protected Query doCreateExpectedQuery(FQueryFilterBuilder queryBuilder, QueryParseContext context) throws QueryParsingException, IOException {
+    protected Query doCreateExpectedQuery(FQueryFilterBuilder queryBuilder, QueryGenerationContext context) throws QueryParsingException, IOException {
         Query query = queryBuilder.innerQuery().toQuery(context);
         if (query != null) {
             return new ConstantScoreQuery(query);
@@ -54,7 +54,7 @@ public class FQueryFilterBuilderTest extends BaseQueryTestCase<FQueryFilterBuild
     @Test
     public void testNoInnerQuery() throws QueryParsingException, IOException {
         FQueryFilterBuilder queryFilterQuery = new FQueryFilterBuilder(EmptyQueryBuilder.PROTOTYPE);
-        assertNull(queryFilterQuery.toQuery(createContext()));
+        assertNull(queryFilterQuery.toQuery(createGenerationContext()));
     }
 
     /**
@@ -73,7 +73,7 @@ public class FQueryFilterBuilderTest extends BaseQueryTestCase<FQueryFilterBuild
 
         // check that when wrapping this filter, toQuery() returns null
         FQueryFilterBuilder queryFilterQuery = new FQueryFilterBuilder(innerQuery);
-        assertNull(queryFilterQuery.toQuery(createContext()));
+        assertNull(queryFilterQuery.toQuery(createGenerationContext()));
     }
 
     @Test

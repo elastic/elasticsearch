@@ -29,7 +29,7 @@ import java.io.IOException;
 public class SpanMultiTermQueryBuilderTest extends BaseQueryTestCase<SpanMultiTermQueryBuilder> {
 
     @Override
-    protected Query doCreateExpectedQuery(SpanMultiTermQueryBuilder testQueryBuilder, QueryParseContext context) throws IOException {
+    protected Query doCreateExpectedQuery(SpanMultiTermQueryBuilder testQueryBuilder, QueryGenerationContext context) throws IOException {
         Query multiTermQuery = testQueryBuilder.multiTermQueryBuilder().toQuery(context);
         return new SpanMultiTermQueryWrapper<>((MultiTermQuery) multiTermQuery);
     }
@@ -72,7 +72,7 @@ public class SpanMultiTermQueryBuilderTest extends BaseQueryTestCase<SpanMultiTe
         if (getCurrentTypes().length > 0 && parseContext.fieldMapper(DATE_FIELD_NAME) != null) {
             try {
                 RangeQueryBuilder query = new RangeQueryBuilder(DATE_FIELD_NAME);
-                new SpanMultiTermQueryBuilder(query).toQuery(createContext());
+                new SpanMultiTermQueryBuilder(query).toQuery(createGenerationContext());
                 fail("Exception expected, range query on date fields should not generate a lucene " + MultiTermQuery.class.getName());
             } catch (UnsupportedOperationException e) {
                 assert(e.getMessage().contains("unsupported inner query, should be " + MultiTermQuery.class.getName()));

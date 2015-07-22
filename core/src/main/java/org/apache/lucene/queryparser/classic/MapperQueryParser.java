@@ -19,6 +19,9 @@
 
 package org.apache.lucene.queryparser.classic;
 
+import com.google.common.base.Objects;
+import com.google.common.collect.ImmutableMap;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
@@ -39,11 +42,9 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.query.QueryGenerationContext;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.support.QueryParsers;
-
-import com.google.common.base.Objects;
-import com.google.common.collect.ImmutableMap;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -252,7 +253,7 @@ public class MapperQueryParser extends QueryParser {
                     Query query = null;
                     if (currentFieldType.useTermQueryWithQueryString()) {
                         try {
-                            query = currentFieldType.termQuery(queryText, parseContext);
+                            query = currentFieldType.termQuery(queryText, new QueryGenerationContext(parseContext));
                         } catch (RuntimeException e) {
                             if (settings.lenient()) {
                                 return null;

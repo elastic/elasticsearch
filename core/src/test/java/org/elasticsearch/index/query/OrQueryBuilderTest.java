@@ -32,7 +32,7 @@ import java.io.IOException;
 public class OrQueryBuilderTest extends BaseQueryTestCase<OrQueryBuilder> {
 
     @Override
-    protected Query doCreateExpectedQuery(OrQueryBuilder queryBuilder, QueryParseContext context) throws QueryParsingException, IOException {
+    protected Query doCreateExpectedQuery(OrQueryBuilder queryBuilder, QueryGenerationContext context) throws QueryParsingException, IOException {
         if (queryBuilder.filters().isEmpty()) {
             return null;
         }
@@ -69,7 +69,7 @@ public class OrQueryBuilderTest extends BaseQueryTestCase<OrQueryBuilder> {
     @Test
     public void testNoInnerQueries() throws QueryParsingException, IOException {
         OrQueryBuilder orQuery = new OrQueryBuilder();
-        assertNull(orQuery.toQuery(createContext()));
+        assertNull(orQuery.toQuery(createGenerationContext()));
     }
 
     @Test(expected=QueryParsingException.class)

@@ -1048,7 +1048,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             fail("Expected MapperParsingException for null value");
         } catch (MapperParsingException e) {
             // make sure that the exception has the name of the field causing the error
-            assertTrue(e.getDetailedMessage().contains("VALUE_NULL"));
+            assertTrue(e.getDetailedMessage().contains(FIELD));
         }
 
     }

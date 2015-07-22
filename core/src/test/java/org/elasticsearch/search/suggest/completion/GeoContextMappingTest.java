@@ -206,7 +206,7 @@ public class GeoContextMappingTest extends ElasticsearchSingleNodeTest {
         GeoQueryContext queryContext = iterator.next();
         assertThat(queryContext.geoHash.toString(), equalTo("ezs42e44yx96"));
         assertThat(queryContext.boost, equalTo(1));
-        assertThat(queryContext.neighbours.length, equalTo(0));
+        assertThat(queryContext.neighbours.length, equalTo(1));
     }
 
     @Test
@@ -223,7 +223,7 @@ public class GeoContextMappingTest extends ElasticsearchSingleNodeTest {
         GeoQueryContext queryContext = iterator.next();
         assertThat(queryContext.geoHash.toString(), equalTo("wh0n9447fwrc"));
         assertThat(queryContext.boost, equalTo(1));
-        assertThat(queryContext.neighbours.length, equalTo(0));
+        assertThat(queryContext.neighbours.length, equalTo(1));
     }
 
     @Test
@@ -312,6 +312,6 @@ public class GeoContextMappingTest extends ElasticsearchSingleNodeTest {
         queryContext = iterator.next();
         assertThat(queryContext.geoHash.toString(), equalTo("w5cx046kdu24"));
         assertThat(queryContext.boost, equalTo(1));
-        assertThat(queryContext.neighbours.length, equalTo(0));
+        assertThat(queryContext.neighbours.length, equalTo(1));
     }
 }

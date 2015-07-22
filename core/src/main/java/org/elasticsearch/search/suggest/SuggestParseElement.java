@@ -97,30 +97,22 @@ public final class SuggestParseElement implements SearchParseElement {
                         }
                         final SuggestContextParser contextParser = suggesters.get(fieldName).getContextParser();
                         if (contextParser instanceof CompletionSuggestParser) {
-                            if (prefix == null && suggestText != null) {
-                                prefix = suggestText;
-                            }
-                            if (suggestText == null) {
-                                if (prefix != null) {
-                                    suggestText = prefix;
-                                } else if (regex != null) {
-                                    suggestText = regex;
-                                } else {
-                                    throw new IllegalArgumentException("Suggestion against completion field must have either 'prefix' or 'regex'");
-                                }
-                            }
-                            if (prefix != null && regex != null) {
-                                throw new IllegalArgumentException("Suggestion against completion field must have either 'prefix' or 'regex'");
-                            }
                             ((CompletionSuggestParser) contextParser).setOldCompletionSuggester(((CompletionSuggester) suggesters.get("completion_old")));
                         }
                         suggestionContext = contextParser.parse(parser, mapperService, queryParserService);
                     }
                 }
                 if (suggestionContext != null) {
-                    suggestionContext.setText(suggestText);
-                    suggestionContext.setPrefix(prefix);
-                    suggestionContext.setRegex(regex);
+                    if (suggestText != null && prefix == null) {
+                        suggestionContext.setPrefix(suggestText);
+                        suggestionContext.setText(suggestText);
+                    } else if (suggestText == null && prefix != null) {
+                        suggestionContext.setPrefix(prefix);
+                        suggestionContext.setText(prefix);
+                    } else if (regex != null) {
+                        suggestionContext.setRegex(regex);
+                        suggestionContext.setText(regex);
+                    }
                     suggestionContexts.put(suggestionName, suggestionContext);
                 }
 

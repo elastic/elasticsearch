@@ -218,7 +218,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
     private GeoQueryContext innerParseQueryContext(XContentParser parser) throws IOException, ElasticsearchParseException {
         Token token = parser.currentToken();
         if (token == Token.VALUE_STRING) {
-            return new GeoQueryContext(GeoUtils.parseGeoPoint(parser));
+            return new GeoQueryContext(GeoUtils.parseGeoPoint(parser), 1, precision);
         } else if (token == Token.START_OBJECT) {
             String currentFieldName = null;
             GeoPoint point = null;
@@ -315,17 +315,15 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
                     throw new ElasticsearchParseException("no context value");
                 }
             }
-            final int[] neighbourValues;
             if (neighbours.size() > 0) {
-                neighbourValues = new int[neighbours.size()];
+                final int[] neighbourValues = new int[neighbours.size()];
                 for (int i = 0; i < neighbours.size(); i++) {
                     neighbourValues[i] = neighbours.get(i);
                 }
+                return new GeoQueryContext(point, boost, neighbourValues);
             } else {
-                neighbourValues = new int[1];
-                neighbourValues[0] = precision;
+                return new GeoQueryContext(point, boost, precision);
             }
-            return new GeoQueryContext(point, boost, neighbourValues);
         } else {
             throw new ElasticsearchParseException("expected string or object");
         }

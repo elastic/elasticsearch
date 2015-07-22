@@ -106,7 +106,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
 
     @Override
     public SuggestContextParser getContextParser() {
-        return new CompletionSuggestParser(this);
+        throw new IllegalStateException("This method should not be called");
     }
 
     public static class ScoreComparator implements Comparator<CompletionSuggestion.Entry.Option> {

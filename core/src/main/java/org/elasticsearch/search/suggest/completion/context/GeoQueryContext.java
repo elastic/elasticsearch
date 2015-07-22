@@ -28,25 +28,41 @@ import java.io.IOException;
 import static org.elasticsearch.search.suggest.completion.context.GeoContextMapping.*;
 
 /**
- * WIP
+ * Defines the query context for {@link GeoContextMapping}
  */
 public class GeoQueryContext implements ToXContent {
     public final CharSequence geoHash;
     public final int boost;
     public final int[] neighbours;
 
+    /**
+     * Creates a query context for a given geo point and a boost of 1
+     */
     public GeoQueryContext(GeoPoint geoPoint) {
         this(geoPoint.geohash());
     }
 
+    /**
+     * Creates a query context with a given geo hash and a boost of 1
+     */
     public GeoQueryContext(CharSequence geoHash) {
         this(geoHash, 1);
     }
 
+    /**
+     * Creates a query context for a geo point with
+     * a provided boost and enables generating neighbours
+     * at specified precisions
+     */
     public GeoQueryContext(GeoPoint geoPoint, int boost, int... neighbours) {
         this(geoPoint.geohash(), boost, neighbours);
     }
 
+    /**
+     * Creates a query context for a geo hash with
+     * a provided boost and enables generating neighbours
+     * at specified precisions
+     */
     public GeoQueryContext(CharSequence geoHash, int boost, int... neighbours) {
         this.geoHash = geoHash;
         this.boost = boost;

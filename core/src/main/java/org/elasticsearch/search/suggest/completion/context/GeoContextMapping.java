@@ -41,8 +41,15 @@ import java.io.IOException;
 import java.util.*;
 
 /**
- * WIP: currently geo-hashes are treated as a category.
- * The query-context should represent geo-queries/filters instead
+ * A {@link ContextMapping} that defines criterion type as a geo hash
+ * The suggestions can be boosted and/or filtered depending on
+ * whether it falls within an area, represented by a query geo hash
+ *
+ * {@link GeoQueryContext} defines the options for constructing
+ * a unit of query context for this context type
+ *
+ * Internally, geo point values are converted to a geo hash and prepended
+ * with the suggestion value at index time
  */
 public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
 
@@ -56,17 +63,11 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
     private final int precision;
     private final String fieldName;
 
-    /**
-     * Create a new {@link GeoContextMapping} with a given precision
-     *
-     * @param precision        length of the geohashes
-     */
     private GeoContextMapping(String name, String fieldName, int precision) {
         super(Type.GEO, name);
         this.precision = precision;
         this.fieldName = fieldName;
     }
-
 
     public String getFieldName() {
         return fieldName;
@@ -455,6 +456,5 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
         public GeoContextMapping build() {
             return new GeoContextMapping(name, fieldName, precision);
         }
-
     }
 }

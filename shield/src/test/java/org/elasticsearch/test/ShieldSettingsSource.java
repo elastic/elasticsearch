@@ -193,11 +193,11 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
         }
     }
 
-    private Settings getNodeSSLSettings() {
+    public Settings getNodeSSLSettings() {
         return getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode", sslTransportEnabled, hostnameVerificationEnabled, hostnameVerificationResolveNameEnabled);
     }
 
-    private Settings getClientSSLSettings() {
+    public Settings getClientSSLSettings() {
         return getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient", sslTransportEnabled, hostnameVerificationEnabled, hostnameVerificationResolveNameEnabled);
     }
 

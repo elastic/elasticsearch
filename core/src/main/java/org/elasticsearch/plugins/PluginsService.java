@@ -63,7 +63,6 @@ import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
  *
  */
 public class PluginsService extends AbstractComponent {
-    public static final String ES_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
 
     /**
      * We keep around a list of plugins

@@ -41,7 +41,7 @@ public class PluginInfoTests extends ElasticsearchTestCase {
     void writeProperties(Path pluginDir, String... stringProps) throws IOException {
         assert stringProps.length % 2 == 0;
         Files.createDirectories(pluginDir);
-        Path propertiesFile = pluginDir.resolve(PluginsService.ES_PLUGIN_PROPERTIES);
+        Path propertiesFile = pluginDir.resolve(PluginInfo.ES_PLUGIN_PROPERTIES);
         Properties properties =  new Properties();
         for (int i = 0; i < stringProps.length; i += 2) {
             properties.put(stringProps[i], stringProps[i + 1]);

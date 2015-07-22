@@ -195,7 +195,7 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
         }
         Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
         if (update != null) {
-            throw new RetryOnReplicaException(shardId, "Mappings are not available on the replica yet, triggered update: " + update);
+            throw new RetryOnReplicaException(shardId, "Mappings are not available on the replica yet, triggered update: [{}]", update);
         }
         operation.execute(indexShard);
         processAfter(request, indexShard, operation.getTranslogLocation());

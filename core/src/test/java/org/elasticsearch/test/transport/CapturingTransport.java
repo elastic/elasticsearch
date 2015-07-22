@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.test.transport;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
@@ -33,7 +32,8 @@ import java.util.concurrent.BlockingQueue;
 
 /** A transport class that doesn't send anything but rather captures all requests for inspection from tests */
 public class CapturingTransport implements Transport {
-    private TransportServiceAdapter adapter;
+
+    protected TransportServiceAdapter adapter;
 
     static public class CapturedRequest {
         final public DiscoveryNode node;

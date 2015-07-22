@@ -24,10 +24,10 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -41,12 +41,11 @@ public abstract class ReplicationRequest<T extends ReplicationRequest> extends A
 
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
-    ShardId internalShardId;
+    ShardRouting internalShardRouting;
 
     protected TimeValue timeout = DEFAULT_TIMEOUT;
     protected String index;
 
-    private boolean threadedOperation = true;
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
     private volatile boolean canHaveDuplicates = false;
 
@@ -76,7 +75,6 @@ public abstract class ReplicationRequest<T extends ReplicationRequest> extends A
         super(originalRequest);
         this.timeout = request.timeout();
         this.index = request.index();
-        this.threadedOperation = request.operationThreaded();
         this.consistencyLevel = request.consistencyLevel();
     }
 
@@ -89,23 +87,6 @@ public abstract class ReplicationRequest<T extends ReplicationRequest> extends A
      */
     public boolean canHaveDuplicates() {
         return canHaveDuplicates;
-    }
-
-    /**
-     * Controls if the operation will be executed on a separate thread when executed locally.
-     */
-    public final boolean operationThreaded() {
-        return threadedOperation;
-    }
-
-    /**
-     * Controls if the operation will be executed on a separate thread when executed locally. Defaults
-     * to <tt>true</tt> when running in embedded mode.
-     */
-    @SuppressWarnings("unchecked")
-    public final T operationThreaded(boolean threadedOperation) {
-        this.threadedOperation = threadedOperation;
-        return (T) this;
     }
 
     /**
@@ -174,19 +155,18 @@ public abstract class ReplicationRequest<T extends ReplicationRequest> extends A
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         if (in.readBoolean()) {
-            internalShardId = ShardId.readShardId(in);
+            internalShardRouting = ShardRouting.readShardRoutingEntry(in);
         }
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         timeout = TimeValue.readTimeValue(in);
         index = in.readString();
         canHaveDuplicates = in.readBoolean();
-        // no need to serialize threaded* parameters, since they only matter locally
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeOptionalStreamable(internalShardId);
+        out.writeOptionalStreamable(internalShardRouting);
         out.writeByte(consistencyLevel.id());
         timeout.writeTo(out);
         out.writeString(index);

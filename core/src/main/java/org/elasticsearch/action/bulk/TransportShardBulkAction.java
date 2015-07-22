@@ -471,7 +471,7 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
                     }
                     Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
                     if (update != null) {
-                        throw new RetryOnReplicaException(shardId, "Mappings are not available on the replica yet, triggered update: " + update);
+                        throw new RetryOnReplicaException(shardId, "Mappings are not available on the replica yet, triggered update: [{}]", update);
                     }
                     operation.execute(indexShard);
                     location = locationToSync(location, operation.getTranslogLocation());

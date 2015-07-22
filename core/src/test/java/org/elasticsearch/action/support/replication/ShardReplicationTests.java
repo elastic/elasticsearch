@@ -58,10 +58,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cluster.TestClusterService;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseOptions;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.*;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -69,7 +66,6 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -103,7 +99,48 @@ public class ShardReplicationTests extends ESTestCase {
         super.setUp();
         transport = new CapturingTransport();
         clusterService = new TestClusterService(threadPool);
-        transportService = new TransportService(transport, threadPool);
+        transportService = new TransportService(transport, threadPool) {
+
+            @Override
+            @SuppressWarnings("unchecked")
+            public <T extends TransportResponse> void sendRequest(DiscoveryNode node, final String action, TransportRequest request, TransportRequestOptions options, final TransportResponseHandler<T> handler) {
+                if (action.endsWith("[p]")) {
+                    try {
+                        adapter.getRequestHandler(action).getHandler().messageReceived(request, new TransportChannel() {
+                            @Override
+                            public String action() {
+                                return action;
+                            }
+
+                            @Override
+                            public String getProfileName() {
+                                return "default";
+                            }
+
+                            @Override
+                            public void sendResponse(TransportResponse response) throws IOException {
+                                handler.handleResponse((T) response);
+                            }
+
+                            @Override
+                            public void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
+                                sendResponse(response);
+                            }
+
+                            @Override
+                            public void sendResponse(Throwable error) throws IOException {
+                                handler.handleException(new TransportException("error", error));
+                            }
+                        });
+                    } catch (Exception e) {
+                        handler.handleException(new TransportException("error", e));
+                    }
+                } else {
+                    super.sendRequest(node, action, request, options, handler);
+                }
+            }
+
+        };
         transportService.start();
         action = new Action(Settings.EMPTY, "testAction", transportService, clusterService, threadPool);
         count.set(1);
@@ -304,9 +341,9 @@ public class ShardReplicationTests extends ESTestCase {
 
         TransportReplicationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
         assertTrue(primaryPhase.checkBlocks());
-        primaryPhase.routeRequestOrPerformLocally(shardRoutingTable.primaryShard(), shardRoutingTable.shardsIt());
         if (primaryNodeId.equals(clusterService.localNode().id())) {
             logger.info("--> primary is assigned locally, testing for execution");
+            primaryPhase.moveToPrimaryAction(shardRoutingTable.primaryShard());
             assertTrue("request failed to be processed on a local primary", request.processedOnPrimary.get());
             if (transport.capturedRequests().length > 0) {
                 assertIndexShardCounter(2);
@@ -314,11 +351,10 @@ public class ShardReplicationTests extends ESTestCase {
                 assertIndexShardCounter(1);
             }
         } else {
-            logger.info("--> primary is assigned to [{}], checking request forwarded", primaryNodeId);
-            final List<CapturingTransport.CapturedRequest> capturedRequests = transport.capturedRequestsByTargetNode().get(primaryNodeId);
-            assertThat(capturedRequests, notNullValue());
-            assertThat(capturedRequests.size(), equalTo(1));
-            assertThat(capturedRequests.get(0).action, equalTo("testAction"));
+            logger.info("--> primary is assigned to [{}], checking request is going to be retried at some point", primaryNodeId);
+            assertThat(clusterService.getListeners().size(), equalTo(0));
+            primaryPhase.moveToPrimaryAction(shardRoutingTable.primaryShard());
+            assertThat(clusterService.getListeners().size(), equalTo(1));
             assertIndexShardUninitialized();
         }
     }
@@ -333,6 +369,7 @@ public class ShardReplicationTests extends ESTestCase {
         final int totalShards = 1 + assignedReplicas + unassignedReplicas;
         final boolean passesWriteConsistency;
         Request request = new Request(shardId).consistencyLevel(randomFrom(WriteConsistencyLevel.values()));
+        request.internalShardRouting = ShardRouting.newUnassigned(index, 0, null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""));
         switch (request.consistencyLevel()) {
             case ONE:
                 passesWriteConsistency = true;
@@ -368,8 +405,9 @@ public class ShardReplicationTests extends ESTestCase {
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
         TransportReplicationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
+        TransportReplicationAction.AsyncPrimaryAction primaryAction = action.new AsyncPrimaryAction(request, listener);
         if (passesWriteConsistency) {
-            assertThat(primaryPhase.checkWriteConsistency(shardRoutingTable.primaryShard()), nullValue());
+            assertThat(primaryAction.checkWriteConsistency(shardRoutingTable.primaryShard()), nullValue());
             primaryPhase.run();
             assertTrue("operations should have been perform, consistency level is met", request.processedOnPrimary.get());
             if (assignedReplicas > 0) {
@@ -378,7 +416,7 @@ public class ShardReplicationTests extends ESTestCase {
                 assertIndexShardCounter(1);
             }
         } else {
-            assertThat(primaryPhase.checkWriteConsistency(shardRoutingTable.primaryShard()), notNullValue());
+            assertThat(primaryAction.checkWriteConsistency(shardRoutingTable.primaryShard()), notNullValue());
             primaryPhase.run();
             assertFalse("operations should not have been perform, consistency level is *NOT* met", request.processedOnPrimary.get());
             assertIndexShardUninitialized();
@@ -661,11 +699,9 @@ public class ShardReplicationTests extends ESTestCase {
         public AtomicInteger processedOnReplicas = new AtomicInteger();
 
         Request() {
-            this.operationThreaded(randomBoolean());
         }
 
         Request(ShardId shardId) {
-            this();
             this.shardId = shardId.id();
             this.index(shardId.index().name());
             // keep things simple
@@ -784,7 +820,7 @@ public class ShardReplicationTests extends ESTestCase {
 
         @Override
         protected void shardOperationOnReplica(ShardId shardId, Request shardRequest) {
-            throwException(shardRequest.internalShardId);
+            throwException(shardRequest.internalShardRouting.shardId());
         }
     }
 

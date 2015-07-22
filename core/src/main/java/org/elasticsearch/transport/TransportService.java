@@ -77,7 +77,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         }
     });
 
-    private final TransportService.Adapter adapter;
+    protected final TransportService.Adapter adapter;
 
     // tracer log
 

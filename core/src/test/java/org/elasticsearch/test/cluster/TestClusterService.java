@@ -31,7 +31,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
@@ -253,6 +252,10 @@ public class TestClusterService implements ClusterService {
     @Override
     public void close() throws ElasticsearchException {
         throw new UnsupportedOperationException();
+    }
+
+    public Collection<ClusterStateListener> getListeners() {
+        return listeners;
     }
 
     class NotifyTimeout implements Runnable {

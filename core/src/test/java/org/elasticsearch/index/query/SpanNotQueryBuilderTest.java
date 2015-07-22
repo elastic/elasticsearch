@@ -45,19 +45,8 @@ public class SpanNotQueryBuilderTest extends BaseQueryTestCase<SpanNotQueryBuild
 
     @Override
     protected SpanNotQueryBuilder doCreateTestQueryBuilder() {
-        SpanTermQueryBuilder includeQuery = new SpanTermQueryBuilderTest().createTestQueryBuilder();
-        // we need same field name and value type as bigQuery for little query
-        String fieldName = includeQuery.fieldName();
-        Object value;
-        switch (fieldName) {
-            case BOOLEAN_FIELD_NAME: value = randomBoolean(); break;
-            case INT_FIELD_NAME: value = randomInt(); break;
-            case DOUBLE_FIELD_NAME: value = randomDouble(); break;
-            case STRING_FIELD_NAME: value = randomAsciiOfLengthBetween(1, 10); break;
-            default : value = randomAsciiOfLengthBetween(1, 10);
-        }
-        SpanTermQueryBuilder excludeQuery = new SpanTermQueryBuilder(fieldName, value);
-        SpanNotQueryBuilder queryBuilder = new SpanNotQueryBuilder(includeQuery, excludeQuery);
+        SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTest().createSpanTermQueryBuilders(2);
+        SpanNotQueryBuilder queryBuilder = new SpanNotQueryBuilder(spanTermQueries[0], spanTermQueries[1]);
         if (randomBoolean()) {
             // also test negative values, they should implicitly be changed to 0
             queryBuilder.dist(randomIntBetween(-2, 10));

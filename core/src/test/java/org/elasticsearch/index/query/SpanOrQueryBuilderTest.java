@@ -44,12 +44,9 @@ public class SpanOrQueryBuilderTest extends BaseQueryTestCase<SpanOrQueryBuilder
     @Override
     protected SpanOrQueryBuilder doCreateTestQueryBuilder() {
         SpanOrQueryBuilder queryBuilder = new SpanOrQueryBuilder();
-        int clauses = randomIntBetween(1, 6);
-        // we use one random SpanTermQueryBuilder to determine same field name for subsequent clauses
-        String fieldName = new SpanTermQueryBuilderTest().createTestQueryBuilder().fieldName();
-        for (int i = 0; i < clauses; i++) {
-            // we need same field name in all clauses, so we only randomize value
-            queryBuilder.clause(new SpanTermQueryBuilder(fieldName, randomValueForField(fieldName)));
+        SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTest().createSpanTermQueryBuilders(randomIntBetween(1, 6));
+        for (SpanTermQueryBuilder clause : spanTermQueries) {
+            queryBuilder.clause(clause);
         }
         return queryBuilder;
     }

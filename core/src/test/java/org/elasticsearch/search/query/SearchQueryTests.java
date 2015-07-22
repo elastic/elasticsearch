@@ -21,7 +21,6 @@ package org.elasticsearch.search.query;
 
 import org.apache.lucene.util.English;
 import org.apache.lucene.util.LuceneTestCase.Slow;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -1623,33 +1622,22 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(spanNotQuery().include(spanNearQuery(1)
+                .setQuery(spanNotQuery(spanNearQuery(1)
                         .clause(QueryBuilders.spanTermQuery("description", "quick"))
-                        .clause(QueryBuilders.spanTermQuery("description", "fox"))).exclude(spanTermQuery("description", "brown"))).get();
+                        .clause(QueryBuilders.spanTermQuery("description", "fox")), spanTermQuery("description", "brown"))).get();
         assertHitCount(searchResponse, 1l);
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(spanNotQuery().include(spanNearQuery(1)
+                .setQuery(spanNotQuery(spanNearQuery(1)
                         .clause(QueryBuilders.spanTermQuery("description", "quick"))
-                        .clause(QueryBuilders.spanTermQuery("description", "fox"))).exclude(spanTermQuery("description", "sleeping")).dist(5)).get();
+                        .clause(QueryBuilders.spanTermQuery("description", "fox")), spanTermQuery("description", "sleeping")).dist(5)).get();
         assertHitCount(searchResponse, 1l);
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(spanNotQuery().include(spanNearQuery(1)
+                .setQuery(spanNotQuery(spanNearQuery(1)
                         .clause(QueryBuilders.spanTermQuery("description", "quick"))
-                        .clause(QueryBuilders.spanTermQuery("description", "fox"))).exclude(spanTermQuery("description", "jumped")).pre(1).post(1)).get();
+                        .clause(QueryBuilders.spanTermQuery("description", "fox")), spanTermQuery("description", "jumped")).pre(1).post(1)).get();
         assertHitCount(searchResponse, 1l);
-
-        try {
-            client().prepareSearch("test")
-                    .setQuery(spanNotQuery().include(spanNearQuery(1)
-                            .clause(QueryBuilders.spanTermQuery("description", "quick"))
-                            .clause(QueryBuilders.spanTermQuery("description", "fox"))).exclude(spanTermQuery("description", "jumped")).dist(2).pre(2)
-                    ).get();
-            fail("ElasticsearchIllegalArgumentException should have been caught");
-        } catch (ElasticsearchException e) {
-            assertThat("ElasticsearchIllegalArgumentException should have been caught", e.getDetailedMessage(), containsString("spanNot can either use [dist] or [pre] & [post] (or none)"));
-        }
     }
 
     @Test

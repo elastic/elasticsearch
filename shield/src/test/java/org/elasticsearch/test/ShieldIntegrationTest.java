@@ -171,6 +171,7 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
     @Override
     protected Settings externalClusterClientSettings() {
         return Settings.builder()
+                .put("plugin.types", ShieldPlugin.class.getName())
                 .put("shield.user", ShieldSettingsSource.DEFAULT_USER_NAME + ":" + ShieldSettingsSource.DEFAULT_PASSWORD)
                 .build();
     }

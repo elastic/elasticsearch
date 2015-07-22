@@ -220,7 +220,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
     @Test
     public void testUpdate() {
         //update action goes to the primary, index op gets executed locally, then replicated
-        String[] updateShardActions = new String[]{UpdateAction.NAME, IndexAction.NAME + "[r]"};
+        String[] updateShardActions = new String[]{UpdateAction.NAME + "[s]", IndexAction.NAME + "[r]"};
         interceptTransportActions(updateShardActions);
 
         String indexOrAlias = randomIndexOrAlias();
@@ -236,7 +236,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
     @Test
     public void testUpdateUpsert() {
         //update action goes to the primary, index op gets executed locally, then replicated
-        String[] updateShardActions = new String[]{UpdateAction.NAME, IndexAction.NAME + "[r]"};
+        String[] updateShardActions = new String[]{UpdateAction.NAME + "[s]", IndexAction.NAME + "[r]"};
         interceptTransportActions(updateShardActions);
 
         String indexOrAlias = randomIndexOrAlias();
@@ -251,7 +251,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
     @Test
     public void testUpdateDelete() {
         //update action goes to the primary, delete op gets executed locally, then replicated
-        String[] updateShardActions = new String[]{UpdateAction.NAME, DeleteAction.NAME + "[r]"};
+        String[] updateShardActions = new String[]{UpdateAction.NAME + "[s]", DeleteAction.NAME + "[r]"};
         interceptTransportActions(updateShardActions);
 
         String indexOrAlias = randomIndexOrAlias();

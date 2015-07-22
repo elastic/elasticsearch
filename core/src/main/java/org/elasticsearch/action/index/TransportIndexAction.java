@@ -42,6 +42,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
@@ -208,7 +209,12 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
         }
 
         if (indexShard.getTranslogDurability() == Translog.Durabilty.REQUEST && location != null) {
-            indexShard.sync(location);
+            try {
+                indexShard.sync(location);
+            } catch (EngineClosedException e) {
+                // ignore, the engine is already closed and we do not want the
+                // operation to be retried, because it has been modified
+            }
         }
     }
 }

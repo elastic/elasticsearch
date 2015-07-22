@@ -27,7 +27,7 @@ To build a `SNAPSHOT` version, you need to build it with Maven:
 
 ```bash
 mvn clean install
-plugin --install lang-python \
+plugin install lang-python \
        --url file:target/releases/elasticsearch-lang-python-X.X.X-SNAPSHOT.zip
 ```
 

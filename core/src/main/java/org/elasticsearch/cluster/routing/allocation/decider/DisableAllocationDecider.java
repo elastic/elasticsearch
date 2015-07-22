@@ -109,7 +109,7 @@ public class DisableAllocationDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "allocation disabling is ignored");
         }
         Settings indexSettings = allocation.routingNodes().metaData().index(shardRouting.index()).settings();
-        if (shardRouting.primary() && !allocation.routingNodes().routingTable().index(shardRouting.index()).shard(shardRouting.id()).primaryAllocatedPostApi()) {
+        if (shardRouting.primary() && shardRouting.allocatedPostIndexCreate() == false) {
             // if its primary, and it hasn't been allocated post API (meaning its a "fresh newly created shard"), only disable allocation
             // on a special disable allocation flag
             if (indexSettings.getAsBoolean(INDEX_ROUTING_ALLOCATION_DISABLE_NEW_ALLOCATION, disableNewAllocation)) {

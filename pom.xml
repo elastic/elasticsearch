@@ -581,7 +581,6 @@
                         <jvmOutputAction>warn</jvmOutputAction>
                         <leaveTemporary>true</leaveTemporary>
                         <parallelism>${tests.jvms}</parallelism>
-                        <ifNoTests>${tests.ifNoTests}</ifNoTests>
                         <assertions enableSystemAssertions="true">
                             <enable/>
                             <disable package="${tests.assertion.disabled}"/>
@@ -691,6 +690,7 @@
                                 <goal>junit4</goal>
                             </goals>
                             <configuration>
+                                <ifNoTests>${tests.ifNoTests}</ifNoTests>
                                 <skipTests>${skip.unit.tests}</skipTests>
                                 <listeners>
                                     <report-ant-xml mavenExtensions="true"
@@ -713,11 +713,12 @@
                                 <goal>junit4</goal>
                             </goals>
                             <configuration>
+                                <ifNoTests>warn</ifNoTests>
                                 <haltOnFailure>false</haltOnFailure>
                                 <skipTests>${skip.integ.tests}</skipTests>
                                 <listeners>
-                                    <report-ant-xml 
-                                        mavenExtensions="true" 
+                                    <report-ant-xml
+                                        mavenExtensions="true"
                                         summaryFile="${project.build.directory}/failsafe-reports/failsafe-summary.xml"
                                         dir="${project.build.directory}/failsafe-reports"/>
                                 </listeners>
@@ -753,6 +754,7 @@
                     <version>2.18.1</version>
                     <configuration>
                         <skip>${skip.integ.tests}</skip>
+                        <failIfNoTests>true</failIfNoTests>
                     </configuration>
                     <executions>
                         <execution>
@@ -1130,7 +1132,8 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                                     <exec failonerror="${licenses.exists}" executable="perl" dir="${elasticsearch.tools.directory}/license-check" osfamily="unix" >
                                         <arg value="check_license_and_sha.pl"/>
                                         <arg value="--check"/>
-                                        <arg value="${basedir}"/>
+                                        <arg value="${basedir}/licenses"/>
+                                        <arg value="${basedir}/target/releases/${project.build.finalName}.zip"/>
                                     </exec>
                                 </target>
                             </configuration>

@@ -456,7 +456,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                         performOnPrimary(primary, shardsIt);
                     }
                 } catch (Throwable t) {
-                    // no commit: check threadpool rejection.
                     finishAsFailed(t);
                 }
             } else {

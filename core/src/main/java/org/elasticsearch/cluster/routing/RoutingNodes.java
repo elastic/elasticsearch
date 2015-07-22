@@ -64,8 +64,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     private int relocatingShards = 0;
 
-    private Set<ShardId> clearPostAllocationFlag;
-
     private final Map<String, ObjectIntHashMap<String>> nodesPerAttributeNames = new HashMap<>();
 
     public RoutingNodes(ClusterState clusterState) {
@@ -189,25 +187,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     public RoutingNodesIterator nodes() {
         return new RoutingNodesIterator(nodesToShards.values().iterator());
-    }
-
-    /**
-     * Clears the post allocation flag for the provided shard id. NOTE: this should be used cautiously
-     * since it will lead to data loss of the primary shard is not allocated, as it will allocate
-     * the primary shard on a node and *not* expect it to have an existing valid index there.
-     */
-    public void addClearPostAllocationFlag(ShardId shardId) {
-        if (clearPostAllocationFlag == null) {
-            clearPostAllocationFlag = Sets.newHashSet();
-        }
-        clearPostAllocationFlag.add(shardId);
-    }
-
-    public Iterable<ShardId> getShardsToClearPostAllocationFlag() {
-        if (clearPostAllocationFlag == null) {
-            return ImmutableSet.of();
-        }
-        return clearPostAllocationFlag;
     }
 
     public RoutingNode node(String nodeId) {

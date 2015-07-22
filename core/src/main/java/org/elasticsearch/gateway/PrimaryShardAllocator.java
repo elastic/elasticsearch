@@ -25,7 +25,6 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -62,7 +61,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
         while (unassignedIterator.hasNext()) {
             ShardRouting shard = unassignedIterator.next();
 
-            if (needToFindPrimaryCopy(shard, routingNodes.routingTable().index(shard.index()).shard(shard.id())) == false) {
+            if (needToFindPrimaryCopy(shard) == false) {
                 continue;
             }
 
@@ -113,13 +112,13 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
     /**
      * Does the shard need to find a primary copy?
      */
-    boolean needToFindPrimaryCopy(ShardRouting shard, IndexShardRoutingTable indexShardRoutingTable) {
+    boolean needToFindPrimaryCopy(ShardRouting shard) {
         if (shard.primary() == false) {
             return false;
         }
 
         // this is an API allocation, ignore since we know there is no data...
-        if (indexShardRoutingTable.primaryAllocatedPostApi() == false) {
+        if (shard.allocatedPostIndexCreate() == false) {
             return false;
         }
 
@@ -188,8 +187,8 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
     /**
      * Builds a list of nodes and version
      */
-    private NodesAndVersions buildNodesAndVersions(ShardRouting shard, boolean recoveryOnAnyNode, Set<String> ignoreNodes,
-                                                   AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> shardState) {
+    NodesAndVersions buildNodesAndVersions(ShardRouting shard, boolean recoveryOnAnyNode, Set<String> ignoreNodes,
+                                           AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> shardState) {
         final Map<DiscoveryNode, Long> nodesWithVersion = Maps.newHashMap();
         int numberOfAllocationsFound = 0;
         long highestVersion = -1;

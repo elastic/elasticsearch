@@ -205,7 +205,7 @@ public class IndexShardTests extends ElasticsearchSingleNodeTest {
         ShardStateMetaData shardStateMetaData = load(logger, env.availableShardPaths(shard.shardId));
         assertEquals(shardStateMetaData, getShardStateMetadata(shard));
 
-        routing = TestShardRouting.newShardRouting(shard.shardId.index().getName(), shard.shardId.id(), routing.currentNodeId(), null, null, routing.primary(), ShardRoutingState.INITIALIZING, shard.shardRouting.version() + 1);
+        routing = TestShardRouting.newShardRouting(shard.shardId.index().getName(), shard.shardId.id(), routing.currentNodeId(), null, routing.primary(), ShardRoutingState.INITIALIZING, shard.shardRouting.allocationId(), shard.shardRouting.version() + 1);
         shard.updateRoutingEntry(routing, true);
         shard.deleteShardState();
 

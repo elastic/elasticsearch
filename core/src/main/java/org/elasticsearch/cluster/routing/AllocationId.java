@@ -83,10 +83,10 @@ public class AllocationId implements ToXContent {
 
     /**
      * Creates a new allocation id representing a cancelled relocation.
-     *
+     * <p/>
      * Note that this is expected to be called on the allocation id
      * of the *source* shard
-     * */
+     */
     public static AllocationId cancelRelocation(AllocationId allocationId) {
         assert allocationId.getRelocationId() != null;
         return new AllocationId(allocationId.getId(), null);
@@ -94,7 +94,7 @@ public class AllocationId implements ToXContent {
 
     /**
      * Creates a new allocation id finalizing a relocation.
-     *
+     * <p/>
      * Note that this is expected to be called on the allocation id
      * of the *target* shard and thus it only needs to clear the relocating id.
      */
@@ -120,9 +120,16 @@ public class AllocationId implements ToXContent {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
+        if (this == o) {
+            return true;
+        }
+        if (o == null) {
+            return false;
+        }
         AllocationId that = (AllocationId) o;
-        if (!id.equals(that.id)) return false;
+        if (!id.equals(that.id)) {
+            return false;
+        }
         return !(relocationId != null ? !relocationId.equals(that.relocationId) : that.relocationId != null);
 
     }

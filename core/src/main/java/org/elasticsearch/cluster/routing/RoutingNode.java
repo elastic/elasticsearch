@@ -88,7 +88,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
     void add(ShardRouting shard) {
         // TODO use Set with ShardIds for faster lookup.
         for (ShardRouting shardRouting : shards) {
-            if (shardRouting.shardId().equals(shard.shardId())) {
+            if (shardRouting.isSameShard(shard)) {
                 throw new IllegalStateException("Trying to add a shard [" + shard.shardId().index().name() + "][" + shard.shardId().id() + "] to a node [" + nodeId + "] where it already exists");
             }
         }

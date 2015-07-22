@@ -21,7 +21,6 @@ package org.elasticsearch.index.shard;
 
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
-
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -337,14 +336,16 @@ public class IndexShard extends AbstractIndexShardComponent {
         if (!newRouting.shardId().equals(shardId())) {
             throw new IllegalArgumentException("Trying to set a routing entry with shardId [" + newRouting.shardId() + "] on a shard with shardId [" + shardId() + "]");
         }
+        if ((currentRouting == null || newRouting.isSameAllocation(currentRouting)) == false) {
+            throw new IllegalArgumentException("Trying to set a routing entry with a different allocation. Current " + currentRouting + ", new " + newRouting);
+        }
         try {
             if (currentRouting != null) {
-                assert newRouting.version() > currentRouting.version() : "expected: " + newRouting.version() + " > " + currentRouting.version();
                 if (!newRouting.primary() && currentRouting.primary()) {
                     logger.warn("suspect illegal state: trying to move shard from primary mode to replica mode");
                 }
-                // if its the same routing, return
-                if (currentRouting.equals(newRouting)) {
+                // if its the same routing except for some metadata info, return
+                if (currentRouting.equalsIgnoringMetaData(newRouting)) {
                     this.shardRouting = newRouting; // might have a new version
                     return;
                 }
@@ -723,12 +724,12 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public org.apache.lucene.util.Version minimumCompatibleVersion() {
         org.apache.lucene.util.Version luceneVersion = null;
-        for(Segment segment : engine().segments(false)) {
+        for (Segment segment : engine().segments(false)) {
             if (luceneVersion == null || luceneVersion.onOrAfter(segment.getVersion())) {
                 luceneVersion = segment.getVersion();
             }
         }
-        return luceneVersion == null ?  Version.indexCreated(indexSettings).luceneVersion : luceneVersion;
+        return luceneVersion == null ? Version.indexCreated(indexSettings).luceneVersion : luceneVersion;
     }
 
     public SnapshotIndexCommit snapshotIndex(boolean flushFirst) throws EngineException {
@@ -1113,7 +1114,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                 }
 
                 final int maxMergeCount = settings.getAsInt(MergeSchedulerConfig.MAX_MERGE_COUNT, mergeSchedulerConfig.getMaxMergeCount());
-                if (maxMergeCount !=  mergeSchedulerConfig.getMaxMergeCount()) {
+                if (maxMergeCount != mergeSchedulerConfig.getMaxMergeCount()) {
                     logger.info("updating [{}] from [{}] to [{}]", MergeSchedulerConfig.MAX_MERGE_COUNT, mergeSchedulerConfig.getMaxMergeCount(), maxMergeCount);
                     mergeSchedulerConfig.setMaxMergeCount(maxMergeCount);
                     change = true;

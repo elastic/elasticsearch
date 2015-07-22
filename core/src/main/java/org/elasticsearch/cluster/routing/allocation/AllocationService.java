@@ -338,7 +338,7 @@ public class AllocationService extends AbstractComponent {
             }
 
             for (ShardRouting shard : currentRoutingNode) {
-                if (shard.allocationId().getId().equals(startedShard.allocationId().getId())) {
+                if (shard.isSameAllocation(startedShard)) {
                     if (shard.active()) {
                         logger.trace("{} shard is already started, ignoring (routing: {})", startedShard.shardId(), startedShard);
                     } else {
@@ -363,8 +363,7 @@ public class AllocationService extends AbstractComponent {
             if (sourceRoutingNode != null) {
                 while (sourceRoutingNode.hasNext()) {
                     ShardRouting shard = sourceRoutingNode.next();
-                    if (shard.allocationId().getId().equals(startedShard.allocationId().getRelocationId())) {
-                        assert shard.relocating() : "source shard for relocation is not marked as relocating. source " + shard + ", started target " + startedShard;
+                    if (shard.isRelocationSourceOf(startedShard)) {
                         dirty = true;
                         sourceRoutingNode.remove();
                         break;
@@ -397,7 +396,7 @@ public class AllocationService extends AbstractComponent {
         boolean matchedShard = false;
         while (matchedNode.hasNext()) {
             ShardRouting routing = matchedNode.next();
-            if (routing.allocationId().getId().equals(failedShard.allocationId().getId())) {
+            if (routing.isSameAllocation(failedShard)) {
                 matchedShard = true;
                 logger.debug("{} failed shard {} found in routingNodes, failing it ({})", failedShard.shardId(), failedShard, unassignedInfo.shortSummary());
                 break;
@@ -428,7 +427,7 @@ public class AllocationService extends AbstractComponent {
             RoutingNode relocatingFromNode = routingNodes.node(failedShard.relocatingNodeId());
             if (relocatingFromNode != null) {
                 for (ShardRouting shardRouting : relocatingFromNode) {
-                    if (shardRouting.allocationId().getId().equals(failedShard.allocationId().getRelocationId())) {
+                    if (shardRouting.isRelocationSourceOf(failedShard)) {
                         logger.trace("{}, resolved source to [{}]. canceling relocation ... ({})", failedShard.shardId(), shardRouting, unassignedInfo.shortSummary());
                         routingNodes.cancelRelocation(shardRouting);
                         break;
@@ -441,7 +440,7 @@ public class AllocationService extends AbstractComponent {
             // and the shard copy needs to be marked as unassigned
 
             if (failedShard.relocatingNodeId() != null) {
-                // handle relocation source shards.  we need to find the target initializing shard that is recovering from, and remove it...
+                // handle relocation source shards.  we need to find the target initializing shard that is recovering, and remove it...
                 assert failedShard.initializing() == false; // should have been dealt with and returned
                 assert failedShard.relocating();
 
@@ -449,10 +448,7 @@ public class AllocationService extends AbstractComponent {
                 if (initializingNode != null) {
                     while (initializingNode.hasNext()) {
                         ShardRouting shardRouting = initializingNode.next();
-                        if (shardRouting.allocationId().getId().equals(failedShard.allocationId().getRelocationId())) {
-                            assert shardRouting.initializing() : shardRouting;
-                            assert failedShard.allocationId().getId().equals(shardRouting.allocationId().getRelocationId())
-                                    : "found target shard's allocation relocation id is different than source";
+                        if (shardRouting.isRelocationTargetOf(failedShard)) {
                             logger.trace("{} is removed due to the failure of the source shard", shardRouting);
                             initializingNode.remove();
                         }

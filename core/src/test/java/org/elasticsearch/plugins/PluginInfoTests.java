@@ -57,7 +57,7 @@ public class PluginInfoTests extends ElasticsearchTestCase {
             "version", "1.0",
             "elasticsearch.version", Version.CURRENT.toString(),
             "jvm", "true",
-            "plugin", "FakePlugin");
+            "classname", "FakePlugin");
         PluginInfo info = PluginInfo.readFromProperties(pluginDir);
         assertEquals("fake-plugin", info.getName());
         assertEquals("fake desc", info.getDescription());
@@ -95,7 +95,8 @@ public class PluginInfoTests extends ElasticsearchTestCase {
         Path pluginDir = createTempDir().resolve("fake-plugin");
         writeProperties(pluginDir,
             "description", "fake desc",
-            "version", "1.0");
+            "version", "1.0",
+            "jvm", "true");
         try {
             PluginInfo.readFromProperties(pluginDir);
             fail("expected missing elasticsearch version exception");
@@ -109,6 +110,7 @@ public class PluginInfoTests extends ElasticsearchTestCase {
         writeProperties(pluginDir,
             "description", "fake desc",
             "version", "1.0",
+            "jvm", "true",
             "elasticsearch.version", "bogus");
         try {
             PluginInfo.readFromProperties(pluginDir);
@@ -123,6 +125,7 @@ public class PluginInfoTests extends ElasticsearchTestCase {
         writeProperties(pluginDir,
             "description", "fake desc",
             "version", "1.0",
+            "jvm", "true",
             "elasticsearch.version", Version.V_1_7_0.toString());
         try {
             PluginInfo.readFromProperties(pluginDir);
@@ -130,6 +133,34 @@ public class PluginInfoTests extends ElasticsearchTestCase {
         } catch (IllegalArgumentException e) {
             assertTrue(e.getMessage().contains("Elasticsearch version [1.7.0] is too old"));
         }
+    }
+
+    public void testReadFromPropertiesJvmMissingClassname() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        writeProperties(pluginDir,
+            "description", "fake desc",
+            "version", "1.0",
+            "elasticsearch.version", Version.CURRENT.toString(),
+            "jvm", "true");
+        try {
+            PluginInfo.readFromProperties(pluginDir);
+            fail("expected old elasticsearch version exception");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("Property [classname] is missing"));
+        }
+    }
+
+    public void testReadFromPropertiesSitePlugin() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        writeProperties(pluginDir,
+            "description", "fake desc",
+            "version", "1.0",
+            "elasticsearch.version", Version.CURRENT.toString(),
+            "site", "true");
+        PluginInfo info = PluginInfo.readFromProperties(pluginDir);
+        assertTrue(info.isSite());
+        assertFalse(info.isJvm());
+        assertEquals("NA", info.getClassname());
     }
 
     public void testPluginListSorted() {

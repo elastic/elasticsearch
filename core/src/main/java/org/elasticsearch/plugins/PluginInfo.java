@@ -99,11 +99,6 @@ public class PluginInfo implements Streamable, ToXContent {
         boolean isolated = true;
         String classname = "NA";
         if (jvm) {
-            isolated = Boolean.parseBoolean(props.getProperty("isolated", "true"));
-            classname = props.getProperty("classname");
-            if (classname == null) {
-                throw new IllegalArgumentException("Property [classname] is missing for jvm plugin [" + name + "]");
-            }
             String esVersionString = props.getProperty("elasticsearch.version");
             if (esVersionString == null) {
                 throw new IllegalArgumentException("Property [elasticsearch.version] is missing for jvm plugin [" + name + "]");
@@ -111,6 +106,11 @@ public class PluginInfo implements Streamable, ToXContent {
             Version esVersion = Version.fromString(esVersionString);
             if (esVersion.equals(Version.CURRENT) == false) {
                 throw new IllegalArgumentException("Elasticsearch version [" + esVersionString + "] is too old for plugin [" + name + "]");
+            }
+            isolated = Boolean.parseBoolean(props.getProperty("isolated", "true"));
+            classname = props.getProperty("classname");
+            if (classname == null) {
+                throw new IllegalArgumentException("Property [classname] is missing for jvm plugin [" + name + "]");
             }
         }
 

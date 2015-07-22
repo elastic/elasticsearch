@@ -38,7 +38,7 @@
             </releases>
             <snapshots>
                 <enabled>true</enabled>
-                <!-- <updatePolicy>always</updatePolicy> -->
+                <updatePolicy>always</updatePolicy>
             </snapshots>
         </repository>
         <repository>

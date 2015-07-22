@@ -45,32 +45,42 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
     protected RangeQueryBuilder doCreateTestQueryBuilder() {
         RangeQueryBuilder query;
         // switch between numeric and date ranges
-        if (randomBoolean()) {
-            if (randomBoolean()) {
-                // use mapped integer field for numeric range queries
-                query = new RangeQueryBuilder(INT_FIELD_NAME);
-                query.from(randomIntBetween(1, 100));
-                query.to(randomIntBetween(101, 200));
-            } else {
-                // use unmapped field for numeric range queries
-                query = new RangeQueryBuilder(randomAsciiOfLengthBetween(1, 10));
-                query.from(0.0 - randomDouble());
-                query.to(randomDouble());
-            }
-        } else {
-            // use mapped date field, using date string representation
-            query = new RangeQueryBuilder(DATE_FIELD_NAME);
-            query.from(new DateTime(System.currentTimeMillis() - randomIntBetween(0, 1000000), DateTimeZone.UTC).toString());
-            query.to(new DateTime(System.currentTimeMillis() + randomIntBetween(0, 1000000), DateTimeZone.UTC).toString());
-            // Create timestamp option only then we have a date mapper, otherwise we could trigger exception.
-            if (createContext().mapperService().smartNameFieldType(DATE_FIELD_NAME) != null) {
+        switch (randomIntBetween(0, 2)) {
+            case 0:
                 if (randomBoolean()) {
-                    query.timeZone(TIMEZONE_IDS.get(randomIntBetween(0, TIMEZONE_IDS.size() - 1)));
+                    // use mapped integer field for numeric range queries
+                    query = new RangeQueryBuilder(INT_FIELD_NAME);
+                    query.from(randomIntBetween(1, 100));
+                    query.to(randomIntBetween(101, 200));
+                } else {
+                    // use unmapped field for numeric range queries
+                    query = new RangeQueryBuilder(randomAsciiOfLengthBetween(1, 10));
+                    query.from(0.0 - randomDouble());
+                    query.to(randomDouble());
                 }
-                if (randomBoolean()) {
-                    query.format("yyyy-MM-dd'T'HH:mm:ss.SSSZZ");
+                break;
+            case 1:
+                // use mapped date field, using date string representation
+                query = new RangeQueryBuilder(DATE_FIELD_NAME);
+                query.from(new DateTime(System.currentTimeMillis() - randomIntBetween(0, 1000000), DateTimeZone.UTC).toString());
+                query.to(new DateTime(System.currentTimeMillis() + randomIntBetween(0, 1000000), DateTimeZone.UTC).toString());
+                // Create timestamp option only then we have a date mapper,
+                // otherwise we could trigger exception.
+                if (createContext().mapperService().smartNameFieldType(DATE_FIELD_NAME) != null) {
+                    if (randomBoolean()) {
+                        query.timeZone(TIMEZONE_IDS.get(randomIntBetween(0, TIMEZONE_IDS.size() - 1)));
+                    }
+                    if (randomBoolean()) {
+                        query.format("yyyy-MM-dd'T'HH:mm:ss.SSSZZ");
+                    }
                 }
-            }
+                break;
+            case 2:
+            default:
+                query = new RangeQueryBuilder(STRING_FIELD_NAME);
+                query.from("a" + randomAsciiOfLengthBetween(1, 10));
+                query.to("z" + randomAsciiOfLengthBetween(1, 10));
+                break;
         }
         query.includeLower(randomBoolean()).includeUpper(randomBoolean());
         if (randomBoolean()) {

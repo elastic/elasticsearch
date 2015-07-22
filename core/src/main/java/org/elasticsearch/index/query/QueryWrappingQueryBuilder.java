@@ -29,7 +29,7 @@ import java.io.IOException;
  * Doesn't support conversion to {@link org.elasticsearch.common.xcontent.XContent} via {@link #doXContent(XContentBuilder, Params)}.
  */
 //norelease to be removed once all queries support separate fromXContent and toQuery methods. Make AbstractQueryBuilder#toQuery final as well then.
-public class QueryWrappingQueryBuilder extends AbstractQueryBuilder<QueryWrappingQueryBuilder> {
+public class QueryWrappingQueryBuilder extends AbstractQueryBuilder<QueryWrappingQueryBuilder> implements MultiTermQueryBuilder<QueryWrappingQueryBuilder> {
 
     private Query query;
 

@@ -161,9 +161,6 @@ public class FieldValueFactorFunction extends ScoreFunction {
 
         @Override
         public String toString() {
-            if (this == NONE) {
-                return "";
-            }
             return super.toString().toLowerCase(Locale.ROOT);
         }
     }

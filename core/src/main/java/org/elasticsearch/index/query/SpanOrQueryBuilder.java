@@ -56,9 +56,6 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        if (clauses.isEmpty()) {
-            throw new IllegalArgumentException("Must have at least one clause when building a spanOr query");
-        }
         builder.startObject(NAME);
         builder.startArray("clauses");
         for (SpanQueryBuilder clause : clauses) {

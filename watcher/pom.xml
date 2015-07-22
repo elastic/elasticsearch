@@ -16,6 +16,8 @@
     </parent>
 
     <properties>
+        <!-- TODO: try to avoid this... -->
+        <elasticsearch.assembly.descriptor>${basedir}/src/main/assemblies/plugin.xml</elasticsearch.assembly.descriptor>
         <elasticsearch.plugin.classname>org.elasticsearch.watcher.WatcherPlugin</elasticsearch.plugin.classname>
         <!-- TODO: fix plugin dependencies for full isolation -->
         <elasticsearch.plugin.isolated>false</elasticsearch.plugin.isolated>

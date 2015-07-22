@@ -63,7 +63,6 @@ public class WatcherRestTests extends ElasticsearchRestTestCase {
                         + "," + licensePluginClass().getName())
                 .put(Node.HTTP_ENABLED, true)
                 .put(ShieldSettings.settings(shieldEnabled))
-                .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
         .build();
     }
 
@@ -81,7 +80,6 @@ public class WatcherRestTests extends ElasticsearchRestTestCase {
             String token = basicAuthHeaderValue("admin", new SecuredString("changeme".toCharArray()));
             return Settings.builder()
                     .put(Headers.PREFIX + ".Authorization", token)
-                    .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
                     .build();
         } else {
             return Settings.EMPTY;
@@ -98,7 +96,6 @@ public class WatcherRestTests extends ElasticsearchRestTestCase {
                             + (shieldEnabled ? ShieldPlugin.class.getName() + "," : ""))
                     .put("shield.user", "admin:changeme")
                     .put(Node.HTTP_ENABLED, true)
-                    .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
                     .build();
         }
 
@@ -107,7 +104,6 @@ public class WatcherRestTests extends ElasticsearchRestTestCase {
                 .put(Node.HTTP_ENABLED, true)
                 .put("plugin.types", WatcherPlugin.class.getName() + ","
                         + "," + LicensePlugin.class.getName())
-                .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
                 .build();
     }
 

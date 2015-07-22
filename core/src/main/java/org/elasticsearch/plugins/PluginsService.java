@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsInfo;
 import org.elasticsearch.bootstrap.Bootstrap;
@@ -307,15 +308,27 @@ public class PluginsService extends AbstractComponent {
         }
         String name = dir.getFileName().toString();
         String description = props.getProperty("description");
+        if (description == null) {
+            throw new IllegalArgumentException("Property [description] is missing for plugin [" + name + "]");
+        }
         String version = props.getProperty("version");
-        String esversion = props.getProperty("elasticsearch.version");
-        // TODO: validate all this metadata, check version, and reuse from pluginmanager too before installing.
+        if (version == null) {
+            throw new IllegalArgumentException("Property [version] is missing for plugin [" + name + "]");
+        }
+        String esVersionString = props.getProperty("elasticsearch.version");
+        if (esVersionString == null) {
+            throw new IllegalArgumentException("Property [elasticsearch.version] is missing for plugin [" + name + "]");
+        }
+        Version esVersion = Version.fromString(esVersionString);
+        if (esVersion.equals(Version.CURRENT) == false) {
+            throw new IllegalArgumentException("Elasticsearch version [" + esVersionString + "] is too old for plugin [" + name + "]");
+        }
         boolean jvm = Boolean.parseBoolean(props.getProperty("jvm"));
         boolean site = Boolean.parseBoolean(props.getProperty("site"));
         boolean isolated = true;
         String classname = "NA";
         if (jvm) {
-            isolated = Boolean.parseBoolean(props.getProperty("isolated"));
+            isolated = Boolean.parseBoolean(props.getProperty("isolated", "true"));
             classname = props.getProperty("plugin");
         }
         return new PluginInfo(name, description, site, version, jvm, classname, isolated);

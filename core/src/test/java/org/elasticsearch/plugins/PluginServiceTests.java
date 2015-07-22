@@ -19,8 +19,8 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginInfo;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
 import java.io.IOException;
@@ -43,12 +43,13 @@ public class PluginServiceTests extends ElasticsearchTestCase {
         }
     }
 
-    public void testMetadata() throws Exception {
+    public void testReadMetadata() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
         Files.createDirectories(pluginDir);
         writeProperties(pluginDir,
             "description", "fake desc",
             "version", "1.0",
+            "elasticsearch.version", Version.CURRENT.toString(),
             "jvm", "true",
             "plugin", "FakePlugin");
         PluginInfo info = PluginsService.readMetadata(pluginDir);
@@ -57,9 +58,76 @@ public class PluginServiceTests extends ElasticsearchTestCase {
         assertEquals("1.0", info.getVersion());
         assertEquals("FakePlugin", info.getClassname());
         assertTrue(info.isJvm());
-        assertFalse(info.isIsolated()); // TODO: isolated was not specified, default should be true
+        assertTrue(info.isIsolated());
         assertFalse(info.isSite());
         assertNull(info.getUrl());
+    }
 
+    public void testReadMetadataDescriptionMissing() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        Files.createDirectories(pluginDir);
+        writeProperties(pluginDir);
+        try {
+            PluginsService.readMetadata(pluginDir);
+            fail("expected missing description exception");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("[description] is missing"));
+        }
+    }
+
+    public void testReadMetadataVersionMissing() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        Files.createDirectories(pluginDir);
+        writeProperties(pluginDir, "description", "fake desc");
+        try {
+            PluginsService.readMetadata(pluginDir);
+            fail("expected missing version exception");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("[version] is missing"));
+        }
+    }
+
+    public void testReadMetadataElasticsearchVersionMissing() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        Files.createDirectories(pluginDir);
+        writeProperties(pluginDir,
+            "description", "fake desc",
+            "version", "1.0");
+        try {
+            PluginsService.readMetadata(pluginDir);
+            fail("expected missing elasticsearch version exception");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("[elasticsearch.version] is missing"));
+        }
+    }
+
+    public void testReadMetadataBogusElasticsearchVersion() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        Files.createDirectories(pluginDir);
+        writeProperties(pluginDir,
+            "description", "fake desc",
+            "version", "1.0",
+            "elasticsearch.version", "bogus");
+        try {
+            PluginsService.readMetadata(pluginDir);
+            fail("expected bogus elasticsearch version exception");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("version needs to contain major, minor and revision"));
+        }
+    }
+
+    public void testReadMetadataOldElasticsearchVersion() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        Files.createDirectories(pluginDir);
+        writeProperties(pluginDir,
+            "description", "fake desc",
+            "version", "1.0",
+            "elasticsearch.version", Version.V_1_7_0.toString());
+        try {
+            PluginsService.readMetadata(pluginDir);
+            fail("expected old elasticsearch version exception");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("Elasticsearch version [1.7.0] is too old"));
+        }
     }
 }

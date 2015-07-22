@@ -17,7 +17,6 @@ The following defines two context mappings for a completion field:
 
 [source,js]
 --------------------------------------------------
-PUT place
 PUT place/shops/_mapping
 {
   "shops" : {
@@ -54,7 +53,7 @@ NOTE: Adding context mappings increases the index size for completion field.
 ==== Category Context
 
 The `category` context allows you to associate one or more categories to suggestions at index time.
-At query time, suggestions can be filtered and boosted by their associated context(s).
+At query time, suggestions can be filtered and boosted by their associated categories.
 
 [float]
 ===== Category Mapping
@@ -167,8 +166,8 @@ POST place/_suggest?pretty
             "size": 10,
             "contexts": {
                 "place_type": [ <1>
-                    { context : "cafe" },
-                    { context : "restaurants", boost: 2 }
+                    { "context" : "cafe" },
+                    { "context" : "restaurants", "boost": 2 }
                  ]
             }
         }
@@ -317,11 +316,11 @@ POST place/_suggest?pretty
                         "lon": -79.380
                     },
                     {
-                        context: {
+                        "context": {
                             "lat": 43.6624803,
                             "lon": -79.3863353
                         },
-                        boost: 2
+                        "boost": 2
                     }
                  ]
             }

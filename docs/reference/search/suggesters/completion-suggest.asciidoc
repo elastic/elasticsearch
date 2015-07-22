@@ -232,6 +232,7 @@ POST music/_suggest?pretty
 The regex query can take specific regex parameters.
 The following parameters are supported:
 
+[horizontal]
 `flags`::
     Possible flags are `ALL` (default), `ANYSTRING`, `COMPLEMENT`,
     `EMPTY`, `INTERSECTION`, `INTERVAL`, or `NONE`. Please check the

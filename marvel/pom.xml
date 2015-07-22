@@ -16,6 +16,9 @@
     </parent>
 
     <properties>
+        <elasticsearch.plugin.classname>org.elasticsearch.marvel.MarvelPlugin</elasticsearch.plugin.classname>
+        <!-- TODO: fix plugin dependencies for full isolation -->
+        <elasticsearch.plugin.isolated>false</elasticsearch.plugin.isolated>
         <elasticsearch.integ.antfile>dev-tools/integration-tests.xml</elasticsearch.integ.antfile>
         <tests.rest.suite>marvel</tests.rest.suite>
         <tests.rest.load_packaged>false</tests.rest.load_packaged>

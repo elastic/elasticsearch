@@ -38,7 +38,7 @@
             </releases>
             <snapshots>
                 <enabled>true</enabled>
-                <updatePolicy>always</updatePolicy>
+                <!-- <updatePolicy>always</updatePolicy> -->
             </snapshots>
         </repository>
         <repository>
@@ -122,6 +122,9 @@
             <activation>
                 <activeByDefault>true</activeByDefault>
             </activation>
+            <properties>
+                <enforcer.skip>true</enforcer.skip>
+            </properties>
         </profile>
     </profiles>
 

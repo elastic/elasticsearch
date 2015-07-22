@@ -19,21 +19,21 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
@@ -41,6 +41,9 @@ import org.junit.After;
 import org.junit.Before;
 
 import static org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public abstract class AbstractFieldDataTests extends ElasticsearchSingleNodeTest {
 
@@ -128,6 +131,27 @@ public abstract class AbstractFieldDataTests extends ElasticsearchSingleNodeTest
     protected Nested createNested(Filter parentFilter, Filter childFilter) {
         BitsetFilterCache s = indexService.bitsetFilterCache();
         return new Nested(s.getBitDocIdSetFilter(parentFilter), s.getBitDocIdSetFilter(childFilter));
+    }
+
+    public void testEmpty() throws Exception {
+        Document d = new Document();
+        d.add(new StringField("field", "value", Field.Store.NO));
+        writer.addDocument(d);
+        refreshReader();
+
+        IndexFieldData fieldData = getForField("non_existing_field");
+        int max = randomInt(7);
+        AtomicFieldData previous = null;
+        for (int i = 0; i < max; i++) {
+            AtomicFieldData current = fieldData.load(readerContext);
+            assertThat(current.ramBytesUsed(), equalTo(0l));
+            if (previous != null) {
+                assertThat(current, not(sameInstance(previous)));
+            }
+            previous = current;
+        }
+
+
     }
 
 }

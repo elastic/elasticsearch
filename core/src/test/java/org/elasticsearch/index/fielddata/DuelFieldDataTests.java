@@ -465,6 +465,11 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         }
     }
 
+    @Override
+    public void testEmpty() throws Exception {
+        // No need to test empty usage here
+    }
+
     private int[] getNumbers(Random random, int margin) {
         if (random.nextInt(20) == 0) {
             int[] num = new int[1 + random.nextInt(10)];

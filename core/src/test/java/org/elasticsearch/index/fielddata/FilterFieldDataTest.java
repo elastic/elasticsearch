@@ -180,5 +180,8 @@ public class FilterFieldDataTest extends AbstractFieldDataTests {
 
     }
 
-
+    @Override
+    public void testEmpty() throws Exception {
+        // No need to test empty usage here
+    }
 }

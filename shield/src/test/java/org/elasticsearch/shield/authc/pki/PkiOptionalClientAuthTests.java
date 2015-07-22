@@ -11,7 +11,9 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.transport.SSLClientAuth;
@@ -103,6 +105,7 @@ public class PkiOptionalClientAuthTests extends ShieldIntegrationTest {
                 .put("cluster.name", internalTestCluster().getClusterName())
                 .put("shield.transport.ssl", true)
                 .put("path.home", createTempDir())
+                .put("plugin.types", ShieldPlugin.class.getName())
                 .build();
 
 

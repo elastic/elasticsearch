@@ -88,7 +88,11 @@ public abstract class ShieldRestTestCase extends ShieldIntegrationTest {
 
         @Override
         public Settings nodeSettings(int ordinal) {
-            return super.nodeSettings(ordinal);
+            return Settings.builder()
+                    .put(super.nodeSettings(ordinal))
+                    .put(ShieldRestTestCase.super.nodeSettings(ordinal))
+                    .put(Node.HTTP_ENABLED, true)
+                    .build();
         }
 
         @Override

@@ -37,5 +37,10 @@
             <source>NOTICE.txt</source>
             <outputDirectory>/</outputDirectory>
         </file>
+        <file>
+            <source>${elasticsearch.tools.directory}/plugin-metadata/plugin-descriptor.properties</source>
+            <outputDirectory></outputDirectory>
+            <filtered>true</filtered>
+        </file>
     </files>
 </assembly>

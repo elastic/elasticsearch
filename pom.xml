@@ -122,6 +122,9 @@
             <activation>
                 <activeByDefault>true</activeByDefault>
             </activation>
+            <properties>
+                <enforcer.skip>true</enforcer.skip>
+            </properties>
         </profile>
     </profiles>
 

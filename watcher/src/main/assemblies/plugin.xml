@@ -33,6 +33,11 @@
     </dependencySets>
     <files>
         <file>
+            <source>${elasticsearch.tools.directory}/plugin-metadata/plugin-descriptor.properties</source>
+            <outputDirectory></outputDirectory>
+            <filtered>true</filtered>
+        </file>
+        <file>
             <source>LICENSE.txt</source>
             <outputDirectory>/</outputDirectory>
         </file>

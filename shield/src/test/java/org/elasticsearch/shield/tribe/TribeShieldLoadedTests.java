@@ -28,14 +28,6 @@ public class TribeShieldLoadedTests extends ElasticsearchTestCase {
     public void testShieldLoadedOnBothTribeNodeAndClients() {
         //all good if the plugin is loaded on both tribe node and tribe clients, no matter how it gets loaded (manually or from classpath)
         Settings.Builder builder = defaultSettings();
-        if (randomBoolean()) {
-            builder.put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
-                    .put("plugin.types", ShieldPlugin.class.getName() + "," + LicensePlugin.class.getName());
-        }
-        if (randomBoolean()) {
-            builder.put("tribe.t1." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
-                    .put("tribe.t1.plugin.types", ShieldPlugin.class.getName() + "," + LicensePlugin.class.getName());
-        }
 
         try (Node node = NodeBuilder.nodeBuilder().settings(builder.build()).build()) {
             node.start();
@@ -48,12 +40,6 @@ public class TribeShieldLoadedTests extends ElasticsearchTestCase {
     public void testShieldLoadedOnTribeNodeOnly() {
         //startup failure if any of the tribe clients doesn't have shield installed
         Settings.Builder builder = defaultSettings();
-        if (randomBoolean()) {
-            builder.put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
-                    .put("plugin.types", ShieldPlugin.class.getName() + "," + LicensePlugin.class.getName());
-        }
-
-        builder.put("tribe.t1.plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false);
 
         try {
             NodeBuilder.nodeBuilder().settings(builder.build()).build();
@@ -68,15 +54,6 @@ public class TribeShieldLoadedTests extends ElasticsearchTestCase {
     public void testShieldMustBeLoadedOnAllTribes() {
         //startup failure if any of the tribe clients doesn't have shield installed
         Settings.Builder builder = addTribeSettings(defaultSettings(), "t2");
-        if (randomBoolean()) {
-            builder.put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
-                    .put("plugin.types", ShieldPlugin.class.getName() + "," + LicensePlugin.class.getName());
-        }
-
-        //load shield explicitly on tribe t1
-        builder.put("tribe.t1.plugin.types", ShieldPlugin.class.getName() + "," + LicensePlugin.class.getName())
-                //disable loading from classpath on tribe t2 only
-                .put("tribe.t2.plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false);
 
         try {
             NodeBuilder.nodeBuilder().settings(builder.build()).build();
@@ -89,13 +66,15 @@ public class TribeShieldLoadedTests extends ElasticsearchTestCase {
     private static Settings.Builder defaultSettings() {
         return addTribeSettings(Settings.builder()
                 .put("node.name", "tribe_node")
-                .put("path.home", createTempDir()), "t1");
+                .put("path.home", createTempDir()), "t1")
+                .put("plugin.types", ShieldPlugin.class.getName() + "," + LicensePlugin.class.getName());
     }
 
     private static Settings.Builder addTribeSettings(Settings.Builder settingsBuilder, String tribe) {
         String tribePrefix = "tribe." + tribe + ".";
         return settingsBuilder.put(tribePrefix + "cluster.name", "non_existing_cluster")
                 .put(tribePrefix + "discovery.type", "local")
-                .put(tribePrefix + "discovery.initial_state_timeout", 0);
+                .put(tribePrefix + "discovery.initial_state_timeout", 0)
+                .put(tribePrefix + "plugin.types", ShieldPlugin.class.getName() + "," + LicensePlugin.class.getName());
     }
 }

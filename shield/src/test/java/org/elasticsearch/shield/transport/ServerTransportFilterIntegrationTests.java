@@ -12,7 +12,9 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.test.ShieldIntegrationTest;
@@ -89,6 +91,7 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegrationTest
         // test that starting up a node works
         Settings nodeSettings = settingsBuilder()
                 .put(ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode"))
+                .put("plugin.types", ShieldPlugin.class.getName() + "," + LicensePlugin.class.getName())
                 .put("node.mode", "network")
                 .put("node.name", "my-test-node")
                 .put("network.host", "localhost")

@@ -7,10 +7,13 @@ package org.elasticsearch.marvel.agent.exporter;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
+
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.plugin.LicensePlugin;
+import org.elasticsearch.marvel.MarvelPlugin;
 import org.elasticsearch.marvel.agent.AgentService;
 import org.elasticsearch.marvel.agent.collector.indices.IndexStatsMarvelDoc;
 import org.elasticsearch.node.Node;
@@ -31,6 +34,14 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 @ClusterScope(transportClientRatio = 0.0, scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class HttpESExporterTests extends ElasticsearchIntegrationTest {
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.settingsBuilder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put("plugin.types", MarvelPlugin.class.getName() + "," + LicensePlugin.class.getName())
+                .build();
+    }
+    
     @Test
     public void testHttpServerOff() {
         Settings.Builder builder = Settings.builder()

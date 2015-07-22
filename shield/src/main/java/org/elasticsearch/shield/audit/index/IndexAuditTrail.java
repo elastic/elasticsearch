@@ -588,7 +588,6 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
                     .settings(Settings.builder()
                             .put("name", DEFAULT_CLIENT_NAME)
                             .put("path.home", environment.homeFile())
-                            .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
                             .putArray("plugin.types", ShieldPlugin.class.getName())
                             .put(clientSettings))
                     .build();

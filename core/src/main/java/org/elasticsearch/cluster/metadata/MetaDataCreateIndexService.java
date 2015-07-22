@@ -420,7 +420,10 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             .put(indexMetaData, false)
                             .build();
 
-                    logger.info("[{}] creating index, cause [{}], templates {}, shards [{}]/[{}], mappings {}", request.index(), request.cause(), templateNames, indexMetaData.numberOfShards(), indexMetaData.numberOfReplicas(), mappings.keySet());
+                    String maybeShadowIndicator = IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.settings()) ? "s" : "";
+                    logger.info("[{}] creating index, cause [{}], templates {}, shards [{}]/[{}{}], mappings {}",
+                            request.index(), request.cause(), templateNames, indexMetaData.numberOfShards(),
+                            indexMetaData.numberOfReplicas(), maybeShadowIndicator, mappings.keySet());
 
                     ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                     if (!request.blocks().isEmpty()) {

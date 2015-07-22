@@ -96,6 +96,9 @@ public class PluginInfo implements Streamable, ToXContent {
         }
         boolean jvm = Boolean.parseBoolean(props.getProperty("jvm"));
         boolean site = Boolean.parseBoolean(props.getProperty("site"));
+        if (jvm == false && site == false) {
+            throw new IllegalArgumentException("Plugin [" + name + "] must be at least a jvm or site plugin");
+        }
         boolean isolated = true;
         String classname = "NA";
         if (jvm) {

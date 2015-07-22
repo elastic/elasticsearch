@@ -37,6 +37,7 @@ import java.util.Properties;
 import static org.hamcrest.Matchers.contains;
 
 public class PluginInfoTests extends ElasticsearchTestCase {
+
     void writeProperties(Path pluginDir, String... stringProps) throws IOException {
         assert stringProps.length % 2 == 0;
         Files.createDirectories(pluginDir);
@@ -88,6 +89,19 @@ public class PluginInfoTests extends ElasticsearchTestCase {
             fail("expected missing version exception");
         } catch (IllegalArgumentException e) {
             assertTrue(e.getMessage().contains("[version] is missing"));
+        }
+    }
+
+    public void testReadFromPropertiesJvmAndSiteMissing() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        writeProperties(pluginDir,
+            "description", "fake desc",
+            "version", "1.0");
+        try {
+            PluginInfo.readFromProperties(pluginDir);
+            fail("expected jvm or site exception");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("must be at least a jvm or site plugin"));
         }
     }
 

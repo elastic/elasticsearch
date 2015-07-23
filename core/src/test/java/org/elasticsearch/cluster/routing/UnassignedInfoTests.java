@@ -60,7 +60,8 @@ public class UnassignedInfoTests extends ElasticsearchAllocationTestCase {
                 UnassignedInfo.Reason.ALLOCATION_FAILED,
                 UnassignedInfo.Reason.NODE_LEFT,
                 UnassignedInfo.Reason.REROUTE_CANCELLED,
-                UnassignedInfo.Reason.REINITIALIZED};
+                UnassignedInfo.Reason.REINITIALIZED,
+                UnassignedInfo.Reason.REALLOCATED_REPLICA};
         for (int i = 0; i < order.length; i++) {
             assertThat(order[i].ordinal(), equalTo(i));
         }

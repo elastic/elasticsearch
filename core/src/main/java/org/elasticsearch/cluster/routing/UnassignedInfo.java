@@ -95,7 +95,11 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
         /**
          * When a shard moves from started back to initializing, for example, during shadow replica
          */
-        REINITIALIZED;
+        REINITIALIZED,
+        /**
+         * A better replica location is identified and causes the existing replica allocation to be cancelled.
+         */
+        REALLOCATED_REPLICA;
     }
 
     private final Reason reason;

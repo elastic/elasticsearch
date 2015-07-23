@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.contains;
 
 public class PluginInfoTests extends ElasticsearchTestCase {
 
-    void writeProperties(Path pluginDir, String... stringProps) throws IOException {
+    static void writeProperties(Path pluginDir, String... stringProps) throws IOException {
         assert stringProps.length % 2 == 0;
         Files.createDirectories(pluginDir);
         Path propertiesFile = pluginDir.resolve(PluginInfo.ES_PLUGIN_PROPERTIES);
@@ -166,6 +166,7 @@ public class PluginInfoTests extends ElasticsearchTestCase {
 
     public void testReadFromPropertiesSitePlugin() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
+        Files.createDirectories(pluginDir.resolve("_site"));
         writeProperties(pluginDir,
             "description", "fake desc",
             "version", "1.0",
@@ -175,6 +176,21 @@ public class PluginInfoTests extends ElasticsearchTestCase {
         assertTrue(info.isSite());
         assertFalse(info.isJvm());
         assertEquals("NA", info.getClassname());
+    }
+    
+    public void testReadFromPropertiesSitePluginWithoutSite() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        writeProperties(pluginDir,
+            "description", "fake desc",
+            "version", "1.0",
+            "elasticsearch.version", Version.CURRENT.toString(),
+            "site", "true");
+        try {
+            PluginInfo.readFromProperties(pluginDir);
+            fail("didn't get expected exception");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("site plugin but has no _site"));
+        }
     }
 
     public void testPluginListSorted() {

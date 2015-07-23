@@ -296,7 +296,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
                     public void onNewClusterState(ClusterState state) {
-                        threadPool.executor(executor).execute(AsyncPrimaryAction.this);
+                        retryLocally();
                     }
 
                     @Override
@@ -307,7 +307,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                     @Override
                     public void onTimeout(TimeValue timeout) {
                         // Try one more time...
-                        threadPool.executor(executor).execute(AsyncPrimaryAction.this);
+                        retryLocally();
                     }
                 });
             } else {
@@ -431,6 +431,33 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
             }
         }
 
+        private void retryLocally() {
+            // TODO: maybe we should have dedicated method for local executions? (we can overload this one, which doesn't have DiscoverNode parameter)
+            transportService.sendRequest(clusterService.localNode(), transportPrimaryAction, request, transportOptions, new BaseTransportResponseHandler<Response>() {
+                @Override
+                public Response newInstance() {
+                    return newResponseInstance();
+                }
+
+                @Override
+                public void handleResponse(Response response) {
+                    listener.onResponse(response);
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    // to prevent TransportException wrapping another TransportException:
+                    Throwable failure = exp.getCause() != null ? exp.getCause() : exp;
+                    listener.onFailure(failure);
+                }
+
+                @Override
+                public String executor() {
+                    return ThreadPool.Names.SAME;
+                }
+            });
+        }
+
     }
 
     public static class RetryOnReplicaException extends ElasticsearchException {
@@ -465,7 +492,23 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
                     public void onNewClusterState(ClusterState state) {
-                        threadPool.executor(executor).execute(AsyncReplicaAction.this);
+                        // TODO: maybe we should have dedicated method for local executions? (we can overload this one, which doesn't have DiscoverNode parameter)
+                        transportService.sendRequest(clusterService.localNode(), transportReplicaAction, request, transportOptions, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+
+                            @Override
+                            public void handleResponse(TransportResponse.Empty response) {
+                                try {
+                                    channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                                } catch (IOException e) {
+                                    logger.error("failed to send response", e);
+                                }
+                            }
+
+                            @Override
+                            public void handleException(TransportException exp) {
+                                responseWithFailure(exp);
+                            }
+                        });
                     }
 
                     @Override

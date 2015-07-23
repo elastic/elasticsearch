@@ -33,6 +33,9 @@ $Package     = File::Spec->rel2abs($Package);
 die "License dir is not a directory: $License_Dir\n" . usage()
     unless -d $License_Dir;
 
+die "Package is not a file: $Package\n" . usage()
+    unless -f $Package;
+
 my %shas = get_shas_from_package($Package);
 $mode eq '--check'
     ? exit check_shas_and_licenses(%shas)

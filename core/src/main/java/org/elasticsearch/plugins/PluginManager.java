@@ -22,6 +22,7 @@ package org.elasticsearch.plugins;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
+
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.http.client.HttpDownloadHelper;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.plugins.PluginsService.Bundle;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -188,25 +190,9 @@ public class PluginManager {
         PluginInfo info = PluginInfo.readFromProperties(root);
         terminal.println("%s", info);
 
-        // create list of current jars in classpath
-        final List<URL> jars = new ArrayList<>();
-        ClassLoader loader = PluginManager.class.getClassLoader();
-        if (loader instanceof URLClassLoader) {
-            Collections.addAll(jars, ((URLClassLoader) loader).getURLs());
-        }
-
-        // TODO: verify bundles here
-        // add plugin jars to the list
-        Path pluginJars[] = FileSystemUtils.files(root, "*.jar");
-        for (Path jar : pluginJars) {
-            jars.add(jar.toUri().toURL());
-        }
-
-        // check combined (current classpath + new jars to-be-added)
-        try {
-            JarHell.checkJarHell(jars.toArray(new URL[jars.size()]));
-        } catch (Exception ex) {
-            throw new RuntimeException(ex);
+        // check for jar hell before any copying
+        if (info.isJvm()) {
+            jarHellCheck(root, info.isIsolated());
         }
 
         // install plugin
@@ -266,7 +252,7 @@ public class PluginManager {
     }
 
     /** we check whether we need to remove the top-level folder while extracting
-     *   sometimes (e.g. github) the downloaded archive contains a top-level folder which needs to be removed
+     *  sometimes (e.g. github) the downloaded archive contains a top-level folder which needs to be removed
      */
     private Path findPluginRoot(Path dir) throws IOException {
         if (Files.exists(dir.resolve(PluginInfo.ES_PLUGIN_PROPERTIES))) {
@@ -281,6 +267,38 @@ public class PluginManager {
             }
         }
         throw new RuntimeException("Could not find plugin descriptor '" + PluginInfo.ES_PLUGIN_PROPERTIES + "' in plugin zip");
+    }
+
+    /** check a candidate plugin for jar hell before installing it */
+    private void jarHellCheck(Path candidate, boolean isolated) throws IOException {
+        // create list of current jars in classpath
+        final List<URL> jars = new ArrayList<>();
+        ClassLoader loader = PluginManager.class.getClassLoader();
+        if (loader instanceof URLClassLoader) {
+            Collections.addAll(jars, ((URLClassLoader) loader).getURLs());
+        }
+
+        // read existing bundles. this does some checks on the installation too.
+        List<Bundle> bundles = PluginsService.getPluginBundles(environment);
+
+        // if we aren't isolated, we need to jarhellcheck against any other non-isolated plugins
+        // thats always the first bundle
+        if (isolated == false) {
+            jars.addAll(bundles.get(0).urls);
+        }
+
+        // add plugin jars to the list
+        Path pluginJars[] = FileSystemUtils.files(candidate, "*.jar");
+        for (Path jar : pluginJars) {
+            jars.add(jar.toUri().toURL());
+        }
+
+        // check combined (current classpath + new jars to-be-added)
+        try {
+            JarHell.checkJarHell(jars.toArray(new URL[jars.size()]));
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        }
     }
 
     private void unzipPlugin(Path zip, Path target) throws IOException {
@@ -447,7 +465,7 @@ public class PluginManager {
         }
 
         Path distroFile(Environment env) {
-            return env.pluginsFile().resolve(name + ".zip");
+            return env.tmpFile().resolve(name + ".zip");
         }
 
         Path extractedDir(Environment env) {

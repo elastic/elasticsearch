@@ -12,6 +12,7 @@ import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.marvel.agent.AgentService;
 import org.elasticsearch.marvel.agent.collector.CollectorModule;
 import org.elasticsearch.marvel.agent.exporter.ExporterModule;
+import org.elasticsearch.marvel.agent.renderer.RendererModule;
 import org.elasticsearch.marvel.agent.settings.MarvelSettingsModule;
 import org.elasticsearch.marvel.license.LicenseModule;
 
@@ -24,6 +25,11 @@ public class MarvelModule extends AbstractModule implements SpawnModules {
 
     @Override
     public Iterable<? extends Module> spawnModules() {
-        return ImmutableList.of(new MarvelSettingsModule(), new LicenseModule(), new CollectorModule(), new ExporterModule());
+        return ImmutableList.of(
+                new MarvelSettingsModule(),
+                new LicenseModule(),
+                new CollectorModule(),
+                new ExporterModule(),
+                new RendererModule());
     }
 }

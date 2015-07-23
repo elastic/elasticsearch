@@ -55,14 +55,17 @@ public class IndexStatsCollectorTests extends ElasticsearchSingleNodeTest {
         assertThat(indexStatsMarvelDoc.timestamp(), greaterThan(0L));
         assertThat(indexStatsMarvelDoc.type(), equalTo(IndexStatsCollector.TYPE));
 
-        assertThat(indexStatsMarvelDoc.getIndex(), equalTo("test"));
-        assertNotNull(indexStatsMarvelDoc.getDocs());
-        assertThat(indexStatsMarvelDoc.getDocs().getCount(), equalTo((long) nbDocs));
-        assertNotNull(indexStatsMarvelDoc.getStore());
-        assertThat(indexStatsMarvelDoc.getStore().getSizeInBytes(), greaterThan(0L));
-        assertThat(indexStatsMarvelDoc.getStore().getThrottleTimeInMillis(), equalTo(0L));
-        assertNotNull(indexStatsMarvelDoc.getIndexing());
-        assertThat(indexStatsMarvelDoc.getIndexing().getThrottleTimeInMillis(), equalTo(0L));
+        IndexStatsMarvelDoc.Payload payload = indexStatsMarvelDoc.payload();
+        assertNotNull(payload);
+        assertNotNull(payload.getIndexStats());
+
+        assertThat(payload.getIndexStats().getIndex(), equalTo("test"));
+        assertThat(payload.getIndexStats().getTotal().getDocs().getCount(), equalTo((long) nbDocs));
+        assertNotNull(payload.getIndexStats().getTotal().getStore());
+        assertThat(payload.getIndexStats().getTotal().getStore().getSizeInBytes(), greaterThan(0L));
+        assertThat(payload.getIndexStats().getTotal().getStore().getThrottleTime().millis(), equalTo(0L));
+        assertNotNull(payload.getIndexStats().getTotal().getIndexing());
+        assertThat(payload.getIndexStats().getTotal().getIndexing().getTotal().getThrottleTimeInMillis(), equalTo(0L));
     }
 
     @Test
@@ -97,18 +100,23 @@ public class IndexStatsCollectorTests extends ElasticsearchSingleNodeTest {
                 assertThat(marvelDoc, instanceOf(IndexStatsMarvelDoc.class));
 
                 IndexStatsMarvelDoc indexStatsMarvelDoc = (IndexStatsMarvelDoc) marvelDoc;
-                if (indexStatsMarvelDoc.getIndex().equals("test-" + i)) {
+
+                IndexStatsMarvelDoc.Payload payload = indexStatsMarvelDoc.payload();
+                assertNotNull(payload);
+                assertNotNull(payload.getIndexStats());
+
+                if (payload.getIndexStats().getIndex().equals("test-" + i)) {
                     assertThat(indexStatsMarvelDoc.clusterName(), equalTo(clusterName));
                     assertThat(indexStatsMarvelDoc.timestamp(), greaterThan(0L));
                     assertThat(indexStatsMarvelDoc.type(), equalTo(IndexStatsCollector.TYPE));
 
-                    assertNotNull(indexStatsMarvelDoc.getDocs());
-                    assertThat(indexStatsMarvelDoc.getDocs().getCount(), equalTo((long) docsPerIndex[i]));
-                    assertNotNull(indexStatsMarvelDoc.getStore());
-                    assertThat(indexStatsMarvelDoc.getStore().getSizeInBytes(), greaterThan(0L));
-                    assertThat(indexStatsMarvelDoc.getStore().getThrottleTimeInMillis(), equalTo(0L));
-                    assertNotNull(indexStatsMarvelDoc.getIndexing());
-                    assertThat(indexStatsMarvelDoc.getIndexing().getThrottleTimeInMillis(), equalTo(0L));
+                    assertNotNull(payload.getIndexStats().getTotal().getDocs());
+                    assertThat(payload.getIndexStats().getTotal().getDocs().getCount(), equalTo((long) docsPerIndex[i]));
+                    assertNotNull(payload.getIndexStats().getTotal().getStore());
+                    assertThat(payload.getIndexStats().getTotal().getStore().getSizeInBytes(), greaterThan(0L));
+                    assertThat(payload.getIndexStats().getTotal().getStore().getThrottleTime().millis(), equalTo(0L));
+                    assertNotNull(payload.getIndexStats().getTotal().getIndexing());
+                    assertThat(payload.getIndexStats().getTotal().getIndexing().getTotal().getThrottleTimeInMillis(), equalTo(0L));
                     found = true;
                 }
             }

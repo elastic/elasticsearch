@@ -9,6 +9,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
 
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -221,7 +222,7 @@ public class HttpESExporterTests extends ElasticsearchIntegrationTest {
 
     private MarvelDoc newRandomMarvelDoc() {
         return IndexStatsMarvelDoc.createMarvelDoc(internalCluster().getClusterName(), "test_marvelDoc", timeStampGenerator.incrementAndGet(),
-                "test_index", randomInt(), randomLong(), randomLong(), randomLong());
+                new IndexStats("test_index", null));
     }
 
     private void assertMarvelTemplate() {

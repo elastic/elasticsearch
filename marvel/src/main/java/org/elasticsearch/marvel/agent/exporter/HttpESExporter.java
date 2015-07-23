@@ -17,14 +17,18 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.xcontent.*;
-import org.elasticsearch.common.xcontent.smile.SmileXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServer;
+import org.elasticsearch.marvel.agent.renderer.Renderer;
+import org.elasticsearch.marvel.agent.renderer.RendererRegistry;
 import org.elasticsearch.marvel.agent.support.AgentUtils;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.service.NodeService;
@@ -81,6 +85,7 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
     final ClusterName clusterName;
     final NodeService nodeService;
     final Environment environment;
+    final RendererRegistry registry;
 
     HttpServer httpServer;
     final boolean httpEnabled;
@@ -99,7 +104,8 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
     public HttpESExporter(Settings settings, ClusterService clusterService, ClusterName clusterName,
                           @ClusterDynamicSettings DynamicSettings dynamicSettings,
                           NodeSettingsService nodeSettingsService,
-                          NodeService nodeService, Environment environment) {
+                          NodeService nodeService, Environment environment,
+                          RendererRegistry registry) {
         super(settings, NAME, clusterService);
 
         this.clusterService = clusterService;
@@ -107,6 +113,7 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
         this.clusterName = clusterName;
         this.nodeService = nodeService;
         this.environment = environment;
+        this.registry = registry;
 
         httpEnabled = settings.getAsBoolean(Node.HTTP_ENABLED, true);
 
@@ -183,24 +190,35 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
         return conn;
     }
 
-    private void addMarvelDocToConnection(HttpURLConnection conn,
-                                          MarvelDoc marvelDoc) throws IOException {
-        OutputStream os = conn.getOutputStream();
-        // TODO: find a way to disable builder's substream flushing or something neat solution
-        XContentBuilder builder = XContentFactory.smileBuilder();
-        builder.startObject().startObject("index")
-                .field("_type", marvelDoc.type())
-                .endObject().endObject();
-        builder.close();
-        builder.bytes().writeTo(os);
-        os.write(SmileXContent.smileXContent.streamSeparator());
+    private void render(OutputStream os, MarvelDoc marvelDoc) throws IOException {
+        final XContentType xContentType = XContentType.SMILE;
 
-        builder = XContentFactory.smileBuilder();
-        builder.humanReadable(false);
-        marvelDoc.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.close();
-        builder.bytes().writeTo(os);
-        os.write(SmileXContent.smileXContent.streamSeparator());
+        // Get the appropriate renderer in order to render the MarvelDoc
+        Renderer renderer = registry.renderer(marvelDoc.type());
+
+        try (XContentBuilder builder = new XContentBuilder(xContentType.xContent(), os)) {
+
+            // Builds the bulk action metadata line
+            builder.startObject();
+            builder.startObject("index").field("_type", marvelDoc.type()).endObject();
+            builder.endObject();
+
+            // Adds action metadata line bulk separator
+            renderBulkSeparator(builder);
+
+            // Render the MarvelDoc
+            renderer.render(marvelDoc,xContentType,  os);
+
+            // Adds final bulk separator
+            renderBulkSeparator(builder);
+        }
+    }
+
+    private void renderBulkSeparator(XContentBuilder builder) throws IOException {
+        // Flush is needed here...
+        builder.flush();
+        //... because the separator is written directly in the builder's stream
+        builder.stream().write(builder.contentType().xContent().streamSeparator());
     }
 
     @SuppressWarnings("unchecked")
@@ -233,17 +251,31 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
 
     @Override
     protected void doExport(Collection<MarvelDoc> marvelDocs) throws Exception {
-        HttpURLConnection conn = openExportingConnection();
-        if (conn == null) {
+        HttpURLConnection connection = openExportingConnection();
+        if (connection == null) {
             return;
         }
-        try {
-            for (MarvelDoc marvelDoc : marvelDocs) {
-                addMarvelDocToConnection(conn, marvelDoc);
+
+        if ((marvelDocs != null) && (!marvelDocs.isEmpty())) {
+            OutputStream os = connection.getOutputStream();
+
+            // We need to use a buffer to render each Marvel document
+            // because the renderer might close the outputstream (ex: XContentBuilder)
+            try (BytesStreamOutput buffer = new BytesStreamOutput()) {
+                for (MarvelDoc marvelDoc : marvelDocs) {
+                    render(buffer, marvelDoc);
+
+                    // write the result to the connection
+                    os.write(buffer.bytes().toBytes());
+                    buffer.reset();
+                }
+            } finally {
+                try {
+                    sendCloseExportingConnection(connection);
+                } catch (IOException e) {
+                    logger.error("error sending data to [{}]: {}", AgentUtils.santizeUrlPwds(connection.getURL()), AgentUtils.santizeUrlPwds(ExceptionsHelper.detailedMessage(e)));
+                }
             }
-            sendCloseExportingConnection(conn);
-        } catch (IOException e) {
-            logger.error("error sending data to [{}]: {}", AgentUtils.santizeUrlPwds(conn.getURL()), AgentUtils.santizeUrlPwds(ExceptionsHelper.detailedMessage(e)));
         }
     }
 

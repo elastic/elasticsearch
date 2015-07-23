@@ -124,14 +124,13 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
         assertNotNull(((LinkedHashMap) (indicesMetaData.get(index).getMappings().get("doc").getSourceAsMap().get("properties"))).get("integer_field"));
         assertThat(indicesMetaData.get(index).state(), equalTo(IndexMetaData.State.CLOSE));
 
-        /**
-         * Try the same and see if this also works if node was just restarted.
+        /* Try the same and see if this also works if node was just restarted.
          * Each node holds an array of indices it knows of and checks if it should
          * write new meta data by looking up in this array. We need it because if an
          * index is closed it will not appear in the shard routing and we therefore
          * need to keep track of what we wrote before. However, when the node is
          * restarted this array is empty and we have to fill it before we decide
-         * what we write. This is why I explicitly test for it.
+         * what we write. This is why we explicitly test for it.
          */
         internalCluster().restartNode(dataNode, new RestartCallback());
         client().admin().indices().preparePutMapping(index).setType("doc").setSource(jsonBuilder().startObject()
@@ -151,19 +150,9 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
         assertThat(indicesMetaData.get(index).state(), equalTo(IndexMetaData.State.CLOSE));
 
         // finally check that meta data is also written of index opened again
-        client().admin().indices().prepareOpen(index).get();
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    ImmutableOpenMap<String, IndexMetaData> indicesMetaData = getIndicesMetaDataOnNode(dataNode);
-                    assertThat(indicesMetaData.get(index).state(), equalTo(IndexMetaData.State.OPEN));
-                } catch (Exception e) {
-                    logger.info("caught exception while reading meta state: ", e);
-                    fail();
-                }
-            }
-        });
+        assertAcked(client().admin().indices().prepareOpen(index).get());
+        indicesMetaData = getIndicesMetaDataOnNode(dataNode);
+        assertThat(indicesMetaData.get(index).state(), equalTo(IndexMetaData.State.OPEN));
     }
 
     protected void assertIndexNotInMetaState(String nodeName, String indexName) throws Exception {

@@ -22,10 +22,7 @@ package org.elasticsearch.common.util.concurrent;
 
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * This class manages locks. Locks can be accessed with an identifier and are
@@ -113,60 +110,6 @@ public class KeyedLock<T> {
 
     public boolean hasLockedKeys() {
         return !map.isEmpty();
-    }
-
-    /**
-     * A {@link KeyedLock} that allows to acquire a global lock that guarantees
-     * exclusive access to the resource the KeyedLock is guarding.
-     */
-    public final static class GlobalLockable<T> extends KeyedLock<T> {
-
-
-        private final ReadWriteLock lock;
-
-        public GlobalLockable(boolean fair){
-            super(fair);
-            lock = new ReentrantReadWriteLock(fair);
-        }
-
-        public GlobalLockable() {
-            this(false);
-        }
-
-        @Override
-        public void acquire(T key) {
-            boolean success = false;
-            lock.readLock().lock();
-            try {
-                super.acquire(key);
-                success = true;
-            } finally {
-                if (!success) {
-                    lock.readLock().unlock();
-                }
-            }
-        }
-
-        @Override
-        public void release(T key) {
-            KeyLock keyLock = threadLocal.get();
-            if (keyLock == null) {
-                throw new IllegalStateException("Lock not acquired");
-            }
-            try {
-                release(key, keyLock);
-            } finally {
-                lock.readLock().unlock();
-            }
-        }
-
-        /**
-         * Returns a global lock guaranteeing exclusive access to the resource
-         * this KeyedLock is guarding.
-         */
-        public Lock globalLock() {
-            return lock.writeLock();
-        }
     }
 
 }

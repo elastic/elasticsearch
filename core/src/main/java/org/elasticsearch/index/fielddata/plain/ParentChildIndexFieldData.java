@@ -131,7 +131,15 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
                 }
             };
         } else {
-            return super.load(context);
+            try {
+                return cache.load(context, this);
+            } catch (Throwable e) {
+                if (e instanceof ElasticsearchException) {
+                    throw (ElasticsearchException) e;
+                } else {
+                    throw new ElasticsearchException(e.getMessage(), e);
+                }
+            }
         }
     }
 

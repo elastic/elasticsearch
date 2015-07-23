@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedSet;
+
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.MultiDocValues.OrdinalMap;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -79,12 +80,23 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
                                      FieldDataType fieldDataType, IndexFieldDataCache cache, MapperService mapperService,
                                      CircuitBreakerService breakerService) {
         super(index, indexSettings, fieldNames, fieldDataType, cache);
-        parentTypes = new TreeSet<>();
         this.breakerService = breakerService;
-        for (DocumentMapper documentMapper : mapperService.docMappers(false)) {
-            beforeCreate(documentMapper);
+        if (Version.indexCreated(indexSettings).before(Version.V_2_0_0_beta1)) {
+            parentTypes = new TreeSet<>();
+            for (DocumentMapper documentMapper : mapperService.docMappers(false)) {
+                beforeCreate(documentMapper);
+            }
+            mapperService.addTypeListener(this);
+        } else {
+            ImmutableSortedSet.Builder<String> builder = ImmutableSortedSet.naturalOrder();
+            for (DocumentMapper mapper : mapperService.docMappers(false)) {
+                ParentFieldMapper parentFieldMapper = mapper.parentFieldMapper();
+                if (parentFieldMapper.active()) {
+                    builder.add(parentFieldMapper.type());
+                }
+            }
+            parentTypes = builder.build();
         }
-        mapperService.addTypeListener(this);
     }
 
     @Override
@@ -96,10 +108,6 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
     public AtomicParentChildFieldData load(LeafReaderContext context) {
         if (Version.indexCreated(indexSettings).onOrAfter(Version.V_2_0_0_beta1)) {
             final LeafReader reader = context.reader();
-            final NavigableSet<String> parentTypes;
-            synchronized (lock) {
-                parentTypes = ImmutableSortedSet.copyOf(this.parentTypes);
-            }
             return new AbstractAtomicParentChildFieldData() {
 
                 public Set<String> types() {
@@ -145,6 +153,8 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
 
     @Override
     public AbstractAtomicParentChildFieldData loadDirect(LeafReaderContext context) throws Exception {
+        // Make this method throw an UnsupportedOperationException in 3.0, only
+        // needed for indices created BEFORE 2.0
         LeafReader reader = context.reader();
         final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat(
                 "acceptable_transient_overhead_ratio", OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO
@@ -219,6 +229,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
 
     @Override
     public void beforeCreate(DocumentMapper mapper) {
+        // Remove in 3.0
         synchronized (lock) {
             ParentFieldMapper parentFieldMapper = mapper.parentFieldMapper();
             if (parentFieldMapper.active()) {
@@ -227,16 +238,6 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
                 if (parentTypes.add(parentFieldMapper.type())) {
                     clear();
                 }
-            }
-        }
-    }
-
-    @Override
-    public void afterRemove(DocumentMapper mapper) {
-        synchronized (lock) {
-            ParentFieldMapper parentFieldMapper = mapper.parentFieldMapper();
-            if (parentFieldMapper.active()) {
-                parentTypes.remove(new BytesRef(parentFieldMapper.type()));
             }
         }
     }
@@ -358,8 +359,12 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
     public IndexParentChildFieldData localGlobalDirect(IndexReader indexReader) throws Exception {
         final long startTime = System.nanoTime();
         final Set<String> parentTypes;
-        synchronized (lock) {
-            parentTypes = ImmutableSet.copyOf(this.parentTypes);
+        if (Version.indexCreated(indexSettings).before(Version.V_2_0_0_beta1)) {
+            synchronized (lock) {
+                parentTypes = ImmutableSet.copyOf(this.parentTypes);
+            }
+        } else {
+            parentTypes = this.parentTypes;
         }
 
         long ramBytesUsed = 0;

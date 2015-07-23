@@ -36,8 +36,8 @@ public class SpanFirstQueryBuilderTest extends BaseQueryTestCase<SpanFirstQueryB
 
     @Override
     protected SpanFirstQueryBuilder doCreateTestQueryBuilder() {
-        SpanTermQueryBuilder innerQueryBuilder = new SpanTermQueryBuilderTest().createTestQueryBuilder();
-        return new SpanFirstQueryBuilder(innerQueryBuilder, randomIntBetween(0, 1000));
+        SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTest().createSpanTermQueryBuilders(1);
+        return new SpanFirstQueryBuilder(spanTermQueries[0], randomIntBetween(0, 1000));
     }
 
     @Test

@@ -37,19 +37,8 @@ public class SpanContainingQueryBuilderTest extends BaseQueryTestCase<SpanContai
 
     @Override
     protected SpanContainingQueryBuilder doCreateTestQueryBuilder() {
-        SpanTermQueryBuilder bigQuery = new SpanTermQueryBuilderTest().createTestQueryBuilder();
-        // we need same field name and value type as bigQuery for little query
-        String fieldName = bigQuery.fieldName();
-        Object littleValue;
-        switch (fieldName) {
-            case BOOLEAN_FIELD_NAME: littleValue = randomBoolean(); break;
-            case INT_FIELD_NAME: littleValue = randomInt(); break;
-            case DOUBLE_FIELD_NAME: littleValue = randomDouble(); break;
-            case STRING_FIELD_NAME: littleValue = randomAsciiOfLengthBetween(1, 10); break;
-            default : littleValue = randomAsciiOfLengthBetween(1, 10);
-        }
-        SpanTermQueryBuilder littleQuery = new SpanTermQueryBuilder(fieldName, littleValue);
-        return new SpanContainingQueryBuilder(bigQuery, littleQuery);
+        SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTest().createSpanTermQueryBuilders(2);
+        return new SpanContainingQueryBuilder(spanTermQueries[0], spanTermQueries[1]);
     }
 
     @Test

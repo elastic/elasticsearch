@@ -20,17 +20,17 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.spans.SpanNearQuery;
+import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.List;
 
-public class SpanNearQueryBuilderTest extends BaseQueryTestCase<SpanNearQueryBuilder> {
+public class SpanOrQueryBuilderTest extends BaseQueryTestCase<SpanOrQueryBuilder> {
 
     @Override
-    protected Query doCreateExpectedQuery(SpanNearQueryBuilder testQueryBuilder, QueryParseContext context) throws IOException {
+    protected Query doCreateExpectedQuery(SpanOrQueryBuilder testQueryBuilder, QueryParseContext context) throws IOException {
         List<SpanQueryBuilder> clauses = testQueryBuilder.clauses();
         SpanQuery[] spanQueries = new SpanQuery[clauses.size()];
         for (int i = 0; i < clauses.size(); i++) {
@@ -38,25 +38,22 @@ public class SpanNearQueryBuilderTest extends BaseQueryTestCase<SpanNearQueryBui
             assert query instanceof SpanQuery;
             spanQueries[i] = (SpanQuery) query;
         }
-        return new SpanNearQuery(spanQueries, testQueryBuilder.slop(), testQueryBuilder.inOrder(), testQueryBuilder.collectPayloads());
-
+        return new SpanOrQuery(spanQueries);
     }
 
     @Override
-    protected SpanNearQueryBuilder doCreateTestQueryBuilder() {
-        SpanNearQueryBuilder queryBuilder = new SpanNearQueryBuilder(randomIntBetween(-10, 10));
+    protected SpanOrQueryBuilder doCreateTestQueryBuilder() {
+        SpanOrQueryBuilder queryBuilder = new SpanOrQueryBuilder();
         SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTest().createSpanTermQueryBuilders(randomIntBetween(1, 6));
         for (SpanTermQueryBuilder clause : spanTermQueries) {
             queryBuilder.clause(clause);
         }
-        queryBuilder.inOrder(randomBoolean());
-        queryBuilder.collectPayloads(randomBoolean());
         return queryBuilder;
     }
 
     @Test
     public void testValidate() {
-        SpanNearQueryBuilder queryBuilder = new SpanNearQueryBuilder(1);
+        SpanOrQueryBuilder queryBuilder = new SpanOrQueryBuilder();
         assertValidate(queryBuilder, 1); // empty clause list
 
         int totalExpectedErrors = 0;

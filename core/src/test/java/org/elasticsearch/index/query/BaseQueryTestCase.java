@@ -322,4 +322,20 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
             assertThat(queryValidationException, nullValue());
         }
     }
+
+    /**
+     * create a random value for either {@link BaseQueryTestCase#BOOLEAN_FIELD_NAME}, {@link BaseQueryTestCase#INT_FIELD_NAME},
+     * {@link BaseQueryTestCase#DOUBLE_FIELD_NAME} or {@link BaseQueryTestCase#STRING_FIELD_NAME}, or a String value by default
+     */
+    protected static Object randomValueForField(String fieldName) {
+        Object value;
+        switch (fieldName) {
+            case BOOLEAN_FIELD_NAME: value = randomBoolean(); break;
+            case INT_FIELD_NAME: value = randomInt(); break;
+            case DOUBLE_FIELD_NAME: value = randomDouble(); break;
+            case STRING_FIELD_NAME: value = randomAsciiOfLengthBetween(1, 10); break;
+            default : value = randomAsciiOfLengthBetween(1, 10);
+        }
+        return value;
+    }
 }

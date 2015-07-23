@@ -34,6 +34,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 @ClusterScope(transportClientRatio = 0.0, scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class HttpESExporterTests extends ElasticsearchIntegrationTest {
 
+    final static AtomicLong timeStampGenerator = new AtomicLong();
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.settingsBuilder()
@@ -52,6 +54,7 @@ public class HttpESExporterTests extends ElasticsearchIntegrationTest {
         logger.info("trying exporting despite of no target");
         httpEsExporter.export(ImmutableList.of(newRandomMarvelDoc()));
     }
+
 /*
     @Test
     public void testLargeClusterStateSerialization() throws InterruptedException {
@@ -106,22 +109,6 @@ public class HttpESExporterTests extends ElasticsearchIntegrationTest {
         logger.info("verifying template is inserted");
         assertMarvelTemplate();
     }
-
-    private void assertMarvelTemplate() {
-        boolean found;
-        found = findMarvelTemplate();
-        assertTrue("failed to find a template named `marvel`", found);
-    }
-
-    private boolean findMarvelTemplate() {
-        for (IndexTemplateMetaData template : client().admin().indices().prepareGetTemplates("marvel").get().getIndexTemplates()) {
-            if (template.getName().equals("marvel")) {
-                return true;
-            }
-        }
-        return false;
-    }
-
 
     @Test
     public void testDynamicHostChange() {
@@ -232,10 +219,23 @@ public class HttpESExporterTests extends ElasticsearchIntegrationTest {
         return (HttpESExporter) service.getExporters().iterator().next();
     }
 
-    final static AtomicLong timeStampGenerator = new AtomicLong();
-
     private MarvelDoc newRandomMarvelDoc() {
         return IndexStatsMarvelDoc.createMarvelDoc(internalCluster().getClusterName(), "test_marvelDoc", timeStampGenerator.incrementAndGet(),
                 "test_index", randomInt(), randomLong(), randomLong(), randomLong());
+    }
+
+    private void assertMarvelTemplate() {
+        boolean found;
+        found = findMarvelTemplate();
+        assertTrue("failed to find a template named `marvel`", found);
+    }
+
+    private boolean findMarvelTemplate() {
+        for (IndexTemplateMetaData template : client().admin().indices().prepareGetTemplates("marvel").get().getIndexTemplates()) {
+            if (template.getName().equals("marvel")) {
+                return true;
+            }
+        }
+        return false;
     }
 }

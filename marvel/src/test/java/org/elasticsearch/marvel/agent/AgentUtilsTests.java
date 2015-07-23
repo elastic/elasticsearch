@@ -110,19 +110,6 @@ public class AgentUtilsTests extends ElasticsearchTestCase {
         verifyUrl(url, "http", "server-dash", 9200, "/_bulk");
     }
 
-    void verifyUrl(URL url, String protocol, String host, int port, String path) throws URISyntaxException {
-        assertThat(url.getProtocol(), equalTo(protocol));
-        assertThat(url.getHost(), equalTo(host));
-        assertThat(url.getPort(), equalTo(port));
-        assertThat(url.toURI().getPath(), equalTo(path));
-    }
-
-    void verifyUrl(URL url, String protocol, String host, int port, String path, String userInfo) throws URISyntaxException {
-        verifyUrl(url, protocol, host, port, path);
-        assertThat(url.getUserInfo(), equalTo(userInfo));
-
-    }
-
     @Test
     public void sanitizeUrlPadTest() throws UnsupportedEncodingException {
         String pwd = URLEncoder.encode(randomRealisticUnicodeOfCodepointLengthBetween(3, 20), "UTF-8");
@@ -164,5 +151,18 @@ public class AgentUtilsTests extends ElasticsearchTestCase {
             String sanitized = AgentUtils.santizeUrlPwds(input);
             assertThat(sanitized, not(containsString(pwd)));
         }
+    }
+
+    void verifyUrl(URL url, String protocol, String host, int port, String path) throws URISyntaxException {
+        assertThat(url.getProtocol(), equalTo(protocol));
+        assertThat(url.getHost(), equalTo(host));
+        assertThat(url.getPort(), equalTo(port));
+        assertThat(url.toURI().getPath(), equalTo(path));
+    }
+
+    void verifyUrl(URL url, String protocol, String host, int port, String path, String userInfo) throws URISyntaxException {
+        verifyUrl(url, protocol, host, port, path);
+        assertThat(url.getUserInfo(), equalTo(userInfo));
+
     }
 }

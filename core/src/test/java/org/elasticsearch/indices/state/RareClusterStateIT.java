@@ -285,7 +285,6 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
             @Override
             public void onFailure(Throwable e) {
-                logger.error("Error during indexing", e);
                 docIndexResponse.set(e);
             }
         });

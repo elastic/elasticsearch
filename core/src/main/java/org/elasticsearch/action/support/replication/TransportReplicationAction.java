@@ -21,10 +21,7 @@ package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionWriteResponse;
-import org.elasticsearch.action.UnavailableShardsException;
-import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.action.*;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequest.OpType;
@@ -290,14 +287,39 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
         @Override
         public void onFailure(Throwable t) {
-            finishAsFailed(t);
+            if (t instanceof RetryOnPrimaryException) {
+                if (observer.isTimedOut()) {
+                    // we running as a last attempt after a timeout has happened. don't retry
+                    finishAsFailed(t);
+                    return;
+                }
+                observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                    @Override
+                    public void onNewClusterState(ClusterState state) {
+                        threadPool.executor(executor).execute(AsyncPrimaryAction.this);
+                    }
+
+                    @Override
+                    public void onClusterServiceClose() {
+                        finishAsFailed(new NodeClosedException(clusterService.localNode()));
+                    }
+
+                    @Override
+                    public void onTimeout(TimeValue timeout) {
+                        // Try one more time...
+                        threadPool.executor(executor).execute(AsyncPrimaryAction.this);
+                    }
+                });
+            } else {
+                finishAsFailed(t);
+            }
         }
 
         @Override
         protected void doRun() throws Exception {
             final ShardRouting primary = request.internalShardRouting;
             if (clusterService.localNode().id().equals(primary.currentNodeId()) == false) {
-                throw new RetryOnPrimaryException(primary.shardId(), "shard [{}] not assigned to this node [{}], but node [{}]", primary.shardId(), clusterService.localNode().id(), primary.currentNodeId());
+                throw new NoShardAvailableActionException(primary.shardId(), "shard [{}] not assigned to this node [{}], but node [{}]", primary.shardId(), clusterService.localNode().id(), primary.currentNodeId());
             }
             final ShardIterator shardIt = shards(observer.observedState(), internalRequest);
             performOnPrimary(primary, shardIt);
@@ -328,7 +350,9 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                         logger.debug(primary.shortSummary() + ": Failed to execute [" + internalRequest.request() + "]", e);
                     }
                 }
-                finishAsFailed(e);
+                Releasables.close(indexShardReference);
+                indexShardReference = null;
+                onFailure(e);
                 return;
             }
             finishAndMoveToReplication(replicationPhase);
@@ -388,6 +412,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         void finishAsFailed(Throwable failure) {
             if (finished.compareAndSet(false, true)) {
                 Releasables.close(indexShardReference);
+                indexShardReference = null;
                 logger.trace("operation failed", failure);
                 listener.onFailure(failure);
             } else {

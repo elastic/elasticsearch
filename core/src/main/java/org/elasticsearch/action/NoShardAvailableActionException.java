@@ -35,12 +35,12 @@ public class NoShardAvailableActionException extends ElasticsearchException {
         this(shardId, null);
     }
 
-    public NoShardAvailableActionException(ShardId shardId, String msg) {
-        this(shardId, msg, null);
+    public NoShardAvailableActionException(ShardId shardId, String msg, Object... args) {
+        this(shardId, msg, null, args);
     }
 
-    public NoShardAvailableActionException(ShardId shardId, String msg, Throwable cause) {
-        super(msg, cause);
+    public NoShardAvailableActionException(ShardId shardId, String msg, Throwable cause, Object... args) {
+        super(msg, cause, args);
         setShard(shardId);
     }
 

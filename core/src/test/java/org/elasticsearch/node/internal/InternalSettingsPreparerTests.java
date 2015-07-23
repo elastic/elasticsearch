@@ -29,6 +29,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -219,5 +221,20 @@ public class InternalSettingsPreparerTests extends ElasticsearchTestCase {
         assertThat(counter.intValue(), is(1));
         assertThat(settings.get("name"), is("prompted name 0"));
         assertThat(settings.get("node.name"), is("prompted name 0"));
+    }
+
+    @Test
+    public void testPreserveSettingsClassloader() {
+        final ClassLoader classLoader = URLClassLoader.newInstance(new URL[0]);
+        Settings settings = settingsBuilder()
+                .put("foo", "bar")
+                .put("path.home", createTempDir())
+                .classLoader(classLoader)
+                .build();
+
+        Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(settings, randomBoolean());
+
+        Settings preparedSettings = tuple.v1();
+        assertThat(preparedSettings.getClassLoaderIfSet(), is(classLoader));
     }
 }

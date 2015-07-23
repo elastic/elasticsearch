@@ -8,6 +8,7 @@
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch-marvel</artifactId>
     <name>Elasticsearch X-Plugins - Marvel</name>
+    <description>Elasticsearch Marvel</description>
 
     <parent>
         <groupId>org.elasticsearch.plugin</groupId>

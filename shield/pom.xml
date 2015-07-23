@@ -8,6 +8,7 @@
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch-shield</artifactId>
     <name>Elasticsearch X-Plugins - Shield</name>
+    <description>Elasticsearch Shield (security)</description>
 
     <parent>
         <groupId>org.elasticsearch.plugin</groupId>

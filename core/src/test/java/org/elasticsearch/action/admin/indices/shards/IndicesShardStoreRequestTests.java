@@ -139,6 +139,7 @@ public class IndicesShardStoreRequestTests extends ElasticsearchIntegrationTest 
     }
 
     @Test
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/12416")
     public void testCorruptedShards() throws Exception {
         String index = "test";
         internalCluster().ensureAtLeastNumDataNodes(2);

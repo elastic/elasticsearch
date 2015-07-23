@@ -98,14 +98,6 @@ public class PluginManager {
         if (name == null) {
             throw new IllegalArgumentException("plugin name must be supplied with install [name].");
         }
-        HttpDownloadHelper downloadHelper = new HttpDownloadHelper();
-        boolean downloaded = false;
-        HttpDownloadHelper.DownloadProgress progress;
-        if (outputMode == OutputMode.SILENT) {
-            progress = new HttpDownloadHelper.NullProgress();
-        } else {
-            progress = new HttpDownloadHelper.VerboseProgress(terminal.writer());
-        }
 
         if (!Files.exists(environment.pluginsFile())) {
             terminal.println("Plugins directory [%s] does not exist. Creating...", environment.pluginsFile());
@@ -119,11 +111,20 @@ public class PluginManager {
         PluginHandle pluginHandle = PluginHandle.parse(name);
         checkForForbiddenName(pluginHandle.name);
 
+        Path pluginFile = download(pluginHandle, terminal);
+        extract(pluginHandle, terminal, pluginFile);
+    }
+
+    private Path download(PluginHandle pluginHandle, Terminal terminal) throws IOException {
         Path pluginFile = pluginHandle.distroFile(environment);
-        // extract the plugin
-        final Path extractLocation = pluginHandle.extractedDir(environment);
-        if (Files.exists(extractLocation)) {
-            throw new IOException("plugin directory " + extractLocation.toAbsolutePath() + " already exists. To update the plugin, uninstall it first using remove " + name + " command");
+
+        HttpDownloadHelper downloadHelper = new HttpDownloadHelper();
+        boolean downloaded = false;
+        HttpDownloadHelper.DownloadProgress progress;
+        if (outputMode == OutputMode.SILENT) {
+            progress = new HttpDownloadHelper.NullProgress();
+        } else {
+            progress = new HttpDownloadHelper.VerboseProgress(terminal.writer());
         }
 
         // first, try directly from the URL provided
@@ -162,11 +163,30 @@ public class PluginManager {
         }
 
         if (!downloaded) {
+            // try to cleanup what we downloaded
+            IOUtils.deleteFilesIgnoringExceptions(pluginFile);
             throw new IOException("failed to download out of all possible locations..., use --verbose to get detailed information");
         }
+        return pluginFile;
+    }
 
-        // unzip plugin to a temp dir
-        Path tmp = unzipToTemporary(pluginFile);
+    private void extract(PluginHandle pluginHandle, Terminal terminal, Path pluginFile) throws IOException {
+        final Path extractLocation = pluginHandle.extractedDir(environment);
+        if (Files.exists(extractLocation)) {
+            throw new IOException("plugin directory " + extractLocation.toAbsolutePath() + " already exists. To update the plugin, uninstall it first using remove " + pluginHandle.name + " command");
+        }
+
+        // unzip plugin to a staging temp dir, named for the plugin
+        Path tmp = Files.createTempDirectory(environment.tmpFile(), null);
+        Path root = tmp.resolve(pluginHandle.name); 
+        unzipPlugin(pluginFile, root);
+
+        // find the actual root (in case its unzipped with extra directory wrapping)
+        root = findPluginRoot(root);
+
+        // read and validate the plugin descriptor
+        PluginInfo info = PluginInfo.readFromProperties(root);
+        terminal.println("%s", info);
 
         // create list of current jars in classpath
         final List<URL> jars = new ArrayList<>();
@@ -175,16 +195,12 @@ public class PluginManager {
             Collections.addAll(jars, ((URLClassLoader) loader).getURLs());
         }
 
-        // add any jars we find in the plugin to the list
-        Files.walkFileTree(tmp, new SimpleFileVisitor<Path>() {
-            @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                if (file.toString().endsWith(".jar")) {
-                    jars.add(file.toUri().toURL());
-                }
-                return FileVisitResult.CONTINUE;
-            }
-        });
+        // TODO: verify bundles here
+        // add plugin jars to the list
+        Path pluginJars[] = FileSystemUtils.files(root, "*.jar");
+        for (Path jar : pluginJars) {
+            jars.add(jar.toUri().toURL());
+        }
 
         // check combined (current classpath + new jars to-be-added)
         try {
@@ -193,66 +209,14 @@ public class PluginManager {
             throw new RuntimeException(ex);
         }
 
+        // install plugin
+        FileSystemUtils.copyDirectoryRecursively(root, extractLocation);
+        terminal.println("Installed %s into %s", pluginHandle.name, extractLocation.toAbsolutePath());
+
         // cleanup
-        IOUtils.rm(tmp);
+        IOUtils.rm(tmp, pluginFile);
 
-        // TODO: we have a tmpdir made above, so avoid zipfilesystem
-        try (FileSystem zipFile = FileSystems.newFileSystem(pluginFile, null)) {
-            for (final Path root : zipFile.getRootDirectories() ) {
-                final Path[] topLevelFiles = FileSystemUtils.files(root);
-                //we check whether we need to remove the top-level folder while extracting
-                //sometimes (e.g. github) the downloaded archive contains a top-level folder which needs to be removed
-                final boolean stripTopLevelDirectory;
-                if (topLevelFiles.length == 1 && Files.isDirectory(topLevelFiles[0])) {
-                    // valid names if the zip has only one top level directory
-                    switch (topLevelFiles[0].getFileName().toString()) {
-                        case  "_site/":
-                        case  "bin/":
-                        case  "config/":
-                        case  "_dict/":
-                          stripTopLevelDirectory = false;
-                          break;
-                        default:
-                          stripTopLevelDirectory = true;
-                    }
-                } else {
-                    stripTopLevelDirectory = false;
-                }
-                Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
-                    @Override
-                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                        Path target =  FileSystemUtils.append(extractLocation, file, stripTopLevelDirectory ? 1 : 0);
-                        Files.createDirectories(target);
-                        Files.copy(file, target, StandardCopyOption.REPLACE_EXISTING);
-                        return FileVisitResult.CONTINUE;
-                    }
-
-                });
-            }
-            terminal.println("Installed %s into %s", name, extractLocation.toAbsolutePath());
-        } catch (Exception e) {
-            terminal.printError("failed to extract plugin [%s]: %s", pluginFile, ExceptionsHelper.detailedMessage(e));
-            return;
-        } finally {
-            try {
-                Files.delete(pluginFile);
-            } catch (Exception ex) {
-                terminal.printError("Failed to delete plugin file %s %s", pluginFile, ex);
-            }
-        }
-
-        if (FileSystemUtils.hasExtensions(extractLocation, ".java")) {
-            terminal.printError("Plugin installation assumed to be site plugin, but contains source code, aborting installation...");
-            try {
-                IOUtils.rm(extractLocation);
-            } catch(Exception ex) {
-                terminal.printError("Failed to remove site plugin from path %s - %s", extractLocation, ex.getMessage());
-            }
-            throw new IllegalArgumentException("Plugin installation assumed to be site plugin, but contains source code, aborting installation.");
-        }
-
-        // It could potentially be a non explicit _site plugin
-        boolean potentialSitePlugin = true;
+        // take care of bin/ by moving and applying permissions if needed
         Path binFile = extractLocation.resolve("bin");
         if (Files.isDirectory(binFile)) {
             Path toLocation = pluginHandle.binDir(environment);
@@ -289,8 +253,7 @@ public class PluginManager {
             } else {
                 terminal.println(VERBOSE, "Skipping posix permissions - filestore doesn't support posix permission");
             }
-            terminal.println(VERBOSE, "Installed %s into %s", name, toLocation.toAbsolutePath());
-            potentialSitePlugin = false;
+            terminal.println(VERBOSE, "Installed %s into %s", pluginHandle.name, toLocation.toAbsolutePath());
         }
 
         Path configFile = extractLocation.resolve("config");
@@ -298,33 +261,36 @@ public class PluginManager {
             Path configDestLocation = pluginHandle.configDir(environment);
             terminal.println(VERBOSE, "Found config, moving to %s", configDestLocation.toAbsolutePath());
             moveFilesWithoutOverwriting(configFile, configDestLocation, ".new");
-            terminal.println(VERBOSE, "Installed %s into %s", name, configDestLocation.toAbsolutePath());
-            potentialSitePlugin = false;
-        }
-
-        // try and identify the plugin type, see if it has no .class or .jar files in it
-        // so its probably a _site, and it it does not have a _site in it, move everything to _site
-        if (!Files.exists(extractLocation.resolve("_site"))) {
-            if (potentialSitePlugin && !FileSystemUtils.hasExtensions(extractLocation, ".class", ".jar")) {
-                terminal.println(VERBOSE, "Identified as a _site plugin, moving to _site structure ...");
-                Path site = extractLocation.resolve("_site");
-                Path tmpLocation = environment.pluginsFile().resolve(extractLocation.getFileName() + ".tmp");
-                Files.move(extractLocation, tmpLocation);
-                Files.createDirectories(extractLocation);
-                Files.move(tmpLocation, site);
-                terminal.println(VERBOSE, "Installed " + name + " into " + site.toAbsolutePath());
-            }
+            terminal.println(VERBOSE, "Installed %s into %s", pluginHandle.name, configDestLocation.toAbsolutePath());
         }
     }
 
-    private Path unzipToTemporary(Path zip) throws IOException {
-        Path tmp = Files.createTempDirectory(environment.tmpFile(), null);
+    /** we check whether we need to remove the top-level folder while extracting
+     *   sometimes (e.g. github) the downloaded archive contains a top-level folder which needs to be removed
+     */
+    private Path findPluginRoot(Path dir) throws IOException {
+        if (Files.exists(dir.resolve(PluginInfo.ES_PLUGIN_PROPERTIES))) {
+            return dir;
+        } else {
+            final Path[] topLevelFiles = FileSystemUtils.files(dir);
+            if (topLevelFiles.length == 1 && Files.isDirectory(topLevelFiles[0])) {
+                Path subdir = topLevelFiles[0];
+                if (Files.exists(subdir.resolve(PluginInfo.ES_PLUGIN_PROPERTIES))) {
+                    return subdir;
+                }
+            }
+        }
+        throw new RuntimeException("Could not find plugin descriptor '" + PluginInfo.ES_PLUGIN_PROPERTIES + "' in plugin zip");
+    }
 
+    private void unzipPlugin(Path zip, Path target) throws IOException {
+        Files.createDirectories(target);
+        
         try (ZipInputStream zipInput = new ZipInputStream(Files.newInputStream(zip))) {
             ZipEntry entry;
             byte[] buffer = new byte[8192];
             while ((entry = zipInput.getNextEntry()) != null) {
-                Path targetFile = tmp.resolve(entry.getName());
+                Path targetFile = target.resolve(entry.getName());
 
                 // be on the safe side: do not rely on that directories are always extracted
                 // before their children (although this makes sense, but is it guaranteed?)
@@ -340,8 +306,6 @@ public class PluginManager {
                 zipInput.closeEntry();
             }
         }
-
-        return tmp;
     }
 
     public void removePlugin(String name, Terminal terminal) throws IOException {

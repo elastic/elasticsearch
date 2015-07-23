@@ -163,7 +163,8 @@ public class ShardReplicationTests extends ESTestCase {
 
     @Test
     public void testBlocks() throws ExecutionException, InterruptedException {
-        Request request = new Request();
+        ShardId shardId = new ShardId("_index", 0);
+        Request request = new Request(shardId);
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
         ClusterBlocks.Builder block = ClusterBlocks.builder()
@@ -177,13 +178,13 @@ public class ShardReplicationTests extends ESTestCase {
                 .addGlobalBlock(new ClusterBlock(1, "retryable", true, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
         clusterService.setState(ClusterState.builder(clusterService.state()).blocks(block));
         listener = new PlainActionFuture<>();
-        primaryPhase = action.new PrimaryPhase(new Request().timeout("5ms"), listener);
+        primaryPhase = action.new PrimaryPhase(new Request(shardId).timeout("5ms"), listener);
         assertFalse("primary phase should stop execution on retryable block", primaryPhase.checkBlocks());
         assertListenerThrows("failed to timeout on retryable block", listener, ClusterBlockException.class);
 
 
         listener = new PlainActionFuture<>();
-        primaryPhase = action.new PrimaryPhase(new Request(), listener);
+        primaryPhase = action.new PrimaryPhase(new Request(shardId), listener);
         assertFalse("primary phase should stop execution on retryable block", primaryPhase.checkBlocks());
         assertFalse("primary phase should wait on retryable block", listener.isDone());
 
@@ -483,7 +484,7 @@ public class ShardReplicationTests extends ESTestCase {
         final ShardRouting primaryShard = shardRoutingTable.primaryShard();
         final ShardIterator shardIt = shardRoutingTable.shardsIt();
         final ShardId shardId = shardIt.shardId();
-        final Request request = new Request();
+        final Request request = new Request(shardId);
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
         logger.debug("expecting [{}] assigned replicas, [{}] total shards. using state: \n{}", assignedReplicas, totalShards, clusterService.state().prettyPrint());
@@ -627,18 +628,20 @@ public class ShardReplicationTests extends ESTestCase {
         Thread t = new Thread() {
             public void run() {
                 try {
-                    replicaOperationTransportHandler.messageReceived(new Request(), createTransportChannel());
+                    Request r = new Request(shardId);
+                    replicaOperationTransportHandler.messageReceived(r, createTransportChannel());
                 } catch (Exception e) {
+                    logger.error("Error while handler request", e);
                 }
             }
         };
         t.start();
         // shard operation should be ongoing, so the counter is at 2
         // we have to wait here because increment happens in thread
-        awaitBusy(new Predicate<Object>() {
+        assertBusy(new Runnable() {
             @Override
-            public boolean apply(@Nullable Object input) {
-                return count.get() == 2;
+            public void run() {
+                assertThat(count.get(), equalTo(2));
             }
         });
         ((ActionWithDelay) action).countDownLatch.countDown();
@@ -694,7 +697,6 @@ public class ShardReplicationTests extends ESTestCase {
     }
 
     static class Request extends ReplicationRequest<Request> {
-        int shardId;
         public AtomicBoolean processedOnPrimary = new AtomicBoolean();
         public AtomicInteger processedOnReplicas = new AtomicInteger();
 
@@ -702,21 +704,19 @@ public class ShardReplicationTests extends ESTestCase {
         }
 
         Request(ShardId shardId) {
-            this.shardId = shardId.id();
             this.index(shardId.index().name());
+            this.internalShardRouting = TestShardRouting.newShardRouting(shardId.getIndex(), shardId.getId(), "_id", true, ShardRoutingState.STARTED, 1);
             // keep things simple
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeVInt(shardId);
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            shardId = in.readVInt();
         }
     }
 
@@ -752,7 +752,7 @@ public class ShardReplicationTests extends ESTestCase {
 
         @Override
         protected ShardIterator shards(ClusterState clusterState, InternalRequest request) {
-            return clusterState.getRoutingTable().index(request.concreteIndex()).shard(request.request().shardId).shardsIt();
+            return clusterState.getRoutingTable().index(request.concreteIndex()).shard(request.request().internalShardRouting.getId()).shardsIt();
         }
 
         @Override

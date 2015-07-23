@@ -14,7 +14,7 @@
 package org.elasticsearch.examples.nativescript.script;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.examples.nativescript.plugin.NativeScriptExamplesPlugin;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
@@ -39,7 +39,7 @@ public abstract class AbstractSearchScriptTests extends ElasticsearchIntegration
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.settingsBuilder()
                 .put("gateway.type", "none")
-                .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
+                .put("plugin.types", NativeScriptExamplesPlugin.class)
                 .put(super.nodeSettings(nodeOrdinal))
                 .build();
     }

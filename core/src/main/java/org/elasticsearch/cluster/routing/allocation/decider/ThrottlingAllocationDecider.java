@@ -106,7 +106,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
     public Decision canAllocate(RoutingNode node, RoutingAllocation allocation) {
         int currentRecoveries = 0;
         for (ShardRouting shard : node) {
-            if (shard.initializing() || shard.relocating()) {
+            if (shard.initializing()) {
                 currentRecoveries++;
             }
         }

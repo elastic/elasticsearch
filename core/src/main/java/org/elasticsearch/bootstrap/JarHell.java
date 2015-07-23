@@ -136,21 +136,9 @@ public class JarHell {
     /** inspect manifest for sure incompatibilities */
     static void checkManifest(Manifest manifest, Path jar) {
         // give a nice error if jar requires a newer java version
-        String systemVersion = System.getProperty("java.specification.version");
         String targetVersion = manifest.getMainAttributes().getValue("X-Compile-Target-JDK");
         if (targetVersion != null) {
-            float current = Float.POSITIVE_INFINITY;
-            float target = Float.NEGATIVE_INFINITY;
-            try {
-                current = Float.parseFloat(systemVersion);
-                target = Float.parseFloat(targetVersion);
-            } catch (NumberFormatException e) {
-                // some spec changed, time for a more complex parser
-            }
-            if (current < target) {
-                throw new IllegalStateException(jar + " requires Java " + targetVersion
-                        + ", your system: " + systemVersion);
-            }
+            checkJavaVersion(jar.toString(), targetVersion);
         }
 
         // give a nice error if jar is compiled against different es version
@@ -159,6 +147,26 @@ public class JarHell {
         if (targetESVersion != null && targetESVersion.equals(systemESVersion) == false) {
             throw new IllegalStateException(jar + " requires Elasticsearch " + targetESVersion
                     + ", your system: " + systemESVersion);
+        }
+    }
+
+    /**
+     * Checks that the java specification version {@code targetVersion}
+     * required by {@code resource} is compatible with the current installation.
+     */
+    public static void checkJavaVersion(String resource, String targetVersion) {
+        String systemVersion = System.getProperty("java.specification.version");
+        float current = Float.POSITIVE_INFINITY;
+        float target = Float.NEGATIVE_INFINITY;
+        try {
+            current = Float.parseFloat(systemVersion);
+            target = Float.parseFloat(targetVersion);
+        } catch (NumberFormatException e) {
+            // some spec changed, time for a more complex parser
+        }
+        if (current < target) {
+            throw new IllegalStateException(resource + " requires Java " + targetVersion
+                    + ", your system: " + systemVersion);
         }
     }
 

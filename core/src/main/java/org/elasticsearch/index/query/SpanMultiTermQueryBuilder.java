@@ -24,6 +24,7 @@ import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+
 import java.io.IOException;
 import java.util.Objects;
 
@@ -35,17 +36,10 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
 
     public static final String NAME = "span_multi";
     private final MultiTermQueryBuilder multiTermQueryBuilder;
-    static final SpanMultiTermQueryBuilder PROTOTYPE = new SpanMultiTermQueryBuilder();
+    static final SpanMultiTermQueryBuilder PROTOTYPE = new SpanMultiTermQueryBuilder(null);
 
     public SpanMultiTermQueryBuilder(MultiTermQueryBuilder multiTermQueryBuilder) {
-        this.multiTermQueryBuilder = Objects.requireNonNull(multiTermQueryBuilder);
-    }
-
-    /**
-     * only used for prototype
-     */
-    private SpanMultiTermQueryBuilder() {
-        this.multiTermQueryBuilder = null;
+        this.multiTermQueryBuilder = multiTermQueryBuilder;
     }
 
     public MultiTermQueryBuilder multiTermQueryBuilder() {
@@ -73,7 +67,13 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
 
     @Override
     public QueryValidationException validate() {
-        return validateInnerQuery(multiTermQueryBuilder, null);
+        QueryValidationException validationException = null;
+        if (multiTermQueryBuilder == null) {
+            validationException = addValidationError("inner clause ["+ SpanMultiTermQueryParser.MATCH_NAME +"] cannot be null.", validationException);
+        } else {
+            validationException = validateInnerQuery(multiTermQueryBuilder, validationException);
+        }
+        return validationException;
     }
 
     @Override

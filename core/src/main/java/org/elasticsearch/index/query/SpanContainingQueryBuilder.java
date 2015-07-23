@@ -37,23 +37,15 @@ public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContain
     public static final String NAME = "span_containing";
     private final SpanQueryBuilder big;
     private final SpanQueryBuilder little;
-    static final SpanContainingQueryBuilder PROTOTYPE = new SpanContainingQueryBuilder();
+    static final SpanContainingQueryBuilder PROTOTYPE = new SpanContainingQueryBuilder(null, null);
 
     /**
      * @param big the big clause, it must enclose {@code little} for a match.
      * @param little the little clause, it must be contained within {@code big} for a match.
      */
     public SpanContainingQueryBuilder(SpanQueryBuilder big, SpanQueryBuilder little) {
-        this.little = Objects.requireNonNull(little);
-        this.big = Objects.requireNonNull(big);
-    }
-
-    /**
-     * only used for prototype
-     */
-    private SpanContainingQueryBuilder() {
-        this.little = null;
-        this.big = null;
+        this.little = little;
+        this.big = big;
     }
 
     /**
@@ -92,9 +84,18 @@ public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContain
 
     @Override
     public QueryValidationException validate() {
-        QueryValidationException validationExceptions = validateInnerQuery(big, null);
-        validationExceptions = validateInnerQuery(little, validationExceptions);
-        return validationExceptions;
+        QueryValidationException validationException = null;
+        if (big == null) {
+            validationException = addValidationError("inner clause [big] cannot be null.", validationException);
+        } else {
+            validationException = validateInnerQuery(big, validationException);
+        }
+        if (little == null) {
+            validationException = addValidationError("inner clause [little] cannot be null.", validationException);
+        } else {
+            validationException = validateInnerQuery(little, validationException);
+        }
+        return validationException;
     }
 
     @Override

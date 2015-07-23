@@ -46,29 +46,27 @@ public class SpanWithinQueryBuilderTest extends BaseQueryTestCase<SpanWithinQuer
         int totalExpectedErrors = 0;
         SpanQueryBuilder bigSpanQueryBuilder;
         if (randomBoolean()) {
-            bigSpanQueryBuilder = new SpanTermQueryBuilder("", "test");
+            if (randomBoolean()) {
+                bigSpanQueryBuilder = new SpanTermQueryBuilder("", "test");
+            } else {
+                bigSpanQueryBuilder = null;
+            }
             totalExpectedErrors++;
         } else {
             bigSpanQueryBuilder = new SpanTermQueryBuilder("name", "value");
         }
         SpanQueryBuilder littleSpanQueryBuilder;
         if (randomBoolean()) {
-            littleSpanQueryBuilder = new SpanTermQueryBuilder("", "test");
+            if (randomBoolean()) {
+                littleSpanQueryBuilder = new SpanTermQueryBuilder("", "test");
+            } else {
+                littleSpanQueryBuilder = null;
+            }
             totalExpectedErrors++;
         } else {
             littleSpanQueryBuilder = new SpanTermQueryBuilder("name", "value");
         }
         SpanWithinQueryBuilder queryBuilder = new SpanWithinQueryBuilder(bigSpanQueryBuilder, littleSpanQueryBuilder);
         assertValidate(queryBuilder, totalExpectedErrors);
-    }
-
-    @Test(expected=NullPointerException.class)
-    public void testNullBig() {
-        new SpanWithinQueryBuilder(null, new SpanTermQueryBuilder("name", "value"));
-    }
-
-    @Test(expected=NullPointerException.class)
-    public void testNullLittle() {
-        new SpanWithinQueryBuilder(new SpanTermQueryBuilder("name", "value"), null);
     }
 }

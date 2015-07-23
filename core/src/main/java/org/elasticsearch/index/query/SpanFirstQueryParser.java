@@ -46,7 +46,7 @@ public class SpanFirstQueryParser extends BaseQueryParser {
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
 
         SpanQueryBuilder match = null;
-        int end = -1;
+        Integer end = null;
         String queryName = null;
 
         String currentFieldName = null;
@@ -79,7 +79,7 @@ public class SpanFirstQueryParser extends BaseQueryParser {
         if (match == null) {
             throw new QueryParsingException(parseContext, "spanFirst must have [match] span query clause");
         }
-        if (end == -1) {
+        if (end == null) {
             throw new QueryParsingException(parseContext, "spanFirst must have [end] set for it");
         }
         SpanFirstQueryBuilder queryBuilder = new SpanFirstQueryBuilder(match, end);

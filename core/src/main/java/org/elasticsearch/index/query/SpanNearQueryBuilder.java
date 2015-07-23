@@ -78,7 +78,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
     }
 
     public SpanNearQueryBuilder clause(SpanQueryBuilder clause) {
-        clauses.add(Objects.requireNonNull(clause));
+        clauses.add(clause);
         return this;
     }
 
@@ -149,14 +149,18 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
 
     @Override
     public QueryValidationException validate() {
-        QueryValidationException validationExceptions = null;
+        QueryValidationException validationException = null;
         if (clauses.isEmpty()) {
-            validationExceptions =  addValidationError("query must include [clauses]", validationExceptions);
+            validationException =  addValidationError("query must include [clauses]", validationException);
         }
         for (SpanQueryBuilder innerClause : clauses) {
-            validationExceptions = validateInnerQuery(innerClause, validationExceptions);
+            if (innerClause == null) {
+                validationException =  addValidationError("[clauses] contains null element", validationException);
+            } else {
+                validationException = validateInnerQuery(innerClause, validationException);
+            }
         }
-        return validationExceptions;
+        return validationException;
     }
 
     @Override

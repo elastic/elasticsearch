@@ -175,7 +175,7 @@ public class PluginManager {
     private void extract(PluginHandle pluginHandle, Terminal terminal, Path pluginFile) throws IOException {
         final Path extractLocation = pluginHandle.extractedDir(environment);
         if (Files.exists(extractLocation)) {
-            throw new IOException("plugin directory " + extractLocation.toAbsolutePath() + " already exists. To update the plugin, uninstall it first using remove " + pluginHandle.name + " command");
+            throw new IOException("plugin directory " + extractLocation.toAbsolutePath() + " already exists. To update the plugin, uninstall it first using 'remove " + pluginHandle.name + "' command");
         }
 
         // unzip plugin to a staging temp dir, named for the plugin

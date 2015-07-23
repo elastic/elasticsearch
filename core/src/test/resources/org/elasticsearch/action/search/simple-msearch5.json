@@ -1,0 +1,6 @@
+{"index":["test0", "test1"], "request_cache": true}
+{"template": {"query" : {"match_{{template}}" {}}}, "params": {"template": "all" } } }
+{"index" : "test2,test3", "type" : "type1", "preference": "_local"}
+{"template": {"query" : {"match_{{template}}" {}}}, "params": {"template": "all" } } }
+{"index" : ["test4", "test1"], "type" :  [ "type2", "type1" ], "routing": "123"}
+{"template": {"query" : {"match_{{template}}" {}}}, "params": {"template": "all" } } }

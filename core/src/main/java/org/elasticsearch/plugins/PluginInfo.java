@@ -119,7 +119,7 @@ public class PluginInfo implements Streamable, ToXContent {
         
         if (site) {
             if (!Files.exists(dir.resolve("_site"))) {
-                throw new IllegalArgumentException("Plugin [" + name + "] is a site plugin but has no _site");
+                throw new IllegalArgumentException("Plugin [" + name + "] is a site plugin but has no '_site/' directory");
             }
         }
 

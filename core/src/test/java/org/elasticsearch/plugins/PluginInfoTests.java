@@ -189,7 +189,7 @@ public class PluginInfoTests extends ElasticsearchTestCase {
             PluginInfo.readFromProperties(pluginDir);
             fail("didn't get expected exception");
         } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("site plugin but has no _site"));
+            assertTrue(e.getMessage().contains("site plugin but has no '_site"));
         }
     }
 

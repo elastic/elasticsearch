@@ -37,9 +37,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.DirectoryStream;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -50,7 +48,6 @@ import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.Locale;
 import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
 import static org.elasticsearch.common.cli.CliTool.ExitStatus.USAGE;
@@ -84,7 +81,6 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         if (!Files.exists(configDir)) {
             Files.createDirectories(configDir);
         }
-
     }
 
     @After

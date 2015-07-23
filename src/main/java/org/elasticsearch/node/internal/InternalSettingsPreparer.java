@@ -175,7 +175,7 @@ public class InternalSettingsPreparer {
 
     static Settings replacePromptPlaceholders(Settings settings, Terminal terminal) {
         UnmodifiableIterator<Map.Entry<String, String>> iter = settings.getAsMap().entrySet().iterator();
-        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        ImmutableSettings.Builder builder = ImmutableSettings.builder().classLoader(settings.getClassLoaderIfSet());
 
         while (iter.hasNext()) {
             Map.Entry<String, String> entry = iter.next();

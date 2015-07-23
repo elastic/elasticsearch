@@ -219,6 +219,39 @@ public class ReplicaShardAllocatorTests extends ElasticsearchAllocationTestCase 
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(), equalTo(node2.id()));
     }
 
+    @Test
+    public void testCancelRecoveryBetterSyncId() {
+        RoutingAllocation allocation = onePrimaryOnNode1And1ReplicaRecovering(yesAllocationDeciders());
+        testAllocator.addData(node1, true, "MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM"))
+                .addData(node2, false, "NO_MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM"))
+                .addData(node3, false, "MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM"));
+        boolean changed = testAllocator.processExistingRecoveries(allocation);
+        assertThat(changed, equalTo(true));
+        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(1));
+        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).get(0).shardId(), equalTo(shardId));
+    }
+
+    @Test
+    public void testNotCancellingRecoveryIfSyncedOnExistingRecovery() {
+        RoutingAllocation allocation = onePrimaryOnNode1And1ReplicaRecovering(yesAllocationDeciders());
+        testAllocator.addData(node1, true, "MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM"))
+                .addData(node2, false, "MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM"))
+                .addData(node3, false, randomBoolean() ? "MATCH" : "NO_MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM"));
+        boolean changed = testAllocator.processExistingRecoveries(allocation);
+        assertThat(changed, equalTo(false));
+        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(0));
+    }
+
+    @Test
+    public void testNotCancellingRecovery() {
+        RoutingAllocation allocation = onePrimaryOnNode1And1ReplicaRecovering(yesAllocationDeciders());
+        testAllocator.addData(node1, true, "MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM"))
+                .addData(node2, false, "MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM"));
+        boolean changed = testAllocator.processExistingRecoveries(allocation);
+        assertThat(changed, equalTo(false));
+        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(0));
+    }
+
     private RoutingAllocation onePrimaryOnNode1And1Replica(AllocationDeciders deciders) {
         return onePrimaryOnNode1And1Replica(deciders, Settings.EMPTY, UnassignedInfo.Reason.INDEX_CREATED);
     }
@@ -232,6 +265,25 @@ public class ReplicaShardAllocatorTests extends ElasticsearchAllocationTestCase 
                                 .addIndexShard(new IndexShardRoutingTable.Builder(shardId)
                                         .addShard(TestShardRouting.newShardRouting(shardId.getIndex(), shardId.getId(), node1.id(), true, ShardRoutingState.STARTED, 10))
                                         .addShard(ShardRouting.newUnassigned(shardId.getIndex(), shardId.getId(), null, false, new UnassignedInfo(reason, null)))
+                                        .build())
+                )
+                .build();
+        ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT)
+                .metaData(metaData)
+                .routingTable(routingTable)
+                .nodes(DiscoveryNodes.builder().put(node1).put(node2).put(node3)).build();
+        return new RoutingAllocation(deciders, state.routingNodes(), state.nodes(), null);
+    }
+
+    private RoutingAllocation onePrimaryOnNode1And1ReplicaRecovering(AllocationDeciders deciders) {
+        MetaData metaData = MetaData.builder()
+                .put(IndexMetaData.builder(shardId.getIndex()).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+                .build();
+        RoutingTable routingTable = RoutingTable.builder()
+                .add(IndexRoutingTable.builder(shardId.getIndex())
+                                .addIndexShard(new IndexShardRoutingTable.Builder(shardId)
+                                        .addShard(TestShardRouting.newShardRouting(shardId.getIndex(), shardId.getId(), node1.id(), true, ShardRoutingState.STARTED, 10))
+                                        .addShard(TestShardRouting.newShardRouting(shardId.getIndex(), shardId.getId(), node2.id(), false, ShardRoutingState.INITIALIZING, 10))
                                         .build())
                 )
                 .build();

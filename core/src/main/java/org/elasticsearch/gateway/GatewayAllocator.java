@@ -126,6 +126,7 @@ public class GatewayAllocator extends AbstractComponent {
         }); // sort for priority ordering
 
         changed |= primaryShardAllocator.allocateUnassigned(allocation);
+        changed |= replicaShardAllocator.processExistingRecoveries(allocation);
         changed |= replicaShardAllocator.allocateUnassigned(allocation);
         return changed;
     }

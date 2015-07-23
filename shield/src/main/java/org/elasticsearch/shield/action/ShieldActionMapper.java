@@ -35,9 +35,10 @@ public class ShieldActionMapper {
                 }
                 break;
             case AnalyzeAction.NAME:
+            case AnalyzeAction.NAME + "[s]":
                 assert request instanceof AnalyzeRequest;
                 String[] indices = ((AnalyzeRequest) request).indices();
-                if (indices == null || indices.length == 0) {
+                if (indices == null || (indices.length == 1 && indices[0] == null)) {
                     return CLUSTER_PERMISSION_ANALYZE;
                 }
                 break;

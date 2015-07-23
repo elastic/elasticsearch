@@ -116,6 +116,12 @@ public class PluginInfo implements Streamable, ToXContent {
                 throw new IllegalArgumentException("Property [classname] is missing for jvm plugin [" + name + "]");
             }
         }
+        
+        if (site) {
+            if (!Files.exists(dir.resolve("_site"))) {
+                throw new IllegalArgumentException("Plugin [" + name + "] is a site plugin but has no '_site/' directory");
+            }
+        }
 
         return new PluginInfo(name, description, site, version, jvm, classname, isolated);
     }

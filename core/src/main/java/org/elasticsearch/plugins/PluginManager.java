@@ -118,7 +118,7 @@ public class PluginManager {
     }
 
     private Path download(PluginHandle pluginHandle, Terminal terminal) throws IOException {
-        Path pluginFile = pluginHandle.distroFile(environment);
+        Path pluginFile = pluginHandle.newDistroFile(environment);
 
         HttpDownloadHelper downloadHelper = new HttpDownloadHelper();
         boolean downloaded = false;
@@ -345,17 +345,6 @@ public class PluginManager {
             }
             removed = true;
         }
-        pluginToDelete = pluginHandle.distroFile(environment);
-        if (Files.exists(pluginToDelete)) {
-            terminal.println(VERBOSE, "Removing: %s", pluginToDelete);
-            try {
-                Files.delete(pluginToDelete);
-            } catch (Exception ex) {
-                throw new IOException("Unable to remove " + pluginHandle.name + ". Check file permissions on " +
-                        pluginToDelete.toString(), ex);
-            }
-            removed = true;
-        }
         Path binLocation = pluginHandle.binDir(environment);
         if (Files.exists(binLocation)) {
             terminal.println(VERBOSE, "Removing: %s", binLocation);
@@ -464,8 +453,8 @@ public class PluginManager {
             }
         }
 
-        Path distroFile(Environment env) {
-            return env.tmpFile().resolve(name + ".zip");
+        Path newDistroFile(Environment env) throws IOException {
+            return Files.createTempFile(env.tmpFile(), name, ".zip");
         }
 
         Path extractedDir(Environment env) {

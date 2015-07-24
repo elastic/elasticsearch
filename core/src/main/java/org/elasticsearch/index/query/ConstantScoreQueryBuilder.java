@@ -82,7 +82,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
         if (filterBuilder == null) {
             validationException = addValidationError("inner clause [filter] cannot be null.", validationException);
         } else {
-            validateInnerQuery(filterBuilder, validationException);
+            validationException = validateInnerQuery(filterBuilder, validationException);
         }
         return validationException;
     }

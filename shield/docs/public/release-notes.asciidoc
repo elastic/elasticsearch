@@ -18,8 +18,8 @@ will be preserved and you do this with a rolling upgrade of Elasticsearch. On ea
 
 [source,shell]
 ---------------------------------------------------
-bin/plugin -r shield
-bin/plugin -i elasticsearch/shield/latest <1>
+bin/plugin remove shield
+bin/plugin install elasticsearch/shield/latest <1>
 ---------------------------------------------------
 <1> `latest` will install the latest version of Shield compatible with your version of Elasticsearch. A specific version,
 such as `1.1.0` can also be specified.

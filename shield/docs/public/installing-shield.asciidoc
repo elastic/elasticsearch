@@ -65,7 +65,7 @@ Transfer the compressed file to your server, then install the plugin with the `b
 
 [source,shell]
 ----------------------------------------------------
-bin/plugin -i shield -u file://PATH_TO_ZIP_FILE <1>
+bin/plugin install shield -u file://PATH_TO_ZIP_FILE <1>
 ----------------------------------------------------
 <1> Absolute path to Shield plugin zip distribution file (e.g. `file:///path/to/file/shield-1.3.0.zip`,
     note the three slashes at the beginning)

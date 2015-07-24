@@ -9,18 +9,18 @@ node must be restarted after installation. Plan for a complete cluster restart b
 
 To install and run Shield:
 
-. Run `bin/plugin` -i from `ES_HOME` to install the license plugin.
+. Run `bin/plugin install` from `ES_HOME` to install the license plugin.
 +
 [source,shell]
 ----------------------------------------------------------
-bin/plugin -i elasticsearch/license/latest
+bin/plugin install elasticsearch/license/latest
 ----------------------------------------------------------
 
-. Run `bin/plugin -i` to install the Shield plugin.
+. Run `bin/plugin install` to install the Shield plugin.
 +
 [source,shell]
 ----------------------------------------------------------
-bin/plugin -i elasticsearch/shield/latest
+bin/plugin install elasticsearch/shield/latest
 ----------------------------------------------------------
 +
 NOTE: If you are using a <<deb-rpm-install, DEB/RPM distribution>> of Elasticsearch, you need to specify the configuration directory and run the installation with superuser permissions. To perform an offline installation, <<offline-install,download the Shield binaries>>.

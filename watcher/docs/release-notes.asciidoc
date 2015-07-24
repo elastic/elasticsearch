@@ -27,7 +27,7 @@ upgrade:
 +
 [source,yaml]
 --------------------------------------------------
-bin/plugin -r watcher
+bin/plugin remove watcher
 --------------------------------------------------
 
 4. Restart Elasticsearch on each node.

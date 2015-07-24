@@ -55,11 +55,11 @@ public class MissingQueryBuilder extends AbstractQueryBuilder<MissingQueryBuilde
     public MissingQueryBuilder(String fieldPattern) {
         this.fieldPattern = fieldPattern;
     }
-    
+
     public String fieldPattern() {
         return this.fieldPattern;
     }
-    
+
     /**
      * Should the missing filter automatically include fields with null value configured in the
      * mappings. Defaults to <tt>false</tt>.
@@ -159,7 +159,7 @@ public class MissingQueryBuilder extends AbstractQueryBuilder<MissingQueryBuilde
                 }
                 // if _field_names are not indexed, we need to go the slow way
                 if (filter == null && fieldType != null) {
-                    filter = fieldType.rangeQuery(null, null, true, true, parseContext);
+                    filter = fieldType.rangeQuery(null, null, true, true);
                 }
                 if (filter == null) {
                     filter = new TermRangeQuery(field, null, null, true, true);

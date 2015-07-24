@@ -20,6 +20,7 @@ package org.elasticsearch.plugins;
 
 import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolTestCase.CaptureOutputTerminal;
 import org.elasticsearch.common.collect.Tuple;
@@ -36,13 +37,18 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.Locale;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import static org.elasticsearch.common.cli.CliTool.ExitStatus.USAGE;
 import static org.elasticsearch.common.cli.CliToolTestCase.args;
@@ -52,6 +58,7 @@ import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertDirectoryExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.plugins.PluginInfoTests.writeProperties;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0.0)
 @LuceneTestCase.SuppressFileSystems("*") // TODO: clean up this test to allow extra files
@@ -74,29 +81,65 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         if (!Files.exists(configDir)) {
             Files.createDirectories(configDir);
         }
-
     }
 
     @After
     public void clearPathHome() {
         System.clearProperty("es.default.path.home");
     }
+    
+    /** creates a plugin .zip and returns the url for testing */
+    private String createPlugin(final Path structure, String... properties) throws IOException {
+        writeProperties(structure, properties);
+        Path zip = createTempDir().resolve(structure.getFileName() + ".zip");
+        try (ZipOutputStream stream = new ZipOutputStream(Files.newOutputStream(zip))) {
+            Files.walkFileTree(structure, new SimpleFileVisitor<Path>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    stream.putNextEntry(new ZipEntry(structure.relativize(file).toString()));
+                    Files.copy(file, stream);
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+        }
+        return zip.toUri().toURL().toString();
+    }
 
     @Test
     public void testThatPluginNameMustBeSupplied() throws IOException {
-        String pluginUrl = getPluginUrlForResource("plugin_with_bin_and_config.zip");
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        String pluginUrl = createPlugin(pluginDir,
+            "description", "fake desc",
+            "version", "1.0",
+            "elasticsearch.version", Version.CURRENT.toString(),
+            "jvm", "true",
+            "classname", "FakePlugin");
         assertStatus("install --url " + pluginUrl, USAGE);
     }
 
     @Test
     public void testLocalPluginInstallWithBinAndConfig() throws Exception {
-        String pluginName = "plugin-test";
+        String pluginName = "fake-plugin";
+        Path pluginDir = createTempDir().resolve(pluginName);
+        // create bin/tool and config/file
+        Files.createDirectories(pluginDir.resolve("bin"));
+        Files.createFile(pluginDir.resolve("bin").resolve("tool"));
+        Files.createDirectories(pluginDir.resolve("config"));
+        Files.createFile(pluginDir.resolve("config").resolve("file"));
+        
+        String pluginUrl = createPlugin(pluginDir,
+            "description", "fake desc",
+            "version", "1.0",
+            "elasticsearch.version", Version.CURRENT.toString(),
+            "java.version", System.getProperty("java.specification.version"),
+            "jvm", "true",
+            "classname", "FakePlugin");
+        
         Environment env = initialSettings.v2();
         Path binDir = env.homeFile().resolve("bin");
         Path pluginBinDir = binDir.resolve(pluginName);
 
         Path pluginConfigDir = env.configFile().resolve(pluginName);
-        String pluginUrl = getPluginUrlForResource("plugin_with_bin_and_config.zip");
         assertStatusOk("install " + pluginName + " --url " + pluginUrl + " --verbose");
 
         terminal.getTerminalOutput().clear();
@@ -123,23 +166,36 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
      */
     @Test
     public void testLocalPluginInstallWithBinAndConfigInAlreadyExistingConfigDir_7890() throws Exception {
-        String pluginName = "plugin-test";
+        String pluginName = "fake-plugin";
+        Path pluginDir = createTempDir().resolve(pluginName);
+        // create config/test.txt with contents 'version1'
+        Files.createDirectories(pluginDir.resolve("config"));
+        Files.write(pluginDir.resolve("config").resolve("test.txt"), "version1".getBytes(StandardCharsets.UTF_8));
+        
+        String pluginUrl = createPlugin(pluginDir,
+            "description", "fake desc",
+            "version", "1.0",
+            "elasticsearch.version", Version.CURRENT.toString(),
+            "java.version", System.getProperty("java.specification.version"),
+            "jvm", "true",
+            "classname", "FakePlugin");
+        
         Environment env = initialSettings.v2();
         Path pluginConfigDir = env.configFile().resolve(pluginName);
 
-        assertStatusOk(String.format(Locale.ROOT, "install %s --url %s --verbose", pluginName, getPluginUrlForResource("plugin_with_config_v1.zip")));
+        assertStatusOk(String.format(Locale.ROOT, "install %s --url %s --verbose", pluginName, pluginUrl));
 
         /*
         First time, our plugin contains:
         - config/test.txt (version1)
          */
-        assertFileContent(pluginConfigDir, "test.txt", "version1\n");
+        assertFileContent(pluginConfigDir, "test.txt", "version1");
 
         // We now remove the plugin
         assertStatusOk("remove " + pluginName);
 
         // We should still have test.txt
-        assertFileContent(pluginConfigDir, "test.txt", "version1\n");
+        assertFileContent(pluginConfigDir, "test.txt", "version1");
 
         // Installing a new plugin version
         /*
@@ -148,19 +204,31 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         - config/dir/testdir.txt (version1)
         - config/dir/subdir/testsubdir.txt (version1)
          */
-        assertStatusOk(String.format(Locale.ROOT, "install %s --url %s --verbose", pluginName, getPluginUrlForResource("plugin_with_config_v2.zip")));
+        Files.write(pluginDir.resolve("config").resolve("test.txt"), "version2".getBytes(StandardCharsets.UTF_8));
+        Files.createDirectories(pluginDir.resolve("config").resolve("dir").resolve("subdir"));
+        Files.write(pluginDir.resolve("config").resolve("dir").resolve("testdir.txt"), "version1".getBytes(StandardCharsets.UTF_8));
+        Files.write(pluginDir.resolve("config").resolve("dir").resolve("subdir").resolve("testsubdir.txt"), "version1".getBytes(StandardCharsets.UTF_8));
+        pluginUrl = createPlugin(pluginDir,
+                "description", "fake desc",
+                "version", "2.0",
+                "elasticsearch.version", Version.CURRENT.toString(),
+                "java.version", System.getProperty("java.specification.version"),
+                "jvm", "true",
+                "classname", "FakePlugin");
+ 
+        assertStatusOk(String.format(Locale.ROOT, "install %s --url %s --verbose", pluginName, pluginUrl));
 
-        assertFileContent(pluginConfigDir, "test.txt", "version1\n");
-        assertFileContent(pluginConfigDir, "test.txt.new", "version2\n");
-        assertFileContent(pluginConfigDir, "dir/testdir.txt", "version1\n");
-        assertFileContent(pluginConfigDir, "dir/subdir/testsubdir.txt", "version1\n");
+        assertFileContent(pluginConfigDir, "test.txt", "version1");
+        assertFileContent(pluginConfigDir, "test.txt.new", "version2");
+        assertFileContent(pluginConfigDir, "dir/testdir.txt", "version1");
+        assertFileContent(pluginConfigDir, "dir/subdir/testsubdir.txt", "version1");
 
         // Removing
         assertStatusOk("remove " + pluginName);
-        assertFileContent(pluginConfigDir, "test.txt", "version1\n");
-        assertFileContent(pluginConfigDir, "test.txt.new", "version2\n");
-        assertFileContent(pluginConfigDir, "dir/testdir.txt", "version1\n");
-        assertFileContent(pluginConfigDir, "dir/subdir/testsubdir.txt", "version1\n");
+        assertFileContent(pluginConfigDir, "test.txt", "version1");
+        assertFileContent(pluginConfigDir, "test.txt.new", "version2");
+        assertFileContent(pluginConfigDir, "dir/testdir.txt", "version1");
+        assertFileContent(pluginConfigDir, "dir/subdir/testsubdir.txt", "version1");
 
         // Installing a new plugin version
         /*
@@ -171,38 +239,54 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         - config/dir/testdir2.txt (version1)
         - config/dir/subdir/testsubdir.txt (version2)
          */
-        assertStatusOk(String.format(Locale.ROOT, "install %s --url %s --verbose", pluginName, getPluginUrlForResource("plugin_with_config_v3.zip")));
+        Files.write(pluginDir.resolve("config").resolve("test.txt"), "version3".getBytes(StandardCharsets.UTF_8));
+        Files.write(pluginDir.resolve("config").resolve("test2.txt"), "version1".getBytes(StandardCharsets.UTF_8));
+        Files.write(pluginDir.resolve("config").resolve("dir").resolve("testdir.txt"), "version2".getBytes(StandardCharsets.UTF_8));
+        Files.write(pluginDir.resolve("config").resolve("dir").resolve("testdir2.txt"), "version1".getBytes(StandardCharsets.UTF_8));
+        Files.write(pluginDir.resolve("config").resolve("dir").resolve("subdir").resolve("testsubdir.txt"), "version2".getBytes(StandardCharsets.UTF_8));
+        pluginUrl = createPlugin(pluginDir,
+                "description", "fake desc",
+                "version", "3.0",
+                "elasticsearch.version", Version.CURRENT.toString(),
+                "java.version", System.getProperty("java.specification.version"),
+                "jvm", "true",
+                "classname", "FakePlugin");
 
-        assertFileContent(pluginConfigDir, "test.txt", "version1\n");
-        assertFileContent(pluginConfigDir, "test2.txt", "version1\n");
-        assertFileContent(pluginConfigDir, "test.txt.new", "version3\n");
-        assertFileContent(pluginConfigDir, "dir/testdir.txt", "version1\n");
-        assertFileContent(pluginConfigDir, "dir/testdir.txt.new", "version2\n");
-        assertFileContent(pluginConfigDir, "dir/testdir2.txt", "version1\n");
-        assertFileContent(pluginConfigDir, "dir/subdir/testsubdir.txt", "version1\n");
-        assertFileContent(pluginConfigDir, "dir/subdir/testsubdir.txt.new", "version2\n");
+        assertStatusOk(String.format(Locale.ROOT, "install %s --url %s --verbose", pluginName, pluginUrl));
+
+        assertFileContent(pluginConfigDir, "test.txt", "version1");
+        assertFileContent(pluginConfigDir, "test2.txt", "version1");
+        assertFileContent(pluginConfigDir, "test.txt.new", "version3");
+        assertFileContent(pluginConfigDir, "dir/testdir.txt", "version1");
+        assertFileContent(pluginConfigDir, "dir/testdir.txt.new", "version2");
+        assertFileContent(pluginConfigDir, "dir/testdir2.txt", "version1");
+        assertFileContent(pluginConfigDir, "dir/subdir/testsubdir.txt", "version1");
+        assertFileContent(pluginConfigDir, "dir/subdir/testsubdir.txt.new", "version2");
     }
 
     // For #7152
     @Test
     public void testLocalPluginInstallWithBinOnly_7152() throws Exception {
-        String pluginName = "plugin-test";
+        String pluginName = "fake-plugin";
+        Path pluginDir = createTempDir().resolve(pluginName);
+        // create bin/tool
+        Files.createDirectories(pluginDir.resolve("bin"));
+        Files.createFile(pluginDir.resolve("bin").resolve("tool"));;
+        String pluginUrl = createPlugin(pluginDir,
+            "description", "fake desc",
+            "version", "1.0",
+            "elasticsearch.version", Version.CURRENT.toString(),
+            "java.version", System.getProperty("java.specification.version"),
+            "jvm", "true",
+            "classname", "FakePlugin");
+        
         Environment env = initialSettings.v2();
         Path binDir = env.homeFile().resolve("bin");
         Path pluginBinDir = binDir.resolve(pluginName);
 
-        assertStatusOk(String.format(Locale.ROOT, "install %s --url %s --verbose", pluginName, getPluginUrlForResource("plugin_with_bin_only.zip")));
+        assertStatusOk(String.format(Locale.ROOT, "install %s --url %s --verbose", pluginName, pluginUrl));
         assertThatPluginIsListed(pluginName);
         assertDirectoryExists(pluginBinDir);
-    }
-
-    @Test
-    public void testSitePluginWithSourceDoesNotInstall() throws Exception {
-        String pluginName = "plugin-with-source";
-        String cmd = String.format(Locale.ROOT, "install %s --url %s --verbose", pluginName, getPluginUrlForResource("plugin_with_sourcefiles.zip"));
-        int status = new PluginManagerCliParser(terminal).execute(args(cmd));
-        assertThat(status, is(USAGE.status()));
-        assertThat(terminal.getTerminalOutput(), hasItem(containsString("Plugin installation assumed to be site plugin, but contains source code, aborting installation")));
     }
 
     @Test
@@ -220,18 +304,33 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testInstallPlugin() throws IOException {
-        String pluginName = "plugin-classfile";
-        assertStatusOk(String.format(Locale.ROOT, "install %s --url %s --verbose", pluginName, getPluginUrlForResource("plugin_with_classfile.zip")));
-        assertThatPluginIsListed("plugin-classfile");
+        String pluginName = "fake-plugin";
+        Path pluginDir = createTempDir().resolve(pluginName);
+        String pluginUrl = createPlugin(pluginDir,
+            "description", "fake desc",
+            "version", "1.0",
+            "elasticsearch.version", Version.CURRENT.toString(),
+            "java.version", System.getProperty("java.specification.version"),
+            "jvm", "true",
+            "classname", "FakePlugin");
+        assertStatusOk(String.format(Locale.ROOT, "install %s --url %s --verbose", pluginName, pluginUrl));
+        assertThatPluginIsListed(pluginName);
     }
 
     @Test
     public void testInstallSitePlugin() throws IOException {
-        String pluginName = "plugin-site";
-        assertStatusOk(String.format(Locale.ROOT, "install %s --url %s --verbose", pluginName, getPluginUrlForResource("plugin_without_folders.zip")));
+        String pluginName = "fake-plugin";
+        Path pluginDir = createTempDir().resolve(pluginName);
+        Files.createDirectories(pluginDir.resolve("_site"));
+        Files.createFile(pluginDir.resolve("_site").resolve("somefile"));
+        String pluginUrl = createPlugin(pluginDir,
+            "description", "fake desc",
+            "version", "1.0",
+            "site", "true");
+        assertStatusOk(String.format(Locale.ROOT, "install %s --url %s --verbose", pluginName, pluginUrl));
         assertThatPluginIsListed(pluginName);
         // We want to check that Plugin Manager moves content to _site
-        assertFileExists(initialSettings.v2().pluginsFile().resolve("plugin-site/_site"));
+        assertFileExists(initialSettings.v2().pluginsFile().resolve(pluginName).resolve("_site"));
     }
 
 
@@ -313,14 +412,24 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testRemovePlugin() throws Exception {
+        String pluginName = "plugintest";
+        Path pluginDir = createTempDir().resolve(pluginName);        
+        String pluginUrl = createPlugin(pluginDir,
+            "description", "fake desc",
+            "version", "1.0.0",
+            "elasticsearch.version", Version.CURRENT.toString(),
+            "java.version", System.getProperty("java.specification.version"),
+            "jvm", "true",
+            "classname", "FakePlugin");
+        
         // We want to remove plugin with plugin short name
-        singlePluginInstallAndRemove("plugintest", "plugintest", getPluginUrlForResource("plugin_without_folders.zip"));
+        singlePluginInstallAndRemove("plugintest", "plugintest", pluginUrl);
 
         // We want to remove plugin with groupid/artifactid/version form
-        singlePluginInstallAndRemove("groupid/plugintest/1.0.0", "plugintest", getPluginUrlForResource("plugin_without_folders.zip"));
+        singlePluginInstallAndRemove("groupid/plugintest/1.0.0", "plugintest", pluginUrl);
 
         // We want to remove plugin with groupid/artifactid form
-        singlePluginInstallAndRemove("groupid/plugintest", "plugintest", getPluginUrlForResource("plugin_without_folders.zip"));
+        singlePluginInstallAndRemove("groupid/plugintest", "plugintest", pluginUrl);
     }
 
     @Test
@@ -368,18 +477,6 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         } catch (IllegalArgumentException e) {
             // We expect that error
         }
-    }
-
-    /**
-     * Retrieve a URL string that represents the resource with the given {@code resourceName}.
-     * @param resourceName The resource name relative to {@link PluginManagerTests}.
-     * @return Never {@code null}.
-     * @throws NullPointerException if {@code resourceName} does not point to a valid resource.
-     */
-    private String getPluginUrlForResource(String resourceName) {
-        URI uri = URI.create(PluginManagerTests.class.getResource(resourceName).toString());
-
-        return "file://" + uri.getPath();
     }
 
     private Tuple<Settings, Environment> buildInitialSettings() throws IOException {

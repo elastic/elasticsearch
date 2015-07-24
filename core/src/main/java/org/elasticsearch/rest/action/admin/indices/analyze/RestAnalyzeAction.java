@@ -60,7 +60,6 @@ public class RestAnalyzeAction extends BaseRestHandler {
 
         AnalyzeRequest analyzeRequest = new AnalyzeRequest(request.param("index"));
         analyzeRequest.text(texts);
-        analyzeRequest.preferLocal(request.paramAsBoolean("prefer_local", analyzeRequest.preferLocalShard()));
         analyzeRequest.analyzer(request.param("analyzer"));
         analyzeRequest.field(request.param("field"));
         analyzeRequest.tokenizer(request.param("tokenizer"));
@@ -93,8 +92,6 @@ public class RestAnalyzeAction extends BaseRestHandler {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
-                    } else if ("prefer_local".equals(currentFieldName) && token == XContentParser.Token.VALUE_BOOLEAN) {
-                        analyzeRequest.preferLocal(parser.booleanValue());
                     } else if ("text".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
                         analyzeRequest.text(parser.text());
                     } else if ("text".equals(currentFieldName) && token == XContentParser.Token.START_ARRAY) {

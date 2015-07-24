@@ -19,6 +19,7 @@
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -110,10 +111,21 @@ public class PluginInfo implements Streamable, ToXContent {
             if (esVersion.equals(Version.CURRENT) == false) {
                 throw new IllegalArgumentException("Elasticsearch version [" + esVersionString + "] is too old for plugin [" + name + "]");
             }
+            String javaVersionString = props.getProperty("java.version");
+            if (javaVersionString == null) {
+                throw new IllegalArgumentException("Property [java.version] is missing for jvm plugin [" + name + "]");
+            }
+            JarHell.checkJavaVersion(name, javaVersionString);
             isolated = Boolean.parseBoolean(props.getProperty("isolated", "true"));
             classname = props.getProperty("classname");
             if (classname == null) {
                 throw new IllegalArgumentException("Property [classname] is missing for jvm plugin [" + name + "]");
+            }
+        }
+        
+        if (site) {
+            if (!Files.exists(dir.resolve("_site"))) {
+                throw new IllegalArgumentException("Plugin [" + name + "] is a site plugin but has no '_site/' directory");
             }
         }
 

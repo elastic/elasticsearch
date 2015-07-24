@@ -80,6 +80,11 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
         return GlobalOrdinalsBuilder.build(indexReader, this, indexSettings, breakerService, logger);
     }
 
+    @Override
+    protected AtomicOrdinalsFieldData empty(int maxDoc) {
+        return AbstractAtomicOrdinalsFieldData.empty();
+    }
+
     protected TermsEnum filter(Terms terms, LeafReader reader) throws IOException {
         TermsEnum iterator = terms.iterator();
         if (iterator == null) {

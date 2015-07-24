@@ -18,13 +18,13 @@
  */
 package org.elasticsearch.action.admin.indices.analyze;
 
-import org.elasticsearch.action.support.single.custom.SingleCustomOperationRequestBuilder;
+import org.elasticsearch.action.support.single.shard.SingleShardOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  *
  */
-public class AnalyzeRequestBuilder extends SingleCustomOperationRequestBuilder<AnalyzeRequest, AnalyzeResponse, AnalyzeRequestBuilder> {
+public class AnalyzeRequestBuilder extends SingleShardOperationRequestBuilder<AnalyzeRequest, AnalyzeResponse, AnalyzeRequestBuilder> {
 
     public AnalyzeRequestBuilder(ElasticsearchClient client, AnalyzeAction action) {
         super(client, action, new AnalyzeRequest());
@@ -32,15 +32,6 @@ public class AnalyzeRequestBuilder extends SingleCustomOperationRequestBuilder<A
 
     public AnalyzeRequestBuilder(ElasticsearchClient client, AnalyzeAction action, String index, String... text) {
         super(client, action, new AnalyzeRequest(index).text(text));
-    }
-
-    /**
-     * Sets the index to use to analyzer the text (for example, if it holds specific analyzers
-     * registered).
-     */
-    public AnalyzeRequestBuilder setIndex(String index) {
-        request.index(index);
-        return this;
     }
 
     /**

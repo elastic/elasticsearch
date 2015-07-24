@@ -72,7 +72,7 @@ public class MissingQueryBuilderTest extends BaseQueryTestCase<MissingQueryBuild
         final boolean existence = queryBuilder.existence();
         final boolean nullValue = queryBuilder.nullValue();
         String fieldPattern = queryBuilder.fieldPattern();
-        
+
         if (!existence && !nullValue) {
             throw new QueryParsingException(context, "missing must have either existence, or null_value, or both set to true");
         }
@@ -117,7 +117,7 @@ public class MissingQueryBuilderTest extends BaseQueryTestCase<MissingQueryBuild
                 }
                 // if _field_names are not indexed, we need to go the slow way
                 if (filter == null && fieldType != null) {
-                    filter = fieldType.rangeQuery(null, null, true, true, context);
+                    filter = fieldType.rangeQuery(null, null, true, true);
                 }
                 if (filter == null) {
                     filter = new TermRangeQuery(field, null, null, true, true);
@@ -174,7 +174,7 @@ public class MissingQueryBuilderTest extends BaseQueryTestCase<MissingQueryBuild
         missingQueryBuilder = new MissingQueryBuilder("field");
         assertNull(missingQueryBuilder.validate());
     }
-    
+
     @Test(expected = QueryParsingException.class)
     public void testBothNullValueAndExistenceFalse() throws IOException {
         QueryParseContext context = createContext();

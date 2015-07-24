@@ -825,3 +825,9 @@ For the record, official plugins which can use this new simplified form are:
 Fields used in alias filters no longer have to exist in the mapping upon alias creation time. Alias filters are now
 parsed at request time and then the fields in filters are resolved from the mapping, whereas before alias filters were
 parsed at alias creation time and the parsed form was kept around in memory.
+
+
+=== _analyze API
+
+The `prefer_local` has been removed from the _analyze api. The _analyze api is a light operation and the caller shouldn't
+be concerned about whether it executes on the node that receives the request or another node.

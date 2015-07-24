@@ -38,7 +38,7 @@ import org.elasticsearch.node.settings.NodeSettingsService;
  * node. The default is <tt>4</tt></li>
  * <p/>
  * <li><tt>cluster.routing.allocation.node_concurrent_recoveries</tt> -
- * restricts the number of concurrent recovery operations on a single node. The
+ * restricts the number of total concurrent shards initializing on a single node. The
  * default is <tt>2</tt></li>
  * </ul>
  * <p/>
@@ -106,7 +106,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
     public Decision canAllocate(RoutingNode node, RoutingAllocation allocation) {
         int currentRecoveries = 0;
         for (ShardRouting shard : node) {
-            if (shard.initializing() || shard.relocating()) {
+            if (shard.initializing()) {
                 currentRecoveries++;
             }
         }

@@ -256,14 +256,14 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                 if (this.timeZone != null) {
                     dateTimeZone = DateTimeZone.forID(this.timeZone);
                 }
-                query = ((DateFieldMapper.DateFieldType) mapper).rangeQuery(from, to, includeLower, includeUpper, dateTimeZone, forcedDateParser, parseContext);
+                query = ((DateFieldMapper.DateFieldType) mapper).rangeQuery(from, to, includeLower, includeUpper, dateTimeZone, forcedDateParser);
             } else  {
                 if (timeZone != null) {
                     throw new QueryParsingException(parseContext, "[range] time_zone can not be applied to non date field ["
                             + fieldName + "]");
                 }
                 //LUCENE 4 UPGRADE Mapper#rangeQuery should use bytesref as well?
-                query = mapper.rangeQuery(from, to, includeLower, includeUpper, parseContext);
+                query = mapper.rangeQuery(from, to, includeLower, includeUpper);
             }
         } else {
             if (timeZone != null) {

@@ -17,17 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.test.junit.listeners;
 
-/**
- */
-public interface DocumentTypeListener {
+import org.elasticsearch.test.StackTraces;
+import org.junit.runner.notification.Failure;
+import org.junit.runner.notification.RunListener;
 
-    /**
-     * Invoked just before a new document type has been created.
-     *
-     * @param mapper The new document mapper of the type being added
-     */
-    void beforeCreate(DocumentMapper mapper);
+import java.util.Map;
 
+public class AssertionErrorThreadDumpPrinter extends RunListener {
+    @Override
+    public void testFailure(Failure failure) throws Exception {
+        if (failure.getException() instanceof AssertionError) {
+            Map<Thread, StackTraceElement[]> allStackTraces = Thread.getAllStackTraces();
+            String threadStacks = StackTraces.formatThreadStacks(allStackTraces);
+            System.err.println(threadStacks);
+        }
+    }
 }

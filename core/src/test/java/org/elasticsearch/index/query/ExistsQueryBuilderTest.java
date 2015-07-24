@@ -58,7 +58,7 @@ public class ExistsQueryBuilderTest extends BaseQueryTestCase<ExistsQueryBuilder
                 if (fieldType == null) {
                     boolFilter.add(new TermRangeQuery(field, null, null, true, true), BooleanClause.Occur.SHOULD);
                 } else {
-                    boolFilter.add(fieldType.rangeQuery(null, null, true, true, context), BooleanClause.Occur.SHOULD);
+                    boolFilter.add(fieldType.rangeQuery(null, null, true, true), BooleanClause.Occur.SHOULD);
                 }
             }
         }

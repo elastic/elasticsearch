@@ -70,6 +70,10 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                 if (shard.relocatingNodeId() != null) {
                     continue;
                 }
+                // if we are allocating a replica because of index creation, no need to go and find a copy, there isn't one...
+                if (shard.allocatedPostIndexCreate() == false) {
+                    continue;
+                }
 
                 AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> shardStores = fetchData(shard, allocation);
                 if (shardStores.hasData() == false) {
@@ -113,6 +117,11 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
         while (unassignedIterator.hasNext()) {
             ShardRouting shard = unassignedIterator.next();
             if (shard.primary()) {
+                continue;
+            }
+
+            // if we are allocating a replica because of index creation, no need to go and find a copy, there isn't one...
+            if (shard.allocatedPostIndexCreate() == false) {
                 continue;
             }
 

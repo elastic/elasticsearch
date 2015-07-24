@@ -22,9 +22,14 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanFirstQuery;
 import org.apache.lucene.search.spans.SpanQuery;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.junit.Test;
 
 import java.io.IOException;
+
+import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
 
 public class SpanFirstQueryBuilderTest extends BaseQueryTestCase<SpanFirstQueryBuilder> {
 
@@ -54,12 +59,55 @@ public class SpanFirstQueryBuilderTest extends BaseQueryTestCase<SpanFirstQueryB
         } else {
             innerSpanQueryBuilder = new SpanTermQueryBuilder("name", "value");
         }
-        int end = 10;
+        int end = randomIntBetween(0, 10);
         if (randomBoolean()) {
-            end = -1;
+            end = randomIntBetween(-10, -1);
             totalExpectedErrors++;
         }
         SpanFirstQueryBuilder queryBuilder = new SpanFirstQueryBuilder(innerSpanQueryBuilder, end);
         assertValidate(queryBuilder, totalExpectedErrors);
+    }
+
+    /**
+     * test exception on missing `end` and `match` parameter in parser
+     */
+    @Test
+    public void testParseEnd() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        builder.startObject(SpanFirstQueryBuilder.NAME);
+        builder.field("match");
+        spanTermQuery("description", "jumped").toXContent(builder, null);
+        builder.endObject();
+        builder.endObject();
+
+        QueryParseContext context = createContext();
+        XContentParser parser = XContentFactory.xContent(builder.string()).createParser(builder.string());
+        context.reset(parser);
+        assertQueryHeader(parser, SpanFirstQueryBuilder.NAME);
+        try {
+            new SpanFirstQueryParser().fromXContent(context);
+            fail("missing [end] parameter should raise exception");
+        } catch (QueryParsingException e) {
+            assertTrue(e.getMessage().contains("spanFirst must have [end] set"));
+        }
+
+        builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        builder.startObject(SpanFirstQueryBuilder.NAME);
+        builder.field("end", 10);
+        builder.endObject();
+        builder.endObject();
+
+        context = createContext();
+        parser = XContentFactory.xContent(builder.string()).createParser(builder.string());
+        context.reset(parser);
+        assertQueryHeader(parser, SpanFirstQueryBuilder.NAME);
+        try {
+            new SpanFirstQueryParser().fromXContent(context);
+            fail("missing [match] parameter should raise exception");
+        } catch (QueryParsingException e) {
+            assertTrue(e.getMessage().contains("spanFirst must have [match] span query clause"));
+        }
     }
 }

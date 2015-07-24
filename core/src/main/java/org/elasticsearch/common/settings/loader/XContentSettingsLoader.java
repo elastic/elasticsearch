@@ -20,6 +20,7 @@
 package org.elasticsearch.common.settings.loader;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -65,6 +66,23 @@ public abstract class XContentSettingsLoader implements SettingsLoader {
             throw new ElasticsearchParseException("malformed, expected settings to start with 'object', instead was [{}]", token);
         }
         serializeObject(settings, sb, path, jp, null);
+
+        // ensure we reached the end of the stream
+        Exception exception = null;
+        XContentParser.Token lastToken = null;
+        try {
+            while (!jp.isClosed() && (lastToken = jp.nextToken()) == null);
+        } catch (Exception e) {
+            exception = e;
+        }
+        if (exception != null || lastToken != null) {
+            throw new ElasticsearchParseException(
+                    "malformed, expected end of settings but encountered additional content starting at columnNumber: [{}], lineNumber: [{}]",
+                    jp.getTokenLocation().columnNumber,
+                    jp.getTokenLocation().lineNumber
+            );
+        }
+
         return settings;
     }
 

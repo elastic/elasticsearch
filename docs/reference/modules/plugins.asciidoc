@@ -41,8 +41,18 @@ for example:
 bin/plugin --url file:///path/to/plugin --install plugin-name
 -----------------------------------
 
-
 You can run `bin/plugin -h`.
+
+[float]
+==== Using a custom install location
+
+When installing or removing plugins, in order to use a custom plugins folder (other than `$ES_HOME/plugins`), you will need to pass the `-Des.plugins.path=/path/to/plugins_folder` flag to the plugin script.
+For example:
+
+[source,shell]
+-----------------------------------
+plugin -Des.path.plugins=/path/to/plugins_folder --install <org>/<user/component>/<version>
+-----------------------------------
 
 [float]
 [[site-plugins]]

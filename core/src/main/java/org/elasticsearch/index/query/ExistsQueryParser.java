@@ -24,7 +24,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 
@@ -111,7 +110,7 @@ public class ExistsQueryParser implements QueryParser {
             }
             // if _field_names are not indexed, we need to go the slow way
             if (filter == null && fieldType != null) {
-                filter = fieldType.rangeQuery(null, null, true, true, parseContext);
+                filter = fieldType.rangeQuery(null, null, true, true);
             }
             if (filter == null) {
                 filter = new TermRangeQuery(field, null, null, true, true);

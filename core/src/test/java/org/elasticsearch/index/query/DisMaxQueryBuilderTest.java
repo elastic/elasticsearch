@@ -87,11 +87,6 @@ public class DisMaxQueryBuilderTest extends BaseQueryTestCase<DisMaxQueryBuilder
         assertNull(disMaxBuilder.toQuery(context));
     }
 
-    @Test(expected=NullPointerException.class)
-    public void testAddNull() {
-        new DisMaxQueryBuilder().add(null);
-    }
-
     @Test
     public void testValidate() {
         DisMaxQueryBuilder disMaxQuery = new DisMaxQueryBuilder();
@@ -99,7 +94,11 @@ public class DisMaxQueryBuilderTest extends BaseQueryTestCase<DisMaxQueryBuilder
         int totalExpectedErrors = 0;
         for (int i = 0; i < iters; i++) {
             if (randomBoolean()) {
-                disMaxQuery.add(RandomQueryBuilder.createInvalidQuery(random()));
+                if (randomBoolean()) {
+                    disMaxQuery.add(RandomQueryBuilder.createInvalidQuery(random()));
+                } else {
+                    disMaxQuery.add(null);
+                }
                 totalExpectedErrors++;
             } else {
                 disMaxQuery.add(RandomQueryBuilder.createQuery(random()));

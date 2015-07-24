@@ -52,7 +52,7 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
      * Add a sub-query to this disjunction.
      */
     public DisMaxQueryBuilder add(QueryBuilder queryBuilder) {
-        queries.add(Objects.requireNonNull(queryBuilder));
+        queries.add(queryBuilder);
         return this;
     }
 

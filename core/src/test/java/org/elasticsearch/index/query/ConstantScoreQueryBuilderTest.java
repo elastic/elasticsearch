@@ -62,20 +62,17 @@ public class ConstantScoreQueryBuilderTest extends BaseQueryTestCase<ConstantSco
 
     @Test
     public void testValidate() {
-        QueryBuilder innerQuery;
+        QueryBuilder innerQuery = null;
         int totalExpectedErrors = 0;
         if (randomBoolean()) {
-            innerQuery = RandomQueryBuilder.createInvalidQuery(random());
+            if (randomBoolean()) {
+                innerQuery = RandomQueryBuilder.createInvalidQuery(random());
+            }
             totalExpectedErrors++;
         } else {
             innerQuery = RandomQueryBuilder.createQuery(random());
         }
         ConstantScoreQueryBuilder constantScoreQuery = new ConstantScoreQueryBuilder(innerQuery);
         assertValidate(constantScoreQuery, totalExpectedErrors);
-    }
-
-    @Test(expected=NullPointerException.class)
-    public void testNullConstructor() {
-        new ConstantScoreQueryBuilder(null);
     }
 }

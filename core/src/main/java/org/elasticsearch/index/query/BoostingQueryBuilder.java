@@ -50,15 +50,7 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
 
     private float negativeBoost = -1;
 
-    static final BoostingQueryBuilder PROTOTYPE = new BoostingQueryBuilder();
-
-    /**
-     * this constructor only used for prototype
-     */
-    private BoostingQueryBuilder() {
-        this.positiveQuery = null;
-        this.negativeQuery = null;
-    }
+    static final BoostingQueryBuilder PROTOTYPE = new BoostingQueryBuilder(null, null);
 
     /**
      * Create a new {@link BoostingQueryBuilder}
@@ -67,8 +59,8 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
      * @param negativeQuery the negative query for this boosting query.
      */
     public BoostingQueryBuilder(QueryBuilder positiveQuery, QueryBuilder negativeQuery) {
-        this.positiveQuery = Objects.requireNonNull(positiveQuery);
-        this.negativeQuery = Objects.requireNonNull(negativeQuery);
+        this.positiveQuery = positiveQuery;
+        this.negativeQuery = negativeQuery;
     }
 
     /**
@@ -118,8 +110,16 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
         if (negativeBoost < 0) {
             validationException = addValidationError("query requires negativeBoost to be set to positive value", validationException);
         }
-        validationException = validateInnerQuery(negativeQuery, validationException);
-        validationException = validateInnerQuery(positiveQuery, validationException);
+        if (negativeQuery == null) {
+            validationException = addValidationError("inner clause [negative] cannot be null.", validationException);
+        } else {
+            validationException = validateInnerQuery(negativeQuery, validationException);
+        }
+        if (positiveQuery == null) {
+            validationException = addValidationError("inner clause [positive] cannot be null.", validationException);
+        } else {
+            validationException = validateInnerQuery(positiveQuery, validationException);
+        }
         return validationException;
     }
 

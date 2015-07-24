@@ -89,22 +89,16 @@ public class OrQueryBuilderTest extends BaseQueryTestCase<OrQueryBuilder> {
         int totalExpectedErrors = 0;
         for (int i = 0; i < iters; i++) {
             if (randomBoolean()) {
-                orQuery.add(RandomQueryBuilder.createInvalidQuery(random()));
+                if (randomBoolean()) {
+                    orQuery.add(RandomQueryBuilder.createInvalidQuery(random()));
+                } else {
+                    orQuery.add(null);
+                }
                 totalExpectedErrors++;
             } else {
                 orQuery.add(RandomQueryBuilder.createQuery(random()));
             }
         }
         assertValidate(orQuery, totalExpectedErrors);
-    }
-
-    @Test(expected=NullPointerException.class)
-    public void testNullConstructor() {
-        new OrQueryBuilder(EmptyQueryBuilder.PROTOTYPE, null);
-    }
-
-    @Test(expected=NullPointerException.class)
-    public void testAddNull() {
-        new OrQueryBuilder().add(null);
     }
 }

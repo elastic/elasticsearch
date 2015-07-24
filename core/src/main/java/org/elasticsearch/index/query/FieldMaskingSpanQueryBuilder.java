@@ -38,13 +38,7 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
 
     private final String fieldName;
 
-    static final FieldMaskingSpanQueryBuilder PROTOTYPE = new FieldMaskingSpanQueryBuilder();
-
-    // only used for prototype
-    private FieldMaskingSpanQueryBuilder() {
-        this.queryBuilder = null;
-        this.fieldName = null;
-    }
+    static final FieldMaskingSpanQueryBuilder PROTOTYPE = new FieldMaskingSpanQueryBuilder(null, null);
 
     /**
      * Constructs a new {@link FieldMaskingSpanQueryBuilder} given an inner {@link SpanQueryBuilder} for
@@ -53,8 +47,8 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
      * @param fieldName the field name
      */
     public FieldMaskingSpanQueryBuilder(SpanQueryBuilder queryBuilder, String fieldName) {
-        this.queryBuilder = Objects.requireNonNull(queryBuilder);
-        this.fieldName = Objects.requireNonNull(fieldName);
+        this.queryBuilder = queryBuilder;
+        this.fieldName = fieldName;
     }
 
     /**
@@ -95,11 +89,16 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
 
     @Override
     public QueryValidationException validate() {
-        QueryValidationException validationExceptions = validateInnerQuery(queryBuilder, null);
-        if (fieldName == null || fieldName.isEmpty()) {
-            validationExceptions = addValidationError("field name is null or empty", validationExceptions);
+        QueryValidationException validationException = null;
+        if (queryBuilder == null) {
+            validationException = addValidationError("inner clause [query] cannot be null.", validationException);
+        } else {
+            validationException = validateInnerQuery(queryBuilder, validationException);
         }
-        return validationExceptions;
+        if (fieldName == null || fieldName.isEmpty()) {
+            validationException = addValidationError("field name is null or empty", validationException);
+        }
+        return validationException;
     }
 
     @Override

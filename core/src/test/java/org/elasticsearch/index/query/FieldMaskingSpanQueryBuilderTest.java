@@ -55,32 +55,26 @@ public class FieldMaskingSpanQueryBuilderTest extends BaseQueryTestCase<FieldMas
 
     @Test
     public void testValidate() {
-        String fieldName;
-        SpanQueryBuilder spanQueryBuilder;
+        String fieldName = null;
+        SpanQueryBuilder spanQueryBuilder = null;
         int totalExpectedErrors = 0;
         if (randomBoolean()) {
             fieldName = "fieldName";
         } else {
-            fieldName = "";
+            if (randomBoolean()) {
+                fieldName = "";
+            }
             totalExpectedErrors++;
         }
         if (randomBoolean()) {
-            spanQueryBuilder = new SpanTermQueryBuilder("", "test");
+            if (randomBoolean()) {
+                spanQueryBuilder = new SpanTermQueryBuilder("", "test");
+            }
             totalExpectedErrors++;
         } else {
             spanQueryBuilder = new SpanTermQueryBuilder("name", "value");
         }
         FieldMaskingSpanQueryBuilder queryBuilder = new FieldMaskingSpanQueryBuilder(spanQueryBuilder, fieldName);
         assertValidate(queryBuilder, totalExpectedErrors);
-    }
-
-    @Test(expected=NullPointerException.class)
-    public void testNullFieldName() {
-        new FieldMaskingSpanQueryBuilder(new SpanTermQueryBuilder("name", "value"), null);
-    }
-
-    @Test(expected=NullPointerException.class)
-    public void testNullInnerQuery() {
-            new FieldMaskingSpanQueryBuilder(null, "");
     }
 }

@@ -43,17 +43,14 @@ public class QueryFilterBuilderTest extends BaseQueryTestCase<QueryFilterBuilder
         return new QueryFilterBuilder(innerQuery);
     }
 
-    @Test(expected=NullPointerException.class)
-    public void testQueryFilterBuilderNull() {
-        new QueryFilterBuilder(null);
-    }
-
     @Test
     public void testValidate() {
-        QueryBuilder innerQuery;
+        QueryBuilder innerQuery = null;
         int totalExpectedErrors = 0;
         if (randomBoolean()) {
-            innerQuery = RandomQueryBuilder.createInvalidQuery(random());
+            if (randomBoolean()) {
+                innerQuery = RandomQueryBuilder.createInvalidQuery(random());
+            }
             totalExpectedErrors++;
         } else {
             innerQuery = RandomQueryBuilder.createQuery(random());

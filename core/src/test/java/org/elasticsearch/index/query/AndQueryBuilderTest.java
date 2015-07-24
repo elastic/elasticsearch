@@ -81,16 +81,6 @@ public class AndQueryBuilderTest extends BaseQueryTestCase<AndQueryBuilder> {
         context.indexQueryParserService().queryParser(AndQueryBuilder.PROTOTYPE.getName()).fromXContent(context);
     }
 
-    @Test(expected=NullPointerException.class)
-    public void testNullConstructor() {
-        new AndQueryBuilder(EmptyQueryBuilder.PROTOTYPE, null);
-    }
-
-    @Test(expected=NullPointerException.class)
-    public void testAddNull() {
-        new AndQueryBuilder(EmptyQueryBuilder.PROTOTYPE).add(null);
-    }
-
     @Test
     public void testValidate() {
         AndQueryBuilder andQuery = new AndQueryBuilder();
@@ -98,7 +88,11 @@ public class AndQueryBuilderTest extends BaseQueryTestCase<AndQueryBuilder> {
         int totalExpectedErrors = 0;
         for (int i = 0; i < iters; i++) {
             if (randomBoolean()) {
-                andQuery.add(RandomQueryBuilder.createInvalidQuery(random()));
+                if (randomBoolean()) {
+                    andQuery.add(RandomQueryBuilder.createInvalidQuery(random()));
+                } else {
+                    andQuery.add(null);
+                }
                 totalExpectedErrors++;
             } else {
                 andQuery.add(RandomQueryBuilder.createQuery(random()));

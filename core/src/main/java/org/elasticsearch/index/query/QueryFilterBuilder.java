@@ -40,7 +40,7 @@ public class QueryFilterBuilder extends AbstractQueryBuilder<QueryFilterBuilder>
 
     private final QueryBuilder queryBuilder;
 
-    static final QueryFilterBuilder PROTOTYPE = new QueryFilterBuilder();
+    static final QueryFilterBuilder PROTOTYPE = new QueryFilterBuilder(null);
 
     /**
      * A filter that simply wraps a query.
@@ -48,11 +48,7 @@ public class QueryFilterBuilder extends AbstractQueryBuilder<QueryFilterBuilder>
      * @param queryBuilder The query to wrap as a filter
      */
     public QueryFilterBuilder(QueryBuilder queryBuilder) {
-        this.queryBuilder = Objects.requireNonNull(queryBuilder);
-    }
-
-    private QueryFilterBuilder() {
-        this.queryBuilder = null;
+        this.queryBuilder = queryBuilder;
     }
 
     /**

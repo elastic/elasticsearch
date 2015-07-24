@@ -45,22 +45,21 @@ public class SpanFirstQueryBuilderTest extends BaseQueryTestCase<SpanFirstQueryB
         int totalExpectedErrors = 0;
         SpanQueryBuilder innerSpanQueryBuilder;
         if (randomBoolean()) {
-            innerSpanQueryBuilder = new SpanTermQueryBuilder("", "test");
+            if (randomBoolean()) {
+                innerSpanQueryBuilder = new SpanTermQueryBuilder("", "test");
+            } else {
+                innerSpanQueryBuilder = null;
+            }
             totalExpectedErrors++;
         } else {
             innerSpanQueryBuilder = new SpanTermQueryBuilder("name", "value");
         }
-        SpanFirstQueryBuilder queryBuilder = new SpanFirstQueryBuilder(innerSpanQueryBuilder, 10);
+        int end = 10;
+        if (randomBoolean()) {
+            end = -1;
+            totalExpectedErrors++;
+        }
+        SpanFirstQueryBuilder queryBuilder = new SpanFirstQueryBuilder(innerSpanQueryBuilder, end);
         assertValidate(queryBuilder, totalExpectedErrors);
-    }
-
-    @Test(expected=IllegalArgumentException.class)
-    public void testEndValueNegative() {
-        new SpanFirstQueryBuilder(new SpanTermQueryBuilder("name", "value"), -1);
-    }
-
-    @Test(expected=NullPointerException.class)
-    public void testInnerQueryNull() {
-        new SpanFirstQueryBuilder(null, 1);
     }
 }

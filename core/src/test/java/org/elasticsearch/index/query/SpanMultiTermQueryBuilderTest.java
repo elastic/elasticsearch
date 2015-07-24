@@ -45,18 +45,17 @@ public class SpanMultiTermQueryBuilderTest extends BaseQueryTestCase<SpanMultiTe
         int totalExpectedErrors = 0;
         MultiTermQueryBuilder multiTermQueryBuilder;
         if (randomBoolean()) {
-            multiTermQueryBuilder = new RangeQueryBuilder("");
+            if (randomBoolean()) {
+                multiTermQueryBuilder = new RangeQueryBuilder("");
+            } else {
+                multiTermQueryBuilder = null;
+            }
             totalExpectedErrors++;
         } else {
             multiTermQueryBuilder = new RangeQueryBuilder("field");
         }
         SpanMultiTermQueryBuilder queryBuilder = new SpanMultiTermQueryBuilder(multiTermQueryBuilder);
         assertValidate(queryBuilder, totalExpectedErrors);
-    }
-
-    @Test(expected = NullPointerException.class)
-    public void testInnerQueryNull() {
-        new SpanMultiTermQueryBuilder(null);
     }
 
     /**

@@ -37,7 +37,7 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
 
     private final int end;
 
-    static final SpanFirstQueryBuilder SPAN_FIRST_QUERY_BUILDER = new SpanFirstQueryBuilder();
+    static final SpanFirstQueryBuilder SPAN_FIRST_QUERY_BUILDER = new SpanFirstQueryBuilder(null, -1);
 
     /**
      * Query that matches spans queries defined in <code>matchBuilder</code>
@@ -47,20 +47,8 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
      * @throws IllegalArgumentException for negative <code>end</code> positions
      */
     public SpanFirstQueryBuilder(SpanQueryBuilder matchBuilder, int end) {
-        this.matchBuilder = Objects.requireNonNull(matchBuilder);
-        if (end >= 0) {
-            this.end = end;
-        } else {
-            throw new IllegalArgumentException("end parameter needs to be positive");
-        }
-    }
-
-    /**
-     * only used for prototype
-     */
-    private SpanFirstQueryBuilder() {
-        this.matchBuilder = null;
-        this.end = -1;
+        this.matchBuilder = matchBuilder;
+        this.end = end;
     }
 
     /**
@@ -96,7 +84,16 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
 
     @Override
     public QueryValidationException validate() {
-        return validateInnerQuery(matchBuilder, null);
+        QueryValidationException validationException = null;
+        if (matchBuilder == null) {
+            validationException = addValidationError("inner clause [match] cannot be null.", validationException);
+        } else {
+            validationException = validateInnerQuery(matchBuilder, validationException);
+        }
+        if (end < 0) {
+            validationException = addValidationError("parameter [end] needs to be positive.", validationException);
+        }
+        return validationException;
     }
 
     @Override

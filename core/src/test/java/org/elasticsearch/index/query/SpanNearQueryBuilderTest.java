@@ -63,7 +63,11 @@ public class SpanNearQueryBuilderTest extends BaseQueryTestCase<SpanNearQueryBui
         int clauses = randomIntBetween(1, 10);
         for (int i = 0; i < clauses; i++) {
             if (randomBoolean()) {
-                queryBuilder.clause(new SpanTermQueryBuilder("", "test"));
+                if (randomBoolean()) {
+                    queryBuilder.clause(new SpanTermQueryBuilder("", "test"));
+                } else {
+                    queryBuilder.clause(null);
+                }
                 totalExpectedErrors++;
             } else {
                 queryBuilder.clause(new SpanTermQueryBuilder("name", "value"));

@@ -66,14 +66,22 @@ public class SpanNotQueryBuilderTest extends BaseQueryTestCase<SpanNotQueryBuild
         int totalExpectedErrors = 0;
         SpanQueryBuilder include;
         if (randomBoolean()) {
-            include = new SpanTermQueryBuilder("", "test");
+            if (randomBoolean()) {
+                include = new SpanTermQueryBuilder("", "test");
+            } else {
+                include = null;
+            }
             totalExpectedErrors++;
         } else {
             include = new SpanTermQueryBuilder("name", "value");
         }
         SpanQueryBuilder exclude;
         if (randomBoolean()) {
-            exclude = new SpanTermQueryBuilder("", "test");
+            if (randomBoolean()) {
+                exclude = new SpanTermQueryBuilder("", "test");
+            } else {
+                exclude = null;
+            }
             totalExpectedErrors++;
         } else {
             exclude = new SpanTermQueryBuilder("name", "value");
@@ -205,15 +213,5 @@ public class SpanNotQueryBuilderTest extends BaseQueryTestCase<SpanNotQueryBuild
         } catch (QueryParsingException e) {
             assertThat("QueryParsingException should have been caught", e.getDetailedMessage(), containsString("spanNot can either use [dist] or [pre] & [post] (or none)"));
         }
-    }
-
-    @Test(expected=NullPointerException.class)
-    public void testNullInclude() {
-        new SpanNotQueryBuilder(null, new SpanTermQueryBuilder("name", "value"));
-    }
-
-    @Test(expected=NullPointerException.class)
-    public void testNullExclude() {
-        new SpanNotQueryBuilder(new SpanTermQueryBuilder("name", "value"), null);
     }
 }

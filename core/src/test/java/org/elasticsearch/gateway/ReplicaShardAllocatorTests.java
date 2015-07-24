@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gateway;
 
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -42,8 +43,10 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -73,6 +76,33 @@ public class ReplicaShardAllocatorTests extends ElasticsearchAllocationTestCase 
         testAllocator.allocateUnassigned(allocation);
         assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(1));
         assertThat(allocation.routingNodes().unassigned().ignored().get(0).shardId(), equalTo(shardId));
+    }
+
+    /**
+     * Verifies that on index creation, we don't go and fetch data, but keep the replica shard unassigned to let
+     * the shard allocator to allocate it. There isn't a copy around to find anyhow.
+     */
+    @Test
+    public void testNoAsyncFetchOnIndexCreation() {
+        RoutingAllocation allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders(), Settings.EMPTY, UnassignedInfo.Reason.INDEX_CREATED);
+        testAllocator.clean();
+        testAllocator.allocateUnassigned(allocation);
+        assertThat(testAllocator.getFetchDataCalledAndClean(), equalTo(false));
+        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(1));
+        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).get(0).shardId(), equalTo(shardId));
+    }
+
+    /**
+     * Verifies that for anything but index creation, fetch data ends up being called, since we need to go and try
+     * and find a better copy for the shard.
+     */
+    @Test
+    public void testAsyncFetchOnAnythingButIndexCreation() {
+        UnassignedInfo.Reason reason = RandomPicks.randomFrom(getRandom(), EnumSet.complementOf(EnumSet.of(UnassignedInfo.Reason.INDEX_CREATED)));
+        RoutingAllocation allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders(), Settings.EMPTY, reason);
+        testAllocator.clean();
+        testAllocator.allocateUnassigned(allocation);
+        assertThat("failed with reason " + reason, testAllocator.getFetchDataCalledAndClean(), equalTo(true));
     }
 
     /**
@@ -253,7 +283,7 @@ public class ReplicaShardAllocatorTests extends ElasticsearchAllocationTestCase 
     }
 
     private RoutingAllocation onePrimaryOnNode1And1Replica(AllocationDeciders deciders) {
-        return onePrimaryOnNode1And1Replica(deciders, Settings.EMPTY, UnassignedInfo.Reason.INDEX_CREATED);
+        return onePrimaryOnNode1And1Replica(deciders, Settings.EMPTY, UnassignedInfo.Reason.CLUSTER_RECOVERED);
     }
 
     private RoutingAllocation onePrimaryOnNode1And1Replica(AllocationDeciders deciders, Settings settings, UnassignedInfo.Reason reason) {
@@ -283,7 +313,7 @@ public class ReplicaShardAllocatorTests extends ElasticsearchAllocationTestCase 
                 .add(IndexRoutingTable.builder(shardId.getIndex())
                                 .addIndexShard(new IndexShardRoutingTable.Builder(shardId)
                                         .addShard(TestShardRouting.newShardRouting(shardId.getIndex(), shardId.getId(), node1.id(), true, ShardRoutingState.STARTED, 10))
-                                        .addShard(TestShardRouting.newShardRouting(shardId.getIndex(), shardId.getId(), node2.id(), false, ShardRoutingState.INITIALIZING, 10))
+                                        .addShard(TestShardRouting.newShardRouting(shardId.getIndex(), shardId.getId(), node2.id(), null, null, false, ShardRoutingState.INITIALIZING, 10, new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null)))
                                         .build())
                 )
                 .build();
@@ -297,6 +327,7 @@ public class ReplicaShardAllocatorTests extends ElasticsearchAllocationTestCase 
     class TestAllocator extends ReplicaShardAllocator {
 
         private Map<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData> data = null;
+        private AtomicBoolean fetchDataCalled = new AtomicBoolean(false);
 
         public TestAllocator() {
             super(Settings.EMPTY);
@@ -308,6 +339,10 @@ public class ReplicaShardAllocatorTests extends ElasticsearchAllocationTestCase 
 
         public void cleanWithEmptyData() {
             data = new HashMap<>();
+        }
+
+        public boolean getFetchDataCalledAndClean() {
+            return fetchDataCalled.getAndSet(false);
         }
 
         public TestAllocator addData(DiscoveryNode node, boolean allocated, String syncId, StoreFileMetaData... files) {
@@ -328,6 +363,7 @@ public class ReplicaShardAllocatorTests extends ElasticsearchAllocationTestCase 
 
         @Override
         protected AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> fetchData(ShardRouting shard, RoutingAllocation allocation) {
+            fetchDataCalled.set(true);
             Map<DiscoveryNode, TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> tData = null;
             if (data != null) {
                 tData = new HashMap<>();

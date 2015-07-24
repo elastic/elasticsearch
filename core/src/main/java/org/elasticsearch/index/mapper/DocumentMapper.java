@@ -168,8 +168,6 @@ public class DocumentMapper implements ToXContent {
 
     private boolean hasNestedObjects = false;
 
-    private final Query typeFilter;
-
     private final ReleasableLock mappingWriteLock;
     private final ReentrantReadWriteLock mappingLock;
 
@@ -190,7 +188,6 @@ public class DocumentMapper implements ToXContent {
                 meta);
         this.documentParser = new DocumentParser(indexSettings, docMapperParser, this, new ReleasableLock(mappingLock.readLock()));
 
-        this.typeFilter = typeMapper().fieldType().termQuery(type, null);
         this.mappingWriteLock = new ReleasableLock(mappingLock.writeLock());
         this.mappingLock = mappingLock;
 
@@ -307,7 +304,7 @@ public class DocumentMapper implements ToXContent {
     }
 
     public Query typeFilter() {
-        return this.typeFilter;
+        return typeMapper().fieldType().termQuery(type, null);
     }
 
     public boolean hasNestedObjects() {

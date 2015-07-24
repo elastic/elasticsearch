@@ -48,7 +48,7 @@ public class OrQueryBuilder extends AbstractQueryBuilder<OrQueryBuilder> {
 
     public OrQueryBuilder(QueryBuilder... filters) {
         for (QueryBuilder filter : filters) {
-            this.filters.add(Objects.requireNonNull(filter));
+            this.filters.add(filter);
         }
     }
 
@@ -57,7 +57,7 @@ public class OrQueryBuilder extends AbstractQueryBuilder<OrQueryBuilder> {
      * No <tt>null</tt> value allowed.
      */
     public OrQueryBuilder add(QueryBuilder filterBuilder) {
-        filters.add(Objects.requireNonNull(filterBuilder));
+        filters.add(filterBuilder);
         return this;
     }
 

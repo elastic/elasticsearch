@@ -37,14 +37,10 @@ public class NotQueryBuilder extends AbstractQueryBuilder<NotQueryBuilder> {
 
     private final QueryBuilder filter;
 
-    static final NotQueryBuilder PROTOTYPE = new NotQueryBuilder();
+    static final NotQueryBuilder PROTOTYPE = new NotQueryBuilder(null);
 
     public NotQueryBuilder(QueryBuilder filter) {
-        this.filter = Objects.requireNonNull(filter);
-    }
-
-    private NotQueryBuilder() {
-        this.filter = null;
+        this.filter = filter;
     }
 
     /**

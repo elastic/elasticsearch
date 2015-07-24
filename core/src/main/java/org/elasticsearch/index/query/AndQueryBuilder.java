@@ -51,7 +51,7 @@ public class AndQueryBuilder extends AbstractQueryBuilder<AndQueryBuilder> {
      */
     public AndQueryBuilder(QueryBuilder... filters) {
         for (QueryBuilder filter : filters) {
-            this.filters.add(Objects.requireNonNull(filter));
+            this.filters.add(filter);
         }
     }
 
@@ -60,7 +60,7 @@ public class AndQueryBuilder extends AbstractQueryBuilder<AndQueryBuilder> {
      * @param filterBuilder nested filter, no <tt>null</tt> value allowed
      */
     public AndQueryBuilder add(QueryBuilder filterBuilder) {
-        filters.add(Objects.requireNonNull(filterBuilder));
+        filters.add(filterBuilder);
         return this;
     }
 

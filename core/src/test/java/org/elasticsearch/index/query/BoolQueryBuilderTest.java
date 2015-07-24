@@ -101,7 +101,11 @@ public class BoolQueryBuilderTest extends BaseQueryTestCase<BoolQueryBuilder> {
         int totalExpectedErrors = 0;
         for (int i = 0; i < iters; i++) {
             if (randomBoolean()) {
-                booleanQuery.must(RandomQueryBuilder.createInvalidQuery(random()));
+                if (randomBoolean()) {
+                    booleanQuery.must(RandomQueryBuilder.createInvalidQuery(random()));
+                } else {
+                    booleanQuery.must(null);
+                }
                 totalExpectedErrors++;
             } else {
                 booleanQuery.must(RandomQueryBuilder.createQuery(random()));
@@ -110,48 +114,42 @@ public class BoolQueryBuilderTest extends BaseQueryTestCase<BoolQueryBuilder> {
         iters = randomIntBetween(0, 3);
         for (int i = 0; i < iters; i++) {
             if (randomBoolean()) {
-                booleanQuery.should(RandomQueryBuilder.createInvalidQuery(random()));
+                if (randomBoolean()) {
+                    booleanQuery.should(RandomQueryBuilder.createInvalidQuery(random()));
+                } else {
+                    booleanQuery.should(null);
+                }
                 totalExpectedErrors++;
             } else {
                 booleanQuery.should(RandomQueryBuilder.createQuery(random()));
             }
         }
+        iters = randomIntBetween(0, 3);
         for (int i = 0; i < iters; i++) {
             if (randomBoolean()) {
-                booleanQuery.mustNot(RandomQueryBuilder.createInvalidQuery(random()));
+                if (randomBoolean()) {
+                    booleanQuery.mustNot(RandomQueryBuilder.createInvalidQuery(random()));
+                } else {
+                    booleanQuery.mustNot(null);
+                }
                 totalExpectedErrors++;
             } else {
                 booleanQuery.mustNot(RandomQueryBuilder.createQuery(random()));
             }
         }
+        iters = randomIntBetween(0, 3);
         for (int i = 0; i < iters; i++) {
             if (randomBoolean()) {
-                booleanQuery.filter(RandomQueryBuilder.createInvalidQuery(random()));
+                if (randomBoolean()) {
+                    booleanQuery.filter(RandomQueryBuilder.createInvalidQuery(random()));
+                } else {
+                    booleanQuery.filter(null);
+                }
                 totalExpectedErrors++;
             } else {
                 booleanQuery.filter(RandomQueryBuilder.createQuery(random()));
             }
         }
         assertValidate(booleanQuery, totalExpectedErrors);
-    }
-
-    @Test(expected=NullPointerException.class)
-    public void testAddNullMust() {
-        new BoolQueryBuilder().must(null);
-    }
-
-    @Test(expected=NullPointerException.class)
-    public void testAddNullMustNot() {
-        new BoolQueryBuilder().mustNot(null);
-    }
-
-    @Test(expected=NullPointerException.class)
-    public void testAddNullShould() {
-        new BoolQueryBuilder().should(null);
-    }
-
-    @Test(expected=NullPointerException.class)
-    public void testAddNullFilter() {
-        new BoolQueryBuilder().filter(null);
     }
 }

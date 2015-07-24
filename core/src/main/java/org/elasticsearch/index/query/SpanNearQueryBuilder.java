@@ -54,20 +54,13 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
 
     private boolean collectPayloads = DEFAULT_COLLECT_PAYLOADS;
 
-    static final SpanNearQueryBuilder PROTOTYPE = new SpanNearQueryBuilder();
+    static final SpanNearQueryBuilder PROTOTYPE = new SpanNearQueryBuilder(0);
 
     /**
      * @param slop controls the maximum number of intervening unmatched positions permitted
      */
     public SpanNearQueryBuilder(int slop) {
         this.slop = slop;
-    }
-
-    /**
-     * only used for prototype
-     */
-    private SpanNearQueryBuilder() {
-        this.slop = 0;
     }
 
     /**

@@ -233,7 +233,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
         return queries;
     }
 
-    protected static QueryValidationException validateInnerQueries(List<QueryBuilder> queryBuilders, QueryValidationException initialValidationException) {
+    protected QueryValidationException validateInnerQueries(List<QueryBuilder> queryBuilders, QueryValidationException initialValidationException) {
         QueryValidationException validationException = initialValidationException;
         for (QueryBuilder queryBuilder : queryBuilders) {
             validationException = validateInnerQuery(queryBuilder, validationException);
@@ -241,13 +241,15 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
         return validationException;
     }
 
-    protected static QueryValidationException validateInnerQuery(QueryBuilder queryBuilder, QueryValidationException initialValidationException) {
+    protected QueryValidationException validateInnerQuery(QueryBuilder queryBuilder, QueryValidationException initialValidationException) {
         QueryValidationException validationException = initialValidationException;
         if (queryBuilder != null) {
             QueryValidationException queryValidationException = queryBuilder.validate();
             if (queryValidationException != null) {
                 validationException = QueryValidationException.addValidationErrors(queryValidationException.validationErrors(), validationException);
             }
+        } else {
+            validationException = addValidationError("inner query cannot be null", validationException);
         }
         return validationException;
     }

@@ -45,11 +45,6 @@ public class NotQueryBuilderTest extends BaseQueryTestCase<NotQueryBuilder> {
         return new NotQueryBuilder(RandomQueryBuilder.createQuery(random()));
     }
 
-    @Test(expected=NullPointerException.class)
-    public void testNotQueryBuilderNull() {
-        new NotQueryBuilder(null);
-    }
-
     /**
      * @throws IOException
      */
@@ -65,10 +60,12 @@ public class NotQueryBuilderTest extends BaseQueryTestCase<NotQueryBuilder> {
 
     @Test
     public void testValidate() {
-        QueryBuilder innerQuery;
+        QueryBuilder innerQuery = null;
         int totalExpectedErrors = 0;
         if (randomBoolean()) {
-            innerQuery = RandomQueryBuilder.createInvalidQuery(random());
+            if (randomBoolean()) {
+                innerQuery = RandomQueryBuilder.createInvalidQuery(random());
+            }
             totalExpectedErrors++;
         } else {
             innerQuery = RandomQueryBuilder.createQuery(random());

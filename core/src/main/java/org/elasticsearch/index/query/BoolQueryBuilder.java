@@ -68,7 +68,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
      * contribute to scoring. No <tt>null</tt> value allowed.
      */
     public BoolQueryBuilder must(QueryBuilder queryBuilder) {
-        mustClauses.add(Objects.requireNonNull(queryBuilder));
+        mustClauses.add(queryBuilder);
         return this;
     }
 
@@ -84,7 +84,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
      * not contribute to scoring. No <tt>null</tt> value allowed.
      */
     public BoolQueryBuilder filter(QueryBuilder queryBuilder) {
-        filterClauses.add(Objects.requireNonNull(queryBuilder));
+        filterClauses.add(queryBuilder);
         return this;
     }
 
@@ -100,7 +100,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
      * No <tt>null</tt> value allowed.
      */
     public BoolQueryBuilder mustNot(QueryBuilder queryBuilder) {
-        mustNotClauses.add(Objects.requireNonNull(queryBuilder));
+        mustNotClauses.add(queryBuilder);
         return this;
     }
 
@@ -119,7 +119,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
      * @see #minimumNumberShouldMatch(int)
      */
     public BoolQueryBuilder should(QueryBuilder queryBuilder) {
-        shouldClauses.add(Objects.requireNonNull(queryBuilder));
+        shouldClauses.add(queryBuilder);
         return this;
     }
 

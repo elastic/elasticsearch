@@ -39,7 +39,7 @@ public class FQueryFilterBuilder extends AbstractQueryBuilder<FQueryFilterBuilde
 
     public static final String NAME = "fquery";
 
-    static final FQueryFilterBuilder PROTOTYPE = new FQueryFilterBuilder();
+    static final FQueryFilterBuilder PROTOTYPE = new FQueryFilterBuilder(null);
 
     private final QueryBuilder queryBuilder;
 
@@ -49,11 +49,7 @@ public class FQueryFilterBuilder extends AbstractQueryBuilder<FQueryFilterBuilde
      * @param queryBuilder The query to wrap as a filter
      */
     public FQueryFilterBuilder(QueryBuilder queryBuilder) {
-        this.queryBuilder = Objects.requireNonNull(queryBuilder);
-    }
-
-    private FQueryFilterBuilder() {
-        this.queryBuilder = null;
+        this.queryBuilder = queryBuilder;
     }
 
     /**

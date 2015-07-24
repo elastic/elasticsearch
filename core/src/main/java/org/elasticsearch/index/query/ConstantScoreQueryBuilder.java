@@ -38,12 +38,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
 
     private final QueryBuilder filterBuilder;
 
-    static final ConstantScoreQueryBuilder PROTOTYPE = new ConstantScoreQueryBuilder();
-
-    // only used for prototype
-    private ConstantScoreQueryBuilder() {
-        this.filterBuilder = null;
-    }
+    static final ConstantScoreQueryBuilder PROTOTYPE = new ConstantScoreQueryBuilder(null);
 
     /**
      * A query that wraps another query and simply returns a constant score equal to the
@@ -52,7 +47,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
      * @param filterBuilder The query to wrap in a constant score query
      */
     public ConstantScoreQueryBuilder(QueryBuilder filterBuilder) {
-        this.filterBuilder = Objects.requireNonNull(filterBuilder);
+        this.filterBuilder = filterBuilder;
     }
 
     /**
@@ -83,7 +78,13 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
 
     @Override
     public QueryValidationException validate() {
-        return validateInnerQuery(filterBuilder, null);
+        QueryValidationException validationException = null;
+        if (filterBuilder == null) {
+            validationException = addValidationError("inner clause [filter] cannot be null.", validationException);
+        } else {
+            validateInnerQuery(filterBuilder, validationException);
+        }
+        return validationException;
     }
 
     @Override

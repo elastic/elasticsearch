@@ -47,16 +47,20 @@ public class BoostingQueryBuilderTest extends BaseQueryTestCase<BoostingQueryBui
     @Test
     public void testValidate() {
         int totalExpectedErrors = 0;
-        QueryBuilder positive;
-        QueryBuilder negative;
+        QueryBuilder positive = null;
+        QueryBuilder negative = null;
         if (frequently()) {
-            negative = RandomQueryBuilder.createInvalidQuery(random());
+            if (randomBoolean()) {
+                negative = RandomQueryBuilder.createInvalidQuery(random());
+            }
             totalExpectedErrors++;
         } else {
             negative = RandomQueryBuilder.createQuery(random());
         }
         if (frequently()) {
-            positive = RandomQueryBuilder.createInvalidQuery(random());
+            if (randomBoolean()) {
+                positive = RandomQueryBuilder.createInvalidQuery(random());
+            }
             totalExpectedErrors++;
         } else {
             positive = RandomQueryBuilder.createQuery(random());
@@ -69,14 +73,5 @@ public class BoostingQueryBuilderTest extends BaseQueryTestCase<BoostingQueryBui
             totalExpectedErrors++;
         }
         assertValidate(boostingQuery, totalExpectedErrors);
-    }
-
-    @Test(expected=NullPointerException.class)
-    public void testNullConstructorArgument() {
-        if (randomBoolean()) {
-            new BoostingQueryBuilder(null, RandomQueryBuilder.createQuery(random()));
-        } else {
-            new BoostingQueryBuilder(RandomQueryBuilder.createQuery(random()), null);
-        }
     }
 }

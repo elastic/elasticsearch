@@ -38,7 +38,8 @@ public class ShieldActionMapperTests extends ElasticsearchTestCase {
                     randomAction = randomAsciiOfLength(randomIntBetween(1, 30));
                 }
             } while (randomAction.equals(ClearScrollAction.NAME) ||
-                    randomAction.equals(AnalyzeAction.NAME));
+                    randomAction.equals(AnalyzeAction.NAME) ||
+                    randomAction.equals(AnalyzeAction.NAME + "[s]"));
 
             assertThat(shieldActionMapper.action(randomAction, null), equalTo(randomAction));
         }

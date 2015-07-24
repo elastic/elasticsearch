@@ -131,6 +131,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
             "description", "fake desc",
             "version", "1.0",
             "elasticsearch.version", Version.CURRENT.toString(),
+            "java.version", System.getProperty("java.specification.version"),
             "jvm", "true",
             "classname", "FakePlugin");
         
@@ -175,6 +176,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
             "description", "fake desc",
             "version", "1.0",
             "elasticsearch.version", Version.CURRENT.toString(),
+            "java.version", System.getProperty("java.specification.version"),
             "jvm", "true",
             "classname", "FakePlugin");
         
@@ -210,6 +212,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
                 "description", "fake desc",
                 "version", "2.0",
                 "elasticsearch.version", Version.CURRENT.toString(),
+                "java.version", System.getProperty("java.specification.version"),
                 "jvm", "true",
                 "classname", "FakePlugin");
  
@@ -245,6 +248,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
                 "description", "fake desc",
                 "version", "3.0",
                 "elasticsearch.version", Version.CURRENT.toString(),
+                "java.version", System.getProperty("java.specification.version"),
                 "jvm", "true",
                 "classname", "FakePlugin");
 
@@ -272,6 +276,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
             "description", "fake desc",
             "version", "1.0",
             "elasticsearch.version", Version.CURRENT.toString(),
+            "java.version", System.getProperty("java.specification.version"),
             "jvm", "true",
             "classname", "FakePlugin");
         
@@ -305,6 +310,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
             "description", "fake desc",
             "version", "1.0",
             "elasticsearch.version", Version.CURRENT.toString(),
+            "java.version", System.getProperty("java.specification.version"),
             "jvm", "true",
             "classname", "FakePlugin");
         assertStatusOk(String.format(Locale.ROOT, "install %s --url %s --verbose", pluginName, pluginUrl));
@@ -412,6 +418,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
             "description", "fake desc",
             "version", "1.0.0",
             "elasticsearch.version", Version.CURRENT.toString(),
+            "java.version", System.getProperty("java.specification.version"),
             "jvm", "true",
             "classname", "FakePlugin");
         

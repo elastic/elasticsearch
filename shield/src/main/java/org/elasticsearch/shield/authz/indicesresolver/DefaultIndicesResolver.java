@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authz.indicesresolver;
 
-import com.carrotsearch.hppc.ObjectLookupContainer;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
@@ -13,6 +12,7 @@ import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -99,9 +99,10 @@ public class DefaultIndicesResolver implements IndicesResolver<TransportRequest>
 
     private List<String> loadAuthorizedAliases(List<String> authorizedIndices, MetaData metaData) {
         List<String> authorizedAliases = Lists.newArrayList();
-        ObjectLookupContainer<String> existingAliases = metaData.aliases().keys();
+        SortedMap<String, AliasOrIndex> existingAliases = metaData.getAliasAndIndexLookup();
         for (String authorizedIndex : authorizedIndices) {
-            if (existingAliases.contains(authorizedIndex)) {
+            AliasOrIndex aliasOrIndex = existingAliases.get(authorizedIndex);
+            if (aliasOrIndex != null && aliasOrIndex.isAlias()) {
                 authorizedAliases.add(authorizedIndex);
             }
         }

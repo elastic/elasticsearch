@@ -58,7 +58,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     }
 
     @Override
-    protected boolean resolveIndex() {
+    protected boolean resolveIndex(GetRequest request) {
         return true;
     }
 

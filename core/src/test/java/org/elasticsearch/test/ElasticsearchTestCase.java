@@ -54,6 +54,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.elasticsearch.test.cache.recycler.MockPageCacheRecycler;
+import org.elasticsearch.test.junit.listeners.AssertionErrorThreadDumpPrinter;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.test.search.MockSearchService;
@@ -78,7 +79,8 @@ import static com.google.common.collect.Lists.newArrayList;
  */
 @Listeners({
         ReproduceInfoPrinter.class,
-        LoggingListener.class
+        LoggingListener.class,
+        AssertionErrorThreadDumpPrinter.class
 })
 // remove this entire annotation on upgrade to 5.3!
 @ThreadLeakFilters(defaultFilters = true, filters = {
@@ -550,44 +552,7 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
     protected static final void printStackDump(ESLogger logger) {
         // print stack traces if we can't create any native thread anymore
         Map<Thread, StackTraceElement[]> allStackTraces = Thread.getAllStackTraces();
-        logger.error(formatThreadStacks(allStackTraces));
-    }
-
-    /** Dump threads and their current stack trace. */
-    private static String formatThreadStacks(Map<Thread, StackTraceElement[]> threads) {
-        StringBuilder message = new StringBuilder();
-        int cnt = 1;
-        final Formatter f = new Formatter(message, Locale.ENGLISH);
-        for (Map.Entry<Thread, StackTraceElement[]> e : threads.entrySet()) {
-            if (e.getKey().isAlive()) {
-                f.format(Locale.ENGLISH, "\n  %2d) %s", cnt++, threadName(e.getKey())).flush();
-            }
-            if (e.getValue().length == 0) {
-                message.append("\n        at (empty stack)");
-            } else {
-                for (StackTraceElement ste : e.getValue()) {
-                    message.append("\n        at ").append(ste);
-                }
-            }
-        }
-        return message.toString();
-    }
-
-    private static String threadName(Thread t) {
-        return "Thread[" +
-                "id=" + t.getId() +
-                ", name=" + t.getName() +
-                ", state=" + t.getState() +
-                ", group=" + groupName(t.getThreadGroup()) +
-                "]";
-    }
-
-    private static String groupName(ThreadGroup threadGroup) {
-        if (threadGroup == null) {
-            return "{null group}";
-        } else {
-            return threadGroup.getName();
-        }
+        logger.error(StackTraces.formatThreadStacks(allStackTraces));
     }
 
     /**

@@ -121,11 +121,6 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
             clientConfiguration.withProxyHost(proxyHost).setProxyPort(proxyPort);
         }
 
-        if (maxRetries != null) {
-            // If not explicitly set, default to 3 with exponential backoff policy
-            clientConfiguration.setMaxErrorRetry(maxRetries);
-        }
-
         // #155: we might have 3rd party users using older S3 API version
         String awsSigner = settings.get("cloud.aws.s3.signer", settings.get("cloud.aws.signer"));
         if (awsSigner != null) {

@@ -109,6 +109,11 @@ public class DefaultS3OutputStream extends S3OutputStream {
                     break;
                 } catch (AmazonClientException e) {
                     if (getBlobStore().shouldRetry(e) && retry < getNumberOfRetries()) {
+                        try {
+                            Thread.sleep(getBlobStore().getWaitInterval(retry));
+                        } catch (InterruptedException e1) {
+                            // do nothing
+                        }
                         is.reset();
                         retry++;
                     } else {
@@ -161,6 +166,11 @@ public class DefaultS3OutputStream extends S3OutputStream {
                 }
             } catch (AmazonClientException e) {
                 if (getBlobStore().shouldRetry(e) && retry < getNumberOfRetries()) {
+                    try {
+                        Thread.sleep(getBlobStore().getWaitInterval(retry));
+                    } catch (InterruptedException e1) {
+                        // do nothing.
+                    }
                     retry++;
                 } else {
                     throw e;
@@ -190,6 +200,13 @@ public class DefaultS3OutputStream extends S3OutputStream {
                     return;
                 } catch (AmazonClientException e) {
                     if (getBlobStore().shouldRetry(e) && retry < getNumberOfRetries()) {
+
+                        try {
+                            Thread.sleep(getBlobStore().getWaitInterval(retry));
+                        } catch (InterruptedException e1) {
+                           // do nothing.
+                        }
+
                         is.reset();
                         retry++;
                     } else {
@@ -226,6 +243,11 @@ public class DefaultS3OutputStream extends S3OutputStream {
                 return;
             } catch (AmazonClientException e) {
                 if (getBlobStore().shouldRetry(e) && retry < getNumberOfRetries()) {
+                    try {
+                        Thread.sleep(getBlobStore().getWaitInterval(retry));
+                    } catch (InterruptedException e1) {
+                        // do nothing.
+                    }
                     retry++;
                 } else {
                     abortMultipart();

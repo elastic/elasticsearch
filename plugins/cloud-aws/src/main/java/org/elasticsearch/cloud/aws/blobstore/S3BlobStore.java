@@ -37,6 +37,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.util.ArrayList;
+import java.util.Random;
 
 /**
  *
@@ -44,6 +45,7 @@ import java.util.ArrayList;
 public class S3BlobStore extends AbstractComponent implements BlobStore {
 
     public static final ByteSizeValue MIN_BUFFER_SIZE = new ByteSizeValue(5, ByteSizeUnit.MB);
+    public static final int MAX_WAIT_INTERVAL = 2000;
 
     private final AmazonS3 client;
 
@@ -158,6 +160,10 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
             }
         }
         return e.isRetryable();
+    }
+
+    protected int getWaitInterval(int retry) {
+        return Math.min(new Random().nextInt((int) (Math.pow(2.0, retry)) * 100), MAX_WAIT_INTERVAL);
     }
 
     @Override

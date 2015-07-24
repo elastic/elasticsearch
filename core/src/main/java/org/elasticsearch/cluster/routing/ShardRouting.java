@@ -420,7 +420,7 @@ public final class ShardRouting implements Streamable, ToXContent {
     void relocate(String relocatingNodeId) {
         ensureNotFrozen();
         version++;
-        assert state == ShardRoutingState.STARTED : "current shard has to be started inorder to relocated " + this;
+        assert state == ShardRoutingState.STARTED : "current shard has to be started in order to be relocated " + this;
         state = ShardRoutingState.RELOCATING;
         this.relocatingNodeId = relocatingNodeId;
         this.allocationId = AllocationId.newRelocation(allocationId);

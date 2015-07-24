@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;

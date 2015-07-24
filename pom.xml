@@ -466,6 +466,9 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
+                    <configuration>
+                      <source>1.7</source>
+                    </configuration>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -567,6 +570,7 @@
                         <compilerArgs>
                             <arg>-XDignore.symbol.file</arg>
                         </compilerArgs>
+                        <source>1.7</source>
                     </configuration>
                 </plugin>
                 <plugin>

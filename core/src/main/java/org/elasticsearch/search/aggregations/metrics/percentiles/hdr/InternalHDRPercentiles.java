@@ -16,13 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.metrics.percentiles;
+package org.elasticsearch.search.aggregations.metrics.percentiles.hdr;
 
 import com.google.common.collect.UnmodifiableIterator;
 
+import org.HdrHistogram.DoubleHistogram;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationStreams;
-import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestState;
+import org.elasticsearch.search.aggregations.metrics.percentiles.InternalPercentile;
+import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
+import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
@@ -34,14 +37,14 @@ import java.util.Map;
 /**
 *
 */
-public class InternalPercentiles extends AbstractInternalPercentiles implements Percentiles {
+public class InternalHDRPercentiles extends AbstractInternalHDRPercentiles implements Percentiles {
 
-    public final static Type TYPE = new Type("percentiles");
+    public final static Type TYPE = new Type(Percentiles.TYPE_NAME, "hdr_percentiles");
 
     public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
-        public InternalPercentiles readResult(StreamInput in) throws IOException {
-            InternalPercentiles result = new InternalPercentiles();
+        public InternalHDRPercentiles readResult(StreamInput in) throws IOException {
+            InternalHDRPercentiles result = new InternalHDRPercentiles();
             result.readFrom(in);
             return result;
         }
@@ -51,10 +54,10 @@ public class InternalPercentiles extends AbstractInternalPercentiles implements 
         AggregationStreams.registerStream(STREAM, TYPE.stream());
     }
 
-    InternalPercentiles() {
+    InternalHDRPercentiles() {
     } // for serialization
 
-    public InternalPercentiles(String name, double[] percents, TDigestState state, boolean keyed, ValueFormatter formatter,
+    public InternalHDRPercentiles(String name, double[] percents, DoubleHistogram state, boolean keyed, ValueFormatter formatter,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, percents, state, keyed, formatter, pipelineAggregators, metaData);
     }
@@ -66,7 +69,10 @@ public class InternalPercentiles extends AbstractInternalPercentiles implements 
 
     @Override
     public double percentile(double percent) {
-        return state.quantile(percent / 100);
+        if (state.getTotalCount() == 0) {
+            return Double.NaN;
+        }
+        return state.getValueAtPercentile(percent);
     }
 
     @Override
@@ -80,9 +86,9 @@ public class InternalPercentiles extends AbstractInternalPercentiles implements 
     }
 
     @Override
-    protected AbstractInternalPercentiles createReduced(String name, double[] keys, TDigestState merged, boolean keyed,
+    protected AbstractInternalHDRPercentiles createReduced(String name, double[] keys, DoubleHistogram merged, boolean keyed,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalPercentiles(name, keys, merged, keyed, valueFormatter, pipelineAggregators, metaData);
+        return new InternalHDRPercentiles(name, keys, merged, keyed, valueFormatter, pipelineAggregators, metaData);
     }
 
     @Override
@@ -93,10 +99,10 @@ public class InternalPercentiles extends AbstractInternalPercentiles implements 
     public static class Iter extends UnmodifiableIterator<Percentile> {
 
         private final double[] percents;
-        private final TDigestState state;
+        private final DoubleHistogram state;
         private int i;
 
-        public Iter(double[] percents, TDigestState state) {
+        public Iter(double[] percents, DoubleHistogram state) {
             this.percents = percents;
             this.state = state;
             i = 0;
@@ -109,7 +115,7 @@ public class InternalPercentiles extends AbstractInternalPercentiles implements 
 
         @Override
         public Percentile next() {
-            final Percentile next = new InternalPercentile(percents[i], state.quantile(percents[i] / 100));
+            final Percentile next = new InternalPercentile(percents[i], state.getValueAtPercentile(percents[i]));
             ++i;
             return next;
         }

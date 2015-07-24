@@ -51,8 +51,10 @@ import org.elasticsearch.search.aggregations.metrics.cardinality.InternalCardina
 import org.elasticsearch.search.aggregations.metrics.geobounds.InternalGeoBounds;
 import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.min.InternalMin;
-import org.elasticsearch.search.aggregations.metrics.percentiles.InternalPercentileRanks;
-import org.elasticsearch.search.aggregations.metrics.percentiles.InternalPercentiles;
+import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.InternalHDRPercentileRanks;
+import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.InternalHDRPercentiles;
+import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.InternalTDigestPercentileRanks;
+import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.InternalTDigestPercentiles;
 import org.elasticsearch.search.aggregations.metrics.scripted.InternalScriptedMetric;
 import org.elasticsearch.search.aggregations.metrics.stats.InternalStats;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.InternalExtendedStats;
@@ -65,8 +67,8 @@ import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.avg.AvgBucke
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.max.MaxBucketPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min.MinBucketPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.sum.SumBucketPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.cumulativesum.CumulativeSumPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketscript.BucketScriptPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.cumulativesum.CumulativeSumPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.derivative.InternalDerivative;
 import org.elasticsearch.search.aggregations.pipeline.having.BucketSelectorPipelineAggregator;
@@ -90,8 +92,10 @@ public class TransportAggregationModule extends AbstractModule implements SpawnM
         InternalStats.registerStreams();
         InternalExtendedStats.registerStreams();
         InternalValueCount.registerStreams();
-        InternalPercentiles.registerStreams();
-        InternalPercentileRanks.registerStreams();
+        InternalTDigestPercentiles.registerStreams();
+        InternalTDigestPercentileRanks.registerStreams();
+        InternalHDRPercentiles.registerStreams();
+        InternalHDRPercentileRanks.registerStreams();
         InternalCardinality.registerStreams();
         InternalScriptedMetric.registerStreams();
 

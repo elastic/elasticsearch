@@ -19,12 +19,12 @@
 
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
-class InternalPercentile implements Percentile {
+public class InternalPercentile implements Percentile {
 
     private final double percent;
     private final double value;
 
-    InternalPercentile(double percent, double value) {
+    public InternalPercentile(double percent, double value) {
         this.percent = percent;
         this.value = value;
     }

@@ -16,11 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.metrics.percentiles;
+package org.elasticsearch.search.aggregations.metrics.percentiles.tdigest;
 
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestState;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -36,9 +35,9 @@ import java.util.Map;
 /**
  *
  */
-public class PercentilesAggregator extends AbstractPercentilesAggregator {
+public class TDigestPercentilesAggregator extends AbstractTDigestPercentilesAggregator {
 
-    public PercentilesAggregator(String name, Numeric valuesSource, AggregationContext context,
+    public TDigestPercentilesAggregator(String name, Numeric valuesSource, AggregationContext context,
             Aggregator parent, double[] percents,
             double compression, boolean keyed, ValueFormatter formatter, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) throws IOException {
@@ -51,7 +50,7 @@ public class PercentilesAggregator extends AbstractPercentilesAggregator {
         if (state == null) {
             return buildEmptyAggregation();
         } else {
-            return new InternalPercentiles(name, keys, state, keyed, formatter, pipelineAggregators(), metaData());
+            return new InternalTDigestPercentiles(name, keys, state, keyed, formatter, pipelineAggregators(), metaData());
         }
     }
 
@@ -67,7 +66,7 @@ public class PercentilesAggregator extends AbstractPercentilesAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalPercentiles(name, keys, new TDigestState(compression), keyed, formatter, pipelineAggregators(), metaData());
+        return new InternalTDigestPercentiles(name, keys, new TDigestState(compression), keyed, formatter, pipelineAggregators(), metaData());
     }
 
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
@@ -78,7 +77,7 @@ public class PercentilesAggregator extends AbstractPercentilesAggregator {
 
         public Factory(String name, ValuesSourceConfig<ValuesSource.Numeric> valuesSourceConfig,
                 double[] percents, double compression, boolean keyed) {
-            super(name, InternalPercentiles.TYPE.name(), valuesSourceConfig);
+            super(name, InternalTDigestPercentiles.TYPE.name(), valuesSourceConfig);
             this.percents = percents;
             this.compression = compression;
             this.keyed = keyed;
@@ -87,7 +86,7 @@ public class PercentilesAggregator extends AbstractPercentilesAggregator {
         @Override
         protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
                 List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            return new PercentilesAggregator(name, null, aggregationContext, parent, percents, compression, keyed, config.formatter(),
+            return new TDigestPercentilesAggregator(name, null, aggregationContext, parent, percents, compression, keyed, config.formatter(),
                     pipelineAggregators, metaData);
         }
 
@@ -95,7 +94,7 @@ public class PercentilesAggregator extends AbstractPercentilesAggregator {
         protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent,
                 boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
                 throws IOException {
-            return new PercentilesAggregator(name, valuesSource, aggregationContext, parent, percents, compression, keyed,
+            return new TDigestPercentilesAggregator(name, valuesSource, aggregationContext, parent, percents, compression, keyed,
                     config.formatter(), pipelineAggregators, metaData);
         }
     }

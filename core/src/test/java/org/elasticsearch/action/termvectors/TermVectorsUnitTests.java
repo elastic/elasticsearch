@@ -49,6 +49,7 @@ import org.junit.Test;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Set;
@@ -335,11 +336,11 @@ public class TermVectorsUnitTests extends ElasticsearchTestCase {
     }
 
     void checkParsedFilterParameters(MultiTermVectorsRequest multiRequest) {
-        int id = 1;
+        Set<String> ids = new HashSet<>(Arrays.asList("1", "2"));
         for (TermVectorsRequest request : multiRequest.requests) {
             assertThat(request.index(), equalTo("testidx"));
             assertThat(request.type(), equalTo("test"));
-            assertThat(request.id(), equalTo(id+""));
+            assertTrue(ids.remove(request.id()));
             assertNotNull(request.filterSettings());
             assertThat(request.filterSettings().maxNumTerms, equalTo(20));
             assertThat(request.filterSettings().minTermFreq, equalTo(1));
@@ -348,7 +349,7 @@ public class TermVectorsUnitTests extends ElasticsearchTestCase {
             assertThat(request.filterSettings().maxDocFreq, equalTo(20));
             assertThat(request.filterSettings().minWordLength, equalTo(1));
             assertThat(request.filterSettings().maxWordLength, equalTo(20));
-            id++;
         }
+        assertTrue(ids.isEmpty());
     }
 }

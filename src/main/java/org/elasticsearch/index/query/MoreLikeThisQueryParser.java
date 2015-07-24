@@ -236,8 +236,8 @@ public class MoreLikeThisQueryParser implements QueryParser {
                 }
             }
             // fetching the items with multi-termvectors API
-            org.apache.lucene.index.Fields[] likeFields = fetchService.fetch(items);
             items.copyContextAndHeadersFrom(SearchContext.current());
+            org.apache.lucene.index.Fields[] likeFields = fetchService.fetch(items);
             mltQuery.setLikeText(likeFields);
 
             BooleanQuery boolQuery = new BooleanQuery();

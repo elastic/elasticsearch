@@ -25,11 +25,11 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
@@ -40,7 +40,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 
-import java.util.Iterator;
 import java.util.Map;
 
 /**
@@ -49,6 +48,62 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
 
     public ReplicaShardAllocator(Settings settings) {
         super(settings);
+    }
+
+    /**
+     * Process existing recoveries of replicas and see if we need to cancel them if we find a better
+     * match. Today, a better match is one that has full sync id match compared to not having one in
+     * the previous recovery.
+     */
+    public boolean processExistingRecoveries(RoutingAllocation allocation) {
+        boolean changed = false;
+        for (RoutingNodes.RoutingNodesIterator nodes = allocation.routingNodes().nodes(); nodes.hasNext(); ) {
+            nodes.next();
+            for (RoutingNodes.RoutingNodeIterator it = nodes.nodeShards(); it.hasNext(); ) {
+                ShardRouting shard = it.next();
+                if (shard.primary() == true) {
+                    continue;
+                }
+                if (shard.initializing() == false) {
+                    continue;
+                }
+                if (shard.relocatingNodeId() != null) {
+                    continue;
+                }
+
+                AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> shardStores = fetchData(shard, allocation);
+                if (shardStores.hasData() == false) {
+                    logger.trace("{}: fetching new stores for initializing shard", shard);
+                    continue; // still fetching
+                }
+
+                ShardRouting primaryShard = allocation.routingNodes().activePrimary(shard);
+                assert primaryShard != null : "the replica shard can be allocated on at least one node, so there must be an active primary";
+                TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore = findStore(primaryShard, allocation, shardStores);
+                if (primaryStore == null || primaryStore.allocated() == false) {
+                    // if we can't find the primary data, it is probably because the primary shard is corrupted (and listing failed)
+                    // just let the recovery find it out, no need to do anything about it for the initializing shard
+                    logger.trace("{}: no primary shard store found or allocated, letting actual allocation figure it out", shard);
+                    continue;
+                }
+
+                MatchingNodes matchingNodes = findMatchingNodes(shard, allocation, primaryStore, shardStores);
+                if (matchingNodes.getNodeWithHighestMatch() != null) {
+                    DiscoveryNode currentNode = allocation.nodes().get(shard.currentNodeId());
+                    DiscoveryNode nodeWithHighestMatch = matchingNodes.getNodeWithHighestMatch();
+                    if (currentNode.equals(nodeWithHighestMatch) == false
+                            && matchingNodes.isNodeMatchBySyncID(currentNode) == false
+                            && matchingNodes.isNodeMatchBySyncID(nodeWithHighestMatch) == true) {
+                        // we found a better match that has a full sync id match, the existing allocation is not fully synced
+                        // so we found a better one, cancel this one
+                        it.moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.REALLOCATED_REPLICA,
+                                "existing allocation of replica to [" + currentNode + "] cancelled, sync id match found on node [" + nodeWithHighestMatch + "]"));
+                        changed = true;
+                    }
+                }
+            }
+        }
+        return changed;
     }
 
     public boolean allocateUnassigned(RoutingAllocation allocation) {
@@ -236,7 +291,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                     highestMatchNode = cursor.key;
                 }
             }
-            nodeWithHighestMatch = highestMatchNode;
+            this.nodeWithHighestMatch = highestMatchNode;
         }
 
         /**
@@ -246,6 +301,10 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
         @Nullable
         public DiscoveryNode getNodeWithHighestMatch() {
             return this.nodeWithHighestMatch;
+        }
+
+        public boolean isNodeMatchBySyncID(DiscoveryNode node) {
+            return nodesToSize.get(node) == Long.MAX_VALUE;
         }
 
         /**

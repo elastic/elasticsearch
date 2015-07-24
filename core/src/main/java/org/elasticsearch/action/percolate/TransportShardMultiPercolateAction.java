@@ -21,6 +21,7 @@ package org.elasticsearch.action.percolate;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
@@ -76,7 +77,7 @@ public class TransportShardMultiPercolateAction extends TransportSingleShardActi
     }
 
     @Override
-    protected boolean resolveIndex() {
+    protected boolean resolveIndex(Request request) {
         return false;
     }
 
@@ -125,6 +126,11 @@ public class TransportShardMultiPercolateAction extends TransportSingleShardActi
             this.shardId = shardId;
             this.preference = preference;
             this.items = new ArrayList<>();
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            return super.validateNonNullIndex();
         }
 
         @Override

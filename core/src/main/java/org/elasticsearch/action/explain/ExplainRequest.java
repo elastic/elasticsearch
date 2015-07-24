@@ -152,7 +152,7 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> {
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = super.validate();
+        ActionRequestValidationException validationException = super.validateNonNullIndex();
         if (type == null) {
             validationException = ValidateActions.addValidationError("type is missing", validationException);
         }

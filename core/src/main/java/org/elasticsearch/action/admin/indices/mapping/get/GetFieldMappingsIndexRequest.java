@@ -19,16 +19,17 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.single.custom.SingleCustomOperationRequest;
+import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-class GetFieldMappingsIndexRequest extends SingleCustomOperationRequest<GetFieldMappingsIndexRequest> {
+class GetFieldMappingsIndexRequest extends SingleShardRequest<GetFieldMappingsIndexRequest> {
 
     private boolean probablySingleFieldRequest;
     private boolean includeDefaults;
@@ -42,7 +43,6 @@ class GetFieldMappingsIndexRequest extends SingleCustomOperationRequest<GetField
 
     GetFieldMappingsIndexRequest(GetFieldMappingsRequest other, String index, boolean probablySingleFieldRequest) {
         super(other);
-        this.preferLocal(other.local);
         this.probablySingleFieldRequest = probablySingleFieldRequest;
         this.includeDefaults = other.includeDefaults();
         this.types = other.types();
@@ -50,6 +50,11 @@ class GetFieldMappingsIndexRequest extends SingleCustomOperationRequest<GetField
         assert index != null;
         this.index(index);
         this.originalIndices = new OriginalIndices(other);
+    }
+
+    @Override
+    public ActionRequestValidationException validate() {
+        return null;
     }
 
     public String[] types() {
@@ -89,11 +94,6 @@ class GetFieldMappingsIndexRequest extends SingleCustomOperationRequest<GetField
     }
 
     @Override
-    protected void writeIndex(StreamOutput out) throws IOException {
-        out.writeString(index());
-    }
-
-    @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         types = in.readStringArray();
@@ -103,8 +103,4 @@ class GetFieldMappingsIndexRequest extends SingleCustomOperationRequest<GetField
         originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
-    @Override
-    protected void readIndex(StreamInput in) throws IOException {
-        index(in.readString());
-    }
 }

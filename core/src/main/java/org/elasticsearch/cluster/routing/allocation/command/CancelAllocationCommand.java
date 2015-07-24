@@ -177,7 +177,7 @@ public class CancelAllocationCommand implements AllocationCommand {
                     RoutingNode relocatingFromNode = allocation.routingNodes().node(shardRouting.relocatingNodeId());
                     if (relocatingFromNode != null) {
                         for (ShardRouting fromShardRouting : relocatingFromNode) {
-                            if (fromShardRouting.shardId().equals(shardRouting.shardId()) && fromShardRouting.state() == RELOCATING) {
+                            if (fromShardRouting.isSameShard(shardRouting) && fromShardRouting.state() == RELOCATING) {
                                 allocation.routingNodes().cancelRelocation(fromShardRouting);
                                 break;
                             }
@@ -201,7 +201,7 @@ public class CancelAllocationCommand implements AllocationCommand {
                     if (initializingNode != null) {
                         while (initializingNode.hasNext()) {
                             ShardRouting initializingShardRouting = initializingNode.next();
-                            if (initializingShardRouting.shardId().equals(shardRouting.shardId()) && initializingShardRouting.initializing()) {
+                            if (initializingShardRouting.isRelocationTargetOf(shardRouting)) {
                                 initializingNode.remove();
                             }
                         }

@@ -167,6 +167,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         this.version = other.version();
         this.versionType = VersionType.fromValue(other.versionType().getValue());
         this.startTime = other.startTime();
+        this.filterSettings = other.filterSettings();
     }
 
     public TermVectorsRequest(MultiGetRequest.Item item) {
@@ -472,7 +473,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = super.validate();
+        ActionRequestValidationException validationException = super.validateNonNullIndex();
         if (type == null) {
             validationException = ValidateActions.addValidationError("type is missing", validationException);
         }

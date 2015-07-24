@@ -319,4 +319,7 @@ public abstract class AbstractXContentParser implements XContentParser {
         }
         return null;
     }
+
+    @Override
+    public abstract boolean isClosed();
 }

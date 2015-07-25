@@ -251,7 +251,7 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node1, node2, node3));
 
         logger.debug("--> verifying index is red");
-        ClusterHealthResponse health = client().admin().cluster().prepareHealth().get();
+        ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
         if (health.getStatus() != ClusterHealthStatus.RED) {
             logClusterState();
             fail("cluster didn't become red, despite of shutting 2 of 3 nodes");

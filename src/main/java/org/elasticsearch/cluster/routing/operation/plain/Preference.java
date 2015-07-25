@@ -95,6 +95,8 @@ public enum Preference {
                 return PREFER_NODE;
             case "_only_node":
                 return ONLY_NODE;
+            case "_only_nodes":
+                return ONLY_NODES;
             case "_local":
                 return LOCAL;
             case "_primary":

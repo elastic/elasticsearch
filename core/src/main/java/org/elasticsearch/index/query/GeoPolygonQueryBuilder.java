@@ -36,6 +36,8 @@ public class GeoPolygonQueryBuilder extends QueryBuilder {
 
     private final List<GeoPoint> shell = Lists.newArrayList();
 
+    private String optimizeBbox;
+
     private String queryName;
 
     public GeoPolygonQueryBuilder(String name) {
@@ -61,7 +63,12 @@ public class GeoPolygonQueryBuilder extends QueryBuilder {
         shell.add(point);
         return this;
     }
-    
+
+    public GeoPolygonQueryBuilder optimizeBbox(String optimizeBbox) {
+        this.optimizeBbox = optimizeBbox;
+        return this;
+    }
+
     /**
      * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
      */
@@ -82,6 +89,9 @@ public class GeoPolygonQueryBuilder extends QueryBuilder {
         builder.endArray();
         builder.endObject();
 
+        if (optimizeBbox != null) {
+            builder.field("optimize_bbox", optimizeBbox);
+        }
         if (queryName != null) {
             builder.field("_name", queryName);
         }

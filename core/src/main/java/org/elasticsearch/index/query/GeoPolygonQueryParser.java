@@ -28,9 +28,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper.GeoPointFieldType;
 import org.elasticsearch.index.search.geo.GeoPolygonQuery;
 
 import java.io.IOException;
@@ -70,6 +70,7 @@ public class GeoPolygonQueryParser implements QueryParser {
 
         List<GeoPoint> shell = Lists.newArrayList();
 
+        String optimizeBbox = "memory";
         boolean normalizeLon = true;
         boolean normalizeLat = true;
 
@@ -108,6 +109,8 @@ public class GeoPolygonQueryParser implements QueryParser {
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
+                } else if ("optimize_bbox".equals(currentFieldName)) {
+                    optimizeBbox = parser.textOrNull();
                 } else if ("normalize".equals(currentFieldName)) {
                     normalizeLat = parser.booleanValue();
                     normalizeLon = parser.booleanValue();
@@ -149,7 +152,10 @@ public class GeoPolygonQueryParser implements QueryParser {
         }
 
         IndexGeoPointFieldData indexFieldData = parseContext.getForField(fieldType);
-        Query query = new GeoPolygonQuery(indexFieldData, shell.toArray(new GeoPoint[shell.size()]));
+        GeoPointFieldType geoFieldType = (GeoPointFieldType) fieldType;
+
+        Query query = new GeoPolygonQuery(shell.toArray(new GeoPoint[shell.size()]), geoFieldType,
+                indexFieldData, optimizeBbox);
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);
         }

@@ -295,7 +295,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                 return;
             }
 
-            clusterService.submitStateUpdateTask("indices_store", new ClusterStateNonMasterUpdateTask() {
+            clusterService.submitStateUpdateTask("indices_store ([" + shardId + "] active fully on other nodes)", new ClusterStateNonMasterUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     if (clusterState.getVersion() != currentState.getVersion()) {

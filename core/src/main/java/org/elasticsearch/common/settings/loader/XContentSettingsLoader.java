@@ -68,18 +68,22 @@ public abstract class XContentSettingsLoader implements SettingsLoader {
         serializeObject(settings, sb, path, jp, null);
 
         // ensure we reached the end of the stream
-        Exception exception = null;
         XContentParser.Token lastToken = null;
         try {
             while (!jp.isClosed() && (lastToken = jp.nextToken()) == null);
         } catch (Exception e) {
-            exception = e;
-        }
-        if (exception != null || lastToken != null) {
             throw new ElasticsearchParseException(
-                    "malformed, expected end of settings but encountered additional content starting at columnNumber: [{}], lineNumber: [{}]",
-                    jp.getTokenLocation().columnNumber,
-                    jp.getTokenLocation().lineNumber
+                    "malformed, expected end of settings but encountered additional content starting at line number: [{}], column number: [{}]",
+                    e,
+                    jp.getTokenLocation().lineNumber,
+                    jp.getTokenLocation().columnNumber
+            );
+        }
+        if (lastToken != null) {
+            throw new ElasticsearchParseException(
+                    "malformed, expected end of settings but encountered additional content starting at line number: [{}], column number: [{}]",
+                    jp.getTokenLocation().lineNumber,
+                    jp.getTokenLocation().columnNumber
             );
         }
 

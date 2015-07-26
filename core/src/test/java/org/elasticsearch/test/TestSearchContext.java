@@ -214,11 +214,6 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean hasFetchSubPhaseContext(FetchSubPhase.ContextFactory contextFactory) {
-        return subPhaseContexts.get(contextFactory.getName()) != null;
-    }
-
-    @Override
     public SearchContextHighlight highlight() {
         return null;
     }

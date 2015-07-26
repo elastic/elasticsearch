@@ -360,8 +360,6 @@ public abstract class SearchContext implements Releasable, HasContextAndHeaders 
 
     public abstract Counter timeEstimateCounter();
 
-    public abstract boolean hasFetchSubPhaseContext(FetchSubPhase.ContextFactory contextFactory);
-
     /**
      * The life time of an object that is used during search execution.
      */

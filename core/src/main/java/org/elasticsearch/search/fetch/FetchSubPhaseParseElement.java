@@ -19,16 +19,20 @@
 
 package org.elasticsearch.search.fetch;
 
-public class FetchSubPhaseContext {
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.SearchParseElement;
+import org.elasticsearch.search.internal.SearchContext;
 
-    private boolean hitExecutionNeeded = false;
+public abstract class FetchSubPhaseParseElement implements SearchParseElement {
 
-    void setHitExecutionNeeded(boolean hitExecutionNeeded) {
-        this.hitExecutionNeeded = hitExecutionNeeded;
+    @Override
+    public void parse(XContentParser parser, SearchContext context) throws Exception {
+        FetchSubPhaseContext fetchSubPhaseContext = context.getFetchSubPhaseContext(getContextFactory());
+        fetchSubPhaseContext.setHitExecutionNeeded(true);
+        innerParse(parser, fetchSubPhaseContext);
     }
 
-    public boolean hitExecutionNeeded() {
-        return hitExecutionNeeded;
-    }
+    protected abstract void innerParse(XContentParser parser, FetchSubPhaseContext fetchSubPhaseContext) throws Exception;
 
+    protected abstract FetchSubPhase.ContextFactory getContextFactory();
 }

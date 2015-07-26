@@ -294,11 +294,6 @@ public class PercolateContext extends SearchContext {
         return subPhaseContexts.get(subPhaseName);
     }
 
-    @Override
-    public boolean hasFetchSubPhaseContext(FetchSubPhase.ContextFactory contextFactory) {
-        return subPhaseContexts.get(contextFactory.getName()) != null;
-    }
-
     // Unused:
     @Override
     public void preProcess() {

@@ -26,7 +26,7 @@ import java.util.List;
 /**
  * All the required context to pull a field from the field data cache.
  */
-public class FieldDataFieldsContext implements FetchSubPhaseContext{
+public class FieldDataFieldsContext extends FetchSubPhaseContext {
 
     public static class FieldDataField {
         private final String name;

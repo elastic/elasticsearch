@@ -81,7 +81,7 @@ public class FieldDataFieldsFetchSubPhase implements FetchSubPhase {
 
     @Override
     public boolean hitExecutionNeeded(SearchContext context) {
-        return context.hasFetchSubPhaseContext(CONTEXT_FACTORY);
+        return context.getFetchSubPhaseContext(CONTEXT_FACTORY).hitExecutionNeeded();
     }
 
     @Override

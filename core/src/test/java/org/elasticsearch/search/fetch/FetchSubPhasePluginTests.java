@@ -153,7 +153,7 @@ public class FetchSubPhasePluginTests extends ElasticsearchIntegrationTest {
 
         @Override
         public boolean hitExecutionNeeded(SearchContext context) {
-            return context.hasFetchSubPhaseContext(CONTEXT_FACTORY);
+            return context.getFetchSubPhaseContext(CONTEXT_FACTORY).hitExecutionNeeded();
         }
 
         @Override
@@ -183,21 +183,27 @@ public class FetchSubPhasePluginTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    public static class TermVectorsFetchParseElement implements SearchParseElement {
+    public static class TermVectorsFetchParseElement extends FetchSubPhaseParseElement {
 
         @Override
-        public void parse(XContentParser parser, SearchContext context) throws Exception {
+        protected void innerParse(XContentParser parser, FetchSubPhaseContext fetchSubPhaseContext) throws Exception {
             XContentParser.Token token = parser.currentToken();
+            TermVectorsFetchContext termVectorsFetchContext = (TermVectorsFetchContext) fetchSubPhaseContext;
             if (token == XContentParser.Token.VALUE_STRING) {
                 String fieldName = parser.text();
-                ((TermVectorsFetchContext) context.getFetchSubPhaseContext(TermVectorsFetchSubPhase.CONTEXT_FACTORY)).setField(fieldName);
+                termVectorsFetchContext.setField(fieldName);
             } else {
                 throw new IllegalStateException("Expected a VALUE_STRING but got " + token);
             }
         }
+
+        @Override
+        protected FetchSubPhase.ContextFactory getContextFactory() {
+            return TermVectorsFetchSubPhase.CONTEXT_FACTORY;
+        }
     }
 
-    public static class TermVectorsFetchContext implements FetchSubPhaseContext {
+    public static class TermVectorsFetchContext extends FetchSubPhaseContext {
 
         private String field = null;
 

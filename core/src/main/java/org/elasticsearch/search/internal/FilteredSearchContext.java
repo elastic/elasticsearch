@@ -625,9 +625,4 @@ public abstract class FilteredSearchContext extends SearchContext {
     public FetchSubPhaseContext getFetchSubPhaseContext(FetchSubPhase.ContextFactory subPhase) {
         return in.getFetchSubPhaseContext(subPhase);
     }
-
-    @Override
-    public boolean hasFetchSubPhaseContext(FetchSubPhase.ContextFactory contextFactory) {
-        return in.hasFetchSubPhaseContext(contextFactory);
-    }
 }

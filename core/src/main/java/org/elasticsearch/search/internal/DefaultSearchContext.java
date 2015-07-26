@@ -728,11 +728,6 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean hasFetchSubPhaseContext(FetchSubPhase.ContextFactory contextFactory) {
-        return subPhaseContexts.get(contextFactory.getName()) != null;
-    }
-
-    @Override
     public void innerHits(InnerHitsContext innerHitsContext) {
         this.innerHitsContext = innerHitsContext;
     }

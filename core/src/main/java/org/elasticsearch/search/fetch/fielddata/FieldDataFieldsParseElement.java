@@ -20,12 +20,15 @@ package org.elasticsearch.search.fetch.fielddata;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseElement;
+import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.fetch.FetchSubPhaseContext;
+import org.elasticsearch.search.fetch.FetchSubPhaseParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 
 /**
  * Parses field name values from the {@code fielddata_fields} parameter in a
  * search request.
- *
+ * <p/>
  * <pre>
  * {
  *   "query": {...},
@@ -33,10 +36,11 @@ import org.elasticsearch.search.internal.SearchContext;
  * }
  * </pre>
  */
-public class FieldDataFieldsParseElement implements SearchParseElement {
+public class FieldDataFieldsParseElement extends FetchSubPhaseParseElement {
+
     @Override
-    public void parse(XContentParser parser, SearchContext context) throws Exception {
-        FieldDataFieldsContext fieldDataFieldsContext = (FieldDataFieldsContext)context.getFetchSubPhaseContext(FieldDataFieldsFetchSubPhase.CONTEXT_FACTORY);
+    protected void innerParse(XContentParser parser, FetchSubPhaseContext fetchSubPhaseContext) throws Exception {
+        FieldDataFieldsContext fieldDataFieldsContext = (FieldDataFieldsContext) fetchSubPhaseContext;
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.START_ARRAY) {
             while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
@@ -46,8 +50,13 @@ public class FieldDataFieldsParseElement implements SearchParseElement {
         } else if (token == XContentParser.Token.VALUE_STRING) {
             String fieldName = parser.text();
             fieldDataFieldsContext.add(new FieldDataFieldsContext.FieldDataField(fieldName));
-        }  else {
+        } else {
             throw new IllegalStateException("Expected either a VALUE_STRING or an START_ARRAY but got " + token);
         }
+    }
+
+    @Override
+    protected FetchSubPhase.ContextFactory getContextFactory() {
+        return FieldDataFieldsFetchSubPhase.CONTEXT_FACTORY;
     }
 }

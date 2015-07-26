@@ -86,13 +86,8 @@ public class FetchPhase implements SearchPhase {
     @Inject
     public FetchPhase(Set<FetchSubPhase> fetchSubPhases, InnerHitsFetchSubPhase innerHitsFetchSubPhase) {
         innerHitsFetchSubPhase.setFetchPhase(this);
-        this.fetchSubPhases = new FetchSubPhase[fetchSubPhases.size() + 1];
-        int counter = 0;
-        for (FetchSubPhase phase : fetchSubPhases) {
-            this.fetchSubPhases[counter] = phase;
-            counter++;
-        }
-        this.fetchSubPhases[counter] = innerHitsFetchSubPhase;
+        this.fetchSubPhases = fetchSubPhases.toArray(new FetchSubPhase[fetchSubPhases.size() + 1]);
+        this.fetchSubPhases[fetchSubPhases.size()] = innerHitsFetchSubPhase;
     }
 
     @Override

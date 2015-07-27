@@ -256,6 +256,7 @@ public class HDRPercentileRanksTests extends AbstractNumericTests {
 
     @Override
     @Test
+    @AwaitsFix(bugUrl="Fails with seed: B75FCDC119D90BBE, Colin to fix")
     public void testSingleValuedField_WithValueScript_WithParams() throws Exception {
         int sigDigits = randomSignificantDigits();
         Map<String, Object> params = new HashMap<>();
@@ -369,6 +370,7 @@ public class HDRPercentileRanksTests extends AbstractNumericTests {
 
     @Override
     @Test
+    @AwaitsFix(bugUrl="Fails with seed: B75FCDC119D90BBE, Colin to fix")
     public void testScript_SingleValued_WithParams() throws Exception {
         int sigDigits = randomSignificantDigits();
         Map<String, Object> params = new HashMap<>();

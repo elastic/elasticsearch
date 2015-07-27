@@ -20,6 +20,7 @@
 package org.elasticsearch.common.io;
 
 import com.google.common.collect.Iterators;
+
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.logging.ESLogger;
 
@@ -82,6 +83,20 @@ public final class FileSystemUtils {
             }
         }
         return false;
+    }
+
+    /**
+     * Check whether the file denoted by the given path is hidden.
+     * In practice, this will check if the file name starts with a dot.
+     * This should be preferred to {@link Files#isHidden(Path)} as this
+     * does not depend on the operating system.
+     */
+    public static boolean isHidden(Path path) {
+        Path fileName = path.getFileName();
+        if (fileName == null) {
+            return false;
+        }
+        return fileName.toString().startsWith(".");
     }
 
     /**
@@ -334,4 +349,5 @@ public final class FileSystemUtils {
             return Iterators.toArray(stream.iterator(), Path.class);
         }
     }
+
 }

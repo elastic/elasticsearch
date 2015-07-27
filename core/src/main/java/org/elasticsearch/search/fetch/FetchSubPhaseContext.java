@@ -19,14 +19,26 @@
 
 package org.elasticsearch.search.fetch;
 
+/**
+ * This class stores  if or if not a FetchSubPhase is supposed to execute.
+ * It be extended by FetchSubPhases to hold information the phase needs to execute on hits.
+ * See {@link org.elasticsearch.search.fetch.FetchSubPhase.ContextFactory} and also {@link org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext} for an example.
+ */
 public class FetchSubPhaseContext {
 
+    // This is to store if the FetchSubPhase should be executed at all.
     private boolean hitExecutionNeeded = false;
 
+    /**
+     * Set if this phase should be executed at all.
+     */
     void setHitExecutionNeeded(boolean hitExecutionNeeded) {
         this.hitExecutionNeeded = hitExecutionNeeded;
     }
 
+    /**
+     * Returns if this phase be executed at all.
+     */
     public boolean hitExecutionNeeded() {
         return hitExecutionNeeded;
     }

@@ -19,13 +19,9 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.query.SimpleQueryParser.Settings;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -85,6 +81,11 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
         result.fields(fields);
 
         return result;
+    }
+
+    @Override
+    protected void doAssertLuceneQuery(SimpleQueryStringBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+        assertThat(query, notNullValue());
     }
 
     @Test
@@ -177,15 +178,6 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
         assertThat(exception, notNullValue());
     }
 
-    @Test
-    public void testHandlingDefaults() throws IOException {
-        SimpleQueryStringBuilder qb = createTestQueryBuilder();
-        qb.analyzer(null);
-        qb.minimumShouldMatch(null);
-        qb.queryName(null);
-        assertEquals(qb.toQuery(createContext()), createExpectedQuery(qb, createContext()));
-    }
-
     @Test(expected = IllegalArgumentException.class)
     public void testFieldCannotBeNull() {
         SimpleQueryStringBuilder qb = createTestQueryBuilder();
@@ -229,45 +221,5 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
         }
         return result;
     }
-
-    @Override
-    protected Query doCreateExpectedQuery(SimpleQueryStringBuilder queryBuilder, QueryParseContext context) throws IOException {
-        Map<String, Float> fields = new TreeMap<>();
-        // Use the default field (_all) if no fields specified
-        if (queryBuilder.fields().isEmpty()) {
-            String field = context.defaultField();
-            fields.put(field, AbstractQueryBuilder.DEFAULT_BOOST);
-        } else {
-            fields.putAll(queryBuilder.fields());
-        }
-
-        // Use standard analyzer by default if none specified
-        Analyzer luceneAnalyzer;
-        if (queryBuilder.analyzer() == null) {
-            luceneAnalyzer = context.mapperService().searchAnalyzer();
-        } else {
-            luceneAnalyzer = context.analysisService().analyzer(queryBuilder.analyzer());
-        }
-        SimpleQueryParser sqp = new SimpleQueryParser(luceneAnalyzer, fields, queryBuilder.flags(), new Settings(queryBuilder.locale(),
-                queryBuilder.lowercaseExpandedTerms(), queryBuilder.lenient(), queryBuilder.analyzeWildcard()));
-
-        if (queryBuilder.defaultOperator() != null) {
-            switch (queryBuilder.defaultOperator()) {
-            case OR:
-                sqp.setDefaultOperator(Occur.SHOULD);
-                break;
-            case AND:
-                sqp.setDefaultOperator(Occur.MUST);
-                break;
-            }
-        }
-
-        Query query = sqp.parse(queryBuilder.text());
-        if (queryBuilder.minimumShouldMatch() != null && query instanceof BooleanQuery) {
-            Queries.applyMinimumShouldMatch((BooleanQuery) query, queryBuilder.minimumShouldMatch());
-        }
-        return query;
-    }
-
 }
 

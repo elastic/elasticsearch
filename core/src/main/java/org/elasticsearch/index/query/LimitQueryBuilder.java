@@ -42,6 +42,10 @@ public class LimitQueryBuilder extends AbstractQueryBuilder<LimitQueryBuilder> {
         this.limit = limit;
     }
 
+    public int limit() {
+        return limit;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);

@@ -19,18 +19,13 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.support.QueryParsers;
 import org.junit.Test;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class WildcardQueryBuilderTest extends BaseQueryTestCase<WildcardQueryBuilder> {
@@ -53,26 +48,8 @@ public class WildcardQueryBuilderTest extends BaseQueryTestCase<WildcardQueryBui
     }
 
     @Override
-    protected Query doCreateExpectedQuery(WildcardQueryBuilder queryBuilder, QueryParseContext context) throws IOException {
-        String indexFieldName;
-        BytesRef valueBytes;
-
-        MappedFieldType fieldType = context.fieldMapper(queryBuilder.fieldName());
-        if (fieldType != null) {
-            indexFieldName = fieldType.names().indexName();
-            valueBytes = fieldType.indexedValueForSearch(queryBuilder.value());
-        } else {
-            indexFieldName = queryBuilder.fieldName();
-            valueBytes = new BytesRef(queryBuilder.value());
-        }
-
-        WildcardQuery expectedQuery = new WildcardQuery(new Term(indexFieldName, valueBytes));
-
-        //norelease fix to be removed to avoid NPE on unmapped fields
-        context.parseFieldMatcher(randomBoolean() ? ParseFieldMatcher.EMPTY : ParseFieldMatcher.STRICT);
-        MultiTermQuery.RewriteMethod rewriteMethod = QueryParsers.parseRewriteMethod(context.parseFieldMatcher(), queryBuilder.rewrite(), null);
-        QueryParsers.setRewriteMethod(expectedQuery, rewriteMethod);
-        return expectedQuery;
+    protected void doAssertLuceneQuery(WildcardQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+        assertThat(query, instanceOf(WildcardQuery.class));
     }
 
     @Test

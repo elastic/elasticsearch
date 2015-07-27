@@ -19,18 +19,14 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.support.QueryParsers;
 import org.junit.Test;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class PrefixQueryBuilderTest extends BaseQueryTestCase<PrefixQueryBuilder> {
@@ -48,26 +44,10 @@ public class PrefixQueryBuilderTest extends BaseQueryTestCase<PrefixQueryBuilder
     }
 
     @Override
-    protected Query doCreateExpectedQuery(PrefixQueryBuilder queryBuilder, QueryParseContext context) throws IOException {
-        //norelease fix to be removed to avoid NPE on unmapped fields (Dtests.seed=BF5D7566DECBC5B1)
-        context.parseFieldMatcher(randomBoolean() ? ParseFieldMatcher.EMPTY : ParseFieldMatcher.STRICT);
-        
-        MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(context.parseFieldMatcher(), queryBuilder.rewrite(), null);
-
-        Query query = null;
-        MappedFieldType fieldType = context.fieldMapper(queryBuilder.fieldName());
-        if (fieldType != null) {
-            query = fieldType.prefixQuery(queryBuilder.value(), method, context);
-        }
-        if (query == null) {
-            PrefixQuery prefixQuery = new PrefixQuery(new Term(queryBuilder.fieldName(), BytesRefs.toBytesRef(queryBuilder.value())));
-            if (method != null) {
-                prefixQuery.setRewriteMethod(method);
-            }
-            query = prefixQuery;
-        }
-
-        return query;
+    protected void doAssertLuceneQuery(PrefixQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+        assertThat(query, instanceOf(PrefixQuery.class));
+        PrefixQuery prefixQuery = (PrefixQuery) query;
+        assertThat(prefixQuery.getPrefix().field(), equalTo(queryBuilder.fieldName()));
     }
 
     @Test

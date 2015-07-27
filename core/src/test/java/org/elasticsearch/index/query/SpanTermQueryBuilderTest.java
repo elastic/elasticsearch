@@ -19,9 +19,16 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanTermQuery;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.index.mapper.MappedFieldType;
+
+import java.io.IOException;
+
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class SpanTermQueryBuilderTest extends BaseTermQueryTestCase<SpanTermQueryBuilder> {
 
@@ -31,8 +38,17 @@ public class SpanTermQueryBuilderTest extends BaseTermQueryTestCase<SpanTermQuer
     }
 
     @Override
-    protected Query createLuceneTermQuery(Term term) {
-        return new SpanTermQuery(term);
+    protected void doAssertLuceneQuery(SpanTermQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+        assertThat(query, instanceOf(SpanTermQuery.class));
+        SpanTermQuery spanTermQuery = (SpanTermQuery) query;
+        assertThat(spanTermQuery.getTerm().field(), equalTo(queryBuilder.fieldName()));
+        MappedFieldType mapper = context.fieldMapper(queryBuilder.fieldName());
+        if (mapper != null) {
+            BytesRef bytesRef = mapper.indexedValueForSearch(queryBuilder.value());
+            assertThat(spanTermQuery.getTerm().bytes(), equalTo(bytesRef));
+        } else {
+            assertThat(spanTermQuery.getTerm().bytes(), equalTo(BytesRefs.toBytesRef(queryBuilder.value())));
+        }
     }
 
     /**

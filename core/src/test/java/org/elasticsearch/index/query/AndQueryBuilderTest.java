@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -27,27 +27,16 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.nullValue;
 
 @SuppressWarnings("deprecation")
 public class AndQueryBuilderTest extends BaseQueryTestCase<AndQueryBuilder> {
-
-    @Override
-    protected Query doCreateExpectedQuery(AndQueryBuilder queryBuilder, QueryParseContext context) throws QueryParsingException, IOException {
-        if (queryBuilder.filters().isEmpty()) {
-            return null;
-        }
-        BooleanQuery query = new BooleanQuery();
-        for (QueryBuilder subQuery : queryBuilder.filters()) {
-            Query innerQuery = subQuery.toQuery(context);
-            if (innerQuery != null) {
-                query.add(innerQuery, Occur.MUST);
-            }
-        }
-        if (query.clauses().isEmpty()) {
-            return null;
-        }
-        return query;
-    }
 
     /**
      * @return a AndQueryBuilder with random limit between 0 and 20
@@ -60,6 +49,33 @@ public class AndQueryBuilderTest extends BaseQueryTestCase<AndQueryBuilder> {
             query.add(RandomQueryBuilder.createQuery(random()));
         }
         return query;
+    }
+
+    @Override
+    protected void doAssertLuceneQuery(AndQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+        if (queryBuilder.filters().isEmpty()) {
+            assertThat(query, nullValue());
+        } else {
+            List<Query> clauses = new ArrayList<>();
+            for (QueryBuilder innerFilter : queryBuilder.filters()) {
+                Query clause = innerFilter.toQuery(context);
+                if (clause != null) {
+                    clauses.add(clause);
+                }
+            }
+            if (clauses.isEmpty()) {
+                assertThat(query, nullValue());
+            } else {
+                assertThat(query, instanceOf(BooleanQuery.class));
+                BooleanQuery booleanQuery = (BooleanQuery) query;
+                assertThat(booleanQuery.clauses().size(), equalTo(clauses.size()));
+                Iterator<Query> queryIterator = clauses.iterator();
+                for (BooleanClause booleanClause : booleanQuery) {
+                    assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.MUST));
+                    assertThat(booleanClause.getQuery(), equalTo(queryIterator.next()));
+                }
+            }
+        }
     }
 
     /**

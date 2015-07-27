@@ -27,16 +27,11 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-public class ConstantScoreQueryBuilderTest extends BaseQueryTestCase<ConstantScoreQueryBuilder> {
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.nullValue;
 
-    @Override
-    protected Query doCreateExpectedQuery(ConstantScoreQueryBuilder testBuilder, QueryParseContext context) throws QueryParsingException, IOException {
-        Query innerQuery = testBuilder.query().toQuery(context);
-        if (innerQuery != null) {
-            return new ConstantScoreQuery(innerQuery);
-        }
-        return null;
-    }
+public class ConstantScoreQueryBuilderTest extends BaseQueryTestCase<ConstantScoreQueryBuilder> {
 
     /**
      * @return a {@link ConstantScoreQueryBuilder} with random boost between 0.1f and 2.0f
@@ -44,6 +39,18 @@ public class ConstantScoreQueryBuilderTest extends BaseQueryTestCase<ConstantSco
     @Override
     protected ConstantScoreQueryBuilder doCreateTestQueryBuilder() {
         return new ConstantScoreQueryBuilder(RandomQueryBuilder.createQuery(random()));
+    }
+
+    @Override
+    protected void doAssertLuceneQuery(ConstantScoreQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+        Query innerQuery = queryBuilder.query().toQuery(context);
+        if (innerQuery == null) {
+            assertThat(query, nullValue());
+        } else {
+            assertThat(query, instanceOf(ConstantScoreQuery.class));
+            ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;
+            assertThat(constantScoreQuery.getQuery(), equalTo(innerQuery));
+        }
     }
 
     /**

@@ -19,51 +19,20 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.object.ObjectMapper;
 
 import java.io.IOException;
 import java.util.Collection;
 
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
+
 public class ExistsQueryBuilderTest extends BaseQueryTestCase<ExistsQueryBuilder> {
-
-    private static Collection<String> getFieldNamePattern(String fieldName, QueryParseContext context) {
-        if (getCurrentTypes().length > 0 && fieldName.equals(BaseQueryTestCase.OBJECT_FIELD_NAME)) {
-            // "object" field has two inner fields (age, price), so if query hits that field, we
-            // extend field name with wildcard to match both nested fields. This is similar to what
-            // is done internally in ExistsQueryBuilder.toQuery()
-            fieldName = fieldName + ".*";
-        }
-        return context.simpleMatchToIndexNames(fieldName);
-    }
-
-    @Override
-    protected Query doCreateExpectedQuery(ExistsQueryBuilder queryBuilder, QueryParseContext context) throws IOException {
-        final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType)context.mapperService().fullName(FieldNamesFieldMapper.NAME);
-        Collection<String> fields = getFieldNamePattern(queryBuilder.name(), context);
-
-        if (fields.isEmpty() || fieldNamesFieldType == null) {
-            return Queries.newMatchNoDocsQuery();
-        }
-
-        BooleanQuery boolFilter = new BooleanQuery();
-        for (String field : fields) {
-            if (fieldNamesFieldType.isEnabled()) {
-                boolFilter.add(fieldNamesFieldType.termQuery(field, context), BooleanClause.Occur.SHOULD);
-            } else {
-                MappedFieldType fieldType = context.fieldMapper(field);
-                if (fieldType == null) {
-                    boolFilter.add(new TermRangeQuery(field, null, null, true, true), BooleanClause.Occur.SHOULD);
-                } else {
-                    boolFilter.add(fieldType.rangeQuery(null, null, true, true), BooleanClause.Occur.SHOULD);
-                }
-            }
-        }
-        return new ConstantScoreQuery(boolFilter);
-    }
 
     @Override
     protected ExistsQueryBuilder doCreateTestQueryBuilder() {
@@ -82,5 +51,31 @@ public class ExistsQueryBuilderTest extends BaseQueryTestCase<ExistsQueryBuilder
             }
         }
         return new ExistsQueryBuilder(fieldPattern);
+    }
+
+    @Override
+    protected void doAssertLuceneQuery(ExistsQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+        String fieldPattern = queryBuilder.name();
+        ObjectMapper objectMapper = context.getObjectMapper(fieldPattern);
+        if (objectMapper != null) {
+            // automatic make the object mapper pattern
+            fieldPattern = fieldPattern + ".*";
+        }
+        Collection<String> fields = context.simpleMatchToIndexNames(fieldPattern);
+        if (getCurrentTypes().length == 0 || fields.size() == 0) {
+            assertThat(query, instanceOf(BooleanQuery.class));
+            BooleanQuery booleanQuery = (BooleanQuery) query;
+            assertThat(booleanQuery.clauses().size(), equalTo(0));
+        } else {
+            assertThat(query, instanceOf(ConstantScoreQuery.class));
+            ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;
+            assertThat(constantScoreQuery.getQuery(), instanceOf(BooleanQuery.class));
+            BooleanQuery booleanQuery = (BooleanQuery) constantScoreQuery.getQuery();
+            assertThat(booleanQuery.clauses().size(), equalTo(fields.size()));
+            for (int i = 0; i < fields.size(); i++) {
+                BooleanClause booleanClause = booleanQuery.clauses().get(i);
+                assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+            }
+        }
     }
 }

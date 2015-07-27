@@ -27,17 +27,12 @@ import org.junit.Test;
 
 import java.io.IOException;
 
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.nullValue;
+
 @SuppressWarnings("deprecation")
 public class FQueryFilterBuilderTest extends BaseQueryTestCase<FQueryFilterBuilder> {
-
-    @Override
-    protected Query doCreateExpectedQuery(FQueryFilterBuilder queryBuilder, QueryParseContext context) throws QueryParsingException, IOException {
-        Query query = queryBuilder.innerQuery().toQuery(context);
-        if (query != null) {
-            return new ConstantScoreQuery(query);
-        }
-        return null;
-    }
 
     /**
      * @return a FQueryFilterBuilder with random inner query
@@ -46,6 +41,18 @@ public class FQueryFilterBuilderTest extends BaseQueryTestCase<FQueryFilterBuild
     protected FQueryFilterBuilder doCreateTestQueryBuilder() {
         QueryBuilder innerQuery = RandomQueryBuilder.createQuery(random());
         return new FQueryFilterBuilder(innerQuery);
+    }
+
+    @Override
+    protected void doAssertLuceneQuery(FQueryFilterBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+        Query innerQuery = queryBuilder.innerQuery().toQuery(context);
+        if (innerQuery == null) {
+            assertThat(query, nullValue());
+        } else {
+            assertThat(query, instanceOf(ConstantScoreQuery.class));
+            ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;
+            assertThat(constantScoreQuery.getQuery(), equalTo(innerQuery));
+        }
     }
 
     /**

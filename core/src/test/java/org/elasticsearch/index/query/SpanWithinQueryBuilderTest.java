@@ -20,25 +20,24 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanWithinQuery;
 import org.junit.Test;
 
 import java.io.IOException;
 
-public class SpanWithinQueryBuilderTest extends BaseQueryTestCase<SpanWithinQueryBuilder> {
+import static org.hamcrest.CoreMatchers.instanceOf;
 
-    @Override
-    protected Query doCreateExpectedQuery(SpanWithinQueryBuilder testQueryBuilder, QueryParseContext context) throws IOException {
-        SpanQuery big = (SpanQuery) testQueryBuilder.big().toQuery(context);
-        SpanQuery little = (SpanQuery) testQueryBuilder.little().toQuery(context);
-        return new SpanWithinQuery(big, little);
-    }
+public class SpanWithinQueryBuilderTest extends BaseQueryTestCase<SpanWithinQueryBuilder> {
 
     @Override
     protected SpanWithinQueryBuilder doCreateTestQueryBuilder() {
         SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTest().createSpanTermQueryBuilders(2);
         return new SpanWithinQueryBuilder(spanTermQueries[0], spanTermQueries[1]);
+    }
+
+    @Override
+    protected void doAssertLuceneQuery(SpanWithinQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+        assertThat(query, instanceOf(SpanWithinQuery.class));
     }
 
     @Test

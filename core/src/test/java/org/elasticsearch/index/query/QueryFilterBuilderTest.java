@@ -21,26 +21,59 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.junit.Test;
 
 import java.io.IOException;
+
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.nullValue;
 
 @SuppressWarnings("deprecation")
 public class QueryFilterBuilderTest extends BaseQueryTestCase<QueryFilterBuilder> {
 
     @Override
-    protected Query doCreateExpectedQuery(QueryFilterBuilder queryBuilder, QueryParseContext context) throws QueryParsingException, IOException {
-        Query query = queryBuilder.innerQuery().toQuery(context);
-        return query != null ? new ConstantScoreQuery(query) : query;
-    }
-
-    /**
-     * @return a QueryFilterBuilder with random inner query
-     */
-    @Override
     protected QueryFilterBuilder doCreateTestQueryBuilder() {
         QueryBuilder innerQuery = RandomQueryBuilder.createQuery(random());
         return new QueryFilterBuilder(innerQuery);
+    }
+
+    @Override
+    protected void doAssertLuceneQuery(QueryFilterBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+        Query innerQuery = queryBuilder.innerQuery().toQuery(context);
+        if (innerQuery == null) {
+            assertThat(query, nullValue());
+        } else {
+            assertThat(query, instanceOf(ConstantScoreQuery.class));
+            ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;
+            assertThat(constantScoreQuery.getQuery(), equalTo(innerQuery));
+        }
+    }
+
+    @Override
+    protected boolean supportsBoostAndQueryName() {
+        return false;
+    }
+
+    /**
+     * test wrapping an inner filter that returns null also returns <tt>null</null> to pass on upwards
+     */
+    @Test
+    public void testInnerQueryReturnsNull() throws IOException {
+        QueryParseContext context = createContext();
+
+        // create inner filter
+        String queryString = "{ \"constant_score\" : { \"filter\" : {} }";
+        XContentParser parser = XContentFactory.xContent(queryString).createParser(queryString);
+        context.reset(parser);
+        assertQueryHeader(parser, ConstantScoreQueryBuilder.PROTOTYPE.getName());
+        QueryBuilder innerQuery = context.indexQueryParserService().queryParser(ConstantScoreQueryBuilder.PROTOTYPE.getName()).fromXContent(context);
+
+        // check that when wrapping this filter, toQuery() returns null
+        QueryFilterBuilder queryFilterQuery = new QueryFilterBuilder(innerQuery);
+        assertNull(queryFilterQuery.toQuery(createContext()));
     }
 
     @Test

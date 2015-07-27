@@ -27,17 +27,13 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Iterator;
+
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.nullValue;
 
 public class DisMaxQueryBuilderTest extends BaseQueryTestCase<DisMaxQueryBuilder> {
-
-    @Override
-    protected Query doCreateExpectedQuery(DisMaxQueryBuilder testBuilder, QueryParseContext context) throws QueryParsingException, IOException {
-        Collection<Query> queries = AbstractQueryBuilder.toQueries(testBuilder.queries(), context);
-        if (queries.isEmpty()) {
-            return null;
-        }
-        return new DisjunctionMaxQuery(queries, testBuilder.tieBreaker());
-    }
 
     /**
      * @return a {@link DisMaxQueryBuilder} with random inner queries
@@ -53,6 +49,23 @@ public class DisMaxQueryBuilderTest extends BaseQueryTestCase<DisMaxQueryBuilder
             dismax.tieBreaker(2.0f / randomIntBetween(1, 20));
         }
         return dismax;
+    }
+
+    @Override
+    protected void doAssertLuceneQuery(DisMaxQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+        Collection<Query> queries = AbstractQueryBuilder.toQueries(queryBuilder.queries(), context);
+        if (queries.isEmpty()) {
+            assertThat(query, nullValue());
+        } else {
+            assertThat(query, instanceOf(DisjunctionMaxQuery.class));
+            DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) query;
+            assertThat(disjunctionMaxQuery.getTieBreakerMultiplier(), equalTo(queryBuilder.tieBreaker()));
+            assertThat(disjunctionMaxQuery.getDisjuncts().size(), equalTo(queries.size()));
+            Iterator<Query> queryIterator = queries.iterator();
+            for (int i = 0; i < disjunctionMaxQuery.getDisjuncts().size(); i++) {
+                assertThat(disjunctionMaxQuery.getDisjuncts().get(i), equalTo(queryIterator.next()));
+            }
+        }
     }
 
     /**

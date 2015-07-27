@@ -25,21 +25,12 @@ import org.apache.lucene.search.spans.SpanQuery;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Iterator;
+
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class SpanOrQueryBuilderTest extends BaseQueryTestCase<SpanOrQueryBuilder> {
-
-    @Override
-    protected Query doCreateExpectedQuery(SpanOrQueryBuilder testQueryBuilder, QueryParseContext context) throws IOException {
-        List<SpanQueryBuilder> clauses = testQueryBuilder.clauses();
-        SpanQuery[] spanQueries = new SpanQuery[clauses.size()];
-        for (int i = 0; i < clauses.size(); i++) {
-            Query query = clauses.get(i).toQuery(context);
-            assert query instanceof SpanQuery;
-            spanQueries[i] = (SpanQuery) query;
-        }
-        return new SpanOrQuery(spanQueries);
-    }
 
     @Override
     protected SpanOrQueryBuilder doCreateTestQueryBuilder() {
@@ -49,6 +40,17 @@ public class SpanOrQueryBuilderTest extends BaseQueryTestCase<SpanOrQueryBuilder
             queryBuilder.clause(clause);
         }
         return queryBuilder;
+    }
+
+    @Override
+    protected void doAssertLuceneQuery(SpanOrQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+        assertThat(query, instanceOf(SpanOrQuery.class));
+        SpanOrQuery spanOrQuery = (SpanOrQuery) query;
+        assertThat(spanOrQuery.getClauses().length, equalTo(queryBuilder.clauses().size()));
+        Iterator<SpanQueryBuilder> spanQueryBuilderIterator = queryBuilder.clauses().iterator();
+        for (SpanQuery spanQuery : spanOrQuery.getClauses()) {
+            assertThat(spanQuery, equalTo(spanQueryBuilderIterator.next().toQuery(context)));
+        }
     }
 
     @Test

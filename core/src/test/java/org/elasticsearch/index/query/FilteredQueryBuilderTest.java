@@ -19,12 +19,18 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.junit.Test;
 
 import java.io.IOException;
+
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.nullValue;
 
 @SuppressWarnings("deprecation")
 public class FilteredQueryBuilderTest extends BaseQueryTestCase<FilteredQueryBuilder> {
@@ -33,30 +39,32 @@ public class FilteredQueryBuilderTest extends BaseQueryTestCase<FilteredQueryBui
     protected FilteredQueryBuilder doCreateTestQueryBuilder() {
         QueryBuilder queryBuilder = RandomQueryBuilder.createQuery(random());
         QueryBuilder filterBuilder = RandomQueryBuilder.createQuery(random());
-
-        FilteredQueryBuilder query = new FilteredQueryBuilder(queryBuilder, filterBuilder);
-        return query;
+        return new FilteredQueryBuilder(queryBuilder, filterBuilder);
     }
 
     @Override
-    protected Query doCreateExpectedQuery(FilteredQueryBuilder qb, QueryParseContext context) throws IOException {
-        Query query = qb.query().toQuery(context);
-        Query filter = qb.filter().toQuery(context);
-
-        if (query == null) {
-            return null;
-        }
-
-        Query result;
-        if (filter == null || Queries.isConstantMatchAllQuery(filter)) {
-            result = qb.query().toQuery(context);
-        } else if (Queries.isConstantMatchAllQuery(query)) {
-            result = new ConstantScoreQuery(filter);
+    protected void doAssertLuceneQuery(FilteredQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+        Query innerQuery = queryBuilder.query().toQuery(context);
+        if (innerQuery == null) {
+            assertThat(query, nullValue());
         } else {
-            result = Queries.filtered(qb.query().toQuery(context), filter);
+            Query innerFilter = queryBuilder.filter().toQuery(context);
+            if (innerFilter == null || Queries.isConstantMatchAllQuery(innerFilter)) {
+                innerQuery.setBoost(queryBuilder.boost());
+                assertThat(query, equalTo(innerQuery));
+            } else if (Queries.isConstantMatchAllQuery(innerQuery)) {
+                assertThat(query, instanceOf(ConstantScoreQuery.class));
+                assertThat(((ConstantScoreQuery)query).getQuery(), equalTo(innerFilter));
+            } else {
+                assertThat(query, instanceOf(BooleanQuery.class));
+                BooleanQuery booleanQuery = (BooleanQuery) query;
+                assertThat(booleanQuery.clauses().size(), equalTo(2));
+                assertThat(booleanQuery.clauses().get(0).getOccur(), equalTo(BooleanClause.Occur.MUST));
+                assertThat(booleanQuery.clauses().get(0).getQuery(), equalTo(innerQuery));
+                assertThat(booleanQuery.clauses().get(1).getOccur(), equalTo(BooleanClause.Occur.FILTER));
+                assertThat(booleanQuery.clauses().get(1).getQuery(), equalTo(innerFilter));
+            }
         }
-        result.setBoost(qb.boost());
-        return result;
     }
 
     @Test

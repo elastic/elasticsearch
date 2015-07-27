@@ -19,15 +19,14 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
-import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.junit.Test;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class CommonTermsQueryBuilderTest extends BaseQueryTestCase<CommonTermsQueryBuilder> {
@@ -77,30 +76,11 @@ public class CommonTermsQueryBuilderTest extends BaseQueryTestCase<CommonTermsQu
     }
 
     @Override
-    protected Query doCreateExpectedQuery(CommonTermsQueryBuilder queryBuilder, QueryParseContext context) throws IOException {
-        String fieldName = queryBuilder.fieldName();
-        Analyzer analyzer = context.mapperService().searchAnalyzer();
-
-        // handle mapped field
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
-        if (fieldType != null) {
-            fieldName = fieldType.names().indexName();
-            analyzer = context.getSearchAnalyzer(fieldType);
-        }
-
-        // handle specified analyzer
-        if (queryBuilder.analyzer() != null) {
-            analyzer = context.analysisService().analyzer(queryBuilder.analyzer());
-        }
-        
-        Occur highFreqOccur = queryBuilder.highFreqOperator().toBooleanClauseOccur();
-        Occur lowFreqOccur = queryBuilder.lowFreqOperator().toBooleanClauseOccur();
-
-        ExtendedCommonTermsQuery expectedQuery = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, queryBuilder.cutoffFrequency(), 
-                queryBuilder.disableCoord(), fieldType);
-        CommonTermsQueryBuilder.parseQueryString(expectedQuery, queryBuilder.text(), fieldName, analyzer, 
-                queryBuilder.lowFreqMinimumShouldMatch(), queryBuilder.highFreqMinimumShouldMatch());
-        return expectedQuery;
+    protected void doAssertLuceneQuery(CommonTermsQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+        assertThat(query, instanceOf(ExtendedCommonTermsQuery.class));
+        ExtendedCommonTermsQuery extendedCommonTermsQuery = (ExtendedCommonTermsQuery) query;
+        assertThat(extendedCommonTermsQuery.getHighFreqMinimumNumberShouldMatchSpec(), equalTo(queryBuilder.highFreqMinimumShouldMatch()));
+        assertThat(extendedCommonTermsQuery.getLowFreqMinimumNumberShouldMatchSpec(), equalTo(queryBuilder.lowFreqMinimumShouldMatch()));
     }
 
     @Test

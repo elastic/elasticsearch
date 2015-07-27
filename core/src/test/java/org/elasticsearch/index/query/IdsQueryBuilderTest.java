@@ -20,19 +20,18 @@
 package org.elasticsearch.index.query;
 
 
-import com.google.common.collect.Sets;
 import org.apache.lucene.queries.TermsQuery;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.Collection;
+
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class IdsQueryBuilderTest extends BaseQueryTestCase<IdsQueryBuilder> {
 
@@ -48,26 +47,6 @@ public class IdsQueryBuilderTest extends BaseQueryTestCase<IdsQueryBuilder> {
         context.reset(parser);
         assertQueryHeader(parser, "ids");
         context.indexQueryParserService().queryParser("ids").fromXContent(context);
-    }
-
-    @Override
-    protected Query doCreateExpectedQuery(IdsQueryBuilder queryBuilder, QueryParseContext context) throws IOException {
-        Query expectedQuery;
-        if (queryBuilder.ids().size() == 0) {
-            expectedQuery = Queries.newMatchNoDocsQuery();
-        } else {
-            String[] typesForQuery;
-            if (queryBuilder.types() == null || queryBuilder.types().length == 0) {
-                Collection<String> queryTypes = context.queryTypes();
-                typesForQuery = queryTypes.toArray(new String[queryTypes.size()]);
-            } else if (queryBuilder.types().length == 1 && MetaData.ALL.equals(queryBuilder.types()[0])) {
-                typesForQuery = getCurrentTypes();
-            } else {
-                typesForQuery = queryBuilder.types();
-            }
-            expectedQuery = new TermsQuery(UidFieldMapper.NAME, Uid.createUidsForTypesAndIds(Sets.newHashSet(typesForQuery), queryBuilder.ids()));
-        }
-        return expectedQuery;
     }
 
     @Override
@@ -104,5 +83,15 @@ public class IdsQueryBuilderTest extends BaseQueryTestCase<IdsQueryBuilder> {
             query.addIds(ids);
         }
         return query;
+    }
+
+    @Override
+    protected void doAssertLuceneQuery(IdsQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+        if (queryBuilder.ids().size() == 0) {
+            assertThat(query, instanceOf(BooleanQuery.class));
+            assertThat(((BooleanQuery)query).clauses().size(), equalTo(0));
+        } else {
+            assertThat(query, instanceOf(TermsQuery.class));
+        }
     }
 }

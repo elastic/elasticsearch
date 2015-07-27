@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 
@@ -44,24 +43,40 @@ public class SpanMultiTermQueryParser extends BaseQueryParser {
     @Override
     public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
-
-        Token token = parser.nextToken();
-        if (!MATCH_NAME.equals(parser.currentName()) || token != XContentParser.Token.FIELD_NAME) {
-            throw new QueryParsingException(parseContext, "spanMultiTerm must have [" + MATCH_NAME + "] multi term query clause");
+        String currentFieldName = null;
+        MultiTermQueryBuilder subQuery = null;
+        String queryName = null;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (MATCH_NAME.equals(currentFieldName)) {
+                    QueryBuilder innerQuery = parseContext.parseInnerQueryBuilder();
+                    if (innerQuery instanceof MultiTermQueryBuilder == false) {
+                        throw new QueryParsingException(parseContext, "[span_multi] [" + MATCH_NAME + "] must be of type multi term query");
+                    }
+                    subQuery = (MultiTermQueryBuilder) innerQuery;
+                } else {
+                    throw new QueryParsingException(parseContext, "[span_multi] query does not support [" + currentFieldName + "]");
+                }
+            } else if (token.isValue()) {
+                if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
+                } else if ("boost".equals(currentFieldName)) {
+                    boost = parser.floatValue();
+                } else {
+                    throw new QueryParsingException(parseContext, "[span_multi] query does not support [" + currentFieldName + "]");
+                }
+            }
         }
 
-        token = parser.nextToken();
-        if (token != XContentParser.Token.START_OBJECT) {
-            throw new QueryParsingException(parseContext, "spanMultiTerm must have [" + MATCH_NAME + "] multi term query clause");
+        if (subQuery == null) {
+            throw new QueryParsingException(parseContext, "[span_multi] must have [" + MATCH_NAME + "] multi term query clause");
         }
 
-        QueryBuilder subQuery = parseContext.parseInnerQueryBuilder();
-        if (subQuery instanceof MultiTermQueryBuilder == false) {
-            throw new QueryParsingException(parseContext, "spanMultiTerm [" + MATCH_NAME + "] must be of type multi term query");
-        }
-
-        parser.nextToken();
-        return new SpanMultiTermQueryBuilder((MultiTermQueryBuilder) subQuery);
+        return new SpanMultiTermQueryBuilder(subQuery).queryName(queryName).boost(boost);
     }
 
     @Override

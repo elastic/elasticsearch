@@ -20,17 +20,18 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
-import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class BoolQueryBuilderTest extends BaseQueryTestCase<BoolQueryBuilder> {
 
@@ -66,32 +67,51 @@ public class BoolQueryBuilderTest extends BaseQueryTestCase<BoolQueryBuilder> {
     }
 
     @Override
-    protected Query doCreateExpectedQuery(BoolQueryBuilder queryBuilder, QueryParseContext context) throws IOException {
+    protected void doAssertLuceneQuery(BoolQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
         if (!queryBuilder.hasClauses()) {
-            return new MatchAllDocsQuery();
-        }
+            assertThat(query, instanceOf(MatchAllDocsQuery.class));
+        } else {
+            List<BooleanClause> clauses = new ArrayList<>();
+            clauses.addAll(getBooleanClauses(queryBuilder.must(), BooleanClause.Occur.MUST, context));
+            clauses.addAll(getBooleanClauses(queryBuilder.mustNot(), BooleanClause.Occur.MUST_NOT, context));
+            clauses.addAll(getBooleanClauses(queryBuilder.should(), BooleanClause.Occur.SHOULD, context));
+            clauses.addAll(getBooleanClauses(queryBuilder.filter(), BooleanClause.Occur.FILTER, context));
 
-        BooleanQuery boolQuery = new BooleanQuery(queryBuilder.disableCoord());
-        addBooleanClauses(context, boolQuery, queryBuilder.must(), BooleanClause.Occur.MUST);
-        addBooleanClauses(context, boolQuery, queryBuilder.mustNot(), BooleanClause.Occur.MUST_NOT);
-        addBooleanClauses(context, boolQuery, queryBuilder.should(), BooleanClause.Occur.SHOULD);
-        addBooleanClauses(context, boolQuery, queryBuilder.filter(), BooleanClause.Occur.FILTER);
-
-        if (boolQuery.clauses().isEmpty()) {
-            return new MatchAllDocsQuery();
-        }
-        Queries.applyMinimumShouldMatch(boolQuery, queryBuilder.minimumNumberShouldMatch());
-        return queryBuilder.adjustPureNegative() ? fixNegativeQueryIfNeeded(boolQuery) : boolQuery;
-    }
-
-    private static void addBooleanClauses(QueryParseContext parseContext, BooleanQuery booleanQuery, List<QueryBuilder> clauses, Occur occurs)
-            throws IOException {
-        for (QueryBuilder query : clauses) {
-            Query innerQuery = query.toQuery(parseContext);
-            if (innerQuery != null) {
-                booleanQuery.add(new BooleanClause(innerQuery, occurs));
+            if (clauses.isEmpty()) {
+                assertThat(query, instanceOf(MatchAllDocsQuery.class));
+            } else {
+                assertThat(query, instanceOf(BooleanQuery.class));
+                BooleanQuery booleanQuery = (BooleanQuery) query;
+                if (queryBuilder.adjustPureNegative()) {
+                    boolean isNegative = true;
+                    for (BooleanClause clause : clauses) {
+                        if (clause.isProhibited() == false) {
+                            isNegative = false;
+                            break;
+                        }
+                    }
+                    if (isNegative) {
+                        clauses.add(new BooleanClause(new MatchAllDocsQuery(), BooleanClause.Occur.MUST));
+                    }
+                }
+                assertThat(booleanQuery.clauses().size(), equalTo(clauses.size()));
+                Iterator<BooleanClause> clauseIterator = clauses.iterator();
+                for (BooleanClause booleanClause : booleanQuery.getClauses()) {
+                    assertThat(booleanClause, equalTo(clauseIterator.next()));
+                }
             }
         }
+    }
+
+    private static List<BooleanClause> getBooleanClauses(List<QueryBuilder> queryBuilders, BooleanClause.Occur occur, QueryParseContext parseContext) throws IOException {
+        List<BooleanClause> clauses = new ArrayList<>();
+        for (QueryBuilder query : queryBuilders) {
+            Query innerQuery = query.toQuery(parseContext);
+            if (innerQuery != null) {
+                clauses.add(new BooleanClause(innerQuery, occur));
+            }
+        }
+        return clauses;
     }
 
     @Test

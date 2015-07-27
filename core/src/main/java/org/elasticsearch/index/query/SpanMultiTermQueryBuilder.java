@@ -52,6 +52,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
         builder.startObject(NAME);
         builder.field(SpanMultiTermQueryParser.MATCH_NAME);
         multiTermQueryBuilder.toXContent(builder, params);
+        printBoostAndQueryName(builder);
         builder.endObject();
     }
 
@@ -100,17 +101,5 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
     @Override
     public String getName() {
         return NAME;
-    }
-
-    @Override
-    public SpanMultiTermQueryBuilder boost(float boost) {
-        //no-op: SpanMultiTermQueryParser doesn't support boost, we should be consistent and ignore it here too.
-        return this;
-    }
-
-    @Override
-    public SpanMultiTermQueryBuilder queryName(String queryName) {
-        //no-op: SpanMultiTermQueryParser doesn't support _name, we should be consistent and ignore it here too.
-        return this;
     }
 }

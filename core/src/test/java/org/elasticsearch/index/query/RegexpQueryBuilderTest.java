@@ -19,20 +19,15 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.support.QueryParsers;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class RegexpQueryBuilderTest extends BaseQueryTestCase<RegexpQueryBuilder> {
@@ -62,25 +57,8 @@ public class RegexpQueryBuilderTest extends BaseQueryTestCase<RegexpQueryBuilder
     }
 
     @Override
-    protected Query doCreateExpectedQuery(RegexpQueryBuilder queryBuilder, QueryParseContext context) throws IOException {
-        //norelease fix to be removed to avoid NPE on unmapped fields
-        context.parseFieldMatcher(randomBoolean() ? ParseFieldMatcher.EMPTY : ParseFieldMatcher.STRICT);
-        MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(context.parseFieldMatcher(), queryBuilder.rewrite(), null);
-
-        Query query = null;
-        MappedFieldType fieldType = context.fieldMapper(queryBuilder.fieldName());
-        if (fieldType != null) {
-            query = fieldType.regexpQuery(queryBuilder.value(), queryBuilder.flags(), queryBuilder.maxDeterminizedStates(), method, context);
-        }
-        if (query == null) {
-            RegexpQuery regexpQuery = new RegexpQuery(new Term(queryBuilder.fieldName(), BytesRefs.toBytesRef(queryBuilder.value())), 
-                    queryBuilder.flags(), queryBuilder.maxDeterminizedStates());
-            if (method != null) {
-                regexpQuery.setRewriteMethod(method);
-            }
-            query = regexpQuery;
-        }
-        return query;
+    protected void doAssertLuceneQuery(RegexpQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+        assertThat(query, instanceOf(RegexpQuery.class));
     }
 
     @Test

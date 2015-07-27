@@ -25,6 +25,9 @@ import org.junit.Test;
 
 import java.io.IOException;
 
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.nullValue;
+
 public class BoostingQueryBuilderTest extends BaseQueryTestCase<BoostingQueryBuilder> {
 
     @Override
@@ -35,13 +38,14 @@ public class BoostingQueryBuilderTest extends BaseQueryTestCase<BoostingQueryBui
     }
 
     @Override
-    protected Query doCreateExpectedQuery(BoostingQueryBuilder queryBuilder, QueryParseContext context) throws IOException {
+    protected void doAssertLuceneQuery(BoostingQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
         Query positive = queryBuilder.positive().toQuery(context);
         Query negative = queryBuilder.negative().toQuery(context);
         if (positive == null || negative == null) {
-            return null;
+            assertThat(query, nullValue());
+        } else {
+            assertThat(query, instanceOf(BoostingQuery.class));
         }
-        return new BoostingQuery(positive, negative, queryBuilder.negativeBoost());
     }
 
     @Test

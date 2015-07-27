@@ -22,16 +22,19 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 
-public class MatchAllQueryBuilderTest extends BaseQueryTestCase<MatchAllQueryBuilder> {
+import java.io.IOException;
 
-    @Override
-    protected Query doCreateExpectedQuery(MatchAllQueryBuilder queryBuilder, QueryParseContext context) {
-        return new MatchAllDocsQuery();
-    }
+import static org.hamcrest.CoreMatchers.instanceOf;
+
+public class MatchAllQueryBuilderTest extends BaseQueryTestCase<MatchAllQueryBuilder> {
 
     @Override
     protected MatchAllQueryBuilder doCreateTestQueryBuilder() {
         return new MatchAllQueryBuilder();
     }
 
+    @Override
+    protected void doAssertLuceneQuery(MatchAllQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+        assertThat(query, instanceOf(MatchAllDocsQuery.class));
+    }
 }

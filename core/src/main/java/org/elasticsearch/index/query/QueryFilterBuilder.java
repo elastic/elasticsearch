@@ -59,18 +59,6 @@ public class QueryFilterBuilder extends AbstractQueryBuilder<QueryFilterBuilder>
     }
 
     @Override
-    public QueryFilterBuilder boost(float boost) {
-        //no-op: QueryFilterParser doesn't support boost, we should be consistent and ignore it here too.
-        return this;
-    }
-
-    @Override
-    public QueryFilterBuilder queryName(String queryName) {
-        //no-op: QueryFilterParser doesn't support _name, we should be consistent and ignore it here too.
-        return this;
-    }
-
-    @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(NAME);
         queryBuilder.toXContent(builder, params);

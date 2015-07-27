@@ -25,7 +25,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
@@ -180,11 +180,13 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
 
     protected final QB createTestQueryBuilder() {
         QB query = doCreateTestQueryBuilder();
-        if (randomBoolean()) {
-            query.boost(2.0f / randomIntBetween(1, 20));
-        }
-        if (randomBoolean()) {
-            query.queryName(randomAsciiOfLengthBetween(1, 10));
+        if (supportsBoostAndQueryName()) {
+            if (randomBoolean()) {
+                query.boost(2.0f / randomIntBetween(1, 20));
+            }
+            if (randomBoolean()) {
+                query.queryName(randomAsciiOfLengthBetween(1, 10));
+            }
         }
         return query;
     }
@@ -219,47 +221,70 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
      */
     @Test
     public void testToQuery() throws IOException {
-        QB testQuery = createTestQueryBuilder();
         QueryParseContext context = createContext();
         context.setAllowUnmappedFields(true);
 
-        Query expectedQuery = createExpectedQuery(testQuery, context);
-        Query actualQuery = testQuery.toQuery(context);
-        // expectedQuery can be null, e.g. in case of BoostingQueryBuilder
-        // with inner clause that returns null itself
-        if (expectedQuery == null) {
-            assertNull("Expected a null query, saw some object.", actualQuery);
-        } else {
-            assertThat(actualQuery, instanceOf(expectedQuery.getClass()));
-            assertThat(actualQuery, equalTo(expectedQuery));
-            assertLuceneQuery(testQuery, actualQuery, context);
+        QB firstQuery = createTestQueryBuilder();
+        Query firstLuceneQuery = firstQuery.toQuery(context);
+        assertLuceneQuery(firstQuery, firstLuceneQuery, context);
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            firstQuery.writeTo(output);
+            try (StreamInput in = new FilterStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
+                QueryBuilder<? extends QueryBuilder> prototype = queryParserService.queryParser(firstQuery.getName()).getBuilderPrototype();
+                @SuppressWarnings("unchecked")
+                QB secondQuery = (QB)prototype.readFrom(in);
+                //query _name never should affect the result of toQuery, we randomly set it to make sure
+                if (randomBoolean()) {
+                    secondQuery.queryName(secondQuery.queryName() == null ? randomAsciiOfLengthBetween(1, 30) : secondQuery.queryName() + randomAsciiOfLengthBetween(1, 10));
+                }
+                Query secondLuceneQuery = secondQuery.toQuery(context);
+                assertLuceneQuery(secondQuery, secondLuceneQuery, context);
+                assertThat("two equivalent query builders lead to different lucene queries", secondLuceneQuery, equalTo(firstLuceneQuery));
+
+                //if the initial lucene query is null, changing its boost won't have any effect, we shouldn't test that
+                //otherwise makes sure that boost is taken into account in toQuery
+                if (firstLuceneQuery != null) {
+                    secondQuery.boost(firstQuery.boost() + 1f + randomFloat());
+                    //some queries don't support boost, their setter is a no-op
+                    if (supportsBoostAndQueryName()) {
+                        Query thirdLuceneQuery = secondQuery.toQuery(context);
+                        assertThat("modifying the boost doesn't affect the corresponding lucene query", firstLuceneQuery, not(equalTo(thirdLuceneQuery)));
+                    }
+                }
+            }
         }
     }
 
-    protected final Query createExpectedQuery(QB queryBuilder, QueryParseContext context) throws IOException {
-        Query expectedQuery = doCreateExpectedQuery(queryBuilder, context);
-        if (expectedQuery != null) {
-            expectedQuery.setBoost(queryBuilder.boost());
-        }
-        return expectedQuery;
+    /**
+     * Few queries allow you to set the boost and queryName but don't do anything with it. This method allows
+     * to disable boost and queryName related tests for those queries.
+     */
+    protected boolean supportsBoostAndQueryName() {
+        return true;
     }
 
     /**
-     * Creates the expected lucene query given the current {@link QueryBuilder} and {@link QueryParseContext}.
-     * The returned query will be compared with the result of {@link QueryBuilder#toQuery(QueryParseContext)} to test its behaviour.
+     * Checks the result of {@link QueryBuilder#toQuery(QueryParseContext)} given the original {@link QueryBuilder} and {@link QueryParseContext}.
+     * Verifies that named queries and boost are properly handled and delegates to {@link #doAssertLuceneQuery(AbstractQueryBuilder, Query, QueryParseContext)}
+     * for query specific checks.
      */
-    protected abstract Query doCreateExpectedQuery(QB queryBuilder, QueryParseContext context) throws IOException;
-
-    /**
-     * Run after default equality comparison between lucene expected query and result of {@link QueryBuilder#toQuery(QueryParseContext)}.
-     * Can contain additional assertions that are query specific. Default implementation verifies that names queries are properly handled.
-     */
-    protected final void assertLuceneQuery(QB queryBuilder, Query query, QueryParseContext context) {
+    protected final void assertLuceneQuery(QB queryBuilder, Query query, QueryParseContext context) throws IOException {
         if (queryBuilder.queryName() != null) {
             Query namedQuery = context.copyNamedQueries().get(queryBuilder.queryName());
             assertThat(namedQuery, equalTo(query));
         }
+        if (query != null) {
+            assertThat(query.getBoost(), equalTo(queryBuilder.boost()));
+        }
+        doAssertLuceneQuery(queryBuilder, query, context);
     }
+
+    /**
+     * Checks the result of {@link QueryBuilder#toQuery(QueryParseContext)} given the original {@link QueryBuilder} and {@link QueryParseContext}.
+     * Contains the query specific checks to be implemented by subclasses.
+     */
+    protected abstract void doAssertLuceneQuery(QB queryBuilder, Query query, QueryParseContext context) throws IOException;
 
     /**
      * Test serialization and deserialization of the test query.
@@ -283,7 +308,9 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
      * @return a new {@link QueryParseContext} based on the base test index and queryParserService
      */
     protected static QueryParseContext createContext() {
-        return new QueryParseContext(index, queryParserService);
+        QueryParseContext queryParseContext = new QueryParseContext(index, queryParserService);
+        queryParseContext.parseFieldMatcher(ParseFieldMatcher.EMPTY);
+        return queryParseContext;
     }
 
     protected static void assertQueryHeader(XContentParser parser, String expectedParserName) throws IOException {
@@ -325,13 +352,13 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
     protected static String getRandomRewriteMethod() {
         String rewrite;
         if (randomBoolean()) {
-            rewrite = randomFrom(new ParseField[]{QueryParsers.CONSTANT_SCORE,
+            rewrite = randomFrom(QueryParsers.CONSTANT_SCORE,
                     QueryParsers.SCORING_BOOLEAN,
-                    QueryParsers.CONSTANT_SCORE_BOOLEAN}).getPreferredName();
+                    QueryParsers.CONSTANT_SCORE_BOOLEAN).getPreferredName();
         } else {
-            rewrite = randomFrom(new ParseField[]{QueryParsers.TOP_TERMS,
+            rewrite = randomFrom(QueryParsers.TOP_TERMS,
                     QueryParsers.TOP_TERMS_BOOST,
-                    QueryParsers.TOP_TERMS_BLENDED_FREQS}).getPreferredName() + "1";
+                    QueryParsers.TOP_TERMS_BLENDED_FREQS).getPreferredName() + "1";
         }
         return rewrite;
     }

@@ -26,18 +26,24 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-public class SpanMultiTermQueryBuilderTest extends BaseQueryTestCase<SpanMultiTermQueryBuilder> {
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
 
-    @Override
-    protected Query doCreateExpectedQuery(SpanMultiTermQueryBuilder testQueryBuilder, QueryParseContext context) throws IOException {
-        Query multiTermQuery = testQueryBuilder.multiTermQueryBuilder().toQuery(context);
-        return new SpanMultiTermQueryWrapper<>((MultiTermQuery) multiTermQuery);
-    }
+public class SpanMultiTermQueryBuilderTest extends BaseQueryTestCase<SpanMultiTermQueryBuilder> {
 
     @Override
     protected SpanMultiTermQueryBuilder doCreateTestQueryBuilder() {
         MultiTermQueryBuilder multiTermQueryBuilder = RandomQueryBuilder.createMultiTermQuery(random());
         return new SpanMultiTermQueryBuilder(multiTermQueryBuilder);
+    }
+
+    @Override
+    protected void doAssertLuceneQuery(SpanMultiTermQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+        assertThat(query, instanceOf(SpanMultiTermQueryWrapper.class));
+        SpanMultiTermQueryWrapper spanMultiTermQueryWrapper = (SpanMultiTermQueryWrapper) query;
+        Query multiTermQuery = queryBuilder.multiTermQueryBuilder().toQuery(context);
+        assertThat(multiTermQuery, instanceOf(MultiTermQuery.class));
+        assertThat(spanMultiTermQueryWrapper.getWrappedQuery(), equalTo(new SpanMultiTermQueryWrapper<>((MultiTermQuery)multiTermQuery).getWrappedQuery()));
     }
 
     @Test

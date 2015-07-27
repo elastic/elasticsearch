@@ -95,7 +95,8 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
      * Returns the query name for the query.
      */
     @SuppressWarnings("unchecked")
-    public QB queryName(String queryName) {
+    @Override
+    public final QB queryName(String queryName) {
         this.queryName = queryName;
         return (QB) this;
     }
@@ -103,6 +104,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
     /**
      * Sets the query name for the query.
      */
+    @Override
     public final String queryName() {
         return queryName;
     }
@@ -110,6 +112,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
     /**
      * Returns the boost for this query.
      */
+    @Override
     public final float boost() {
         return this.boost;
     }
@@ -119,7 +122,8 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
      * weightings) have their score multiplied by the boost provided.
      */
     @SuppressWarnings("unchecked")
-    public QB boost(float boost) {
+    @Override
+    public final QB boost(float boost) {
         this.boost = boost;
         return (QB) this;
     }

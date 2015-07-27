@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanNotQuery;
-import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -33,15 +32,9 @@ import static org.elasticsearch.index.query.QueryBuilders.spanNearQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class SpanNotQueryBuilderTest extends BaseQueryTestCase<SpanNotQueryBuilder> {
-
-    @Override
-    protected Query doCreateExpectedQuery(SpanNotQueryBuilder testQueryBuilder, QueryParseContext context) throws IOException {
-        SpanQuery include = (SpanQuery) testQueryBuilder.include().toQuery(context);
-        SpanQuery exclude = (SpanQuery) testQueryBuilder.exclude().toQuery(context);
-        return new SpanNotQuery(include, exclude, testQueryBuilder.pre(), testQueryBuilder.post());
-    }
 
     @Override
     protected SpanNotQueryBuilder doCreateTestQueryBuilder() {
@@ -59,6 +52,14 @@ public class SpanNotQueryBuilderTest extends BaseQueryTestCase<SpanNotQueryBuild
             }
         }
         return queryBuilder;
+    }
+
+    @Override
+    protected void doAssertLuceneQuery(SpanNotQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+        assertThat(query, instanceOf(SpanNotQuery.class));
+        SpanNotQuery spanNotQuery = (SpanNotQuery) query;
+        assertThat(spanNotQuery.getExclude(), equalTo(queryBuilder.exclude().toQuery(context)));
+        assertThat(spanNotQuery.getInclude(), equalTo(queryBuilder.include().toQuery(context)));
     }
 
     @Test

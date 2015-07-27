@@ -19,11 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -79,15 +74,14 @@ public abstract class BaseTermQueryTestCase<QB extends BaseTermQueryBuilder<QB>>
 
     @Test
     public void testValidate() throws QueryParsingException {
-        
-        QB queryBuilder = createQueryBuilder("all", "good");
+        QB queryBuilder = createQueryBuilder(randomAsciiOfLengthBetween(1, 30), randomAsciiOfLengthBetween(1, 30));
         assertNull(queryBuilder.validate());
 
-        queryBuilder = createQueryBuilder(null, "Term");
+        queryBuilder = createQueryBuilder(null, randomAsciiOfLengthBetween(1, 30));
         assertNotNull(queryBuilder.validate());
         assertThat(queryBuilder.validate().validationErrors().size(), is(1));
 
-        queryBuilder = createQueryBuilder("", "Term");
+        queryBuilder = createQueryBuilder("", randomAsciiOfLengthBetween(1, 30));
         assertNotNull(queryBuilder.validate());
         assertThat(queryBuilder.validate().validationErrors().size(), is(1));
 
@@ -95,21 +89,4 @@ public abstract class BaseTermQueryTestCase<QB extends BaseTermQueryBuilder<QB>>
         assertNotNull(queryBuilder.validate());
         assertThat(queryBuilder.validate().validationErrors().size(), is(2));
     }
-
-    @Override
-    protected Query doCreateExpectedQuery(QB queryBuilder, QueryParseContext context) {
-        BytesRef value = null;
-        if (getCurrentTypes().length > 0) {
-            if (queryBuilder.fieldName().equals(BOOLEAN_FIELD_NAME) || queryBuilder.fieldName().equals(INT_FIELD_NAME) || queryBuilder.fieldName().equals(DOUBLE_FIELD_NAME)) {
-                MappedFieldType mapper = context.fieldMapper(queryBuilder.fieldName());
-                value = mapper.indexedValueForSearch(queryBuilder.value);
-            }
-        }
-        if (value == null) {
-            value = BytesRefs.toBytesRef(queryBuilder.value);
-        }
-        return createLuceneTermQuery(new Term(queryBuilder.fieldName(), value));
-    }
-
-    protected abstract Query createLuceneTermQuery(Term term);
 }

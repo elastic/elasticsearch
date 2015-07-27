@@ -19,16 +19,14 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.lucene.search.Queries;
+
+import java.io.IOException;
+
+import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class LimitQueryBuilderTest extends BaseQueryTestCase<LimitQueryBuilder> {
-
-    @Override
-    protected Query doCreateExpectedQuery(LimitQueryBuilder queryBuilder, QueryParseContext context) {
-        // this filter is deprecated and parses to a filter that matches everything
-        return Queries.newMatchAllQuery();
-    }
 
     /**
      * @return a LimitQueryBuilder with random limit between 0 and 20
@@ -36,5 +34,10 @@ public class LimitQueryBuilderTest extends BaseQueryTestCase<LimitQueryBuilder> 
     @Override
     protected LimitQueryBuilder doCreateTestQueryBuilder() {
         return new LimitQueryBuilder(randomIntBetween(0, 20));
+    }
+
+    @Override
+    protected void doAssertLuceneQuery(LimitQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+        assertThat(query, instanceOf(MatchAllDocsQuery.class));
     }
 }

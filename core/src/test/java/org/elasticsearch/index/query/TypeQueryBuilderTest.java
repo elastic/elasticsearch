@@ -19,16 +19,15 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.Term;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 public class TypeQueryBuilderTest extends BaseQueryTestCase<TypeQueryBuilder> {
 
@@ -38,16 +37,15 @@ public class TypeQueryBuilderTest extends BaseQueryTestCase<TypeQueryBuilder> {
     }
 
     @Override
-    protected Query doCreateExpectedQuery(TypeQueryBuilder queryBuilder, QueryParseContext context) throws IOException {
-        Query expectedQuery;
-        //LUCENE 4 UPGRADE document mapper should use bytesref as well?
-        DocumentMapper documentMapper = context.mapperService().documentMapper(queryBuilder.type().utf8ToString());
-        if (documentMapper == null) {
-            expectedQuery = new TermQuery(new Term(TypeFieldMapper.NAME, queryBuilder.type()));
-        } else {
-            expectedQuery = documentMapper.typeFilter();
+    protected void doAssertLuceneQuery(TypeQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+        assertThat(query, either(instanceOf(TermQuery.class)).or(instanceOf(ConstantScoreQuery.class)));
+        if (query instanceof ConstantScoreQuery) {
+            query = ((ConstantScoreQuery) query).getQuery();
+            assertThat(query, instanceOf(TermQuery.class));
         }
-        return expectedQuery;
+        TermQuery termQuery = (TermQuery) query;
+        assertThat(termQuery.getTerm().field(), equalTo(TypeFieldMapper.NAME));
+        assertThat(termQuery.getTerm().bytes(), equalTo(queryBuilder.type()));
     }
 
     @Test

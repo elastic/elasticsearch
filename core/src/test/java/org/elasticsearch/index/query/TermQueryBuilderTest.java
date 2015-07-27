@@ -19,9 +19,16 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.index.mapper.MappedFieldType;
+
+import java.io.IOException;
+
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class TermQueryBuilderTest extends BaseTermQueryTestCase<TermQueryBuilder> {
 
@@ -34,7 +41,16 @@ public class TermQueryBuilderTest extends BaseTermQueryTestCase<TermQueryBuilder
     }
 
     @Override
-    protected Query createLuceneTermQuery(Term term) {
-        return new TermQuery(term);
+    protected void doAssertLuceneQuery(TermQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+        assertThat(query, instanceOf(TermQuery.class));
+        TermQuery termQuery = (TermQuery) query;
+        assertThat(termQuery.getTerm().field(), equalTo(queryBuilder.fieldName()));
+        MappedFieldType mapper = context.fieldMapper(queryBuilder.fieldName());
+        if (mapper != null) {
+            BytesRef bytesRef = mapper.indexedValueForSearch(queryBuilder.value());
+            assertThat(termQuery.getTerm().bytes(), equalTo(bytesRef));
+        } else {
+            assertThat(termQuery.getTerm().bytes(), equalTo(BytesRefs.toBytesRef(queryBuilder.value())));
+        }
     }
 }

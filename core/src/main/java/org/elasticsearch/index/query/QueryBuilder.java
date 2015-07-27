@@ -56,4 +56,25 @@ public interface QueryBuilder<QB extends QueryBuilder> extends NamedWriteable<QB
      */
     //norelease once we move to serializing queries over the wire in Streamable format, this method shouldn't be needed anymore
     BytesReference buildAsBytes();
+
+    /**
+     * Sets the query name for the query.
+     */
+    QB queryName(String queryName);
+
+    /**
+     * Returns the query name for the query.
+     */
+    String queryName();
+
+    /**
+     * Returns the boost for this query.
+     */
+    float boost();
+
+    /**
+     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
+     * weightings) have their score multiplied by the boost provided.
+     */
+    QB boost(float boost);
 }

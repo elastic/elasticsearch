@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class ScriptQueryBuilderTest extends BaseQueryTestCase<ScriptQueryBuilder> {
@@ -47,8 +48,8 @@ public class ScriptQueryBuilderTest extends BaseQueryTestCase<ScriptQueryBuilder
     }
 
     @Override
-    protected Query doCreateExpectedQuery(ScriptQueryBuilder queryBuilder, QueryParseContext context) throws IOException {
-        return new ScriptQueryBuilder.ScriptQuery(queryBuilder.script(), context.scriptService(), context.lookup());
+    protected void doAssertLuceneQuery(ScriptQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+        assertThat(query, instanceOf(ScriptQueryBuilder.ScriptQuery.class));
     }
 
     @Test

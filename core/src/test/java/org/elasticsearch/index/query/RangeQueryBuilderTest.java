@@ -22,11 +22,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
-import org.elasticsearch.common.joda.DateMathParser;
-import org.elasticsearch.common.joda.Joda;
-import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Test;
@@ -35,6 +30,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> {
@@ -93,32 +89,16 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
     }
 
     @Override
-    protected Query doCreateExpectedQuery(RangeQueryBuilder queryBuilder, QueryParseContext context) throws IOException {
-        Query expectedQuery;
-        String fieldName = queryBuilder.fieldName();
-        if (getCurrentTypes().length == 0 || (fieldName.equals(DATE_FIELD_NAME) == false && fieldName.equals(INT_FIELD_NAME) == false)) {
-            expectedQuery = new TermRangeQuery(fieldName, BytesRefs.toBytesRef(queryBuilder.from()),
-                    BytesRefs.toBytesRef(queryBuilder.to()), queryBuilder.includeLower(), queryBuilder.includeUpper());
-
-        } else if (fieldName.equals(DATE_FIELD_NAME)) {
-            DateMathParser forcedDateParser = null;
-            if (queryBuilder.format() != null) {
-                forcedDateParser = new DateMathParser(Joda.forPattern(queryBuilder.format()));
-            }
-            DateTimeZone dateTimeZone = null;
-            if (queryBuilder.timeZone() != null) {
-                dateTimeZone = DateTimeZone.forID(queryBuilder.timeZone());
-            }
-            MappedFieldType mapper = context.fieldMapper(queryBuilder.fieldName());
-            expectedQuery = ((DateFieldMapper.DateFieldType) mapper).rangeQuery(BytesRefs.toBytesRef(queryBuilder.from()), BytesRefs.toBytesRef(queryBuilder.to()),
-                    queryBuilder.includeLower(), queryBuilder.includeUpper(), dateTimeZone, forcedDateParser);
+    protected void doAssertLuceneQuery(RangeQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+        if (getCurrentTypes().length == 0 || (queryBuilder.fieldName().equals(DATE_FIELD_NAME) == false && queryBuilder.fieldName().equals(INT_FIELD_NAME) == false)) {
+            assertThat(query, instanceOf(TermRangeQuery.class));
+        } else if (queryBuilder.fieldName().equals(DATE_FIELD_NAME)) {
+            //we can't properly test unmapped dates because LateParsingQuery is package private
         } else if (queryBuilder.fieldName().equals(INT_FIELD_NAME)) {
-            expectedQuery = NumericRangeQuery.newIntRange(INT_FIELD_NAME, (Integer) queryBuilder.from(), (Integer) queryBuilder.to(),
-                    queryBuilder.includeLower(), queryBuilder.includeUpper());
+            assertThat(query, instanceOf(NumericRangeQuery.class));
         } else {
             throw new UnsupportedOperationException();
         }
-        return expectedQuery;
     }
 
     @Test

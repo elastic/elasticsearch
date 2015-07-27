@@ -25,22 +25,12 @@ import org.apache.lucene.search.spans.SpanQuery;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Iterator;
+
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class SpanNearQueryBuilderTest extends BaseQueryTestCase<SpanNearQueryBuilder> {
-
-    @Override
-    protected Query doCreateExpectedQuery(SpanNearQueryBuilder testQueryBuilder, QueryParseContext context) throws IOException {
-        List<SpanQueryBuilder> clauses = testQueryBuilder.clauses();
-        SpanQuery[] spanQueries = new SpanQuery[clauses.size()];
-        for (int i = 0; i < clauses.size(); i++) {
-            Query query = clauses.get(i).toQuery(context);
-            assert query instanceof SpanQuery;
-            spanQueries[i] = (SpanQuery) query;
-        }
-        return new SpanNearQuery(spanQueries, testQueryBuilder.slop(), testQueryBuilder.inOrder(), testQueryBuilder.collectPayloads());
-
-    }
 
     @Override
     protected SpanNearQueryBuilder doCreateTestQueryBuilder() {
@@ -52,6 +42,19 @@ public class SpanNearQueryBuilderTest extends BaseQueryTestCase<SpanNearQueryBui
         queryBuilder.inOrder(randomBoolean());
         queryBuilder.collectPayloads(randomBoolean());
         return queryBuilder;
+    }
+
+    @Override
+    protected void doAssertLuceneQuery(SpanNearQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+        assertThat(query, instanceOf(SpanNearQuery.class));
+        SpanNearQuery spanNearQuery = (SpanNearQuery) query;
+        assertThat(spanNearQuery.getSlop(), equalTo(queryBuilder.slop()));
+        assertThat(spanNearQuery.isInOrder(), equalTo(queryBuilder.inOrder()));
+        assertThat(spanNearQuery.getClauses().length, equalTo(queryBuilder.clauses().size()));
+        Iterator<SpanQueryBuilder> spanQueryBuilderIterator = queryBuilder.clauses().iterator();
+        for (SpanQuery spanQuery : spanNearQuery.getClauses()) {
+            assertThat(spanQuery, equalTo(spanQueryBuilderIterator.next().toQuery(context)));
+        }
     }
 
     @Test

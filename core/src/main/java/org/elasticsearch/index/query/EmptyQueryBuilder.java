@@ -81,4 +81,26 @@ public class EmptyQueryBuilder extends ToXContentToBytes implements QueryBuilder
     public EmptyQueryBuilder readFrom(StreamInput in) throws IOException {
         return EmptyQueryBuilder.PROTOTYPE;
     }
+
+    @Override
+    public EmptyQueryBuilder queryName(String queryName) {
+        //no-op
+        return this;
+    }
+
+    @Override
+    public String queryName() {
+        return null;
+    }
+
+    @Override
+    public float boost() {
+        return -1;
+    }
+
+    @Override
+    public EmptyQueryBuilder boost(float boost) {
+        //no-op
+        return this;
+    }
 }

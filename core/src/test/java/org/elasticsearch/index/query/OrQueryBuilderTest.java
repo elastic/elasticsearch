@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -27,10 +27,18 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.nullValue;
 
 @SuppressWarnings("deprecation")
 public class OrQueryBuilderTest extends BaseQueryTestCase<OrQueryBuilder> {
 
+/*
     @Override
     protected Query doCreateExpectedQuery(OrQueryBuilder queryBuilder, QueryParseContext context) throws QueryParsingException, IOException {
         if (queryBuilder.filters().isEmpty()) {
@@ -49,6 +57,7 @@ public class OrQueryBuilderTest extends BaseQueryTestCase<OrQueryBuilder> {
         }
         return query;
     }
+*/
 
     /**
      * @return an OrQueryBuilder with random limit between 0 and 20
@@ -61,6 +70,34 @@ public class OrQueryBuilderTest extends BaseQueryTestCase<OrQueryBuilder> {
             query.add(RandomQueryBuilder.createQuery(random()));
         }
         return query;
+    }
+
+    @Override
+    protected void doAssertLuceneQuery(OrQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+        if (queryBuilder.filters().isEmpty()) {
+            assertThat(query, nullValue());
+        } else {
+            List<Query> innerQueries = new ArrayList<>();
+            for (QueryBuilder subQuery : queryBuilder.filters()) {
+                Query innerQuery = subQuery.toQuery(context);
+                // ignore queries that are null
+                if (innerQuery != null) {
+                    innerQueries.add(innerQuery);
+                }
+            }
+            if (innerQueries.isEmpty()) {
+                assertThat(query, nullValue());
+            } else {
+                assertThat(query, instanceOf(BooleanQuery.class));
+                BooleanQuery booleanQuery = (BooleanQuery) query;
+                assertThat(booleanQuery.clauses().size(), equalTo(innerQueries.size()));
+                Iterator<Query> queryIterator = innerQueries.iterator();
+                for (BooleanClause booleanClause : booleanQuery) {
+                    assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+                    assertThat(booleanClause.getQuery(), equalTo(queryIterator.next()));
+                }
+            }
+        }
     }
 
     /**

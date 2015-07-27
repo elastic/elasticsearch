@@ -19,23 +19,21 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.junit.Test;
 
 import java.io.IOException;
 
-public class NotQueryBuilderTest extends BaseQueryTestCase<NotQueryBuilder> {
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.nullValue;
 
-    @Override
-    protected Query doCreateExpectedQuery(NotQueryBuilder queryBuilder, QueryParseContext context) throws QueryParsingException, IOException {
-        if (queryBuilder.filter().toQuery(context) == null) {
-            return null;
-        }
-        return Queries.not(queryBuilder.filter().toQuery(context));
-    }
+public class NotQueryBuilderTest extends BaseQueryTestCase<NotQueryBuilder> {
 
     /**
      * @return a NotQueryBuilder with random limit between 0 and 20
@@ -43,6 +41,22 @@ public class NotQueryBuilderTest extends BaseQueryTestCase<NotQueryBuilder> {
     @Override
     protected NotQueryBuilder doCreateTestQueryBuilder() {
         return new NotQueryBuilder(RandomQueryBuilder.createQuery(random()));
+    }
+
+    @Override
+    protected void doAssertLuceneQuery(NotQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+        Query filter = queryBuilder.filter().toQuery(context);
+        if (filter == null) {
+            assertThat(query, nullValue());
+        } else {
+            assertThat(query, instanceOf(BooleanQuery.class));
+            BooleanQuery booleanQuery = (BooleanQuery) query;
+            assertThat(booleanQuery.clauses().size(), equalTo(2));
+            assertThat(booleanQuery.clauses().get(0).getOccur(), equalTo(BooleanClause.Occur.MUST));
+            assertThat(booleanQuery.clauses().get(0).getQuery(), instanceOf(MatchAllDocsQuery.class));
+            assertThat(booleanQuery.clauses().get(1).getOccur(), equalTo(BooleanClause.Occur.MUST_NOT));
+            assertThat(booleanQuery.clauses().get(1).getQuery(), equalTo(filter));
+        }
     }
 
     /**

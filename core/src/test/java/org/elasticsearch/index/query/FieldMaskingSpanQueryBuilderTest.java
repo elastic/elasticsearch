@@ -21,25 +21,15 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
-import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.junit.Test;
 
 import java.io.IOException;
 
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
+
 public class FieldMaskingSpanQueryBuilderTest extends BaseQueryTestCase<FieldMaskingSpanQueryBuilder> {
-
-    @Override
-    protected Query doCreateExpectedQuery(FieldMaskingSpanQueryBuilder testQueryBuilder, QueryParseContext context) throws IOException {
-        String fieldInQuery = testQueryBuilder.fieldName();
-        MappedFieldType fieldType = context.fieldMapper(fieldInQuery);
-        if (fieldType != null) {
-            fieldInQuery = fieldType.names().indexName();
-        }
-        SpanQuery innerQuery = (SpanQuery) testQueryBuilder.innerQuery().toQuery(context);
-
-        return new FieldMaskingSpanQuery(innerQuery, fieldInQuery);
-    }
 
     @Override
     protected FieldMaskingSpanQueryBuilder doCreateTestQueryBuilder() {
@@ -51,6 +41,19 @@ public class FieldMaskingSpanQueryBuilderTest extends BaseQueryTestCase<FieldMas
         }
         SpanTermQueryBuilder innerQuery = new SpanTermQueryBuilderTest().createTestQueryBuilder();
         return new FieldMaskingSpanQueryBuilder(innerQuery, fieldName);
+    }
+
+    @Override
+    protected void doAssertLuceneQuery(FieldMaskingSpanQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+        String fieldInQuery = queryBuilder.fieldName();
+        MappedFieldType fieldType = context.fieldMapper(fieldInQuery);
+        if (fieldType != null) {
+            fieldInQuery = fieldType.names().indexName();
+        }
+        assertThat(query, instanceOf(FieldMaskingSpanQuery.class));
+        FieldMaskingSpanQuery fieldMaskingSpanQuery = (FieldMaskingSpanQuery) query;
+        assertThat(fieldMaskingSpanQuery.getField(), equalTo(fieldInQuery));
+        assertThat(fieldMaskingSpanQuery.getMaskedQuery(), equalTo(queryBuilder.innerQuery().toQuery(context)));
     }
 
     @Test

@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.metrics.cardinality;
 
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationPathCompatibleFactory;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -32,7 +33,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
+final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> implements AggregationPathCompatibleFactory {
 
     private final long precisionThreshold;
     private final boolean rehash;

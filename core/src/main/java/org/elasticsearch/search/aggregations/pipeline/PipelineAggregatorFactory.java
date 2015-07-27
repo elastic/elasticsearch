@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.pipeline;
 
+import org.elasticsearch.search.aggregations.AggregationPathCompatibleFactory;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 
 import java.io.IOException;
@@ -28,7 +29,7 @@ import java.util.Map;
  * A factory that knows how to create an {@link PipelineAggregator} of a
  * specific type.
  */
-public abstract class PipelineAggregatorFactory {
+public abstract class PipelineAggregatorFactory implements AggregationPathCompatibleFactory {
 
     protected String name;
     protected String type;
@@ -37,7 +38,7 @@ public abstract class PipelineAggregatorFactory {
 
     /**
      * Constructs a new pipeline aggregator factory.
-     * 
+     *
      * @param name
      *            The aggregation name
      * @param type
@@ -52,7 +53,7 @@ public abstract class PipelineAggregatorFactory {
     /**
      * Validates the state of this factory (makes sure the factory is properly
      * configured)
-     * 
+     *
      * @param pipelineAggregatorFactories
      * @param factories
      * @param parent
@@ -66,7 +67,7 @@ public abstract class PipelineAggregatorFactory {
 
     /**
      * Creates the pipeline aggregator
-     * 
+     *
      * @param context
      *            The aggregation context
      * @param parent
@@ -77,7 +78,7 @@ public abstract class PipelineAggregatorFactory {
      *            with <tt>0</tt> as a bucket ordinal. Some factories can take
      *            advantage of this in order to return more optimized
      *            implementations.
-     * 
+     *
      * @return The created aggregator
      */
     public final PipelineAggregator create() throws IOException {

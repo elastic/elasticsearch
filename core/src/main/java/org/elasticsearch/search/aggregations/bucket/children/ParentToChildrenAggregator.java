@@ -30,6 +30,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.index.search.child.ConstantScorer;
+import org.elasticsearch.search.aggregations.AggregationPathCompatibleFactory;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -182,7 +183,8 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
         Releasables.close(parentOrdToBuckets, parentOrdToOtherBuckets);
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource.Bytes.WithOrdinals.ParentChild> {
+    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource.Bytes.WithOrdinals.ParentChild> implements
+            AggregationPathCompatibleFactory {
 
         private final String parentType;
         private final Filter parentFilter;

@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.bucket.missing;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.search.aggregations.AggregationPathCompatibleFactory;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -81,7 +82,7 @@ public class MissingAggregator extends SingleBucketAggregator {
         return new InternalMissing(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource>  {
+    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource> implements AggregationPathCompatibleFactory {
 
         public Factory(String name, ValuesSourceConfig valueSourceConfig) {
             super(name, InternalMissing.TYPE.name(), valueSourceConfig);

@@ -27,9 +27,9 @@ import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationPathCompatibleFactory;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -118,7 +118,7 @@ public class NestedAggregator extends SingleBucketAggregator {
             }
         };
     }
-        
+
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         return new InternalNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), pipelineAggregators(),
@@ -141,7 +141,7 @@ public class NestedAggregator extends SingleBucketAggregator {
         return null;
     }
 
-    public static class Factory extends AggregatorFactory {
+    public static class Factory extends AggregatorFactory implements AggregationPathCompatibleFactory {
 
         private final String path;
 

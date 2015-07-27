@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.bucket.global;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationPathCompatibleFactory;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -68,7 +69,7 @@ public class GlobalAggregator extends SingleBucketAggregator {
         throw new UnsupportedOperationException("global aggregations cannot serve as sub-aggregations, hence should never be called on #buildEmptyAggregations");
     }
 
-    public static class Factory extends AggregatorFactory {
+    public static class Factory extends AggregatorFactory implements AggregationPathCompatibleFactory {
 
         public Factory(String name) {
             super(name, InternalGlobal.TYPE.name());

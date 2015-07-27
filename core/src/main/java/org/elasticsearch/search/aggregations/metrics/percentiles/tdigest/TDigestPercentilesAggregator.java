@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.metrics.percentiles.tdigest;
 
+import org.elasticsearch.search.aggregations.AggregationPathCompatibleFactory;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -69,7 +70,8 @@ public class TDigestPercentilesAggregator extends AbstractTDigestPercentilesAggr
         return new InternalTDigestPercentiles(name, keys, new TDigestState(compression), keyed, formatter, pipelineAggregators(), metaData());
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
+    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> implements
+            AggregationPathCompatibleFactory {
 
         private final double[] percents;
         private final double compression;

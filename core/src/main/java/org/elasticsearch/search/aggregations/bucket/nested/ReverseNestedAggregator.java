@@ -28,10 +28,10 @@ import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationPathCompatibleFactory;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -50,7 +50,7 @@ import java.util.Map;
 /**
  *
  */
-public class ReverseNestedAggregator extends SingleBucketAggregator {
+public class ReverseNestedAggregator extends SingleBucketAggregator implements AggregationPathCompatibleFactory {
 
     private final BitDocIdSetFilter parentFilter;
 
@@ -84,8 +84,8 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
                 // fast forward to retrieve the parentDoc this childDoc belongs to
                 final int parentDoc = parentDocs.nextSetBit(childDoc);
                 assert childDoc <= parentDoc && parentDoc != DocIdSetIterator.NO_MORE_DOCS;
-                
-                int keySlot = bucketOrdToLastCollectedParentDoc.indexOf(bucket); 
+
+                int keySlot = bucketOrdToLastCollectedParentDoc.indexOf(bucket);
                 if (bucketOrdToLastCollectedParentDoc.indexExists(keySlot)) {
                     int lastCollectedParentDoc = bucketOrdToLastCollectedParentDoc.indexGet(keySlot);
                     if (parentDoc > lastCollectedParentDoc) {

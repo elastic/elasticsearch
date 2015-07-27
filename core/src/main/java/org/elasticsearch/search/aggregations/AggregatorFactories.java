@@ -164,7 +164,9 @@ public class AggregatorFactories {
             }
             Set<String> aggFactoryNames = new HashSet<>();
             for (AggregatorFactory aggFactory : aggFactories) {
-                aggFactoryNames.add(aggFactory.name);
+                if (aggFactory instanceof AggregationPathCompatibleFactory) {
+                    aggFactoryNames.add(aggFactory.name);
+                }
             }
             List<PipelineAggregatorFactory> orderedPipelineAggregatorrs = new LinkedList<>();
             List<PipelineAggregatorFactory> unmarkedFactories = new ArrayList<PipelineAggregatorFactory>(pipelineAggregatorFactories);
@@ -195,7 +197,7 @@ public class AggregatorFactories {
                             resolvePipelineAggregatorOrder(aggFactoryNames, pipelineAggregatorFactoriesMap, orderedPipelineAggregators, unmarkedFactories,
                                     temporarilyMarked, matchingFactory);
                         } else {
-                            throw new IllegalStateException("No aggregation found for path [" + bucketsPath + "]");
+                            throw new IllegalStateException("No compatible aggregation found for path [" + bucketsPath + "]");
                         }
                     }
                 }

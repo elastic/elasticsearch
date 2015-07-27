@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
@@ -77,6 +78,33 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
                         .endObject()));
             }
             indexRandom(true, builders.toArray(new IndexRequestBuilder[builders.size()]));
+        }
+        {
+            assertAcked(prepareCreate("range_idx")
+                    .addMapping("type", "ip", "type=ip", "ips", "type=ip"));
+            IndexRequestBuilder[] builders = new IndexRequestBuilder[4];
+
+            builders[0] = client().prepareIndex("range_idx", "type").setSource(jsonBuilder()
+                    .startObject()
+                    .field("ip", "0.0.0.0")
+                    .endObject());
+
+            builders[1] = client().prepareIndex("range_idx", "type").setSource(jsonBuilder()
+                    .startObject()
+                    .field("ip", "0.0.0.255")
+                    .endObject());
+
+            builders[2] = client().prepareIndex("range_idx", "type").setSource(jsonBuilder()
+                    .startObject()
+                    .field("ip", "255.255.255.0")
+                    .endObject());
+
+            builders[3] = client().prepareIndex("range_idx", "type").setSource(jsonBuilder()
+                    .startObject()
+                    .field("ip", "255.255.255.255")
+                    .endObject());
+
+            indexRandom(true, builders);
         }
         ensureSearchable();
     }
@@ -855,5 +883,52 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
         assertThat(buckets.get(0).getFromAsString(), equalTo("10.0.0.1"));
         assertThat(buckets.get(0).getToAsString(), equalTo("10.0.0.10"));
         assertThat(buckets.get(0).getDocCount(), equalTo(0l));
+    }
+
+    @Test
+    public void mask0() {
+        SearchResponse response = client().prepareSearch("idx")
+                .addAggregation(ipRange("range")
+                        .field("ip")
+                        .addMaskRange("0.0.0.0/0"))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+        IPv4Range range = response.getAggregations().get("range");
+        assertThat(range, notNullValue());
+        assertThat(range.getName(), equalTo("range"));
+        List<IPv4Range.Bucket> buckets = new ArrayList<IPv4Range.Bucket>(range.getBuckets());
+        assertThat(range.getBuckets().size(), equalTo(1));
+
+        IPv4Range.Bucket bucket = buckets.get(0);
+        assertThat((String) bucket.getKey(), equalTo("0.0.0.0/0"));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), nullValue());
+        assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertEquals(255l, bucket.getDocCount());
+    }
+
+
+    @Test
+    public void mask0SpecialIps() {
+
+        SearchResponse response = client().prepareSearch("range_idx")
+                .addAggregation(ipRange("range")
+                        .field("ip")
+                        .addMaskRange("0.0.0.0/0"))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+        IPv4Range range = response.getAggregations().get("range");
+
+        assertThat(range, notNullValue());
+        assertThat(range.getName(), equalTo("range"));
+        List<IPv4Range.Bucket> buckets = new ArrayList<IPv4Range.Bucket>(range.getBuckets());
+        assertThat(range.getBuckets().size(), equalTo(1));
+
+        IPv4Range.Bucket bucket = buckets.get(0);
+        assertEquals(4l, bucket.getDocCount());
     }
 }

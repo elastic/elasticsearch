@@ -25,7 +25,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.Range.Bucket;
-import org.elasticsearch.search.aggregations.bucket.range.ipv4.IPv4RangeBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -83,6 +82,33 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
                         .endObject()));
             }
             indexRandom(true, builders.toArray(new IndexRequestBuilder[builders.size()]));
+        }
+        {
+            assertAcked(prepareCreate("range_idx")
+                    .addMapping("type", "ip", "type=ip", "ips", "type=ip"));
+            IndexRequestBuilder[] builders = new IndexRequestBuilder[4];
+
+            builders[0] = client().prepareIndex("range_idx", "type").setSource(jsonBuilder()
+                    .startObject()
+                    .field("ip", "0.0.0.0")
+                    .endObject());
+
+            builders[1] = client().prepareIndex("range_idx", "type").setSource(jsonBuilder()
+                    .startObject()
+                    .field("ip", "0.0.0.255")
+                    .endObject());
+
+            builders[2] = client().prepareIndex("range_idx", "type").setSource(jsonBuilder()
+                    .startObject()
+                    .field("ip", "255.255.255.0")
+                    .endObject());
+
+            builders[3] = client().prepareIndex("range_idx", "type").setSource(jsonBuilder()
+                    .startObject()
+                    .field("ip", "255.255.255.255")
+                    .endObject());
+
+            indexRandom(true, builders);
         }
         ensureSearchable();
     }
@@ -897,35 +923,9 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
 
 
     @Test
-    public void mask0SpecialIps() throws Exception {
-        assertAcked(prepareCreate("idx_range")
-                .addMapping("type", "ip", "type=ip", "ips", "type=ip"));
-        IndexRequestBuilder[] builders = new IndexRequestBuilder[4];
+    public void mask0SpecialIps() {
 
-        builders[0] = client().prepareIndex("idx_range", "type").setSource(jsonBuilder()
-                .startObject()
-                .field("ip", "0.0.0.0")
-                .endObject());
-
-        builders[1] = client().prepareIndex("idx_range", "type").setSource(jsonBuilder()
-                .startObject()
-                .field("ip", "0.0.0.255")
-                .endObject());
-
-        builders[2] = client().prepareIndex("idx_range", "type").setSource(jsonBuilder()
-                .startObject()
-                .field("ip", "255.255.255.0")
-                .endObject());
-
-        builders[3] = client().prepareIndex("idx_range", "type").setSource(jsonBuilder()
-                .startObject()
-                .field("ip", "255.255.255.255")
-                .endObject());
-
-        indexRandom(true, builders);
-        ensureSearchable();
-
-        SearchResponse response = client().prepareSearch("idx_range")
+        SearchResponse response = client().prepareSearch("range_idx")
                 .addAggregation(ipRange("range")
                         .field("ip")
                         .addMaskRange("0.0.0.0/0"))

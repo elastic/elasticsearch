@@ -30,7 +30,6 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
@@ -62,7 +61,6 @@ public class SubSearchContext extends FilteredSearchContext {
     private int docsIdsToLoadSize;
 
     private List<String> fieldNames;
-    private FieldDataFieldsContext fieldDataFields;
     private ScriptFieldsContext scriptFields;
     private FetchSourceContext fetchSourceContext;
     private SearchContextHighlight highlight;

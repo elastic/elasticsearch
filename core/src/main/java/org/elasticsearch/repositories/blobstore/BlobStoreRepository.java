@@ -561,7 +561,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
             }
             bRef = bStream.bytes();
         }
-        snapshotsBlobContainer.deleteBlob(SNAPSHOTS_FILE);
+        if (snapshotsBlobContainer.blobExists(SNAPSHOTS_FILE)) {
+            snapshotsBlobContainer.deleteBlob(SNAPSHOTS_FILE);
+        }
         try (OutputStream output = snapshotsBlobContainer.createOutput(SNAPSHOTS_FILE)) {
             bRef.writeTo(output);
         }

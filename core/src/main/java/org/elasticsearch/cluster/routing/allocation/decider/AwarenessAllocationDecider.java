@@ -234,7 +234,9 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             int currentNodeCount = shardPerAttribute.get(node.node().attributes().get(awarenessAttribute));
             // if we are above with leftover, then we know we are not good, even with mod
             if (currentNodeCount > (requiredCountPerAttribute + leftoverPerAttribute)) {
-                return allocation.decision(Decision.NO, NAME, "too many shards on nodes for attribute: [%s]", awarenessAttribute);
+                return allocation.decision(Decision.NO, NAME,
+                        "too many shards on node for attribute: [%s], required per attribute: [%d], node count: [%d], leftover: [%d]",
+                        awarenessAttribute, requiredCountPerAttribute, currentNodeCount, leftoverPerAttribute);
             }
             // all is well, we are below or same as average
             if (currentNodeCount <= requiredCountPerAttribute) {

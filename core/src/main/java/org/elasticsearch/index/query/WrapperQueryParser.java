@@ -41,7 +41,8 @@ public class WrapperQueryParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryShardContext context) throws IOException, QueryParsingException {
+        QueryParseContext parseContext = context.parseContext();
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.nextToken();
@@ -56,11 +57,11 @@ public class WrapperQueryParser extends BaseQueryParserTemp {
 
         byte[] querySource = parser.binaryValue();
         try (XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource)) {
-            final QueryParseContext context = new QueryParseContext(parseContext.index(), parseContext.indexQueryParserService());
-            context.reset(qSourceParser);
-            Query result = context.parseInnerQuery();
+            final QueryShardContext contextCopy = new QueryShardContext(context.index(), context.indexQueryParserService());
+            contextCopy.reset(qSourceParser);
+            Query result = contextCopy.parseContext().parseInnerQuery();
             parser.nextToken();
-            parseContext.combineNamedQueries(context);
+            context.combineNamedQueries(contextCopy);
             return result;
         }
     }

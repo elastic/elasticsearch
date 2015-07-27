@@ -106,11 +106,11 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
     }
 
     @Override
-    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
+    protected Query doToQuery(QueryShardContext context) throws IOException {
         String indexFieldName;
         BytesRef valueBytes;
-        
-        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
+
+        MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType != null) {
             indexFieldName = fieldType.names().indexName();
             valueBytes = fieldType.indexedValueForSearch(value);
@@ -120,7 +120,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         }
 
         WildcardQuery query = new WildcardQuery(new Term(indexFieldName, valueBytes));
-        MultiTermQuery.RewriteMethod rewriteMethod = QueryParsers.parseRewriteMethod(parseContext.parseFieldMatcher(), rewrite, null);
+        MultiTermQuery.RewriteMethod rewriteMethod = QueryParsers.parseRewriteMethod(context.parseFieldMatcher(), rewrite, null);
         QueryParsers.setRewriteMethod(query, rewriteMethod);
         return query;
     }

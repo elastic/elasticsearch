@@ -40,7 +40,7 @@ import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
 
 import java.io.IOException;
@@ -186,7 +186,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, QueryParseContext context) {
+        public Query termQuery(Object value, QueryShardContext context) {
             return queryStringTermQuery(createTerm(value));
         }
     }

@@ -130,11 +130,11 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
     }
 
     @Override
-    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
+    protected Query doToQuery(QueryShardContext context) throws IOException {
 
-        Query includeQuery = this.include.toQuery(parseContext);
+        Query includeQuery = this.include.toQuery(context);
         assert includeQuery instanceof SpanQuery;
-        Query excludeQuery = this.exclude.toQuery(parseContext);
+        Query excludeQuery = this.exclude.toQuery(context);
         assert excludeQuery instanceof SpanQuery;
 
         SpanNotQuery query = new SpanNotQuery((SpanQuery) includeQuery, (SpanQuery) excludeQuery, pre, post);

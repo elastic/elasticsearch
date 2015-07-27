@@ -21,11 +21,9 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanFirstQuery;
-import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.hamcrest.CoreMatchers;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -42,7 +40,7 @@ public class SpanFirstQueryBuilderTest extends BaseQueryTestCase<SpanFirstQueryB
     }
 
     @Override
-    protected void doAssertLuceneQuery(SpanFirstQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+    protected void doAssertLuceneQuery(SpanFirstQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(SpanFirstQuery.class));
     }
 
@@ -82,7 +80,7 @@ public class SpanFirstQueryBuilderTest extends BaseQueryTestCase<SpanFirstQueryB
         builder.endObject();
         builder.endObject();
 
-        QueryParseContext context = createContext();
+        QueryParseContext context = createParseContext();
         XContentParser parser = XContentFactory.xContent(builder.string()).createParser(builder.string());
         context.reset(parser);
         assertQueryHeader(parser, SpanFirstQueryBuilder.NAME);
@@ -100,7 +98,7 @@ public class SpanFirstQueryBuilderTest extends BaseQueryTestCase<SpanFirstQueryB
         builder.endObject();
         builder.endObject();
 
-        context = createContext();
+        context = createParseContext();
         parser = XContentFactory.xContent(builder.string()).createParser(builder.string());
         context.reset(parser);
         assertQueryHeader(parser, SpanFirstQueryBuilder.NAME);

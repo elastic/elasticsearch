@@ -171,7 +171,7 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
         //some query (e.g. range query) have a different behaviour depending on whether the current search context is set or not
         //which is why we randomly set the search context, which will internally also do QueryParseContext.setTypes(types)
         if (randomBoolean()) {
-            QueryParseContext.setTypes(types);
+            QueryShardContext.setTypes(types);
         } else {
             TestSearchContext testSearchContext = new TestSearchContext();
             testSearchContext.setTypes(types);
@@ -181,7 +181,7 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
 
     @After
     public void afterTest() {
-        QueryParseContext.removeTypes();
+        QueryShardContext.removeTypes();
         SearchContext.removeCurrent();
     }
 
@@ -210,7 +210,7 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
     @Test
     public void testFromXContent() throws IOException {
         QB testQuery = createTestQueryBuilder();
-        QueryParseContext context = createContext();
+        QueryParseContext context = createParseContext();
         String contentString = testQuery.toString();
         XContentParser parser = XContentFactory.xContent(contentString).createParser(contentString);
         context.reset(parser);
@@ -228,7 +228,7 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
      */
     @Test
     public void testToQuery() throws IOException {
-        QueryParseContext context = createContext();
+        QueryShardContext context = createShardContext();
         context.setAllowUnmappedFields(true);
 
         QB firstQuery = createTestQueryBuilder();
@@ -272,11 +272,11 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
     }
 
     /**
-     * Checks the result of {@link QueryBuilder#toQuery(QueryParseContext)} given the original {@link QueryBuilder} and {@link QueryParseContext}.
-     * Verifies that named queries and boost are properly handled and delegates to {@link #doAssertLuceneQuery(AbstractQueryBuilder, Query, QueryParseContext)}
+     * Checks the result of {@link QueryBuilder#toQuery(QueryShardContext)} given the original {@link QueryBuilder} and {@link QueryShardContext}.
+     * Verifies that named queries and boost are properly handled and delegates to {@link #doAssertLuceneQuery(AbstractQueryBuilder, Query, QueryShardContext)}
      * for query specific checks.
      */
-    protected final void assertLuceneQuery(QB queryBuilder, Query query, QueryParseContext context) throws IOException {
+    protected final void assertLuceneQuery(QB queryBuilder, Query query, QueryShardContext context) throws IOException {
         if (queryBuilder.queryName() != null) {
             Query namedQuery = context.copyNamedQueries().get(queryBuilder.queryName());
             assertThat(namedQuery, equalTo(query));
@@ -288,10 +288,10 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
     }
 
     /**
-     * Checks the result of {@link QueryBuilder#toQuery(QueryParseContext)} given the original {@link QueryBuilder} and {@link QueryParseContext}.
+     * Checks the result of {@link QueryBuilder#toQuery(QueryShardContext)} given the original {@link QueryBuilder} and {@link QueryShardContext}.
      * Contains the query specific checks to be implemented by subclasses.
      */
-    protected abstract void doAssertLuceneQuery(QB queryBuilder, Query query, QueryParseContext context) throws IOException;
+    protected abstract void doAssertLuceneQuery(QB queryBuilder, Query query, QueryShardContext context) throws IOException;
 
     /**
      * Test serialization and deserialization of the test query.
@@ -312,12 +312,20 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
     }
 
     /**
+     * @return a new {@link QueryShardContext} based on the base test index and queryParserService
+     */
+    protected static QueryShardContext createShardContext() {
+        QueryShardContext queryCreationContext = new QueryShardContext(index, queryParserService);
+        queryCreationContext.parseFieldMatcher(ParseFieldMatcher.EMPTY);
+        return queryCreationContext;
+    }
+
+    /**
      * @return a new {@link QueryParseContext} based on the base test index and queryParserService
      */
-    protected static QueryParseContext createContext() {
-        QueryParseContext queryParseContext = new QueryParseContext(index, queryParserService);
-        queryParseContext.parseFieldMatcher(ParseFieldMatcher.EMPTY);
-        return queryParseContext;
+    protected static QueryParseContext createParseContext() {
+        QueryParseContext parseContext = createShardContext().parseContext();
+        return parseContext;
     }
 
     protected static void assertQueryHeader(XContentParser parser, String expectedParserName) throws IOException {

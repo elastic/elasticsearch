@@ -44,7 +44,7 @@ import org.elasticsearch.index.percolator.PercolatorException;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.functionscore.factor.FactorBuilder;
 import org.elasticsearch.index.query.support.QueryInnerHitBuilder;
 import org.elasticsearch.rest.RestStatus;
@@ -1796,7 +1796,7 @@ public class PercolatorIT extends ESIntegTestCase {
                     .get();
             fail();
         } catch (PercolatorException e) {
-            assertThat(e.getRootCause(), instanceOf(QueryParsingException.class));
+            assertThat(e.getRootCause(), instanceOf(QueryShardException.class));
         }
 
         try {
@@ -1805,7 +1805,7 @@ public class PercolatorIT extends ESIntegTestCase {
                     .get();
             fail();
         } catch (PercolatorException e) {
-            assertThat(e.getRootCause(), instanceOf(QueryParsingException.class));
+            assertThat(e.getRootCause(), instanceOf(QueryShardException.class));
         }
     }
 
@@ -2048,7 +2048,7 @@ public class PercolatorIT extends ESIntegTestCase {
                     .execute().actionGet();
             fail("Expected a parse error, because inner_hits isn't supported in the percolate api");
         } catch (Exception e) {
-            assertThat(e.getCause(), instanceOf(QueryParsingException.class));
+            assertThat(e.getCause(), instanceOf(QueryShardException.class));
             assertThat(e.getCause().getMessage(), containsString("inner_hits unsupported"));
         }
     }

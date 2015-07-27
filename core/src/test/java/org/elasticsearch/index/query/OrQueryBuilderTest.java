@@ -40,7 +40,7 @@ public class OrQueryBuilderTest extends BaseQueryTestCase<OrQueryBuilder> {
 
 /*
     @Override
-    protected Query doCreateExpectedQuery(OrQueryBuilder queryBuilder, QueryParseContext context) throws QueryParsingException, IOException {
+    protected Query doCreateExpectedQuery(OrQueryBuilder queryBuilder, QueryCreationContext context) throws QueryCreationException, IOException {
         if (queryBuilder.filters().isEmpty()) {
             return null;
         }
@@ -73,7 +73,7 @@ public class OrQueryBuilderTest extends BaseQueryTestCase<OrQueryBuilder> {
     }
 
     @Override
-    protected void doAssertLuceneQuery(OrQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+    protected void doAssertLuceneQuery(OrQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         if (queryBuilder.filters().isEmpty()) {
             assertThat(query, nullValue());
         } else {
@@ -104,19 +104,19 @@ public class OrQueryBuilderTest extends BaseQueryTestCase<OrQueryBuilder> {
      * test corner case where no inner queries exist
      */
     @Test
-    public void testNoInnerQueries() throws QueryParsingException, IOException {
+    public void testNoInnerQueries() throws QueryShardException, IOException {
         OrQueryBuilder orQuery = new OrQueryBuilder();
-        assertNull(orQuery.toQuery(createContext()));
+        assertNull(orQuery.toQuery(createShardContext()));
     }
 
     @Test(expected=QueryParsingException.class)
     public void testMissingFiltersSection() throws IOException {
-        QueryParseContext context = createContext();
+        QueryParseContext context = createParseContext();
         String queryString = "{ \"or\" : {}";
         XContentParser parser = XContentFactory.xContent(queryString).createParser(queryString);
         context.reset(parser);
         assertQueryHeader(parser, OrQueryBuilder.PROTOTYPE.getName());
-        context.indexQueryParserService().queryParser(OrQueryBuilder.PROTOTYPE.getName()).fromXContent(context);
+        context.queryParser(OrQueryBuilder.PROTOTYPE.getName()).fromXContent(context);
     }
 
     @Test

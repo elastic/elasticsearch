@@ -26,7 +26,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SimpleQueryParser.Settings;
 
 import java.io.IOException;
@@ -260,26 +262,44 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     }
 
     @Override
-    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
+    protected Query doToQuery(QueryShardContext context) throws IOException {
         // Use the default field (_all) if no fields specified
         if (fieldsAndWeights.isEmpty()) {
-            String field = parseContext.defaultField();
+            String field = context.defaultField();
             fieldsAndWeights.put(field, 1.0F);
+        }
+
+        // field names in builder can have wildcards etc, need to resolve them here
+        Map<String, Float> resolvedFieldsAndWeights = new TreeMap<>();
+        for (String fField : fieldsAndWeights.keySet()) {
+            if (Regex.isSimpleMatchPattern(fField)) {
+                for (String fieldName : context.mapperService().simpleMatchToIndexNames(fField)) {
+                    resolvedFieldsAndWeights.put(fieldName, fieldsAndWeights.get(fField));
+                }
+            } else {
+                MappedFieldType fieldType = context.fieldMapper(fField);
+                if (fieldType != null) {
+                    resolvedFieldsAndWeights.put(fieldType.names().indexName(), fieldsAndWeights.get(fField));
+                } else {
+                    resolvedFieldsAndWeights.put(fField, fieldsAndWeights.get(fField));
+                }
+            }
         }
 
         // Use standard analyzer by default if none specified
         Analyzer luceneAnalyzer;
         if (analyzer == null) {
-            luceneAnalyzer = parseContext.mapperService().searchAnalyzer();
+            luceneAnalyzer = context.mapperService().searchAnalyzer();
         } else {
-            luceneAnalyzer = parseContext.analysisService().analyzer(analyzer);
+            luceneAnalyzer = context.analysisService().analyzer(analyzer);
             if (luceneAnalyzer == null) {
-                throw new QueryParsingException(parseContext, "[" + SimpleQueryStringBuilder.NAME + "] analyzer [" + analyzer
+                throw new QueryShardException(context, "[" + SimpleQueryStringBuilder.NAME + "] analyzer [" + analyzer
                         + "] not found");
             }
 
         }
-        SimpleQueryParser sqp = new SimpleQueryParser(luceneAnalyzer, fieldsAndWeights, flags, settings);
+
+        SimpleQueryParser sqp = new SimpleQueryParser(luceneAnalyzer, resolvedFieldsAndWeights, flags, settings);
         sqp.setDefaultOperator(defaultOperator.toBooleanClauseOccur());
 
         Query query = sqp.parse(queryText);

@@ -24,7 +24,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsParseElement;
 import org.elasticsearch.search.fetch.script.ScriptFieldsParseElement;
@@ -59,15 +59,15 @@ public class InnerHitsParseElement implements SearchParseElement {
 
     @Override
     public void parse(XContentParser parser, SearchContext searchContext) throws Exception {
-        QueryParseContext parseContext = searchContext.queryParserService().getParseContext();
-        parseContext.reset(parser);
-        Map<String, InnerHitsContext.BaseInnerHits> innerHitsMap = parseInnerHits(parser, parseContext, searchContext);
+        QueryShardContext context = searchContext.queryParserService().getShardContext();
+        context.reset(parser);
+        Map<String, InnerHitsContext.BaseInnerHits> innerHitsMap = parseInnerHits(parser, context, searchContext);
         if (innerHitsMap != null) {
             searchContext.innerHits(new InnerHitsContext(innerHitsMap));
         }
     }
 
-    private Map<String, InnerHitsContext.BaseInnerHits> parseInnerHits(XContentParser parser, QueryParseContext parseContext, SearchContext searchContext) throws Exception {
+    private Map<String, InnerHitsContext.BaseInnerHits> parseInnerHits(XContentParser parser, QueryShardContext context, SearchContext searchContext) throws Exception {
         XContentParser.Token token;
         Map<String, InnerHitsContext.BaseInnerHits> innerHitsMap = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -79,7 +79,7 @@ public class InnerHitsParseElement implements SearchParseElement {
             if (token != XContentParser.Token.START_OBJECT) {
                 throw new IllegalArgumentException("Inner hit definition for [" + innerHitName + " starts with a [" + token + "], expected a [" + XContentParser.Token.START_OBJECT + "].");
             }
-            InnerHitsContext.BaseInnerHits innerHits = parseInnerHit(parser, parseContext, searchContext, innerHitName);
+            InnerHitsContext.BaseInnerHits innerHits = parseInnerHit(parser, context, searchContext, innerHitName);
             if (innerHitsMap == null) {
                 innerHitsMap = new HashMap<>();
             }
@@ -88,7 +88,7 @@ public class InnerHitsParseElement implements SearchParseElement {
         return innerHitsMap;
     }
 
-    private InnerHitsContext.BaseInnerHits parseInnerHit(XContentParser parser, QueryParseContext parseContext, SearchContext searchContext, String innerHitName) throws Exception {
+    private InnerHitsContext.BaseInnerHits parseInnerHit(XContentParser parser, QueryShardContext context, SearchContext searchContext, String innerHitName) throws Exception {
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
             throw new IllegalArgumentException("Unexpected token " + token + " inside inner hit definition. Either specify [path] or [type] object");
@@ -123,9 +123,9 @@ public class InnerHitsParseElement implements SearchParseElement {
 
         final InnerHitsContext.BaseInnerHits innerHits;
         if (nestedPath != null) {
-            innerHits = parseNested(parser, parseContext, searchContext, fieldName);
+            innerHits = parseNested(parser, context, searchContext, fieldName);
         } else if (type != null) {
-            innerHits = parseParentChild(parser, parseContext, searchContext, fieldName);
+            innerHits = parseParentChild(parser, context, searchContext, fieldName);
         } else {
             throw new IllegalArgumentException("Either [path] or [type] must be defined");
         }
@@ -143,16 +143,16 @@ public class InnerHitsParseElement implements SearchParseElement {
         return innerHits;
     }
 
-    private InnerHitsContext.ParentChildInnerHits parseParentChild(XContentParser parser, QueryParseContext parseContext, SearchContext searchContext, String type) throws Exception {
-        ParseResult parseResult = parseSubSearchContext(searchContext, parseContext, parser);
+    private InnerHitsContext.ParentChildInnerHits parseParentChild(XContentParser parser, QueryShardContext context, SearchContext searchContext, String type) throws Exception {
+        ParseResult parseResult = parseSubSearchContext(searchContext, context, parser);
         DocumentMapper documentMapper = searchContext.mapperService().documentMapper(type);
         if (documentMapper == null) {
             throw new IllegalArgumentException("type [" + type + "] doesn't exist");
         }
-        return new InnerHitsContext.ParentChildInnerHits(parseResult.context(), parseResult.query(), parseResult.childInnerHits(), parseContext.mapperService(), documentMapper);
+        return new InnerHitsContext.ParentChildInnerHits(parseResult.context(), parseResult.query(), parseResult.childInnerHits(), context.mapperService(), documentMapper);
     }
 
-    private InnerHitsContext.NestedInnerHits parseNested(XContentParser parser, QueryParseContext parseContext, SearchContext searchContext, String nestedPath) throws Exception {
+    private InnerHitsContext.NestedInnerHits parseNested(XContentParser parser, QueryShardContext context, SearchContext searchContext, String nestedPath) throws Exception {
         ObjectMapper objectMapper = searchContext.getObjectMapper(nestedPath);
         if (objectMapper == null) {
             throw new IllegalArgumentException("path [" + nestedPath +"] doesn't exist");
@@ -160,14 +160,14 @@ public class InnerHitsParseElement implements SearchParseElement {
         if (objectMapper.nested().isNested() == false) {
             throw new IllegalArgumentException("path [" + nestedPath +"] isn't nested");
         }
-        ObjectMapper parentObjectMapper = parseContext.nestedScope().nextLevel(objectMapper);
-        ParseResult parseResult = parseSubSearchContext(searchContext, parseContext, parser);
-        parseContext.nestedScope().previousLevel();
+        ObjectMapper parentObjectMapper = context.nestedScope().nextLevel(objectMapper);
+        ParseResult parseResult = parseSubSearchContext(searchContext, context, parser);
+        context.nestedScope().previousLevel();
 
         return new InnerHitsContext.NestedInnerHits(parseResult.context(), parseResult.query(), parseResult.childInnerHits(), parentObjectMapper, objectMapper);
     }
 
-    private ParseResult parseSubSearchContext(SearchContext searchContext, QueryParseContext parseContext, XContentParser parser) throws Exception {
+    private ParseResult parseSubSearchContext(SearchContext searchContext, QueryShardContext context, XContentParser parser) throws Exception {
         ParsedQuery query = null;
         Map<String, InnerHitsContext.BaseInnerHits> childInnerHits = null;
         SubSearchContext subSearchContext = new SubSearchContext(searchContext);
@@ -178,10 +178,10 @@ public class InnerHitsParseElement implements SearchParseElement {
                 fieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("query".equals(fieldName)) {
-                    Query q = searchContext.queryParserService().parseInnerQuery(parseContext);
-                    query = new ParsedQuery(q, parseContext.copyNamedQueries());
+                    Query q = searchContext.queryParserService().parseInnerQuery(context);
+                    query = new ParsedQuery(q, context.copyNamedQueries());
                 } else if ("inner_hits".equals(fieldName)) {
-                    childInnerHits = parseInnerHits(parser, parseContext, searchContext);
+                    childInnerHits = parseInnerHits(parser, context, searchContext);
                 } else {
                     parseCommonInnerHitOptions(parser, token, fieldName, subSearchContext, sortParseElement, sourceParseElement, highlighterParseElement, scriptFieldsParseElement, fieldDataFieldsParseElement);
                 }

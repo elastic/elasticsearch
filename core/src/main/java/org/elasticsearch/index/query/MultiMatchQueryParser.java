@@ -50,14 +50,15 @@ public class MultiMatchQueryParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryShardContext context) throws IOException, QueryParsingException {
+        QueryParseContext parseContext = context.parseContext();
         XContentParser parser = parseContext.parser();
 
         Object value = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         Float tieBreaker = null;
         MultiMatchQueryBuilder.Type type = null;
-        MultiMatchQuery multiMatchQuery = new MultiMatchQuery(parseContext);
+        MultiMatchQuery multiMatchQuery = new MultiMatchQuery(context);
         String minimumShouldMatch = null;
         Map<String, Float> fieldNameWithBoosts = Maps.newHashMap();
         String queryName = null;
@@ -70,10 +71,10 @@ public class MultiMatchQueryParser extends BaseQueryParserTemp {
             } else if ("fields".equals(currentFieldName)) {
                 if (token == XContentParser.Token.START_ARRAY) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        extractFieldAndBoost(parseContext, parser, fieldNameWithBoosts);
+                        extractFieldAndBoost(context, parser, fieldNameWithBoosts);
                     }
                 } else if (token.isValue()) {
-                    extractFieldAndBoost(parseContext, parser, fieldNameWithBoosts);
+                    extractFieldAndBoost(context, parser, fieldNameWithBoosts);
                 } else {
                     throw new QueryParsingException(parseContext, "[" + MultiMatchQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
                 }
@@ -84,7 +85,7 @@ public class MultiMatchQueryParser extends BaseQueryParserTemp {
                     type = MultiMatchQueryBuilder.Type.parse(parser.text(), parseContext.parseFieldMatcher());
                 } else if ("analyzer".equals(currentFieldName)) {
                     String analyzer = parser.text();
-                    if (parseContext.analysisService().analyzer(analyzer) == null) {
+                    if (context.analysisService().analyzer(analyzer) == null) {
                         throw new QueryParsingException(parseContext, "[" + MultiMatchQueryBuilder.NAME + "] analyzer [" + parser.text() + "] not found");
                     }
                     multiMatchQuery.setAnalyzer(analyzer);
@@ -156,12 +157,12 @@ public class MultiMatchQueryParser extends BaseQueryParserTemp {
 
         query.setBoost(boost);
         if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
+            context.addNamedQuery(queryName, query);
         }
         return query;
     }
 
-    private void extractFieldAndBoost(QueryParseContext parseContext, XContentParser parser, Map<String, Float> fieldNameWithBoosts) throws IOException {
+    private void extractFieldAndBoost(QueryShardContext context, XContentParser parser, Map<String, Float> fieldNameWithBoosts) throws IOException {
         String fField = null;
         Float fBoost = null;
         char[] fieldText = parser.textCharacters();
@@ -179,7 +180,7 @@ public class MultiMatchQueryParser extends BaseQueryParserTemp {
         }
 
         if (Regex.isSimpleMatchPattern(fField)) {
-            for (String field : parseContext.mapperService().simpleMatchToIndexNames(fField)) {
+            for (String field : context.mapperService().simpleMatchToIndexNames(fField)) {
                 fieldNameWithBoosts.put(field, fBoost);
             }
         } else {

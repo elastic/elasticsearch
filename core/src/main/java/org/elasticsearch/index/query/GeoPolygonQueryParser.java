@@ -60,7 +60,8 @@ public class GeoPolygonQueryParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryShardContext context) throws IOException, QueryParsingException {
+        QueryParseContext parseContext = context.parseContext();
         XContentParser parser = parseContext.parser();
 
         String fieldName = null;
@@ -140,7 +141,7 @@ public class GeoPolygonQueryParser extends BaseQueryParserTemp {
             }
         }
 
-        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType == null) {
             throw new QueryParsingException(parseContext, "failed to find geo_point field [" + fieldName + "]");
         }
@@ -148,10 +149,10 @@ public class GeoPolygonQueryParser extends BaseQueryParserTemp {
             throw new QueryParsingException(parseContext, "field [" + fieldName + "] is not a geo_point field");
         }
 
-        IndexGeoPointFieldData indexFieldData = parseContext.getForField(fieldType);
+        IndexGeoPointFieldData indexFieldData = context.getForField(fieldType);
         Query query = new GeoPolygonQuery(indexFieldData, shell.toArray(new GeoPoint[shell.size()]));
         if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
+            context.addNamedQuery(queryName, query);
         }
         query.setBoost(boost);
         return query;

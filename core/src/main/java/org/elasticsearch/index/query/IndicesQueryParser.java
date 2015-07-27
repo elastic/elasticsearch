@@ -58,7 +58,8 @@ public class IndicesQueryParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryShardContext context) throws IOException, QueryParsingException {
+        QueryParseContext parseContext = context.parseContext();
         XContentParser parser = parseContext.parser();
 
         Query noMatchQuery = null;
@@ -149,7 +150,7 @@ public class IndicesQueryParser extends BaseQueryParserTemp {
             }
         }
         if (queryName != null) {
-            parseContext.addNamedQuery(queryName, chosenQuery);
+            context.addNamedQuery(queryName, chosenQuery);
         }
         chosenQuery.setBoost(boost);
         return chosenQuery;

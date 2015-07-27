@@ -44,10 +44,10 @@ public interface QueryParser {
      */
     //norelease can be removed in favour of fromXContent once search requests can be parsed on the coordinating node
     @Nullable
-    Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException;
+    Query parse(QueryShardContext context) throws IOException, QueryParsingException;
 
     /**
-     * Creates a new {@link QueryBuilder} from the query held by the {@link QueryParseContext}
+     * Creates a new {@link QueryBuilder} from the query held by the {@link QueryShardContext}
      * in {@link org.elasticsearch.common.xcontent.XContent} format
      *
      * @param parseContext

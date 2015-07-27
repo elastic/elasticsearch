@@ -60,7 +60,7 @@ import java.io.IOException;
 public class TemplateQueryParserTest extends ESTestCase {
 
     private Injector injector;
-    private QueryParseContext context;
+    private QueryShardContext context;
 
     @Before
     public void setup() throws IOException {
@@ -94,7 +94,7 @@ public class TemplateQueryParserTest extends ESTestCase {
         ).createInjector();
 
         IndexQueryParserService queryParserService = injector.getInstance(IndexQueryParserService.class);
-        context = new QueryParseContext(index, queryParserService);
+        context = new QueryShardContext(index, queryParserService);
     }
 
     @Override

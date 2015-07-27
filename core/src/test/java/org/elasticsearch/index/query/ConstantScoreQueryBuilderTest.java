@@ -42,7 +42,7 @@ public class ConstantScoreQueryBuilderTest extends BaseQueryTestCase<ConstantSco
     }
 
     @Override
-    protected void doAssertLuceneQuery(ConstantScoreQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+    protected void doAssertLuceneQuery(ConstantScoreQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         Query innerQuery = queryBuilder.query().toQuery(context);
         if (innerQuery == null) {
             assertThat(query, nullValue());
@@ -58,13 +58,13 @@ public class ConstantScoreQueryBuilderTest extends BaseQueryTestCase<ConstantSco
      */
     @Test(expected=QueryParsingException.class)
     public void testFilterElement() throws IOException {
-        QueryParseContext context = createContext();
+        QueryParseContext context = createParseContext();
         String queryId = ConstantScoreQueryBuilder.PROTOTYPE.getName();
         String queryString = "{ \""+queryId+"\" : {}";
         XContentParser parser = XContentFactory.xContent(queryString).createParser(queryString);
         context.reset(parser);
         assertQueryHeader(parser, queryId);
-        context.indexQueryParserService().queryParser(queryId).fromXContent(context);
+        context.queryParser(queryId).fromXContent(context);
     }
 
     @Test

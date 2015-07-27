@@ -244,7 +244,7 @@ public class SortParseElement implements SearchParseElement {
                     ObjectMapper objectMapper = context.mapperService().resolveClosestNestedObjectMapper(fieldName);
                     if (objectMapper != null && objectMapper.nested().isNested()) {
                         if (nestedHelper == null) {
-                            nestedHelper = new NestedInnerQueryParseSupport(context.queryParserService().getParseContext());
+                            nestedHelper = new NestedInnerQueryParseSupport(context.queryParserService().getShardContext());
                         }
                         nestedHelper.setPath(objectMapper.fullPath());
                     }

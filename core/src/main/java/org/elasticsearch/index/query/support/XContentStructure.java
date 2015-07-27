@@ -25,6 +25,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
@@ -84,14 +85,14 @@ public abstract class XContentStructure {
         BytesReference br = this.bytes();
         assert br != null : "innerBytes must be set with .bytes(bytes) or .freeze() before parsing";
         XContentParser innerParser = XContentHelper.createParser(br);
-        String[] origTypes = QueryParseContext.setTypesWithPrevious(types);
+        String[] origTypes = QueryShardContext.setTypesWithPrevious(types);
         XContentParser old = parseContext.parser();
         parseContext.parser(innerParser);
         try {
             return parseContext.parseInnerQuery();
         } finally {
             parseContext.parser(old);
-            QueryParseContext.setTypes(origTypes);
+            QueryShardContext.setTypes(origTypes);
         }
     }
 
@@ -106,12 +107,12 @@ public abstract class XContentStructure {
         public InnerQuery(QueryParseContext parseContext1, @Nullable String... types) throws IOException {
             super(parseContext1);
             if (types != null) {
-                String[] origTypes = QueryParseContext.setTypesWithPrevious(types);
+                String[] origTypes = QueryShardContext.setTypesWithPrevious(types);
                 try {
                     query = parseContext1.parseInnerQuery();
                     queryParsed = true;
                 } finally {
-                    QueryParseContext.setTypes(origTypes);
+                    QueryShardContext.setTypes(origTypes);
                 }
             } else {
                 BytesReference innerBytes = XContentFactory.smileBuilder().copyCurrentStructure(parseContext1.parser()).bytes();

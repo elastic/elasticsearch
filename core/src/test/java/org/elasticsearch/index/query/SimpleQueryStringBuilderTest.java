@@ -84,7 +84,7 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
     }
 
     @Override
-    protected void doAssertLuceneQuery(SimpleQueryStringBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+    protected void doAssertLuceneQuery(SimpleQueryStringBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, notNullValue());
     }
 
@@ -153,15 +153,15 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
     @Test
     public void testDefaultOperatorHandling() throws IOException {
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.");
-        BooleanQuery boolQuery = (BooleanQuery) qb.toQuery(createContext());
+        BooleanQuery boolQuery = (BooleanQuery) qb.toQuery(createShardContext());
         assertThat(shouldClauses(boolQuery), is(4));
 
         qb.defaultOperator(Operator.AND);
-        boolQuery = (BooleanQuery) qb.toQuery(createContext());
+        boolQuery = (BooleanQuery) qb.toQuery(createShardContext());
         assertThat(shouldClauses(boolQuery), is(0));
 
         qb.defaultOperator(Operator.OR);
-        boolQuery = (BooleanQuery) qb.toQuery(createContext());
+        boolQuery = (BooleanQuery) qb.toQuery(createShardContext());
         assertThat(shouldClauses(boolQuery), is(4));
     }
 

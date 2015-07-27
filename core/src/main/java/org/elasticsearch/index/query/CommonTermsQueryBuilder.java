@@ -42,7 +42,7 @@ import java.util.Objects;
  * CommonTermsQuery query is a query that executes high-frequency terms in a
  * optional sub-query to prevent slow queries due to "common" terms like
  * stopwords. This query basically builds 2 queries off the
- * {@link org.apache.lucene.queries.CommonTermsQuery#add(Term) added} terms 
+ * {@link org.apache.lucene.queries.CommonTermsQuery#add(Term) added} terms
  * where low-frequency terms are added to a required boolean clause
  * and high-frequency terms are added to an optional boolean clause. The
  * optional clause is only executed if the required "low-frequency' clause
@@ -154,7 +154,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         this.cutoffFrequency = cutoffFrequency;
         return this;
     }
-    
+
     public float cutoffFrequency() {
         return this.cutoffFrequency;
     }
@@ -180,7 +180,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         this.lowFreqMinimumShouldMatch = lowFreqMinimumShouldMatch;
         return this;
     }
-    
+
     public String lowFreqMinimumShouldMatch() {
         return this.lowFreqMinimumShouldMatch;
     }
@@ -228,9 +228,9 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
     }
 
     @Override
-    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
+    protected Query doToQuery(QueryShardContext context) throws IOException {
         String field;
-        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType != null) {
             field = fieldType.names().indexName();
         } else {
@@ -240,25 +240,25 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         Analyzer analyzerObj;
         if (analyzer == null) {
             if (fieldType != null) {
-                analyzerObj = parseContext.getSearchAnalyzer(fieldType);
+                analyzerObj = context.getSearchAnalyzer(fieldType);
             } else {
-                analyzerObj = parseContext.mapperService().searchAnalyzer();
+                analyzerObj = context.mapperService().searchAnalyzer();
             }
         } else {
-            analyzerObj = parseContext.mapperService().analysisService().analyzer(analyzer);
+            analyzerObj = context.mapperService().analysisService().analyzer(analyzer);
             if (analyzerObj == null) {
-                throw new IllegalArgumentException("no analyzer found for [" + analyzer + "]");
+                throw new QueryShardException(context, "[common] analyzer [" + analyzer + "] not found");
             }
         }
-        
+
         Occur highFreqOccur = highFreqOperator.toBooleanClauseOccur();
         Occur lowFreqOccur = lowFreqOperator.toBooleanClauseOccur();
 
         ExtendedCommonTermsQuery commonsQuery = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, cutoffFrequency, disableCoord, fieldType);
         return parseQueryString(commonsQuery, text, field, analyzerObj, lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch);
     }
-    
-    static Query parseQueryString(ExtendedCommonTermsQuery query, Object queryString, String field, Analyzer analyzer, 
+
+    static Query parseQueryString(ExtendedCommonTermsQuery query, Object queryString, String field, Analyzer analyzer,
                                          String lowFreqMinimumShouldMatch, String highFreqMinimumShouldMatch) throws IOException {
         // Logic similar to QueryParser#getFieldQuery
         int count = 0;

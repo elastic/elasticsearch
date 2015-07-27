@@ -37,7 +37,7 @@ public class LimitQueryBuilderTest extends BaseQueryTestCase<LimitQueryBuilder> 
     }
 
     @Override
-    protected void doAssertLuceneQuery(LimitQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+    protected void doAssertLuceneQuery(LimitQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(MatchAllDocsQuery.class));
     }
 }

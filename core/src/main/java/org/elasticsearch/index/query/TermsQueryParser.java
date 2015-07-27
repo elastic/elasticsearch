@@ -70,7 +70,8 @@ public class TermsQueryParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryShardContext context) throws IOException, QueryParsingException {
+        QueryParseContext parseContext = context.parseContext();
         XContentParser parser = parseContext.parser();
 
         String queryName = null;
@@ -158,7 +159,7 @@ public class TermsQueryParser extends BaseQueryParserTemp {
             throw new QueryParsingException(parseContext, "terms query requires a field name, followed by array of terms");
         }
 
-        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType != null) {
             fieldName = fieldType.names().indexName();
         }
@@ -181,7 +182,7 @@ public class TermsQueryParser extends BaseQueryParserTemp {
         Query query;
         if (parseContext.isFilter()) {
             if (fieldType != null) {
-                query = fieldType.termsQuery(terms, parseContext);
+                query = fieldType.termsQuery(terms, context);
             } else {
                 BytesRef[] filterValues = new BytesRef[terms.size()];
                 for (int i = 0; i < filterValues.length; i++) {
@@ -193,7 +194,7 @@ public class TermsQueryParser extends BaseQueryParserTemp {
             BooleanQuery bq = new BooleanQuery();
             for (Object term : terms) {
                 if (fieldType != null) {
-                    bq.add(fieldType.termQuery(term, parseContext), Occur.SHOULD);
+                    bq.add(fieldType.termQuery(term, context), Occur.SHOULD);
                 } else {
                     bq.add(new TermQuery(new Term(fieldName, BytesRefs.toBytesRef(term))), Occur.SHOULD);
                 }
@@ -204,7 +205,7 @@ public class TermsQueryParser extends BaseQueryParserTemp {
         query.setBoost(boost);
 
         if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
+            context.addNamedQuery(queryName, query);
         }
         return query;
     }

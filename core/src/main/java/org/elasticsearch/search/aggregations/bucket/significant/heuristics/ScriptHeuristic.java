@@ -30,7 +30,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.script.*;
 import org.elasticsearch.script.Script.ScriptField;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
@@ -130,7 +130,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
         }
 
         @Override
-        public SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException, QueryParsingException {
+        public SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException, QueryShardException {
             String heuristicName = parser.currentName();
             Script script = null;
             XContentParser.Token token;

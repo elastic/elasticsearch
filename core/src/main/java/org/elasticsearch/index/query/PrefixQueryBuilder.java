@@ -42,9 +42,9 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
     public static final String NAME = "prefix";
 
     private final String fieldName;
-    
+
     private final String value;
-    
+
     private String rewrite;
 
     static final PrefixQueryBuilder PROTOTYPE = new PrefixQueryBuilder(null, null);
@@ -59,7 +59,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         this.fieldName = fieldName;
         this.value = value;
     }
-    
+
     public String fieldName() {
         return this.fieldName;
     }
@@ -96,13 +96,13 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
     }
 
     @Override
-    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
-        MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(parseContext.parseFieldMatcher(), rewrite, null);
+    protected Query doToQuery(QueryShardContext context) throws IOException {
+        MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(context.parseFieldMatcher(), rewrite, null);
 
         Query query = null;
-        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType != null) {
-            query = fieldType.prefixQuery(value, method, parseContext);
+            query = fieldType.prefixQuery(value, method, context);
         }
         if (query == null) {
             PrefixQuery prefixQuery = new PrefixQuery(new Term(fieldName, BytesRefs.toBytesRef(value)));
@@ -111,7 +111,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
             }
             query = prefixQuery;
         }
-        
+
         return query;
     }
 
@@ -148,7 +148,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
 
     @Override
     protected boolean doEquals(PrefixQueryBuilder other) {
-        return Objects.equals(fieldName, other.fieldName) && 
+        return Objects.equals(fieldName, other.fieldName) &&
                 Objects.equals(value, other.value) &&
                 Objects.equals(rewrite, other.rewrite);
     }

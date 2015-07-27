@@ -67,7 +67,8 @@ public class GeoBoundingBoxQueryParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryShardContext context) throws IOException, QueryParsingException {
+        QueryParseContext parseContext = context.parseContext();
         XContentParser parser = parseContext.parser();
 
         String fieldName = null;
@@ -164,7 +165,7 @@ public class GeoBoundingBoxQueryParser extends BaseQueryParserTemp {
             }
         }
 
-        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType == null) {
             throw new QueryParsingException(parseContext, "failed to parse [{}] query. could not find [{}] field [{}]", NAME, GeoPointFieldMapper.CONTENT_TYPE, fieldName);
         }
@@ -177,7 +178,7 @@ public class GeoBoundingBoxQueryParser extends BaseQueryParserTemp {
         if ("indexed".equals(type)) {
             filter = IndexedGeoBoundingBoxQuery.create(topLeft, bottomRight, geoFieldType);
         } else if ("memory".equals(type)) {
-            IndexGeoPointFieldData indexFieldData = parseContext.getForField(fieldType);
+            IndexGeoPointFieldData indexFieldData = context.getForField(fieldType);
             filter = new InMemoryGeoBoundingBoxQuery(topLeft, bottomRight, indexFieldData);
         } else {
             throw new QueryParsingException(parseContext, "failed to parse [{}] query. geo bounding box type [{}] is not supported. either [indexed] or [memory] are allowed", NAME, type);
@@ -186,7 +187,7 @@ public class GeoBoundingBoxQueryParser extends BaseQueryParserTemp {
             filter.setBoost(boost);
         }
         if (queryName != null) {
-            parseContext.addNamedQuery(queryName, filter);
+            context.addNamedQuery(queryName, filter);
         }
         return filter;
     }

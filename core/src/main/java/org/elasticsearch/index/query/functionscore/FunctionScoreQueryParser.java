@@ -82,7 +82,8 @@ public class FunctionScoreQueryParser implements QueryParser {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryShardContext context) throws IOException, QueryParsingException {
+        QueryParseContext parseContext = context.parseContext();
         XContentParser parser = parseContext.parser();
 
         Query query = null;
@@ -127,7 +128,7 @@ public class FunctionScoreQueryParser implements QueryParser {
                     String errorString = "already found [" + singleFunctionName + "], now encountering [functions].";
                     handleMisplacedFunctionsDeclaration(errorString, singleFunctionName);
                 }
-                currentFieldName = parseFiltersAndFunctions(parseContext, parser, filterFunctions, currentFieldName);
+                currentFieldName = parseFiltersAndFunctions(context, parser, filterFunctions, currentFieldName);
                 functionArrayFound = true;
             } else {
                 ScoreFunction scoreFunction;
@@ -138,7 +139,7 @@ public class FunctionScoreQueryParser implements QueryParser {
                     // we try to parse a score function. If there is no score
                     // function for the current field name,
                     // functionParserMapper.get() will throw an Exception.
-                    scoreFunction = functionParserMapper.get(parseContext, currentFieldName).parse(parseContext, parser);
+                    scoreFunction = functionParserMapper.get(parseContext, currentFieldName).parse(context, parser);
                 }
                 if (functionArrayFound) {
                     String errorString = "already found [functions] array, now encountering [" + currentFieldName + "].";
@@ -191,7 +192,7 @@ public class FunctionScoreQueryParser implements QueryParser {
         }
         result.setBoost(boost);
         if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
+            context.addNamedQuery(queryName, query);
         }
         return result;
     }
@@ -204,8 +205,9 @@ public class FunctionScoreQueryParser implements QueryParser {
         throw new ElasticsearchParseException("failed to parse [{}] query. [{}]", NAME, errorString);
     }
 
-    private String parseFiltersAndFunctions(QueryParseContext parseContext, XContentParser parser,
+    private String parseFiltersAndFunctions(QueryShardContext context, XContentParser parser,
                                             ArrayList<FiltersFunctionScoreQuery.FilterFunction> filterFunctions, String currentFieldName) throws IOException {
+        QueryParseContext parseContext = context.parseContext();
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             Query filter = null;
@@ -227,7 +229,7 @@ public class FunctionScoreQueryParser implements QueryParser {
                             // functionParserMapper throws exception if parser
                             // non-existent
                             ScoreFunctionParser functionParser = functionParserMapper.get(parseContext, currentFieldName);
-                            scoreFunction = functionParser.parse(parseContext, parser);
+                            scoreFunction = functionParser.parse(context, parser);
                         }
                     }
                 }
@@ -275,9 +277,10 @@ public class FunctionScoreQueryParser implements QueryParser {
         return cf;
     }
 
+    //norelease to be removed once all queries are moved over to extend BaseQueryParser
     @Override
     public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
-        Query query = parse(parseContext);
+        Query query = parse(parseContext.shardContext());
         return new QueryWrappingQueryBuilder(query);
     }
 

@@ -33,7 +33,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
@@ -425,7 +425,7 @@ public abstract class MappedFieldType extends FieldType {
     }
 
     /**
-     * Should the field query {@link #termQuery(Object, org.elasticsearch.index.query.QueryParseContext)}  be used when detecting this
+     * Should the field query {@link #termQuery(Object, org.elasticsearch.index.query.QueryShardContext)}  be used when detecting this
      * field in query string.
      */
     public boolean useTermQueryWithQueryString() {
@@ -437,11 +437,11 @@ public abstract class MappedFieldType extends FieldType {
         return new Term(names().indexName(), indexedValueForSearch(value));
     }
 
-    public Query termQuery(Object value, @Nullable QueryParseContext context) {
+    public Query termQuery(Object value, @Nullable QueryShardContext context) {
         return new TermQuery(createTerm(value));
     }
 
-    public Query termsQuery(List values, @Nullable QueryParseContext context) {
+    public Query termsQuery(List values, @Nullable QueryShardContext context) {
         BytesRef[] bytesRefs = new BytesRef[values.size()];
         for (int i = 0; i < bytesRefs.length; i++) {
             bytesRefs[i] = indexedValueForSearch(values.get(i));
@@ -460,7 +460,7 @@ public abstract class MappedFieldType extends FieldType {
         return new FuzzyQuery(createTerm(value), fuzziness.asDistance(BytesRefs.toString(value)), prefixLength, maxExpansions, transpositions);
     }
 
-    public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
+    public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryShardContext context) {
         PrefixQuery query = new PrefixQuery(createTerm(value));
         if (method != null) {
             query.setRewriteMethod(method);
@@ -468,7 +468,7 @@ public abstract class MappedFieldType extends FieldType {
         return query;
     }
 
-    public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
+    public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryShardContext context) {
         RegexpQuery query = new RegexpQuery(createTerm(value), flags, maxDeterminizedStates);
         if (method != null) {
             query.setRewriteMethod(method);

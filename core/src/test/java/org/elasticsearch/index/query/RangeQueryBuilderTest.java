@@ -62,7 +62,7 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
                 query.to(new DateTime(System.currentTimeMillis() + randomIntBetween(0, 1000000), DateTimeZone.UTC).toString());
                 // Create timestamp option only then we have a date mapper,
                 // otherwise we could trigger exception.
-                if (createContext().mapperService().smartNameFieldType(DATE_FIELD_NAME) != null) {
+                if (createShardContext().mapperService().smartNameFieldType(DATE_FIELD_NAME) != null) {
                     if (randomBoolean()) {
                         query.timeZone(TIMEZONE_IDS.get(randomIntBetween(0, TIMEZONE_IDS.size() - 1)));
                     }
@@ -89,7 +89,7 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
     }
 
     @Override
-    protected void doAssertLuceneQuery(RangeQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+    protected void doAssertLuceneQuery(RangeQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         if (getCurrentTypes().length == 0 || (queryBuilder.fieldName().equals(DATE_FIELD_NAME) == false && queryBuilder.fieldName().equals(INT_FIELD_NAME) == false)) {
             assertThat(query, instanceOf(TermRangeQuery.class));
         } else if (queryBuilder.fieldName().equals(DATE_FIELD_NAME)) {
@@ -125,20 +125,20 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
     /**
      * Specifying a timezone together with a numeric range query should throw an exception.
      */
-    @Test(expected=QueryParsingException.class)
-    public void testToQueryNonDateWithTimezone() throws QueryParsingException, IOException {
+    @Test(expected=QueryShardException.class)
+    public void testToQueryNonDateWithTimezone() throws QueryShardException, IOException {
         RangeQueryBuilder query = new RangeQueryBuilder(INT_FIELD_NAME);
         query.from(1).to(10).timeZone("UTC");
-        query.toQuery(createContext());
+        query.toQuery(createShardContext());
     }
 
     /**
      * Specifying a timezone together with an unmapped field should throw an exception.
      */
-    @Test(expected=QueryParsingException.class)
-    public void testToQueryUnmappedWithTimezone() throws QueryParsingException, IOException {
+    @Test(expected=QueryShardException.class)
+    public void testToQueryUnmappedWithTimezone() throws QueryShardException, IOException {
         RangeQueryBuilder query = new RangeQueryBuilder("bogus_field");
         query.from(1).to(10).timeZone("UTC");
-        query.toQuery(createContext());
+        query.toQuery(createShardContext());
     }
 }

@@ -54,9 +54,10 @@ public class NestedQueryParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryShardContext context) throws IOException, QueryParsingException {
+        QueryParseContext parseContext = context.parseContext();
         XContentParser parser = parseContext.parser();
-        final ToBlockJoinQueryBuilder builder = new ToBlockJoinQueryBuilder(parseContext);
+        final ToBlockJoinQueryBuilder builder = new ToBlockJoinQueryBuilder(context);
 
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         ScoreMode scoreMode = ScoreMode.Avg;
@@ -110,7 +111,7 @@ public class NestedQueryParser extends BaseQueryParserTemp {
         if (joinQuery != null) {
             joinQuery.setBoost(boost);
             if (queryName != null) {
-                parseContext.addNamedQuery(queryName, joinQuery);
+                context.addNamedQuery(queryName, joinQuery);
             }
         }
         return joinQuery;
@@ -121,8 +122,8 @@ public class NestedQueryParser extends BaseQueryParserTemp {
         private ScoreMode scoreMode;
         private Tuple<String, SubSearchContext> innerHits;
 
-        public ToBlockJoinQueryBuilder(QueryParseContext parseContext) throws IOException {
-            super(parseContext);
+        public ToBlockJoinQueryBuilder(QueryShardContext context) throws IOException {
+            super(context);
         }
 
         public void setScoreMode(ScoreMode scoreMode) {
@@ -146,14 +147,14 @@ public class NestedQueryParser extends BaseQueryParserTemp {
                     innerQuery = null;
                 }
             } else {
-                throw new QueryParsingException(parseContext, "[nested] requires either 'query' or 'filter' field");
+                throw new QueryShardException(shardContext, "[nested] requires either 'query' or 'filter' field");
             }
 
             if (innerHits != null) {
-                ParsedQuery parsedQuery = new ParsedQuery(innerQuery, parseContext.copyNamedQueries());
+                ParsedQuery parsedQuery = new ParsedQuery(innerQuery, shardContext.copyNamedQueries());
                 InnerHitsContext.NestedInnerHits nestedInnerHits = new InnerHitsContext.NestedInnerHits(innerHits.v2(), parsedQuery, null, getParentObjectMapper(), nestedObjectMapper);
                 String name = innerHits.v1() != null ? innerHits.v1() : path;
-                parseContext.addInnerHits(name, nestedInnerHits);
+                shardContext.addInnerHits(name, nestedInnerHits);
             }
 
             if (innerQuery != null) {

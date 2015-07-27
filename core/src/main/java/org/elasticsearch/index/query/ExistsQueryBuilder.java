@@ -63,8 +63,8 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     }
 
     @Override
-    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
-        return newFilter(parseContext, name);
+    protected Query doToQuery(QueryShardContext context) throws IOException {
+        return newFilter(context, name);
     }
 
     @Override
@@ -73,20 +73,20 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
         return null;
     }
 
-    public static Query newFilter(QueryParseContext parseContext, String fieldPattern) {
-        final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType)parseContext.mapperService().fullName(FieldNamesFieldMapper.NAME);
+    public static Query newFilter(QueryShardContext context, String fieldPattern) {
+        final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType)context.mapperService().fullName(FieldNamesFieldMapper.NAME);
         if (fieldNamesFieldType == null) {
             // can only happen when no types exist, so no docs exist either
             return Queries.newMatchNoDocsQuery();
         }
 
-        ObjectMapper objectMapper = parseContext.getObjectMapper(fieldPattern);
+        ObjectMapper objectMapper = context.getObjectMapper(fieldPattern);
         if (objectMapper != null) {
             // automatic make the object mapper pattern
             fieldPattern = fieldPattern + ".*";
         }
 
-        Collection<String> fields = parseContext.simpleMatchToIndexNames(fieldPattern);
+        Collection<String> fields = context.simpleMatchToIndexNames(fieldPattern);
         if (fields.isEmpty()) {
             // no fields exists, so we should not match anything
             return Queries.newMatchNoDocsQuery();
@@ -94,7 +94,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
 
         BooleanQuery boolFilter = new BooleanQuery();
         for (String field : fields) {
-            MappedFieldType fieldType = parseContext.fieldMapper(field);
+            MappedFieldType fieldType = context.fieldMapper(field);
             Query filter = null;
             if (fieldNamesFieldType.isEnabled()) {
                 final String f;
@@ -103,7 +103,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
                 } else {
                     f = field;
                 }
-                filter = fieldNamesFieldType.termQuery(f, parseContext);
+                filter = fieldNamesFieldType.termQuery(f, context);
             }
             // if _field_names are not indexed, we need to go the slow way
             if (filter == null && fieldType != null) {

@@ -53,7 +53,8 @@ public class GeoShapeQueryParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryShardContext context) throws IOException, QueryParsingException {
+        QueryParseContext parseContext = context.parseContext();
         XContentParser parser = parseContext.parser();
 
         String fieldName = null;
@@ -136,7 +137,7 @@ public class GeoShapeQueryParser extends BaseQueryParserTemp {
             throw new QueryParsingException(parseContext, "No Shape Relation defined");
         }
 
-        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType == null) {
             throw new QueryParsingException(parseContext, "Failed to find geo_shape field [" + fieldName + "]");
         }
@@ -157,7 +158,7 @@ public class GeoShapeQueryParser extends BaseQueryParserTemp {
             // this strategy doesn't support disjoint anymore: but it did before, including creating lucene fieldcache (!)
             // in this case, execute disjoint as exists && !intersects
             BooleanQuery bool = new BooleanQuery();
-            Query exists = ExistsQueryBuilder.newFilter(parseContext, fieldName);
+            Query exists = ExistsQueryBuilder.newFilter(context, fieldName);
             Filter intersects = strategy.makeFilter(getArgs(shape, ShapeRelation.INTERSECTS));
             bool.add(exists, BooleanClause.Occur.MUST);
             bool.add(intersects, BooleanClause.Occur.MUST_NOT);
@@ -167,7 +168,7 @@ public class GeoShapeQueryParser extends BaseQueryParserTemp {
         }
         query.setBoost(boost);
         if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
+            context.addNamedQuery(queryName, query);
         }
         return query;
     }

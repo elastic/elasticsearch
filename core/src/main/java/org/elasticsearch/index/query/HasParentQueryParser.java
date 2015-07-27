@@ -64,7 +64,8 @@ public class HasParentQueryParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryShardContext context) throws IOException, QueryParsingException {
+        QueryParseContext parseContext = context.parseContext();
         XContentParser parser = parseContext.parser();
 
         boolean queryFound = false;
@@ -133,40 +134,40 @@ public class HasParentQueryParser extends BaseQueryParserTemp {
         }
 
         innerQuery.setBoost(boost);
-        Query query = createParentQuery(innerQuery, parentType, score, parseContext, innerHits);
+        Query query = createParentQuery(innerQuery, parentType, score, context, innerHits);
         if (query == null) {
             return null;
         }
 
         query.setBoost(boost);
         if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
+            context.addNamedQuery(queryName, query);
         }
         return query;
     }
 
-    static Query createParentQuery(Query innerQuery, String parentType, boolean score, QueryParseContext parseContext, Tuple<String, SubSearchContext> innerHits) throws IOException {
-        DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
+    static Query createParentQuery(Query innerQuery, String parentType, boolean score, QueryShardContext context, Tuple<String, SubSearchContext> innerHits) throws IOException {
+        DocumentMapper parentDocMapper = context.mapperService().documentMapper(parentType);
         if (parentDocMapper == null) {
-            throw new QueryParsingException(parseContext, "[has_parent] query configured 'parent_type' [" + parentType
+            throw new QueryParsingException(context.parseContext(), "[has_parent] query configured 'parent_type' [" + parentType
                     + "] is not a valid type");
         }
 
         if (innerHits != null) {
-            ParsedQuery parsedQuery = new ParsedQuery(innerQuery, parseContext.copyNamedQueries());
-            InnerHitsContext.ParentChildInnerHits parentChildInnerHits = new InnerHitsContext.ParentChildInnerHits(innerHits.v2(), parsedQuery, null, parseContext.mapperService(), parentDocMapper);
+            ParsedQuery parsedQuery = new ParsedQuery(innerQuery, context.copyNamedQueries());
+            InnerHitsContext.ParentChildInnerHits parentChildInnerHits = new InnerHitsContext.ParentChildInnerHits(innerHits.v2(), parsedQuery, null, context.mapperService(), parentDocMapper);
             String name = innerHits.v1() != null ? innerHits.v1() : parentType;
-            parseContext.addInnerHits(name, parentChildInnerHits);
+            context.addInnerHits(name, parentChildInnerHits);
         }
 
         Set<String> parentTypes = new HashSet<>(5);
         parentTypes.add(parentDocMapper.type());
         ParentChildIndexFieldData parentChildIndexFieldData = null;
-        for (DocumentMapper documentMapper : parseContext.mapperService().docMappers(false)) {
+        for (DocumentMapper documentMapper : context.mapperService().docMappers(false)) {
             ParentFieldMapper parentFieldMapper = documentMapper.parentFieldMapper();
             if (parentFieldMapper.active()) {
-                DocumentMapper parentTypeDocumentMapper = parseContext.mapperService().documentMapper(parentFieldMapper.type());
-                parentChildIndexFieldData = parseContext.getForField(parentFieldMapper.fieldType());
+                DocumentMapper parentTypeDocumentMapper = context.mapperService().documentMapper(parentFieldMapper.type());
+                parentChildIndexFieldData = context.getForField(parentFieldMapper.fieldType());
                 if (parentTypeDocumentMapper == null) {
                     // Only add this, if this parentFieldMapper (also a parent)  isn't a child of another parent.
                     parentTypes.add(parentFieldMapper.type());
@@ -174,19 +175,19 @@ public class HasParentQueryParser extends BaseQueryParserTemp {
             }
         }
         if (parentChildIndexFieldData == null) {
-            throw new QueryParsingException(parseContext, "[has_parent] no _parent field configured");
+            throw new QueryParsingException(context.parseContext(), "[has_parent] no _parent field configured");
         }
 
         Query parentFilter = null;
         if (parentTypes.size() == 1) {
-            DocumentMapper documentMapper = parseContext.mapperService().documentMapper(parentTypes.iterator().next());
+            DocumentMapper documentMapper = context.mapperService().documentMapper(parentTypes.iterator().next());
             if (documentMapper != null) {
                 parentFilter = documentMapper.typeFilter();
             }
         } else {
             BooleanQuery parentsFilter = new BooleanQuery();
             for (String parentTypeStr : parentTypes) {
-                DocumentMapper documentMapper = parseContext.mapperService().documentMapper(parentTypeStr);
+                DocumentMapper documentMapper = context.mapperService().documentMapper(parentTypeStr);
                 if (documentMapper != null) {
                     parentsFilter.add(documentMapper.typeFilter(), BooleanClause.Occur.SHOULD);
                 }
@@ -201,7 +202,7 @@ public class HasParentQueryParser extends BaseQueryParserTemp {
         // wrap the query with type query
         innerQuery = Queries.filtered(innerQuery, parentDocMapper.typeFilter());
         Filter childrenFilter = new QueryWrapperFilter(Queries.not(parentFilter));
-        if (parseContext.indexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
+        if (context.indexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
             ScoreType scoreMode = score ? ScoreType.MAX : ScoreType.NONE;
             return joinUtilHelper(parentType, parentChildIndexFieldData, childrenFilter, scoreMode, innerQuery, 0, Integer.MAX_VALUE);
         } else {

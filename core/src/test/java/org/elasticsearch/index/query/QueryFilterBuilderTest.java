@@ -41,7 +41,7 @@ public class QueryFilterBuilderTest extends BaseQueryTestCase<QueryFilterBuilder
     }
 
     @Override
-    protected void doAssertLuceneQuery(QueryFilterBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+    protected void doAssertLuceneQuery(QueryFilterBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         Query innerQuery = queryBuilder.innerQuery().toQuery(context);
         if (innerQuery == null) {
             assertThat(query, nullValue());
@@ -62,18 +62,18 @@ public class QueryFilterBuilderTest extends BaseQueryTestCase<QueryFilterBuilder
      */
     @Test
     public void testInnerQueryReturnsNull() throws IOException {
-        QueryParseContext context = createContext();
+        QueryParseContext context = createParseContext();
 
         // create inner filter
         String queryString = "{ \"constant_score\" : { \"filter\" : {} }";
         XContentParser parser = XContentFactory.xContent(queryString).createParser(queryString);
         context.reset(parser);
         assertQueryHeader(parser, ConstantScoreQueryBuilder.PROTOTYPE.getName());
-        QueryBuilder innerQuery = context.indexQueryParserService().queryParser(ConstantScoreQueryBuilder.PROTOTYPE.getName()).fromXContent(context);
+        QueryBuilder innerQuery = context.queryParser(ConstantScoreQueryBuilder.PROTOTYPE.getName()).fromXContent(context);
 
         // check that when wrapping this filter, toQuery() returns null
         QueryFilterBuilder queryFilterQuery = new QueryFilterBuilder(innerQuery);
-        assertNull(queryFilterQuery.toQuery(createContext()));
+        assertNull(queryFilterQuery.toQuery(createShardContext()));
     }
 
     @Test

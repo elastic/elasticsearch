@@ -44,7 +44,7 @@ public class FieldMaskingSpanQueryBuilderTest extends BaseQueryTestCase<FieldMas
     }
 
     @Override
-    protected void doAssertLuceneQuery(FieldMaskingSpanQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+    protected void doAssertLuceneQuery(FieldMaskingSpanQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         String fieldInQuery = queryBuilder.fieldName();
         MappedFieldType fieldType = context.fieldMapper(fieldInQuery);
         if (fieldType != null) {

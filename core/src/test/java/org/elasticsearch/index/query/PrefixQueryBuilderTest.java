@@ -44,7 +44,7 @@ public class PrefixQueryBuilderTest extends BaseQueryTestCase<PrefixQueryBuilder
     }
 
     @Override
-    protected void doAssertLuceneQuery(PrefixQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+    protected void doAssertLuceneQuery(PrefixQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(PrefixQuery.class));
         PrefixQuery prefixQuery = (PrefixQuery) query;
         assertThat(prefixQuery.getPrefix().field(), equalTo(queryBuilder.fieldName()));

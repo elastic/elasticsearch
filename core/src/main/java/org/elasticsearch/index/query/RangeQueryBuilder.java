@@ -243,9 +243,9 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     }
 
     @Override
-    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
+    protected Query doToQuery(QueryShardContext context) throws IOException {
         Query query = null;
-        MappedFieldType mapper = parseContext.fieldMapper(this.fieldName);
+        MappedFieldType mapper = context.fieldMapper(this.fieldName);
         if (mapper != null) {
             if (mapper instanceof DateFieldMapper.DateFieldType) {
                 DateMathParser forcedDateParser = null;
@@ -259,7 +259,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                 query = ((DateFieldMapper.DateFieldType) mapper).rangeQuery(from, to, includeLower, includeUpper, dateTimeZone, forcedDateParser);
             } else  {
                 if (timeZone != null) {
-                    throw new QueryParsingException(parseContext, "[range] time_zone can not be applied to non date field ["
+                    throw new QueryShardException(context, "[range] time_zone can not be applied to non date field ["
                             + fieldName + "]");
                 }
                 //LUCENE 4 UPGRADE Mapper#rangeQuery should use bytesref as well?
@@ -267,7 +267,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             }
         } else {
             if (timeZone != null) {
-                throw new QueryParsingException(parseContext, "[range] time_zone can not be applied to non unmapped field ["
+                throw new QueryShardException(context, "[range] time_zone can not be applied to non unmapped field ["
                         + fieldName + "]");
             }
         }

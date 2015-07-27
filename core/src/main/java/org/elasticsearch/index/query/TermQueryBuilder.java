@@ -71,11 +71,11 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
     }
 
     @Override
-    public Query doToQuery(QueryParseContext parseContext) throws IOException {
+    public Query doToQuery(QueryShardContext context) throws IOException {
         Query query = null;
-        MappedFieldType mapper = parseContext.fieldMapper(this.fieldName);
+        MappedFieldType mapper = context.fieldMapper(this.fieldName);
         if (mapper != null) {
-            query = mapper.termQuery(this.value, parseContext);
+            query = mapper.termQuery(this.value, context);
         }
         if (query == null) {
             query = new TermQuery(new Term(this.fieldName, BytesRefs.toBytesRef(this.value)));

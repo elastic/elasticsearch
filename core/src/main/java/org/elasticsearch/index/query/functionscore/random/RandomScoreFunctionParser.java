@@ -27,8 +27,8 @@ import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
@@ -51,8 +51,8 @@ public class RandomScoreFunctionParser implements ScoreFunctionParser {
     }
 
     @Override
-    public ScoreFunction parse(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException {
-
+    public ScoreFunction parse(QueryShardContext context, XContentParser parser) throws IOException, QueryParsingException {
+        QueryParseContext parseContext = context.parseContext();
         int seed = -1;
 
         String currentFieldName = null;
@@ -90,7 +90,7 @@ public class RandomScoreFunctionParser implements ScoreFunctionParser {
         }
 
         if (seed == -1) {
-            seed = Longs.hashCode(parseContext.nowInMillis());
+            seed = Longs.hashCode(context.nowInMillis());
         }
         final ShardId shardId = SearchContext.current().indexShard().shardId();
         final int salt = (shardId.index().name().hashCode() << 10) | shardId.id();

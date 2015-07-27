@@ -38,7 +38,7 @@ public class SpanMultiTermQueryBuilderTest extends BaseQueryTestCase<SpanMultiTe
     }
 
     @Override
-    protected void doAssertLuceneQuery(SpanMultiTermQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+    protected void doAssertLuceneQuery(SpanMultiTermQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(SpanMultiTermQueryWrapper.class));
         SpanMultiTermQueryWrapper spanMultiTermQueryWrapper = (SpanMultiTermQueryWrapper) query;
         Query multiTermQuery = queryBuilder.multiTermQueryBuilder().toQuery(context);
@@ -72,12 +72,12 @@ public class SpanMultiTermQueryBuilderTest extends BaseQueryTestCase<SpanMultiTe
      */
     @Test
     public void testUnsupportedInnerQueryType() throws IOException {
-        QueryParseContext parseContext = createContext();
+        QueryShardContext context = createShardContext();
         // test makes only sense if we have at least one type registered with date field mapping
-        if (getCurrentTypes().length > 0 && parseContext.fieldMapper(DATE_FIELD_NAME) != null) {
+        if (getCurrentTypes().length > 0 && context.fieldMapper(DATE_FIELD_NAME) != null) {
             try {
                 RangeQueryBuilder query = new RangeQueryBuilder(DATE_FIELD_NAME);
-                new SpanMultiTermQueryBuilder(query).toQuery(createContext());
+                new SpanMultiTermQueryBuilder(query).toQuery(createShardContext());
                 fail("Exception expected, range query on date fields should not generate a lucene " + MultiTermQuery.class.getName());
             } catch (UnsupportedOperationException e) {
                 assert(e.getMessage().contains("unsupported inner query, should be " + MultiTermQuery.class.getName()));

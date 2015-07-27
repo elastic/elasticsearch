@@ -57,8 +57,8 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
     }
 
     @Override
-    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
-        Query subQuery = multiTermQueryBuilder.toQuery(parseContext);
+    protected Query doToQuery(QueryShardContext context) throws IOException {
+        Query subQuery = multiTermQueryBuilder.toQuery(context);
         if (subQuery instanceof MultiTermQuery == false) {
             throw new UnsupportedOperationException("unsupported inner query, should be " + MultiTermQuery.class.getName() +" but was "
                     + subQuery.getClass().getName());

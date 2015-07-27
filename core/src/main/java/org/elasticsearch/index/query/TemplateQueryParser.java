@@ -66,13 +66,14 @@ public class TemplateQueryParser extends BaseQueryParserTemp {
      * Parses the template query replacing template parameters with provided
      * values. Handles both submitting the template as part of the request as
      * well as referencing only the template name.
-     * 
-     * @param parseContext
+     *
+     * @param context
      *            parse context containing the templated query.
      */
     @Override
     @Nullable
-    public Query parse(QueryParseContext parseContext) throws IOException {
+    public Query parse(QueryShardContext context) throws IOException {
+        QueryParseContext parseContext = context.parseContext();
         XContentParser parser = parseContext.parser();
         Template template = parse(parser, parseContext.parseFieldMatcher());
         ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH);
@@ -80,9 +81,9 @@ public class TemplateQueryParser extends BaseQueryParserTemp {
         BytesReference querySource = (BytesReference) executable.run();
 
         try (XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource)) {
-            final QueryParseContext context = new QueryParseContext(parseContext.index(), parseContext.indexQueryParserService());
-            context.reset(qSourceParser);
-            return context.parseInnerQuery();
+            final QueryShardContext contextCopy = new QueryShardContext(context.index(), context.indexQueryParserService());
+            contextCopy.reset(qSourceParser);
+            return contextCopy.parseContext().parseInnerQuery();
         }
     }
 

@@ -96,9 +96,9 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
     }
 
     @Override
-    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
+    protected Query doToQuery(QueryShardContext context) throws IOException {
         // return null if there are no queries at all
-        Collection<Query> luceneQueries = toQueries(queries, parseContext);
+        Collection<Query> luceneQueries = toQueries(queries, context);
         if (luceneQueries.isEmpty()) {
             return null;
         }

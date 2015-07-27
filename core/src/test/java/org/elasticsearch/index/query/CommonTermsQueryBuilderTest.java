@@ -34,7 +34,7 @@ public class CommonTermsQueryBuilderTest extends BaseQueryTestCase<CommonTermsQu
     @Override
     protected CommonTermsQueryBuilder doCreateTestQueryBuilder() {
         CommonTermsQueryBuilder query;
-        
+
         // mapped or unmapped field
         String text = randomAsciiOfLengthBetween(1, 10);
         if (randomBoolean()) {
@@ -42,7 +42,7 @@ public class CommonTermsQueryBuilderTest extends BaseQueryTestCase<CommonTermsQu
         } else {
             query = new CommonTermsQueryBuilder(randomAsciiOfLengthBetween(1, 10), text);
         }
-        
+
         if (randomBoolean()) {
             query.cutoffFrequency((float) randomIntBetween(1, 10));
         }
@@ -50,7 +50,7 @@ public class CommonTermsQueryBuilderTest extends BaseQueryTestCase<CommonTermsQu
         if (randomBoolean()) {
             query.lowFreqOperator(randomFrom(Operator.values()));
         }
-            
+
         // number of low frequency terms that must match
         if (randomBoolean()) {
             query.lowFreqMinimumShouldMatch("" + randomIntBetween(1, 5));
@@ -64,11 +64,11 @@ public class CommonTermsQueryBuilderTest extends BaseQueryTestCase<CommonTermsQu
         if (randomBoolean()) {
             query.highFreqMinimumShouldMatch("" + randomIntBetween(1, 5));
         }
-        
+
         if (randomBoolean()) {
             query.analyzer(randomFrom("simple", "keyword", "whitespace"));
         }
-        
+
         if (randomBoolean()) {
             query.disableCoord(randomBoolean());
         }
@@ -76,7 +76,7 @@ public class CommonTermsQueryBuilderTest extends BaseQueryTestCase<CommonTermsQu
     }
 
     @Override
-    protected void doAssertLuceneQuery(CommonTermsQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+    protected void doAssertLuceneQuery(CommonTermsQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(ExtendedCommonTermsQuery.class));
         ExtendedCommonTermsQuery extendedCommonTermsQuery = (ExtendedCommonTermsQuery) query;
         assertThat(extendedCommonTermsQuery.getHighFreqMinimumNumberShouldMatchSpec(), equalTo(queryBuilder.highFreqMinimumShouldMatch()));
@@ -98,7 +98,7 @@ public class CommonTermsQueryBuilderTest extends BaseQueryTestCase<CommonTermsQu
     @Test
     public void testNoTermsFromQueryString() throws IOException {
         CommonTermsQueryBuilder builder = new CommonTermsQueryBuilder(STRING_FIELD_NAME, "");
-        QueryParseContext context = createContext();
+        QueryShardContext context = createShardContext();
         context.setAllowUnmappedFields(true);
         assertNull(builder.toQuery(context));
     }

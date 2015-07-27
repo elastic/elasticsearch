@@ -45,7 +45,7 @@ public class SpanNearQueryBuilderTest extends BaseQueryTestCase<SpanNearQueryBui
     }
 
     @Override
-    protected void doAssertLuceneQuery(SpanNearQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+    protected void doAssertLuceneQuery(SpanNearQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(SpanNearQuery.class));
         SpanNearQuery spanNearQuery = (SpanNearQuery) query;
         assertThat(spanNearQuery.getSlop(), equalTo(queryBuilder.slop()));

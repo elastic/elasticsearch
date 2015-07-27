@@ -43,7 +43,7 @@ public class FilteredQueryBuilderTest extends BaseQueryTestCase<FilteredQueryBui
     }
 
     @Override
-    protected void doAssertLuceneQuery(FilteredQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+    protected void doAssertLuceneQuery(FilteredQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         Query innerQuery = queryBuilder.query().toQuery(context);
         if (innerQuery == null) {
             assertThat(query, nullValue());

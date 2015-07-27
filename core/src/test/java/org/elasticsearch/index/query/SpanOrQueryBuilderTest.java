@@ -43,7 +43,7 @@ public class SpanOrQueryBuilderTest extends BaseQueryTestCase<SpanOrQueryBuilder
     }
 
     @Override
-    protected void doAssertLuceneQuery(SpanOrQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+    protected void doAssertLuceneQuery(SpanOrQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(SpanOrQuery.class));
         SpanOrQuery spanOrQuery = (SpanOrQuery) query;
         assertThat(spanOrQuery.getClauses().length, equalTo(queryBuilder.clauses().size()));

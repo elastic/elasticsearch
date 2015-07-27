@@ -20,10 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.MappedFieldType;
-
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Locale;
@@ -108,19 +105,7 @@ public class SimpleQueryStringParser extends BaseQueryParser {
                         if (fField == null) {
                             fField = parser.text();
                         }
-
-                        if (Regex.isSimpleMatchPattern(fField)) {
-                            for (String fieldName : parseContext.mapperService().simpleMatchToIndexNames(fField)) {
-                                fieldsAndWeights.put(fieldName, fBoost);
-                            }
-                        } else {
-                            MappedFieldType fieldType = parseContext.fieldMapper(fField);
-                            if (fieldType != null) {
-                                fieldsAndWeights.put(fieldType.names().indexName(), fBoost);
-                            } else {
-                                fieldsAndWeights.put(fField, fBoost);
-                            }
-                        }
+                        fieldsAndWeights.put(fField, fBoost);
                     }
                 } else {
                     throw new QueryParsingException(parseContext,

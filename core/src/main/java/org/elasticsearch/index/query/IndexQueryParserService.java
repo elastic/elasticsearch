@@ -53,10 +53,10 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     public static final String PARSE_STRICT = "index.query.parse.strict";
     public static final String ALLOW_UNMAPPED = "index.query.parse.allow_unmapped_fields";
 
-    private CloseableThreadLocal<QueryParseContext> cache = new CloseableThreadLocal<QueryParseContext>() {
+    private CloseableThreadLocal<QueryShardContext> cache = new CloseableThreadLocal<QueryShardContext>() {
         @Override
-        protected QueryParseContext initialValue() {
-            return new QueryParseContext(index, IndexQueryParserService.this);
+        protected QueryShardContext initialValue() {
+            return new QueryShardContext(index, IndexQueryParserService.this);
         }
     };
 
@@ -120,16 +120,20 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         return indicesQueriesRegistry.queryParsers().get(name);
     }
 
+    public IndicesQueriesRegistry indicesQueriesRegistry() {
+        return indicesQueriesRegistry;
+    }
+
     public ParsedQuery parse(QueryBuilder queryBuilder) {
         XContentParser parser = null;
         try {
             BytesReference bytes = queryBuilder.buildAsBytes();
             parser = XContentFactory.xContent(bytes).createParser(bytes);
             return parse(cache.get(), parser);
-        } catch (QueryParsingException e) {
+        } catch (QueryShardException e) {
             throw e;
         } catch (Exception e) {
-            throw new QueryParsingException(getParseContext(), "Failed to parse", e);
+            throw new QueryParsingException(getShardContext().parseContext(), "Failed to parse", e);
         } finally {
             if (parser != null) {
                 parser.close();
@@ -146,10 +150,10 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         try {
             parser = XContentFactory.xContent(source, offset, length).createParser(source, offset, length);
             return parse(cache.get(), parser);
-        } catch (QueryParsingException e) {
+        } catch (QueryShardException e) {
             throw e;
         } catch (Exception e) {
-            throw new QueryParsingException(getParseContext(), "Failed to parse", e);
+            throw new QueryParsingException(getShardContext().parseContext(), "Failed to parse", e);
         } finally {
             if (parser != null) {
                 parser.close();
@@ -161,7 +165,8 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         return parse(cache.get(), source);
     }
 
-    public ParsedQuery parse(QueryParseContext context, BytesReference source) {
+    //norelease
+    public ParsedQuery parse(QueryShardContext context, BytesReference source) {
         XContentParser parser = null;
         try {
             parser = XContentFactory.xContent(source).createParser(source);
@@ -169,7 +174,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         } catch (QueryParsingException e) {
             throw e;
         } catch (Exception e) {
-            throw new QueryParsingException(context, "Failed to parse", e);
+            throw new QueryParsingException(context.parseContext(), "Failed to parse", e);
         } finally {
             if (parser != null) {
                 parser.close();
@@ -177,15 +182,15 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         }
     }
 
-    public ParsedQuery parse(String source) throws QueryParsingException {
+    public ParsedQuery parse(String source) throws QueryParsingException, QueryShardException {
         XContentParser parser = null;
         try {
             parser = XContentFactory.xContent(source).createParser(source);
             return innerParse(cache.get(), parser);
-        } catch (QueryParsingException e) {
+        } catch (QueryShardException|QueryParsingException e) {
             throw e;
         } catch (Exception e) {
-            throw new QueryParsingException(getParseContext(), "Failed to parse [" + source + "]", e);
+            throw new QueryParsingException(getShardContext().parseContext(), "Failed to parse [" + source + "]", e);
         } finally {
             if (parser != null) {
                 parser.close();
@@ -197,11 +202,12 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         return parse(cache.get(), parser);
     }
 
-    public ParsedQuery parse(QueryParseContext context, XContentParser parser) {
+    //norelease
+    public ParsedQuery parse(QueryShardContext context, XContentParser parser) {
         try {
             return innerParse(context, parser);
         } catch (IOException e) {
-            throw new QueryParsingException(context, "Failed to parse", e);
+            throw new QueryParsingException(context.parseContext(), "Failed to parse", e);
         }
     }
 
@@ -209,11 +215,12 @@ public class IndexQueryParserService extends AbstractIndexComponent {
      * Parses an inner filter, returning null if the filter should be ignored.
      */
     @Nullable
+    //norelease
     public ParsedQuery parseInnerFilter(XContentParser parser) throws IOException {
-        QueryParseContext context = cache.get();
+        QueryShardContext context = cache.get();
         context.reset(parser);
         try {
-            Query filter = context.parseInnerFilter();
+            Query filter = context.parseContext().parseInnerFilter();
             if (filter == null) {
                 return null;
             }
@@ -224,27 +231,23 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     }
 
     @Nullable
-    public Query parseInnerQuery(XContentParser parser) throws IOException {
-        QueryParseContext context = cache.get();
-        context.reset(parser);
-        try {
-            return context.parseInnerQuery();
-        } finally {
-            context.reset(null);
-        }
+    public QueryBuilder parseInnerQueryBuilder(QueryParseContext parseContext) throws IOException {
+        parseContext.parseFieldMatcher(parseFieldMatcher);
+        QueryBuilder query = parseContext.parseInnerQueryBuilder();
+        return query;
     }
 
     @Nullable
-    public Query parseInnerQuery(QueryParseContext parseContext) throws IOException {
-        parseContext.parseFieldMatcher(parseFieldMatcher);
-        Query query = parseContext.parseInnerQuery();
+    //norelease
+    public Query parseInnerQuery(QueryShardContext context) throws IOException {
+        Query query = context.parseContext().parseInnerQueryBuilder().toQuery(context);
         if (query == null) {
             query = Queries.newMatchNoDocsQuery();
         }
         return query;
     }
 
-    public QueryParseContext getParseContext() {
+    public QueryShardContext getShardContext() {
         return cache.get();
     }
 
@@ -276,34 +279,39 @@ public class IndexQueryParserService extends AbstractIndexComponent {
                         XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource);
                         parsedQuery = parse(qSourceParser);
                     } else {
-                        throw new QueryParsingException(getParseContext(), "request does not support [" + fieldName + "]");
+                        throw new QueryParsingException(getShardContext().parseContext(), "request does not support [" + fieldName + "]");
                     }
                 }
             }
             if (parsedQuery != null) {
                 return parsedQuery;
             }
-        } catch (QueryParsingException e) {
+        } catch (QueryShardException e) {
             throw e;
         } catch (Throwable e) {
-            throw new QueryParsingException(getParseContext(), "Failed to parse", e);
+            throw new QueryParsingException(getShardContext().parseContext(), "Failed to parse", e);
         }
 
-        throw new QueryParsingException(getParseContext(), "Required query is missing");
+        throw new QueryParsingException(getShardContext().parseContext(), "Required query is missing");
     }
 
-    private ParsedQuery innerParse(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException {
-        parseContext.reset(parser);
+    //norelease
+    private ParsedQuery innerParse(QueryShardContext context, XContentParser parser) throws IOException, QueryShardException {
+        context.reset(parser);
         try {
-            parseContext.parseFieldMatcher(parseFieldMatcher);
-            Query query = parseContext.parseInnerQuery();
-            if (query == null) {
-                query = Queries.newMatchNoDocsQuery();
-            }
-            return new ParsedQuery(query, parseContext.copyNamedQueries());
+            context.parseFieldMatcher(parseFieldMatcher);
+            return innerParse(context, context.parseContext().parseInnerQueryBuilder());
         } finally {
-            parseContext.reset(null);
+            context.reset(null);
         }
+    }
+
+    private static ParsedQuery innerParse(QueryShardContext context, QueryBuilder queryBuilder) throws IOException, QueryShardException {
+        Query query = queryBuilder.toQuery(context);
+        if (query == null) {
+            query = Queries.newMatchNoDocsQuery();
+        }
+        return new ParsedQuery(query, context.copyNamedQueries());
     }
 
     public ParseFieldMatcher parseFieldMatcher() {

@@ -54,7 +54,8 @@ public class GeoDistanceQueryParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryShardContext context) throws IOException, QueryParsingException {
+        QueryParseContext parseContext = context.parseContext();
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token;
@@ -148,7 +149,7 @@ public class GeoDistanceQueryParser extends BaseQueryParserTemp {
             GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);
         }
 
-        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType == null) {
             throw new QueryParsingException(parseContext, "failed to find geo_point field [" + fieldName + "]");
         }
@@ -158,10 +159,10 @@ public class GeoDistanceQueryParser extends BaseQueryParserTemp {
         GeoPointFieldMapper.GeoPointFieldType geoFieldType = ((GeoPointFieldMapper.GeoPointFieldType) fieldType);
 
 
-        IndexGeoPointFieldData indexFieldData = parseContext.getForField(fieldType);
+        IndexGeoPointFieldData indexFieldData = context.getForField(fieldType);
         Query query = new GeoDistanceRangeQuery(point, null, distance, true, false, geoDistance, geoFieldType, indexFieldData, optimizeBbox);
         if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
+            context.addNamedQuery(queryName, query);
         }
         query.setBoost(boost);
         return query;

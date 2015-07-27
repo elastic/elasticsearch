@@ -52,7 +52,7 @@ public class DisMaxQueryBuilderTest extends BaseQueryTestCase<DisMaxQueryBuilder
     }
 
     @Override
-    protected void doAssertLuceneQuery(DisMaxQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+    protected void doAssertLuceneQuery(DisMaxQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         Collection<Query> queries = AbstractQueryBuilder.toQueries(queryBuilder.queries(), context);
         if (queries.isEmpty()) {
             assertThat(query, nullValue());
@@ -76,7 +76,7 @@ public class DisMaxQueryBuilderTest extends BaseQueryTestCase<DisMaxQueryBuilder
     @Test
     public void testNoInnerQueries() throws QueryParsingException, IOException {
         DisMaxQueryBuilder disMaxBuilder = new DisMaxQueryBuilder();
-        assertNull(disMaxBuilder.toQuery(createContext()));
+        assertNull(disMaxBuilder.toQuery(createShardContext()));
         assertNull(disMaxBuilder.validate());
     }
 
@@ -87,17 +87,16 @@ public class DisMaxQueryBuilderTest extends BaseQueryTestCase<DisMaxQueryBuilder
      */
     @Test
     public void testInnerQueryReturnsNull() throws IOException {
-        QueryParseContext context = createContext();
+        QueryParseContext context = createParseContext();
         String queryId = ConstantScoreQueryBuilder.PROTOTYPE.getName();
         String queryString = "{ \""+queryId+"\" : { \"filter\" : { } }";
         XContentParser parser = XContentFactory.xContent(queryString).createParser(queryString);
         context.reset(parser);
         assertQueryHeader(parser, queryId);
-        ConstantScoreQueryBuilder innerQueryBuilder = (ConstantScoreQueryBuilder) context.indexQueryParserService()
-                .queryParser(queryId).fromXContent(context);
+        ConstantScoreQueryBuilder innerQueryBuilder = (ConstantScoreQueryBuilder) context.queryParser(queryId).fromXContent(context);
 
         DisMaxQueryBuilder disMaxBuilder = new DisMaxQueryBuilder().add(innerQueryBuilder);
-        assertNull(disMaxBuilder.toQuery(context));
+        assertNull(disMaxBuilder.toQuery(createShardContext()));
     }
 
     @Test

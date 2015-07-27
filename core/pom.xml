@@ -226,17 +226,6 @@
             <version>1.1.0</version>
         </dependency>
 
-
-        <!-- We don't use this since the publish pom is then messed up -->
-        <!--
-        <dependency>
-            <groupId>sigar</groupId>
-            <artifactId>sigar</artifactId>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/lib/sigar/sigar-1.6.4.jar</systemPath>
-            <optional>true</optional>
-        </dependency>
-        -->
     </dependencies>
 
     <build>

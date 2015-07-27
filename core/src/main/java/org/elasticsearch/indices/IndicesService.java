@@ -524,18 +524,38 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * This method deletes the shard contents on disk for the given shard ID. This method will fail if the shard deleting
      * is prevented by {@link #canDeleteShardContent(org.elasticsearch.index.shard.ShardId, org.elasticsearch.cluster.metadata.IndexMetaData)}
      * of if the shards lock can not be acquired.
+     *
+     * On data nodes, if the deleted shard is the last shard folder in its index, the method will attempt to remove the index folder as well.
+     *
      * @param reason the reason for the shard deletion
      * @param shardId the shards ID to delete
-     * @param metaData the shards index metadata. This is required to access the indexes settings etc.
+     * @param clusterState . This is required to access the indexes settings etc.
      * @throws IOException if an IOException occurs
      */
-    public void deleteShardStore(String reason, ShardId shardId, IndexMetaData metaData) throws IOException {
+    public void deleteShardStore(String reason, ShardId shardId, ClusterState clusterState) throws IOException {
+        final IndexMetaData metaData = clusterState.getMetaData().indices().get(shardId.getIndex());
+
         final Settings indexSettings = buildIndexSettings(metaData);
         if (canDeleteShardContent(shardId, indexSettings) == false) {
             throw new IllegalStateException("Can't delete shard " + shardId);
         }
         nodeEnv.deleteShardDirectorySafe(shardId, indexSettings);
-        logger.trace("{} deleting shard reason [{}]", shardId, reason);
+        logger.debug("{} deleted shard reason [{}]", shardId, reason);
+
+        if (clusterState.nodes().localNode().isMasterNode() == false && // master nodes keep the index meta data, even if having no shards..
+                canDeleteIndexContents(shardId.index(), indexSettings)) {
+            if (nodeEnv.findAllShardIds(shardId.index()).isEmpty()) {
+                try {
+                    // note that deleteIndexStore have more safety checks and may throw an exception if index was concurrently created.
+                    deleteIndexStore("no longer used", metaData, clusterState);
+                } catch (Exception e) {
+                    // wrap the exception to indicate we already deleted the shard
+                    throw new ElasticsearchException("failed to delete unused index after deleting its last shard (" + shardId + ")", e);
+                }
+            } else {
+                logger.trace("[{}] still has shard stores, leaving as is", shardId.index());
+            }
+        }
     }
 
     /**

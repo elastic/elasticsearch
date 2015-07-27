@@ -22,6 +22,7 @@ package org.elasticsearch.env;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import com.google.common.primitives.Ints;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.*;
@@ -29,6 +30,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -659,6 +661,56 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
             }
         }
         return indices;
+    }
+
+    /**
+     * Tries to find all allocated shards for the given index
+     * on the current node. NOTE: This methods is prone to race-conditions on the filesystem layer since it might not
+     * see directories created concurrently or while it's traversing.
+     * @param index the index to filter shards
+     * @return a set of shard IDs
+     * @throws IOException if an IOException occurs
+     */
+    public Set<ShardId> findAllShardIds(final Index index) throws IOException {
+        assert index != null;
+        if (nodePaths == null || locks == null) {
+            throw new IllegalStateException("node is not configured to store local location");
+        }
+        assert assertEnvIsLocked();
+        final Set<ShardId> shardIds = Sets.newHashSet();
+        String indexName = index.name();
+        for (final NodePath nodePath : nodePaths) {
+            Path location = nodePath.indicesPath;
+            if (Files.isDirectory(location)) {
+                try (DirectoryStream<Path> indexStream = Files.newDirectoryStream(location)) {
+                    for (Path indexPath : indexStream) {
+                        if (indexName.equals(indexPath.getFileName().toString())) {
+                            shardIds.addAll(findAllShardsForIndex(indexPath));
+                        }
+                    }
+                }
+            }
+        }
+        return shardIds;
+    }
+
+    private static Set<ShardId> findAllShardsForIndex(Path indexPath) throws IOException {
+        Set<ShardId> shardIds = new HashSet<>();
+        if (Files.isDirectory(indexPath)) {
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(indexPath)) {
+                String currentIndex = indexPath.getFileName().toString();
+                for (Path shardPath : stream) {
+                    if (Files.isDirectory(shardPath)) {
+                        Integer shardId = Ints.tryParse(shardPath.getFileName().toString());
+                        if (shardId != null) {
+                            ShardId id = new ShardId(currentIndex, shardId);
+                            shardIds.add(id);
+                        }
+                    }
+                }
+            }
+        }
+        return shardIds;
     }
 
     @Override

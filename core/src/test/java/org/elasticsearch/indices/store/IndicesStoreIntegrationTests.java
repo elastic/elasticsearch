@@ -21,6 +21,7 @@ package org.elasticsearch.indices.store;
 
 import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -30,6 +31,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -37,12 +39,14 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoverySource;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.disruption.SingleNodeDisruption;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -55,6 +59,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static java.lang.Thread.sleep;
@@ -215,6 +220,87 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
         assertThat(Files.exists(shardDirectory(node_1, "test", 0)), equalTo(true));
         assertThat(Files.exists(shardDirectory(node_3, "test", 0)), equalTo(true));
         assertThat(waitForShardDeletion(node_4, "test", 0), equalTo(false));
+    }
+
+
+    @Test
+    @TestLogging("cluster.service:TRACE")
+    public void testShardActiveElsewhereDoesNotDeleteAnother() throws Exception {
+        Future<String> masterFuture = internalCluster().startNodeAsync(
+                Settings.builder().put("node.master", true, "node.data", false).build());
+        Future<List<String>> nodesFutures = internalCluster().startNodesAsync(4,
+                Settings.builder().put("node.master", false, "node.data", true).build());
+
+        final String masterNode = masterFuture.get();
+        final String node1 = nodesFutures.get().get(0);
+        final String node2 = nodesFutures.get().get(1);
+        final String node3 = nodesFutures.get().get(2);
+        // we will use this later on, handy to start now to make sure it has a different data folder that node 1,2 &3
+        final String node4 = nodesFutures.get().get(3);
+
+        assertAcked(prepareCreate("test").setSettings(Settings.builder()
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 3)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                        .put(FilterAllocationDecider.INDEX_ROUTING_EXCLUDE_GROUP + "_name", node4)
+        ));
+        assertFalse(client().admin().cluster().prepareHealth().setWaitForRelocatingShards(0).setWaitForGreenStatus().setWaitForNodes("5").get().isTimedOut());
+
+        // disable allocation to control the situation more easily
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "none")));
+
+        logger.debug("--> shutting down two random nodes");
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node1, node2, node3));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node1, node2, node3));
+
+        logger.debug("--> verifying index is red");
+        ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
+        if (health.getStatus() != ClusterHealthStatus.RED) {
+            logClusterState();
+            fail("cluster didn't become red, despite of shutting 2 of 3 nodes");
+        }
+
+        logger.debug("--> allowing index to be assigned to node [{}]", node4);
+        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(
+                Settings.builder()
+                        .put(FilterAllocationDecider.INDEX_ROUTING_EXCLUDE_GROUP + "_name", "NONE")));
+
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "all")));
+
+        logger.debug("--> waiting for shards to recover on [{}]", node4);
+        // we have to do this in two steps as we now do async shard fetching before assigning, so the change to the
+        // allocation filtering may not have immediate effect
+        // TODO: we should add an easier to do this. It's too much of a song and dance..
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                assertTrue(internalCluster().getInstance(IndicesService.class, node4).hasIndex("test"));
+            }
+        });
+
+        // wait for 4 active shards - we should have lost one shard
+        assertFalse(client().admin().cluster().prepareHealth().setWaitForActiveShards(4).get().isTimedOut());
+
+        // disable allocation again to control concurrency a bit and allow shard active to kick in before allocation
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "none")));
+
+        logger.debug("--> starting the two old nodes back");
+
+        internalCluster().startNodesAsync(2,
+                Settings.builder().put("node.master", false, "node.data", true).build());
+
+        assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("5").get().isTimedOut());
+
+
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "all")));
+
+        logger.debug("--> waiting for the lost shard to be recovered");
+
+        ensureGreen("test");
+
     }
 
     @Test

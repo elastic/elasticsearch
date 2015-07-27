@@ -50,6 +50,7 @@ To use it, first create a `BulkProcessor` instance:
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 
 BulkProcessor bulkProcessor = BulkProcessor.builder(
         client,  <1>

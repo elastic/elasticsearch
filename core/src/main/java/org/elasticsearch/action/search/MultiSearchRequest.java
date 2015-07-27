@@ -130,8 +130,8 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> implem
                             searchRequest.types(nodeStringArrayValue(value));
                         } else if ("search_type".equals(entry.getKey()) || "searchType".equals(entry.getKey())) {
                             searchRequest.searchType(nodeStringValue(value, null));
-                        } else if ("query_cache".equals(entry.getKey()) || "queryCache".equals(entry.getKey())) {
-                            searchRequest.queryCache(nodeBooleanValue(value));
+                        } else if ("request_cache".equals(entry.getKey()) || "requestCache".equals(entry.getKey())) {
+                            searchRequest.requestCache(nodeBooleanValue(value));
                         } else if ("preference".equals(entry.getKey())) {
                             searchRequest.preference(nodeStringValue(value, null));
                         } else if ("routing".equals(entry.getKey())) {

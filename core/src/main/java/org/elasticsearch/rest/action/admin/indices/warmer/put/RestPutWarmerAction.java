@@ -61,7 +61,7 @@ public class RestPutWarmerAction extends BaseRestHandler {
         PutWarmerRequest putWarmerRequest = new PutWarmerRequest(request.param("name"));
         SearchRequest searchRequest = new SearchRequest(Strings.splitStringByCommaToArray(request.param("index")))
                 .types(Strings.splitStringByCommaToArray(request.param("type")))
-                .queryCache(request.paramAsBoolean("query_cache", null))
+                .requestCache(request.paramAsBoolean("request_cache", null))
                 .source(request.content());
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
         putWarmerRequest.searchRequest(searchRequest);

@@ -214,7 +214,7 @@ public class IndexWarmersMetaData extends AbstractDiffable<IndexMetaData.Custom>
                             source = new BytesArray(parser.binaryValue());
                         }
                     } else if (token.isValue()) {
-                        if ("queryCache".equals(currentFieldName) || "query_cache".equals(currentFieldName)) {
+                        if ("requestCache".equals(currentFieldName) || "request_cache".equals(currentFieldName)) {
                             queryCache = parser.booleanValue();
                         }
                     }
@@ -242,7 +242,7 @@ public class IndexWarmersMetaData extends AbstractDiffable<IndexMetaData.Custom>
         builder.startObject(entry.name(), XContentBuilder.FieldCaseConversion.NONE);
         builder.field("types", entry.types());
         if (entry.requestCache() != null) {
-            builder.field("queryCache", entry.requestCache());
+            builder.field("requestCache", entry.requestCache());
         }
         builder.field("source");
         if (binary) {

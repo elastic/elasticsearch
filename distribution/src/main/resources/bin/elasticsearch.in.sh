@@ -48,6 +48,7 @@ JAVA_OPTS="$JAVA_OPTS -XX:+UseCMSInitiatingOccupancyOnly"
 if [ -n "$ES_GC_LOG_FILE" ]; then
   JAVA_OPTS="$JAVA_OPTS -XX:+PrintGCDetails"
   JAVA_OPTS="$JAVA_OPTS -XX:+PrintGCTimeStamps"
+  JAVA_OPTS="$JAVA_OPTS -XX:+PrintGCDateStamps"
   JAVA_OPTS="$JAVA_OPTS -XX:+PrintClassHistogram"
   JAVA_OPTS="$JAVA_OPTS -XX:+PrintTenuringDistribution"
   JAVA_OPTS="$JAVA_OPTS -XX:+PrintGCApplicationStoppedTime"

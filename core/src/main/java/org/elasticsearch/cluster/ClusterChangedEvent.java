@@ -110,8 +110,11 @@ public class ClusterChangedEvent {
         // is actually supposed to be deleted or imported as dangling instead. for example a new master might not have
         // the index in its cluster state because it was started with an empty data folder and in this case we want to
         // import as dangling. we check here for new master too to be on the safe side in this case.
-        // norelease because we are not sure this is actually a good solution
-        // See discussion on https://github.com/elastic/elasticsearch/pull/9952
+        // This means that under certain conditions deleted indices might be reimported if a master fails while the deletion
+        // request is issued and a node receives the cluster state that would trigger the deletion from the new master.
+        // See test MetaDataWriteDataNodesTests.testIndicesDeleted()
+        // See discussion on https://github.com/elastic/elasticsearch/pull/9952 and
+        // https://github.com/elastic/elasticsearch/issues/11665
         if (hasNewMaster() || previousState == null) {
             return ImmutableList.of();
         }

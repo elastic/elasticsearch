@@ -105,11 +105,14 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
             // then the last time we checked and scheduled, we are guaranteed to have a reroute until then, so no need
             // to schedule again
             long nextDelaySetting = UnassignedInfo.findSmallestDelayedAllocationSetting(settings, event.state());
-            if (nextDelaySetting > 0 && nextDelaySetting < registeredNextDelaySetting) {
+            int delayedShardCount = UnassignedInfo.getNumberOfDelayedUnassigned(settings, event.state());
+            if (nextDelaySetting > 0 &&
+                    (nextDelaySetting < registeredNextDelaySetting) &&
+                    delayedShardCount > 0) {
                 FutureUtils.cancel(registeredNextDelayFuture);
                 registeredNextDelaySetting = nextDelaySetting;
                 TimeValue nextDelay = TimeValue.timeValueMillis(UnassignedInfo.findNextDelayedAllocationIn(settings, event.state()));
-                logger.info("delaying allocation for [{}] unassigned shards, next check in [{}]", UnassignedInfo.getNumberOfDelayedUnassigned(settings, event.state()), nextDelay);
+                logger.info("delaying allocation for [{}] unassigned shards, next check in [{}]", delayedShardCount, nextDelay);
                 registeredNextDelayFuture = threadPool.schedule(nextDelay, ThreadPool.Names.SAME, new AbstractRunnable() {
                     @Override
                     protected void doRun() throws Exception {

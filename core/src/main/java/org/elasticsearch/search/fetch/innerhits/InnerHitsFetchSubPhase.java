@@ -111,15 +111,6 @@ public class InnerHitsFetchSubPhase implements FetchSubPhase {
         hitContext.hit().setInnerHits(results);
     }
 
-    @Override
-    public boolean hitsExecutionNeeded(SearchContext context) {
-        return false;
-    }
-
-    @Override
-    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) {
-    }
-
     // To get around cyclic dependency issue
     public void setFetchPhase(FetchPhase fetchPhase) {
         this.fetchPhase = fetchPhase;

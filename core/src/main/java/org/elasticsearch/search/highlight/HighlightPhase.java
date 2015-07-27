@@ -60,15 +60,6 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
     }
 
     @Override
-    public boolean hitsExecutionNeeded(SearchContext context) {
-        return false;
-    }
-
-    @Override
-    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) {
-    }
-
-    @Override
     public boolean hitExecutionNeeded(SearchContext context) {
         return context.highlight() != null;
     }

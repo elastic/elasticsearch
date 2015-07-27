@@ -192,12 +192,6 @@ public class FetchPhase implements SearchPhase {
             }
         }
 
-        for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
-            if (fetchSubPhase.hitsExecutionNeeded(context)) {
-                fetchSubPhase.hitsExecute(context, hits);
-            }
-        }
-
         context.fetchResult().hits(new InternalSearchHits(hits, context.queryResult().topDocs().totalHits, context.queryResult().topDocs().getMaxScore()));
     }
 

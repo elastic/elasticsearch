@@ -51,15 +51,6 @@ public class FetchSourceSubPhase implements FetchSubPhase {
     }
 
     @Override
-    public boolean hitsExecutionNeeded(SearchContext context) {
-        return false;
-    }
-
-    @Override
-    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) {
-    }
-
-    @Override
     public boolean hitExecutionNeeded(SearchContext context) {
         return context.sourceRequested();
     }

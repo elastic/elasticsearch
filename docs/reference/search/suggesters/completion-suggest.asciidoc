@@ -66,8 +66,8 @@ Mapping supports the following parameters:
     Limits the length of a single input, defaults to `50` UTF-16 code points.
     This limit is only used at index time to reduce the total number of
     characters per input string in order to prevent massive inputs from
-    bloating the underlying datastructure. The most usecases won't be influenced
-    by the default value since prefix completions hardly grow beyond prefixes longer
+    bloating the underlying datastructure. Most usecases won't be influenced
+    by the default value since prefix completions seldom grow beyond prefixes longer
     than a handful of characters.
 
 [[indexing]]
@@ -202,9 +202,11 @@ The following parameters are supported:
     checked for fuzzy alternatives, defaults to `1`
 
 `unicode_aware`::
-    Sets all are measurements (like edit distance,
-    transpositions and lengths) in unicode code points
-    (actual letters) instead of bytes.
+    If `true`, all measurements (like fuzzy edit
+    distance, transpositions, and lengths) are
+    measured in Unicode code points instead of
+    in bytes.  This is slightly slower than raw
+    bytes, so it is set to `false` by default.
 
 NOTE: If you want to stick with the default values, but
       still use fuzzy, you can either use `fuzzy: {}`
@@ -235,9 +237,8 @@ The following parameters are supported:
 [horizontal]
 `flags`::
     Possible flags are `ALL` (default), `ANYSTRING`, `COMPLEMENT`,
-    `EMPTY`, `INTERSECTION`, `INTERVAL`, or `NONE`. Please check the
-    http://lucene.apache.org/core/4_9_0/core/org/apache/lucene/util/automaton/RegExp.html[Lucene
-    documentation] for their meaning
+    `EMPTY`, `INTERSECTION`, `INTERVAL`, or `NONE`. See <<query-dsl-regexp-query, regexp-syntax>>
+    for their meaning
 
 `max_determinized_states`::
     Regular expressions are dangerous because it's easy to accidentally

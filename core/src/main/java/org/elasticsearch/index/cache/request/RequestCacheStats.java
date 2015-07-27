@@ -93,7 +93,7 @@ public class RequestCacheStats implements Streamable, ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields.QUERY_CACHE_STATS);
+        builder.startObject(Fields.REQUEST_CACHE_STATS);
         builder.byteSizeField(Fields.MEMORY_SIZE_IN_BYTES, Fields.MEMORY_SIZE, memorySize);
         builder.field(Fields.EVICTIONS, getEvictions());
         builder.field(Fields.HIT_COUNT, getHitCount());
@@ -103,7 +103,7 @@ public class RequestCacheStats implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString QUERY_CACHE_STATS = new XContentBuilderString("request_cache");
+        static final XContentBuilderString REQUEST_CACHE_STATS = new XContentBuilderString("request_cache");
         static final XContentBuilderString MEMORY_SIZE = new XContentBuilderString("memory_size");
         static final XContentBuilderString MEMORY_SIZE_IN_BYTES = new XContentBuilderString("memory_size_in_bytes");
         static final XContentBuilderString EVICTIONS = new XContentBuilderString("evictions");

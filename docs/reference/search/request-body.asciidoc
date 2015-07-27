@@ -68,7 +68,7 @@ And here is a sample response:
     Defaults to `query_then_fetch`.
     See <<search-request-search-type,_Search Type_>> for more.
 
-`query_cache`::
+`request_cache`::
 
     Set to `true` or `false` to enable or disable the caching
     of search results for requests where `size` is 0, ie
@@ -85,7 +85,7 @@ And here is a sample response:
     terminate_after.
 
 
-Out of the above, the `search_type` and the `query_cache` must be passed as
+Out of the above, the `search_type` and the `request_cache` must be passed as
 query-string parameters. The rest of the search request should be passed
 within the body itself. The body content can also be passed as a REST
 parameter named `source`.

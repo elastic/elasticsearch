@@ -957,12 +957,12 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Sets if this request should use the query cache or not, assuming that it can (for
+     * Sets if this request should use the request cache or not, assuming that it can (for
      * example, if "now" is used, it will never be cached). By default (not set, or null,
-     * will default to the index level setting if query cache is enabled or not).
+     * will default to the index level setting if request cache is enabled or not).
      */
-    public SearchRequestBuilder setQueryCache(Boolean queryCache) {
-        request.queryCache(queryCache);
+    public SearchRequestBuilder setRequestCache(Boolean requestCache) {
+        request.requestCache(requestCache);
         return this;
     }
 

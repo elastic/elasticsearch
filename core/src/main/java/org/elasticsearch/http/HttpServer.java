@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.service.NodeService;
@@ -183,7 +184,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         Path file = siteFile.resolve(sitePath);
 
         // return not found instead of forbidden to prevent malicious requests to find out if files exist or dont exist
-        if (!Files.exists(file) || Files.isHidden(file) || !file.toAbsolutePath().normalize().startsWith(siteFile.toAbsolutePath().normalize())) {
+        if (!Files.exists(file) || FileSystemUtils.isHidden(file) || !file.toAbsolutePath().normalize().startsWith(siteFile.toAbsolutePath().normalize())) {
             channel.sendResponse(new BytesRestResponse(NOT_FOUND));
             return;
         }
@@ -197,7 +198,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
             }
             // We don't serve dir but if index.html exists in dir we should serve it
             file = file.resolve("index.html");
-            if (!Files.exists(file) || Files.isHidden(file) || !Files.isRegularFile(file)) {
+            if (!Files.exists(file) || FileSystemUtils.isHidden(file) || !Files.isRegularFile(file)) {
                 channel.sendResponse(new BytesRestResponse(FORBIDDEN));
                 return;
             }

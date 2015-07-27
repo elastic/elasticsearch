@@ -23,7 +23,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsInfo;
 import org.elasticsearch.bootstrap.Bootstrap;
 import org.elasticsearch.bootstrap.JarHell;
@@ -33,6 +32,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -40,7 +40,6 @@ import org.elasticsearch.env.Environment;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -54,7 +53,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.Set;
 
 import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
@@ -312,7 +310,7 @@ public class PluginsService extends AbstractComponent {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginsDirectory)) {
             for (Path plugin : stream) {
                 try {
-                    if (Files.isHidden(plugin)) {
+                    if (FileSystemUtils.isHidden(plugin)) {
                         logger.trace("--- skip hidden plugin file[{}]", plugin.toAbsolutePath());
                         continue;
                     }

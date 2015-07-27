@@ -28,7 +28,8 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -98,6 +99,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+
         Set<String> relevantIndices = new HashSet<>();
         final ClusterState state = event.state();
         if (state.blocks().disableStatePersistence()) {
@@ -148,7 +150,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
             }
 
             Iterable<IndexMetaWriteInfo> writeInfo;
-            relevantIndices = getRelevantIndices(event.state(), previouslyWrittenIndices);
+            relevantIndices = getRelevantIndices(event.state(), event.previousState(), previouslyWrittenIndices);
             writeInfo = resolveStatesToBeWritten(previouslyWrittenIndices, relevantIndices, previousMetaData, event.state().metaData());
             // check and write changes in indices
             for (IndexMetaWriteInfo indexMetaWrite : writeInfo) {
@@ -169,10 +171,10 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         }
     }
 
-    public static Set<String> getRelevantIndices(ClusterState state, ImmutableSet<String> previouslyWrittenIndices) {
+    public static Set<String> getRelevantIndices(ClusterState state, ClusterState previousState,ImmutableSet<String> previouslyWrittenIndices) {
         Set<String> relevantIndices;
         if (isDataOnlyNode(state)) {
-            relevantIndices = getRelevantIndicesOnDataOnlyNode(state, previouslyWrittenIndices);
+            relevantIndices = getRelevantIndicesOnDataOnlyNode(state, previousState, previouslyWrittenIndices);
         } else if (state.nodes().localNode().masterNode() == true) {
             relevantIndices = getRelevantIndicesForMasterEligibleNode(state);
         } else {
@@ -278,7 +280,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         return indicesToWrite;
     }
 
-    public static Set<String> getRelevantIndicesOnDataOnlyNode(ClusterState state, ImmutableSet<String> previouslyWrittenIndices) {
+    public static Set<String> getRelevantIndicesOnDataOnlyNode(ClusterState state, ClusterState previousState, ImmutableSet<String> previouslyWrittenIndices) {
         RoutingNode newRoutingNode = state.getRoutingNodes().node(state.nodes().localNodeId());
         if (newRoutingNode == null) {
             throw new IllegalStateException("cluster state does not contain this node - cannot write index meta state");
@@ -289,7 +291,14 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         }
         // we have to check the meta data also: closed indices will not appear in the routing table, but we must still write the state if we have it written on disk previously
         for (IndexMetaData indexMetaData : state.metaData()) {
-            if (previouslyWrittenIndices.contains(indexMetaData.getIndex()) && state.metaData().getIndices().get(indexMetaData.getIndex()).state().equals(IndexMetaData.State.CLOSE)) {
+            boolean isOrWasClosed = indexMetaData.state().equals(IndexMetaData.State.CLOSE);
+            // if the index is open we might still have to write the state if it just transitioned from closed to open
+            // so we have to check for that as well.
+            IndexMetaData previousMetaData = previousState.metaData().getIndices().get(indexMetaData.getIndex());
+            if (previousMetaData != null) {
+                isOrWasClosed = isOrWasClosed || previousMetaData.state().equals(IndexMetaData.State.CLOSE);
+            }
+            if (previouslyWrittenIndices.contains(indexMetaData.getIndex()) && isOrWasClosed) {
                 indices.add(indexMetaData.getIndex());
             }
         }

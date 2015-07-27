@@ -872,15 +872,14 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void cidr0Mask0() {
-        SearchResponse response = client().prepareSearch("idx_unmapped")
+    public void mask0() {
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(ipRange("range")
                         .field("ip")
                         .addMaskRange("0.0.0.0/0"))
                 .execute().actionGet();
 
         assertSearchResponse(response);
-
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -890,53 +889,58 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
 
         Range.Bucket bucket = buckets.get(0);
         assertThat((String) bucket.getKey(), equalTo("0.0.0.0/0"));
-
         assertThat(bucket.getFromAsString(), nullValue());
-        assertThat(bucket.getToAsString(), equalTo("255.255.255.255"));
+        assertThat(bucket.getToAsString(), nullValue());
+        assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertEquals(255l, bucket.getDocCount());
     }
 
+
     @Test
-    public void cidr0Mask1() {
-        SearchResponse response = client().prepareSearch("idx_unmapped")
+    public void mask0SpecialIps() throws Exception {
+        assertAcked(prepareCreate("idx_range")
+                .addMapping("type", "ip", "type=ip", "ips", "type=ip"));
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[4];
+
+        builders[0] = client().prepareIndex("idx_range", "type").setSource(jsonBuilder()
+                .startObject()
+                .field("ip", "0.0.0.0")
+                .endObject());
+
+        builders[1] = client().prepareIndex("idx_range", "type").setSource(jsonBuilder()
+                .startObject()
+                .field("ip", "0.0.0.255")
+                .endObject());
+
+        builders[2] = client().prepareIndex("idx_range", "type").setSource(jsonBuilder()
+                .startObject()
+                .field("ip", "255.255.255.0")
+                .endObject());
+
+        builders[3] = client().prepareIndex("idx_range", "type").setSource(jsonBuilder()
+                .startObject()
+                .field("ip", "255.255.255.255")
+                .endObject());
+
+        indexRandom(true, builders);
+        ensureSearchable();
+
+        SearchResponse response = client().prepareSearch("idx_range")
                 .addAggregation(ipRange("range")
                         .field("ip")
-                        .addMaskRange("0.0.0.0/1"))
+                        .addMaskRange("0.0.0.0/0"))
                 .execute().actionGet();
 
         assertSearchResponse(response);
 
-
         Range range = response.getAggregations().get("range");
+
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
         List<? extends Bucket> buckets = range.getBuckets();
         assertThat(range.getBuckets().size(), equalTo(1));
 
         Range.Bucket bucket = buckets.get(0);
-        assertThat((String) bucket.getKey(), equalTo("0.0.0.0/1"));
-        assertThat(bucket.getFromAsString(), nullValue());
-        assertThat(bucket.getToAsString(), equalTo("128.0.0.0"));
-    }
-
-    @Test
-    public void cidr0Mask2() {
-        SearchResponse response = client().prepareSearch("idx_unmapped")
-                .addAggregation(ipRange("range")
-                        .field("ip")
-                        .addMaskRange("0.0.0.0/2"))
-                .execute().actionGet();
-
-        assertSearchResponse(response);
-
-
-        Range range = response.getAggregations().get("range");
-        assertThat(range, notNullValue());
-        assertThat(range.getName(), equalTo("range"));
-        List<? extends Bucket> buckets = range.getBuckets();
-        assertThat(range.getBuckets().size(), equalTo(1));
-
-        Range.Bucket bucket = buckets.get(0);
-        assertThat(bucket.getFromAsString(), nullValue());
-        assertThat(bucket.getToAsString(), equalTo("64.0.0.0"));
+        assertEquals(4l, bucket.getDocCount());
     }
 }

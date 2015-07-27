@@ -20,11 +20,11 @@
 package org.elasticsearch.common.settings.loader;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -48,5 +48,19 @@ public class YamlSettingsLoaderTests extends ElasticsearchTestCase {
         assertThat(settings.getAsArray("test1.test3").length, equalTo(2));
         assertThat(settings.getAsArray("test1.test3")[0], equalTo("test3-1"));
         assertThat(settings.getAsArray("test1.test3")[1], equalTo("test3-2"));
+    }
+
+    @Test(expected = SettingsException.class)
+    public void testIndentation() {
+        settingsBuilder()
+                .loadFromClasspath("org/elasticsearch/common/settings/loader/indentation-settings.yml")
+                .build();
+    }
+
+    @Test(expected = SettingsException.class)
+    public void testIndentationWithExplicitDocumentStart() {
+        settingsBuilder()
+                .loadFromClasspath("org/elasticsearch/common/settings/loader/indentation-with-explicit-document-start-settings.yml")
+                .build();
     }
 }

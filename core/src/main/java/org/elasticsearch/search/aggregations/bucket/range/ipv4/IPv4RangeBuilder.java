@@ -139,6 +139,10 @@ public class IPv4RangeBuilder extends AbstractRangeBuilder<IPv4RangeBuilder> {
 
         int mask = (-1) << (32 - Integer.parseInt(parts[4]));
 
+        if (Integer.parseInt(parts[4]) == 0) {
+            mask = 0 << 32;
+        }
+
         int from = addr & mask;
         long longFrom = intIpToLongIp(from);
         if (longFrom == 0) {
@@ -147,6 +151,7 @@ public class IPv4RangeBuilder extends AbstractRangeBuilder<IPv4RangeBuilder> {
 
         int to = from + (~mask);
         long longTo = intIpToLongIp(to) + 1; // we have to +1 here as the range is non-inclusive on the "to" side
+
         if (longTo == InternalIPv4Range.MAX_IP) {
             longTo = -1;
         }

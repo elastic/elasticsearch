@@ -250,4 +250,6 @@ public interface XContentParser extends Releasable {
      * @return last token's location or null if cannot be determined
      */
     XContentLocation getTokenLocation();
+
+    boolean isClosed();
 }

@@ -56,6 +56,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.*;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -65,6 +66,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -237,7 +239,9 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
     }
 
 
-    /** Verify that nodes fault detection works after master (re) election */
+    /**
+     * Verify that nodes fault detection works after master (re) election
+     */
     @Test
     public void testNodesFDAfterMasterReelection() throws Exception {
         startCluster(4);
@@ -414,7 +418,7 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
     /**
      * Test that we do not loose document whose indexing request was successful, under a randomly selected disruption scheme
      * We also collect & report the type of indexing failures that occur.
-     *
+     * <p/>
      * This test is a superset of tests run in the Jepsen test suite, with the exception of versioned updates
      */
     @Test
@@ -948,6 +952,50 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
         ensureStableCluster(3);
     }
 
+    @Test
+    public void testIndexImportedFromDataOnlyNodesIfMasterLostDataFolder() throws Exception {
+        // test for https://github.com/elastic/elasticsearch/issues/8823
+        configureCluster(2, 1);
+        String masterNode = internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        internalCluster().startDataOnlyNode(Settings.EMPTY);
+
+        ensureStableCluster(2);
+        assertAcked(prepareCreate("index").setSettings(Settings.builder().put("index.number_of_replicas", 0)));
+        index("index", "doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
+        ensureGreen();
+
+        internalCluster().restartNode(masterNode, new InternalTestCluster.RestartCallback() {
+            public boolean clearData(String nodeName) {
+                return true;
+            }
+        });
+
+        ensureGreen("index");
+        assertTrue(client().prepareGet("index", "doc", "1").get().isExists());
+    }
+
+    // tests if indices are really deleted even if a master transition inbetween
+    @Ignore("https://github.com/elastic/elasticsearch/issues/11665")
+    @Test
+    public void testIndicesDeleted() throws Exception {
+        configureCluster(3, 2);
+        Future<List<String>> masterNodes= internalCluster().startMasterOnlyNodesAsync(2);
+        Future<String> dataNode = internalCluster().startDataOnlyNodeAsync();
+        dataNode.get();
+        masterNodes.get();
+        ensureStableCluster(3);
+        assertAcked(prepareCreate("test"));
+        ensureYellow();
+
+        String masterNode1 = internalCluster().getMasterName();
+        NetworkPartition networkPartition = new NetworkUnresponsivePartition(masterNode1, dataNode.get(), getRandom());
+        internalCluster().setDisruptionScheme(networkPartition);
+        networkPartition.startDisrupting();
+        internalCluster().client(masterNode1).admin().indices().prepareDelete("test").setTimeout("1s").get();
+        internalCluster().restartNode(masterNode1, InternalTestCluster.EMPTY_CALLBACK);
+        ensureYellow();
+        assertFalse(client().admin().indices().prepareExists("test").get().isExists());
+    }
 
     protected NetworkPartition addRandomPartition() {
         NetworkPartition partition;

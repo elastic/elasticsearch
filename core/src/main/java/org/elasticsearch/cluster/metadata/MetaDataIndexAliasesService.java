@@ -145,7 +145,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                         ClusterState updatedState = ClusterState.builder(currentState).metaData(builder).build();
                         // even though changes happened, they resulted in 0 actual changes to metadata
                         // i.e. remove and add the same alias to the same index
-                        if (!updatedState.metaData().aliases().equals(currentState.metaData().aliases())) {
+                        if (!updatedState.metaData().equalsAliases(currentState.metaData())) {
                             return updatedState;
                         }
                     }

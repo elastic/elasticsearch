@@ -377,6 +377,7 @@ public class HDRPercentilesTests extends AbstractNumericTests {
 
     @Override
     @Test
+    @AwaitsFix(bugUrl = "fails with -Dtests.seed=5BFFA768633A0A59 but only if run as a whole test class not if run as a single test method")
     public void testScript_ExplicitSingleValued_WithParams() throws Exception {
         Map<String, Object> params = new HashMap<>();
         params.put("dec", 1);

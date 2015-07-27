@@ -9,9 +9,9 @@ you want to boost song titles based on their genre.
 To achieve suggestion filtering and/or boosting, you can add context mappings while
 configuring a completion field. You can define multiple context mappings for a
 completion field.
-Every context mapping has a unique name and a type. Currently, there are two types
-*category* and *geo*. The context mappings is configured under the `contexts` parameter
-in the type mapping.
+Every context mapping has a unique name and a type. There are two types: `category`
+and `geo`. Context mappings are configured under the `contexts` parameter in
+the field mapping.
 
 The following defines two context mappings for a completion field:
 
@@ -46,19 +46,20 @@ PUT place/shops/_mapping
 <2> Defines a `geo` context named 'location', which will index values from field 'loc'.
     See <<suggester-context-geo>>
 
-NOTE: Adding context mappings increases the index size for completion field.
+NOTE: Adding context mappings increases the index size for completion field. You can monitor
+the completion field size using <<indices-stats>>.
 
 [[suggester-context-category]]
 [float]
 ==== Category Context
 
-The `category` context allows you to associate one or more categories to suggestions at index time.
-At query time, suggestions can be filtered and boosted by their associated categories.
+The `category` context allows you to associate one or more categories with suggestions at index
+time. At query time, suggestions can be filtered and boosted by their associated categories.
 
 [float]
 ===== Category Mapping
 
-A `category` context mapping, where contexts are provided explicitly with suggestions
+A `category` context mapping, where categories are provided explicitly with suggestions
 can be defined as follows:
 
 [source,js]
@@ -88,9 +89,8 @@ can be defined as follows:
 [float]
 ===== Indexing category contexts
 
-`category` contexts can be explicitly set with suggestions or be indexed from another field in the
-document via the `path` parameter. Associating multiple contexts with a suggestion, will index the
-suggestion for every category. `category` contexts can be explicitly indexed with suggestions as follows:
+Category contexts can be specified explicitly when indexing suggestions. If a suggestion has
+multiple categories, the suggestion will be indexed for each category:
 
 [source,js]
 --------------------------------------------------
@@ -100,19 +100,30 @@ PUT place/shops/1
     "suggest": {
         "input": ["timmy's", "starbucks", "dunkin donuts"],
         "context": {
-            "place_type": ["cafe", "food"]
+            "place_type": ["cafe", "food"] <1>
         }
     }
 }
 --------------------------------------------------
 
-NOTE: If context mapping references another field and the contexts
-are explicitly indexed, the suggestions are indexed with both set
-of contexts.
+<1> These suggestions will be associated with 'cafe' and 'food' category.
 
-`category` contexts can also be referenced from another indexed field in the document. The following
-will index the values of the 'cat' field, if the context mapping was configured with the `path`
-setting:
+Category contexts can also be referenced from another indexed field in the document via
+the `path` parameter in the field mapping:
+
+[source,js]
+--------------------------------------------------
+"contexts": [
+    {
+        "name": "cat_context",
+        "type": "category",
+        "path": "cat"
+    }
+]
+--------------------------------------------------
+
+With the above mapping, the following will index the suggestions, treating the values of the
+'cat' field as category contexts:
 
 [source,js]
 --------------------------------------------------
@@ -120,15 +131,22 @@ PUT place/shops/1
 {
     ...
     "suggest": ["timmy's", "starbucks", "dunkin donuts"],
-    "cat": ["cafe", "food"]
+    "cat": ["cafe", "food"] <1>
 }
 --------------------------------------------------
+
+<1> These suggestions will be associated with 'cafe' and 'food' category.
+
+NOTE: If context mapping references another field and the categories
+are explicitly indexed, the suggestions are indexed with both set
+of categories.
+
 
 [float]
 ===== Category Query
 
-Suggestions can be filtered by one or more contexts. The following
-filters suggestions by multiple contexts:
+Suggestions can be filtered by one or more categories. The following
+filters suggestions by multiple categories:
 
 [source,js]
 --------------------------------------------------
@@ -147,13 +165,13 @@ POST place/_suggest?pretty
 }
 --------------------------------------------------
 
-NOTE: When no context is provided at query-time, all indexed documents are considered.
-Querying with no context on a context enabled completion field should be avoided, as it
+NOTE: When no categories are provided at query-time, all indexed documents are considered.
+Querying with no categories on a category enabled completion field should be avoided, as it
 will degrade search performance.
 
-Suggestions with certain contexts can also be boosted higher than others.
-The following filters suggestions by contexts and additionally boosts
-suggestions associated with some contexts:
+Suggestions with certain categories can be boosted higher than others.
+The following filters suggestions by categories and additionally boosts
+suggestions associated with some categories:
 
 [source,js]
 --------------------------------------------------
@@ -175,17 +193,17 @@ POST place/_suggest?pretty
 }
 --------------------------------------------------
 <1> The context query filter suggestions associated with
-    context 'cafe' and 'restaurants' and boosts the
+    categories 'cafe' and 'restaurants' and boosts the
     suggestions associated with 'restaurants' by a
     factor of `2`
 
-In addition to accepting context values, a context query can be composed of
-multiple context clauses. The following parameters are supported for a
+In addition to accepting category values, a context query can be composed of
+multiple category context clauses. The following parameters are supported for a
 `category` context clause:
 
 [horizontal]
 `context`::
-    The value of the context to filter/boost on.
+    The value of the category to filter/boost on.
     This is mandatory.
 
 `boost`::
@@ -195,30 +213,33 @@ multiple context clauses. The following parameters are supported for a
     defaults to `1`
 
 `prefix`::
-    Whether the context value should be treated as a
+    Whether the category value should be treated as a
     prefix or not. For example, if set to `true`,
-    you can filter context of 'type1', 'type2' and
-    so on, by specifying a context prefix of 'type'.
+    you can filter category of 'type1', 'type2' and
+    so on, by specifying a category prefix of 'type'.
     Defaults to `false`
 
 [[suggester-context-geo]]
 [float]
 ==== Geo location Context
 
-A `geo` context allows you to associate one or more geo point or geohash with suggestions
+A `geo` context allows you to associate one or more geo points or geohashes with suggestions
 at index time. At query time, suggestions can be filtered and boosted if they are within
 a certain distance of a specified geo location.
+
+Internally, geo points are encoded as geohashes with specified precision. See <<geohashes>> for
+more details.
 
 [float]
 ===== Geo Mapping
 
-In addition to `path` setting, `geo` context mapping accepts the following settings:
+In addition to the `path` setting, `geo` context mapping accepts the following settings:
 
 [horizontal]
 `precision`::
     This defines the precision of the geohash to be indexed and can be specified
     as a distance value (`5m`, `10km` etc.), or as a raw geohash precision (`1`..`12`).
-    Defaults to a raw geohash precision value of `12`.
+    Defaults to a raw geohash precision value of `6`.
 
 NOTE: The index time `precision` setting sets the maximum geohash precision that
 can be used at query time.
@@ -242,9 +263,9 @@ indexing values from a geo point field 'pin':
 ===== Indexing geo contexts
 
 `geo` contexts can be explicitly set with suggestions or be indexed from a geo point field in the
-document via the `path` parameter, similar to `category` contexts. Associating multiple contexts
+document via the `path` parameter, similar to `category` contexts. Associating multiple geo location context
 with a suggestion, will index the suggestion for every geo location. The following indexes a suggestion
-with two geo point contexts:
+with two geo location contexts:
 
 [source,js]
 --------------------------------------------------
@@ -272,7 +293,8 @@ PUT place/shops/1
 ===== Geo location Query
 
 Suggestions can be filtered and boosted with respect to how close they are to one or
-more geo points. The following filters suggestions that fall within geo point:
+more geo points. The following filters suggestions that fall within the area represented by
+the encoded geohash of a geo point:
 
 [source,js]
 --------------------------------------------------
@@ -297,8 +319,8 @@ POST place/_suggest
 NOTE: When a location with a lower precision at query time is specified, all suggestions
 that fall within the area will be considered.
 
-Suggestions that fall under certain geo points can also be boosted higher than others,
-as shown by the following:
+Suggestions that are within an area represented by a geohash can also be boosted higher
+than others, as shown by the following:
 
 [source,js]
 --------------------------------------------------
@@ -312,8 +334,9 @@ POST place/_suggest?pretty
             "contexts": {
                 "location": [ <1>
                     {
-                        "lat": 43.662,
-                        "lon": -79.380
+                        "lat": 43.6624803,
+                        "lon": -79.3863353,
+                        "precision": 2
                     },
                     {
                         "context": {
@@ -328,9 +351,11 @@ POST place/_suggest?pretty
     }
 }
 --------------------------------------------------
-<1> The context query accounts for suggestions that fall under
-    the geo point '(43.662, -79.380)' and boosts suggestions
-    that fall under '(43.6624803, -79.3863353)' by a factor of `2`
+<1> The context query filters for suggestions that fall under
+    the geo location represented by a geohash of '(43.662, -79.380)'
+    with a precision of '2' and boosts suggestions
+    that fall under the geohash representation of '(43.6624803, -79.3863353)'
+    with a default precision of '6' by a factor of `2`
 
 In addition to accepting context values, a context query can be composed of
 multiple context clauses. The following parameters are supported for a
@@ -347,10 +372,15 @@ multiple context clauses. The following parameters are supported for a
     multiplying the boost with the suggestion weight,
     defaults to `1`
 
+`precision`::
+    The precision of the geohash to encode the query geo point.
+    This can be specified as a distance value (`5m`, `10km` etc.),
+    or as a raw geohash precision (`1`..`12`).
+    Defaults to index time precision level.
+
 `neighbours`::
     Accepts an array of precision values at which
     neighbouring geohashes should be taken into account.
     precision value can be a distance value (`5m`, `10km` etc.)
     or a raw geohash precision (`1`..`12`). Defaults to
     generating neighbours for index time precision level.
-

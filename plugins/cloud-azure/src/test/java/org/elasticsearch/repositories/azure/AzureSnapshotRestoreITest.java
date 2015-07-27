@@ -173,6 +173,66 @@ public class AzureSnapshotRestoreITest extends AbstractAzureTest {
         assertThat(clusterState.getMetaData().hasIndex("test-idx-2"), equalTo(false));
     }
 
+    /**
+     * For issue #51: https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/51
+     */
+    @Test
+    public void testMultipleSnapshots() throws URISyntaxException, StorageException {
+        final String indexName = "test-idx-1";
+        final String typeName = "doc";
+        final String repositoryName = "test-repo";
+        final String snapshot1Name = "test-snap-1";
+        final String snapshot2Name = "test-snap-2";
+
+        Client client = client();
+
+        logger.info("creating index [{}]", indexName);
+        createIndex(indexName);
+        ensureGreen();
+
+        logger.info("indexing first document");
+        index(indexName, typeName, Integer.toString(1), "foo", "bar " + Integer.toString(1));
+        refresh();
+        assertThat(client.prepareCount(indexName).get().getCount(), equalTo(1L));
+
+        logger.info("creating Azure repository with path [{}]", getRepositoryPath());
+        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository(repositoryName)
+                .setType("azure").setSettings(Settings.settingsBuilder()
+                                .put(Repository.CONTAINER, getContainerName())
+                                .put(Repository.BASE_PATH, getRepositoryPath())
+                                .put(Repository.BASE_PATH, randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
+                ).get();
+        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+
+        logger.info("creating snapshot [{}]", snapshot1Name);
+        CreateSnapshotResponse createSnapshotResponse1 = client.admin().cluster().prepareCreateSnapshot(repositoryName, snapshot1Name).setWaitForCompletion(true).setIndices(indexName).get();
+        assertThat(createSnapshotResponse1.getSnapshotInfo().successfulShards(), greaterThan(0));
+        assertThat(createSnapshotResponse1.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse1.getSnapshotInfo().totalShards()));
+
+        assertThat(client.admin().cluster().prepareGetSnapshots(repositoryName).setSnapshots(snapshot1Name).get().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
+
+        logger.info("indexing second document");
+        index(indexName, typeName, Integer.toString(2), "foo", "bar " + Integer.toString(2));
+        refresh();
+        assertThat(client.prepareCount(indexName).get().getCount(), equalTo(2L));
+
+        logger.info("creating snapshot [{}]", snapshot2Name);
+        CreateSnapshotResponse createSnapshotResponse2 = client.admin().cluster().prepareCreateSnapshot(repositoryName, snapshot2Name).setWaitForCompletion(true).setIndices(indexName).get();
+        assertThat(createSnapshotResponse2.getSnapshotInfo().successfulShards(), greaterThan(0));
+        assertThat(createSnapshotResponse2.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse2.getSnapshotInfo().totalShards()));
+
+        assertThat(client.admin().cluster().prepareGetSnapshots(repositoryName).setSnapshots(snapshot2Name).get().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
+
+        logger.info("closing index [{}]", indexName);
+        client.admin().indices().prepareClose(indexName).get();
+
+        logger.info("attempting restore from snapshot [{}]", snapshot1Name);
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot(repositoryName, snapshot1Name).setWaitForCompletion(true).execute().actionGet();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+        ensureGreen();
+        assertThat(client.prepareCount(indexName).get().getCount(), equalTo(1L));
+    }
+
     @Test
     public void testMultipleRepositories() {
         Client client = client();

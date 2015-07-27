@@ -32,6 +32,7 @@ import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileNotExists;
@@ -172,5 +173,40 @@ public class FileSystemUtilsTests extends ElasticsearchTestCase {
 
         assertEquals(FileSystemUtils.append(PathUtils.get("/foo/bar"), PathUtils.get("/hello/world/this_is/awesome"), 1),
                 PathUtils.get("/foo/bar/world/this_is/awesome"));
+    }
+
+    public void testIsHidden() {
+        for (String p : Arrays.asList(
+                "/",
+                "foo",
+                "/foo",
+                "foo.bar",
+                "/foo.bar",
+                "foo/bar",
+                "foo/./bar",
+                "foo/../bar",
+                "/foo/./bar",
+                "/foo/../bar"
+                )) {
+            Path path = PathUtils.get(p);
+            assertFalse(FileSystemUtils.isHidden(path));
+        }
+        for (String p : Arrays.asList(
+                ".hidden",
+                ".hidden.ext",
+                "/.hidden",
+                "/.hidden.ext",
+                "foo/.hidden",
+                "foo/.hidden.ext",
+                "/foo/.hidden",
+                "/foo/.hidden.ext",
+                ".",
+                "..",
+                "foo/.",
+                "foo/.."
+                )) {
+            Path path = PathUtils.get(p);
+            assertTrue(FileSystemUtils.isHidden(path));
+        }
     }
 }

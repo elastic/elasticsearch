@@ -49,6 +49,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
@@ -465,7 +466,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(mappingsDir)) {
             for (Path mappingFile : stream) {
                 final String fileName = mappingFile.getFileName().toString();
-                if (Files.isHidden(mappingFile)) {
+                if (FileSystemUtils.isHidden(mappingFile)) {
                     continue;
                 }
                 int lastDotIndex = fileName.lastIndexOf('.');

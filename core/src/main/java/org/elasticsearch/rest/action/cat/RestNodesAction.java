@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.cat;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -58,7 +59,7 @@ import org.elasticsearch.rest.action.support.RestActionListener;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
-
+import com.google.common.collect.ImmutableSet;
 import java.util.Locale;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -205,20 +206,47 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("suggest.time", "alias:suti,suggestTime;default:false;text-align:right;desc:time spend in suggest");
         table.addCell("suggest.total", "alias:suto,suggestTotal;default:false;text-align:right;desc:number of suggest ops");
 
-        table.endHeaders();
+        // NOTE: table.endHeaders() isn't called here, it's called after appending node attributes
         return table;
     }
+
+
+
 
     private Table buildTable(RestRequest req, ClusterStateResponse state, NodesInfoResponse nodesInfo, NodesStatsResponse nodesStats) {
         boolean fullId = req.paramAsBoolean("full_id", false);
 
         DiscoveryNodes nodes = state.getState().nodes();
         String masterId = nodes.masterNodeId();
+
+        // NOTE the next call to getTableWithHeader does NOT call table.endHeaders()
+        // it's called further down after we gather a common set of attributes shared
+        // between nodes
         Table table = getTableWithHeader(req);
+
+        // gather all node attributes into a common set
+        ImmutableSet.Builder<String> allAttsBuilder = ImmutableSet.builder();
+        for (DiscoveryNode node : nodes) {
+            ImmutableMap<String, String> headerAtts = node.getAttributes();
+            for(String attKey : headerAtts.keySet()) {
+                allAttsBuilder.add(attKey);
+            }
+        }
+
+        // append common node attributes as header cells
+        ImmutableSet<String> allAtts = allAttsBuilder.build();
+        for(String att : allAtts) {
+            // we don't have descriptions or aliases, so default them all to the attribute name
+            table.addCell("node." + att, "alias:node."+att+";default:false;text-align:right;desc:node." + att);
+        }
+        // END headers, this call is typically in getTableWithHeader()
+        //     but has been pulled out here to add additional attributes
+        table.endHeaders();
 
         for (DiscoveryNode node : nodes) {
             NodeInfo info = nodesInfo.getNodesMap().get(node.id());
             NodeStats stats = nodesStats.getNodesMap().get(node.id());
+            ImmutableMap<String, String> atts = node.getAttributes();
 
             JvmInfo jvmInfo = info == null ? null : info.getJvm();
             JvmStats jvmStats = stats == null ? null : stats.getJvm();
@@ -341,6 +369,10 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(suggestStats == null ? null : suggestStats.getCurrent());
             table.addCell(suggestStats == null ? null : suggestStats.getTime());
             table.addCell(suggestStats == null ? null : suggestStats.getCount());
+
+            for(String key : atts.keySet()) {
+                table.addCell(atts.get(key));
+            }
 
             table.endRow();
         }

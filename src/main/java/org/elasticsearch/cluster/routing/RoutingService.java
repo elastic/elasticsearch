@@ -108,7 +108,10 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
             if (nextDelaySetting > 0 && nextDelaySetting < registeredNextDelaySetting) {
                 FutureUtils.cancel(registeredNextDelayFuture);
                 registeredNextDelaySetting = nextDelaySetting;
-                TimeValue nextDelay = TimeValue.timeValueMillis(UnassignedInfo.findNextDelayedAllocationIn(settings, event.state()));
+                long nextDelayMillis = UnassignedInfo.findNextDelayedAllocationIn(settings, event.state());
+                // Schedule the delay at least 5 seconds in the future
+                nextDelayMillis = Math.max(5000, nextDelayMillis);
+                TimeValue nextDelay = TimeValue.timeValueMillis(nextDelayMillis);
                 logger.info("delaying allocation for [{}] unassigned shards, next check in [{}]", UnassignedInfo.getNumberOfDelayedUnassigned(settings, event.state()), nextDelay);
                 registeredNextDelayFuture = threadPool.schedule(nextDelay, ThreadPool.Names.SAME, new AbstractRunnable() {
                     @Override

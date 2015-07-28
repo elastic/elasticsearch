@@ -190,7 +190,7 @@ public class UnassignedInfo implements ToXContent {
             if (shard.primary() == false) {
                 IndexMetaData indexMetaData = state.metaData().index(shard.getIndex());
                 long delay = shard.unassignedInfo().getDelayAllocationExpirationIn(settings, indexMetaData.getSettings());
-                if (delay > 0) {
+                if (delay != 0) {
                     count++;
                 }
             }

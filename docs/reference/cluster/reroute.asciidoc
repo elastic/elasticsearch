@@ -69,4 +69,4 @@ The commands supported are:
     explicitly specify that it is allowed to explicitly allocate a primary
     shard (might result in data loss).
     
-WARNING: Using `allow_primary` in conjunction with `allocate` command to force a shard allocation, will cause data contained in existing targeted shard to be lost. Use with caution. 
+WARNING: Using `allow_primary` in conjunction with `allocate` command to force a primary shard allocation, will cause data contained in existing targeted shard to be lost. Use with caution. 

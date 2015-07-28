@@ -34,7 +34,7 @@ public class PluginServiceUnitTests extends ElasticsearchTestCase {
     @Test
     public void testThatPluginUrlsAreUniqueAndSorted() throws MalformedURLException {
         List<URL> urls = Arrays.asList(new URL[]{ new URL("http://bar"), new URL("http://bbb"), new URL("http://bar") });
-        Object[] uniqueUrls = PluginsService.getUniqueUrls(urls).toArray();
+        Object[] uniqueUrls = PluginsService.getUniqueSortedUrls(urls).toArray();
         assertThat(uniqueUrls, is(new Object[]{ new URL("http://bar"), new URL("http://bbb") }));
     }
 }

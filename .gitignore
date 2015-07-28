@@ -21,13 +21,8 @@ backwards/
 ## files to ensure common coding style across Eclipse and IDEA.
 .project
 .classpath
-/.settings
 eclipse-build
-*/.project
-*/.classpath
-*/eclipse-build
-*/.settings
-plugins/*/.settings
+.settings
 
 ## netbeans ignores
 nb-configuration.xml

@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
@@ -177,6 +178,8 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
         Settings commonSettings = settingsBuilder()
                 .put("gateway.type", "local")
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CONCURRENT_RECOVERIES, 1)
+                .put(RoutingService.CLUSTER_ROUTING_SERVICE_MINIMUM_DELAY_SETTING,
+                        TimeValue.timeValueSeconds(randomIntBetween(2, 6)))
                 .build();
         logger.info("--> starting 4 nodes");
         String node_1 = internalCluster().startNode(commonSettings);

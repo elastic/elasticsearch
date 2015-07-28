@@ -48,11 +48,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class RoutingService extends AbstractLifecycleComponent<RoutingService> implements ClusterStateListener {
 
+    public static final String CLUSTER_ROUTING_SERVICE_MINIMUM_DELAY_SETTING = "cluster.routing_service.minimum_reroute_delay";
+
     private static final String CLUSTER_UPDATE_TASK_SOURCE = "cluster_reroute";
+    private static final TimeValue DEFAULT_ROUTING_SERVICE_MINIMUM_DELAY = TimeValue.timeValueSeconds(5);
 
     final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final AllocationService allocationService;
+    private final long minimumRerouteDelayMillis;
 
     private AtomicBoolean rerouting = new AtomicBoolean();
     private volatile long registeredNextDelaySetting = Long.MAX_VALUE;
@@ -64,6 +68,8 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
+        this.minimumRerouteDelayMillis = settings.getAsTime(CLUSTER_ROUTING_SERVICE_MINIMUM_DELAY_SETTING,
+                DEFAULT_ROUTING_SERVICE_MINIMUM_DELAY).millis();
         if (clusterService != null) {
             clusterService.addFirst(this);
         }
@@ -109,8 +115,8 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
                 FutureUtils.cancel(registeredNextDelayFuture);
                 registeredNextDelaySetting = nextDelaySetting;
                 long nextDelayMillis = UnassignedInfo.findNextDelayedAllocationIn(settings, event.state());
-                // Schedule the delay at least 5 seconds in the future
-                nextDelayMillis = Math.max(5000, nextDelayMillis);
+                // Schedule the delay at least the minimum time in the future
+                nextDelayMillis = Math.max(this.minimumRerouteDelayMillis, nextDelayMillis);
                 TimeValue nextDelay = TimeValue.timeValueMillis(nextDelayMillis);
                 logger.info("delaying allocation for [{}] unassigned shards, next check in [{}]", UnassignedInfo.getNumberOfDelayedUnassigned(settings, event.state()), nextDelay);
                 registeredNextDelayFuture = threadPool.schedule(nextDelay, ThreadPool.Names.SAME, new AbstractRunnable() {

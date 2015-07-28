@@ -32,21 +32,24 @@ import static org.elasticsearch.search.suggest.completion.context.GeoContextMapp
  */
 public class GeoQueryContext implements ToXContent {
     public final CharSequence geoHash;
+    public final int precision;
     public final int boost;
     public final int[] neighbours;
 
     /**
-     * Creates a query context for a given geo point and a boost of 1
+     * Creates a query context for a given geo point with a boost of 1
+     * and a precision of {@value GeoContextMapping#DEFAULT_PRECISION}
      */
     public GeoQueryContext(GeoPoint geoPoint) {
         this(geoPoint.geohash());
     }
 
     /**
-     * Creates a query context with a given geo hash and a boost of 1
+     * Creates a query context with a given geo hash with a boost of 1
+     * and a precision of {@value GeoContextMapping#DEFAULT_PRECISION}
      */
     public GeoQueryContext(CharSequence geoHash) {
-        this(geoHash, 1);
+        this(geoHash, 1, DEFAULT_PRECISION);
     }
 
     /**
@@ -54,8 +57,8 @@ public class GeoQueryContext implements ToXContent {
      * a provided boost and enables generating neighbours
      * at specified precisions
      */
-    public GeoQueryContext(GeoPoint geoPoint, int boost, int... neighbours) {
-        this(geoPoint.geohash(), boost, neighbours);
+    public GeoQueryContext(GeoPoint geoPoint, int boost, int precision, int... neighbours) {
+        this(geoPoint.geohash(), boost, precision, neighbours);
     }
 
     /**
@@ -63,9 +66,10 @@ public class GeoQueryContext implements ToXContent {
      * a provided boost and enables generating neighbours
      * at specified precisions
      */
-    public GeoQueryContext(CharSequence geoHash, int boost, int... neighbours) {
+    public GeoQueryContext(CharSequence geoHash, int boost, int precision, int... neighbours) {
         this.geoHash = geoHash;
         this.boost = boost;
+        this.precision = precision;
         this.neighbours = neighbours;
     }
 

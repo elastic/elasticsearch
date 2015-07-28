@@ -22,6 +22,7 @@ package org.elasticsearch.search.preference;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -29,13 +30,28 @@ import org.junit.Test;
 import java.io.IOException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
 @ElasticsearchIntegrationTest.ClusterScope(minNumDataNodes = 2)
 public class SearchPreferenceTests extends ElasticsearchIntegrationTest {
+
+    @Test
+    public void testThatAllPreferencesAreParsedToValid() {
+        //list of all enums and their strings as reference
+        assertThat(Preference.parse("_shards"), equalTo(Preference.SHARDS));
+        assertThat(Preference.parse("_prefer_node"), equalTo(Preference.PREFER_NODE));
+        assertThat(Preference.parse("_local"), equalTo(Preference.LOCAL));
+        assertThat(Preference.parse("_primary"), equalTo(Preference.PRIMARY));
+        assertThat(Preference.parse("_primary_first"), equalTo(Preference.PRIMARY_FIRST));
+        assertThat(Preference.parse("_only_local"), equalTo(Preference.ONLY_LOCAL));
+        assertThat(Preference.parse("_only_node"), equalTo(Preference.ONLY_NODE));
+        assertThat(Preference.parse("_only_nodes"), equalTo(Preference.ONLY_NODES));
+    }
 
     @Test // see #2896
     public void testStopOneNodePreferenceWithRedState() throws InterruptedException, IOException {
@@ -88,36 +104,24 @@ public class SearchPreferenceTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void simplePreferenceTests() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings("number_of_replicas=1").get();
-        ensureGreen();
+        createIndex("test");
+        ensureGreen("test");
 
-        client().prepareIndex("test", "type1").setSource("field1", "value1").execute().actionGet();
-        refresh();
+        client().prepareIndex("test", "type1").setSource("field1", "value1").setRefresh(true).get();
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_local").execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_local").execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
-
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_primary").execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_primary").execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
-
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica").execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica").execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
-
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica_first").execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica_first").execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
-
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("1234").execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("1234").execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        // built a shard range like 0,1,2,3,4 based on the number of shards
+        Integer numberOfShards = client().admin().indices().prepareGetIndex().setIndices("test").get().getSettings().get("test").getAsInt(SETTING_NUMBER_OF_SHARDS, 1);
+        StringBuilder shardsRange = new StringBuilder("_shards:0");
+        for (int i = 1; i < numberOfShards; i++) {
+            shardsRange.append(",").append(i);
+        }
+        String[] preferences = new String[]{"1234", "_primary", "_local", shardsRange.toString(), "_primary_first", "_only_nodes:*"};
+        for (String pref : preferences) {
+            SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).setPreference(pref).execute().actionGet();
+            assertHitCount(searchResponse, 1);
+            searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).setPreference(pref).execute().actionGet();
+            assertHitCount(searchResponse, 1);
+        }
     }
 
     @Test

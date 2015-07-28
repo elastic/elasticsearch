@@ -471,7 +471,7 @@ public class ContextCompletionSuggestSearchTests extends ElasticsearchIntegratio
         neighbours.add("u10h");
 
         LinkedHashMap<String, ContextMapping<?>> map = new LinkedHashMap<>();
-        map.put("geo", ContextBuilder.geo("geo").build());
+        map.put("geo", ContextBuilder.geo("geo").precision(4).build());
         final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
         createIndexAndMapping(mapping);
         int numDocs = 10;
@@ -494,7 +494,7 @@ public class ContextCompletionSuggestSearchTests extends ElasticsearchIntegratio
         assertSuggestions("foo", prefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
 
         CompletionSuggestionBuilder geoNeighbourPrefix = SuggestBuilders.completionSuggestion("foo").field(FIELD).prefix("sugg")
-                .geoContexts("geo", new GeoQueryContext(geohash, 1, geohash.length()));
+                .geoContexts("geo", new GeoQueryContext(geohash));
 
         assertSuggestions("foo", geoNeighbourPrefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
     }

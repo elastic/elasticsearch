@@ -2,18 +2,21 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-    <!-- ============================================================= -->
-    <!-- Standard project header. Change the project name, groupId,    -->
-    <!-- artifactId and description to match your project.             -->
-    <!-- ============================================================= -->
-    <name>elasticsearch-native-script-example</name>
     <modelVersion>4.0.0</modelVersion>
-    <groupId>org.elasticsearch</groupId>
+
+    <parent>
+        <groupId>org.elasticsearch.plugin</groupId>
+        <artifactId>elasticsearch-plugin</artifactId>
+        <version>2.0.0-beta1-SNAPSHOT</version>
+    </parent>
+
+    <name>elasticsearch-native-script-example</name>
+    <groupId>org.elasticsearch.plugin</groupId>
     <artifactId>elasticsearch-native-script-example</artifactId>
     <version>2.0.0-beta1-SNAPSHOT</version>
-    <packaging>jar</packaging>
     <description>ElasticSearch Plugin with Native Script Examples</description>
     <inceptionYear>2013</inceptionYear>
+
     <licenses>
         <license>
             <name>The Apache Software License, Version 2.0</name>
@@ -21,18 +24,33 @@
             <distribution>repo</distribution>
         </license>
     </licenses>
+
     <scm>
         <connection>scm:git:git@github.com:imotov/elasticsearch-native-script-example.git</connection>
         <developerConnection>scm:git:git@github.com:imotov/elasticsearch-native-script-example.git</developerConnection>
         <url>http://github.com/imotov/elasticsearch-native-script-example</url>
     </scm>
 
-    <parent>
-        <groupId>org.elasticsearch</groupId>
-        <artifactId>elasticsearch-parent</artifactId>
-        <version>2.0.0-beta1-SNAPSHOT</version>
-    </parent>
+    <!-- ============================================================= -->
+    <!-- Most of the build and assembly logic is defined in the parent -->
+    <!-- pom. We just need to override a few settings here             -->
+    <!-- ============================================================= -->
 
+    <properties>
+        <!-- define class name for the descriptor file -->
+        <elasticsearch.plugin.classname>org.elasticsearch.examples.nativescript.plugin.NativeScriptExamplesPlugin</elasticsearch.plugin.classname>
+
+        <!-- we have custom licence header in this project -->
+        <elasticsearch.license.header>${project.basedir}/dev-tools/src/main/resources/license-check/native_script_example_license_header.txt</elasticsearch.license.header>
+        <elasticsearch.license.headerDefinition>${project.basedir}/dev-tools/src/main/resources/license-check/license_header_definition.xml</elasticsearch.license.headerDefinition>
+
+        <!-- define where to find integration rest tests -->
+        <tests.ifNoTests>warn</tests.ifNoTests>
+        <tests.rest.suite>nativescript</tests.rest.suite>
+        <tests.rest.load_packaged>false</tests.rest.load_packaged>
+    </properties>
+
+    <!-- needed for the snapshots of elasticsearch -->
     <repositories>
         <repository>
             <id>oss-snapshots</id>
@@ -41,107 +59,11 @@
         </repository>
     </repositories>
 
-    <!-- ============================================================= -->
-    <!-- The minimal set of Elasticsearch dependencies that plugin     -->
-    <!-- project needs that the project will be built with             -->
-    <!-- ============================================================= -->
-    <dependencies>
-    
-        <dependency>
-            <groupId>org.apache.lucene</groupId>
-            <artifactId>lucene-test-framework</artifactId>
-        </dependency>
-        
-        <dependency>
-            <groupId>org.elasticsearch</groupId>
-            <artifactId>elasticsearch</artifactId>
-        </dependency>
-        
-        <dependency>
-            <groupId>org.elasticsearch</groupId>
-            <artifactId>elasticsearch</artifactId>
-            <scope>test</scope>
-            <type>test-jar</type>
-        </dependency>
-
-        <dependency>
-            <groupId>log4j</groupId>
-            <artifactId>log4j</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-api</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.hamcrest</groupId>
-            <artifactId>hamcrest-all</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>com.carrotsearch.randomizedtesting</groupId>
-            <artifactId>randomizedtesting-runner</artifactId>
-        </dependency>
-           
-    </dependencies>
-
     <build>
         <plugins>
-            <!-- ============================================================= -->
-            <!-- Elasticsearch is using java 1.7 at the moment.                -->
-            <!-- ============================================================= -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>2.3.2</version>
-                <configuration>
-                    <source>1.7</source>
-                    <target>1.7</target>
-                </configuration>
-            </plugin>
-            <!-- ============================================================= -->
-            <!-- Optional. This plugin is using surefire plugin to run tests.  -->
-            <!-- ============================================================= -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.12.3</version>
-                <configuration>
-                    <includes>
-                        <include>**/*Tests.java</include>
-                    </includes>
-                </configuration>
-            </plugin>
-            <!-- ============================================================= -->
-            <!-- This plugin assembles plugin .zip package.                     -->
-            <!-- ============================================================= -->
-            <plugin>
                 <artifactId>maven-assembly-plugin</artifactId>
-                <version>2.3</version>
-                <configuration>
-                    <appendAssemblyId>false</appendAssemblyId>
-                    <outputDirectory>${project.build.directory}/releases/</outputDirectory>
-                    <descriptors>
-                        <descriptor>${basedir}/src/main/assemblies/plugin.xml</descriptor>
-                    </descriptors>
-                </configuration>
-                <executions>
-                    <execution>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>single</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-
-            <plugin>
-                <groupId>com.mycila</groupId>
-                <artifactId>license-maven-plugin</artifactId>
-                <configuration>
-                    <header>${project.basedir}/dev-tools/src/main/resources/license-check/native_script_example_license_header.txt</header>
-                </configuration>
             </plugin>
         </plugins>
     </build>

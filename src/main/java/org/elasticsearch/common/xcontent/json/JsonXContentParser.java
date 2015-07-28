@@ -237,4 +237,9 @@ public class JsonXContentParser extends AbstractXContentParser {
         }
         throw new ElasticsearchIllegalStateException("No matching token for json_token [" + token + "]");
     }
+
+    @Override
+    public boolean isClosed() {
+        return parser.isClosed();
+    }
 }

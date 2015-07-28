@@ -42,7 +42,6 @@ import org.elasticsearch.action.admin.indices.optimize.OptimizeAction;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
@@ -72,6 +71,7 @@ import org.elasticsearch.action.percolate.MultiPercolateAction;
 import org.elasticsearch.action.percolate.MultiPercolateRequest;
 import org.elasticsearch.action.percolate.PercolateAction;
 import org.elasticsearch.action.percolate.PercolateRequest;
+import org.elasticsearch.action.replicatedrefresh.ReplicatedRefreshAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -85,6 +85,7 @@ import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -96,31 +97,16 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportModule;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.*;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.emptyIterable;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.SUITE, numClientNodes = 1, minNumDataNodes = 2)
 public class IndicesRequestIT extends ESIntegTestCase {
@@ -407,14 +393,15 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
     @Test
     public void testRefresh() {
-        String refreshShardAction = RefreshAction.NAME + "[s]";
-        interceptTransportActions(refreshShardAction);
+        String[] indexShardActions = new String[]{ReplicatedRefreshAction.NAME + "[r]", ReplicatedRefreshAction.NAME};
+        interceptTransportActions(indexShardActions);
 
         RefreshRequest refreshRequest = new RefreshRequest(randomIndicesOrAliases());
         internalCluster().clientNodeClient().admin().indices().refresh(refreshRequest).actionGet();
 
         clearInterceptedActions();
-        assertSameIndices(refreshRequest, refreshShardAction);
+        String[] indices = new IndexNameExpressionResolver(Settings.EMPTY).concreteIndices(client().admin().cluster().prepareState().get().getState(), refreshRequest);
+        assertIndicesSubset(Arrays.asList(indices), indexShardActions);
     }
 
     @Test

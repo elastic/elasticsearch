@@ -17,21 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.refresh;
+package org.elasticsearch.action.replicatedrefresh;
 
-import org.elasticsearch.action.support.broadcast.BroadcastShardRequest;
+import org.elasticsearch.action.support.replication.ReplicationRequestBuilder;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.index.shard.ShardId;
 
 /**
- *
+ * An index document action request builder.
  */
-class ShardRefreshRequest extends BroadcastShardRequest {
+public class ReplicatedRefreshRequestBuilder extends ReplicationRequestBuilder<ReplicatedRefreshRequest, ReplicatedRefreshResponse, ReplicatedRefreshRequestBuilder> {
 
-    ShardRefreshRequest() {
-    }
-
-    ShardRefreshRequest(ShardId shardId, RefreshRequest request) {
-        super(shardId, request);
+    public ReplicatedRefreshRequestBuilder(ElasticsearchClient client, ReplicatedRefreshAction action) {
+        super(client, action, new ReplicatedRefreshRequest());
     }
 
 }

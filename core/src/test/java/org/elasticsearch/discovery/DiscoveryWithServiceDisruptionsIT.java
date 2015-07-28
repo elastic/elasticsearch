@@ -1081,13 +1081,15 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             final Client node1Client = internalCluster().client(node_1);
             final Client node4Client = internalCluster().client(node_4);
             logger.info("--> index doc");
-            logLocalClusterStates(node3Client, node2Client, node1Client, node4Client);
+            logLocalClusterStates(node1Client, node2Client, node3Client,  node4Client);
             assertTrue(node3Client.prepareIndex("test", "doc").setSource("{\"text\":\"a\"}").get().isCreated());
             logger.info("--> refresh from node_3");
             RefreshResponse refreshResponse = node3Client.admin().indices().prepareRefresh().get();
             assertThat(refreshResponse.getFailedShards(), equalTo(0));
-            assertThat(refreshResponse.getSuccessfulShards(), equalTo(1));
+            // the total shards is num replicas + 1 so that can be lower here because one shard
+            // is relocating and counts twice as successful
             assertThat(refreshResponse.getTotalShards(), equalTo(1));
+            assertThat(refreshResponse.getSuccessfulShards(), equalTo(2));
             // now stop disrupting so that node_3 can ack last cluster state to master and master can continue
             // to publish the next cluster state
             logger.info("--> stop disrupting node_3");
@@ -1161,10 +1163,11 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     }
 
     private void logLocalClusterStates(Client... clients) {
-        int counter = 0;
+        int counter = 1;
         for (Client client : clients) {
             ClusterState clusterState = client.admin().cluster().prepareState().setLocal(true).get().getState();
             logger.info("--> cluster state on node_{} {}", counter, clusterState.prettyPrint());
+            counter++;
         }
     }
 

@@ -17,20 +17,29 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.refresh;
+package org.elasticsearch.action.replicatedrefresh;
 
-import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
- *
  */
-class ShardRefreshResponse extends BroadcastShardResponse {
+public class ReplicatedRefreshAction extends Action<ReplicatedRefreshRequest, ReplicatedRefreshResponse, ReplicatedRefreshRequestBuilder> {
 
-    ShardRefreshResponse() {
+    public static final ReplicatedRefreshAction INSTANCE = new ReplicatedRefreshAction();
+    public static final String NAME = "indices:data/write/refresh";
+
+    private ReplicatedRefreshAction() {
+        super(NAME);
     }
 
-    ShardRefreshResponse(ShardId shardId) {
-        super(shardId);
+    @Override
+    public ReplicatedRefreshResponse newResponse() {
+        return new ReplicatedRefreshResponse();
+    }
+
+    @Override
+    public ReplicatedRefreshRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new ReplicatedRefreshRequestBuilder(client, this);
     }
 }

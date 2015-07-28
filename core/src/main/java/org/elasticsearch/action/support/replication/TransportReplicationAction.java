@@ -748,7 +748,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                         if (shard.relocating()) {
                             numberOfPendingShardInstances++;
                         }
-                    } else if (IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.settings())) {
+                    } else if (IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.settings()) && replicaRequest.skipExecutionOnShadowReplicas()) {
                         // If the replicas use shadow replicas, there is no reason to
                         // perform the action on the replica, so skip it and
                         // immediately return
@@ -782,7 +782,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                             // we have to replicate to the other copy
                             numberOfPendingShardInstances += 1;
                         }
-                    } else if (IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.settings())) {
+                    } else if (IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.settings()) && replicaRequest.skipExecutionOnShadowReplicas()) {
                         // If the replicas use shadow replicas, there is no reason to
                         // perform the action on the replica, so skip it and
                         // immediately return
@@ -861,7 +861,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                     if (shard.relocating()) {
                         performOnReplica(shard, shard.relocatingNodeId());
                     }
-                } else if (IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.settings()) == false) {
+                } else if (IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.settings()) == false || replicaRequest.skipExecutionOnShadowReplicas() == false) {
                     performOnReplica(shard, shard.currentNodeId());
                     if (shard.relocating()) {
                         performOnReplica(shard, shard.relocatingNodeId());

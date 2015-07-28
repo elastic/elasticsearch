@@ -226,7 +226,7 @@ public class OperationRouting extends AbstractComponent {
         return shards(clusterState, index, shardId);
     }
 
-    protected IndexShardRoutingTable shards(ClusterState clusterState, String index, int shardId) {
+    public IndexShardRoutingTable shards(ClusterState clusterState, String index, int shardId) {
         IndexShardRoutingTable indexShard = indexRoutingTable(clusterState, index).shard(shardId);
         if (indexShard == null) {
             throw new ShardNotFoundException(new ShardId(index, shardId));

@@ -192,4 +192,8 @@ public abstract class ReplicationRequest<T extends ReplicationRequest> extends A
         out.writeString(index);
         out.writeBoolean(canHaveDuplicates);
     }
+
+    public boolean skipExecutionOnShadowReplicas() {
+        return true;
+    }
 }

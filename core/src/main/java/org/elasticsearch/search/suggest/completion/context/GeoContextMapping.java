@@ -222,7 +222,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
     private GeoQueryContext innerParseQueryContext(XContentParser parser) throws IOException, ElasticsearchParseException {
         Token token = parser.currentToken();
         if (token == Token.VALUE_STRING) {
-            return new GeoQueryContext(GeoUtils.parseGeoPoint(parser), 1, precision);
+            return new GeoQueryContext(GeoUtils.parseGeoPoint(parser), 1, precision, precision);
         } else if (token == Token.START_OBJECT) {
             String currentFieldName = null;
             GeoPoint point = null;
@@ -349,12 +349,14 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
         final ContextQuery contextQuery = new ContextQuery(query);
         if (queryContexts != null) {
             for (GeoQueryContext queryContext : queryContexts) {
-                contextQuery.addContext(queryContext.geoHash, queryContext.boost, false);
-                for (int p : queryContext.neighbours) {
-                    int precision = Math.min(p, queryContext.geoHash.length());
-                    String truncatedGeohash = queryContext.geoHash.toString().substring(0, precision);
+                int precision = Math.min(this.precision, queryContext.geoHash.length());
+                String truncatedGeohash = queryContext.geoHash.toString().substring(0, precision);
+                contextQuery.addContext(truncatedGeohash, queryContext.boost, false);
+                for (int neighboursPrecision : queryContext.neighbours) {
+                    int neighbourPrecision = Math.min(neighboursPrecision, truncatedGeohash.length());
+                    String neighbourGeohash = truncatedGeohash.substring(0, neighbourPrecision);
                     Collection<String> locations = new HashSet<>();
-                    GeoHashUtils.addNeighbors(truncatedGeohash, precision, locations);
+                    GeoHashUtils.addNeighbors(neighbourGeohash, precision, locations);
                     for (String location : locations) {
                         contextQuery.addContext(location, queryContext.boost, false);
                     }

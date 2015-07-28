@@ -15,12 +15,13 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
+import org.elasticsearch.marvel.agent.settings.MarvelSettingsService;
 
 import java.util.Collection;
 
 /**
  * Collector for indices statistics.
- *
+ * <p/>
  * This collector runs on the master node only and collect a {@link IndexStatsMarvelDoc} document
  * for each existing index in the cluster.
  */
@@ -31,12 +32,14 @@ public class IndexStatsCollector extends AbstractCollector<IndexStatsCollector> 
 
     private final ClusterName clusterName;
     private final Client client;
+    private final MarvelSettingsService marvelSettings;
 
     @Inject
-    public IndexStatsCollector(Settings settings, ClusterService clusterService, ClusterName clusterName, Client client) {
+    public IndexStatsCollector(Settings settings, ClusterService clusterService, ClusterName clusterName, Client client, MarvelSettingsService marvelSettings) {
         super(settings, NAME, clusterService);
         this.client = client;
         this.clusterName = clusterName;
+        this.marvelSettings = marvelSettings;
     }
 
     @Override
@@ -48,11 +51,12 @@ public class IndexStatsCollector extends AbstractCollector<IndexStatsCollector> 
     protected Collection<MarvelDoc> doCollect() throws Exception {
         ImmutableList.Builder<MarvelDoc> results = ImmutableList.builder();
 
-        IndicesStatsResponse indicesStats = client.admin().indices().prepareStats().all()
+        IndicesStatsResponse indicesStats = client.admin().indices().prepareStats()
                 .setStore(true)
                 .setIndexing(true)
                 .setDocs(true)
-                .get();
+                .setIndices(marvelSettings.indices())
+                .get(marvelSettings.indexStatsTimeout());
 
         long timestamp = System.currentTimeMillis();
         for (IndexStats indexStats : indicesStats.getIndices().values()) {

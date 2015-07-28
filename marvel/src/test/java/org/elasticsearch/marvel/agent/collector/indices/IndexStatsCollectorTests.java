@@ -9,6 +9,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
+import org.elasticsearch.marvel.agent.settings.MarvelSettingsService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
@@ -107,6 +108,10 @@ public class IndexStatsCollectorTests extends ElasticsearchSingleNodeTest {
     }
 
     private IndexStatsCollector newIndexStatsCollector() {
-        return new IndexStatsCollector(getInstanceFromNode(Settings.class), getInstanceFromNode(ClusterService.class), getInstanceFromNode(ClusterName.class), client());
+        return new IndexStatsCollector(getInstanceFromNode(Settings.class),
+                getInstanceFromNode(ClusterService.class),
+                getInstanceFromNode(ClusterName.class),
+                client(),
+                getInstanceFromNode(MarvelSettingsService.class));
     }
 }

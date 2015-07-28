@@ -8,7 +8,6 @@ package org.elasticsearch.marvel.agent;
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.cluster.settings.ClusterDynamicSettings;
 import org.elasticsearch.cluster.settings.DynamicSettings;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -28,19 +27,15 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> imple
     private static final String SETTINGS_BASE = "marvel.agent.";
 
     public static final String SETTINGS_INTERVAL = SETTINGS_BASE + "interval";
-    public static final String SETTINGS_INDICES = SETTINGS_BASE + "indices";
     public static final String SETTINGS_ENABLED = SETTINGS_BASE + "enabled";
 
     public static final String SETTINGS_STATS_TIMEOUT = SETTINGS_BASE + "stats.timeout";
-    public static final String SETTINGS_INDICES_STATS_TIMEOUT = SETTINGS_BASE + "stats.indices.timeout";
 
     private volatile ExportingWorker exportingWorker;
 
     private volatile Thread workerThread;
     private volatile long samplingInterval;
-    volatile private String[] indicesToExport = Strings.EMPTY_ARRAY;
 
-    private volatile TimeValue indicesStatsTimeout;
     private volatile TimeValue clusterStatsTimeout;
 
     private final Collection<Collector> collectors;
@@ -53,10 +48,8 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> imple
                         Set<Collector> collectors, Set<Exporter> exporters) {
         super(settings);
         this.samplingInterval = settings.getAsTime(SETTINGS_INTERVAL, TimeValue.timeValueSeconds(10)).millis();
-        this.indicesToExport = settings.getAsArray(SETTINGS_INDICES, this.indicesToExport, true);
 
         TimeValue statsTimeout = settings.getAsTime(SETTINGS_STATS_TIMEOUT, TimeValue.timeValueMinutes(10));
-        indicesStatsTimeout = settings.getAsTime(SETTINGS_INDICES_STATS_TIMEOUT, statsTimeout);
 
         if (settings.getAsBoolean(SETTINGS_ENABLED, true)) {
             this.collectors = ImmutableSet.copyOf(collectors);
@@ -69,9 +62,7 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> imple
 
         nodeSettingsService.addListener(this);
         dynamicSettings.addDynamicSetting(SETTINGS_INTERVAL);
-        dynamicSettings.addDynamicSetting(SETTINGS_INDICES + ".*"); // array settings
         dynamicSettings.addDynamicSetting(SETTINGS_STATS_TIMEOUT);
-        dynamicSettings.addDynamicSetting(SETTINGS_INDICES_STATS_TIMEOUT);
 
         logger.trace("marvel is running in [{}] mode", licenseService.mode());
     }
@@ -162,20 +153,6 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> imple
             logger.info("sampling interval updated to [{}]", newSamplingInterval);
             samplingInterval = newSamplingInterval.millis();
             applyIntervalSettings();
-        }
-
-        String[] indices = settings.getAsArray(SETTINGS_INDICES, null, true);
-        if (indices != null) {
-            logger.info("sampling indices updated to [{}]", Strings.arrayToCommaDelimitedString(indices));
-            indicesToExport = indices;
-        }
-
-        TimeValue statsTimeout = settings.getAsTime(SETTINGS_STATS_TIMEOUT, TimeValue.timeValueMinutes(10));
-        TimeValue newTimeValue = settings.getAsTime(SETTINGS_INDICES_STATS_TIMEOUT, statsTimeout);
-        if (!indicesStatsTimeout.equals(newTimeValue)) {
-            logger.info("indices stats timeout updated to [{}]", newTimeValue);
-            indicesStatsTimeout = newTimeValue;
-
         }
     }
 

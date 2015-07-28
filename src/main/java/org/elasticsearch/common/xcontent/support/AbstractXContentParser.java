@@ -323,4 +323,5 @@ public abstract class AbstractXContentParser implements XContentParser {
     public final BytesRef bytesOrNull() throws IOException {
         return utf8BytesOrNull();
     }
+    public abstract boolean isClosed();
 }

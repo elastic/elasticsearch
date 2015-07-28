@@ -256,4 +256,6 @@ public interface XContentParser extends Releasable {
      *
      */
     byte[] binaryValue() throws IOException;
+
+    boolean isClosed();
 }

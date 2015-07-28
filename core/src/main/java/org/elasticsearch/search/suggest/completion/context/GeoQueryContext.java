@@ -45,11 +45,27 @@ public class GeoQueryContext implements ToXContent {
     }
 
     /**
+     * Creates a query context for a given geo point with a
+     * provided boost
+     */
+    public GeoQueryContext(GeoPoint geoPoint, int boost) {
+        this(geoPoint.geohash(), boost);
+    }
+
+    /**
      * Creates a query context with a given geo hash with a boost of 1
      * and a precision of {@value GeoContextMapping#DEFAULT_PRECISION}
      */
     public GeoQueryContext(CharSequence geoHash) {
-        this(geoHash, 1, DEFAULT_PRECISION);
+        this(geoHash, 1);
+    }
+
+    /**
+     * Creates a query context for a given geo hash with a
+     * provided boost
+     */
+    public GeoQueryContext(CharSequence geoHash, int boost) {
+        this(geoHash, boost, DEFAULT_PRECISION);
     }
 
     /**

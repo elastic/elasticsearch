@@ -106,6 +106,7 @@
                                     <overWrite>true</overWrite>
                                 </artifactItem>
                             </artifactItems>
+                            <useBaseVersion>true</useBaseVersion>
                         </configuration>
                     </execution>
                 </executions>

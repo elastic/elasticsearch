@@ -49,6 +49,13 @@ points to, regardless of the filter that the alias might hold. Keep this behavio
 administrative privileges to filtered index aliases. Read
 https://github.com/elasticsearch/elasticsearch/issues/2318[Elasticsearch issue #2318] to learn more about this limitation.
 
+WARNING: A filtered index alias will not provide document-level security for the {ref}/search-suggesters.html[suggesters apis]
+as they do not take into account the filters placed on aliases.
+
+WARNING: A filtered index alias will not provide document-level security when using a
+{ref}/search-aggregations-bucket-children-aggregation.html[Children Aggregation] as the filter from the alias is not used
+when computing the aggregation results.
+
 [float]
 === Queries and Filters
 

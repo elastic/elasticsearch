@@ -231,6 +231,11 @@ public class SensitiveXContentParser implements XContentParser {
     }
 
     @Override
+    public boolean isClosed() {
+        return parser.isClosed();
+    }
+
+    @Override
     public void close() throws ElasticsearchException {
         parser.close();
     }

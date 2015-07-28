@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -30,7 +31,7 @@ import org.elasticsearch.shield.authz.indicesresolver.IndicesResolver;
 import org.elasticsearch.shield.authz.store.RolesStore;
 import org.elasticsearch.transport.TransportRequest;
 
-import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.shield.support.Exceptions.authenticationError;
@@ -76,15 +77,11 @@ public class InternalAuthorizationService extends AbstractComponent implements A
         ImmutableList.Builder<String> indicesAndAliases = ImmutableList.builder();
         Predicate<String> predicate = Predicates.or(predicates.build());
         MetaData metaData = clusterService.state().metaData();
-        for (String index : metaData.concreteAllIndices()) {
-            if (predicate.apply(index)) {
-                indicesAndAliases.add(index);
-            }
-        }
-        for (Iterator<String> iter = metaData.getAliases().keysIt(); iter.hasNext(); ) {
-            String alias = iter.next();
-            if (predicate.apply(alias)) {
-                indicesAndAliases.add(alias);
+        // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
+        for (Map.Entry<String, AliasOrIndex> entry : metaData.getAliasAndIndexLookup().entrySet()) {
+            String aliasOrIndex = entry.getKey();
+            if (predicate.apply(aliasOrIndex)) {
+                indicesAndAliases.add(aliasOrIndex);
             }
         }
         return indicesAndAliases.build();

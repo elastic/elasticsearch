@@ -56,8 +56,11 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
     public static final String FIELD_PRECISION = "precision";
     public static final String FIELD_FIELDNAME = "path";
 
+    public static final int DEFAULT_PRECISION = 6;
+
     static final String CONTEXT_VALUE = "context";
     static final String CONTEXT_BOOST = "boost";
+    static final String CONTEXT_PRECISION = "precision";
     static final String CONTEXT_NEIGHBOURS = "neighbours";
 
     private final int precision;
@@ -225,6 +228,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
             GeoPoint point = null;
             double lat = Double.NaN;
             double lon = Double.NaN;
+            int precision = this.precision;
             List<Integer> neighbours = new ArrayList<>();
             int boost = 1;
             while ((token = parser.nextToken()) != Token.END_OBJECT) {
@@ -255,6 +259,8 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
                         boost = number.intValue();
                     } else if (CONTEXT_NEIGHBOURS.equals(currentFieldName)) {
                         neighbours.add(GeoUtils.geoHashLevelsForPrecision(parser.text()));
+                    } else if (CONTEXT_PRECISION.equals(currentFieldName)) {
+                        precision = GeoUtils.geoHashLevelsForPrecision(parser.text());
                     } else {
                         throw new ElasticsearchParseException("unknown field [" + currentFieldName + "] for string value");
                     }
@@ -277,6 +283,13 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
                             neighbours.add(parser.intValue());
                         } else {
                             neighbours.add(GeoUtils.geoHashLevelsForPrecision(parser.doubleValue()));
+                        }
+                    } else if (CONTEXT_PRECISION.equals(currentFieldName)) {
+                        XContentParser.NumberType numberType = parser.numberType();
+                        if (numberType == XContentParser.NumberType.INT || numberType == XContentParser.NumberType.LONG) {
+                            precision = parser.intValue();
+                        } else {
+                            precision = GeoUtils.geoHashLevelsForPrecision(parser.doubleValue());
                         }
                     } else if (CONTEXT_BOOST.equals(currentFieldName)) {
                         XContentParser.NumberType numberType = parser.numberType();
@@ -321,9 +334,9 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
                 for (int i = 0; i < neighbours.size(); i++) {
                     neighbourValues[i] = neighbours.get(i);
                 }
-                return new GeoQueryContext(point, boost, neighbourValues);
+                return new GeoQueryContext(point, boost, precision, neighbourValues);
             } else {
-                return new GeoQueryContext(point, boost, precision);
+                return new GeoQueryContext(point, boost, precision, precision);
             }
         } else {
             throw new ElasticsearchParseException("expected string or object");
@@ -382,7 +395,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
 
     public static class Builder extends ContextBuilder<GeoContextMapping> {
 
-        private int precision = GeoHashUtils.PRECISION;
+        private int precision = DEFAULT_PRECISION;
         private String fieldName = null;
         
         protected Builder(String name) {

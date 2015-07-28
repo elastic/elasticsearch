@@ -138,7 +138,9 @@ public final class AllTermQuery extends PayloadTermQuery {
             }
         }
         if (fieldExists == false) {
-            return new MatchNoDocsQuery();
+            Query rewritten = new MatchNoDocsQuery();
+            rewritten.setBoost(getBoost());
+            return rewritten;
         }
         if (hasPayloads == false) {
             TermQuery rewritten = new TermQuery(term);

@@ -390,7 +390,7 @@ public class PluginsService extends AbstractComponent {
         }
     }
 
-    public static SortedSet<URL> getUniqueSortedUrls(Collection<URL> urls) {
+    static SortedSet<URL> getUniqueSortedUrls(Collection<URL> urls) {
         SortedSet<URL> result = new TreeSet<URL>(new Comparator<URL>() {
             @Override
             public int compare(URL a, URL b) {

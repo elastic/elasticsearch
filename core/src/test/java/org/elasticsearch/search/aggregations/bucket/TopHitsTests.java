@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -927,5 +928,21 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
                 assertThat(highlightField.getFragments()[0].string(), equalTo("some <em>text</em>"));
             }
         }
+    }
+
+    @Test
+    public void testDontExplode() throws Exception {
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .setTypes("type")
+                .addAggregation(terms("terms")
+                                .executionHint(randomExecutionHint())
+                                .field(TERMS_AGGS_FIELD)
+                                .subAggregation(
+                                        topHits("hits").setSize(ArrayUtil.MAX_ARRAY_LENGTH - 1).addSort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))
+                                )
+                )
+                .get();
+        assertNoFailures(response);
     }
 }

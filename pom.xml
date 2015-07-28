@@ -189,6 +189,12 @@
 
             <dependency>
                 <groupId>org.elasticsearch</groupId>
+                <artifactId>elasticsearch-plugin-manager</artifactId>
+                <version>${elasticsearch.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.elasticsearch</groupId>
                 <artifactId>elasticsearch</artifactId>
                 <version>${elasticsearch.version}</version>
                 <type>test-jar</type>
@@ -1485,6 +1491,7 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
         <module>dev-tools</module>
         <module>rest-api-spec</module>
         <module>core</module>
+        <module>plugin-manager</module>
         <module>distribution</module>
         <module>plugins</module>
     </modules>

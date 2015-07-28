@@ -34,22 +34,10 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Properties;
 
+import static org.elasticsearch.test.plugins.PluginTestHelpers.writeProperties;
 import static org.hamcrest.Matchers.contains;
 
 public class PluginInfoTests extends ElasticsearchTestCase {
-
-    static void writeProperties(Path pluginDir, String... stringProps) throws IOException {
-        assert stringProps.length % 2 == 0;
-        Files.createDirectories(pluginDir);
-        Path propertiesFile = pluginDir.resolve(PluginInfo.ES_PLUGIN_PROPERTIES);
-        Properties properties =  new Properties();
-        for (int i = 0; i < stringProps.length; i += 2) {
-            properties.put(stringProps[i], stringProps[i + 1]);
-        }
-        try (OutputStream out = Files.newOutputStream(propertiesFile)) {
-            properties.store(out, "");
-        }
-    }
 
     public void testReadFromProperties() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");

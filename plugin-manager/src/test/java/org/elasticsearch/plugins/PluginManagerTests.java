@@ -52,13 +52,13 @@ import java.util.zip.ZipOutputStream;
 
 import static org.elasticsearch.common.cli.CliTool.ExitStatus.USAGE;
 import static org.elasticsearch.common.cli.CliToolTestCase.args;
-import static org.elasticsearch.common.io.FileSystemUtilsTests.assertFileContent;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertDirectoryExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
+import static org.elasticsearch.test.hamcrest.ElasticsearchFileAssertions.assertFileContent;
+import static org.elasticsearch.test.plugins.PluginTestHelpers.writeProperties;
 import static org.hamcrest.Matchers.*;
-import static org.elasticsearch.plugins.PluginInfoTests.writeProperties;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0.0)
 @LuceneTestCase.SuppressFileSystems("*") // TODO: clean up this test to allow extra files

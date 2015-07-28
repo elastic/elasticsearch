@@ -40,6 +40,11 @@
             <artifactId>elasticsearch</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>org.elasticsearch</groupId>
+            <artifactId>elasticsearch-plugin-manager</artifactId>
+        </dependency>
+
         <!-- They were marked as optional in core so we need to explicitly add them -->
          <dependency>
             <groupId>org.apache.lucene</groupId>

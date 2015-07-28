@@ -36,6 +36,7 @@ import java.util.Arrays;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileNotExists;
+import static org.elasticsearch.test.hamcrest.ElasticsearchFileAssertions.assertFileContent;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 
@@ -142,25 +143,6 @@ public class FileSystemUtilsTests extends ElasticsearchTestCase {
         assertFileContent(dst, "file1.txt", "file1");
         assertFileContent(dst, "dir/file2.txt", "file2");
         assertFileContent(dst, "dir/file2.txt.new", "UPDATED");
-    }
-
-    /**
-     * Check that a file contains a given String
-     * @param dir root dir for file
-     * @param filename relative path from root dir to file
-     * @param expected expected content (if null, we don't expect any file)
-     */
-    public static void assertFileContent(Path dir, String filename, String expected) throws IOException {
-        Assert.assertThat(Files.exists(dir), is(true));
-        Path file = dir.resolve(filename);
-        if (expected == null) {
-            Assert.assertThat("file [" + file + "] should not exist.", Files.exists(file), is(false));
-        } else {
-            assertFileExists(file);
-            String fileContent = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
-            // trim the string content to prevent different handling on windows vs. unix and CR chars...
-            Assert.assertThat(fileContent.trim(), equalTo(expected.trim()));
-        }
     }
 
     @Test

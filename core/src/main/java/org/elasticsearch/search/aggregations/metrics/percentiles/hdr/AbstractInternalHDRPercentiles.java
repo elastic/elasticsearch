@@ -89,7 +89,10 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
             keys[i] = in.readDouble();
         }
         long minBarForHighestToLowestValueRatio = in.readLong();
-        ByteBuffer stateBuffer = ByteBuffer.wrap(in.readByteArray());
+        final int serializedLen = in.readVInt();
+        byte[] bytes = new byte[serializedLen];
+        in.readBytes(bytes, 0, serializedLen);
+        ByteBuffer stateBuffer = ByteBuffer.wrap(bytes);
         try {
             state = DoubleHistogram.decodeFromCompressedByteBuffer(stateBuffer, minBarForHighestToLowestValueRatio);
         } catch (DataFormatException e) {
@@ -107,8 +110,9 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
         }
         out.writeLong(state.getHighestToLowestValueRatio());
         ByteBuffer stateBuffer = ByteBuffer.allocate(state.getNeededByteBufferCapacity());
-        state.encodeIntoCompressedByteBuffer(stateBuffer);
-        out.writeByteArray(stateBuffer.array());
+        final int serializedLen = state.encodeIntoCompressedByteBuffer(stateBuffer);
+        out.writeVInt(serializedLen);
+        out.writeBytes(stateBuffer.array(), 0, serializedLen);
         out.writeBoolean(keyed);
     }
 

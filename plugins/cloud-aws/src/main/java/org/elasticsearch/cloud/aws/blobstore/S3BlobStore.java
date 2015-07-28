@@ -73,11 +73,30 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
         }
 
         this.numberOfRetries = maxRetries;
-        if (!client.doesBucketExist(bucket)) {
-            if (region != null) {
-                client.createBucket(bucket, region);
-            } else {
-                client.createBucket(bucket);
+
+        int retry = 0;
+
+        while (retry <= this.numberOfRetries) {
+            try {
+                if (!client.doesBucketExist(bucket)) {
+                    if (region != null) {
+                        client.createBucket(bucket, region);
+                    } else {
+                        client.createBucket(bucket);
+                    }
+                }
+                break;
+            } catch (AmazonClientException e) {
+                if (this.shouldRetry(e) && retry < this.numberOfRetries) {
+                    try {
+                        Thread.sleep(getWaitInterval(retry));
+                    } catch (InterruptedException e1) {
+                        // do nothing
+                    }
+                    retry++;
+                } else {
+                    throw e;
+                }
             }
         }
     }

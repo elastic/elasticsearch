@@ -168,13 +168,13 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
         rerouteWithAllocateLocalGateway(commonSettings);
     }
 
+    /**
+     * Test that we don't miss any reroutes when concurrent_recoveries
+     * is set very low and there are a large number of unassigned shards.
+     */
     @Test
     @LuceneTestCase.Slow
     public void testDelayWithALargeAmountOfShards() throws Exception {
-        /**
-         * Test that we don't miss any reroutes when concurrent_recoveries
-         * is set very low and there are a large number of unassigned shards.
-         */
         Settings commonSettings = settingsBuilder()
                 .put("gateway.type", "local")
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CONCURRENT_RECOVERIES, 1)

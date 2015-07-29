@@ -31,6 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
 /**
+ * Tests for EsExecutors and its components like EsAbortPolicy.
  */
 public class EsExecutorsTests extends ESTestCase {
 
@@ -38,7 +39,6 @@ public class EsExecutorsTests extends ESTestCase {
         return TimeUnit.values()[between(0, TimeUnit.values().length - 1)];
     }
 
-    @Test
     public void testFixedForcedExecution() throws Exception {
         EsThreadPoolExecutor executor = EsExecutors.newFixed(1, 1, EsExecutors.daemonThreadFactory("test"));
         final CountDownLatch wait = new CountDownLatch(1);
@@ -101,7 +101,6 @@ public class EsExecutorsTests extends ESTestCase {
         executor.shutdownNow();
     }
 
-    @Test
     public void testFixedRejected() throws Exception {
         EsThreadPoolExecutor executor = EsExecutors.newFixed(1, 1, EsExecutors.daemonThreadFactory("test"));
         final CountDownLatch wait = new CountDownLatch(1);
@@ -156,7 +155,6 @@ public class EsExecutorsTests extends ESTestCase {
         terminate(executor);
     }
 
-    @Test
     public void testScaleUp() throws Exception {
         final int min = between(1, 3);
         final int max = between(min + 1, 6);
@@ -193,7 +191,6 @@ public class EsExecutorsTests extends ESTestCase {
         terminate(pool);
     }
 
-    @Test
     public void testScaleDown() throws Exception {
         final int min = between(1, 3);
         final int max = between(min + 1, 6);

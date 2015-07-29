@@ -315,6 +315,8 @@
                             <goal>run</goal>
                         </goals>
                         <configuration>
+                            <!-- https://github.com/elastic/elasticsearch/issues/12528 -->
+                            <skip>true</skip>
                             <target>
                                 <condition property="licenses.exists">
                                     <available file="${basedir}/../licenses" type="dir"/>

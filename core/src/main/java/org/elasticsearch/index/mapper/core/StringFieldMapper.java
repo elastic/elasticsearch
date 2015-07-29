@@ -24,6 +24,7 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -52,6 +53,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
 public class StringFieldMapper extends FieldMapper implements AllFieldMapper.IncludeInAll {
 
     public static final String CONTENT_TYPE = "string";
+    private static final int POSITION_OFFSET_GAP_USE_ANALYZER = -1;
 
     public static class Defaults {
         public static final MappedFieldType FIELD_TYPE = new StringFieldType();
@@ -62,15 +64,36 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
 
         // NOTE, when adding defaults here, make sure you add them in the builder
         public static final String NULL_VALUE = null;
-        public static final int POSITION_OFFSET_GAP = 0;
+        /**
+         * Post 2.1 default for position_offset_gap. Set to 100 so that
+         * phrase queries of reasonably high slop will not match across field
+         * values.
+         */
+        public static final int POSITION_OFFSET_GAP = 100;
+        public static final int POSITION_OFFSET_GAP_PRE_2_1 = 0;
         public static final int IGNORE_ABOVE = -1;
+
+        /**
+         * The default position_offset_gap for a particular version of Elasticsearch.
+         */
+        public static int positionOffsetGap(Version version) {
+            if (version.before(Version.V_2_1_0)) {
+                return POSITION_OFFSET_GAP_PRE_2_1;
+            }
+            return POSITION_OFFSET_GAP;
+        }
     }
 
     public static class Builder extends FieldMapper.Builder<Builder, StringFieldMapper> {
 
         protected String nullValue = Defaults.NULL_VALUE;
 
-        protected int positionOffsetGap = Defaults.POSITION_OFFSET_GAP;
+        /**
+         * The distance between tokens from different values in the same field.
+         * POSITION_OFFSET_GAP_USE_ANALYZER means default to the analyzer's
+         * setting which in turn defaults to Defaults.POSITION_OFFSET_GAP.
+         */
+        protected int positionOffsetGap = POSITION_OFFSET_GAP_USE_ANALYZER;
 
         protected int ignoreAbove = Defaults.IGNORE_ABOVE;
 
@@ -102,7 +125,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
 
         @Override
         public StringFieldMapper build(BuilderContext context) {
-            if (positionOffsetGap > 0) {
+            if (positionOffsetGap != POSITION_OFFSET_GAP_USE_ANALYZER) {
                 fieldType.setIndexAnalyzer(new NamedAnalyzer(fieldType.indexAnalyzer(), positionOffsetGap));
                 fieldType.setSearchAnalyzer(new NamedAnalyzer(fieldType.searchAnalyzer(), positionOffsetGap));
                 fieldType.setSearchQuoteAnalyzer(new NamedAnalyzer(fieldType.searchQuoteAnalyzer(), positionOffsetGap));
@@ -154,7 +177,11 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                     builder.searchQuotedAnalyzer(analyzer);
                     iterator.remove();
                 } else if (propName.equals("position_offset_gap")) {
-                    builder.positionOffsetGap(XContentMapValues.nodeIntegerValue(propNode, -1));
+                    int newPositionOffsetGap = XContentMapValues.nodeIntegerValue(propNode, -1);
+                    if (newPositionOffsetGap < 0) {
+                        throw new MapperParsingException("positions_offset_gap less than 0 aren't allowed.");
+                    }
+                    builder.positionOffsetGap(newPositionOffsetGap);
                     // we need to update to actual analyzers if they are not set in this case...
                     // so we can inject the position offset gap...
                     if (builder.fieldType().indexAnalyzer() == null) {
@@ -354,7 +381,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             builder.field("include_in_all", false);
         }
 
-        if (includeDefaults || positionOffsetGap != Defaults.POSITION_OFFSET_GAP) {
+        if (includeDefaults || positionOffsetGap != POSITION_OFFSET_GAP_USE_ANALYZER) {
             builder.field("position_offset_gap", positionOffsetGap);
         }
         NamedAnalyzer searchQuoteAnalyzer = fieldType().searchQuoteAnalyzer();

@@ -44,7 +44,7 @@ In order to run Elasticsearch from source without building a package, you can
 run it using Maven:
 
 -------------------------------------
-mvn package -Drun -DskipTests
+./run.sh
 -------------------------------------
 
 === Test case filtering.

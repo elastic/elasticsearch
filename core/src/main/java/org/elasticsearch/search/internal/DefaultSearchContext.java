@@ -129,10 +129,10 @@ public class DefaultSearchContext extends SearchContext {
     private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
 
     public DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
-                         Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard,
-                         ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
-                         BigArrays bigArrays, Counter timeEstimateCounter, ParseFieldMatcher parseFieldMatcher,
-                         TimeValue timeout
+                                Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard,
+                                ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
+                                BigArrays bigArrays, Counter timeEstimateCounter, ParseFieldMatcher parseFieldMatcher,
+                                TimeValue timeout
     ) {
         super(parseFieldMatcher);
         this.id = id;
@@ -305,13 +305,14 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public FetchSubPhaseContext getFetchSubPhaseContext(FetchSubPhase.ContextFactory contextFactory) {
+    public <SubPhaseContext extends FetchSubPhaseContext> SubPhaseContext getFetchSubPhaseContext(FetchSubPhase.ContextFactory<SubPhaseContext> contextFactory) {
         String subPhaseName = contextFactory.getName();
         if (subPhaseContexts.get(subPhaseName) == null) {
             subPhaseContexts.put(subPhaseName, contextFactory.newContextInstance());
         }
-        return subPhaseContexts.get(subPhaseName);
+        return (SubPhaseContext) subPhaseContexts.get(subPhaseName);
     }
+
 
     @Override
     public SearchContextHighlight highlight() {

@@ -33,7 +33,6 @@ import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.text.NumberFormat;
 import java.util.Locale;
-import java.util.TimeZone;
 
 /**
  * A strategy for formatting time represented as millis long value to string
@@ -61,7 +60,6 @@ public interface ValueFormatter extends Streamable {
     String format(long value);
 
     /**
-     * The 
      * @param value double The double value to format.
      * @return      The formatted value as string
      */
@@ -104,8 +102,8 @@ public interface ValueFormatter extends Streamable {
         public static final ValueFormatter DEFAULT = new ValueFormatter.DateTime(DateFieldMapper.Defaults.DATE_TIME_FORMATTER);
         private DateTimeZone timeZone = DateTimeZone.UTC;
 
-        public static DateTime mapper(DateFieldMapper.DateFieldType fieldType) {
-            return new DateTime(fieldType.dateTimeFormatter());
+        public static DateTime mapper(DateFieldMapper.DateFieldType fieldType, DateTimeZone timezone) {
+            return new DateTime(fieldType.dateTimeFormatter(), timezone);
         }
 
         static final byte ID = 2;
@@ -122,13 +120,19 @@ public interface ValueFormatter extends Streamable {
             this.formatter = formatter;
         }
 
+        public DateTime(String format, DateTimeZone timezone) {
+            this.formatter = Joda.forPattern(format);
+            this.timeZone = timezone != null ? timezone : DateTimeZone.UTC;
+        }
+
+        public DateTime(FormatDateTimeFormatter formatter, DateTimeZone timezone) {
+            this.formatter = formatter;
+            this.timeZone = timezone != null ? timezone : DateTimeZone.UTC;
+        }
+
         @Override
         public String format(long time) {
             return formatter.printer().withZone(timeZone).print(time);
-        }
-
-        public void setTimeZone(DateTimeZone timeZone) {
-            this.timeZone = timeZone;
         }
 
         @Override
@@ -264,7 +268,7 @@ public interface ValueFormatter extends Streamable {
 
         }
     }
-    
+
     static class BooleanFormatter implements ValueFormatter {
 
         static final byte ID = 10;

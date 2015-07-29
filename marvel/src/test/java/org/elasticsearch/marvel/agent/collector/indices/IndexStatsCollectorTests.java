@@ -5,13 +5,15 @@
  */
 package org.elasticsearch.marvel.agent.collector.indices;
 
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettingsService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.Collection;
@@ -23,15 +25,17 @@ import static org.hamcrest.Matchers.*;
 public class IndexStatsCollectorTests extends ElasticsearchSingleNodeTest {
 
     @Test
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/357")
-    @Ignore
     public void testIndexStatsCollectorNoIndices() throws Exception {
+        waitForNoBlocksOnNode();
+
         Collection<MarvelDoc> results = newIndexStatsCollector().doCollect();
         assertThat(results, is(empty()));
     }
 
     @Test
     public void testIndexStatsCollectorOneIndex() throws Exception {
+        waitForNoBlocksOnNode();
+
         int nbDocs = randomIntBetween(1, 20);
         for (int i = 0; i < nbDocs; i++) {
             client().prepareIndex("test", "test").setSource("num", i).get();
@@ -63,6 +67,8 @@ public class IndexStatsCollectorTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testIndexStatsCollectorMultipleIndices() throws Exception {
+        waitForNoBlocksOnNode();
+
         int nbIndices = randomIntBetween(1, 5);
         int[] docsPerIndex = new int[nbIndices];
 
@@ -116,5 +122,16 @@ public class IndexStatsCollectorTests extends ElasticsearchSingleNodeTest {
                 getInstanceFromNode(ClusterName.class),
                 client(),
                 getInstanceFromNode(MarvelSettingsService.class));
+    }
+
+    public void waitForNoBlocksOnNode() throws InterruptedException {
+        final long start = System.currentTimeMillis();
+        final TimeValue timeout = TimeValue.timeValueSeconds(30);
+        ImmutableSet<ClusterBlock> blocks;
+        do {
+            blocks = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState().blocks().global();
+        }
+        while (!blocks.isEmpty() && (System.currentTimeMillis() - start) < timeout.millis());
+        assertTrue(blocks.isEmpty());
     }
 }

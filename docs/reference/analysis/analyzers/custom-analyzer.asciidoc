@@ -20,8 +20,10 @@ filters.
 |`char_filter` |An optional list of logical / registered name of char
 filters.
 
-|`position_offset_gap` |An optional number of positions to increment 
-between each field value of a field using this analyzer.
+|`position_offset_gap` |An optional number of positions to increment
+between each field value of a field using this analyzer. Defaults to 100.
+100 was chosen because it prevents phrase queries with reasonably large
+slops (less than 100) from matching terms across field values.
 |=======================================================================
 
 Here is an example:
@@ -30,7 +32,7 @@ Here is an example:
 --------------------------------------------------
 index :
     analysis :
-        analyzer : 
+        analyzer :
             myAnalyzer2 :
                 type : custom
                 tokenizer : myTokenizer1

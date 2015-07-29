@@ -29,6 +29,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 
@@ -215,19 +216,38 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
 
         Map<String, NamedAnalyzer> analyzers = newHashMap();
         for (AnalyzerProvider analyzerFactory : analyzerProviders.values()) {
+            /*
+             * Lucene defaults positionOffsetGap to 0 in all analyzers but
+             * Elasticsearch defaults them to 0 only before version 2.1
+             * and 100 afterwards so we override the positionOffsetGap if it
+             * doesn't match here.
+             */
+            int overridePositionOffsetGap = StringFieldMapper.Defaults.positionOffsetGap(Version.indexCreated(indexSettings));
             if (analyzerFactory instanceof CustomAnalyzerProvider) {
                 ((CustomAnalyzerProvider) analyzerFactory).build(this);
+                /*
+                 * Custom analyzers already default to the correct, version
+                 * dependent positionOffsetGap and the user is be able to
+                 * configure the positionOffsetGap directly on the analyzer so
+                 * we disable overriding the positionOffsetGap to preserve the
+                 * user's setting.
+                 */
+                overridePositionOffsetGap = Integer.MIN_VALUE;
             }
             Analyzer analyzerF = analyzerFactory.get();
             if (analyzerF == null) {
                 throw new IllegalArgumentException("analyzer [" + analyzerFactory.name() + "] created null analyzer");
             }
             NamedAnalyzer analyzer;
-            // if we got a named analyzer back, use it...
             if (analyzerF instanceof NamedAnalyzer) {
+                // if we got a named analyzer back, use it...
                 analyzer = (NamedAnalyzer) analyzerF;
+                if (overridePositionOffsetGap >= 0 && analyzer.getPositionIncrementGap(analyzer.name()) != overridePositionOffsetGap) {
+                    // unless the positionOffsetGap needs to be overridden
+                    analyzer = new NamedAnalyzer(analyzer, overridePositionOffsetGap);
+                }
             } else {
-                analyzer = new NamedAnalyzer(analyzerFactory.name(), analyzerFactory.scope(), analyzerF);
+                analyzer = new NamedAnalyzer(analyzerFactory.name(), analyzerFactory.scope(), analyzerF, overridePositionOffsetGap);
             }
             analyzers.put(analyzerFactory.name(), analyzer);
             analyzers.put(Strings.toCamelCase(analyzerFactory.name()), analyzer);

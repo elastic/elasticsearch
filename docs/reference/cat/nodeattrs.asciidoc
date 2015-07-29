@@ -1,0 +1,71 @@
+[[cat-nodeattrs]]
+== cat nodeattrs
+
+The `nodeattrs` command shows custom node attributes.
+
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+% curl 192.168.56.10:9200/_cat/nodeattrs
+node       host    ip          attr  value
+Black Bolt epsilon 192.168.1.8 rack  rack314
+Black Bolt epsilon 192.168.1.8 azone us-east-1
+--------------------------------------------------
+
+The first few columns give you basic info per node.
+
+
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+node       host    ip
+Black Bolt epsilon 192.168.1.8
+Black Bolt epsilon 192.168.1.8
+--------------------------------------------------
+
+
+The attr and value columns can give you a picture of custom node attributes.
+
+[source,sh]
+--------------------------------------------------
+attr  value
+rack  rack314
+azone us-east-1
+--------------------------------------------------
+
+[float]
+=== Columns
+
+Below is an exhaustive list of the existing headers that can be
+passed to `nodes?h=` to retrieve the relevant details in ordered
+columns.  If no headers are specified, then those marked to Appear
+by Default will appear. If any header is specified, then the defaults
+are not used.
+
+Aliases can be used in place of the full header name for brevity.
+Columns appear in the order that they are listed below unless a
+different order is specified (e.g., `h=attr,value` versus `h=value,attr`).
+
+When specifying headers, the headers are not placed in the output
+by default.  To have the headers appear in the output, use verbose
+mode (`v`). The header name will match the supplied value (e.g.,
+`pid` versus `p`).  For example:
+
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+% curl 192.168.56.10:9200/_cat/nodeattrs?v&h=name,pid,attr,value
+name       pid   attr  value
+Black Bolt 28000 rack  rack314
+Black Bolt 28000 azone us-east-1
+--------------------------------------------------
+
+[cols="<,<,<,<,<",options="header",subs="normal"]
+|=======================================================================
+|Header |Alias |Appear by Default |Description |Example
+|`node`|`name`|Yes|Name of the node|Black Bolt
+|`id` |`nodeId` |No |Unique node ID |k0zy
+|`pid` |`p` |No |Process ID |13061
+|`host` |`h` |Yes |Host name |n1
+|`ip` |`i` |Yes |IP address |127.0.1.1
+|`port` |`po` |No |Bound transport port |9300
+|`attr` | `attr.name` | Yes | Attribute name | rack
+|`value` | `attr.value` | Yes | Attribute value | rack123
+|=======================================================================

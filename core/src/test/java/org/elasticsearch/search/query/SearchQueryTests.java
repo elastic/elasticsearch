@@ -1854,6 +1854,24 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testAllFieldEmptyMapping() throws Exception {
+        client().prepareIndex("myindex", "mytype").setId("1").setSource("{}").setRefresh(true).get();
+        SearchResponse response = client().prepareSearch("myindex").setQuery(matchQuery("_all", "foo")).get();
+        assertNoFailures(response);
+    }
+
+    @Test
+    public void testAllDisabledButQueried() throws Exception {
+        createIndex("myindex");
+        assertAcked(client().admin().indices().preparePutMapping("myindex").setType("mytype").setSource(
+                jsonBuilder().startObject().startObject("mytype").startObject("_all").field("enabled", false)));
+        client().prepareIndex("myindex", "mytype").setId("1").setSource("bar", "foo").setRefresh(true).get();
+        SearchResponse response = client().prepareSearch("myindex").setQuery(matchQuery("_all", "foo")).get();
+        assertNoFailures(response);
+        assertHitCount(response, 0);
+    }
+
+    @Test
     public void testIndicesQuery() throws Exception {
         createIndex("index1", "index2", "index3");
 

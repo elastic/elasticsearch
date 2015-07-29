@@ -150,7 +150,7 @@ limit to `32766 / 3 = 10922` since UTF-8 characters may occupy at most 3
 bytes.
 
 |`position_offset_gap` |Position increment gap between field instances
-with the same field name. Defaults to 0.
+with the same field name. Defaults to 10.
 |=======================================================================
 
 The `string` type also support custom indexing parameters associated

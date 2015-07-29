@@ -62,7 +62,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
 
         // NOTE, when adding defaults here, make sure you add them in the builder
         public static final String NULL_VALUE = null;
-        public static final int POSITION_OFFSET_GAP = 0;
+        public static final int POSITION_OFFSET_GAP = 10;
         public static final int IGNORE_ABOVE = -1;
     }
 

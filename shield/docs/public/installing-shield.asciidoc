@@ -137,8 +137,7 @@ The above command needs to be executed on each cluster, since the same user need
 as on every connected cluster.
 
 The following is the configuration required on the Tribe Node, that needs to be added to `elasticsearch.yml`.
-Elasticsearch allows to list specific settings per cluster. We disable multicast discovery as described in the
-<<disable-multicast, Disable Multicast section>> and configure the proper unicast discovery hosts for each cluster,
+Elasticsearch allows to list specific settings per cluster. We disable multicast discovery and configure the proper unicast discovery hosts for each cluster,
 as well as their cluster names:
 
 [source,yaml]

@@ -70,7 +70,12 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
 
         protected String nullValue = Defaults.NULL_VALUE;
 
-        protected int positionOffsetGap = Defaults.POSITION_OFFSET_GAP;
+        /**
+         * The offset gap between different values of the same field. -1 means
+         * use the default from the analyzer which in turn defaults to
+         * StringFieldMapp.Defaults.POSITION_OFFSET_GAP.
+         */
+        protected int positionOffsetGap = -1;
 
         protected int ignoreAbove = Defaults.IGNORE_ABOVE;
 
@@ -102,10 +107,20 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
 
         @Override
         public StringFieldMapper build(BuilderContext context) {
-            if (positionOffsetGap > 0) {
-                fieldType.setIndexAnalyzer(new NamedAnalyzer(fieldType.indexAnalyzer(), positionOffsetGap));
-                fieldType.setSearchAnalyzer(new NamedAnalyzer(fieldType.searchAnalyzer(), positionOffsetGap));
-                fieldType.setSearchQuoteAnalyzer(new NamedAnalyzer(fieldType.searchQuoteAnalyzer(), positionOffsetGap));
+            // Let the mapping override the position_offset_gap in the analyzer if it is different.
+            if (positionOffsetGap != -1) {
+                if (fieldType.indexAnalyzer() != null &&
+                        positionOffsetGap != fieldType.indexAnalyzer().getOffsetGap(fieldType.indexAnalyzer().name())) {
+                    fieldType.setIndexAnalyzer(new NamedAnalyzer(fieldType.indexAnalyzer(), positionOffsetGap));                
+                }
+                if (fieldType.searchAnalyzer() != null &&
+                        positionOffsetGap != fieldType.searchAnalyzer().getOffsetGap(fieldType.searchAnalyzer().name())) {
+                    fieldType.setSearchAnalyzer(new NamedAnalyzer(fieldType.searchAnalyzer(), positionOffsetGap));                
+                }
+                if (fieldType.searchQuoteAnalyzer() != null &&
+                        positionOffsetGap != fieldType.searchQuoteAnalyzer().getOffsetGap(fieldType.searchQuoteAnalyzer().name())) {
+                    fieldType.setSearchQuoteAnalyzer(new NamedAnalyzer(fieldType.searchQuoteAnalyzer(), positionOffsetGap));                
+                }
             }
             // if the field is not analyzed, then by default, we should omit norms and have docs only
             // index options, as probably what the user really wants

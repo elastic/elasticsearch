@@ -26,11 +26,11 @@ import org.elasticsearch.search.internal.SearchContext;
 /**
  * A parse element for a {@link org.elasticsearch.search.fetch.FetchSubPhase} that is used when parsing a search request.
  */
-public abstract class FetchSubPhaseParseElement implements SearchParseElement {
+public abstract class FetchSubPhaseParseElement<SubPhaseContext extends FetchSubPhaseContext> implements SearchParseElement {
 
     @Override
     final public void parse(XContentParser parser, SearchContext context) throws Exception {
-        FetchSubPhaseContext fetchSubPhaseContext = context.getFetchSubPhaseContext(getContextFactory());
+        SubPhaseContext fetchSubPhaseContext = context.getFetchSubPhaseContext(getContextFactory());
         // this is to make sure that the SubFetchPhase knows it should execute
         fetchSubPhaseContext.setHitExecutionNeeded(true);
         innerParse(parser, fetchSubPhaseContext);
@@ -39,10 +39,10 @@ public abstract class FetchSubPhaseParseElement implements SearchParseElement {
     /**
      * Implement the actual parsing here.
      */
-    protected abstract void innerParse(XContentParser parser, FetchSubPhaseContext fetchSubPhaseContext) throws Exception;
+    protected abstract void innerParse(XContentParser parser, SubPhaseContext fetchSubPhaseContext) throws Exception;
 
     /**
      * Return the ContextFactory for this FetchSubPhase.
      */
-    protected abstract FetchSubPhase.ContextFactory getContextFactory();
+    protected abstract FetchSubPhase.ContextFactory<SubPhaseContext> getContextFactory();
 }

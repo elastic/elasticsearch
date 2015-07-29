@@ -36,11 +36,10 @@ import org.elasticsearch.search.internal.SearchContext;
  * }
  * </pre>
  */
-public class FieldDataFieldsParseElement extends FetchSubPhaseParseElement {
+public class FieldDataFieldsParseElement extends FetchSubPhaseParseElement<FieldDataFieldsContext> {
 
     @Override
-    protected void innerParse(XContentParser parser, FetchSubPhaseContext fetchSubPhaseContext) throws Exception {
-        FieldDataFieldsContext fieldDataFieldsContext = (FieldDataFieldsContext) fetchSubPhaseContext;
+    protected void innerParse(XContentParser parser, FieldDataFieldsContext fieldDataFieldsContext) throws Exception {
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.START_ARRAY) {
             while (parser.nextToken() != XContentParser.Token.END_ARRAY) {

@@ -121,7 +121,7 @@ public interface FetchSubPhase {
      * Fetch phases that use the plugin mechanism must provide a ContextFactory to the SearchContext that creates the fetch phase context and also associates them with a name.
      * See {@link SearchContext#getFetchSubPhaseContext(FetchSubPhase.ContextFactory)}
      */
-    public interface ContextFactory {
+    public interface ContextFactory<SubPhaseContext extends FetchSubPhaseContext> {
 
         /**
          * The name of the context.
@@ -131,6 +131,6 @@ public interface FetchSubPhase {
         /**
          * Creates a new instance of a FetchSubPhaseContext that holds all information a FetchSubPhase needs to execute on hits.
          */
-        public FetchSubPhaseContext newContextInstance();
+        public SubPhaseContext newContextInstance();
     }
 }

@@ -164,7 +164,7 @@ public abstract class SearchContext implements Releasable, HasContextAndHeaders 
 
     public abstract SearchContext aggregations(SearchContextAggregations aggregations);
 
-    public abstract FetchSubPhaseContext getFetchSubPhaseContext(FetchSubPhase.ContextFactory contextFactory);
+    public abstract  <SubPhaseContext extends FetchSubPhaseContext> SubPhaseContext getFetchSubPhaseContext(FetchSubPhase.ContextFactory<SubPhaseContext> contextFactory);
 
     public abstract SearchContextHighlight highlight();
 

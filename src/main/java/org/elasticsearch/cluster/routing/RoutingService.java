@@ -57,6 +57,7 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
     private AtomicBoolean rerouting = new AtomicBoolean();
     private volatile long registeredNextDelaySetting = Long.MAX_VALUE;
     private volatile ScheduledFuture registeredNextDelayFuture;
+    private volatile long unassignedShardsAllocatedTimestamp = 0;
 
     @Inject
     public RoutingService(Settings settings, ThreadPool threadPool, ClusterService clusterService, AllocationService allocationService) {
@@ -88,6 +89,19 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
     }
 
     /**
+     * Update the last time the allocator tried to assign unassigned shards
+     *
+     * This is used so that both the GatewayAllocator and RoutingService use a
+     * consistent timestamp for comparing which shards have been delayed to
+     * avoid a race condition where GatewayAllocator thinks the shard should
+     * be delayed and the RoutingService thinks it has already passed the delay
+     * and that the GatewayAllocator has/will handle it.
+     */
+    public void setUnassignedShardsAllocatedTimestamp(long timeInMillis) {
+        this.unassignedShardsAllocatedTimestamp = timeInMillis;
+    }
+
+    /**
      * Initiates a reroute.
      */
     public final void reroute(String reason) {
@@ -108,20 +122,29 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
             if (nextDelaySetting > 0 && nextDelaySetting < registeredNextDelaySetting) {
                 FutureUtils.cancel(registeredNextDelayFuture);
                 registeredNextDelaySetting = nextDelaySetting;
-                TimeValue nextDelay = TimeValue.timeValueMillis(UnassignedInfo.findNextDelayedAllocationIn(settings, event.state()));
-                logger.info("delaying allocation for [{}] unassigned shards, next check in [{}]", UnassignedInfo.getNumberOfDelayedUnassigned(settings, event.state()), nextDelay);
-                registeredNextDelayFuture = threadPool.schedule(nextDelay, ThreadPool.Names.SAME, new AbstractRunnable() {
-                    @Override
-                    protected void doRun() throws Exception {
-                        registeredNextDelaySetting = Long.MAX_VALUE;
-                        reroute("assign delayed unassigned shards");
-                    }
+                // We use System.currentTimeMillis here because we want the
+                // next delay from the "now" perspective, rather than the
+                // delay from the last time the GatewayAllocator tried to
+                // assign/delay the shard
+                TimeValue nextDelay = TimeValue.timeValueMillis(UnassignedInfo.findNextDelayedAllocationIn(System.currentTimeMillis(), settings, event.state()));
+                int unassignedDelayedShards = UnassignedInfo.getNumberOfDelayedUnassigned(unassignedShardsAllocatedTimestamp, settings, event.state());
+                if (unassignedDelayedShards > 0) {
+                    logger.info("delaying allocation for [{}] unassigned shards, next check in [{}]",
+                            unassignedDelayedShards, nextDelay);
+                    registeredNextDelayFuture = threadPool.schedule(nextDelay, ThreadPool.Names.SAME, new AbstractRunnable() {
+                        @Override
+                        protected void doRun() throws Exception {
+                            registeredNextDelaySetting = Long.MAX_VALUE;
+                            reroute("assign delayed unassigned shards");
+                        }
 
-                    @Override
-                    public void onFailure(Throwable t) {
-                        logger.warn("failed to schedule/execute reroute post unassigned shard", t);
-                    }
-                });
+                        @Override
+                        public void onFailure(Throwable t) {
+                            logger.warn("failed to schedule/execute reroute post unassigned shard", t);
+                            registeredNextDelaySetting = Long.MAX_VALUE;
+                        }
+                    });
+                }
             } else {
                 logger.trace("no need to schedule reroute due to delayed unassigned, next_delay_setting [{}], registered [{}]", nextDelaySetting, registeredNextDelaySetting);
             }

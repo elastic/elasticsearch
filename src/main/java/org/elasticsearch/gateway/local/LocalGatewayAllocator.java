@@ -145,6 +145,11 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
 
     @Override
     public boolean allocateUnassigned(RoutingAllocation allocation) {
+        // Take a snapshot of the current time and tell the RoutingService
+        // about it, so it will use a consistent timestamp for delays
+        long lastAllocateUnassignedRun = System.currentTimeMillis();
+        this.routingService.setUnassignedShardsAllocatedTimestamp(lastAllocateUnassignedRun);
+
         boolean changed = false;
         DiscoveryNodes nodes = allocation.nodes();
         RoutingNodes routingNodes = allocation.routingNodes();
@@ -526,7 +531,7 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
                 // note: we only care about replica in delayed allocation, since if we have an unassigned primary it
                 //       will anyhow wait to find an existing copy of the shard to be allocated
                 // note: the other side of the equation is scheduling a reroute in a timely manner, which happens in the RoutingService
-                long delay = shard.unassignedInfo().getDelayAllocationExpirationIn(settings, indexMetaData.getSettings());
+                long delay = shard.unassignedInfo().getDelayAllocationExpirationIn(lastAllocateUnassignedRun, settings, indexMetaData.getSettings());
                 if (delay > 0) {
                     logger.debug("[{}][{}]: delaying allocation of [{}] for [{}]", shard.index(), shard.id(), shard, TimeValue.timeValueMillis(delay));
                     /**

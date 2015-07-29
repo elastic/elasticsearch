@@ -272,11 +272,15 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
             concreteIndices = clusterState.metaData().concreteIndices(request.indicesOptions(), request.indices());
         } catch (IndexMissingException e) {
             // one of the specified indices is not there - treat it as RED.
-            ClusterHealthResponse response = new ClusterHealthResponse(clusterName.value(), Strings.EMPTY_ARRAY, clusterState, numberOfPendingTasks, numberOfInFlightFetch, UnassignedInfo.getNumberOfDelayedUnassigned(settings, clusterState));
+            ClusterHealthResponse response = new ClusterHealthResponse(clusterName.value(),
+                    Strings.EMPTY_ARRAY, clusterState, numberOfPendingTasks, numberOfInFlightFetch,
+                    UnassignedInfo.getNumberOfDelayedUnassigned(System.currentTimeMillis(), settings, clusterState));
             response.status = ClusterHealthStatus.RED;
             return response;
         }
 
-        return new ClusterHealthResponse(clusterName.value(), concreteIndices, clusterState, numberOfPendingTasks, numberOfInFlightFetch, UnassignedInfo.getNumberOfDelayedUnassigned(settings, clusterState));
+        return new ClusterHealthResponse(clusterName.value(),
+                concreteIndices, clusterState, numberOfPendingTasks, numberOfInFlightFetch,
+                UnassignedInfo.getNumberOfDelayedUnassigned(System.currentTimeMillis(), settings, clusterState));
     }
 }

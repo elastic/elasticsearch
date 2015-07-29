@@ -117,7 +117,7 @@ public class FetchSubPhasePluginTests extends ElasticsearchIntegrationTest {
 
     public static class TermVectorsFetchSubPhase implements FetchSubPhase {
 
-        public static final ContextFactory CONTEXT_FACTORY = new ContextFactory() {
+        public static final ContextFactory<TermVectorsFetchContext> CONTEXT_FACTORY = new ContextFactory<TermVectorsFetchContext>() {
 
             @Override
             public String getName() {
@@ -125,7 +125,7 @@ public class FetchSubPhasePluginTests extends ElasticsearchIntegrationTest {
             }
 
             @Override
-            public FetchSubPhaseContext newContextInstance() {
+            public TermVectorsFetchContext newContextInstance() {
                 return new TermVectorsFetchContext();
             }
         };
@@ -158,7 +158,7 @@ public class FetchSubPhasePluginTests extends ElasticsearchIntegrationTest {
 
         @Override
         public void hitExecute(SearchContext context, HitContext hitContext) {
-            String field = ((TermVectorsFetchContext) context.getFetchSubPhaseContext(CONTEXT_FACTORY)).getField();
+            String field = context.getFetchSubPhaseContext(CONTEXT_FACTORY).getField();
 
             if (hitContext.hit().fieldsOrNull() == null) {
                 hitContext.hit().fields(new HashMap<String, SearchHitField>());

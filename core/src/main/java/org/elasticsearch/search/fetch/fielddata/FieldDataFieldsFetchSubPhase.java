@@ -45,7 +45,7 @@ import java.util.Map;
 public class FieldDataFieldsFetchSubPhase implements FetchSubPhase {
 
     public static final String[] NAMES = {"fielddata_fields", "fielddataFields"};
-    public static final ContextFactory CONTEXT_FACTORY = new ContextFactory() {
+    public static final ContextFactory<FieldDataFieldsContext> CONTEXT_FACTORY = new ContextFactory<FieldDataFieldsContext>() {
 
         @Override
         public String getName() {
@@ -53,7 +53,7 @@ public class FieldDataFieldsFetchSubPhase implements FetchSubPhase {
         }
 
         @Override
-        public FetchSubPhaseContext newContextInstance() {
+        public FieldDataFieldsContext newContextInstance() {
             return new FieldDataFieldsContext();
         }
     };
@@ -86,7 +86,7 @@ public class FieldDataFieldsFetchSubPhase implements FetchSubPhase {
 
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) {
-        for (FieldDataFieldsContext.FieldDataField field : ((FieldDataFieldsContext)context.getFetchSubPhaseContext(CONTEXT_FACTORY)).fields()) {
+        for (FieldDataFieldsContext.FieldDataField field : context.getFetchSubPhaseContext(CONTEXT_FACTORY).fields()) {
             if (hitContext.hit().fieldsOrNull() == null) {
                 hitContext.hit().fields(new HashMap<String, SearchHitField>(2));
             }

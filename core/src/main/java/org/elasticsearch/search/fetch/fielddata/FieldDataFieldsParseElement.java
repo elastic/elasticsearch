@@ -39,7 +39,7 @@ import org.elasticsearch.search.internal.SearchContext;
 public class FieldDataFieldsParseElement extends FetchSubPhaseParseElement<FieldDataFieldsContext> {
 
     @Override
-    protected void innerParse(XContentParser parser, FieldDataFieldsContext fieldDataFieldsContext) throws Exception {
+    protected void innerParse(XContentParser parser, FieldDataFieldsContext fieldDataFieldsContext, SearchContext searchContext) throws Exception {
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.START_ARRAY) {
             while (parser.nextToken() != XContentParser.Token.END_ARRAY) {

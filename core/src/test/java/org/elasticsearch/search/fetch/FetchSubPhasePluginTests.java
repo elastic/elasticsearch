@@ -186,7 +186,7 @@ public class FetchSubPhasePluginTests extends ElasticsearchIntegrationTest {
     public static class TermVectorsFetchParseElement extends FetchSubPhaseParseElement<TermVectorsFetchContext> {
 
         @Override
-        protected void innerParse(XContentParser parser, TermVectorsFetchContext termVectorsFetchContext) throws Exception {
+        protected void innerParse(XContentParser parser, TermVectorsFetchContext termVectorsFetchContext, SearchContext searchContext) throws Exception {
             XContentParser.Token token = parser.currentToken();
             if (token == XContentParser.Token.VALUE_STRING) {
                 String fieldName = parser.text();

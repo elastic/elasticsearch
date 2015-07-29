@@ -33,13 +33,13 @@ public abstract class FetchSubPhaseParseElement<SubPhaseContext extends FetchSub
         SubPhaseContext fetchSubPhaseContext = context.getFetchSubPhaseContext(getContextFactory());
         // this is to make sure that the SubFetchPhase knows it should execute
         fetchSubPhaseContext.setHitExecutionNeeded(true);
-        innerParse(parser, fetchSubPhaseContext);
+        innerParse(parser, fetchSubPhaseContext, context);
     }
 
     /**
      * Implement the actual parsing here.
      */
-    protected abstract void innerParse(XContentParser parser, SubPhaseContext fetchSubPhaseContext) throws Exception;
+    protected abstract void innerParse(XContentParser parser, SubPhaseContext fetchSubPhaseContext, SearchContext searchContext) throws Exception;
 
     /**
      * Return the ContextFactory for this FetchSubPhase.

@@ -183,4 +183,19 @@
     <delete file="${integ.pidfile}"/>
   </target>
 
+  <!-- distribution tests: .tar.gz -->
+
+  <target name="setup-workspace-tar" depends="stop-external-cluster" unless="${shouldskip}">
+    <sequential>
+      <delete dir="${integ.scratch}"/>
+      <untar src="${project.build.directory}/releases/elasticsearch-${project.version}.tar.gz" 
+             dest="${integ.scratch}"
+             compression="gzip"/>
+    </sequential>
+  </target>
+
+  <target name="start-external-cluster-tar" depends="setup-workspace-tar" unless="${shouldskip}">
+    <startup-elasticsearch/>
+  </target>
+
 </project>

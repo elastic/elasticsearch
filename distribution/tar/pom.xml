@@ -13,7 +13,7 @@
     <name>Elasticsearch TAR Distribution</name>
 
     <properties>
-        <skip.integ.tests>true</skip.integ.tests>
+        <skip.integ.tests>false</skip.integ.tests>
     </properties>
 
     <build>
@@ -65,6 +65,33 @@
                                     <arg value="${basedir}/../licenses"/>
                                     <arg value="${basedir}/target/releases/${project.build.finalName}.tar.gz"/>
                                 </exec>
+                            </target>
+                        </configuration>
+                    </execution>
+                    <!-- integration tests -->
+                    <!-- start up external cluster -->
+                    <execution>
+                        <id>integ-setup</id>
+                        <phase>pre-integration-test</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <ant antfile="${elasticsearch.integ.antfile}" target="start-external-cluster-tar"/>
+                            </target>
+                        </configuration>
+                    </execution>
+                    <!-- shut down external cluster -->
+                    <execution>
+                        <id>integ-teardown</id>
+                        <phase>post-integration-test</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <ant antfile="${elasticsearch.integ.antfile}" target="stop-external-cluster"/>
                             </target>
                         </configuration>
                     </execution>

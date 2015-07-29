@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
@@ -27,6 +28,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
@@ -40,7 +42,7 @@ public class EsExecutorsTests extends ESTestCase {
     }
 
     public void testFixedForcedExecution() throws Exception {
-        EsThreadPoolExecutor executor = EsExecutors.newFixed(1, 1, EsExecutors.daemonThreadFactory("test"));
+        EsThreadPoolExecutor executor = EsExecutors.newFixed(getTestName(), 1, 1, EsExecutors.daemonThreadFactory("test"));
         final CountDownLatch wait = new CountDownLatch(1);
 
         final CountDownLatch exec1Wait = new CountDownLatch(1);
@@ -102,7 +104,7 @@ public class EsExecutorsTests extends ESTestCase {
     }
 
     public void testFixedRejected() throws Exception {
-        EsThreadPoolExecutor executor = EsExecutors.newFixed(1, 1, EsExecutors.daemonThreadFactory("test"));
+        EsThreadPoolExecutor executor = EsExecutors.newFixed(getTestName(), 1, 1, EsExecutors.daemonThreadFactory("test"));
         final CountDownLatch wait = new CountDownLatch(1);
 
         final CountDownLatch exec1Wait = new CountDownLatch(1);
@@ -160,7 +162,7 @@ public class EsExecutorsTests extends ESTestCase {
         final int max = between(min + 1, 6);
         final ThreadBarrier barrier = new ThreadBarrier(max + 1);
 
-        ThreadPoolExecutor pool = EsExecutors.newScaling(min, max, between(1, 100), randomTimeUnit(), EsExecutors.daemonThreadFactory("test"));
+        ThreadPoolExecutor pool = EsExecutors.newScaling(getTestName(), min, max, between(1, 100), randomTimeUnit(), EsExecutors.daemonThreadFactory("test"));
         assertThat("Min property", pool.getCorePoolSize(), equalTo(min));
         assertThat("Max property", pool.getMaximumPoolSize(), equalTo(max));
 
@@ -196,7 +198,7 @@ public class EsExecutorsTests extends ESTestCase {
         final int max = between(min + 1, 6);
         final ThreadBarrier barrier = new ThreadBarrier(max + 1);
 
-        final ThreadPoolExecutor pool = EsExecutors.newScaling(min, max, between(1, 100), TimeUnit.MILLISECONDS, EsExecutors.daemonThreadFactory("test"));
+        final ThreadPoolExecutor pool = EsExecutors.newScaling(getTestName(), min, max, between(1, 100), TimeUnit.MILLISECONDS, EsExecutors.daemonThreadFactory("test"));
         assertThat("Min property", pool.getCorePoolSize(), equalTo(min));
         assertThat("Max property", pool.getMaximumPoolSize(), equalTo(max));
 
@@ -232,5 +234,78 @@ public class EsExecutorsTests extends ESTestCase {
             }
         });
         terminate(pool);
+    }
+
+    public void testRejectionMessageAndShuttingDownFlag() throws InterruptedException {
+        int pool = between(1, 10);
+        int queue = between(0, 100);
+        int actions = queue + pool;
+        final CountDownLatch latch = new CountDownLatch(1);
+        EsThreadPoolExecutor executor = EsExecutors.newFixed(getTestName(), pool, queue, EsExecutors.daemonThreadFactory("dummy"));
+        try {
+            for (int i = 0; i < actions; i++) {
+                executor.execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            latch.await();
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                });
+            }
+            try {
+                executor.execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        // Doesn't matter is going to be rejected
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "dummy runnable";
+                    }
+                });
+                fail("Didn't get a rejection when we expected one.");
+            } catch (EsRejectedExecutionException e) {
+                assertFalse("Thread pool registering as terminated when it isn't", e.isExecutorShutdown());
+                String message = ExceptionsHelper.detailedMessage(e);
+                assertThat(message, containsString("of dummy runnable"));
+                assertThat(message, containsString("on EsThreadPoolExecutor[testRejectionMessage"));
+                assertThat(message, containsString("queue capacity = " + queue));
+                assertThat(message, containsString("state = Running"));
+                assertThat(message, containsString("active threads = " + pool));
+                assertThat(message, containsString("queued tasks = " + queue));
+                assertThat(message, containsString("completed tasks = 0"));
+            }
+        } finally {
+            latch.countDown();
+            terminate(executor);
+        }
+        try {
+            executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    // Doesn't matter is going to be rejected
+                }
+
+                @Override
+                public String toString() {
+                    return "dummy runnable";
+                }
+            });
+            fail("Didn't get a rejection when we expected one.");
+        } catch (EsRejectedExecutionException e) {
+            assertTrue("Thread pool not registering as terminated when it is", e.isExecutorShutdown());
+            String message = ExceptionsHelper.detailedMessage(e);
+            assertThat(message, containsString("of dummy runnable"));
+            assertThat(message, containsString("on EsThreadPoolExecutor[" + getTestName()));
+            assertThat(message, containsString("queue capacity = " + queue));
+            assertThat(message, containsString("state = Terminated"));
+            assertThat(message, containsString("active threads = 0"));
+            assertThat(message, containsString("queued tasks = 0"));
+            assertThat(message, containsString("completed tasks = " + actions));
+        }
     }
 }

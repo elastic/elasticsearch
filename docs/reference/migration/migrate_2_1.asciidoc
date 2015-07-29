@@ -25,3 +25,13 @@ GET /my_index/_search?scroll=2m
 Scroll requests sorted by `_doc` have been optimized to more efficiently resume
 from where the previous request stopped, so this will have the same performance
 characteristics as the former `scan` search type.
+
+=== Mapping changes
+
+==== position_offset_gap
+The default `position_offset_grap` is now 100. Indexes created in Elasticsearch
+2.1.0 will default to using 100 and indexes created before that will continue
+to use the old default of 0. This was done to prevent phrase queries from
+matching across different values of the same term unexpectedly. Specifically,
+100 was chosen to cause phrase queries with slops up to 99 to match only within
+a single value of a field.

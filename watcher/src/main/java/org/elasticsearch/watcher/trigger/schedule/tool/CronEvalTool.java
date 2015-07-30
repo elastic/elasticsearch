@@ -31,8 +31,8 @@ public class CronEvalTool extends CliTool {
             .build();
 
     public static void main(String[] args) throws Exception {
-        int status = new CronEvalTool().execute(args);
-        System.exit(status);
+        ExitStatus exitStatus = new CronEvalTool().execute(args);
+        System.exit(exitStatus.status());
     }
 
     public CronEvalTool() {

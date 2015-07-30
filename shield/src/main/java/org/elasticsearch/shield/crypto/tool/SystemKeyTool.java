@@ -36,8 +36,8 @@ public class SystemKeyTool extends CliTool {
 
 
     public static void main(String[] args) throws Exception {
-        int status = new SystemKeyTool().execute(args);
-        System.exit(status);
+        ExitStatus exitStatus = new SystemKeyTool().execute(args);
+        System.exit(exitStatus.status());
     }
 
     private static final CliToolConfig CONFIG = config("syskey", SystemKeyTool.class)

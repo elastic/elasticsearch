@@ -37,6 +37,9 @@ public class SuggestModule extends AbstractModule {
     public SuggestModule() {
         registerSuggester(PhraseSuggester.class);
         registerSuggester(TermSuggester.class);
+        // NOTE: the old completion suggester is registered only to access the old
+        // suggester in SuggestParseElement as "completion_old"
+        registerSuggester(org.elasticsearch.search.suggest.completion.old.CompletionSuggester.class);
         registerSuggester(CompletionSuggester.class);
     }
 

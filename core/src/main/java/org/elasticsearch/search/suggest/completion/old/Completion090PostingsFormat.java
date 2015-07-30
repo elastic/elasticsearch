@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.suggest.completion;
+package org.elasticsearch.search.suggest.completion.old;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMap.Builder;
@@ -46,8 +46,8 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
-import org.elasticsearch.search.suggest.completion.CompletionTokenStream.ToFiniteStrings;
+import org.elasticsearch.index.mapper.core.OldCompletionFieldMapper;
+import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -260,7 +260,7 @@ public class Completion090PostingsFormat extends PostingsFormat {
             this.lookup = lookup;
         }
 
-        public Lookup getLookup(CompletionFieldMapper.CompletionFieldType mapper, CompletionSuggestionContext suggestionContext) {
+        public Lookup getLookup(OldCompletionFieldMapper.CompletionFieldType mapper, CompletionSuggestionContext suggestionContext) {
             return lookup.getLookup(mapper, suggestionContext);
         }
 
@@ -269,7 +269,7 @@ public class Completion090PostingsFormat extends PostingsFormat {
         }
     }
 
-    public static abstract class CompletionLookupProvider implements PayloadProcessor, ToFiniteStrings {
+    public static abstract class CompletionLookupProvider implements PayloadProcessor, CompletionTokenStream.ToFiniteStrings {
 
         public static final char UNIT_SEPARATOR = '\u001f';
 
@@ -340,7 +340,7 @@ public class Completion090PostingsFormat extends PostingsFormat {
     }
 
     public static abstract class LookupFactory implements Accountable {
-        public abstract Lookup getLookup(CompletionFieldMapper.CompletionFieldType fieldType, CompletionSuggestionContext suggestionContext);
+        public abstract Lookup getLookup(OldCompletionFieldMapper.CompletionFieldType fieldType, CompletionSuggestionContext suggestionContext);
         public abstract CompletionStats stats(String ... fields);
         abstract AnalyzingCompletionLookupProvider.AnalyzingSuggestHolder getAnalyzingSuggestHolder(MappedFieldType fieldType);
     }

@@ -18,14 +18,12 @@
  */
 package org.elasticsearch.search.suggest.completion;
 
-import org.apache.lucene.search.suggest.analyzing.XFuzzySuggester;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
-import org.elasticsearch.search.suggest.context.ContextMapping.ContextQuery;
+import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 
-import java.util.Collections;
-import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -33,79 +31,43 @@ import java.util.List;
 public class CompletionSuggestionContext extends SuggestionSearchContext.SuggestionContext {
 
     private CompletionFieldMapper.CompletionFieldType fieldType;
-    private int fuzzyEditDistance = XFuzzySuggester.DEFAULT_MAX_EDITS;
-    private boolean fuzzyTranspositions = XFuzzySuggester.DEFAULT_TRANSPOSITIONS;
-    private int fuzzyMinLength = XFuzzySuggester.DEFAULT_MIN_FUZZY_LENGTH;
-    private int fuzzyPrefixLength = XFuzzySuggester.DEFAULT_NON_FUZZY_PREFIX;
-    private boolean fuzzy = false;
-    private boolean fuzzyUnicodeAware = XFuzzySuggester.DEFAULT_UNICODE_AWARE;
-    private List<ContextQuery> contextQueries = Collections.emptyList();
-    
-    public CompletionSuggestionContext(Suggester suggester) {
+    private CompletionSuggestionBuilder.FuzzyOptionsBuilder fuzzyOptionsBuilder;
+    private CompletionSuggestionBuilder.RegexOptionsBuilder regexOptionsBuilder;
+    private Map<String, ContextMapping.QueryContexts> queryContexts;
+
+    CompletionSuggestionContext(Suggester suggester) {
         super(suggester);
     }
 
-    public CompletionFieldMapper.CompletionFieldType fieldType() {
+    CompletionFieldMapper.CompletionFieldType fieldType() {
         return this.fieldType;
     }
 
-    public void fieldType(CompletionFieldMapper.CompletionFieldType fieldType) {
+    void fieldType(CompletionFieldMapper.CompletionFieldType fieldType) {
         this.fieldType = fieldType;
     }
 
-    public void setFuzzyEditDistance(int fuzzyEditDistance) {
-        this.fuzzyEditDistance = fuzzyEditDistance;
+    CompletionSuggestionBuilder.RegexOptionsBuilder getRegexOptionsBuilder() {
+        return regexOptionsBuilder;
     }
 
-    public int getFuzzyEditDistance() {
-        return fuzzyEditDistance;
+    void setRegexOptionsBuilder(CompletionSuggestionBuilder.RegexOptionsBuilder regexOptionsBuilder) {
+        this.regexOptionsBuilder = regexOptionsBuilder;
     }
 
-    public void setFuzzyTranspositions(boolean fuzzyTranspositions) {
-        this.fuzzyTranspositions = fuzzyTranspositions;
+    CompletionSuggestionBuilder.FuzzyOptionsBuilder getFuzzyOptionsBuilder() {
+        return fuzzyOptionsBuilder;
     }
 
-    public boolean isFuzzyTranspositions() {
-        return fuzzyTranspositions;
+    void setFuzzyOptionsBuilder(CompletionSuggestionBuilder.FuzzyOptionsBuilder fuzzyOptionsBuilder) {
+        this.fuzzyOptionsBuilder = fuzzyOptionsBuilder;
     }
 
-    public void setFuzzyMinLength(int fuzzyMinPrefixLength) {
-        this.fuzzyMinLength = fuzzyMinPrefixLength;
+    void setQueryContexts(Map<String, ContextMapping.QueryContexts> queryContexts) {
+        this.queryContexts = queryContexts;
     }
 
-    public int getFuzzyMinLength() {
-        return fuzzyMinLength;
-    }
-
-    public void setFuzzyPrefixLength(int fuzzyNonPrefixLength) {
-        this.fuzzyPrefixLength = fuzzyNonPrefixLength;
-    }
-
-    public int getFuzzyPrefixLength() {
-        return fuzzyPrefixLength;
-    }
-
-    public void setFuzzy(boolean fuzzy) {
-        this.fuzzy = fuzzy;
-    }
-
-    public boolean isFuzzy() {
-        return fuzzy;
-    }
-
-    public void setFuzzyUnicodeAware(boolean fuzzyUnicodeAware) {
-        this.fuzzyUnicodeAware = fuzzyUnicodeAware;
-    }
-
-    public boolean isFuzzyUnicodeAware() {
-        return fuzzyUnicodeAware;
-    }
-    
-    public void setContextQuery(List<ContextQuery> queries) {
-        this.contextQueries = queries;
-    }
-
-    public List<ContextQuery> getContextQueries() {   
-        return this.contextQueries;
+    Map<String, ContextMapping.QueryContexts> getQueryContexts() {
+        return queryContexts;
     }
 }

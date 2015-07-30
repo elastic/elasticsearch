@@ -19,15 +19,19 @@
 
 package org.elasticsearch.index.mapper.multifield;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.VersionUtils;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -172,6 +176,34 @@ public class MultiFieldsIntegrationTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testPre2xCompletionMultiField() throws Exception {
+        final Version PRE2X_VERSION = VersionUtils.randomVersionBetween(getRandom(), Version.V_1_0_0, Version.V_1_7_0);
+        assertAcked(
+                client().admin().indices().prepareCreate("my-index")
+                        .setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id))
+                        .addMapping("my-type", createMappingSource("completion"))
+        );
+
+        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("my-index").get();
+        MappingMetaData mappingMetaData = getMappingsResponse.mappings().get("my-index").get("my-type");
+        assertThat(mappingMetaData, not(nullValue()));
+        Map<String, Object> mappingSource = mappingMetaData.sourceAsMap();
+        Map aField = ((Map) XContentMapValues.extractValue("properties.a", mappingSource));
+        assertThat(aField.size(), equalTo(7));
+        assertThat(aField.get("type").toString(), equalTo("completion"));
+        assertThat(aField.get("fields"), notNullValue());
+
+        Map bField = ((Map) XContentMapValues.extractValue("properties.a.fields.b", mappingSource));
+        assertThat(bField.size(), equalTo(2));
+        assertThat(bField.get("type").toString(), equalTo("string"));
+        assertThat(bField.get("index").toString(), equalTo("not_analyzed"));
+
+        client().prepareIndex("my-index", "my-type", "1").setSource("a", "complete me").setRefresh(true).get();
+        CountResponse countResponse = client().prepareCount("my-index").setQuery(matchQuery("a.b", "complete me")).get();
+        assertThat(countResponse.getCount(), equalTo(1l));
+    }
+
+    @Test
     public void testCompletionMultiField() throws Exception {
         assertAcked(
                 client().admin().indices().prepareCreate("my-index")
@@ -183,7 +215,7 @@ public class MultiFieldsIntegrationTests extends ElasticsearchIntegrationTest {
         assertThat(mappingMetaData, not(nullValue()));
         Map<String, Object> mappingSource = mappingMetaData.sourceAsMap();
         Map aField = ((Map) XContentMapValues.extractValue("properties.a", mappingSource));
-        assertThat(aField.size(), equalTo(7));
+        assertThat(aField.size(), equalTo(6));
         assertThat(aField.get("type").toString(), equalTo("completion"));
         assertThat(aField.get("fields"), notNullValue());
 

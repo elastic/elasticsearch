@@ -20,25 +20,29 @@ package org.elasticsearch.search.suggest;
 
 import com.google.common.collect.Sets;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.suggest.SuggestRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
-import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
-import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
-import org.elasticsearch.search.suggest.completion.CompletionSuggestionFuzzyBuilder;
-import org.elasticsearch.search.suggest.context.ContextBuilder;
-import org.elasticsearch.search.suggest.context.ContextMapping;
+import org.elasticsearch.search.suggest.completion.old.CompletionSuggestion;
+import org.elasticsearch.search.suggest.completion.old.CompletionSuggestionBuilder;
+import org.elasticsearch.search.suggest.completion.old.CompletionSuggestionFuzzyBuilder;
+import org.elasticsearch.search.suggest.completion.old.context.ContextBuilder;
+import org.elasticsearch.search.suggest.completion.old.context.ContextMapping;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
+import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -51,11 +55,12 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertD
 import static org.hamcrest.Matchers.containsString;
 
 @SuppressCodecs("*") // requires custom completion format
-public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
+public class OldContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     private static final String INDEX = "test";
     private static final String TYPE = "testType";
     private static final String FIELD = "testField";
+    private final Version PRE2X_VERSION = VersionUtils.randomVersionBetween(getRandom(), Version.V_1_0_0, Version.V_1_7_0);
 
     private static final String[][] HEROS = {
             { "Afari, Jamal", "Jamal Afari", "Jamal" },
@@ -78,7 +83,8 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testBasicGeo() throws Exception {
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, ContextBuilder.location("st").precision("5km").neighbors(true))));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id))
+                .addMapping(TYPE, createMapping(TYPE, ContextBuilder.location("st").precision("5km").neighbors(true))));
         ensureYellow();
 
         XContentBuilder source1 = jsonBuilder()
@@ -104,7 +110,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareRefresh(INDEX).get();
         
         String suggestionName = randomAsciiOfLength(10);
-        CompletionSuggestionBuilder context = SuggestBuilders.completionSuggestion(suggestionName).field(FIELD).text("h").size(10)
+        CompletionSuggestionBuilder context = SuggestBuilders.oldCompletionSuggestion(suggestionName).field(FIELD).text("h").size(10)
                 .addGeoLocation("st", 52.52, 13.4);
         
         SuggestRequestBuilder suggestionRequest = client().prepareSuggest(INDEX).addSuggestion(context);
@@ -116,20 +122,21 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
     
     @Test
     public void testMultiLevelGeo() throws Exception {
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, ContextBuilder.location("st")
-                .precision(1)
-                .precision(2)
-                .precision(3)
-                .precision(4)
-                .precision(5)
-                .precision(6)
-                .precision(7)
-                .precision(8)
-                .precision(9)
-                .precision(10)
-                .precision(11)
-                .precision(12)
-                .neighbors(true))));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id))
+                .addMapping(TYPE, createMapping(TYPE, ContextBuilder.location("st")
+                        .precision(1)
+                        .precision(2)
+                        .precision(3)
+                        .precision(4)
+                        .precision(5)
+                        .precision(6)
+                        .precision(7)
+                        .precision(8)
+                        .precision(9)
+                        .precision(10)
+                        .precision(11)
+                        .precision(12)
+                        .neighbors(true))));
         ensureYellow();
 
         XContentBuilder source1 = jsonBuilder()
@@ -175,7 +182,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .endObject().endObject()
                 .endObject().endObject();
 
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, mapping.string()));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id)).addMapping(TYPE, mapping.string()));
         ensureYellow();
 
         Collections.shuffle(precisions, getRandom());
@@ -216,7 +223,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         mapping.endObject();
         mapping.endObject();
 
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, mapping));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id)).addMapping(TYPE, mapping));
         ensureYellow();
 
         XContentBuilder source1 = jsonBuilder()
@@ -244,7 +251,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         refresh();
         
         String suggestionName = randomAsciiOfLength(10);
-        CompletionSuggestionBuilder context = SuggestBuilders.completionSuggestion(suggestionName).field(FIELD).text("h").size(10)
+        CompletionSuggestionBuilder context = SuggestBuilders.oldCompletionSuggestion(suggestionName).field(FIELD).text("h").size(10)
                 .addGeoLocation("st", 52.52, 13.4);
         SuggestRequestBuilder suggestionRequest = client().prepareSuggest(INDEX).addSuggestion(context);
         SuggestResponse suggestResponse = suggestionRequest.execute().actionGet();
@@ -270,7 +277,8 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
         double precision = 100.0; // meters
 
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, ContextBuilder.location("st").precision(precision).neighbors(true))));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id))
+                .addMapping(TYPE, createMapping(TYPE, ContextBuilder.location("st").precision(precision).neighbors(true))));
         ensureYellow();
 
         String[] locations = { reinickendorf, pankow, koepenick, bernau, berlin, mitte, steglitz, wilmersdorf, spandau, tempelhof,
@@ -310,7 +318,8 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSimplePrefix() throws Exception {
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, ContextBuilder.category("st"))));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id))
+                .addMapping(TYPE, createMapping(TYPE, ContextBuilder.category("st"))));
         ensureYellow();
 
         for (int i = 0; i < HEROS.length; i++) {
@@ -342,7 +351,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .startObject("context").startObject("color").field("type", "category").endObject().endObject()
                 .endObject()
                 .endObject().endObject().endObject();
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, mapping));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id)).addMapping(TYPE, mapping));
         ensureYellow();
         XContentBuilder doc1 = jsonBuilder();
         doc1.startObject().startObject("suggest_field")
@@ -372,7 +381,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     private void getBackpackSuggestionAndCompare(String contextValue, String... expectedText) {
         Set<String> expected = Sets.newHashSet(expectedText);
-        CompletionSuggestionBuilder context = SuggestBuilders.completionSuggestion("suggestion").field("suggest_field").text("back").size(10).addContextField("color", contextValue);
+        CompletionSuggestionBuilder context = SuggestBuilders.oldCompletionSuggestion("suggestion").field("suggest_field").text("back").size(10).addContextField("color", contextValue);
         SuggestRequestBuilder suggestionRequest = client().prepareSuggest(INDEX).addSuggestion(context);
         SuggestResponse suggestResponse = suggestionRequest.execute().actionGet();
         Suggest suggest = suggestResponse.getSuggest();
@@ -393,7 +402,8 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testBasic() throws Exception {
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, false, ContextBuilder.reference("st", "_type"), ContextBuilder.reference("nd", "_type"))));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id))
+                .addMapping(TYPE, createMapping(TYPE, false, ContextBuilder.reference("st", "_type"), ContextBuilder.reference("nd", "_type"))));
         ensureYellow();
 
         client().prepareIndex(INDEX, TYPE, "1")
@@ -410,7 +420,8 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSimpleField() throws Exception {
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, ContextBuilder.reference("st", "category"))));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id))
+                .addMapping(TYPE, createMapping(TYPE, ContextBuilder.reference("st", "category"))));
         ensureYellow();
 
         for (int i = 0; i < HEROS.length; i++) {
@@ -455,7 +466,8 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .endObject()
                 .string();
 
-        assertAcked(client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, mapping).get());
+        assertAcked(client().admin().indices().prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id))
+                .addMapping(TYPE, mapping).get());
         ensureGreen();
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(FIELD, "")
@@ -465,7 +477,8 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testMultiValueField() throws Exception {
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, ContextBuilder.reference("st", "category"))));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id))
+                .addMapping(TYPE, createMapping(TYPE, ContextBuilder.reference("st", "category"))));
         ensureYellow();
 
         for (int i = 0; i < HEROS.length; i++) {
@@ -491,7 +504,8 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testMultiContext() throws Exception {
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, ContextBuilder.reference("st", "categoryA"), ContextBuilder.reference("nd", "categoryB"))));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id))
+                .addMapping(TYPE, createMapping(TYPE, ContextBuilder.reference("st", "categoryA"), ContextBuilder.reference("nd", "categoryB"))));
         ensureYellow();
 
         for (int i = 0; i < HEROS.length; i++) {
@@ -518,7 +532,8 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testMultiContextWithFuzzyLogic() throws Exception {
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, ContextBuilder.reference("st", "categoryA"), ContextBuilder.reference("nd", "categoryB"))));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id))
+                .addMapping(TYPE, createMapping(TYPE, ContextBuilder.reference("st", "categoryA"), ContextBuilder.reference("nd", "categoryB"))));
         ensureYellow();
 
         for (int i = 0; i < HEROS.length; i++) {
@@ -551,7 +566,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
     public void testSimpleType() throws Exception {
         String[] types = { TYPE + "A", TYPE + "B", TYPE + "C" };
 
-        CreateIndexRequestBuilder createIndexRequestBuilder = prepareCreate(INDEX);
+        CreateIndexRequestBuilder createIndexRequestBuilder = prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id));
         for (String type : types) {
             createIndexRequestBuilder.addMapping(type, createMapping(type, ContextBuilder.reference("st", "_type")));
         }
@@ -594,13 +609,13 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .endObject().endObject().endObject()
             .endObject();
 
-        assertAcked(prepareCreate(INDEX).addMapping("poi", xContentBuilder));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id)).addMapping("poi", xContentBuilder));
         ensureYellow();
 
         index(INDEX, "poi", "1", jsonBuilder().startObject().startObject("suggest").field("input", "Berlin Alexanderplatz").endObject().endObject());
         refresh();
 
-        CompletionSuggestionBuilder suggestionBuilder = SuggestBuilders.completionSuggestion("suggestion").field("suggest").text("b").size(10).addGeoLocation("location", berlinAlexanderplatz.lat(), berlinAlexanderplatz.lon());
+        CompletionSuggestionBuilder suggestionBuilder = SuggestBuilders.oldCompletionSuggestion("suggestion").field("suggest").text("b").size(10).addGeoLocation("location", berlinAlexanderplatz.lat(), berlinAlexanderplatz.lon());
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(suggestionBuilder).get();
         assertSuggestion(suggestResponse.getSuggest(), 0, "suggestion", "Berlin Alexanderplatz");
     }
@@ -617,7 +632,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
             .endObject().endObject().endObject()
             .endObject();
 
-        assertAcked(prepareCreate(INDEX).addMapping("service", xContentBuilder));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id)).addMapping("service", xContentBuilder));
         ensureYellow();
 
         // now index a document with color field
@@ -644,7 +659,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
             .endObject().endObject().endObject()
             .endObject();
 
-        assertAcked(prepareCreate(INDEX).addMapping("poi", xContentBuilder));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id)).addMapping("poi", xContentBuilder));
         ensureYellow();
 
         SuggestRequest suggestRequest = new SuggestRequest(INDEX);
@@ -674,14 +689,14 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .endObject().endObject().endObject()
                 .endObject();
 
-        assertAcked(prepareCreate(INDEX).addMapping("item", xContentBuilder));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id)).addMapping("item", xContentBuilder));
         ensureYellow();
 
         index(INDEX, "item", "1", jsonBuilder().startObject().startObject("suggest").field("input", "Hoodie red").endObject().endObject());
         index(INDEX, "item", "2", jsonBuilder().startObject().startObject("suggest").field("input", "Hoodie blue").startObject("context").field("color", "blue").endObject().endObject().endObject());
         refresh();
 
-        CompletionSuggestionBuilder suggestionBuilder = SuggestBuilders.completionSuggestion("suggestion").field("suggest").text("h").size(10).addContextField("color", "red");
+        CompletionSuggestionBuilder suggestionBuilder = SuggestBuilders.oldCompletionSuggestion("suggestion").field("suggest").text("h").size(10).addContextField("color", "red");
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(suggestionBuilder).get();
         assertSuggestion(suggestResponse.getSuggest(), 0, "suggestion", "Hoodie red");
     }
@@ -699,14 +714,14 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .endObject().endObject().endObject()
                 .endObject();
 
-        assertAcked(prepareCreate(INDEX).addMapping("item", xContentBuilder));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id)).addMapping("item", xContentBuilder));
         ensureYellow();
 
         index(INDEX, "item", "1", jsonBuilder().startObject().startObject("suggest").field("input", "Hoodie red").endObject().endObject());
         index(INDEX, "item", "2", jsonBuilder().startObject().startObject("suggest").field("input", "Hoodie blue").endObject().field("color", "blue").endObject());
         refresh();
 
-        CompletionSuggestionBuilder suggestionBuilder = SuggestBuilders.completionSuggestion("suggestion").field("suggest").text("h").size(10).addContextField("color", "red");
+        CompletionSuggestionBuilder suggestionBuilder = SuggestBuilders.oldCompletionSuggestion("suggestion").field("suggest").text("h").size(10).addContextField("color", "red");
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(suggestionBuilder).get();
         assertSuggestion(suggestResponse.getSuggest(), 0, "suggestion", "Hoodie red");
     }
@@ -723,7 +738,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .endObject().endObject().endObject()
                 .endObject();
 
-        assertAcked(prepareCreate(INDEX).addMapping("item", xContentBuilder));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id)).addMapping("item", xContentBuilder));
         ensureYellow();
 
         // lets create some locations by geohashes in different cells with the precision 4
@@ -739,7 +754,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         index(INDEX, "item", "4", jsonBuilder().startObject().startObject("suggest").field("input", "Berlin Dahlem").field("weight", 1).startObject("context").startObject("location").field("lat", dahlem.lat()).field("lon", dahlem.lon()).endObject().endObject().endObject().endObject());
         refresh();
 
-        CompletionSuggestionBuilder suggestionBuilder = SuggestBuilders.completionSuggestion("suggestion").field("suggest").text("b").size(10).addGeoLocation("location", alexanderplatz.lat(), alexanderplatz.lon());
+        CompletionSuggestionBuilder suggestionBuilder = SuggestBuilders.oldCompletionSuggestion("suggestion").field("suggest").text("b").size(10).addGeoLocation("location", alexanderplatz.lat(), alexanderplatz.lon());
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(suggestionBuilder).get();
         assertSuggestion(suggestResponse.getSuggest(), 0, "suggestion", "Berlin Alexanderplatz", "Berlin Poelchaustr.", "Berlin Dahlem");
     }
@@ -757,7 +772,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .endObject().endObject().endObject()
                 .endObject();
 
-        assertAcked(prepareCreate(INDEX).addMapping("item", xContentBuilder));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id)).addMapping("item", xContentBuilder));
         ensureYellow();
 
         GeoPoint alexanderplatz = GeoHashUtils.decode("u33dc1");
@@ -769,7 +784,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         index(INDEX, "item", "2", jsonBuilder().startObject().startObject("suggest").field("input", "Berlin Hackescher Markt").field("weight", 2).startObject("context").startObject("location").field("lat", cellNeighbourOfAlexanderplatz.lat()).field("lon", cellNeighbourOfAlexanderplatz.lon()).endObject().endObject().endObject().endObject());
         refresh();
 
-        CompletionSuggestionBuilder suggestionBuilder = SuggestBuilders.completionSuggestion("suggestion").field("suggest").text("b").size(10).addGeoLocation("location", alexanderplatz.lat(), alexanderplatz.lon());
+        CompletionSuggestionBuilder suggestionBuilder = SuggestBuilders.oldCompletionSuggestion("suggestion").field("suggest").text("b").size(10).addGeoLocation("location", alexanderplatz.lat(), alexanderplatz.lon());
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(suggestionBuilder).get();
         assertSuggestion(suggestResponse.getSuggest(), 0, "suggestion", "Berlin Alexanderplatz");
     }
@@ -787,14 +802,14 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .endObject().endObject().endObject()
                 .endObject();
 
-        assertAcked(prepareCreate(INDEX).addMapping("item", xContentBuilder));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id)).addMapping("item", xContentBuilder));
         ensureYellow();
 
         GeoPoint alexanderplatz = GeoHashUtils.decode("u33dc1");
         index(INDEX, "item", "1", jsonBuilder().startObject().startObject("suggest").field("input", "Berlin Alexanderplatz").endObject().startObject("loc").field("lat", alexanderplatz.lat()).field("lon", alexanderplatz.lon()).endObject().endObject());
         refresh();
 
-        CompletionSuggestionBuilder suggestionBuilder = SuggestBuilders.completionSuggestion("suggestion").field("suggest").text("b").size(10).addGeoLocation("location", alexanderplatz.lat(), alexanderplatz.lon());
+        CompletionSuggestionBuilder suggestionBuilder = SuggestBuilders.oldCompletionSuggestion("suggestion").field("suggest").text("b").size(10).addGeoLocation("location", alexanderplatz.lat(), alexanderplatz.lon());
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(suggestionBuilder).get();
         assertSuggestion(suggestResponse.getSuggest(), 0, "suggestion", "Berlin Alexanderplatz");
     }
@@ -811,7 +826,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .endObject().endObject().endObject()
                 .endObject();
 
-        assertAcked(prepareCreate(INDEX).addMapping("item", xContentBuilder));
+        assertAcked(prepareCreate(INDEX).setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id)).addMapping("item", xContentBuilder));
     }
 
     @Test
@@ -826,7 +841,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .endObject().endObject().endObject()
                 .endObject().endObject();
 
-        assertAcked(prepareCreate("test").setSource(xContentBuilder.bytes()));
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id)).setSource(xContentBuilder.bytes()));
 
         double latitude = 52.22;
         double longitude = 4.53;
@@ -852,7 +867,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     public void assertGeoSuggestionsInRange(String location, String suggest, double precision) throws IOException {
         String suggestionName = randomAsciiOfLength(10);
-        CompletionSuggestionBuilder context = SuggestBuilders.completionSuggestion(suggestionName).field(FIELD).text(suggest).size(10)
+        CompletionSuggestionBuilder context = SuggestBuilders.oldCompletionSuggestion(suggestionName).field(FIELD).text(suggest).size(10)
                 .addGeoLocation("st", location);
         SuggestRequestBuilder suggestionRequest = client().prepareSuggest(INDEX).addSuggestion(context);
         SuggestResponse suggestResponse = suggestionRequest.execute().actionGet();
@@ -875,7 +890,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     public void assertPrefixSuggestions(long prefix, String suggest, String... hits) throws IOException {
         String suggestionName = randomAsciiOfLength(10);
-        CompletionSuggestionBuilder context = SuggestBuilders.completionSuggestion(suggestionName).field(FIELD).text(suggest)
+        CompletionSuggestionBuilder context = SuggestBuilders.oldCompletionSuggestion(suggestionName).field(FIELD).text(suggest)
                 .size(hits.length + 1).addCategory("st", Long.toString(prefix));
         SuggestRequestBuilder suggestionRequest = client().prepareSuggest(INDEX).addSuggestion(context);
         SuggestResponse suggestResponse = suggestionRequest.execute().actionGet();
@@ -900,7 +915,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     public void assertContextWithFuzzySuggestions(String[] prefix1, String[] prefix2, String suggest, String... hits) throws IOException {
         String suggestionName = randomAsciiOfLength(10);
-        CompletionSuggestionFuzzyBuilder context = SuggestBuilders.fuzzyCompletionSuggestion(suggestionName).field(FIELD).text(suggest)
+        CompletionSuggestionFuzzyBuilder context = SuggestBuilders.oldFuzzyCompletionSuggestion(suggestionName).field(FIELD).text(suggest)
                 .size(hits.length + 10).addContextField("st", prefix1).addContextField("nd", prefix2).setFuzziness(Fuzziness.TWO);
         SuggestRequestBuilder suggestionRequest = client().prepareSuggest(INDEX).addSuggestion(context);
         SuggestResponse suggestResponse = suggestionRequest.execute().actionGet();
@@ -928,7 +943,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     public void assertFieldSuggestions(String value, String suggest, String... hits) throws IOException {
         String suggestionName = randomAsciiOfLength(10);
-        CompletionSuggestionBuilder context = SuggestBuilders.completionSuggestion(suggestionName).field(FIELD).text(suggest).size(10)
+        CompletionSuggestionBuilder context = SuggestBuilders.oldCompletionSuggestion(suggestionName).field(FIELD).text(suggest).size(10)
                 .addContextField("st", value);
         SuggestRequestBuilder suggestionRequest = client().prepareSuggest(INDEX).addSuggestion(context);
         SuggestResponse suggestResponse = suggestionRequest.execute().actionGet();
@@ -953,7 +968,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     public void assertDoubleFieldSuggestions(String field1, String field2, String suggest, String... hits) throws IOException {
         String suggestionName = randomAsciiOfLength(10);
-        CompletionSuggestionBuilder context = SuggestBuilders.completionSuggestion(suggestionName).field(FIELD).text(suggest).size(10)
+        CompletionSuggestionBuilder context = SuggestBuilders.oldCompletionSuggestion(suggestionName).field(FIELD).text(suggest).size(10)
                 .addContextField("st", field1).addContextField("nd", field2);
         SuggestRequestBuilder suggestionRequest = client().prepareSuggest(INDEX).addSuggestion(context);
         SuggestResponse suggestResponse = suggestionRequest.execute().actionGet();
@@ -977,7 +992,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     public void assertMultiContextSuggestions(String value1, String value2, String suggest, String... hits) throws IOException {
         String suggestionName = randomAsciiOfLength(10);
-        CompletionSuggestionBuilder context = SuggestBuilders.completionSuggestion(suggestionName).field(FIELD).text(suggest).size(10)
+        CompletionSuggestionBuilder context = SuggestBuilders.oldCompletionSuggestion(suggestionName).field(FIELD).text(suggest).size(10)
                 .addContextField("st", value1).addContextField("nd", value2);
 
         SuggestRequestBuilder suggestionRequest = client().prepareSuggest(INDEX).addSuggestion(context);

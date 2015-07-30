@@ -22,16 +22,20 @@ package org.elasticsearch.index.mapper;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.suggest.SuggestResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.search.suggest.SuggestBuilders;
-import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+import org.elasticsearch.search.suggest.completion.old.CompletionSuggestion;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.VersionUtils;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -87,6 +91,7 @@ public class TransformOnIndexMapperIntegrationTest extends ElasticsearchIntegrat
     // ever fix the completion suggester to reencode the payloads then we can remove this test.
     @Test
     public void contextSuggestPayloadTransformed() throws Exception {
+        Version PRE2X_VERSION = VersionUtils.randomVersionBetween(getRandom(), Version.V_1_0_0, Version.V_1_7_0);
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         builder.startObject("properties");
         builder.startObject("suggest").field("type", "completion").field("payloads", true).endObject();
@@ -95,14 +100,14 @@ public class TransformOnIndexMapperIntegrationTest extends ElasticsearchIntegrat
         builder.field("script", "ctx._source.suggest = ['input': ctx._source.text];ctx._source.suggest.payload = ['display': ctx._source.text, 'display_detail': 'on the fly']");
         builder.field("lang", GroovyScriptEngineService.NAME);
         builder.endObject();
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("test", builder));
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id)).addMapping("test", builder));
         // Payload is stored using original source format (json, smile, yaml, whatever)
         XContentType type = XContentType.values()[between(0, XContentType.values().length - 1)];
         XContentBuilder source = XContentFactory.contentBuilder(type);
         source.startObject().field("text", "findme").endObject();
         indexRandom(true, client().prepareIndex("test", "test", "findme").setSource(source));
         SuggestResponse response = client().prepareSuggest("test").addSuggestion(
-                SuggestBuilders.completionSuggestion("test").field("suggest").text("findme")).get();
+                SuggestBuilders.oldCompletionSuggestion("test").field("suggest").text("findme")).get();
         assertSuggestion(response.getSuggest(), 0, 0, "test", "findme");
         CompletionSuggestion.Entry.Option option = (CompletionSuggestion.Entry.Option)response.getSuggest().getSuggestion("test").getEntries().get(0).getOptions().get(0);
         // And it comes back in exactly that way.

@@ -16,23 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.index.mapper.core;
 
-package org.elasticsearch.search.suggest.completion;
+import org.elasticsearch.index.mapper.FieldTypeTestCase;
+import org.elasticsearch.index.mapper.MappedFieldType;
 
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
-
-import java.io.IOException;
-
-interface PayloadProcessor {
-
-    BytesRef buildPayload(BytesRef surfaceForm, long weight, BytesRef payload) throws IOException;
-
-    void parsePayload(BytesRef payload, SuggestPayload ref) throws IOException;
-
-    static class SuggestPayload {
-        final BytesRefBuilder payload = new BytesRefBuilder();
-        long weight = 0;
-        final BytesRefBuilder surfaceForm = new BytesRefBuilder();
+public class OldCompletionFieldTypeTests extends FieldTypeTestCase {
+    @Override
+    protected MappedFieldType createDefaultFieldType() {
+        return new OldCompletionFieldMapper.CompletionFieldType();
     }
 }

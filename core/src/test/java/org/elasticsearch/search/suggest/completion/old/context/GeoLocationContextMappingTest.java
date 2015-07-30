@@ -16,14 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.suggest.context;
+package org.elasticsearch.search.suggest.completion.old.context;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.suggest.context.ContextMapping.ContextConfig;
+import org.elasticsearch.search.suggest.completion.old.context.ContextMapping.ContextConfig;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 

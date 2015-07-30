@@ -19,13 +19,11 @@
 
 package org.elasticsearch.bootstrap;
 
-import com.google.common.base.Joiner;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.cli.CliTool.ExitStatus;
 import org.elasticsearch.common.cli.CliToolTestCase;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -35,9 +33,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
-import static org.elasticsearch.common.cli.CliTool.ExitStatus.OK;
-import static org.elasticsearch.common.cli.CliTool.ExitStatus.OK_AND_EXIT;
-import static org.elasticsearch.common.cli.CliTool.ExitStatus.USAGE;
+import static org.elasticsearch.common.cli.CliTool.ExitStatus.*;
 import static org.hamcrest.Matchers.*;
 
 public class BootstrapCliParserTests extends CliToolTestCase {
@@ -208,10 +204,7 @@ public class BootstrapCliParserTests extends CliToolTestCase {
             BootstrapCLIParser parser = new BootstrapCLIParser(terminal);
             ExitStatus status = parser.execute(args(tuple.v1()));
             assertStatus(status, OK_AND_EXIT);
-
-            String expectedDocs = Streams.copyToStringFromClasspath("/org/elasticsearch/bootstrap/" + tuple.v2());
-            String returnedDocs = Joiner.on("").join(terminal.getTerminalOutput());
-            assertThat(returnedDocs.trim(), is(expectedDocs.trim()));
+            assertTerminalOutputContainsHelpFile(terminal, "/org/elasticsearch/bootstrap/" + tuple.v2());
         }
     }
 

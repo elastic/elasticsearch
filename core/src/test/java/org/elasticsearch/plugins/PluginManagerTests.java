@@ -18,14 +18,12 @@
  */
 package org.elasticsearch.plugins;
 
-import com.google.common.base.Joiner;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.cli.CliTool.ExitStatus;
 import org.elasticsearch.common.cli.CliToolTestCase.CaptureOutputTerminal;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
@@ -52,7 +50,6 @@ import java.util.Locale;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-import static org.elasticsearch.common.cli.CliTool.ExitStatus.OK_AND_EXIT;
 import static org.elasticsearch.common.cli.CliTool.ExitStatus.USAGE;
 import static org.elasticsearch.common.cli.CliToolTestCase.args;
 import static org.elasticsearch.common.io.FileSystemUtilsTests.assertFileContent;
@@ -478,33 +475,6 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         } catch (IllegalArgumentException e) {
             // We expect that error
         }
-    }
-
-    @Test
-    public void testHelpWorks() throws IOException {
-        assertStatus("--help", OK_AND_EXIT);
-        assertHelp("/org/elasticsearch/plugins/plugin.help");
-
-        terminal.getTerminalOutput().clear();
-        assertStatus("install -h", OK_AND_EXIT);
-        assertHelp("/org/elasticsearch/plugins/plugin-install.help");
-        for (String plugin : PluginManager.OFFICIAL_PLUGINS) {
-            assertThat(terminal.getTerminalOutput(), hasItem(containsString(plugin)));
-        }
-
-        terminal.getTerminalOutput().clear();
-        assertStatus("remove --help", OK_AND_EXIT);
-        assertHelp("/org/elasticsearch/plugins/plugin-remove.help");
-
-        terminal.getTerminalOutput().clear();
-        assertStatus("list -h", OK_AND_EXIT);
-        assertHelp("/org/elasticsearch/plugins/plugin-list.help");
-    }
-
-    private void assertHelp(String classPath) throws IOException {
-        String expectedDocs = Streams.copyToStringFromClasspath(classPath);
-        String returnedDocs = Joiner.on("").join(terminal.getTerminalOutput());
-        assertThat(returnedDocs.trim(), is(expectedDocs.trim()));
     }
 
     private Tuple<Settings, Environment> buildInitialSettings() throws IOException {

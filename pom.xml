@@ -1337,7 +1337,7 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
             <activation>
                 <activeByDefault>false</activeByDefault>
                 <file>
-                    <missing>${basedir}/src</missing>
+                    <missing>${basedir}/src/test/java</missing>
                 </file>
             </activation>
             <properties>

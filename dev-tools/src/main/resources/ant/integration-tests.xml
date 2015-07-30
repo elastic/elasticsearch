@@ -183,4 +183,85 @@
     <delete file="${integ.pidfile}"/>
   </target>
 
+  <!-- distribution tests: .tar.gz -->
+
+  <target name="setup-workspace-tar" depends="stop-external-cluster" unless="${shouldskip}">
+    <sequential>
+      <delete dir="${integ.scratch}"/>
+      <untar src="${project.build.directory}/releases/elasticsearch-${project.version}.tar.gz" 
+             dest="${integ.scratch}"
+             compression="gzip"/>
+    </sequential>
+  </target>
+
+  <target name="start-external-cluster-tar" depends="setup-workspace-tar" unless="${shouldskip}">
+    <startup-elasticsearch/>
+  </target>
+
+  <!-- distribution tests: .deb -->
+
+  <target name="setup-workspace-deb" depends="stop-external-cluster" unless="${shouldskip}">
+    <sequential>
+      <delete dir="${integ.scratch}"/>
+      <mkdir dir="${integ.scratch}/deb-extracted"/>
+      <local name="debfile"/>
+      <property name="debfile" location="${project.build.directory}/releases/elasticsearch-${project.version}.deb"/>
+      <!-- print some basic package info -->
+      <exec executable="dpkg-deb" failonerror="true" taskname="deb-info">
+         <arg value="-I"/>
+         <arg value="${debfile}"/> 
+      </exec>
+      <!-- extract contents from .deb package -->
+      <exec executable="dpkg-deb" failonerror="true">
+         <arg value="-x"/> 
+         <arg value="${debfile}"/> 
+         <arg value="${integ.scratch}/deb-extracted"/> 
+      </exec>
+    </sequential>
+  </target>
+
+  <target name="start-external-cluster-deb" depends="setup-workspace-deb" unless="${shouldskip}">
+    <startup-elasticsearch home="${integ.scratch}/deb-extracted/usr/share/elasticsearch/"/>
+  </target>
+
+  <!-- distribution tests: .rpm -->
+  <target name="setup-workspace-rpm" depends="stop-external-cluster" unless="${shouldskip}">
+    <sequential>
+      <delete dir="${integ.scratch}"/>
+      <!-- use full paths with paranoia, we will be doing relocations -->
+      <local name="rpm.file"/>
+      <local name="rpm.database"/>
+      <local name="rpm.extracted"/>
+      <property name="rpm.file" location="${project.build.directory}/releases/elasticsearch-${project.version}.rpm"/>
+      <property name="rpm.database" location="${integ.scratch}/rpm-database"/>
+      <property name="rpm.extracted" location="${integ.scratch}/rpm-extracted"/>
+      <mkdir dir="${rpm.database}"/>
+      <mkdir dir="${rpm.extracted}"/>
+      <!-- print some basic package info -->
+      <exec executable="rpm" failonerror="true" taskname="rpm-info">
+         <arg value="-q"/>
+         <arg value="-i"/>
+         <arg value="-p"/>
+         <arg value="${rpm.file}"/> 
+      </exec>
+      <!-- extract contents from .rpm package -->
+      <exec executable="rpm" failonerror="true" taskname="rpm">
+         <arg value="--dbpath"/>
+         <arg value="${rpm.database}"/>
+         <arg value="--badreloc"/>
+         <arg value="--relocate"/>
+         <arg value="/=${rpm.extracted}"/>
+         <arg value="--nodeps"/> 
+         <arg value="--noscripts"/> 
+         <arg value="--notriggers"/> 
+         <arg value="-i"/>
+         <arg value="${rpm.file}"/> 
+      </exec>
+    </sequential>
+  </target>
+
+  <target name="start-external-cluster-rpm" depends="setup-workspace-rpm" unless="${shouldskip}">
+    <startup-elasticsearch home="${integ.scratch}/rpm-extracted/usr/share/elasticsearch/"/>
+  </target>
+
 </project>

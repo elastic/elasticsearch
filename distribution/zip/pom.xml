@@ -16,35 +16,6 @@
         <skip.integ.tests>false</skip.integ.tests>
     </properties>
 
-    <dependencies>
-        <dependency>
-            <groupId>org.hamcrest</groupId>
-            <artifactId>hamcrest-all</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.carrotsearch.randomizedtesting</groupId>
-            <artifactId>randomizedtesting-runner</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.lucene</groupId>
-            <artifactId>lucene-test-framework</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.elasticsearch</groupId>
-            <artifactId>elasticsearch</artifactId>
-            <scope>test</scope>
-            <type>test-jar</type>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.httpcomponents</groupId>
-            <artifactId>httpclient</artifactId>
-            <scope>test</scope>
-        </dependency>
-    </dependencies>
-
     <build>
         <filters>
             <filter>${project.basedir}/../src/main/packaging/packaging.properties</filter>
@@ -119,6 +90,7 @@
                             <goal>run</goal>
                         </goals>
                         <configuration>
+                            <skip>${skip.integ.tests}</skip>
                             <target>
                                 <ant antfile="${elasticsearch.integ.antfile}" target="start-external-cluster"/>
                             </target>
@@ -132,6 +104,7 @@
                             <goal>run</goal>
                         </goals>
                         <configuration>
+                            <skip>${skip.integ.tests}</skip>
                             <target>
                                 <ant antfile="${elasticsearch.integ.antfile}" target="stop-external-cluster"/>
                             </target>

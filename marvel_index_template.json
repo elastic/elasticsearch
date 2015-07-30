@@ -1,0 +1,129 @@
+{
+  "template": ".marvel*",
+  "settings": {
+    "marvel.index_format": 7,
+    "marvel.version": "2.0.0",
+    "index.number_of_shards": 1,
+    "index.number_of_replicas": 1,
+    "index.codec": "best_compression",
+    "index.mapper.dynamic": false
+  },
+  "mappings": {
+    "_default_": {
+      "_all": {
+        "enabled": false
+      },
+      "date_detection": false,
+      "properties": {
+        "cluster_name": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "timestamp": {
+          "type": "date",
+          "format": "date_time"
+        }
+      }
+    },
+    "marvel_index_stats": {
+      "properties": {
+        "index_stats": {
+          "properties": {
+            "index": {
+              "type": "string",
+              "index": "not_analyzed"
+            },
+            "total": {
+              "properties": {
+                "docs": {
+                  "properties": {
+                    "count": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "store": {
+                  "properties": {
+                    "size_in_bytes": {
+                      "type": "long"
+                    },
+                    "throttle_time_in_millis": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "indexing": {
+                  "properties": {
+                    "throttle_time_in_millis": {
+                      "type": "long"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "marvel_cluster_stats": {
+      "properties": {
+        "cluster_stats": {
+          "properties": {
+            "nodes": {
+              "type": "object"
+            },
+            "indices": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    },
+    "marvel_cluster_state": {
+      "properties": {
+        "cluster_state": {
+          "properties": {
+            "version": { "type": "long" },
+            "nodes": { "type": "object" },
+            "master_node": { "type": "string", "index": "not_analyzed" },
+            "shards": { "type": "object" }
+          }
+        }
+      }
+    },
+    "marvel_node_stats": {
+      "properties": {
+        "node_id": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "node_master": {
+          "type": "boolean"
+        },
+        "mlockall": {
+          "type": "boolean"
+        },
+        "disk_threshold_enabled": {
+          "type": "boolean"
+        },
+        "disk_threshold_watermark_high": {
+          "type": "short"
+        },
+        "node_stats": {
+          "type": "object"
+        }
+      }
+    },
+    "marvel_index_recovery": {
+      "properties": {
+        "index_name": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "shards": {
+          "type": "object"
+        }
+      }
+    }
+  }
+}

@@ -37,12 +37,14 @@ import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
 import org.elasticsearch.search.suggest.completion.CompletionSuggester;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
+import org.elasticsearch.search.suggest.completion.context.ContextMappingsParser;
 
 import java.io.IOException;
 import java.util.*;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.*;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
+import static org.elasticsearch.search.suggest.completion.context.ContextMappingsParser.parseContext;
 
 /**
  * Mapper for completion field. The field values are indexed as a weighted FST for
@@ -440,14 +442,14 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
                         if (fieldType().hasContextMappings() == false) {
                             throw new IllegalArgumentException("Supplied context(s) to a non context enabled field: [" + fieldType().names().fullName() + "]");
                         }
-                        addContexts(contextsMap, contextMappings.parseContext(parseContext, parser));
+                        addContexts(contextsMap, parseContext(contextMappings, parseContext, parser));
                     }
                 } else if (token == Token.START_OBJECT) {
                     if (Fields.CONTENT_FIELD_NAME_CONTEXTS.equals(currentFieldName)) {
                         if (fieldType().hasContextMappings() == false) {
                             throw new IllegalArgumentException("Supplied context(s) to a non context enabled field: [" + fieldType().names().fullName() + "]");
                         }
-                        addContexts(contextsMap, contextMappings.parseContext(parseContext, parser));
+                        addContexts(contextsMap, parseContext(contextMappings, parseContext, parser));
                     }
                 }
             }

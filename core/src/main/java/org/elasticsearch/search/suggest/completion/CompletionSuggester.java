@@ -62,26 +62,31 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
         spare.copyUTF8Bytes(suggestionContext.getText());
         CompletionSuggestion.Entry completionSuggestEntry = new CompletionSuggestion.Entry(new StringText(spare.toString()), 0, spare.length());
         completionSuggestion.addTerm(completionSuggestEntry);
-
-        Map<String, Option> results = new LinkedHashMap<>(suggestionContext.getSize());
+        Map<Integer, Option> results = new LinkedHashMap<>(suggestionContext.getSize());
         TopSuggestDocsCollector collector = new TopSuggestDocsCollector(suggestionContext.getSize());
         suggest(searcher, toQuery(suggestionContext), collector);
         for (TopSuggestDocs.SuggestScoreDoc suggestDoc : collector.get().scoreLookupDocs()) {
+            // TODO: currently we can get multiple entries with the same docID
+            // this has to be fixed at the lucene level
+            // This has other implications:
+            // if we index a suggestion with n contexts, the suggestion and all its contexts
+            // would count as n hits rather than 1, so we have to multiply the desired size
+            // with n to get a suggestion with all n contexts
             final String key = suggestDoc.key.toString();
             final float score = suggestDoc.score;
-            final Map<String, CharSequence> contexts;
-            if (suggestionContext.fieldType().hasContextMappings()) {
-                contexts = suggestionContext.fieldType().getContextMappings().buildContextValueMap(suggestDoc.contexts);
+            final Map.Entry<String, CharSequence> contextEntry;
+            if (suggestionContext.fieldType().hasContextMappings() && suggestDoc.context != null) {
+                contextEntry = suggestionContext.fieldType().getContextMappings().getNamedContext(suggestDoc.context);
             } else {
-                assert suggestDoc.contexts == null;
-                contexts = null;
+                assert suggestDoc.context == null;
+                contextEntry = null;
             }
-            final Option value = results.get(key);
+            final Option value = results.get(suggestDoc.doc);
             if (value == null) {
-                final Option option = new Option(suggestDoc.doc, new StringText(key), score, contexts);
-                results.put(key, option);
+                final Option option = new Option(suggestDoc.doc, new StringText(key), score, contextEntry);
+                results.put(suggestDoc.doc, option);
             } else {
-                value.addContextMap(contexts);
+                value.addContextEntry(contextEntry);
                 if (value.getScore() < score) {
                     value.setScore(score);
                 }

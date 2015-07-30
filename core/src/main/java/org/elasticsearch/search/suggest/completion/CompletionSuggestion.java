@@ -80,13 +80,13 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
         }
 
         public static class Option extends Suggest.Suggestion.Entry.Option {
-            private Map<String, Set<CharSequence>> contexts = new LinkedHashMap<>(0);
+            private Map<String, Set<CharSequence>> contexts = new TreeMap<>();
             private int docID;
 
-            public Option(int docID, Text text, float score, Map<String, CharSequence> contextMap) {
+            public Option(int docID, Text text, float score, Map.Entry<String, CharSequence> contextEntry) {
                 super(text, score);
                 this.docID = docID;
-                addContextMap(contextMap);
+                addContextEntry(contextEntry);
             }
 
             protected Option() {
@@ -99,20 +99,18 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
                 this.contexts.putAll(((Option) otherOption).contexts);
             }
 
-            public void addContextMap(Map<String, CharSequence> contextMap) {
-                if (contextMap != null) {
-                    for (Map.Entry<String, CharSequence> entry : contextMap.entrySet()) {
-                        Set<CharSequence> namedContext = contexts.get(entry.getKey());
-                        if (namedContext == null) {
-                            namedContext = new HashSet<>();
-                        }
-                        CharSequence value = entry.getValue();
-                        if (value != null) {
-                            namedContext.add(value);
-                        }
-                        if (namedContext.size() > 0) {
-                            contexts.put(entry.getKey(), namedContext);
-                        }
+            public void addContextEntry(Map.Entry<String, CharSequence> entry) {
+                if (entry != null) {
+                    Set<CharSequence> namedContext = contexts.get(entry.getKey());
+                    if (namedContext == null) {
+                        namedContext = new HashSet<>();
+                    }
+                    CharSequence value = entry.getValue();
+                    if (value != null) {
+                        namedContext.add(value);
+                    }
+                    if (namedContext.size() > 0) {
+                        contexts.put(entry.getKey(), namedContext);
                     }
                 }
             }

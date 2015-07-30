@@ -19,9 +19,8 @@
 
 package org.elasticsearch.search.suggest.completion.context;
 
-import org.apache.lucene.search.suggest.xdocument.CompletionQuery;
+import org.apache.lucene.search.suggest.xdocument.ContextQuery;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -33,13 +32,14 @@ import java.io.IOException;
 import java.util.*;
 
 /**
- * A {@link ContextMapping} defines criteria types that can be used to
+ * A {@link ContextMapping} defines criteria that can be used to
  * filter and/or boost suggestions at query time for {@link CompletionFieldMapper}.
- * Implementations have to define how contexts are parsed at query/index time,
- * a representation of query contexts to be used and how to construct
- * an appropriate query for the type
  *
- * @param <T> query context type
+ * Implementations have to define how contexts are parsed at query/index time
+ * (used by {@link ContextMappingsParser}) and add parsed query contexts to query
+ * supplied by {@link ContextMappings}
+ *
+ * @param <T> query context representation
  */
 public abstract class ContextMapping<T extends ToXContent> implements ToXContent {
 
@@ -138,6 +138,14 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
             this.queryContexts.add(queryContext);
         }
 
+        /**
+         * @return the number of query contexts
+         * added
+         */
+        public int size() {
+            return queryContexts.size();
+        }
+
         @Override
         public Iterator<T> iterator() {
             return queryContexts.iterator();
@@ -155,13 +163,9 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
     }
 
     /**
-     * Wrap a completion query using the query context
-     *
-     * @param query base completion query
-     * @param queryContexts represents query contexts for this context mapping
-     * @return a context-enabled completion query
+     * Adds query contexts to a completion query
      */
-    protected abstract CompletionQuery toContextQuery(CompletionQuery query, @Nullable QueryContexts<T> queryContexts);
+    protected abstract void addQueryContexts(ContextQuery query, QueryContexts<T> queryContexts);
 
     /**
      * Implementations should add specific configurations

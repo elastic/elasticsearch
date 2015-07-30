@@ -20,7 +20,6 @@
 package org.elasticsearch.search.suggest.completion.context;
 
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.search.suggest.xdocument.CompletionQuery;
 import org.apache.lucene.search.suggest.xdocument.ContextQuery;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
@@ -35,14 +34,11 @@ import java.io.IOException;
 import java.util.*;
 
 /**
- * A {@link ContextMapping} that defines criterion type as a category
+ * A {@link ContextMapping} that uses a simple string as a criteria
  * The suggestions are boosted and/or filtered by their associated
- * category value.
- * {@link CategoryQueryContext} defines the options for constructing
+ * category (string) value.
+ * {@link CategoryQueryContext} defines options for constructing
  * a unit of query context for this context type
- *
- * Internally, category values are prepended with the suggestion
- * value at index time
  */
 public class CategoryContextMapping extends ContextMapping<CategoryQueryContext> {
 
@@ -135,17 +131,17 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
 
     /**
      * Parse a {@link QueryContexts<CategoryQueryContext>}
-     * with a {@link XContentParser}. A QueryContexts accepts one of the following forms:
+     * using <code>parser</code>. A QueryContexts accepts one of the following forms:
      *
      * <ul>
      *     <li>Object: CategoryQueryContext</li>
-     *     <li>String: CategoryQueryContext value with exact=true and boost=1</li>
+     *     <li>String: CategoryQueryContext value with prefix=false and boost=1</li>
      *     <li>Array: <pre>[CategoryQueryContext, ..]</pre></li>
      * </ul>
      *
-     *  A {@link CategoryQueryContext} has one of the following forms:
+     *  A CategoryQueryContext has one of the following forms:
      *  <ul>
-     *     <li>Object: <pre>{&quot;value&quot;: <i>&lt;string&gt;</i>, &quot;boost&quot;: <i>&lt;int&gt;</i>, &quot;exact&quot;: <i>&lt;boolean&gt;</i>}</pre></li>
+     *     <li>Object: <pre>{&quot;context&quot;: <i>&lt;string&gt;</i>, &quot;boost&quot;: <i>&lt;int&gt;</i>, &quot;prefix&quot;: <i>&lt;boolean&gt;</i>}</pre></li>
      *     <li>String: <pre>&quot;string&quot;</pre></li>
      *  </ul>
      */
@@ -217,14 +213,10 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
     }
 
     @Override
-    protected CompletionQuery toContextQuery(CompletionQuery query, @Nullable QueryContexts<CategoryQueryContext> queryContexts) {
-        final ContextQuery contextQuery = new ContextQuery(query);
-        if (queryContexts != null) {
-            for (CategoryQueryContext queryContext : queryContexts) {
-                contextQuery.addContext(queryContext.context, queryContext.boost, queryContext.isPrefix == false);
-            }
+    protected void addQueryContexts(ContextQuery query, QueryContexts<CategoryQueryContext> queryContexts) {
+        for (CategoryQueryContext queryContext : queryContexts) {
+            query.addContext(queryContext.context, queryContext.boost, queryContext.isPrefix == false);
         }
-        return contextQuery;
     }
 
     @Override

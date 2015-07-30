@@ -69,15 +69,15 @@ fi
 while [ $# -gt 0 ]; do
   case $1 in
     -D*=*)
-      properties="$properties $1"
+      properties="$properties \"$1\""
       ;;
     -D*)
       var=$1
       shift
-      properties="$properties $var=$1"
+      properties="$properties \"$var\"=\"$1\""
       ;;
     *)
-      args="$args $1"
+      args="$args \"$1\""
   esac
   shift
 done

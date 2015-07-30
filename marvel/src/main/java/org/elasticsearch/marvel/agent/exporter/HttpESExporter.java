@@ -195,6 +195,10 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
 
         // Get the appropriate renderer in order to render the MarvelDoc
         Renderer renderer = registry.renderer(marvelDoc.type());
+        if (renderer == null) {
+            logger.warn("unable to render marvel document of type [{}]: no renderer found in registry", marvelDoc.type());
+            return;
+        }
 
         try (XContentBuilder builder = new XContentBuilder(xContentType.xContent(), os)) {
 

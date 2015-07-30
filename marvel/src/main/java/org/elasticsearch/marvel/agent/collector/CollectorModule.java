@@ -10,6 +10,7 @@ import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateCollector;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStatsCollector;
 import org.elasticsearch.marvel.agent.collector.indices.IndexStatsCollector;
+import org.elasticsearch.marvel.agent.collector.node.NodeStatsCollector;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -23,6 +24,7 @@ public class CollectorModule extends AbstractModule {
         registerCollector(IndexStatsCollector.class);
         registerCollector(ClusterStatsCollector.class);
         registerCollector(ClusterStateCollector.class);
+        registerCollector(NodeStatsCollector.class);
     }
 
     @Override

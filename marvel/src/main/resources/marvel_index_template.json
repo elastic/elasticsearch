@@ -103,6 +103,45 @@
           }
         }
       }
+    },
+    "marvel_node_stats": {
+      "properties": {
+        "node_stats": {
+          "properties": {
+            "node_id": {
+              "type": "string",
+              "index": "not_analyzed"
+            },
+            "node_master": {
+              "type": "boolean"
+            },
+            "mlockall": {
+              "type": "boolean"
+            },
+            "disk_threshold_enabled": {
+              "type": "boolean"
+            },
+            "disk_threshold_watermark_high": {
+              "type": "short"
+            },
+            "indices": {
+              "type": "object"
+            },
+            "fs": {
+              "type": "object"
+            },
+            "process": {
+              "type": "object"
+            },
+            "jvm": {
+              "type": "object"
+            },
+            "thread_pool": {
+              "type": "object"
+            }
+          }
+        }
+      }
     }
   }
 }

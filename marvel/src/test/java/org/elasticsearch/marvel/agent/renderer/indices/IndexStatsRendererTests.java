@@ -8,24 +8,24 @@ package org.elasticsearch.marvel.agent.renderer.indices;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.marvel.agent.collector.indices.IndexStatsMarvelDoc;
-import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
-import org.elasticsearch.marvel.agent.renderer.AbstractRendererTests;
 import org.elasticsearch.marvel.agent.renderer.Renderer;
+import org.elasticsearch.marvel.agent.renderer.RendererTestUtils;
+import org.elasticsearch.test.ElasticsearchTestCase;
+import org.junit.Test;
 
-public class IndexStatsRendererTests extends AbstractRendererTests {
+public class IndexStatsRendererTests extends ElasticsearchTestCase {
 
-    @Override
-    protected Renderer newRenderer() {
-        return new IndexStatsRenderer();
-    }
+    private static final String SAMPLE_FILE = "/samples/marvel_index_stats.json";
 
-    @Override
-    protected MarvelDoc newMarvelDoc() {
-        return IndexStatsMarvelDoc.createMarvelDoc("test", "marvel_index_stats", 1437580442979L,
+    @Test
+    public void testIndexStatsRenderer() throws Exception {
+        logger.debug("--> creating the cluster stats marvel document");
+        IndexStatsMarvelDoc marvelDoc = IndexStatsMarvelDoc.createMarvelDoc("test", "marvel_index_stats", 1437580442979L,
                 new IndexStats("index-0", new ShardStats[0]) {
                     @Override
                     public CommonStats getTotal() {
@@ -46,10 +46,15 @@ public class IndexStatsRendererTests extends AbstractRendererTests {
                         return stats;
                     }
                 });
-    }
 
-    @Override
-    protected String sampleFilePath() {
-        return "/samples/index_stats.json";
+        logger.debug("--> rendering the document");
+        Renderer renderer = new IndexStatsRenderer();
+        String result = RendererTestUtils.renderAsJSON(marvelDoc, renderer);
+
+        logger.debug("--> loading sample document from file {}", SAMPLE_FILE);
+        String expected = Streams.copyToStringFromClasspath(SAMPLE_FILE);
+
+        logger.debug("--> comparing both documents, they must be identical");
+        RendererTestUtils.assertJSONStructureAndValues(result, expected);
     }
 }

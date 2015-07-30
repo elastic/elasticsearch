@@ -141,7 +141,7 @@
   <!-- TODO: doesn't belong here, but we will figure it out -->
   <target name="start-foreground" depends="stop-external-cluster">
       <delete dir="${integ.scratch}"/>
-      <unzip src="${project.build.directory}/releases/${project.artifactId}-${project.version}.zip" dest="${integ.scratch}"/>
+      <unzip src="${project.build.directory}/releases/elasticsearch-${project.version}.zip" dest="${integ.scratch}"/>
       <local name="home"/>
       <property name="home" location="${integ.scratch}/elasticsearch-${elasticsearch.version}"/>
       <run-script dir="${home}" script="bin/elasticsearch" spawn="false"

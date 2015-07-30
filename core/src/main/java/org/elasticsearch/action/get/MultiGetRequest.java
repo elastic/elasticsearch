@@ -42,7 +42,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
-public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements Iterable<MultiGetRequest.Item>, CompositeIndicesRequest {
+public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements Iterable<MultiGetRequest.Item>, CompositeIndicesRequest, RealtimeRequest {
 
     /**
      * A single get item.
@@ -319,6 +319,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
         return this.realtime == null ? true : this.realtime;
     }
 
+    @Override
     public MultiGetRequest realtime(Boolean realtime) {
         this.realtime = realtime;
         return this;

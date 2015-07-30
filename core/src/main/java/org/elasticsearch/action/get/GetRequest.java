@@ -21,6 +21,7 @@ package org.elasticsearch.action.get;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.Nullable;
@@ -43,7 +44,7 @@ import java.io.IOException;
  * @see org.elasticsearch.client.Requests#getRequest(String)
  * @see org.elasticsearch.client.Client#get(GetRequest)
  */
-public class GetRequest extends SingleShardRequest<GetRequest> {
+public class GetRequest extends SingleShardRequest<GetRequest> implements RealtimeRequest {
 
     private String type;
     private String id;
@@ -244,6 +245,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> {
         return this.realtime == null ? true : this.realtime;
     }
 
+    @Override
     public GetRequest realtime(Boolean realtime) {
         this.realtime = realtime;
         return this;

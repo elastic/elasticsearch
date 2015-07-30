@@ -75,14 +75,14 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     public TransportUpdateAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                  TransportIndexAction indexAction, TransportDeleteAction deleteAction, TransportCreateIndexAction createIndexAction,
                                  UpdateHelper updateHelper, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                 IndicesService indicesService) {
+                                 IndicesService indicesService, AutoCreateIndex autoCreateIndex) {
         super(settings, UpdateAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, UpdateRequest.class);
         this.indexAction = indexAction;
         this.deleteAction = deleteAction;
         this.createIndexAction = createIndexAction;
         this.updateHelper = updateHelper;
         this.indicesService = indicesService;
-        this.autoCreateIndex = new AutoCreateIndex(settings);
+        this.autoCreateIndex = autoCreateIndex;
     }
 
     @Override

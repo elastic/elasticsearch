@@ -20,21 +20,28 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 
 /**
+ * Encapsulates the logic of whether a new index should be automatically created when
+ * a write operation is about to happen in a non existing index.
  */
-public class AutoCreateIndex {
+public final class AutoCreateIndex {
 
     private final boolean needToCheck;
     private final boolean globallyDisabled;
     private final String[] matches;
     private final String[] matches2;
+    private final IndexNameExpressionResolver resolver;
 
-    public AutoCreateIndex(Settings settings) {
+    @Inject
+    public AutoCreateIndex(Settings settings, IndexNameExpressionResolver resolver) {
+        this.resolver = resolver;
         String value = settings.get("action.auto_create_index");
         if (value == null || Booleans.isExplicitTrue(value)) {
             needToCheck = true;
@@ -71,7 +78,8 @@ public class AutoCreateIndex {
         if (!needToCheck) {
             return false;
         }
-        if (state.metaData().hasConcreteIndex(index)) {
+        boolean exists = resolver.hasIndexOrAlias(index, state);
+        if (exists) {
             return false;
         }
         if (globallyDisabled) {

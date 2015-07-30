@@ -315,6 +315,8 @@
                             <goal>run</goal>
                         </goals>
                         <configuration>
+                            <!-- https://github.com/elastic/elasticsearch/issues/12528 -->
+                            <skip>true</skip>
                             <target>
                                 <condition property="licenses.exists">
                                     <available file="${basedir}/../licenses" type="dir"/>
@@ -336,31 +338,6 @@
     </build>
 
     <profiles>
-        <profile>
-            <id>release</id>
-            <activation>
-                <property>
-                    <name>package.rpm</name>
-                    <value>true</value>
-                </property>
-            </activation>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.codehaus.mojo</groupId>
-                        <artifactId>rpm-maven-plugin</artifactId>
-                        <executions>
-                            <execution>
-                                <id>attach-rpm</id>
-                                <goals>
-                                    <goal>attached-rpm</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
         <profile>
             <id>sign-rpm</id>
             <activation>

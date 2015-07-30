@@ -98,6 +98,19 @@
                         </configuration>
                     </execution>
                     <!-- execution and integration tests -->
+                    <!-- start up elasticsearch in foreground -->
+                    <execution>
+                        <id>execute</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target if="${run}">
+                                <ant antfile="${elasticsearch.integ.antfile}" target="start-foreground"/>
+                            </target>
+                        </configuration>
+                    </execution>
                     <!-- start up external cluster -->
                     <execution>
                         <id>integ-setup</id>

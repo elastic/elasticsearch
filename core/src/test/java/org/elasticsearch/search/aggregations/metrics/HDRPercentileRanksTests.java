@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import com.google.common.collect.Lists;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.script.Script;
@@ -51,7 +50,6 @@ import static org.hamcrest.Matchers.sameInstance;
 /**
  *
  */
-@AwaitsFix(bugUrl = "single test methods fail with occassional seeds (see HDRPercentilesTests.testScript_ExplicitSingleValued_WithParams for example) but only if run as a whole test class not if run as a single test method")
 public class HDRPercentileRanksTests extends AbstractNumericTests {
 
     private static double[] randomPercents(long minValue, long maxValue) {
@@ -372,7 +370,6 @@ public class HDRPercentileRanksTests extends AbstractNumericTests {
 
     @Override
     @Test
-    @AwaitsFix(bugUrl="Fails with seed: B75FCDC119D90BBE, Colin to fix")
     public void testScript_SingleValued_WithParams() throws Exception {
         int sigDigits = randomSignificantDigits();
         Map<String, Object> params = new HashMap<>();

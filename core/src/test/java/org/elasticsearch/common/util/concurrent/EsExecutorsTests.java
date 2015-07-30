@@ -274,7 +274,7 @@ public class EsExecutorsTests extends ESTestCase {
                 assertThat(message, containsString("of dummy runnable"));
                 assertThat(message, containsString("on EsThreadPoolExecutor[testRejectionMessage"));
                 assertThat(message, containsString("queue capacity = " + queue));
-                assertThat(message, containsString("state = Running"));
+                assertThat(message, containsString("[Running"));
                 assertThat(message, containsString("active threads = " + pool));
                 assertThat(message, containsString("queued tasks = " + queue));
                 assertThat(message, containsString("completed tasks = 0"));
@@ -302,7 +302,7 @@ public class EsExecutorsTests extends ESTestCase {
             assertThat(message, containsString("of dummy runnable"));
             assertThat(message, containsString("on EsThreadPoolExecutor[" + getTestName()));
             assertThat(message, containsString("queue capacity = " + queue));
-            assertThat(message, containsString("state = Terminated"));
+            assertThat(message, containsString("[Terminated"));
             assertThat(message, containsString("active threads = 0"));
             assertThat(message, containsString("queued tasks = 0"));
             assertThat(message, containsString("completed tasks = " + actions));

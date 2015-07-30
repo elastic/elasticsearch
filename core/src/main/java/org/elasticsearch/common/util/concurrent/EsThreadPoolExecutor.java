@@ -101,19 +101,6 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
 
     @Override
     public String toString() {
-        /*
-         * ThreadPoolExecutor has some nice information in its toString but we
-         * can't recreate it without nastier hacks than this.
-         */
-        String tpeToString = super.toString();
-        int startOfInfoInTpeToString = tpeToString.indexOf('[');
-        String tpeInfo;
-        if (startOfInfoInTpeToString >= 0) {
-            tpeInfo = tpeToString.substring(startOfInfoInTpeToString + 1);
-        } else {
-            assert false: "Unsupported ThreadPoolExecutor toString";
-            tpeInfo = tpeToString;
-        }
         StringBuilder b = new StringBuilder();
         b.append(getClass().getSimpleName()).append('[');
         b.append(name).append(", ");
@@ -122,7 +109,11 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
             SizeBlockingQueue queue = (SizeBlockingQueue) getQueue();
             b.append("queue capacity = ").append(queue.capacity()).append(", ");
         }
-        b.append("state = ").append(tpeInfo);
+        /*
+         * ThreadPoolExecutor has some nice information in its toString but we
+         * can't get at it easily without just getting the toString.
+         */
+        b.append(super.toString()).append(']');
         return b.toString();
     }
 }

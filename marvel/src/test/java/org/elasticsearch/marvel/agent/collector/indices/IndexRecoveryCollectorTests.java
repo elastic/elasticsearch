@@ -44,6 +44,7 @@ public class IndexRecoveryCollectorTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/366")
     public void testIndexRecoveryCollector() throws Exception {
         final String indexName = "test";
 

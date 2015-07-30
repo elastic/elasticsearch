@@ -19,6 +19,7 @@ public class NodeStatsRendererTests extends ElasticsearchSingleNodeTest {
     private static final String SAMPLE_FILE = "/samples/marvel_node_stats.json";
 
     @Test
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/367")
     public void testNodeStatsRenderer() throws Exception {
         createIndex("index-0");
 

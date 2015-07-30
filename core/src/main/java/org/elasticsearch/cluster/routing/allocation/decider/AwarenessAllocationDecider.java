@@ -188,7 +188,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                 if (assignedShard.relocating()) {
                     RoutingNode relocationNode = allocation.routingNodes().node(assignedShard.relocatingNodeId());
                     shardPerAttribute.addTo(relocationNode.node().attributes().get(awarenessAttribute), 1);
-                } else if (assignedShard.started()) {
+                } else if (assignedShard.started() || assignedShard.initializing()) {
                     RoutingNode routingNode = allocation.routingNodes().node(assignedShard.currentNodeId());
                     shardPerAttribute.addTo(routingNode.node().attributes().get(awarenessAttribute), 1);
                 }

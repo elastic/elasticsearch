@@ -18,12 +18,14 @@
  */
 package org.elasticsearch.plugins;
 
+import com.google.common.base.Joiner;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.cli.CliTool;
+import org.elasticsearch.common.cli.CliTool.ExitStatus;
 import org.elasticsearch.common.cli.CliToolTestCase.CaptureOutputTerminal;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
@@ -50,15 +52,16 @@ import java.util.Locale;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import static org.elasticsearch.common.cli.CliTool.ExitStatus.OK_AND_EXIT;
 import static org.elasticsearch.common.cli.CliTool.ExitStatus.USAGE;
 import static org.elasticsearch.common.cli.CliToolTestCase.args;
 import static org.elasticsearch.common.io.FileSystemUtilsTests.assertFileContent;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.elasticsearch.plugins.PluginInfoTests.writeProperties;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertDirectoryExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.hamcrest.Matchers.*;
-import static org.elasticsearch.plugins.PluginInfoTests.writeProperties;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0.0)
 @LuceneTestCase.SuppressFileSystems("*") // TODO: clean up this test to allow extra files
@@ -434,15 +437,13 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testRemovePlugin_NullName_ThrowsException() throws IOException {
-        int status = new PluginManagerCliParser(terminal).execute(args("remove "));
-        assertThat("Terminal output was: " + terminal.getTerminalOutput(), status, is(USAGE.status()));
+        assertStatus("remove ", USAGE);
     }
 
     @Test
     public void testRemovePluginWithURLForm() throws Exception {
-        int status = new PluginManagerCliParser(terminal).execute(args("remove file://whatever"));
+        assertStatus("remove file://whatever", USAGE);
         assertThat(terminal.getTerminalOutput(), hasItem(containsString("Illegal plugin name")));
-        assertThat("Terminal output was: " + terminal.getTerminalOutput(), status, is(USAGE.status()));
     }
 
     @Test
@@ -479,6 +480,33 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         }
     }
 
+    @Test
+    public void testHelpWorks() throws IOException {
+        assertStatus("--help", OK_AND_EXIT);
+        assertHelp("/org/elasticsearch/plugins/plugin.help");
+
+        terminal.getTerminalOutput().clear();
+        assertStatus("install -h", OK_AND_EXIT);
+        assertHelp("/org/elasticsearch/plugins/plugin-install.help");
+        for (String plugin : PluginManager.OFFICIAL_PLUGINS) {
+            assertThat(terminal.getTerminalOutput(), hasItem(containsString(plugin)));
+        }
+
+        terminal.getTerminalOutput().clear();
+        assertStatus("remove --help", OK_AND_EXIT);
+        assertHelp("/org/elasticsearch/plugins/plugin-remove.help");
+
+        terminal.getTerminalOutput().clear();
+        assertStatus("list -h", OK_AND_EXIT);
+        assertHelp("/org/elasticsearch/plugins/plugin-list.help");
+    }
+
+    private void assertHelp(String classPath) throws IOException {
+        String expectedDocs = Streams.copyToStringFromClasspath(classPath);
+        String returnedDocs = Joiner.on("").join(terminal.getTerminalOutput());
+        assertThat(returnedDocs.trim(), is(expectedDocs.trim()));
+    }
+
     private Tuple<Settings, Environment> buildInitialSettings() throws IOException {
         Settings settings = settingsBuilder()
                 .put("discovery.zen.ping.multicast.enabled", false)
@@ -488,12 +516,12 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     }
 
     private void assertStatusOk(String command) {
-        assertStatus(command, CliTool.ExitStatus.OK);
+        assertStatus(command, ExitStatus.OK);
     }
 
-    private void assertStatus(String command, CliTool.ExitStatus exitStatus) {
-        int status = new PluginManagerCliParser(terminal).execute(args(command));
-        assertThat("Terminal output was: " + terminal.getTerminalOutput(), status, is(exitStatus.status()));
+    private void assertStatus(String command, ExitStatus exitStatus) {
+        ExitStatus status = new PluginManagerCliParser(terminal).execute(args(command));
+        assertThat("Terminal output was: " + terminal.getTerminalOutput(), status, is(exitStatus));
     }
 
     private void assertThatPluginIsListed(String pluginName) {

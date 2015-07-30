@@ -820,6 +820,13 @@ For the record, official plugins which can use this new simplified form are:
 * elasticsearch-lang-javascript
 * elasticsearch-lang-python
 
+=== `/bin/elasticsearch` version needs `-V` parameter
+
+Due to switching to elasticsearchs internal command line parsing
+infrastructure for the pluginmanager and the elasticsearch start up
+script, the `-v` parameter now stands for `--verbose`, where as `-V` or
+`--version` can be used to show the Elasticsearch version and exit.
+
 === Aliases
 
 Fields used in alias filters no longer have to exist in the mapping upon alias creation time. Alias filters are now

@@ -33,6 +33,8 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.common.cli.CliTool.ExitStatus.OK;
+import static org.elasticsearch.common.cli.CliTool.ExitStatus.USAGE;
 import static org.elasticsearch.common.cli.CliToolConfig.Builder.cmd;
 import static org.hamcrest.Matchers.*;
 
@@ -49,12 +51,12 @@ public class CliToolTests extends CliToolTestCase {
             @Override
             public CliTool.ExitStatus execute(Settings settings, Environment env) {
                 executed.set(true);
-                return CliTool.ExitStatus.OK;
+                return OK;
             }
         };
         SingleCmdTool tool = new SingleCmdTool("tool", terminal, cmd);
-        int status = tool.execute();
-        assertStatus(status, CliTool.ExitStatus.OK);
+        CliTool.ExitStatus status = tool.execute();
+        assertStatus(status, OK);
         assertCommandHasBeenExecuted(executed);
     }
 
@@ -70,7 +72,7 @@ public class CliToolTests extends CliToolTestCase {
             }
         };
         SingleCmdTool tool = new SingleCmdTool("tool", terminal, cmd);
-        int status = tool.execute();
+        CliTool.ExitStatus status = tool.execute();
         assertStatus(status, CliTool.ExitStatus.USAGE);
         assertCommandHasBeenExecuted(executed);
     }
@@ -87,7 +89,7 @@ public class CliToolTests extends CliToolTestCase {
             }
         };
         SingleCmdTool tool = new SingleCmdTool("tool", terminal, cmd);
-        int status = tool.execute();
+        CliTool.ExitStatus status = tool.execute();
         assertStatus(status, CliTool.ExitStatus.IO_ERROR);
         assertCommandHasBeenExecuted(executed);
     }
@@ -104,7 +106,7 @@ public class CliToolTests extends CliToolTestCase {
             }
         };
         SingleCmdTool tool = new SingleCmdTool("tool", terminal, cmd);
-        int status = tool.execute();
+        CliTool.ExitStatus status = tool.execute();
         assertStatus(status, CliTool.ExitStatus.CODE_ERROR);
         assertCommandHasBeenExecuted(executed);
     }
@@ -124,14 +126,14 @@ public class CliToolTests extends CliToolTestCase {
                 @Override
                 public CliTool.ExitStatus execute(Settings settings, Environment env) throws Exception {
                     executed[index].set(true);
-                    return CliTool.ExitStatus.OK;
+                    return OK;
                 }
             };
         }
         MultiCmdTool tool = new MultiCmdTool("tool", terminal, cmds);
         int cmdIndex = randomIntBetween(0, count-1);
-        int status = tool.execute("cmd" + cmdIndex);
-        assertThat(status, is(CliTool.ExitStatus.OK.status()));
+        CliTool.ExitStatus status = tool.execute("cmd" + cmdIndex);
+        assertThat(status, is(OK));
         for (int i = 0; i < executed.length; i++) {
             assertThat(executed[i].get(), is(i == cmdIndex));
         }
@@ -152,13 +154,13 @@ public class CliToolTests extends CliToolTestCase {
                 @Override
                 public CliTool.ExitStatus execute(Settings settings, Environment env) throws Exception {
                     executed[index].set(true);
-                    return CliTool.ExitStatus.OK;
+                    return OK;
                 }
             };
         }
         MultiCmdTool tool = new MultiCmdTool("tool", terminal, cmds);
-        int status = tool.execute("cmd" + count); // "cmd" + count doesn't exist
-        assertThat(status, is(CliTool.ExitStatus.USAGE.status()));
+        CliTool.ExitStatus status = tool.execute("cmd" + count); // "cmd" + count doesn't exist
+        assertThat(status, is(CliTool.ExitStatus.USAGE));
         for (int i = 0; i < executed.length; i++) {
             assertThat(executed[i].get(), is(false));
         }
@@ -176,8 +178,8 @@ public class CliToolTests extends CliToolTestCase {
             }
         };
         SingleCmdTool tool = new SingleCmdTool("tool", terminal, cmd);
-        int status = tool.execute(args("-h"));
-        assertStatus(status, CliTool.ExitStatus.OK);
+        CliTool.ExitStatus status = tool.execute(args("-h"));
+        assertStatus(status, CliTool.ExitStatus.OK_AND_EXIT);
         assertThat(terminal.getTerminalOutput(), hasSize(3));
         assertThat(terminal.getTerminalOutput(), hasItem(containsString("cmd1 help")));
     }
@@ -189,18 +191,18 @@ public class CliToolTests extends CliToolTestCase {
         cmds[0] = new NamedCommand("cmd0", terminal) {
             @Override
             public CliTool.ExitStatus execute(Settings settings, Environment env) throws Exception {
-                return CliTool.ExitStatus.OK;
+                return OK;
             }
         };
         cmds[1] = new NamedCommand("cmd1", terminal) {
             @Override
             public CliTool.ExitStatus execute(Settings settings, Environment env) throws Exception {
-                return CliTool.ExitStatus.OK;
+                return OK;
             }
         };
         MultiCmdTool tool = new MultiCmdTool("tool", terminal, cmds);
-        int status = tool.execute(args("-h"));
-        assertStatus(status, CliTool.ExitStatus.OK);
+        CliTool.ExitStatus status = tool.execute(args("-h"));
+        assertStatus(status, CliTool.ExitStatus.OK_AND_EXIT);
         assertThat(terminal.getTerminalOutput(), hasSize(3));
         assertThat(terminal.getTerminalOutput(), hasItem(containsString("tool help")));
     }
@@ -212,18 +214,18 @@ public class CliToolTests extends CliToolTestCase {
         cmds[0] = new NamedCommand("cmd0", terminal) {
             @Override
             public CliTool.ExitStatus execute(Settings settings, Environment env) throws Exception {
-                return CliTool.ExitStatus.OK;
+                return OK;
             }
         };
         cmds[1] = new NamedCommand("cmd1", terminal) {
             @Override
             public CliTool.ExitStatus execute(Settings settings, Environment env) throws Exception {
-                return CliTool.ExitStatus.OK;
+                return OK;
             }
         };
         MultiCmdTool tool = new MultiCmdTool("tool", terminal, cmds);
-        int status = tool.execute(args("cmd1 -h"));
-        assertStatus(status, CliTool.ExitStatus.OK);
+        CliTool.ExitStatus status = tool.execute(args("cmd1 -h"));
+        assertStatus(status, CliTool.ExitStatus.OK_AND_EXIT);
         assertThat(terminal.getTerminalOutput(), hasSize(3));
         assertThat(terminal.getTerminalOutput(), hasItem(containsString("cmd1 help")));
     }
@@ -264,7 +266,7 @@ public class CliToolTests extends CliToolTestCase {
             @Override
             public CliTool.ExitStatus execute(Settings settings, Environment env) {
                 executed.set(true);
-                return CliTool.ExitStatus.OK;
+                return OK;
             }
         };
         SingleCmdTool tool = new SingleCmdTool("tool", terminal, cmd);
@@ -298,7 +300,7 @@ public class CliToolTests extends CliToolTestCase {
             public CliTool.ExitStatus execute(Settings settings, Environment env) {
                 promptedSecretValue.set(settings.get("foo.password"));
                 promptedTextValue.set(settings.get("replace"));
-                return CliTool.ExitStatus.OK;
+                return OK;
             }
         };
 
@@ -316,8 +318,44 @@ public class CliToolTests extends CliToolTestCase {
         assertThat(promptedTextValue.get(), is("replaced"));
     }
 
-    private void assertStatus(int status, CliTool.ExitStatus expectedStatus) {
-        assertThat(status, is(expectedStatus.status()));
+    @Test
+    public void testStopAtNonOptionParsing() throws Exception {
+        final CliToolConfig.Cmd lenientCommand = cmd("lenient", CliTool.Command.Exit.class).stopAtNonOption(true).build();
+        final CliToolConfig.Cmd strictCommand = cmd("strict", CliTool.Command.Exit.class).stopAtNonOption(false).build();
+        final CliToolConfig config = CliToolConfig.config("elasticsearch", CliTool.class).cmds(lenientCommand, strictCommand).build();
+
+        final CaptureOutputTerminal terminal = new CaptureOutputTerminal();
+        final CliTool cliTool = new CliTool(config, terminal) {
+            @Override
+            protected Command parse(String cmdName, CommandLine cli) throws Exception {
+                return new NamedCommand(cmdName, terminal) {
+                    @Override
+                    public ExitStatus execute(Settings settings, Environment env) throws Exception {
+                        return OK;
+                    }
+                };
+            }
+        };
+
+        // known parameters, no error
+        assertStatus(cliTool.execute(args("lenient --verbose")), OK);
+        assertStatus(cliTool.execute(args("lenient -v")), OK);
+
+        // unknown parameters, no error
+        assertStatus(cliTool.execute(args("lenient --unknown")), OK);
+        assertStatus(cliTool.execute(args("lenient -u")), OK);
+
+        // unknown parameters, error
+        assertStatus(cliTool.execute(args("strict --unknown")), USAGE);
+        assertThat(terminal.getTerminalOutput(), hasItem(containsString("Unrecognized option: --unknown")));
+
+        terminal.getTerminalOutput().clear();
+        assertStatus(cliTool.execute(args("strict -u")), USAGE);
+        assertThat(terminal.getTerminalOutput(), hasItem(containsString("Unrecognized option: -u")));
+    }
+
+    private void assertStatus(CliTool.ExitStatus status, CliTool.ExitStatus expectedStatus) {
+        assertThat(status, is(expectedStatus));
     }
 
     private void assertCommandHasBeenExecuted(AtomicReference<Boolean> executed) {

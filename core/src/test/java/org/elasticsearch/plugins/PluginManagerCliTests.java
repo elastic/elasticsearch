@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.common.cli.CliTool.ExitStatus.OK;
+import static org.elasticsearch.common.cli.CliTool.ExitStatus.OK_AND_EXIT;
 import static org.hamcrest.Matchers.*;
 
 public class PluginManagerCliTests extends CliToolTestCase {
@@ -36,22 +37,22 @@ public class PluginManagerCliTests extends CliToolTestCase {
     @Test
     public void testHelpWorks() throws IOException {
         CliToolTestCase.CaptureOutputTerminal terminal = new CliToolTestCase.CaptureOutputTerminal();
-        assertThat(new PluginManagerCliParser(terminal).execute(args("--help")), is(OK.status()));
+        assertThat(new PluginManagerCliParser(terminal).execute(args("--help")), is(OK_AND_EXIT));
         assertHelp(terminal, "/org/elasticsearch/plugins/plugin.help");
 
         terminal.getTerminalOutput().clear();
-        assertThat(new PluginManagerCliParser(terminal).execute(args("install -h")), is(OK.status()));
+        assertThat(new PluginManagerCliParser(terminal).execute(args("install -h")), is(OK_AND_EXIT));
         assertHelp(terminal, "/org/elasticsearch/plugins/plugin-install.help");
         for (String plugin : PluginManager.OFFICIAL_PLUGINS) {
             assertThat(terminal.getTerminalOutput(), hasItem(containsString(plugin)));
         }
 
         terminal.getTerminalOutput().clear();
-        assertThat(new PluginManagerCliParser(terminal).execute(args("remove --help")), is(OK.status()));
+        assertThat(new PluginManagerCliParser(terminal).execute(args("remove --help")), is(OK_AND_EXIT));
         assertHelp(terminal, "/org/elasticsearch/plugins/plugin-remove.help");
 
         terminal.getTerminalOutput().clear();
-        assertThat(new PluginManagerCliParser(terminal).execute(args("list -h")), is(OK.status()));
+        assertThat(new PluginManagerCliParser(terminal).execute(args("list -h")), is(OK_AND_EXIT));
         assertHelp(terminal, "/org/elasticsearch/plugins/plugin-list.help");
     }
 

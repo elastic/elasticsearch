@@ -22,6 +22,7 @@ package org.elasticsearch.common.cli;
 import com.google.common.base.Preconditions;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.GnuParser;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
@@ -54,6 +55,7 @@ public abstract class CliTool {
     // based on sysexits.h
     public static enum ExitStatus {
         OK(0),
+        OK_AND_EXIT(0),
         USAGE(64),          /* command line usage error */
         DATA_ERROR(65),     /* data format error */
         NO_INPUT(66),       /* cannot open input */
@@ -77,6 +79,16 @@ public abstract class CliTool {
         public int status() {
             return status;
         }
+
+        public static ExitStatus fromStatus(int status) {
+            for (ExitStatus exitStatus : values()) {
+                if (exitStatus.status() == status) {
+                    return exitStatus;
+                }
+            }
+
+            return null;
+        }
     }
 
     protected final Terminal terminal;
@@ -98,14 +110,14 @@ public abstract class CliTool {
         env = tuple.v2();
     }
 
-    public final int execute(String... args) {
+    public final ExitStatus execute(String... args) {
 
         // first lets see if the user requests tool help. We're doing it only if
         // this is a multi-command tool. If it's a single command tool, the -h/--help
         // option will be taken care of on the command level
         if (!config.isSingle() && args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))) {
             config.printUsage(terminal);
-            return ExitStatus.OK.status;
+            return ExitStatus.OK_AND_EXIT;
         }
 
         CliToolConfig.Cmd cmd;
@@ -116,14 +128,14 @@ public abstract class CliTool {
             if (args.length == 0) {
                 terminal.printError("command not specified");
                 config.printUsage(terminal);
-                return ExitStatus.USAGE.status;
+                return ExitStatus.USAGE;
             }
 
             String cmdName = args[0];
             cmd = config.cmd(cmdName);
             if (cmd == null) {
                 terminal.printError("unknown command [%s]. Use [-h] option to list available commands", cmdName);
-                return ExitStatus.USAGE.status;
+                return ExitStatus.USAGE;
             }
 
             // we now remove the command name from the args
@@ -140,20 +152,19 @@ public abstract class CliTool {
         try {
 
             command = parse(cmd, args);
-            return command.execute(settings, env).status;
-
+            return command.execute(settings, env);
         } catch (IOException ioe) {
             terminal.printError(ioe);
-            return ExitStatus.IO_ERROR.status;
+            return ExitStatus.IO_ERROR;
         } catch (IllegalArgumentException ilae) {
             terminal.printError(ilae);
-            return ExitStatus.USAGE.status;
+            return ExitStatus.USAGE;
         } catch (Throwable t) {
             terminal.printError(t);
             if (command == null) {
-                return ExitStatus.USAGE.status;
+                return ExitStatus.USAGE;
             }
-            return ExitStatus.CODE_ERROR.status;
+            return ExitStatus.CODE_ERROR;
         }
     }
 
@@ -163,12 +174,12 @@ public abstract class CliTool {
     }
 
     public Command parse(CliToolConfig.Cmd cmd, String[] args) throws Exception {
-        CommandLineParser parser = new GnuParser();
+        CommandLineParser parser = new DefaultParser();
         CommandLine cli = parser.parse(CliToolConfig.OptionsSource.HELP.options(), args, true);
         if (cli.hasOption("h")) {
             return helpCmd(cmd);
         }
-        cli = parser.parse(cmd.options(), args);
+        cli = parser.parse(cmd.options(), args, cmd.isStopAtNonOption());
         Terminal.Verbosity verbosity = Terminal.Verbosity.resolve(cli);
         terminal.verbosity(verbosity);
         return parse(cmd.name(), cli);
@@ -210,7 +221,7 @@ public abstract class CliTool {
             @Override
             public ExitStatus execute(Settings settings, Environment env) throws Exception {
                 cmd.printUsage(terminal);
-                return ExitStatus.OK;
+                return ExitStatus.OK_AND_EXIT;
             }
         }
 

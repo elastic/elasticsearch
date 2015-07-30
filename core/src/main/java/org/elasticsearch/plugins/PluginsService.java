@@ -360,7 +360,7 @@ public class PluginsService extends AbstractComponent {
                 jars.addAll(bundle.urls);
                 JarHell.checkJarHell(jars.toArray(new URL[0]));
             } catch (Exception e) {
-                logger.warn("failed to load bundle {} due to jar hell", bundle.urls);
+                logger.warn("failed to load bundle {} due to jar hell", bundle.urls, e);
             }
             
             // create a child to load the plugins in this bundle

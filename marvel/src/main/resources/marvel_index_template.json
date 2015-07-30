@@ -142,6 +142,13 @@
           }
         }
       }
+    },
+    "marvel_index_recovery": {
+      "properties": {
+        "shards": {
+          "type": "object"
+        }
+      }
     }
   }
 }

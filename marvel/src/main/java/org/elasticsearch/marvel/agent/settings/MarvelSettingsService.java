@@ -35,6 +35,12 @@ public class MarvelSettingsService extends AbstractComponent implements NodeSett
     final TimeValueSetting clusterStateTimeout = MarvelSetting.timeSetting(PREFIX + "cluster.state.timeout", TimeValue.timeValueMinutes(10),
             "Timeout value when collecting the cluster state (default to 10m)");
 
+    final TimeValueSetting recoveryTimeout = MarvelSetting.timeSetting(PREFIX + "index.recovery.timeout", TimeValue.timeValueMinutes(10),
+            "Timeout value when collecting the recovery information (default to 10m)");
+
+    final MarvelSetting.BooleanSetting recoveryActiveOnly = MarvelSetting.booleanSetting(PREFIX + "index.recovery.active_only", Boolean.FALSE,
+            "Flag to indicate if only active recoveries should be collected (default to false: all recoveries are collected)");
+
     MarvelSettingsService(Settings clusterSettings) {
         super(clusterSettings);
 
@@ -43,6 +49,8 @@ public class MarvelSettingsService extends AbstractComponent implements NodeSett
         builder.add(indexStatsTimeout);
         builder.add(indices);
         builder.add(clusterStateTimeout);
+        builder.add(recoveryTimeout);
+        builder.add(recoveryActiveOnly);
         this.settings = builder.build();
 
         logger.trace("initializing marvel settings:");
@@ -91,5 +99,13 @@ public class MarvelSettingsService extends AbstractComponent implements NodeSett
 
     public TimeValue clusterStateTimeout() {
         return clusterStateTimeout.getValue();
+    }
+
+    public TimeValue recoveryTimeout() {
+        return recoveryTimeout.getValue();
+    }
+
+    public boolean recoveryActiveOnly() {
+        return recoveryActiveOnly.getValue();
     }
 }

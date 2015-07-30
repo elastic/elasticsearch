@@ -24,7 +24,7 @@ public class IndexStatsRendererTests extends ElasticsearchTestCase {
 
     @Test
     public void testIndexStatsRenderer() throws Exception {
-        logger.debug("--> creating the cluster stats marvel document");
+        logger.debug("--> creating the index stats marvel document");
         IndexStatsMarvelDoc marvelDoc = IndexStatsMarvelDoc.createMarvelDoc("test", "marvel_index_stats", 1437580442979L,
                 new IndexStats("index-0", new ShardStats[0]) {
                     @Override

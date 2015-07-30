@@ -198,4 +198,28 @@
     <startup-elasticsearch/>
   </target>
 
+  <!-- distribution tests: .deb -->
+
+  <target name="setup-workspace-deb" depends="stop-external-cluster" unless="${shouldskip}">
+    <sequential>
+      <delete dir="${integ.scratch}"/>
+      <mkdir dir="${integ.scratch}/deb-extracted"/>
+      <local name="debfile"/>
+      <property name="debfile" location="${project.build.directory}/releases/elasticsearch-${project.version}.deb"/>
+      <exec executable="dpkg-deb" failonerror="true" taskname="deb-info">
+         <arg value="-W"/>
+         <arg value="${debfile}"/> 
+      </exec>
+      <exec executable="dpkg-deb" failonerror="true">
+         <arg value="-x"/> 
+         <arg value="${debfile}"/> 
+         <arg value="${integ.scratch}/deb-extracted"/> 
+      </exec>
+    </sequential>
+  </target>
+
+  <target name="start-external-cluster-deb" depends="setup-workspace-deb" unless="${shouldskip}">
+    <startup-elasticsearch home="${integ.scratch}/deb-extracted/usr/share/elasticsearch/"/>
+  </target>
+
 </project>

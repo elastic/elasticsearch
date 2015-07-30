@@ -13,7 +13,6 @@
     <name>Elasticsearch TAR Distribution</name>
 
     <properties>
-        <skip.integ.tests>false</skip.integ.tests>
     </properties>
 
     <build>
@@ -77,6 +76,7 @@
                             <goal>run</goal>
                         </goals>
                         <configuration>
+                            <skip>${skip.integ.tests}</skip>
                             <target>
                                 <ant antfile="${elasticsearch.integ.antfile}" target="start-external-cluster-tar"/>
                             </target>
@@ -90,6 +90,7 @@
                             <goal>run</goal>
                         </goals>
                         <configuration>
+                            <skip>${skip.integ.tests}</skip>
                             <target>
                                 <ant antfile="${elasticsearch.integ.antfile}" target="stop-external-cluster"/>
                             </target>

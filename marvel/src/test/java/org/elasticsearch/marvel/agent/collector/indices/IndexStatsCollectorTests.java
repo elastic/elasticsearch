@@ -128,8 +128,8 @@ public class IndexStatsCollectorTests extends ElasticsearchSingleNodeTest {
         return new IndexStatsCollector(getInstanceFromNode(Settings.class),
                 getInstanceFromNode(ClusterService.class),
                 getInstanceFromNode(ClusterName.class),
-                client(),
-                getInstanceFromNode(MarvelSettingsService.class));
+                getInstanceFromNode(MarvelSettingsService.class),
+                client());
     }
 
     public void waitForNoBlocksOnNode() throws InterruptedException {

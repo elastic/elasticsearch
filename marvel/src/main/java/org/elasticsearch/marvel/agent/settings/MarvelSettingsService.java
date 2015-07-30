@@ -27,11 +27,13 @@ public class MarvelSettingsService extends AbstractComponent implements NodeSett
     private final List<MarvelSetting> settings;
 
     final TimeValueSetting indexStatsTimeout = MarvelSetting.timeSetting(PREFIX + "index.stats.timeout", TimeValue.timeValueMinutes(10),
-            "Timeout value when collecting Index Stats (default to 10m)");
+            "Timeout value when collecting indices statistics (default to 10m)");
 
     final StringArraySetting indices = MarvelSetting.arraySetting(PREFIX + "indices", Strings.EMPTY_ARRAY,
             "List of indices names whose stats will be exported (default to all indices)");
 
+    final TimeValueSetting clusterStateTimeout = MarvelSetting.timeSetting(PREFIX + "cluster.state.timeout", TimeValue.timeValueMinutes(10),
+            "Timeout value when collecting the cluster state (default to 10m)");
 
     MarvelSettingsService(Settings clusterSettings) {
         super(clusterSettings);
@@ -40,6 +42,7 @@ public class MarvelSettingsService extends AbstractComponent implements NodeSett
         ImmutableList.Builder<MarvelSetting> builder = ImmutableList.builder();
         builder.add(indexStatsTimeout);
         builder.add(indices);
+        builder.add(clusterStateTimeout);
         this.settings = builder.build();
 
         logger.trace("initializing marvel settings:");
@@ -84,5 +87,9 @@ public class MarvelSettingsService extends AbstractComponent implements NodeSett
 
     public String[] indices() {
         return indices.getValue();
+    }
+
+    public TimeValue clusterStateTimeout() {
+        return clusterStateTimeout.getValue();
     }
 }

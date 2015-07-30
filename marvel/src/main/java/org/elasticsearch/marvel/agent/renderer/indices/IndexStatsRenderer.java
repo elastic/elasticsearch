@@ -30,9 +30,9 @@ public class IndexStatsRenderer extends AbstractRenderer<IndexStatsMarvelDoc> {
 
     @Override
     protected void doRender(IndexStatsMarvelDoc marvelDoc, XContentBuilder builder, ToXContent.Params params) throws IOException {
-        IndexStatsMarvelDoc.Payload payload = marvelDoc.payload();
-
         builder.startObject(Fields.INDEX_STATS);
+
+        IndexStatsMarvelDoc.Payload payload = marvelDoc.payload();
         if (payload != null) {
             IndexStats indexStats = payload.getIndexStats();
             if (indexStats != null) {

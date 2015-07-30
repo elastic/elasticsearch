@@ -30,16 +30,13 @@ public class IndexStatsCollector extends AbstractCollector<IndexStatsCollector> 
     public static final String NAME = "index-stats-collector";
     public static final String TYPE = "marvel_index_stats";
 
-    private final ClusterName clusterName;
     private final Client client;
-    private final MarvelSettingsService marvelSettings;
 
     @Inject
-    public IndexStatsCollector(Settings settings, ClusterService clusterService, ClusterName clusterName, Client client, MarvelSettingsService marvelSettings) {
-        super(settings, NAME, clusterService);
+    public IndexStatsCollector(Settings settings, ClusterService clusterService,
+                               ClusterName clusterName, MarvelSettingsService marvelSettings, Client client) {
+        super(settings, NAME, clusterService, clusterName, marvelSettings);
         this.client = client;
-        this.clusterName = clusterName;
-        this.marvelSettings = marvelSettings;
     }
 
     @Override

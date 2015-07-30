@@ -20,8 +20,9 @@
 package org.elasticsearch.search.fetch;
 
 /**
- * This class stores  if or if not a FetchSubPhase is supposed to execute.
- * It be extended by FetchSubPhases to hold information the phase needs to execute on hits.
+ * All configuration and context needed by the FetchSubPhase to execute on hits.
+ * The only required information in this base class is whether or not the sub phase needs to be run at all.
+ * It can be extended by FetchSubPhases to hold information the phase needs to execute on hits.
  * See {@link org.elasticsearch.search.fetch.FetchSubPhase.ContextFactory} and also {@link org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext} for an example.
  */
 public class FetchSubPhaseContext {

@@ -137,9 +137,7 @@ public class FetchSubPhasePluginTests extends ElasticsearchIntegrationTest {
 
         @Override
         public Map<String, ? extends SearchParseElement> parseElements() {
-            ImmutableMap.Builder<String, SearchParseElement> parseElements = ImmutableMap.builder();
-            parseElements.put("term_vectors_fetch", new TermVectorsFetchParseElement());
-            return parseElements.build();
+            return ImmutableMap.of("term_vectors_fetch", new TermVectorsFetchParseElement());
         }
 
         @Override

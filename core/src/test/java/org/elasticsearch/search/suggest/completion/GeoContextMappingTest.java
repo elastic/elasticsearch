@@ -193,7 +193,7 @@ public class GeoContextMappingTest extends ElasticsearchSingleNodeTest {
                 .endObject();
         ParsedDocument parsedDocument = defaultMapper.parse("test", "type1", "1", builder.bytes());
         IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.names().indexName());
-        assertContextSuggestFields(fields, 3);
+        assertContextSuggestFields(fields, 6);
     }
     @Test
     public void testParsingQueryContextBasic() throws Exception {

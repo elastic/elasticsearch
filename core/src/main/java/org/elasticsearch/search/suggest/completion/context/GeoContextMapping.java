@@ -21,7 +21,6 @@ package org.elasticsearch.search.suggest.completion.context;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.search.suggest.xdocument.CompletionQuery;
 import org.apache.lucene.search.suggest.xdocument.ContextQuery;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
@@ -41,15 +40,14 @@ import java.io.IOException;
 import java.util.*;
 
 /**
- * A {@link ContextMapping} that defines criterion type as a geo hash
+ * A {@link ContextMapping} that uses a geo location/area as a
+ * criteria.
  * The suggestions can be boosted and/or filtered depending on
  * whether it falls within an area, represented by a query geo hash
+ * with a specified precision
  *
  * {@link GeoQueryContext} defines the options for constructing
  * a unit of query context for this context type
- *
- * Internally, geo point values are converted to a geo hash and prepended
- * with the suggestion value at index time
  */
 public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
 
@@ -118,6 +116,17 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
         return builder;
     }
 
+    /**
+     * Parse a set of {@link CharSequence} contexts at index-time.
+     * Acceptable formats:
+     *
+     *  <ul>
+     *     <li>Array: <pre>[<i>&lt;GEO POINT&gt;</i>, ..]</pre></li>
+     *     <li>String/Object/Array: <pre>&quot;GEO POINT&quot;</pre></li>
+     *  </ul>
+     *
+     * see {@link GeoUtils#parseGeoPoint(String, GeoPoint)} for GEO POINT
+     */
     @Override
     public Set<CharSequence> parseContext(ParseContext parseContext, XContentParser parser) throws IOException, ElasticsearchParseException {
         if (fieldName != null) {
@@ -198,25 +207,47 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
         return locations;
     }
 
+    /**
+     * Parse a {@link QueryContexts<GeoQueryContext>}
+     * using <code>parser</code>. A QueryContexts accepts one of the following forms:
+     *
+     * <ul>
+     *     <li>Object: GeoQueryContext</li>
+     *     <li>String: GeoQueryContext value with boost=1  precision=PRECISION neighbours=[PRECISION]</li>
+     *     <li>Array: <pre>[GeoQueryContext, ..]</pre></li>
+     * </ul>
+     *
+     *  A GeoQueryContext has one of the following forms:
+     *  <ul>
+     *     <li>Object:
+     *     <ul>
+     *         <li><pre>GEO POINT</pre></li>
+     *         <li><pre>{&quot;lat&quot;: <i>&lt;double&gt;</i>, &quot;lon&quot;: <i>&lt;double&gt;</i>, &quot;precision&quot;: <i>&lt;int&gt;</i>, &quot;neighbours&quot;: <i>&lt;[int, ..]&gt;</i>}</pre></li>
+     *         <li><pre>{&quot;context&quot;: <i>&lt;string&gt;</i>, &quot;boost&quot;: <i>&lt;int&gt;</i>, &quot;precision&quot;: <i>&lt;int&gt;</i>, &quot;neighbours&quot;: <i>&lt;[int, ..]&gt;</i>}</pre></li>
+     *         <li><pre>{&quot;context&quot;: <i>&lt;GEO POINT&gt;</i>, &quot;boost&quot;: <i>&lt;int&gt;</i>, &quot;precision&quot;: <i>&lt;int&gt;</i>, &quot;neighbours&quot;: <i>&lt;[int, ..]&gt;</i>}</pre></li>
+     *     </ul>
+     *     <li>String: <pre>GEO POINT</pre></li>
+     *  </ul>
+     * see {@link GeoUtils#parseGeoPoint(String, GeoPoint)} for GEO POINT
+     */
     @Override
     public QueryContexts<GeoQueryContext> parseQueryContext(String name, XContentParser parser) throws IOException, ElasticsearchParseException {
         QueryContexts<GeoQueryContext> queryContexts = new QueryContexts<>(name);
         Token token = parser.nextToken();
-        if (token == Token.START_ARRAY) {
+        if (token == Token.START_OBJECT || token == Token.VALUE_STRING) {
+            GeoQueryContext current = innerParseQueryContext(parser);
+            if (current != null) {
+                queryContexts.add(current);
+            }
+        } else if (token == Token.START_ARRAY) {
             while (parser.nextToken() != Token.END_ARRAY) {
                 GeoQueryContext current = innerParseQueryContext(parser);
                 if (current != null) {
                     queryContexts.add(current);
                 }
             }
-        } else if (token == Token.START_OBJECT || token == Token.VALUE_STRING) {
-            GeoQueryContext current = innerParseQueryContext(parser);
-            if (current != null) {
-                queryContexts.add(current);
-            }
         }
         return queryContexts;
-
     }
 
     private GeoQueryContext innerParseQueryContext(XContentParser parser) throws IOException, ElasticsearchParseException {
@@ -345,25 +376,21 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
 
 
     @Override
-    public CompletionQuery toContextQuery(CompletionQuery query, @Nullable QueryContexts<GeoQueryContext> queryContexts) {
-        final ContextQuery contextQuery = new ContextQuery(query);
-        if (queryContexts != null) {
-            for (GeoQueryContext queryContext : queryContexts) {
-                int precision = Math.min(this.precision, queryContext.geoHash.length());
-                String truncatedGeohash = queryContext.geoHash.toString().substring(0, precision);
-                contextQuery.addContext(truncatedGeohash, queryContext.boost, false);
-                for (int neighboursPrecision : queryContext.neighbours) {
-                    int neighbourPrecision = Math.min(neighboursPrecision, truncatedGeohash.length());
-                    String neighbourGeohash = truncatedGeohash.substring(0, neighbourPrecision);
-                    Collection<String> locations = new HashSet<>();
-                    GeoHashUtils.addNeighbors(neighbourGeohash, precision, locations);
-                    for (String location : locations) {
-                        contextQuery.addContext(location, queryContext.boost, false);
-                    }
+    public void addQueryContexts(ContextQuery query, QueryContexts<GeoQueryContext> queryContexts) {
+        for (GeoQueryContext queryContext : queryContexts) {
+            int precision = Math.min(this.precision, queryContext.geoHash.length());
+            String truncatedGeohash = queryContext.geoHash.toString().substring(0, precision);
+            query.addContext(truncatedGeohash, queryContext.boost, false);
+            for (int neighboursPrecision : queryContext.neighbours) {
+                int neighbourPrecision = Math.min(neighboursPrecision, truncatedGeohash.length());
+                String neighbourGeohash = truncatedGeohash.substring(0, neighbourPrecision);
+                Collection<String> locations = new HashSet<>();
+                GeoHashUtils.addNeighbors(neighbourGeohash, precision, locations);
+                for (String location : locations) {
+                    query.addContext(location, queryContext.boost, false);
                 }
             }
         }
-        return contextQuery;
     }
 
     @Override

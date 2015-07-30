@@ -35,6 +35,7 @@ import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
+import org.elasticsearch.search.suggest.completion.context.ContextMappingsParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -42,6 +43,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.search.suggest.SuggestUtils.parseSuggestContext;
+import static org.elasticsearch.search.suggest.completion.context.ContextMappingsParser.parseQueryContext;
 
 /**
  * Parses query options for {@link CompletionSuggester}
@@ -55,7 +57,7 @@ import static org.elasticsearch.search.suggest.SuggestUtils.parseSuggestContext;
  *     "regex" : REGEX_OBJECT
  * }
  *
- * see {@link ContextMappings#parseQueryContext(XContentParser)} for QUERY_CONTEXTS
+ * see {@link ContextMappingsParser#parseQueryContext(ContextMappings, XContentParser)} for QUERY_CONTEXTS
  *
  * FUZZY_OBJECT : {
  *     "edit_distance" : STRING | INT
@@ -171,7 +173,7 @@ public class CompletionSuggestParser implements SuggestContextParser {
             Map<String, ContextMapping.QueryContexts> queryContexts = Collections.emptyMap();
             if (type.hasContextMappings() && contextParser != null) {
                 contextParser.nextToken();
-                queryContexts = type.getContextMappings().parseQueryContext(contextParser);
+                queryContexts = parseQueryContext(type.getContextMappings(), contextParser);
                 contextParser.close();
             }
 

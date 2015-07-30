@@ -24,7 +24,6 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.UnknownHostException;
 
 import static org.elasticsearch.common.Strings.arrayToCommaDelimitedString;
 import static org.elasticsearch.shield.audit.AuditUtil.indices;
@@ -274,19 +273,15 @@ public class LoggingAuditTrail implements AuditTrail {
     static String resolvePrefix(Settings settings) {
         StringBuilder builder = new StringBuilder();
         if (settings.getAsBoolean("shield.audit.logfile.prefix.emit_node_host_address", false)) {
-            try {
-                String address = InetAddress.getLocalHost().getHostAddress();
+            String address = NetworkUtils.getLocalHostAddress(null);
+            if (address != null) {
                 builder.append("[").append(address).append("] ");
-            } catch (UnknownHostException e) {
-                // ignore
             }
         }
         if (settings.getAsBoolean("shield.audit.logfile.prefix.emit_node_host_name", false)) {
-            try {
-                String hostName = InetAddress.getLocalHost().getHostName();
+            String hostName = NetworkUtils.getLocalHostName(null);
+            if (hostName != null) {
                 builder.append("[").append(hostName).append("] ");
-            } catch (UnknownHostException e) {
-                // ignore
             }
         }
         if (settings.getAsBoolean("shield.audit.logfile.prefix.emit_node_name", true)) {

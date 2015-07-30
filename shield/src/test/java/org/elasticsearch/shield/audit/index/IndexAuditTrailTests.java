@@ -14,6 +14,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.util.Providers;
+import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.LocalTransportAddress;
@@ -586,8 +587,8 @@ public class IndexAuditTrailTests extends ShieldIntegrationTest {
         DateTime dateTime = ISODateTimeFormat.dateTimeParser().withZoneUTC().parseDateTime((String) hit.field("@timestamp").getValue());
         assertThat(dateTime.isBefore(DateTime.now(DateTimeZone.UTC)), is(true));
 
-        assertThat(clusterService().localNode().getHostName(), equalTo(hit.field("node_host_name").getValue()));
-        assertThat(clusterService().localNode().getHostAddress(), equalTo(hit.field("node_host_address").getValue()));
+        assertThat(NetworkUtils.getLocalHostName("n/a"), equalTo(hit.field("node_host_name").getValue()));
+        assertThat(NetworkUtils.getLocalHostAddress("n/a"), equalTo(hit.field("node_host_address").getValue()));
 
         assertEquals(layer, hit.field("layer").getValue());
         assertEquals(type, hit.field("event_type").getValue());

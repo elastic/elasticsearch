@@ -237,16 +237,8 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
      */
     public void start(boolean master) {
         if (state.compareAndSet(State.INITIALIZED, State.STARTING)) {
-            String hostname = "n/a";
-            String hostaddr = "n/a";
-            try {
-                hostname = InetAddress.getLocalHost().getHostName();
-                hostaddr = InetAddress.getLocalHost().getHostAddress();
-            } catch (UnknownHostException e) {
-                logger.warn("unable to resolve local host name", e);
-            }
-            this.nodeHostName = hostname;
-            this.nodeHostAddress = hostaddr;
+            this.nodeHostName = NetworkUtils.getLocalHostName("n/a");
+            this.nodeHostAddress = NetworkUtils.getLocalHostAddress("n/a");
 
             if (client == null) {
                 initializeClient();

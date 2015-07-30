@@ -51,7 +51,7 @@ import static com.google.common.collect.Maps.newHashMap;
 public class IndexNameExpressionResolver extends AbstractComponent {
 
     private final ImmutableList<ExpressionResolver> expressionResolvers;
-    private DateMathExpressionResolver dateMathExpressionResolver;
+    private final DateMathExpressionResolver dateMathExpressionResolver;
 
     @Inject
     public IndexNameExpressionResolver(Settings settings) {

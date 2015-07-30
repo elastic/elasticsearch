@@ -272,8 +272,12 @@ public class MapperService extends AbstractIndexComponent  {
             if (Version.indexCreated(indexSettings).onOrAfter(Version.V_2_0_0_beta1) && mapper.type().equals(mapper.parentFieldMapper().type())) {
                 throw new IllegalArgumentException("The [_parent.type] option can't point to the same type");
             }
-            if (mapper.type().contains(".") && !PercolatorService.TYPE_NAME.equals(mapper.type())) {
-                logger.warn("Type [{}] contains a '.', it is recommended not to include it within a type name", mapper.type());
+            if (typeNameStartsWithIllegalDot(mapper)) {
+                if (Version.indexCreated(indexSettings).onOrAfter(Version.V_2_0_0_beta1)) {
+                    throw new IllegalArgumentException("mapping type name [" + mapper.type() + "] must not start with a '.'");
+                } else {
+                    logger.warn("Type [{}] starts with a '.', it is recommended not to start a type name with a '.'", mapper.type());
+                }
             }
             // we can add new field/object mappers while the old ones are there
             // since we get new instances of those, and when we remove, we remove
@@ -313,6 +317,10 @@ public class MapperService extends AbstractIndexComponent  {
                 return mapper;
             }
         }
+    }
+
+    private boolean typeNameStartsWithIllegalDot(DocumentMapper mapper) {
+        return mapper.type().startsWith(".") && !PercolatorService.TYPE_NAME.equals(mapper.type());
     }
 
     private boolean assertSerialization(DocumentMapper mapper) {

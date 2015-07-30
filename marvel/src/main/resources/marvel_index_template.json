@@ -64,6 +64,20 @@
           }
         }
       }
+    },
+    "marvel_cluster_stats": {
+      "properties": {
+        "cluster_stats": {
+          "properties": {
+            "nodes": {
+              "type": "object"
+            },
+            "indices": {
+              "type": "object"
+            }
+          }
+        }
+      }
     }
   }
 }

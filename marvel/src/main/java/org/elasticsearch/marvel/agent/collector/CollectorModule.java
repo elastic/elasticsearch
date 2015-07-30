@@ -7,6 +7,7 @@ package org.elasticsearch.marvel.agent.collector;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
+import org.elasticsearch.marvel.agent.collector.cluster.ClusterStatsCollector;
 import org.elasticsearch.marvel.agent.collector.indices.IndexStatsCollector;
 
 import java.util.HashSet;
@@ -19,6 +20,7 @@ public class CollectorModule extends AbstractModule {
     public CollectorModule() {
         // Registers default collectors
         registerCollector(IndexStatsCollector.class);
+        registerCollector(ClusterStatsCollector.class);
     }
 
     @Override

@@ -7,7 +7,9 @@ package org.elasticsearch.marvel.agent.renderer;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
+import org.elasticsearch.marvel.agent.collector.cluster.ClusterStatsCollector;
 import org.elasticsearch.marvel.agent.collector.indices.IndexStatsCollector;
+import org.elasticsearch.marvel.agent.renderer.cluster.ClusterStatsRenderer;
 import org.elasticsearch.marvel.agent.renderer.indices.IndexStatsRenderer;
 
 import java.util.HashMap;
@@ -28,6 +30,9 @@ public class RendererModule extends AbstractModule {
         // Bind default renderers
         bind(IndexStatsRenderer.class).asEagerSingleton();
         mbinder.addBinding(IndexStatsCollector.TYPE).to(IndexStatsRenderer.class);
+
+        bind(ClusterStatsRenderer.class).asEagerSingleton();
+        mbinder.addBinding(ClusterStatsCollector.TYPE).to(ClusterStatsRenderer.class);
 
         for (Map.Entry<String, Class<? extends Renderer>> entry : renderers.entrySet()) {
             bind(entry.getValue()).asEagerSingleton();

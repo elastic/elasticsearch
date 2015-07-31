@@ -376,7 +376,7 @@ public class PluginsService extends AbstractComponent {
                     if (pluginInfo.isJvm()) {
                         plugin = loadPlugin(pluginInfo.getClassname(), settings);
                     } else {
-                        plugin = null;
+                        plugin = new SitePlugin(pluginInfo.getName(), pluginInfo.getDescription());
                     }
                     plugins.add(new Tuple<>(pluginInfo, plugin));
                 } catch (Throwable e) {

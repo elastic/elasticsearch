@@ -31,6 +31,8 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+import static org.hamcrest.Matchers.*;
+
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.nullValue;
@@ -115,5 +117,39 @@ public class AndQueryBuilderTest extends BaseQueryTestCase<AndQueryBuilder> {
             }
         }
         assertValidate(andQuery, totalExpectedErrors);
+    }
+
+    public void testParsingToplevelArray() throws IOException {
+        QueryParseContext context = createParseContext();
+        String queryString = "{ \"and\" : [ { \"match_all\" : {} } ] }";
+        XContentParser parser = XContentFactory.xContent(queryString).createParser(queryString);
+        context.reset(parser);
+        assertThat(parser.nextToken(), is(XContentParser.Token.START_OBJECT));
+        assertThat(parser.nextToken(), is(XContentParser.Token.FIELD_NAME));
+        assertThat(parser.currentName(), is(AndQueryBuilder.NAME));
+        parser.nextToken();
+        AndQueryBuilder queryBuilder = (AndQueryBuilder) context.queryParser(AndQueryBuilder.NAME).fromXContent(context);
+        assertThat(queryBuilder.innerQueries().get(0), equalTo((QueryBuilder) new MatchAllQueryBuilder()));
+    }
+
+    public void testParsingFiltersArray() throws IOException {
+        QueryParseContext context = createParseContext();
+        String queryString = "{ \"and\" : { \"filters\" : [ { \"match_all\" : {} } ], \"boost\" : 0.7 } }";
+        XContentParser parser = XContentFactory.xContent(queryString).createParser(queryString);
+        context.reset(parser);
+        assertQueryHeader(parser, AndQueryBuilder.NAME);
+        AndQueryBuilder queryBuilder = (AndQueryBuilder) context.queryParser(AndQueryBuilder.NAME).fromXContent(context);
+        assertThat(queryBuilder.innerQueries().get(0), equalTo((QueryBuilder) new MatchAllQueryBuilder()));
+        assertThat(queryBuilder.boost(), equalTo(0.7f));
+    }
+
+    @Test(expected=QueryParsingException.class)
+    public void testParsingExceptionNonFiltersElementArray() throws IOException {
+        QueryParseContext context = createParseContext();
+        String queryString = "{ \"and\" : { \"whatever_filters\" : [ { \"match_all\" : {} } ] } }";
+        XContentParser parser = XContentFactory.xContent(queryString).createParser(queryString);
+        context.reset(parser);
+        assertQueryHeader(parser, AndQueryBuilder.NAME);
+        context.queryParser(AndQueryBuilder.NAME).fromXContent(context);
     }
 }

@@ -13,9 +13,6 @@
     <name>Elasticsearch RPM Distribution</name>
     <packaging>rpm</packaging>
 
-    <properties>
-    </properties>
-
     <build>
 
         <filters>

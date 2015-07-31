@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<assembly>
+    <id>plugin</id>
+    <formats>
+        <format>zip</format>
+    </formats>
+    <includeBaseDirectory>false</includeBaseDirectory>
+    <!-- _site/ directory containing contents -->
+    <fileSets>
+        <fileSet>
+            <directory>${project.basedir}/src/site</directory>
+            <outputDirectory></outputDirectory>
+        </fileSet>
+    </fileSets>
+    <!-- plugin descriptor -->
+    <files>
+        <file>
+            <source>${elasticsearch.tools.directory}/plugin-metadata/plugin-descriptor.properties</source>
+            <outputDirectory></outputDirectory>
+            <filtered>true</filtered>
+        </file>
+    </files>
+</assembly>

@@ -12,9 +12,6 @@
     <artifactId>elasticsearch-tar</artifactId>
     <name>Elasticsearch TAR Distribution</name>
 
-    <properties>
-    </properties>
-
     <build>
         <filters>
             <filter>${project.basedir}/../src/main/packaging/packaging.properties</filter>

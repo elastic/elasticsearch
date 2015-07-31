@@ -12,10 +12,6 @@
     <artifactId>elasticsearch-zip</artifactId>
     <name>Elasticsearch ZIP Distribution</name>
 
-    <properties>
-        <skip.integ.tests>false</skip.integ.tests>
-    </properties>
-
     <build>
         <filters>
             <filter>${project.basedir}/../src/main/packaging/packaging.properties</filter>

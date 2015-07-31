@@ -222,7 +222,7 @@ public class Bootstrap {
         }
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         BootstrapCLIParser bootstrapCLIParser = new BootstrapCLIParser();
         CliTool.ExitStatus status = bootstrapCLIParser.execute(args);
 
@@ -239,27 +239,15 @@ public class Bootstrap {
             foreground = false;
         }
 
-        String stage = "Settings";
+        Tuple<Settings, Environment> tuple = initialSettings(foreground);
+        Settings settings = tuple.v1();
+        Environment environment = tuple.v2();
 
-        Settings settings = null;
-        Environment environment = null;
-        try {
-            Tuple<Settings, Environment> tuple = initialSettings(foreground);
-            settings = tuple.v1();
-            environment = tuple.v2();
-
-            if (environment.pidFile() != null) {
-                stage = "Pid";
-                PidFile.create(environment.pidFile(), true);
-            }
-
-            stage = "Logging";
-            setupLogging(settings, environment);
-        } catch (Exception e) {
-            String errorMessage = buildErrorMessage(stage, e);
-            sysError(errorMessage, true);
-            System.exit(3);
+        if (environment.pidFile() != null) {
+            PidFile.create(environment.pidFile(), true);
         }
+
+        setupLogging(settings, environment);
 
         if (System.getProperty("es.max-open-files", "false").equals("true")) {
             ESLogger logger = Loggers.getLogger(Bootstrap.class);
@@ -272,7 +260,6 @@ public class Bootstrap {
             logger.warn("jvm uses the client vm, make sure to run `java` with the server vm for best performance by adding `-server` to the command line");
         }
 
-        stage = "Initialization";
         try {
             if (!foreground) {
                 Loggers.disableConsoleLogging();
@@ -284,7 +271,6 @@ public class Bootstrap {
 
             INSTANCE.setup(true, settings, environment);
 
-            stage = "Startup";
             INSTANCE.start();
 
             if (!foreground) {
@@ -295,14 +281,9 @@ public class Bootstrap {
             if (INSTANCE.node != null) {
                 logger = Loggers.getLogger(Bootstrap.class, INSTANCE.node.settings().get("name"));
             }
-            String errorMessage = buildErrorMessage(stage, e);
-            if (foreground) {
-                sysError(errorMessage, true);
-                Loggers.disableConsoleLogging();
-            }
             logger.error("Exception", e);
             
-            System.exit(3);
+            throw e;
         }
     }
 
@@ -323,38 +304,4 @@ public class Bootstrap {
             System.err.flush();
         }
     }
-
-    private static String buildErrorMessage(String stage, Throwable e) {
-        StringBuilder errorMessage = new StringBuilder("{").append(Version.CURRENT).append("}: ");
-        errorMessage.append(stage).append(" Failed ...\n");
-        if (e instanceof CreationException) {
-            CreationException createException = (CreationException) e;
-            Set<String> seenMessages = newHashSet();
-            int counter = 1;
-            for (Message message : createException.getErrorMessages()) {
-                String detailedMessage;
-                if (message.getCause() == null) {
-                    detailedMessage = message.getMessage();
-                } else {
-                    detailedMessage = ExceptionsHelper.detailedMessage(message.getCause(), true, 0);
-                }
-                if (detailedMessage == null) {
-                    detailedMessage = message.getMessage();
-                }
-                if (seenMessages.contains(detailedMessage)) {
-                    continue;
-                }
-                seenMessages.add(detailedMessage);
-                errorMessage.append("").append(counter++).append(") ").append(detailedMessage);
-            }
-        } else {
-            errorMessage.append("- ").append(ExceptionsHelper.detailedMessage(e, true, 0));
-        }
-        if (Loggers.getLogger(Bootstrap.class).isDebugEnabled()) {
-            errorMessage.append("\n").append(ExceptionsHelper.stackTrace(e));
-        }
-        return errorMessage.toString();
-    }
-    
-
 }

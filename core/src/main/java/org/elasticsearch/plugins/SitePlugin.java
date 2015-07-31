@@ -27,6 +27,7 @@ import java.io.Closeable;
 import java.util.Collection;
 import java.util.Collections;
 
+/** A site-only plugin, just serves resources */
 final class SitePlugin implements Plugin {
     final String name;
     final String description;

@@ -919,7 +919,7 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public void readAllowed() throws IllegalIndexShardStateException {
         IndexShardState state = this.state; // one time volatile read
-        if (state != IndexShardState.STARTED && state != IndexShardState.RELOCATED) {
+        if (state != IndexShardState.STARTED && state != IndexShardState.RELOCATED && state != IndexShardState.POST_RECOVERY) {
             throw new IllegalIndexShardStateException(shardId, state, "operations only allowed when started/relocated");
         }
     }

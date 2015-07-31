@@ -1,5 +1,5 @@
 [[setup-service]]
-== Running As a Service on Linux
+== Running as a Service on Linux
 
 In order to run elasticsearch as a service on your operating system, the provided packages try to make it as easy as possible for you to start and stop elasticsearch during reboot and upgrades.
 

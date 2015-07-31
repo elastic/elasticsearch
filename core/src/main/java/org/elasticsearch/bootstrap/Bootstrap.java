@@ -222,7 +222,7 @@ public class Bootstrap {
         }
     }
 
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) throws Throwable {
         BootstrapCLIParser bootstrapCLIParser = new BootstrapCLIParser();
         CliTool.ExitStatus status = bootstrapCLIParser.execute(args);
 

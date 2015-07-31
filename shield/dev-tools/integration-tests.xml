@@ -9,7 +9,7 @@
     <attribute name="args" default="${integ.args}"/>
     <sequential>
       <echo>Starting up external cluster...</echo>
-      <run-script dir="@{home}" script="bin/elasticsearch" spawn="true"
+      <run-script script="@{home}/bin/elasticsearch" spawn="true"
                   args="@{args} -Des.path.repo=@{home}/repo" />
 
       <waitfor maxwait="3" maxwaitunit="minute" checkevery="500">
@@ -23,10 +23,11 @@
   </macrodef>
 
   <target name="start-external-cluster-with-plugin" depends="setup-workspace" unless="${shouldskip}">
+    <local name="home"/>
+    <property name="home" location="${integ.scratch}/elasticsearch-${elasticsearch.version}"/>
     <install-plugin name="elasticsearch-license" file="${integ.deps}/elasticsearch-license-plugin-${project.version}.zip" />
     <install-plugin name="${project.artifactId}" file="${project.build.directory}/releases/${project.artifactId}-${project.version}.zip"/>
-    <run-script dir="${integ.scratch}/elasticsearch-${elasticsearch.version}" script="bin/shield/esusers"
-                args="useradd test_user -p changeme -r admin"/>
+    <run-script script="${home}/bin/shield/esusers" args="useradd test_user -p changeme -r admin"/>
     <startup-elasticsearch/>
 
     <local name="temp.file"/>

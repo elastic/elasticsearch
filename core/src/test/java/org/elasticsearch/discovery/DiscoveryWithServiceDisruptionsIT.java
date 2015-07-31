@@ -25,6 +25,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.*;
@@ -34,6 +35,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.DjbHashFunction;
+import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -48,7 +50,9 @@ import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.discovery.zen.ping.ZenPingService;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
+import org.elasticsearch.indices.store.IndicesStoreIntegrationIT;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import org.elasticsearch.test.disruption.*;
@@ -946,6 +950,48 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         masterTransportService.clearAllRules();
 
         ensureStableCluster(3);
+    }
+
+    @Test
+    public void searchWithRelocationAndSlowClusterStateProcessing() throws Exception {
+        configureCluster(3, 1);
+        Future<String> masterNodeFuture = internalCluster().startMasterOnlyNodeAsync();
+         Future<String> node_1Future = internalCluster().startDataOnlyNodeAsync();
+
+        final String node_1 = node_1Future.get();
+
+        final String masterNode = masterNodeFuture.get();
+                logger.info("--> creating index [test] with one shard and on replica");
+        assertAcked(prepareCreate("test").setSettings(
+                        Settings.builder().put(indexSettings())
+                                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
+        );
+        ensureGreen("test");
+
+        Future<String> node_2Future = internalCluster().startDataOnlyNodeAsync();
+        final String node_2 = node_2Future.get();
+        List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            indexRequestBuilderList.add(client().prepareIndex().setIndex("test").setType("doc").setSource("{\"int_field\":1}"));
+        }
+        indexRandom(true, indexRequestBuilderList);
+        SingleNodeDisruption disruption = new BlockClusterStateProcessing(node_2, getRandom());
+
+        internalCluster().setDisruptionScheme(disruption);
+        MockTransportService transportServiceNode2 = (MockTransportService) internalCluster().getInstance(TransportService.class, node_2);
+        CountDownLatch beginRelocationLatch = new CountDownLatch(1);
+        CountDownLatch endRelocationLatch = new CountDownLatch(1);
+        transportServiceNode2.addTracer(new IndicesStoreIntegrationIT.ReclocationStartEndTracer(logger, beginRelocationLatch, endRelocationLatch));
+        internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand(new ShardId("test", 0), node_1, node_2)).get();
+        // wait for relocation to start
+        beginRelocationLatch.await();
+        disruption.startDisrupting();
+        // wait for relocation to finish
+        endRelocationLatch.await();
+        // now search for the documents and see if we get a reply
+        // wait a little so that cluster state observer is registered
+        assertThat(client().prepareCount().get().getCount(), equalTo(100l));
     }
 
     @Test

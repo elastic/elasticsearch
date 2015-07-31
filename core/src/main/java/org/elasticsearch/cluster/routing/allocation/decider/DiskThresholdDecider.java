@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterInfo;
@@ -37,6 +38,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
  * The {@link DiskThresholdDecider} checks that the node a shard is potentially
@@ -128,6 +130,8 @@ public class DiskThresholdDecider extends AllocationDecider {
      */
     class DiskListener implements ClusterInfoService.Listener {
         private final Client client;
+        private final Set<String> nodeHasPassedWatermark = Sets.newConcurrentHashSet();
+
         private long lastRunNS;
 
         DiskListener(Client client) {
@@ -162,21 +166,55 @@ public class DiskThresholdDecider extends AllocationDecider {
             Map<String, DiskUsage> usages = info.getNodeDiskUsages();
             if (usages != null) {
                 boolean reroute = false;
-                for (DiskUsage entry : usages.values()) {
-                    warnAboutDiskIfNeeded(entry);
-                    if (entry.getFreeBytes() < DiskThresholdDecider.this.freeBytesThresholdHigh.bytes() ||
-                            entry.getFreeDiskAsPercentage() < DiskThresholdDecider.this.freeDiskThresholdHigh) {
+                String explanation = "";
+
+                // Garbage collect nodes that have been removed from the cluster
+                // from the map that tracks watermark crossing
+                Set<String> nodes = usages.keySet();
+                for (String node : nodeHasPassedWatermark) {
+                    if (nodes.contains(node) == false) {
+                        nodeHasPassedWatermark.remove(node);
+                    }
+                }
+
+                for (Map.Entry<String, DiskUsage> entry : usages.entrySet()) {
+                    String node = entry.getKey();
+                    DiskUsage usage = entry.getValue();
+                    warnAboutDiskIfNeeded(usage);
+                    if (usage.getFreeBytes() < DiskThresholdDecider.this.freeBytesThresholdHigh.bytes() ||
+                            usage.getFreeDiskAsPercentage() < DiskThresholdDecider.this.freeDiskThresholdHigh) {
                         if ((System.nanoTime() - lastRunNS) > DiskThresholdDecider.this.rerouteInterval.nanos()) {
                             lastRunNS = System.nanoTime();
                             reroute = true;
+                            explanation = "high disk watermark exceeded on one or more nodes";
                         } else {
                             logger.debug("high disk watermark exceeded on {} but an automatic reroute has occurred in the last [{}], skipping reroute",
-                                    entry, DiskThresholdDecider.this.rerouteInterval);
+                                    node, DiskThresholdDecider.this.rerouteInterval);
+                        }
+                        nodeHasPassedWatermark.add(node);
+                    } else if (usage.getFreeBytes() < DiskThresholdDecider.this.freeBytesThresholdLow.bytes() ||
+                            usage.getFreeDiskAsPercentage() < DiskThresholdDecider.this.freeDiskThresholdLow) {
+                        nodeHasPassedWatermark.add(node);
+                    } else {
+                        if (nodeHasPassedWatermark.contains(node)) {
+                            // The node has previously been over the high or
+                            // low watermark, but is no longer, so we should
+                            // reroute so any unassigned shards can be allocated
+                            // if they are able to be
+                            if ((System.nanoTime() - lastRunNS) > DiskThresholdDecider.this.rerouteInterval.nanos()) {
+                                lastRunNS = System.nanoTime();
+                                reroute = true;
+                                explanation = "one or more nodes has gone under the high or low watermark";
+                                nodeHasPassedWatermark.remove(node);
+                            } else {
+                                logger.debug("{} has gone below a disk threshold, but an automatic reroute has occurred in the last [{}], skipping reroute",
+                                        node, DiskThresholdDecider.this.rerouteInterval);
+                            }
                         }
                     }
                 }
                 if (reroute) {
-                    logger.info("high disk watermark exceeded on one or more nodes, rerouting shards");
+                    logger.info("rerouting shards: [{}]", explanation);
                     // Execute an empty reroute, but don't block on the response
                     client.admin().cluster().prepareReroute().execute();
                 }

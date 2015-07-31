@@ -20,6 +20,7 @@
 package org.elasticsearch.common.cli;
 
 import com.google.common.collect.ImmutableMap;
+import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.OptionGroup;
 import org.apache.commons.cli.Options;
@@ -90,6 +91,10 @@ public class CliToolConfig {
             return new OptionBuilder(shortName, longName);
         }
 
+        public static Option.Builder optionBuilder(String shortName, String longName) {
+            return Option.builder(shortName).argName(longName).longOpt(longName);
+        }
+
         public static OptionGroupBuilder optionGroup(boolean required) {
             return new OptionGroupBuilder(required);
         }
@@ -131,11 +136,13 @@ public class CliToolConfig {
         private final String name;
         private final Class<? extends CliTool.Command> cmdType;
         private final Options options;
+        private final boolean stopAtNonOption;
 
-        private Cmd(String name, Class<? extends CliTool.Command> cmdType, Options options) {
+        private Cmd(String name, Class<? extends CliTool.Command> cmdType, Options options, boolean stopAtNonOption) {
             this.name = name;
             this.cmdType = cmdType;
             this.options = options;
+            this.stopAtNonOption = stopAtNonOption;
             OptionsSource.VERBOSITY.populate(options);
         }
 
@@ -148,16 +155,11 @@ public class CliToolConfig {
         }
 
         public Options options() {
-            // TODO Remove this when commons-cli 1.3 will be released
-            // and replace by return options;
-            // See https://issues.apache.org/jira/browse/CLI-183
-            Options copy = new Options();
-            for (Object oOption : options.getOptions()) {
-                Option option = (Option) oOption;
-                copy.addOption(option);
-            }
-            OptionsSource.VERBOSITY.populate(copy);
-            return copy;
+            return options;
+        }
+
+        public boolean isStopAtNonOption() {
+            return stopAtNonOption;
         }
 
         public void printUsage(Terminal terminal) {
@@ -169,6 +171,7 @@ public class CliToolConfig {
             private final String name;
             private final Class<? extends CliTool.Command> cmdType;
             private Options options = new Options();
+            private boolean stopAtNonOption = false;
 
             private Builder(String name, Class<? extends CliTool.Command> cmdType) {
                 this.name = name;
@@ -182,6 +185,13 @@ public class CliToolConfig {
                 return this;
             }
 
+            public Builder options(Option.Builder... optionBuilders) {
+                for (int i = 0; i < optionBuilders.length; i++) {
+                    options.addOption(optionBuilders[i].build());
+                }
+                return this;
+            }
+
             public Builder optionGroups(OptionGroupBuilder... optionGroupBuilders) {
                 for (OptionGroupBuilder builder : optionGroupBuilders) {
                     options.addOptionGroup(builder.build());
@@ -189,8 +199,19 @@ public class CliToolConfig {
                 return this;
             }
 
+            /**
+              * @param stopAtNonOption if <tt>true</tt> an unrecognized argument stops
+              *     the parsing and the remaining arguments are added to the
+              *     args list. If <tt>false</tt> an unrecognized
+              *     argument triggers a ParseException.
+              */
+            public Builder stopAtNonOption(boolean stopAtNonOption) {
+                this.stopAtNonOption = stopAtNonOption;
+                return this;
+            }
+
             public Cmd build() {
-                return new Cmd(name, cmdType, options);
+                return new Cmd(name, cmdType, options, stopAtNonOption);
             }
         }
     }

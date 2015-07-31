@@ -15,7 +15,6 @@
     <name>Elasticsearch Distribution</name>
 
     <properties>
-        <skipTests>true</skipTests>
         <!-- Properties used for building RPM & DEB packages (see common/packaging.properties) -->
         <packaging.elasticsearch.home.dir>/usr/share/elasticsearch</packaging.elasticsearch.home.dir>
         <packaging.elasticsearch.bin.dir>/usr/share/elasticsearch/bin</packaging.elasticsearch.bin.dir>
@@ -32,6 +31,9 @@
 
         <!-- rpmbuild location : default to /usr/bin/rpmbuild -->
         <packaging.rpm.rpmbuild>/usr/bin/rpmbuild</packaging.rpm.rpmbuild>
+
+        <!-- we expect packaging formats to have integration tests, but not unit tests -->
+        <skip.unit.tests>true</skip.unit.tests>
     </properties>
 
     <dependencies>
@@ -90,6 +92,30 @@
             <scope>test</scope>
         </dependency>
 
+        <dependency>
+            <groupId>org.hamcrest</groupId>
+            <artifactId>hamcrest-all</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-test-framework</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.elasticsearch</groupId>
+            <artifactId>elasticsearch</artifactId>
+            <scope>test</scope>
+            <type>test-jar</type>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>

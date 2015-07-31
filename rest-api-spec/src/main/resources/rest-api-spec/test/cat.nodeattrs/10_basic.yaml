@@ -1,6 +1,10 @@
 ---
 "Test cat nodes attrs output":
 
+  - skip:
+      version:  "all"
+      reason:   "Waiting for #12558"
+
   - do:
       cat.nodeattrs:
         v: false

@@ -21,7 +21,7 @@ package org.elasticsearch.plugins;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.cli.CliTool;
+import org.elasticsearch.common.cli.CliTool.ExitStatus;
 import org.elasticsearch.common.cli.CliToolTestCase.CaptureOutputTerminal;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
@@ -54,11 +54,11 @@ import static org.elasticsearch.common.cli.CliTool.ExitStatus.USAGE;
 import static org.elasticsearch.common.cli.CliToolTestCase.args;
 import static org.elasticsearch.common.io.FileSystemUtilsTests.assertFileContent;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.elasticsearch.plugins.PluginInfoTests.writeProperties;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertDirectoryExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.hamcrest.Matchers.*;
-import static org.elasticsearch.plugins.PluginInfoTests.writeProperties;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0.0)
 @LuceneTestCase.SuppressFileSystems("*") // TODO: clean up this test to allow extra files
@@ -434,15 +434,13 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testRemovePlugin_NullName_ThrowsException() throws IOException {
-        int status = new PluginManagerCliParser(terminal).execute(args("remove "));
-        assertThat("Terminal output was: " + terminal.getTerminalOutput(), status, is(USAGE.status()));
+        assertStatus("remove ", USAGE);
     }
 
     @Test
     public void testRemovePluginWithURLForm() throws Exception {
-        int status = new PluginManagerCliParser(terminal).execute(args("remove file://whatever"));
+        assertStatus("remove file://whatever", USAGE);
         assertThat(terminal.getTerminalOutput(), hasItem(containsString("Illegal plugin name")));
-        assertThat("Terminal output was: " + terminal.getTerminalOutput(), status, is(USAGE.status()));
     }
 
     @Test
@@ -488,12 +486,12 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     }
 
     private void assertStatusOk(String command) {
-        assertStatus(command, CliTool.ExitStatus.OK);
+        assertStatus(command, ExitStatus.OK);
     }
 
-    private void assertStatus(String command, CliTool.ExitStatus exitStatus) {
-        int status = new PluginManagerCliParser(terminal).execute(args(command));
-        assertThat("Terminal output was: " + terminal.getTerminalOutput(), status, is(exitStatus.status()));
+    private void assertStatus(String command, ExitStatus exitStatus) {
+        ExitStatus status = new PluginManagerCliParser(terminal).execute(args(command));
+        assertThat("Terminal output was: " + terminal.getTerminalOutput(), status, is(exitStatus));
     }
 
     private void assertThatPluginIsListed(String pluginName) {

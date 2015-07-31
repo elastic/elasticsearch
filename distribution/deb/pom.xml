@@ -10,11 +10,9 @@
     </parent>
 
     <artifactId>elasticsearch-deb</artifactId>
-    <packaging>deb</packaging>
     <name>Elasticsearch DEB Distribution</name>
 
     <properties>
-        <skip.integ.tests>true</skip.integ.tests>
         <deb.sign>false</deb.sign>
         <deb.sign.method>dpkg-sig</deb.sign.method>
     </properties>
@@ -273,8 +271,49 @@
                             </target>
                         </configuration>
                     </execution>
+                    <!-- start up external cluster -->
+                    <execution>
+                        <id>integ-setup</id>
+                        <phase>pre-integration-test</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${skip.integ.tests}</skip>
+                            <target>
+                                <ant antfile="${elasticsearch.integ.antfile}" target="start-external-cluster-deb"/>
+                            </target>
+                        </configuration>
+                    </execution>
+                    <!-- shut down external cluster -->
+                    <execution>
+                        <id>integ-teardown</id>
+                        <phase>post-integration-test</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${skip.integ.tests}</skip>
+                            <target>
+                                <ant antfile="${elasticsearch.integ.antfile}" target="stop-external-cluster"/>
+                            </target>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+       <!-- we run integration test with real dpkg utils, you must have them -->
+       <profile>
+           <id>has_dpkg</id>
+           <activation>
+              <file><missing>/usr/bin/dpkg-deb</missing></file>
+           </activation>
+           <properties>
+               <skip.integ.tests>true</skip.integ.tests>
+           </properties>
+       </profile>
+    </profiles>
 </project>

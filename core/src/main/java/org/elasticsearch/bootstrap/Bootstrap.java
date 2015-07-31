@@ -19,12 +19,13 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.CreationException;
@@ -222,10 +223,17 @@ public class Bootstrap {
     }
 
     public static void main(String[] args) {
+        BootstrapCLIParser bootstrapCLIParser = new BootstrapCLIParser();
+        CliTool.ExitStatus status = bootstrapCLIParser.execute(args);
+
+        if (CliTool.ExitStatus.OK != status) {
+            System.exit(status.status());
+        }
+
         System.setProperty("es.logger.prefix", "");
         INSTANCE = new Bootstrap();
 
-        boolean foreground = System.getProperty("es.foreground", System.getProperty("es-foreground")) != null;
+        boolean foreground = !"false".equals(System.getProperty("es.foreground", System.getProperty("es-foreground")));
         // handle the wrapper system property, if its a service, don't run as a service
         if (System.getProperty("wrapper.service", "XXX").equalsIgnoreCase("true")) {
             foreground = false;

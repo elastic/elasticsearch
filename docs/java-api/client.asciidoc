@@ -90,7 +90,14 @@ import static org.elasticsearch.node.NodeBuilder.*;
 
 // on startup
 
-Node node = nodeBuilder().client(true).node();
+// Embedded node clients behave just like standalone nodes,
+// which means that they will leave the HTTP port open!
+Node node =
+    nodeBuilder()
+        .settings(Settings.settingsBuilder().put("http.enabled", false))
+        .client(true)
+    .node();
+
 Client client = node.client();
 
 // on shutdown
@@ -120,11 +127,21 @@ Client client = node.client();
 node.close();
 --------------------------------------------------
 
+[[node-client-downsides]]
+==== Node Client Downsides
+
+Embedding a node client into your application is the easiest way to connect
+to an Elasticsearch cluster, but it carries some downsides.
+
+- Frequently starting and stopping one or more node clients creates unnecessary
+noise across the cluster.
+- Embedded node client will respond to outside requests, just like any other client.
+** You almost always want to disable HTTP for an _embedded_ node client.
 
 [[transport-client]]
 === Transport Client
 
-The `TransportClient` connects remotely to an elasticsearch cluster
+The `TransportClient` connects remotely to an Elasticsearch cluster
 using the transport module. It does not join the cluster, but simply
 gets one or more initial transport addresses and communicates with them
 in round robin fashion on each action (though most actions will probably
@@ -183,4 +200,3 @@ from a node. Defaults to `5s`.
 |`client.transport.nodes_sampler_interval` |How often to sample / ping
 the nodes listed and connected. Defaults to `5s`.
 |=======================================================================
-

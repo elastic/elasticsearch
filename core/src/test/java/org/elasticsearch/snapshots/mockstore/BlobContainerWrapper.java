@@ -26,6 +26,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Collection;
 import java.util.Map;
 
 /**
@@ -61,6 +62,11 @@ public class BlobContainerWrapper implements BlobContainer {
     @Override
     public void deleteBlob(String blobName) throws IOException {
         delegate.deleteBlob(blobName);
+    }
+
+    @Override
+    public void deleteBlobs(Collection<String> blobNames) throws IOException {
+        delegate.deleteBlobs(blobNames);
     }
 
     @Override

@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableMap;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Collection;
 import java.util.Map;
 
 /**
@@ -48,9 +49,16 @@ public interface BlobContainer {
     /**
      * Deletes a blob with giving name.
      *
-     * If blob exist but cannot be deleted an exception has to be thrown.
+     * If a blob exists but cannot be deleted an exception has to be thrown.
      */
     void deleteBlob(String blobName) throws IOException;
+
+    /**
+     * Deletes blobs with giving names.
+     *
+     * If a blob exists but cannot be deleted an exception has to be thrown.
+     */
+    void deleteBlobs(Collection<String> blobNames) throws IOException;
 
     /**
      * Deletes all blobs in the container that match the specified prefix.

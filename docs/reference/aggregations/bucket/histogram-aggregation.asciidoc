@@ -18,7 +18,7 @@ if (rem < 0) {
 bucket_key = value - rem
 --------------------------------------------------
 
-From the rounding function above it can be seen that the intervals themsevles **must** be integers.
+From the rounding function above it can be seen that the intervals themselves **must** be integers.
 
 The following snippet "buckets" the products based on their `price` by interval of `50`:
 

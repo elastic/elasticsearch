@@ -460,8 +460,8 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
      */
     private boolean checkAndUploadIndexTemplate(final String host) {
         byte[] template;
-        try {
-            template = Streams.copyToBytesFromClasspath("/marvel_index_template.json");
+        try (InputStream is = getClass().getResourceAsStream("/marvel_index_template.json")) {
+            template = ByteStreams.toByteArray(is);
         } catch (IOException e) {
             // throwing an exception to stop exporting process - we don't want to send data unless
             // we put in the template for it.

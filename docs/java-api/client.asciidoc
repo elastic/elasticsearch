@@ -94,7 +94,7 @@ import static org.elasticsearch.node.NodeBuilder.*;
 // which means that they will leave the HTTP port open!
 Node node =
     nodeBuilder()
-        .settings(ImmutableSettings.settingsBuilder().put("http.enabled", false))
+        .settings(Settings.settingsBuilder().put("http.enabled", false))
         .client(true)
     .node();
 

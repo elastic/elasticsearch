@@ -80,14 +80,6 @@ public class AndQueryParser implements QueryParser {
                                 queries.add(filter);
                             }
                         }
-                    } else {
-                        queriesFound = true;
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            Query filter = parseContext.parseInnerFilter();
-                            if (filter != null) {
-                                queries.add(filter);
-                            }
-                        }
                     }
                 } else if (token.isValue()) {
                     if ("_name".equals(currentFieldName)) {

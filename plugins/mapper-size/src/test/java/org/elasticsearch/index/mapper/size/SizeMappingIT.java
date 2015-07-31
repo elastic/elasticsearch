@@ -20,21 +20,35 @@ package org.elasticsearch.index.mapper.size;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.plugin.mapper.MapperSizePlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
-public class SizeMappingIntegrationIT extends ESIntegTestCase {
+public class SizeMappingIT extends ESIntegTestCase {
 
-    @Test // issue 5053
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put("plugin.types", MapperSizePlugin.class.getName())
+                .build();
+    }
+
+    // issue 5053
     public void testThatUpdatingMappingShouldNotRemoveSizeMappingConfiguration() throws Exception {
         String index = "foo";
         String type = "mytype";
@@ -54,7 +68,6 @@ public class SizeMappingIntegrationIT extends ESIntegTestCase {
         assertSizeMappingEnabled(index, type, true);
     }
 
-    @Test
     public void testThatSizeCanBeSwitchedOnAndOff() throws Exception {
         String index = "foo";
         String type = "mytype";
@@ -82,5 +95,15 @@ public class SizeMappingIntegrationIT extends ESIntegTestCase {
         String sizeAsString = mappingSource.get("_size").toString();
         assertThat(sizeAsString, is(notNullValue()));
         assertThat(errMsg, sizeAsString, is("{enabled=" + (enabled) + "}"));
+    }
+
+    public void testBasic() throws Exception {
+        assertAcked(prepareCreate("test").addMapping("type", "_size", "enabled=true"));
+        final String source = "{\"f\":10}";
+        indexRandom(true,
+                client().prepareIndex("test", "type", "1").setSource(source));
+        GetResponse getResponse = client().prepareGet("test", "type", "1").setFields("_size").get();
+        assertNotNull(getResponse.getField("_size"));
+        assertEquals(source.length(), getResponse.getField("_size").getValue());
     }
 }

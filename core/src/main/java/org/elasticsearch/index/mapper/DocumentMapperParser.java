@@ -20,7 +20,9 @@
 package org.elasticsearch.index.mapper;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSortedMap;
 import com.google.common.collect.Maps;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -35,8 +37,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.core.*;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
@@ -50,6 +50,7 @@ import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -73,6 +74,7 @@ public class DocumentMapperParser {
 
     private volatile ImmutableMap<String, Mapper.TypeParser> typeParsers;
     private volatile ImmutableMap<String, Mapper.TypeParser> rootTypeParsers;
+    private volatile ImmutableMap<String, Mapper.TypeParser> additionalRootMappers;
 
     public DocumentMapperParser(@IndexSettings Settings indexSettings, MapperService mapperService, AnalysisService analysisService,
                                 SimilarityLookupService similarityLookupService, ScriptService scriptService) {
@@ -109,7 +111,6 @@ public class DocumentMapperParser {
         typeParsers = typeParsersBuilder.immutableMap();
 
         rootTypeParsers = new MapBuilder<String, Mapper.TypeParser>()
-                .put(SizeFieldMapper.NAME, new SizeFieldMapper.TypeParser())
                 .put(IndexFieldMapper.NAME, new IndexFieldMapper.TypeParser())
                 .put(SourceFieldMapper.NAME, new SourceFieldMapper.TypeParser())
                 .put(TypeFieldMapper.NAME, new TypeFieldMapper.TypeParser())
@@ -123,6 +124,7 @@ public class DocumentMapperParser {
                 .put(IdFieldMapper.NAME, new IdFieldMapper.TypeParser())
                 .put(FieldNamesFieldMapper.NAME, new FieldNamesFieldMapper.TypeParser())
                 .immutableMap();
+        additionalRootMappers = ImmutableSortedMap.<String, Mapper.TypeParser>of();
         indexVersionCreated = Version.indexCreated(indexSettings);
     }
 
@@ -139,6 +141,10 @@ public class DocumentMapperParser {
             rootTypeParsers = new MapBuilder<>(rootTypeParsers)
                     .put(type, typeParser)
                     .immutableMap();
+            additionalRootMappers = ImmutableSortedMap.<String, Mapper.TypeParser>naturalOrder()
+                    .putAll(additionalRootMappers)
+                    .put(type, typeParser)
+                    .build();
         }
     }
 
@@ -204,6 +210,10 @@ public class DocumentMapperParser {
         Mapper.TypeParser.ParserContext parserContext = parserContext();
         // parse RootObjectMapper
         DocumentMapper.Builder docBuilder = doc(indexSettings, (RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext), mapperService);
+        // Add default mapping for the plugged-in meta mappers
+        for (Map.Entry<String, Mapper.TypeParser> entry : additionalRootMappers.entrySet()) {
+            docBuilder.put((MetadataFieldMapper.Builder<?, ?>) entry.getValue().parse(entry.getKey(), Collections.<String, Object>emptyMap(), parserContext));
+        }
         Iterator<Map.Entry<String, Object>> iterator = mapping.entrySet().iterator();
         // parse DocumentMapper
         while(iterator.hasNext()) {

@@ -202,6 +202,11 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
                 }
             }
             preferenceType = Preference.parse(preference);
+            if ( preferenceType == Preference.PREFER_NODE || preferenceType == Preference.ONLY_NODES || preferenceType == Preference.ONLY_NODE){
+                if ( preference.length() <= preferenceType.type().length()){
+                    throw new ElasticsearchIllegalArgumentException("invalid preference specification [" + preference + "]");
+                }
+            }
             switch (preferenceType) {
                 case PREFER_NODE:
                     return indexShard.preferNodeActiveInitializingShardsIt(preference.substring(Preference.PREFER_NODE.type().length() + 1));
@@ -219,7 +224,7 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
                     return indexShard.onlyNodeActiveInitializingShardsIt(nodeId);
                 case ONLY_NODES:
                     String nodeAttribute = preference.substring(Preference.ONLY_NODES.type().length() + 1);
-                    return indexShard.onlyNodeSelectorActiveInitializingShardsIt(nodeAttribute, nodes);
+                    return indexShard.onlyNodeSelectorActiveInitializingShardsIt(nodeAttribute.split(","), nodes);
 
                 default:
                     throw new ElasticsearchIllegalArgumentException("unknown preference [" + preferenceType + "]");

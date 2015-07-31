@@ -62,16 +62,20 @@ when computing the aggregation results.
 [[limitations-disable-cache]]
 [float]
 ==== Elasticsearch 1.6+
-Elasticsearch 1.6 removes all of the limitations below with queries and filters, *but* there is the possibility of
-authorization being bypassed when using a terms filter with the
+Elasticsearch 1.6 removes all of the limitations below with queries and filters with the exception of the {ref}/query-dsl-mlt-query.html[More Like This Query].
+*But* there is the possibility of authorization being bypassed when using a terms filter with the
 {ref}/query-dsl-terms-filter.html#_terms_lookup_mechanism[terms lookup mechanism]. The authorization that could be
-bypassed is for the index containing the terms. In order to ensure that all requests are properly authorized when using
-Shield 1.2.0 and 1.2.1, add the following setting to your `elasticsearch.yml` file:
+bypassed is for the index containing the terms when using Shield 1.2.0 and 1.2.1. If using Shield 1.2.0 or 1.2.1,
+add the following setting to your `elasticsearch.yml` file to ensure that requests are properly authorized:
 
 [source,yaml]
 --------------------------------------------------
 indices.cache.filter.terms.size: 0
 --------------------------------------------------
+
+Shield 1.2.2+ does not require this setting to be specified.
+
+Elasticsearch 1.6.2+ and 1.7.1+ remove the limitations on the {ref}/query-dsl-mlt-query.html[More Like This Query].
 
 [float]
 ==== Elasticsearch pre-1.6.0

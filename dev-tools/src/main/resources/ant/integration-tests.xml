@@ -21,7 +21,6 @@
   <!-- runs an OS script -->
   <macrodef name="run-script">
       <attribute name="script"/>
-      <attribute name="dir"/>
       <attribute name="args"/>
       <attribute name="spawn" default="false"/>
       <element name="nested" optional="true"/>
@@ -31,15 +30,18 @@
           <isfalse value="@{spawn}"/>
       </condition>
 
-      <exec executable="cmd" osfamily="winnt" dir="@{dir}" failonerror="${failonerror}" spawn="@{spawn}">
+      <!-- create a temp CWD, to enforce that commands don't rely on CWD -->
+      <mkdir dir="${integ.temp}"/>
+
+      <exec executable="cmd" osfamily="winnt" dir="${integ.temp}" failonerror="${failonerror}" spawn="@{spawn}">
         <arg value="/c"/>
-        <arg value="@{dir}/@{script}.bat"/>
+        <arg value="@{script}.bat"/>
         <arg line="@{args}"/>
         <nested/>
       </exec>
 
-      <exec executable="sh" osfamily="unix" dir="@{dir}" failonerror="${failonerror}" spawn="@{spawn}">
-        <arg value="@{dir}/@{script}"/>
+      <exec executable="sh" osfamily="unix" dir="${integ.temp}" failonerror="${failonerror}" spawn="@{spawn}">
+        <arg value="@{script}"/>
         <arg line="@{args}"/>
         <nested/>
       </exec>
@@ -86,7 +88,7 @@
 
       <!-- install plugin -->
       <echo>Installing plugin @{name}...</echo>
-      <run-script dir="@{home}" script="bin/plugin" args="install @{name} -u ${url}"/>
+      <run-script script="@{home}/bin/plugin" args="install @{name} -u ${url}"/>
 
       <!-- check that plugin was installed into correct place -->
       <local name="longname"/>
@@ -116,7 +118,7 @@
       <attribute name="args" default="${integ.args}"/>
     <sequential>
       <echo>Starting up external cluster...</echo>
-      <run-script dir="@{home}" script="bin/elasticsearch" spawn="true"
+      <run-script script="@{home}/bin/elasticsearch" spawn="true"
                   args="@{args} -Des.path.repo=@{home}/repo" />
 
       <waitfor maxwait="3" maxwaitunit="minute" checkevery="500">
@@ -144,7 +146,7 @@
       <unzip src="${project.build.directory}/releases/elasticsearch-${project.version}.zip" dest="${integ.scratch}"/>
       <local name="home"/>
       <property name="home" location="${integ.scratch}/elasticsearch-${elasticsearch.version}"/>
-      <run-script dir="${home}" script="bin/elasticsearch" spawn="false"
+      <run-script script="${home}/bin/elasticsearch" spawn="false"
                   args="${integ.args} -Des.path.repo=${home}/repo">
         <nested>
           <env key="JAVA_OPTS" value="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=8000"/>

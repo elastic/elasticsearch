@@ -95,18 +95,18 @@ if __name__ == '__main__':
 
   run('%s; %s clean package -DskipTests' % (JAVA_ENV, MVN))
 
-  for f in os.listdir('core/target/releases/'):
+  for f in os.listdir('distribution/tar/target/releases/'):
     if f.endswith('.tar.gz'):
       artifact = f
       break
   else:
-    raise RuntimeError('could not find elasticsearch release under core/target/releases/')
+    raise RuntimeError('could not find elasticsearch release under distribution/tar/target/releases/')
   
   tmp_dir = tempfile.mkdtemp()
   p = None
   try:
     # Extract artifact:
-    run('tar -xzf core/target/releases/%s -C %s' % (artifact, tmp_dir))
+    run('tar -xzf distribution/tar/target/releases/%s -C %s' % (artifact, tmp_dir))
     es_install_dir = os.path.join(tmp_dir, artifact[:-7])
     es_plugin_path = os.path.join(es_install_dir, 'bin/plugin')
     installed_plugin_names = set()
@@ -131,6 +131,7 @@ if __name__ == '__main__':
                           '-Des.node.name=smoke_tester',
                           '-Des.cluster.name=smoke_tester_cluster'
                           '-Des.discovery.zen.ping.multicast.enabled=false',
+                          '-Des.logger.level=debug',
                           '-Des.script.inline=on',
                           '-Des.script.indexed=on'),
                          stdout = subprocess.PIPE,

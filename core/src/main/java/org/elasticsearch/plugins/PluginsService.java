@@ -47,6 +47,7 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -107,7 +108,7 @@ public class PluginsService extends AbstractComponent {
           List<Bundle> bundles = getPluginBundles(environment);
           tupleBuilder.addAll(loadBundles(bundles));
         } catch (IOException ex) {
-          throw new IllegalStateException("Can't load plugins into classloader", ex);
+          throw new IllegalStateException(ex);
         }
 
         plugins = tupleBuilder.build();
@@ -309,34 +310,30 @@ public class PluginsService extends AbstractComponent {
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginsDirectory)) {
             for (Path plugin : stream) {
-                try {
-                    if (FileSystemUtils.isHidden(plugin)) {
-                        logger.trace("--- skip hidden plugin file[{}]", plugin.toAbsolutePath());
-                        continue;
-                    }
-                    logger.trace("--- adding plugin [{}]", plugin.toAbsolutePath());
-                    PluginInfo info = PluginInfo.readFromProperties(plugin);
-                    List<URL> urls = new ArrayList<>();
-                    if (info.isJvm()) {
-                        // a jvm plugin: gather urls for jar files
-                        try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(plugin, "*.jar")) {
-                            for (Path jar : jarStream) {
-                                urls.add(jar.toUri().toURL());
-                            }
+                if (FileSystemUtils.isHidden(plugin)) {
+                    logger.trace("--- skip hidden plugin file[{}]", plugin.toAbsolutePath());
+                    continue;
+                }
+                logger.trace("--- adding plugin [{}]", plugin.toAbsolutePath());
+                PluginInfo info = PluginInfo.readFromProperties(plugin);
+                List<URL> urls = new ArrayList<>();
+                if (info.isJvm()) {
+                    // a jvm plugin: gather urls for jar files
+                    try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(plugin, "*.jar")) {
+                        for (Path jar : jarStream) {
+                            urls.add(jar.toUri().toURL());
                         }
                     }
-                    final Bundle bundle;
-                    if (info.isJvm() && info.isIsolated() == false) {
-                        bundle = bundles.get(0); // purgatory
-                    } else {
-                        bundle = new Bundle();
-                        bundles.add(bundle);
-                    }
-                    bundle.plugins.add(info);
-                    bundle.urls.addAll(urls);
-                } catch (Throwable e) {
-                    logger.warn("failed to add plugin [" + plugin + "]", e);
                 }
+                final Bundle bundle;
+                if (info.isJvm() && info.isIsolated() == false) {
+                    bundle = bundles.get(0); // purgatory
+                } else {
+                    bundle = new Bundle();
+                    bundles.add(bundle);
+                }
+                bundle.plugins.add(info);
+                bundle.urls.addAll(urls);
             }
         }
         
@@ -360,7 +357,7 @@ public class PluginsService extends AbstractComponent {
                 jars.addAll(bundle.urls);
                 JarHell.checkJarHell(jars.toArray(new URL[0]));
             } catch (Exception e) {
-                logger.warn("failed to load bundle {} due to jar hell", bundle.urls, e);
+                throw new IllegalStateException("failed to load bundle " + bundle.urls + " due to jar hell", e);
             }
             
             // create a child to load the plugins in this bundle
@@ -371,17 +368,13 @@ public class PluginsService extends AbstractComponent {
                     .build();
 
             for (PluginInfo pluginInfo : bundle.plugins) {
-                try {
-                    final Plugin plugin;
-                    if (pluginInfo.isJvm()) {
-                        plugin = loadPlugin(pluginInfo.getClassname(), settings);
-                    } else {
-                        plugin = new SitePlugin(pluginInfo.getName(), pluginInfo.getDescription());
-                    }
-                    plugins.add(new Tuple<>(pluginInfo, plugin));
-                } catch (Throwable e) {
-                    logger.warn("failed to load plugin from [" + bundle.urls + "]", e);
+                final Plugin plugin;
+                if (pluginInfo.isJvm()) {
+                    plugin = loadPlugin(pluginInfo.getClassname(), settings);
+                } else {
+                    plugin = new SitePlugin(pluginInfo.getName(), pluginInfo.getDescription());
                 }
+                plugins.add(new Tuple<>(pluginInfo, plugin));
             }
         }
 

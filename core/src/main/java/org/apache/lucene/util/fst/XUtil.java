@@ -252,28 +252,28 @@ public final class XUtil {
     public T cost;
     public final IntsRefBuilder input;
     public final float boost;
-    public final CharSequence[] contexts;
+    public final CharSequence context;
 
     /** Sole constructor */
     public FSTPath(T cost, FST.Arc<T> arc, IntsRefBuilder input) {
       this(cost, arc, input, 0, null);
     }
 
-    public FSTPath(T cost, FST.Arc<T> arc, IntsRefBuilder input, float boost, CharSequence[] contexts) {
+    public FSTPath(T cost, FST.Arc<T> arc, IntsRefBuilder input, float boost, CharSequence context) {
       this.arc = new FST.Arc<T>().copyFrom(arc);
       this.cost = cost;
       this.input = input;
       this.boost = boost;
-      this.contexts = contexts;
+      this.context = context;
     }
 
     public FSTPath<T> newPath(T cost, IntsRefBuilder input) {
-      return new FSTPath<>(cost, this.arc, input, this.boost, this.contexts);
+      return new FSTPath<>(cost, this.arc, input, this.boost, this.context);
     }
 
     @Override
     public String toString() {
-      return "input=" + input.get() + " cost=" + cost + "context=" + contexts + "boost=" + boost;
+      return "input=" + input.get() + " cost=" + cost + "context=" + context + "boost=" + boost;
     }
   }
 
@@ -387,14 +387,14 @@ public final class XUtil {
     /** Adds all leaving arcs, including 'finished' arc, if
      *  the node is final, from this node into the queue.  */
     public void addStartPaths(FST.Arc<T> node, T startOutput, boolean allowEmptyString, IntsRefBuilder input,
-                              float boost, CharSequence[] contexts) throws IOException {
+                              float boost, CharSequence context) throws IOException {
 
       // De-dup NO_OUTPUT since it must be a singleton:
       if (startOutput.equals(fst.outputs.getNoOutput())) {
         startOutput = fst.outputs.getNoOutput();
       }
 
-      FSTPath<T> path = new FSTPath<>(startOutput, node, input, boost, contexts);
+      FSTPath<T> path = new FSTPath<>(startOutput, node, input, boost, context);
       fst.readFirstTargetArc(node, path.arc, bytesReader);
 
       //System.out.println("add start paths");

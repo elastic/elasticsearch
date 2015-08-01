@@ -35,8 +35,13 @@ final class SuggestScoreDocPriorityQueue extends PriorityQueue<TopSuggestDocs.Su
   @Override
   protected boolean lessThan(TopSuggestDocs.SuggestScoreDoc a, TopSuggestDocs.SuggestScoreDoc b) {
     if (a.score == b.score) {
-      // prefer smaller doc id, in case of a tie
-      return a.doc > b.doc;
+      int cmp = a.compareTo(b);
+      if (cmp == 0) {
+        // prefer smaller doc id, in case of a tie
+        return a.doc > b.doc;
+      } else {
+        return cmp < 0;
+      }
     }
     return a.score < b.score;
   }

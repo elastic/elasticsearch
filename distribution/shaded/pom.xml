@@ -3,25 +3,32 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
+    <!-- use elasticearch-parent, we don't want to drag in a bunch of deps for the shaded jar -->
     <parent>
-        <groupId>org.elasticsearch.distribution</groupId>
-        <artifactId>elasticsearch-distribution</artifactId>
+        <groupId>org.elasticsearch</groupId>
+        <artifactId>elasticsearch-parent</artifactId>
         <version>2.0.0-beta1-SNAPSHOT</version>
     </parent>
 
+    <groupId>org.elasticsearch.distribution</groupId>
     <artifactId>elasticsearch-shaded</artifactId>
     <name>Elasticsearch Shaded Distribution</name>
+    <version>2.0.0-beta1-SNAPSHOT</version>
 
     <properties>
-            <skip.integ.tests>true</skip.integ.tests>
+        <skip.integ.tests>true</skip.integ.tests>
     </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.elasticsearch</groupId>
+            <artifactId>elasticsearch</artifactId>
+            <version>${elasticsearch.version}</version>
+        </dependency>
+    </dependencies>
 
     <build>
         <finalName>${project.artifactId}-${project.version}</finalName>
-        <filters>
-            <filter>${project.basedir}/../src/main/packaging/packaging.properties</filter>
-        </filters>
-
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -31,6 +38,13 @@
                     <forceCreation>true</forceCreation>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+            </plugin>
+        </plugins>
+        <pluginManagement>
+            <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
@@ -46,7 +60,8 @@
                     <shadedArtifactAttached>false</shadedArtifactAttached>
                     <shadeTestJar>false</shadeTestJar>
                     <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
-                    <createDependencyReducedPom>false</createDependencyReducedPom>
+                    <createDependencyReducedPom>true</createDependencyReducedPom>
+                    <dependencyReducedPomLocation>${build.directory}/dependency-reduced-pom.xml</dependencyReducedPomLocation>
                     <artifactSet>
                         <includes>
                             <include>org.elasticsearch:elasticsearch</include>
@@ -137,6 +152,7 @@
                     </filters>
                 </configuration>
             </plugin>
-        </plugins>
+            </plugins>
+        </pluginManagement>
     </build>
 </project>

@@ -13,6 +13,15 @@
     <name>Elasticsearch RPM Distribution</name>
     <packaging>rpm</packaging>
 
+    <dependencies>
+        <dependency>
+            <groupId>org.elasticsearch.distribution</groupId>
+            <artifactId>elasticsearch-fully-loaded</artifactId>
+            <version>${elasticsearch.version}</version>
+            <type>pom</type>
+        </dependency>
+    </dependencies>
+
     <build>
 
         <filters>

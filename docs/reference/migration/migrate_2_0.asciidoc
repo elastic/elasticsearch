@@ -72,7 +72,7 @@ In addition, the following node settings related to routing have been deprecated
 === Async replication
 
 The `replication` parameter has been removed from all CRUD operations (index,
-update, delete, bulk, delete-by-query).  These operations are now synchronous
+update, delete, bulk).  These operations are now synchronous
 only, and a request will only return once the changes have been replicated to
 all active shards in the shard group.
 

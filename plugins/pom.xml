@@ -371,6 +371,35 @@
                         </execution>
                     </executions>
                 </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-dependency-plugin</artifactId>
+                    <executions>
+                        <execution>
+                            <id>integ-setup-dependencies</id>
+                            <phase>pre-integration-test</phase>
+                            <goals>
+                                <goal>copy</goal>
+                            </goals>
+                            <configuration>
+                                <skip>${skip.integ.tests}</skip>
+                                <artifactItems>
+                                    <artifactItem>
+                                        <groupId>org.elasticsearch.distribution</groupId>
+                                        <artifactId>elasticsearch-zip</artifactId>
+                                        <version>${elasticsearch.version}</version>
+                                        <type>zip</type>
+                                        <overWrite>true</overWrite>
+                                        <!-- these packaging builds sneakily rename their artifacts to look nothing
+                                             like their artifact id, so we must duplicate that rename here -->
+                                        <destFileName>elasticsearch-${elasticsearch.version}.zip</destFileName>
+                                    </artifactItem>
+                                </artifactItems>
+                                <outputDirectory>${integ.deps}</outputDirectory>
+                            </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
             </plugins>
         </pluginManagement>
     </build>

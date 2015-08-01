@@ -154,11 +154,6 @@
       </run-script>
   </target>
 
-  <!-- unzip core release artifact and start ES -->
-  <target name="start-external-cluster" depends="setup-workspace" unless="${shouldskip}">
-    <startup-elasticsearch/>
-  </target>
-
   <!-- unzip core release artifact, install plugin, then start ES -->
   <target name="start-external-cluster-with-plugin" depends="setup-workspace" unless="${shouldskip}">
     <install-plugin name="${project.artifactId}" file="${project.build.directory}/releases/${project.artifactId}-${project.version}.zip"/>
@@ -184,6 +179,21 @@
     </exec>
     <delete file="${integ.pidfile}"/>
   </target>
+
+  <!-- distribution tests: .zip -->
+
+  <target name="setup-workspace-zip" depends="stop-external-cluster" unless="${shouldskip}">
+    <sequential>
+      <delete dir="${integ.scratch}"/>
+      <unzip src="${project.build.directory}/releases/elasticsearch-${project.version}.zip" 
+             dest="${integ.scratch}"/>
+    </sequential>
+  </target>
+
+  <target name="start-external-cluster-zip" depends="setup-workspace-zip" unless="${shouldskip}">
+    <startup-elasticsearch/>
+  </target>
+
 
   <!-- distribution tests: .tar.gz -->
 

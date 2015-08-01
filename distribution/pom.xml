@@ -185,6 +185,7 @@
     </build>
 
     <modules>
+        <module>shaded</module>
         <module>tar</module>
         <module>zip</module>
         <module>deb</module>

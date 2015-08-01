@@ -27,7 +27,7 @@ import org.apache.lucene.util.*;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.Transition;
-import org.apache.lucene.util.fst.XUtil;
+import org.apache.lucene.util.fst.Util;
 
 import java.io.IOException;
 import java.util.BitSet;
@@ -107,7 +107,7 @@ public final class CompletionTokenStream extends TokenStream {
        * produced. Multi Fields have the same surface form and therefore sum up
        */
       posInc = 0;
-      XUtil.toBytesRef(finiteStrings.next(), bytesAtt.builder()); // now we have UTF-8
+      Util.toBytesRef(finiteStrings.next(), bytesAtt.builder()); // now we have UTF-8
       if (charTermAttribute != null) {
         charTermAttribute.setLength(0);
         charTermAttribute.append(bytesAtt.toUTF16());

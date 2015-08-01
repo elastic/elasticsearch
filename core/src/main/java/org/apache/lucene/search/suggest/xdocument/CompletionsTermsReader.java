@@ -40,7 +40,7 @@ public final class CompletionsTermsReader implements Accountable {
   private final IndexInput dictIn;
   private final long offset;
 
-  private NRTSuggester suggester;
+  private volatile NRTSuggester suggester;
 
   /**
    * Creates a CompletionTermsReader to load a field-specific suggester

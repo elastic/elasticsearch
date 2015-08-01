@@ -123,7 +123,7 @@ public final class NRTSuggester implements Accountable {
    * the matched partial paths. Upon reaching a completed path, {@link CompletionScorer#accept(int)}
    * and {@link CompletionScorer#score(float, float)} is used on the document id, index weight
    * and query boost to filter and score the entry, before being collected via
-   * {@link TopSuggestDocsCollector#collect(int, CharSequence, CharSequence[], float)}
+   * {@link TopSuggestDocsCollector#collect(int, CharSequence, CharSequence, float)}
    */
   public void lookup(final CompletionScorer scorer, final TopSuggestDocsCollector collector) throws IOException {
     final double liveDocsRatio = calculateLiveDocRatio(scorer.reader.numDocs(), scorer.reader.maxDoc());
@@ -148,7 +148,7 @@ public final class NRTSuggester implements Accountable {
         }
         try {
           float score = scorer.score(decode(path.cost.output1), path.boost);
-          collector.collect(docID, spare.toCharsRef(), path.contexts, score);
+          collector.collect(docID, spare.toCharsRef(), path.context, score);
           return true;
         } catch (IOException e) {
           throw new RuntimeException(e);
@@ -158,14 +158,7 @@ public final class NRTSuggester implements Accountable {
 
     for (FSTUtil.Path<Pair<Long, BytesRef>> path : prefixPaths) {
       scorer.weight.setNextMatch(path.input.get());
-      List<CharSequence> contexts = scorer.weight.contexts();
-      final CharSequence[] contextArray;
-      if (contexts != null) {
-        contextArray = contexts.toArray(new CharSequence[contexts.size()]);
-      } else {
-        contextArray = null;
-      }
-      searcher.addStartPaths(path.fstNode, path.output, false, path.input, scorer.weight.boost(), contextArray);
+      searcher.addStartPaths(path.fstNode, path.output, false, path.input, scorer.weight.boost(), scorer.weight.context());
     }
     // hits are also returned by search()
     // we do not use it, instead collect at acceptResult

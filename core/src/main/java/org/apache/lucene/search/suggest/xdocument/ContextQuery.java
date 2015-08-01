@@ -26,8 +26,7 @@ import org.apache.lucene.util.IntsRefBuilder;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.apache.lucene.util.automaton.RegExp;
-import org.apache.lucene.util.fst.XUtil;
+import org.apache.lucene.util.fst.Util;
 
 import java.io.IOException;
 import java.util.*;
@@ -56,16 +55,16 @@ import java.util.*;
  *    or {@link FuzzyCompletionQuery} query.
  *   </li>
  *   <li>
- *     To suggest across all contexts with the same boost,
- *     use '*' as the context in {@link #addContext(CharSequence)})}.
- *     This can be combined with specific contexts with different boosts.
+ *     To suggest across all contexts, use {@link #addAllContexts()}.
+ *     When no context is added, the default behaviour is to suggest across
+ *     all contexts.
  *   </li>
  *   <li>
  *     To apply the same boost to multiple contexts sharing the same prefix,
  *     Use {@link #addContext(CharSequence, float, boolean)} with the common
  *     context prefix, boost and set <code>exact</code> to false.
  *   <li>
- *     Using this query against a {@link SuggestField} (not context enabled),
+ *     Using this query against a {@link org.apache.lucene.search.suggest.document.SuggestField} (not context enabled),
  *     would yield results ignoring any context filtering/boosting
  *   </li>
  * </ul>
@@ -73,8 +72,9 @@ import java.util.*;
  * @lucene.experimental
  */
 public class ContextQuery extends CompletionQuery {
-  protected Map<CharSequence, ContextMetaData> contexts;
-  protected boolean matchAllContexts = false;
+  private IntsRefBuilder scratch = new IntsRefBuilder();
+  private Map<IntsRef, ContextMetaData> contexts;
+  private boolean matchAllContexts = false;
   /** Inner completion query */
   protected CompletionQuery innerQuery;
 
@@ -85,14 +85,13 @@ public class ContextQuery extends CompletionQuery {
    * Use {@link #addContext(CharSequence, float, boolean)}
    * to add context(s) with boost
    */
-  public ContextQuery(CompletionQuery innerQuery) {
-    super(innerQuery.getTerm(), innerQuery.getFilter());
-    /*
+  public ContextQuery(CompletionQuery query) {
+    super(query.getTerm(), query.getFilter());
     if (query instanceof ContextQuery) {
       throw new IllegalArgumentException("'query' parameter must not be of type "
               + this.getClass().getSimpleName());
-    }*/
-    this.innerQuery = innerQuery;
+    }
+    this.innerQuery = query;
     contexts = new HashMap<>();
   }
 
@@ -121,51 +120,31 @@ public class ContextQuery extends CompletionQuery {
     for (int i = 0; i < context.length(); i++) {
       if (ContextSuggestField.CONTEXT_SEPARATOR == context.charAt(i)) {
         throw new IllegalArgumentException("Illegal value [" + context + "] UTF-16 codepoint [0x"
-            + Integer.toHexString((int) context.charAt(i))+ "] at position " + i + " is a reserved character");
+                + Integer.toHexString((int) context.charAt(i))+ "] at position " + i + " is a reserved character");
       }
     }
-    contexts.put(context, new ContextMetaData(boost, exact));
+    contexts.put(IntsRef.deepCopyOf(Util.toIntsRef(new BytesRef(context), scratch)), new ContextMetaData(boost, exact));
   }
 
+  /**
+   * Add all contexts with a boost of 1f
+   */
   public void addAllContexts() {
     matchAllContexts = true;
-  }
-
-  protected Automaton contextAutomaton() {
-    final Automaton matchAllAutomaton = new RegExp(".*").toAutomaton();
-    final Automaton sep = Automata.makeChar(ContextSuggestField.CONTEXT_SEPARATOR);
-    if (matchAllContexts || contexts.size() == 0) {
-      return Operations.concatenate(matchAllAutomaton, sep);
-    } else {
-      Automaton contextsAutomaton = null;
-      for (Map.Entry<CharSequence, ContextMetaData> entry : contexts.entrySet()) {
-        final ContextMetaData contextMetaData = entry.getValue();
-        Automaton contextAutomaton = Automata.makeString(entry.getKey().toString());
-        if (contextMetaData.exact == false) {
-          contextAutomaton = Operations.concatenate(contextAutomaton, matchAllAutomaton);
-        }
-        contextAutomaton = Operations.concatenate(contextAutomaton, sep);
-        if (contextsAutomaton == null) {
-          contextsAutomaton = contextAutomaton;
-        } else {
-          contextsAutomaton = Operations.union(contextsAutomaton, contextAutomaton);
-        }
-      }
-      return contextsAutomaton;
-    }
   }
 
   @Override
   public String toString(String field) {
     StringBuilder buffer = new StringBuilder();
-    for (CharSequence context : contexts.keySet()) {
+    BytesRefBuilder scratch = new BytesRefBuilder();
+    for (IntsRef context : contexts.keySet()) {
       if (buffer.length() != 0) {
         buffer.append(",");
       } else {
         buffer.append("contexts");
         buffer.append(":[");
       }
-      buffer.append(context);
+      buffer.append(Util.toBytesRef(context, scratch).utf8ToString());
       ContextMetaData metaData = contexts.get(context);
       if (metaData.exact == false) {
         buffer.append("*");
@@ -185,27 +164,20 @@ public class ContextQuery extends CompletionQuery {
   @Override
   public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
     final CompletionWeight innerWeight = ((CompletionWeight) innerQuery.createWeight(searcher, needsScores));
-    Automaton contextsAutomaton;
-    if (innerQuery instanceof ContextQuery) {
-      contextsAutomaton = Operations.concatenate(contextAutomaton(), innerWeight.getAutomaton());
-    } else {
-      // if separators are preserved the fst contains a SEP_LABEL
-      // behind each gap. To have a matching automaton, we need to
-      // include the SEP_LABEL in the query as well
-      Automaton optionalSepLabel = Operations.optional(Automata.makeChar(CompletionAnalyzer.SEP_LABEL));
-      Automaton prefixAutomaton = Operations.concatenate(optionalSepLabel, innerWeight.getAutomaton());
-      contextsAutomaton = Operations.concatenate(contextAutomaton(), prefixAutomaton);
-    }
+    // if separators are preserved the fst contains a SEP_LABEL
+    // behind each gap. To have a matching automaton, we need to
+    // include the SEP_LABEL in the query as well
+    Automaton optionalSepLabel = Operations.optional(Automata.makeChar(CompletionAnalyzer.SEP_LABEL));
+    Automaton prefixAutomaton = Operations.concatenate(optionalSepLabel, innerWeight.getAutomaton());
+    Automaton contextsAutomaton = Operations.concatenate(toContextAutomaton(contexts, matchAllContexts), prefixAutomaton);
     contextsAutomaton = Operations.determinize(contextsAutomaton, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
 
     final Map<IntsRef, Float> contextMap = new HashMap<>(contexts.size());
     final TreeSet<Integer> contextLengths = new TreeSet<>();
-    IntsRefBuilder scratch = new IntsRefBuilder();
-    for (Map.Entry<CharSequence, ContextMetaData> entry : contexts.entrySet()) {
-      BytesRef ref = new BytesRef(entry.getKey());
+    for (Map.Entry<IntsRef, ContextMetaData> entry : contexts.entrySet()) {
       ContextMetaData contextMetaData = entry.getValue();
-      contextMap.put(IntsRef.deepCopyOf(XUtil.toIntsRef(ref, scratch)), contextMetaData.boost);
-      contextLengths.add(scratch.length());
+      contextMap.put(entry.getKey(), contextMetaData.boost);
+      contextLengths.add(entry.getKey().length);
     }
     int[] contextLengthArray = new int[contextLengths.size()];
     final Iterator<Integer> iterator = contextLengths.descendingIterator();
@@ -215,8 +187,47 @@ public class ContextQuery extends CompletionQuery {
     return new ContextCompletionWeight(this, contextsAutomaton, innerWeight, contextMap, contextLengthArray);
   }
 
+  private static Automaton toContextAutomaton(final Map<IntsRef, ContextMetaData> contexts, final boolean matchAllContexts) {
+    final Automaton matchAllAutomaton = Operations.repeat(Automata.makeAnyString());
+    final Automaton sep = Automata.makeChar(ContextSuggestField.CONTEXT_SEPARATOR);
+    if (matchAllContexts || contexts.size() == 0) {
+      return Operations.concatenate(matchAllAutomaton, sep);
+    } else {
+      Automaton contextsAutomaton = null;
+      for (Map.Entry<IntsRef, ContextMetaData> entry : contexts.entrySet()) {
+        final ContextMetaData contextMetaData = entry.getValue();
+        final IntsRef ref = entry.getKey();
+        Automaton contextAutomaton = Automata.makeString(ref.ints, ref.offset, ref.length);
+        if (contextMetaData.exact == false) {
+          contextAutomaton = Operations.concatenate(contextAutomaton, matchAllAutomaton);
+        }
+        contextAutomaton = Operations.concatenate(contextAutomaton, sep);
+        if (contextsAutomaton == null) {
+          contextsAutomaton = contextAutomaton;
+        } else {
+          contextsAutomaton = Operations.union(contextsAutomaton, contextAutomaton);
+        }
+      }
+      return contextsAutomaton;
+    }
+  }
+
+  /**
+   * Holder for context value meta data
+   */
   private static class ContextMetaData {
+
+    /**
+     * Boost associated with a
+     * context value
+     */
     private final float boost;
+
+    /**
+     * flag to indicate whether the context
+     * value should be treated as an exact
+     * value or a context prefix
+     */
     private final boolean exact;
 
     private ContextMetaData(float boost, boolean exact) {
@@ -274,8 +285,7 @@ public class ContextQuery extends CompletionQuery {
         if (ref.ints[ref.offset + i] == ContextSuggestField.CONTEXT_SEPARATOR) {
           if (i > 0) {
             refBuilder.copyInts(ref.ints, ref.offset, i);
-            currentContext = XUtil.toBytesRef(refBuilder.get(), scratch).utf8ToString();
-            refBuilder.clear();
+            currentContext = Util.toBytesRef(refBuilder.get(), scratch).utf8ToString();
           } else {
             currentContext = null;
           }
@@ -294,13 +304,8 @@ public class ContextQuery extends CompletionQuery {
     }
 
     @Override
-    protected List<CharSequence> contexts() {
-      final List<CharSequence> contexts = new ArrayList<>();
-      contexts.add(currentContext);
-      if (innerWeight instanceof ContextCompletionWeight) {
-        contexts.addAll(innerWeight.contexts());
-      }
-      return contexts;
+    protected CharSequence context() {
+      return currentContext;
     }
 
     @Override

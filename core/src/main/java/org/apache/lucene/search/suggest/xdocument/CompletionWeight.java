@@ -27,7 +27,6 @@ import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.automaton.Automaton;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -35,7 +34,7 @@ import java.util.Set;
  * score and explain these queries.
  *
  * Subclasses can override {@link #setNextMatch(IntsRef)},
- * {@link #boost()} and {@link #contexts()}
+ * {@link #boost()} and {@link #context()}
  * to calculate the boost and extract the context of
  * a matched path prefix.
  *
@@ -103,7 +102,7 @@ public class CompletionWeight extends Weight {
    * Set for every partial path in the index that matched the query
    * automaton.
    *
-   * Subclasses should override {@link #boost()} and {@link #contexts()}
+   * Subclasses should override {@link #boost()} and {@link #context()}
    * to return an appropriate value with respect to the current pathPrefix.
    *
    * @param pathPrefix the prefix of a matched path
@@ -125,7 +124,7 @@ public class CompletionWeight extends Weight {
    *
    * @return suggestion context
    */
-  protected List<CharSequence> contexts() {
+  protected CharSequence context() {
     return null;
   }
 

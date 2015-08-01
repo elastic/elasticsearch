@@ -87,8 +87,8 @@ public class TopSuggestDocsCollector extends SimpleCollector {
    * NOTE: collection at the leaf level is guaranteed to be in
    * descending order of score
    */
-  public void collect(int docID, CharSequence key, CharSequence[] contexts, float score) throws IOException {
-    SuggestScoreDoc current = new SuggestScoreDoc(docBase + docID, key, contexts, score);
+  public void collect(int docID, CharSequence key, CharSequence context, float score) throws IOException {
+    SuggestScoreDoc current = new SuggestScoreDoc(docBase + docID, key, context, score);
     if (current == priorityQueue.insertWithOverflow(current)) {
       // if the current SuggestScoreDoc has overflown from pq,
       // we can assume all of the successive collections from

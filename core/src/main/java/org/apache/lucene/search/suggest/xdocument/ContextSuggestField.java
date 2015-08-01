@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
@@ -70,31 +71,31 @@ public class ContextSuggestField extends SuggestField {
     validate(value);
     this.contexts = new HashSet<>((contexts != null) ? contexts.length : 0);
     if (contexts != null) {
-      for (CharSequence context : contexts) {
-        validate(context);
-        this.contexts.add(context);
-      }
+      Collections.addAll(this.contexts, contexts);
     }
   }
 
   /**
-   * Sub-classes can inject contexts at
-   * index-time by overriding
+   * Expert: Sub-classes can inject contexts at
+   * index-time
    */
-  protected Set<CharSequence> contexts() {
+  protected Iterable<CharSequence> contexts() {
     return contexts;
   }
 
   @Override
   protected CompletionTokenStream wrapTokenStream(TokenStream stream) {
-    CompletionTokenStream completionTokenStream;
+    for (CharSequence context : contexts()) {
+      validate(context);
+    }
     PrefixTokenFilter prefixTokenFilter = new PrefixTokenFilter(stream, (char) CONTEXT_SEPARATOR, contexts());
+    CompletionTokenStream completionTokenStream;
     if (stream instanceof CompletionTokenStream) {
       completionTokenStream = (CompletionTokenStream) stream;
       completionTokenStream = new CompletionTokenStream(prefixTokenFilter,
-          completionTokenStream.preserveSep,
-          completionTokenStream.preservePositionIncrements,
-          completionTokenStream.maxGraphExpansions);
+              completionTokenStream.preserveSep,
+              completionTokenStream.preservePositionIncrements,
+              completionTokenStream.maxGraphExpansions);
     } else {
       completionTokenStream = new CompletionTokenStream(prefixTokenFilter);
     }
@@ -161,11 +162,11 @@ public class ContextSuggestField extends SuggestField {
     }
   }
 
-  protected void validate(final CharSequence value) {
+  private void validate(final CharSequence value) {
     for (int i = 0; i < value.length(); i++) {
       if (CONTEXT_SEPARATOR == value.charAt(i)) {
         throw new IllegalArgumentException("Illegal value [" + value + "] UTF-16 codepoint [0x"
-            + Integer.toHexString((int) value.charAt(i))+ "] at position " + i + " is a reserved character");
+                + Integer.toHexString((int) value.charAt(i))+ "] at position " + i + " is a reserved character");
       }
     }
   }

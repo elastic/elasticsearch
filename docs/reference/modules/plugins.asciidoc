@@ -97,7 +97,7 @@ will not start.
 ==== Installed Plugins
 
 A list of the currently loaded plugins can be retrieved using the
-<<cluster-nodes-info,Node Info API>>.
+<<cluster-nodes-info,Nodes Info API>>.
 
 [float]
 ==== Removing plugins

@@ -105,7 +105,6 @@ public class AwarenessAllocationIT extends ElasticsearchIntegrationTest {
     }
     
     @Test
-    @Slow
     public void testAwarenessZones() throws Exception {
         Settings commonSettings = Settings.settingsBuilder()
                 .put("cluster.routing.allocation.awareness.force.zone.values", "a,b")
@@ -145,7 +144,6 @@ public class AwarenessAllocationIT extends ElasticsearchIntegrationTest {
     }
     
     @Test
-    @Slow
     public void testAwarenessZonesIncrementalNodes() throws Exception {
         Settings commonSettings = Settings.settingsBuilder()
                 .put("cluster.routing.allocation.awareness.force.zone.values", "a,b")

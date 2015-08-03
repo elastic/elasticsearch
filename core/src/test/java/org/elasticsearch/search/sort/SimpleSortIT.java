@@ -1023,7 +1023,7 @@ public class SimpleSortIT extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo("3"));
     }
 
-    @Test @Slow
+    @Test
     public void testSortMissingStrings() throws IOException {
         assertAcked(prepareCreate("test").addMapping("type1",
                 XContentFactory.jsonBuilder()

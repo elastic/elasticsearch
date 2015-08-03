@@ -470,7 +470,6 @@ public class SuggestSearchIT extends ElasticsearchIntegrationTest {
     }
     
     @Test
-    @Slow
     @Nightly
     public void testMarvelHerosPhraseSuggest() throws IOException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()

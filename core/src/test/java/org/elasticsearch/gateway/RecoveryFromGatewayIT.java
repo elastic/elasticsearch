@@ -19,7 +19,6 @@
 
 package org.elasticsearch.gateway;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
@@ -50,17 +49,15 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
-/**
- *
- */
 @ClusterScope(numDataNodes = 0, scope = Scope.TEST)
-@Slow
 public class RecoveryFromGatewayIT extends ElasticsearchIntegrationTest {
 
     @Test
-    @Slow
     public void testOneNodeRecoverFromGateway() throws Exception {
 
         internalCluster().startNode();
@@ -103,7 +100,6 @@ public class RecoveryFromGatewayIT extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @Slow
     public void testSingleNodeNoFlush() throws Exception {
 
         internalCluster().startNode();
@@ -188,10 +184,8 @@ public class RecoveryFromGatewayIT extends ElasticsearchIntegrationTest {
             assertHitCount(client().prepareCount().setQuery(termQuery("num", 179)).get(), value1Docs);
         }
     }
-
-
+    
     @Test
-    @Slow
     public void testSingleNodeWithFlush() throws Exception {
 
         internalCluster().startNode();
@@ -225,7 +219,6 @@ public class RecoveryFromGatewayIT extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @Slow
     public void testTwoNodeFirstNodeCleared() throws Exception {
 
         final String firstNode = internalCluster().startNode();
@@ -265,7 +258,6 @@ public class RecoveryFromGatewayIT extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @Slow
     public void testLatestVersionLoaded() throws Exception {
         // clean two nodes
         internalCluster().startNodesAsync(2, settingsBuilder().put("gateway.recover_after_nodes", 2).build()).get();
@@ -339,7 +331,6 @@ public class RecoveryFromGatewayIT extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @Slow
     @TestLogging("gateway:TRACE,indices.recovery:TRACE,index.engine:TRACE")
     public void testReusePeerRecovery() throws Exception {
         final Settings settings = settingsBuilder()
@@ -450,7 +441,6 @@ public class RecoveryFromGatewayIT extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @Slow
     public void testRecoveryDifferentNodeOrderStartup() throws Exception {
         // we need different data paths so we make sure we start the second node fresh
 

@@ -20,7 +20,6 @@
 package org.elasticsearch.search.scan;
 
 import com.google.common.collect.Sets;
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -38,7 +37,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class SearchScanIT extends ElasticsearchIntegrationTest {
 
     @Test
-    @Slow 
     public void testNarrowingQuery() throws Exception {
         createIndex("test");
         ensureGreen();

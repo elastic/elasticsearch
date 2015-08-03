@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
@@ -123,7 +122,6 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 
 @ClusterScope(scope = Scope.SUITE, numClientNodes = 1, minNumDataNodes = 2)
-@Slow
 public class IndicesRequestIT extends ElasticsearchIntegrationTest {
 
     private final List<String> indices = new ArrayList<>();

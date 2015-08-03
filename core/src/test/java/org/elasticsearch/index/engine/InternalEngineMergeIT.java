@@ -40,13 +40,10 @@ import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
-/**
- */
 @ClusterScope(numDataNodes = 1, scope = Scope.SUITE)
 public class InternalEngineMergeIT extends ElasticsearchIntegrationTest {
 
     @Test
-    @Slow
     public void testMergesHappening() throws InterruptedException, IOException, ExecutionException {
         final int numOfShards = randomIntBetween(1,5);
         // some settings to keep num segments low

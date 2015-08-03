@@ -537,7 +537,6 @@ public class SimpleVersioningIT extends ElasticsearchIntegrationTest {
 
 
     @Test
-    @Slow
     public void testRandomIDsAndVersions() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -757,7 +756,6 @@ public class SimpleVersioningIT extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @Slow
     public void testDeleteNotLost() throws Exception {
 
         // We require only one shard for this test, so that the 2nd delete provokes pruning the deletes map:

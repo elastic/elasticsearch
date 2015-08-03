@@ -21,7 +21,6 @@ package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Predicate;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -43,10 +42,6 @@ import static org.elasticsearch.test.InternalTestCluster.RestartCallback;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
-@LuceneTestCase.Slow
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class MetaDataWriteDataNodesIT extends ElasticsearchIntegrationTest {
 

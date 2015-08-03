@@ -195,24 +195,8 @@ import static org.hamcrest.Matchers.*;
  * </p>
  */
 @Ignore
-@ElasticsearchIntegrationTest.Integration
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // doesn't work with potential multi data path from test cluster yet
 public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase {
-
-    /**
-     * Property that allows to control whether the Integration tests are run (default) or not
-     */
-    public static final String SYSPROP_INTEGRATION = "tests.integration";
-
-    /**
-     * Annotation for integration tests
-     */
-    @Inherited
-    @Retention(RetentionPolicy.RUNTIME)
-    @Target(ElementType.TYPE)
-    @TestGroup(enabled = true, sysProperty = ElasticsearchIntegrationTest.SYSPROP_INTEGRATION)
-    public @interface Integration {
-    }
 
     /**
      * Property that controls whether ThirdParty Integration tests are run (not the default).

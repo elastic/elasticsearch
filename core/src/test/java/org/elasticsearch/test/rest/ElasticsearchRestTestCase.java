@@ -23,9 +23,7 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import com.google.common.collect.Lists;
-
 import org.apache.lucene.util.IOUtils;
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.util.LuceneTestCase.SuppressFsync;
 import org.apache.lucene.util.TimeUnits;
@@ -80,7 +78,6 @@ import java.util.Set;
  * Runs the clients test suite against an elasticsearch cluster.
  */
 @ElasticsearchRestTestCase.Rest
-@Slow
 @SuppressFsync // we aren't trying to test this here, and it can make the test slow
 @SuppressCodecs("*") // requires custom completion postings format
 @ClusterScope(randomDynamicTemplates = false)

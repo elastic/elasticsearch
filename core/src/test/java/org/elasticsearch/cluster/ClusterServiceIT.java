@@ -621,7 +621,7 @@ public class ClusterServiceIT extends ElasticsearchIntegrationTest {
         block2.countDown();
     }
 
-    @Test @Slow
+    @Test
     public void testLocalNodeMasterListenerCallbacks() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")

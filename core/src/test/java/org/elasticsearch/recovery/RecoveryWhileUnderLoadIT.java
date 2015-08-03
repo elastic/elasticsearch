@@ -42,7 +42,10 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RecoveryWhileUnderLoadIT extends ElasticsearchIntegrationTest {
@@ -50,7 +53,6 @@ public class RecoveryWhileUnderLoadIT extends ElasticsearchIntegrationTest {
     private final ESLogger logger = Loggers.getLogger(RecoveryWhileUnderLoadIT.class);
 
     @Test
-    @Slow
     public void recoverWhileUnderLoadAllocateReplicasTest() throws Exception {
         logger.info("--> creating test index ...");
         int numberOfShards = numberOfShards();
@@ -105,7 +107,6 @@ public class RecoveryWhileUnderLoadIT extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @Slow
     public void recoverWhileUnderLoadAllocateReplicasRelocatePrimariesTest() throws Exception {
         logger.info("--> creating test index ...");
         int numberOfShards = numberOfShards();
@@ -158,7 +159,6 @@ public class RecoveryWhileUnderLoadIT extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @Slow
     public void recoverWhileUnderLoadWithReducedAllowedNodes() throws Exception {
         logger.info("--> creating test index ...");
         int numberOfShards = numberOfShards();
@@ -229,7 +229,6 @@ public class RecoveryWhileUnderLoadIT extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @Slow
     public void recoverWhileRelocating() throws Exception {
         final int numShards = between(2, 10);
         final int numReplicas = 0;

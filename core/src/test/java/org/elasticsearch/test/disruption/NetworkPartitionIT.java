@@ -21,7 +21,6 @@
 package org.elasticsearch.test.disruption;
 
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
@@ -31,7 +30,6 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-@LuceneTestCase.Slow
 public class NetworkPartitionIT extends ElasticsearchIntegrationTest {
 
     @Override

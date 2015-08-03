@@ -568,7 +568,6 @@ public class UpdateIT extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @Slow
     public void testConcurrentUpdateWithRetryOnConflict() throws Exception {
         final boolean useBulkApi = randomBoolean();
         createTestIndex();
@@ -627,7 +626,6 @@ public class UpdateIT extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @Slow
     public void stressUpdateDeleteConcurrency() throws Exception {
         //We create an index with merging disabled so that deletes don't get merged away
         assertAcked(prepareCreate("test")

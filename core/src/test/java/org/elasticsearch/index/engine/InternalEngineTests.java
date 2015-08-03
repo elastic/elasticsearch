@@ -1378,7 +1378,6 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         }
     }
 
-    @Slow
     @Test
     public void testEnableGcDeletes() throws Exception {
         try (Store store = createStore();

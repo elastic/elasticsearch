@@ -388,7 +388,6 @@ public class GeoFilterIT extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @Slow
     public void bulktest() throws Exception {
         byte[] bulkAction = unZipData("/org/elasticsearch/search/geo/gzippedmap.gz");
 

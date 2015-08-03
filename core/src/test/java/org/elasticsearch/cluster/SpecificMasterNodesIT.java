@@ -33,11 +33,7 @@ import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
-/**
- *
- */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-@Slow
 public class SpecificMasterNodesIT extends ElasticsearchIntegrationTest {
 
     protected final Settings.Builder settingsBuilder() {

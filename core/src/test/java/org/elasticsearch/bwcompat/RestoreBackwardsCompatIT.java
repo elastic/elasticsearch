@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.bwcompat;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -52,11 +51,13 @@ import java.util.TreeSet;
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.notNullValue;
 
-@Slow
 @ClusterScope(scope = Scope.TEST)
-public class RestoreBackwardsCompatTests extends AbstractSnapshotIT {
+public class RestoreBackwardsCompatIT extends AbstractSnapshotIT {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

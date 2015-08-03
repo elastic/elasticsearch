@@ -203,10 +203,15 @@ public class VersionTests extends ESTestCase {
                 
                 // only the latest version for a branch should be a snapshot (ie unreleased)
                 String branchName = "" + v.major + "." + v.minor;
+                if (v.equals(Version.V_2_0_0_beta1)) {
+                    assertTrue("Remove this once beta1 is released", v.snapshot());
+                    continue; // this is just a temporary fix until we have a snapshot for the beta since we now have 2 unreleased version of the same major.minor group
+                }
                 Version maxBranchVersion = maxBranchVersions.get(branchName);
                 if (maxBranchVersion == null) {
                     maxBranchVersions.put(branchName, v);
                 } else if (v.after(maxBranchVersion)) {
+
                     assertFalse("Version " + maxBranchVersion + " cannot be a snapshot because version " + v + " exists", maxBranchVersion.snapshot());
                     maxBranchVersions.put(branchName, v);
                 }

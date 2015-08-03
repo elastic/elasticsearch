@@ -120,10 +120,11 @@ final class Security {
         // read-only dirs
         addPath(policy, environment.binFile(), "read,readlink");
         addPath(policy, environment.libFile(), "read,readlink");
+        addPath(policy, environment.pluginsFile(), "read,readlink");
+        addPath(policy, environment.configFile(), "read,readlink");
+        // read-write dirs
         addPath(policy, environment.tmpFile(), "read,readlink,write,delete");
-        addPath(policy, environment.configFile(), "read,readlink,write,delete");
         addPath(policy, environment.logsFile(), "read,readlink,write,delete");
-        addPath(policy, environment.pluginsFile(), "read,readlink,write,delete");
         for (Path path : environment.dataFiles()) {
             addPath(policy, path, "read,readlink,write,delete");
         }
@@ -134,7 +135,8 @@ final class Security {
             addPath(policy, path, "read,readlink,write,delete");
         }
         if (environment.pidFile() != null) {
-            addPath(policy, environment.pidFile().getParent(), "read,readlink,write,delete");
+            // we just need permission to remove the file if its elsewhere.
+            policy.add(new FilePermission(environment.pidFile().toString(), "delete"));
         }
         return policy;
     }

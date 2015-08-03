@@ -64,7 +64,6 @@
         <tests.bwc.path>${project.basedir}/backwards</tests.bwc.path>
         <tests.locale>random</tests.locale>
         <tests.timezone>random</tests.timezone>
-        <tests.slow>false</tests.slow>
         <es.logger.level>ERROR</es.logger.level>
         <tests.heap.size>512m</tests.heap.size>
         <tests.heapdump.path>${basedir}/logs/</tests.heapdump.path>
@@ -89,7 +88,6 @@
         <tests.awaitsfix></tests.awaitsfix>
         <tests.timeoutSuite></tests.timeoutSuite>
         <tests.showSuccess></tests.showSuccess>
-        <tests.integration></tests.integration>
         <tests.thirdparty></tests.thirdparty>
         <tests.config></tests.config>
         <tests.enable_mock_modules></tests.enable_mock_modules>
@@ -633,10 +631,8 @@
                             <tests.weekly>${tests.weekly}</tests.weekly>
                             <haltOnFailure>${tests.failfast}</haltOnFailure>
                             <tests.awaitsfix>${tests.awaitsfix}</tests.awaitsfix>
-                            <tests.slow>${tests.slow}</tests.slow>
                             <tests.timeoutSuite>${tests.timeoutSuite}</tests.timeoutSuite>
                             <tests.showSuccess>${tests.showSuccess}</tests.showSuccess>
-                            <tests.integration>${tests.integration}</tests.integration>
                             <tests.thirdparty>${tests.thirdparty}</tests.thirdparty>
                             <tests.config>${tests.config}</tests.config>
                             <tests.client.ratio>${tests.client.ratio}</tests.client.ratio>
@@ -746,8 +742,6 @@
                                     <include>**/*IT.class</include>
                                 </includes>
                                 <systemProperties>
-                                    <!-- integ tests are typically slow! -->
-                                    <tests.slow>true</tests.slow>
                                     <!-- let framework know we are running integ tests, for correct 'reproduce with' line -->
                                     <tests.verify.phase>true</tests.verify.phase>
                                 </systemProperties>

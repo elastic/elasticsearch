@@ -8,7 +8,9 @@ import subprocess
 import tempfile
 import threading
 import time
+import xml.dom.minidom
 
+from http.client import HTTPSConnection
 from http.client import HTTPConnection
 import sys
 
@@ -87,8 +89,17 @@ def send_request(conn, method, path, body=None):
 
 supported_es_version = ['2.0.0-SNAPSHOT']
 
+conn = HTTPSConnection('oss.sonatype.org')
+conn.request('GET', 'https://oss.sonatype.org/content/repositories/snapshots/org/elasticsearch/distribution/elasticsearch-tar/2.0.0-beta1-SNAPSHOT/maven-metadata.xml')
+res = conn.getresponse()
+dom = xml.dom.minidom.parseString(res.read().decode("utf-8"))
+snapshotVersion = dom.getElementsByTagName("value")[0].firstChild.nodeValue
+snapshot_url = 'https://oss.sonatype.org/content/repositories/snapshots/org/elasticsearch/distribution/elasticsearch-tar/2.0.0-beta1-SNAPSHOT/elasticsearch-tar-%s.tar.gz' % snapshotVersion
+conn.close()
+
+print("Using the following url for the snapshot version: %s" % snapshot_url)
 version_url_matrix = [
-    {'version': '2.0.0-beta1-SNAPSHOT', 'host' : 'oss.sonatype.org', 'url': 'https://oss.sonatype.org/content/repositories/snapshots/org/elasticsearch/distribution/elasticsearch-tar/2.0.0-beta1-SNAPSHOT/elasticsearch-tar-2.0.0-beta1-20150731.034255-32.tar.gz'}
+    {'version': '2.0.0-beta1-SNAPSHOT', 'host' : 'oss.sonatype.org', 'url': snapshot_url}
 ]
 
 test_watch = """
@@ -181,17 +192,15 @@ if __name__ == '__main__':
             os.makedirs(version_tmp_dir)
             download = version_tmp_dir + 'elasticsearch-%s.tar.gz' % (es_version)
 
-            # conn = HTTPConnection(version_url['host'])
-            # conn.set_debuglevel()
-            # conn.request('GET', version_url['url'])
-            # print('downloading %s to %s' % (version_url['url'], download))
-            # resp = conn.getresponse()
-            # data = resp.read()
-            # with open(download, 'wb') as f:
-            #     f.write(data)
-            # conn.close()
+            conn = HTTPSConnection(version_url['host'])
+            conn.request('GET', version_url['url'])
+            print('downloading %s to %s' % (version_url['url'], download))
+            resp = conn.getresponse()
+            data = resp.read()
+            with open(download, 'wb') as f:
+                f.write(data)
+            conn.close()
             print('Downloading elasticsearch [%s]' % es_version)
-            run('curl %s -o %s' % (version_url['url'], download))
             run('tar -xzf %s -C %s' % (download, version_tmp_dir))
 
             es_dir = version_tmp_dir + 'elasticsearch-%s/' % (es_version)
@@ -280,6 +289,7 @@ if __name__ == '__main__':
                     raise RuntimeError('Expected found to be True but got %s' % found)
                 print('> Successful!')
                 print('> Smoke tester ran succesful with elastic version [%s]!' % es_version)
+                conn.close()
             finally:
                 if p is not None:
                     try:

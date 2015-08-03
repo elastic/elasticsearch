@@ -40,7 +40,7 @@ import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Version;
-import org.elasticsearch.bwcompat.OldIndexBackwardsCompatibilityTests;
+import org.elasticsearch.bwcompat.OldIndexBackwardsCompatibilityIT;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
@@ -1750,7 +1750,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
     public void testUpgradeOldIndex() throws IOException {
         List<Path> indexes = new ArrayList<>();
-        Path dir = getDataPath("/" + OldIndexBackwardsCompatibilityTests.class.getPackage().getName().replace('.', '/')); // the files are in the same pkg as the OldIndexBackwardsCompatibilityTests test
+        Path dir = getDataPath("/" + OldIndexBackwardsCompatibilityIT.class.getPackage().getName().replace('.', '/')); // the files are in the same pkg as the OldIndexBackwardsCompatibilityTests test
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, "index-*.zip")) {
             for (Path path : stream) {
                 indexes.add(path);

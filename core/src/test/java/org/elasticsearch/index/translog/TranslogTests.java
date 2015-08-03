@@ -29,7 +29,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.bwcompat.OldIndexBackwardsCompatibilityTests;
+import org.elasticsearch.bwcompat.OldIndexBackwardsCompatibilityIT;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -1142,7 +1142,7 @@ public class TranslogTests extends ElasticsearchTestCase {
 
     public void testUpgradeOldTranslogFiles() throws IOException {
         List<Path> indexes = new ArrayList<>();
-        Path dir = getDataPath("/" + OldIndexBackwardsCompatibilityTests.class.getPackage().getName().replace('.', '/')); // the files are in the same pkg as the OldIndexBackwardsCompatibilityTests test
+        Path dir = getDataPath("/" + OldIndexBackwardsCompatibilityIT.class.getPackage().getName().replace('.', '/')); // the files are in the same pkg as the OldIndexBackwardsCompatibilityTests test
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, "index-*.zip")) {
             for (Path path : stream) {
                 indexes.add(path);

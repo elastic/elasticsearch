@@ -16,32 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.bwcompat;
 
-package org.elasticsearch.document;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.Node;
+import org.junit.Test;
 
-import org.elasticsearch.action.admin.indices.alias.Alias;
+import static org.hamcrest.Matchers.containsString;
 
-import static org.elasticsearch.client.Requests.createIndexRequest;
+public class RecoveryWithUnsupportedIndicesIT extends StaticIndexBackwardCompatibilityIT {
 
-/**
- *
- */
-public class AliasedIndexDocumentActionsTests extends DocumentActionsIT {
+    @Test
+    public void testUpgradeStartClusterOn_0_20_6() throws Exception {
+        String indexName = "unsupported-0.20.6";
 
-    @Override
-    protected void createIndex() {
-        logger.info("Creating index [test1] with alias [test]");
+        logger.info("Checking static index " + indexName);
+        Settings nodeSettings = prepareBackwardsDataDir(getDataPath(indexName + ".zip"), Node.HTTP_ENABLED, true);
         try {
-            client().admin().indices().prepareDelete("test1").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
+            internalCluster().startNode(nodeSettings);
+            fail();
+        } catch (Exception ex) {
+            assertThat(ex.getMessage(), containsString(" was created before v0.90.0 and wasn't upgraded"));
         }
-        logger.info("--> creating index test");
-        client().admin().indices().create(createIndexRequest("test1").alias(new Alias("test"))).actionGet();
-    }
-
-    @Override
-    protected String getConcreteIndexName() {
-        return "test1";
     }
 }

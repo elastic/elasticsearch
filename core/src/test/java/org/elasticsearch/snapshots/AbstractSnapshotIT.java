@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 /**
  */
 @Ignore
-public abstract class AbstractSnapshotTests extends ElasticsearchIntegrationTest {
+public abstract class AbstractSnapshotIT extends ElasticsearchIntegrationTest {
 
     public static long getFailureCount(String repository) {
         long failureCount = 0;

@@ -80,7 +80,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
 @Slow
-public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
+public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIT {
 
     @Test
     public void basicWorkFlowTest() throws Exception {

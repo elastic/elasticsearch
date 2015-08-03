@@ -42,7 +42,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 
 /**
  */
-public class FunctionScoreBackwardCompatibilityTests extends ElasticsearchBackwardsCompatIntegrationTest {
+public class FunctionScoreBackwardCompatibilityIT extends ElasticsearchBackwardsCompatIntegrationTest {
 
     /**
      * Simple upgrade test for function score

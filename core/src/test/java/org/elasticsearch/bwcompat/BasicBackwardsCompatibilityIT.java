@@ -76,7 +76,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompatIntegrationTest {
+public class BasicBackwardsCompatibilityIT extends ElasticsearchBackwardsCompatIntegrationTest {
 
     /**
      * Basic test using Index & Realtime Get with external versioning. This test ensures routing works correctly across versions.

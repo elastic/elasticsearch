@@ -38,7 +38,7 @@ import java.util.Map;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ClusterStateBackwardsCompatTests extends ElasticsearchBackwardsCompatIntegrationTest {
+public class ClusterStateBackwardsCompatIT extends ElasticsearchBackwardsCompatIntegrationTest {
 
     @Test
     public void testClusterState() throws Exception {

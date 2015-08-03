@@ -26,7 +26,7 @@ import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class UnicastBackwardsCompatibilityTest extends ElasticsearchBackwardsCompatIntegrationTest {
+public class UnicastBackwardsCompatibilityIT extends ElasticsearchBackwardsCompatIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

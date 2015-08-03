@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class GetIndexBackwardsCompatibilityTests extends ElasticsearchBackwardsCompatIntegrationTest {
+public class GetIndexBackwardsCompatibilityIT extends ElasticsearchBackwardsCompatIntegrationTest {
 
     @Test
     public void testGetAliases() throws Exception {

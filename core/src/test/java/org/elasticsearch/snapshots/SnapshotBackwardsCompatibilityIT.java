@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
-public class SnapshotBackwardsCompatibilityTest extends ElasticsearchBackwardsCompatIntegrationTest {
+public class SnapshotBackwardsCompatibilityIT extends ElasticsearchBackwardsCompatIntegrationTest {
 
     @Test
     public void testSnapshotAndRestore() throws ExecutionException, InterruptedException, IOException {

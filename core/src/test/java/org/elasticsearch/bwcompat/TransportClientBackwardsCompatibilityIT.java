@@ -37,7 +37,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class TransportClientBackwardsCompatibilityTest extends ElasticsearchBackwardsCompatIntegrationTest {
+public class TransportClientBackwardsCompatibilityIT extends ElasticsearchBackwardsCompatIntegrationTest {
 
     @Test
     public void testSniffMode() throws ExecutionException, InterruptedException {

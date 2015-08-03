@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  */
 @LuceneTestCase.SuppressCodecs("*")
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0, minNumDataNodes = 0, maxNumDataNodes = 0)
-public class StaticIndexBackwardCompatibilityTest extends ElasticsearchIntegrationTest {
+public class StaticIndexBackwardCompatibilityIT extends ElasticsearchIntegrationTest {
 
     public void loadIndex(String index, Object... settings) throws Exception {
         logger.info("Checking static index " + index);

@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.snapshots.AbstractSnapshotTests;
+import org.elasticsearch.snapshots.AbstractSnapshotIT;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
@@ -56,7 +56,7 @@ import static org.hamcrest.Matchers.*;
 
 @Slow
 @ClusterScope(scope = Scope.TEST)
-public class RestoreBackwardsCompatTests extends AbstractSnapshotTests {
+public class RestoreBackwardsCompatTests extends AbstractSnapshotIT {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

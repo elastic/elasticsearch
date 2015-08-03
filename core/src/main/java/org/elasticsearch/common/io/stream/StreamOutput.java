@@ -30,9 +30,11 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.joda.time.ReadableInstant;
 
 import java.io.EOFException;
@@ -201,6 +203,24 @@ public abstract class StreamOutput extends OutputStream {
         } else {
             writeBoolean(true);
             writeVInt(integer);
+        }
+    }
+
+    public void writeOptionalFloat(@Nullable Float aFloat) throws IOException {
+        if (aFloat == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeFloat(aFloat);
+        }
+    }
+
+    public void writeOptionalDouble(@Nullable Double aDouble) throws IOException {
+        if (aDouble == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeDouble(aDouble);
         }
     }
 
@@ -412,6 +432,9 @@ public abstract class StreamOutput extends OutputStream {
         } else if (value instanceof BytesRef) {
             writeByte((byte) 21);
             writeBytesRef((BytesRef) value);
+        } else if (value instanceof GeoPoint) {
+            writeByte((byte) 22);
+            writeOptionalStreamable((GeoPoint) value);
         } else {
             throw new IOException("Can't write type [" + type + "]");
         }
@@ -628,5 +651,18 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeQuery(QueryBuilder queryBuilder) throws IOException {
         writeNamedWriteable(queryBuilder);
+    }
+
+    public void writeOptionalQuery(QueryBuilder queryBuilder) throws IOException {
+        if (queryBuilder != null) {
+            writeBoolean(true);
+            writeQuery(queryBuilder);
+        } else {
+            writeBoolean(false);
+        }
+    }
+
+    public void writeScoreFunction(ScoreFunctionBuilder scoreFunctionBuilder) throws IOException {
+        writeNamedWriteable(scoreFunctionBuilder);
     }
 }

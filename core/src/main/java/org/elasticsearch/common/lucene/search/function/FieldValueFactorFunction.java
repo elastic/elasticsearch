@@ -168,5 +168,13 @@ public class FieldValueFactorFunction extends ScoreFunction {
         public String toString() {
             return super.toString().toLowerCase(Locale.ROOT);
         }
+
+        public static Modifier fromString(String modifier) {
+            try {
+                return valueOf(modifier.toUpperCase(Locale.ROOT));
+            } catch (Throwable t) {
+                throw new IllegalArgumentException("Illegal modifier: " + modifier);
+            }
+        }
     }
 }

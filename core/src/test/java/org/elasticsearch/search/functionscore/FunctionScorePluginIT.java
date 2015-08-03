@@ -118,11 +118,35 @@ public class FunctionScorePluginIT extends ESIntegTestCase {
         public static final String[] NAMES = { "linear_mult", "linearMult" };
 
         @Override
+        public DecayFunctionBuilder newDecayFunctionBuilder(String fieldName, Object origin, Object scale) {
+            return new CustomDistanceScoreBuilder(fieldName, origin, scale);
+        }
+
+        @Override
         public String[] getNames() {
             return NAMES;
         }
+    }
+
+    public static class CustomDistanceScoreBuilder extends DecayFunctionBuilder {
+
+        static final CustomDistanceScoreBuilder PROTOTYPE = new CustomDistanceScoreBuilder(null, null, null);
 
         static final DecayFunction decayFunction = new LinearMultScoreFunction();
+
+        public CustomDistanceScoreBuilder(String fieldName, Object origin, Object scale) {
+            super(fieldName, origin, scale);
+        }
+
+        @Override
+        protected DecayFunctionBuilder getBuilderPrototype() {
+            return PROTOTYPE;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return CustomDistanceScoreParser.NAMES[0];
+        }
 
         @Override
         public DecayFunction getDecayFunction() {
@@ -135,7 +159,6 @@ public class FunctionScorePluginIT extends ESIntegTestCase {
 
             @Override
             public double evaluate(double value, double scale) {
-                
                 return value;
             }
 
@@ -151,16 +174,5 @@ public class FunctionScorePluginIT extends ESIntegTestCase {
         }
     }
 
-    public class CustomDistanceScoreBuilder extends DecayFunctionBuilder {
 
-        public CustomDistanceScoreBuilder(String fieldName, Object origin, Object scale) {
-            super(fieldName, origin, scale);
-        }
-
-        @Override
-        public String getName() {
-            return CustomDistanceScoreParser.NAMES[0];
-        }
-
-    }
 }

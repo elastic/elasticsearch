@@ -29,6 +29,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.EmptyQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParser;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 
 import java.util.Map;
 import java.util.Set;
@@ -38,7 +40,9 @@ public class IndicesQueriesRegistry extends AbstractComponent {
     private ImmutableMap<String, QueryParser> queryParsers;
 
     @Inject
-    public IndicesQueriesRegistry(Settings settings, Set<QueryParser> injectedQueryParsers, NamedWriteableRegistry namedWriteableRegistry) {
+    public IndicesQueriesRegistry(Settings settings, Set<QueryParser> injectedQueryParsers,
+                                  Set<ScoreFunctionParser> injectedScoreFunctionParsers,
+                                  NamedWriteableRegistry namedWriteableRegistry) {
         super(settings);
         Map<String, QueryParser> queryParsers = Maps.newHashMap();
         for (QueryParser queryParser : injectedQueryParsers) {
@@ -47,6 +51,13 @@ public class IndicesQueriesRegistry extends AbstractComponent {
             }
             namedWriteableRegistry.registerPrototype(QueryBuilder.class, queryParser.getBuilderPrototype());
         }
+
+        //NO COMMIT this is probably not the right place to do this
+        //but doing it in ScoreFunctionParserMapper led to duplicate score functions error!
+        for (ScoreFunctionParser scoreFunctionParser : injectedScoreFunctionParsers) {
+            namedWriteableRegistry.registerPrototype(ScoreFunctionBuilder.class, scoreFunctionParser.getBuilderPrototype());
+        }
+
         // EmptyQueryBuilder is not registered as query parser but used internally.
         // We need to register it with the NamedWriteableRegistry in order to serialize it
         namedWriteableRegistry.registerPrototype(QueryBuilder.class, EmptyQueryBuilder.PROTOTYPE);

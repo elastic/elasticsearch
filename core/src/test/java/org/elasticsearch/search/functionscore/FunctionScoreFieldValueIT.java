@@ -100,7 +100,7 @@ public class FunctionScoreFieldValueIT extends ESIntegTestCase {
         response = client().prepareSearch("test")
                 .setExplain(randomBoolean())
                 .setQuery(functionScoreQuery(matchAllQuery(),
-                        fieldValueFactorFunction("test").modifier(FieldValueFactorFunction.Modifier.RECIPROCAL).missing(100)))
+                        fieldValueFactorFunction("test").modifier(FieldValueFactorFunction.Modifier.RECIPROCAL).missing(100.0)))
                 .get();
         assertOrderedSearchHits(response, "1", "2", "3");
 

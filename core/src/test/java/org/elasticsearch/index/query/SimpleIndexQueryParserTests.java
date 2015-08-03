@@ -2380,6 +2380,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
                         .startObject("popularity").field("type", "float").endObject()
                         .endObject()
                         .endObject()));
+        //NO COMMIT: this test does not pass, the mapping isn't being passed to the QueryShardContext with this call
         SearchContext.setCurrent(createSearchContext(indexService));
         Query query = queryParser.parse(queryString).query();
         assertThat(query, instanceOf(FunctionScoreQuery.class));

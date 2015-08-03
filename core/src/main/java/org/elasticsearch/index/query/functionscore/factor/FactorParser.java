@@ -20,11 +20,10 @@
 package org.elasticsearch.index.query.functionscore.factor;
 
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
-import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 
 import java.io.IOException;
@@ -42,13 +41,17 @@ public class FactorParser implements ScoreFunctionParser {
     }
 
     @Override
-    public ScoreFunction parse(QueryShardContext context, XContentParser parser) throws IOException, QueryParsingException {
-        float boostFactor = parser.floatValue();
-        return new BoostScoreFunction(boostFactor);
+    public ScoreFunctionBuilder fromXContent(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException {
+        return new FactorBuilder().boostFactor(parser.floatValue());
     }
 
     @Override
     public String[] getNames() {
         return NAMES;
+    }
+
+    @Override
+    public FactorBuilder getBuilderPrototype() {
+        return FactorBuilder.PROTOTYPE;
     }
 }

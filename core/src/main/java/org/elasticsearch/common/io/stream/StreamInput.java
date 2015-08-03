@@ -31,9 +31,11 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -253,6 +255,22 @@ public abstract class StreamInput extends InputStream {
         return null;
     }
 
+    @Nullable
+    public Float readOptionalFloat() throws IOException {
+        if (readBoolean()) {
+            return readFloat();
+        }
+        return null;
+    }
+
+    @Nullable
+    public Double readOptionalDouble() throws IOException {
+        if (readBoolean()) {
+            return readDouble();
+        }
+        return null;
+    }
+
     private final CharsRefBuilder spare = new CharsRefBuilder();
 
     public String readString() throws IOException {
@@ -431,6 +449,8 @@ public abstract class StreamInput extends InputStream {
                 return readDoubleArray();
             case 21:
                 return readBytesRef();
+            case 22:
+                return readOptionalStreamable(new GeoPoint());
             default:
                 throw new IOException("Can't read unknown type [" + type + "]");
         }
@@ -575,6 +595,18 @@ public abstract class StreamInput extends InputStream {
      */
     public QueryBuilder readQuery() throws IOException {
         return readNamedWriteable(QueryBuilder.class);
+    }
+
+    public QueryBuilder readOptionalQuery() throws IOException {
+        if (readBoolean()) {
+            return readQuery();
+        } else {
+            return null;
+        }
+    }
+
+    public ScoreFunctionBuilder readScoreFunction() throws IOException {
+        return readNamedWriteable(ScoreFunctionBuilder.class);
     }
 
     public static StreamInput wrap(BytesReference reference) {

@@ -1,5 +1,3 @@
-
-
 {
     "function_score":{
         "query":{
@@ -11,7 +9,7 @@
             {
                 "boost_factor": 3,
                 "filter": {
-                    term:{
+                    "term": {
                         "name.last":"banon"
                     }
                 }

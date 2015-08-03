@@ -20,8 +20,14 @@
 package org.elasticsearch.common.lucene.search.function;
 
 import org.apache.lucene.search.Explanation;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 
-public enum CombineFunction {
+import java.io.IOException;
+
+public enum CombineFunction implements Writeable<CombineFunction> {
     MULT {
         @Override
         public float combine(double queryBoost, double queryScore, double funcScore, double maxBoost) {
@@ -167,6 +173,8 @@ public enum CombineFunction {
 
     };
 
+    private static final CombineFunction PROTOTYPE = MULT;
+
     public abstract float combine(double queryBoost, double queryScore, double funcScore, double maxBoost);
 
     public abstract String getName();
@@ -182,4 +190,24 @@ public enum CombineFunction {
     }
 
     public abstract Explanation explain(float queryBoost, Explanation queryExpl, Explanation funcExpl, float maxBoost);
+
+    @Override
+    public CombineFunction readFrom(StreamInput in) throws IOException {
+        int ord = in.readVInt();
+        for (CombineFunction combineFunction : CombineFunction.values()) {
+            if (combineFunction.ordinal() == ord) {
+                return combineFunction;
+            }
+        }
+        throw new ElasticsearchException("unknown serialized combine function [" + ord + "]");
+    }
+
+    public static CombineFunction readCombineFunctionFrom(StreamInput in) throws IOException {
+        return PROTOTYPE.readFrom(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(this.ordinal());
+    }
 }

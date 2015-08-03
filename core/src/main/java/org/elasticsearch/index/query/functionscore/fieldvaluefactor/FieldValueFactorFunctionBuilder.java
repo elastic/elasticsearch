@@ -19,29 +19,40 @@
 
 package org.elasticsearch.index.query.functionscore.fieldvaluefactor;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
+import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.QueryValidationException;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Objects;
 
 /**
  * Builder to construct {@code field_value_factor} functions for a function
  * score query.
  */
-public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder {
-    private String field = null;
+public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder<FieldValueFactorFunctionBuilder> {
+    private final String field;
     private Float factor = null;
     private Double missing = null;
-    private FieldValueFactorFunction.Modifier modifier = null;
+    private FieldValueFactorFunction.Modifier modifier = FieldValueFactorFunction.Modifier.NONE;
+
+    static final FieldValueFactorFunctionBuilder PROTOTYPE = new FieldValueFactorFunctionBuilder(null);
 
     public FieldValueFactorFunctionBuilder(String fieldName) {
         this.field = fieldName;
     }
 
     @Override
-    public String getName() {
+    public String getWriteableName() {
         return FieldValueFactorFunctionParser.NAMES[0];
     }
 
@@ -53,34 +64,76 @@ public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder {
     /**
      * Value used instead of the field value for documents that don't have that field defined.
      */
-    public FieldValueFactorFunctionBuilder missing(double missing) {
+    public FieldValueFactorFunctionBuilder missing(Double missing) {
         this.missing = missing;
         return this;
     }
 
     public FieldValueFactorFunctionBuilder modifier(FieldValueFactorFunction.Modifier modifier) {
-        this.modifier = modifier;
+        this.modifier = (modifier == null) ? FieldValueFactorFunction.Modifier.NONE : modifier;
         return this;
     }
 
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(getName());
-        if (field != null) {
-            builder.field("field", field);
-        }
-
+        builder.startObject(getWriteableName());
+        builder.field("field", field);
         if (factor != null) {
             builder.field("factor", factor);
         }
-
         if (missing != null) {
             builder.field("missing", missing);
         }
-
-        if (modifier != null) {
-            builder.field("modifier", modifier.toString().toLowerCase(Locale.ROOT));
-        }
+        builder.field("modifier", modifier.toString().toLowerCase(Locale.ROOT));
         builder.endObject();
+    }
+
+    @Override
+    protected ScoreFunction doScoreFunction(QueryShardContext context) throws IOException {
+        MappedFieldType fieldType = context.mapperService().smartNameFieldType(field);
+        if (fieldType == null) {
+            throw new ElasticsearchException("Unable to find a field mapper for field [" + field + "]");
+        }
+        return new FieldValueFactorFunction(field, factor, modifier, missing,
+                (IndexNumericFieldData)context.fieldData().getForField(fieldType));
+    }
+
+    @Override
+    public QueryValidationException validate() {
+        QueryValidationException validationException = null;
+        if (field == null) {
+            validationException = addValidationError("field must not be null", validationException);
+        }
+        return validationException;
+    }
+
+    @Override
+    protected FieldValueFactorFunctionBuilder doReadFrom(StreamInput in) throws IOException {
+        FieldValueFactorFunctionBuilder fieldValueFactorBuilder = new FieldValueFactorFunctionBuilder(in.readString());
+        fieldValueFactorBuilder.factor = in.readOptionalFloat();
+        fieldValueFactorBuilder.missing = in.readOptionalDouble();
+        fieldValueFactorBuilder.modifier = FieldValueFactorFunction.Modifier.fromString(in.readOptionalString());
+        return fieldValueFactorBuilder;
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(field);
+        out.writeOptionalFloat(factor);
+        out.writeOptionalDouble(missing);
+        out.writeOptionalString(modifier.toString());
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(field, factor, missing, modifier);
+    }
+
+    @Override
+    protected boolean doEquals(FieldValueFactorFunctionBuilder other) {
+        return Objects.equals(field, other.field) &&
+                Objects.equals(factor, other.factor) &&
+                Objects.equals(missing, other.missing) &&
+                Objects.equals(modifier, other.modifier);
     }
 }

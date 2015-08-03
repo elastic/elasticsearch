@@ -19,16 +19,15 @@
 
 package org.elasticsearch.index.query.functionscore;
 
-import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParsingException;
 
 import java.io.IOException;
 
 public interface ScoreFunctionParser {
 
-    ScoreFunction parse(QueryShardContext context, XContentParser parser) throws IOException, QueryParsingException;
+    ScoreFunctionBuilder fromXContent(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException;
 
     /**
      * Returns the name of the function, for example "linear", "gauss" etc. This
@@ -37,4 +36,8 @@ public interface ScoreFunctionParser {
      * */
     String[] getNames();
 
+    /**
+     * @return an empty {@link ScoreFunctionBuilder} instance for this parser that can be used for deserialization
+     */
+    ScoreFunctionBuilder<? extends ScoreFunctionBuilder> getBuilderPrototype();
 }

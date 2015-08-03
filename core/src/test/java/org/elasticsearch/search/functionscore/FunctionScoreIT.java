@@ -500,14 +500,14 @@ functionScoreQuery().add(scriptFunction(new Script("1")))).add(
         SearchResponse searchResponse = client().search(
                 searchRequest().source(searchSource().query(functionScoreQuery()
                         .add(scriptFunction(script))
-                        .setMinScore(minScore)).size(numDocs))).actionGet();
+                        .minScore(1.0f * minScore)).size(numDocs))).actionGet();
         assertMinScoreSearchResponses(numDocs, searchResponse, numMatchingDocs);
 
         searchResponse = client().search(
                 searchRequest().source(searchSource().query(functionScoreQuery()
                         .add(scriptFunction(script))
                         .add(scriptFunction(script))
-                        .scoreMode("avg").setMinScore(minScore)).size(numDocs))).actionGet();
+                        .scoreMode("avg").minScore(1.0f * minScore)).size(numDocs))).actionGet();
         assertMinScoreSearchResponses(numDocs, searchResponse, numMatchingDocs);
     }
 

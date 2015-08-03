@@ -22,19 +22,15 @@
 package org.elasticsearch.index.query.functionscore.script;
 
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.function.ScoreFunction;
-import org.elasticsearch.common.lucene.search.function.ScriptScoreFunction;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
-import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
 import java.util.Map;
@@ -58,8 +54,7 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
     }
 
     @Override
-    public ScoreFunction parse(QueryShardContext context, XContentParser parser) throws IOException, QueryParsingException {
-        QueryParseContext parseContext = context.parseContext();
+    public ScoreFunctionBuilder fromXContent(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException {
         ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
         Script script = null;
         Map<String, Object> vars = null;
@@ -98,13 +93,11 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
         if (script == null) {
             throw new QueryParsingException(parseContext, NAMES[0] + " requires 'script' field");
         }
+        return new ScriptScoreFunctionBuilder(script);
+    }
 
-        SearchScript searchScript;
-        try {
-            searchScript = context.scriptService().search(context.lookup(), script, ScriptContext.Standard.SEARCH);
-            return new ScriptScoreFunction(script, searchScript);
-        } catch (Exception e) {
-            throw new QueryParsingException(parseContext, NAMES[0] + " the script could not be loaded", e);
-        }
+    @Override
+    public ScriptScoreFunctionBuilder getBuilderPrototype() {
+        return ScriptScoreFunctionBuilder.PROTOTYPE;
     }
 }

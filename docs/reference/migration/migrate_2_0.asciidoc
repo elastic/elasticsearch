@@ -47,6 +47,15 @@ favor of the <<query-dsl-mlt-query, More Like This Query>>.
 The parameter `percent_terms_to_match` has been removed in favor of
 `minimum_should_match`.
 
+== Function Score Query
+
+* `FunctionScoreQueryBuilder#setMinScore(float minScore)` is deprecated - Please use `FunctionScoreQueryBuilder#minScore(Float minScore)` instead
+* `FunctionScoreQueryBuilder#maxBoost(Float maxBoost)` is removed - Please use `FunctionScoreQueryBuilder#maxBoost(float maxBoost)` instead
+* `FieldValueFactorFunctionBuilder#missing(Double missing)` is removed - Please use `FieldValueFactorFunctionBuilder#missing(double missing)` instead
+
+The API to create your own custom decay distance score function has changed. Please see example in
+org.elasticsearch.search.functionscore.FunctionScorePluginTests.
+
 === Routing
 
 The default hash function that is used for routing has been changed from djb2 to

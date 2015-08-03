@@ -22,21 +22,17 @@ package org.elasticsearch.common.lucene.search.function;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.Explanation;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.ToStringUtils;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Locale;
-import java.util.Set;
+import java.util.*;
 
 /**
  * A query that allows for a pluggable boost function / filter. If it matches
@@ -78,8 +74,34 @@ public class FiltersFunctionScoreQuery extends Query {
         }
     }
 
-    public static enum ScoreMode {
-        First, Avg, Max, Sum, Min, Multiply
+    public enum ScoreMode implements Writeable<ScoreMode> {
+        First, Avg, Max, Sum, Min, Multiply;
+
+        private static final ScoreMode PROTOTYPE = Multiply;
+
+        public String getName() {
+            return name().toLowerCase();
+        }
+
+        @Override
+        public ScoreMode readFrom(StreamInput in) throws IOException {
+            int ord = in.readVInt();
+            for (ScoreMode scoreMode : ScoreMode.values()) {
+                if (scoreMode.ordinal() == ord) {
+                    return scoreMode;
+                }
+            }
+            throw new ElasticsearchException("unknown serialized score mode [" + ord + "]");
+        }
+
+        public static ScoreMode readScoreModeFrom(StreamInput in) throws IOException {
+            return PROTOTYPE.readFrom(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(this.ordinal());
+        }
     }
 
     Query subQuery;

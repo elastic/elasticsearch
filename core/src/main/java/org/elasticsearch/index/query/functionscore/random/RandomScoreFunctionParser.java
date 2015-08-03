@@ -21,24 +21,18 @@
 package org.elasticsearch.index.query.functionscore.random;
 
 import com.google.common.primitives.Longs;
-
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
-import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
 public class RandomScoreFunctionParser implements ScoreFunctionParser {
 
+    //noreleaase should we move all of those to the builder?
     public static String[] NAMES = { "random_score", "randomScore" };
 
     @Inject
@@ -51,10 +45,8 @@ public class RandomScoreFunctionParser implements ScoreFunctionParser {
     }
 
     @Override
-    public ScoreFunction parse(QueryShardContext context, XContentParser parser) throws IOException, QueryParsingException {
-        QueryParseContext parseContext = context.parseContext();
-        int seed = -1;
-
+    public ScoreFunctionBuilder fromXContent(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException {
+        int seed = RandomScoreFunctionBuilder.DEFAULT_SEED;
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -82,20 +74,11 @@ public class RandomScoreFunctionParser implements ScoreFunctionParser {
                 }
             }
         }
+        return new RandomScoreFunctionBuilder().seed(seed);
+    }
 
-        final MappedFieldType fieldType = SearchContext.current().mapperService().smartNameFieldType("_uid");
-        if (fieldType == null) {
-            // mapper could be null if we are on a shard with no docs yet, so this won't actually be used
-            return new RandomScoreFunction();
-        }
-
-        if (seed == -1) {
-            seed = Longs.hashCode(context.nowInMillis());
-        }
-        final ShardId shardId = SearchContext.current().indexShard().shardId();
-        final int salt = (shardId.index().name().hashCode() << 10) | shardId.id();
-        final IndexFieldData<?> uidFieldData = SearchContext.current().fieldData().getForField(fieldType);
-
-        return new RandomScoreFunction(seed, salt, uidFieldData);
+    @Override
+    public RandomScoreFunctionBuilder getBuilderPrototype() {
+        return RandomScoreFunctionBuilder.PROTOTYPE;
     }
 }

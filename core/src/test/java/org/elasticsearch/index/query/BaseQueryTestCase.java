@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
@@ -66,19 +67,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.*;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ESTestCase {
 
@@ -88,8 +81,9 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
     protected static final String BOOLEAN_FIELD_NAME = "mapped_boolean";
     protected static final String DATE_FIELD_NAME = "mapped_date";
     protected static final String OBJECT_FIELD_NAME = "mapped_object";
+    protected static final String GEOPOINT_FIELD_NAME = "mapped_geopoint";
     protected static final String[] mappedFieldNames = new String[] { STRING_FIELD_NAME, INT_FIELD_NAME,
-            DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME, OBJECT_FIELD_NAME };
+            DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME, OBJECT_FIELD_NAME, GEOPOINT_FIELD_NAME };
 
     private static Injector injector;
     private static IndexQueryParserService queryParserService;
@@ -141,7 +135,11 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
         queryParserService = injector.getInstance(IndexQueryParserService.class);
         MapperService mapperService = queryParserService.mapperService;
         //create some random type with some default field, those types will stick around for all of the subclasses
-        currentTypes = new String[randomIntBetween(0, 5)];
+
+        //NO COMMIT randomScore, fieldValueFactor and decay functions requires all fields to be mapped
+        // so we can't have currentTypes to be empty or else the tests will fail!
+        currentTypes = new String[randomIntBetween(1, 5)];
+
         for (int i = 0; i < currentTypes.length; i++) {
             String type = randomAsciiOfLengthBetween(1, 10);
             mapperService.merge(type, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(type,
@@ -150,8 +148,9 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
                     DOUBLE_FIELD_NAME, "type=double",
                     BOOLEAN_FIELD_NAME, "type=boolean",
                     DATE_FIELD_NAME, "type=date",
-                    OBJECT_FIELD_NAME, "type=object"
-            ).string()), false, false);
+                    OBJECT_FIELD_NAME, "type=object",
+                    GEOPOINT_FIELD_NAME, "type=geo_point"
+                    ).string()), false, false);
             // also add mappings for two inner field in the object field
             mapperService.merge(type, new CompressedXContent("{\"properties\":{\""+OBJECT_FIELD_NAME+"\":{\"type\":\"object\","
                     + "\"properties\":{\""+DATE_FIELD_NAME+"\":{\"type\":\"date\"},\""+INT_FIELD_NAME+"\":{\"type\":\"integer\"}}}}}"), false, false);
@@ -171,7 +170,7 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
     }
 
     @Before
-    public void beforeTest() {
+    public void beforeTest() throws IOException {
         //set some random types to be queried as part the search request, before each test
         String[] types = getRandomTypes();
         //some query (e.g. range query) have a different behaviour depending on whether the current search context is set or not
@@ -463,5 +462,21 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
 
     protected static boolean isNumericFieldName(String fieldName) {
         return INT_FIELD_NAME.equals(fieldName) || DOUBLE_FIELD_NAME.equals(fieldName);
+    }
+
+    protected String randomDateString() {
+        return new DateTime(System.currentTimeMillis(), DateTimeZone.UTC).toString();
+    }
+
+    protected String randomDateDistance() {
+        return randomIntBetween(1, 10) + randomFrom("d", "H", "ms", "s", "S", "w");
+    }
+
+    protected GeoPoint randomGeoPoint() {
+        return new GeoPoint(60 * randomDouble(), 60 * randomDouble());
+    }
+
+    protected String randomGeoDistance() {
+        return randomIntBetween(1, 10) + randomFrom("mi", "in", "yd", "km", "cm", "mm");
     }
 }

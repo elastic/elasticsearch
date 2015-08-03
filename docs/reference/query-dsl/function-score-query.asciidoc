@@ -220,11 +220,10 @@ There are a number of options for the `field_value_factor` function:
     Value used if the document doesn't have that field. The modifier
     and factor are still applied to it as though it were read from the document.
 
-
- Keep in mind that taking the log() of 0, or the square root of a negative number
- is an illegal operation, and an exception will be thrown. Be sure to limit the
- values of the field with a range filter to avoid this, or use `log1p` and
- `ln1p`.
+NOTE: Keep in mind that taking the log() of 0, or the square root of a negative number
+is an illegal operation, and an exception will be thrown. Be sure to limit the
+values of the field with a range filter to avoid this, or use `log1p` and
+`ln1p`.
 
 [[function-decay]]
 ==== Decay functions

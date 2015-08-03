@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.DecayFunctionBuilder;
+import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionBuilder;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -466,9 +467,10 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
 
     }
 
-    @Test(expected = IllegalStateException.class)
-    public void testExceptionThrownIfScaleRefNotBetween0And1() throws Exception {
+    @Test
+    public void testDecayNotBetween0And1() throws Exception {
         DecayFunctionBuilder gfb = new GaussDecayFunctionBuilder("num1", "2013-05-28", "1d").setDecay(100);
+        assertThat(gfb.validate().validationErrors().size(), is(1));
     }
 
     @Test
@@ -910,22 +912,15 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
             assertThat(failure.toString(), containsString("an entry in functions list is missing a function"));
         }
 
-        // next test java client
-        try {
-            client().prepareSearch("t").setQuery(QueryBuilders.functionScoreQuery(QueryBuilders.matchAllQuery(), null)).get();
-        } catch (IllegalArgumentException failure) {
-            assertThat(failure.toString(), containsString("function must not be null"));
-        }
-        try {
-            client().prepareSearch("t").setQuery(QueryBuilders.functionScoreQuery().add(QueryBuilders.matchAllQuery(), null)).get();
-        } catch (IllegalArgumentException failure) {
-            assertThat(failure.toString(), containsString("function must not be null"));
-        }
-        try {
-            client().prepareSearch("t").setQuery(QueryBuilders.functionScoreQuery().add(null)).get();
-        } catch (IllegalArgumentException failure) {
-            assertThat(failure.toString(), containsString("function must not be null"));
-        }
+        // next test possible errors while building the query
+        FunctionScoreQueryBuilder functionBuilder = QueryBuilders.functionScoreQuery(QueryBuilders.matchAllQuery(), null);
+        assertThat(functionBuilder.validate().validationErrors().size(), is(1));
+
+        functionBuilder = QueryBuilders.functionScoreQuery().add(QueryBuilders.matchAllQuery(), null);
+        assertThat(functionBuilder.validate().validationErrors().size(), is(1));
+
+        functionBuilder = QueryBuilders.functionScoreQuery().add(null);
+        assertThat(functionBuilder.validate().validationErrors().size(), is(1));
     }
 
     @Test

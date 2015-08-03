@@ -19,11 +19,16 @@
 
 package org.elasticsearch.index.query.functionscore.factor;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
+import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * A query that simply applies the boost factor to another query (multiply it).
@@ -31,9 +36,11 @@ import java.io.IOException;
  *
  */
 @Deprecated
-public class FactorBuilder extends ScoreFunctionBuilder {
+public class FactorBuilder extends ScoreFunctionBuilder<FactorBuilder> {
 
     private Float boostFactor;
+
+    static final FactorBuilder PROTOTYPE = new FactorBuilder();
 
     /**
      * Sets the boost factor for this query.
@@ -51,7 +58,7 @@ public class FactorBuilder extends ScoreFunctionBuilder {
     }
 
     @Override
-    public String getName() {
+    public String getWriteableName() {
         return FactorParser.NAMES[0];
     }
 
@@ -63,5 +70,32 @@ public class FactorBuilder extends ScoreFunctionBuilder {
     @Override
     public void buildWeight(XContentBuilder builder) throws IOException {
         //we do not want the weight to be written for boost_factor as it does not make sense to have it
+    }
+
+    @Override
+    protected ScoreFunction doScoreFunction(QueryShardContext parseContext) throws IOException {
+        return new BoostScoreFunction(boostFactor);
+    }
+
+    @Override
+    protected FactorBuilder doReadFrom(StreamInput in) throws IOException {
+        FactorBuilder factorBuilder = new FactorBuilder();
+        factorBuilder.boostFactor = in.readOptionalFloat();
+        return factorBuilder;
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeOptionalFloat(boostFactor);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(boostFactor);
+    }
+
+    @Override
+    protected boolean doEquals(FactorBuilder other) {
+        return Objects.equals(boostFactor, other.boostFactor);
     }
 }

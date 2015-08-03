@@ -462,7 +462,7 @@ public class PluginManager {
         }
 
         Path binDir(Environment env) {
-            return env.homeFile().resolve("bin").resolve(name);
+            return env.binFile().resolve(name);
         }
 
         Path configDir(Environment env) {

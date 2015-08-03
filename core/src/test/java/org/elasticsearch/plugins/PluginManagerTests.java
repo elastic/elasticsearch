@@ -73,7 +73,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     public void setup() throws Exception {
         initialSettings = buildInitialSettings();
         System.setProperty("es.default.path.home", initialSettings.v1().get("path.home"));
-        Path binDir = initialSettings.v2().homeFile().resolve("bin");
+        Path binDir = initialSettings.v2().binFile();
         if (!Files.exists(binDir)) {
             Files.createDirectories(binDir);
         }
@@ -136,7 +136,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
             "classname", "FakePlugin");
         
         Environment env = initialSettings.v2();
-        Path binDir = env.homeFile().resolve("bin");
+        Path binDir = env.binFile();
         Path pluginBinDir = binDir.resolve(pluginName);
 
         Path pluginConfigDir = env.configFile().resolve(pluginName);
@@ -281,7 +281,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
             "classname", "FakePlugin");
         
         Environment env = initialSettings.v2();
-        Path binDir = env.homeFile().resolve("bin");
+        Path binDir = env.binFile();
         Path pluginBinDir = binDir.resolve(pluginName);
 
         assertStatusOk(String.format(Locale.ROOT, "install %s --url %s --verbose", pluginName, pluginUrl));

@@ -140,8 +140,8 @@ public class Node implements Releasable {
 
         if (logger.isDebugEnabled()) {
             Environment env = tuple.v2();
-            logger.debug("using home [{}], config [{}], data [{}], logs [{}], plugins [{}]",
-                    env.homeFile(), env.configFile(), Arrays.toString(env.dataFiles()), env.logsFile(), env.pluginsFile());
+            logger.debug("using config [{}], data [{}], logs [{}], plugins [{}]",
+                    env.configFile(), Arrays.toString(env.dataFiles()), env.logsFile(), env.pluginsFile());
         }
 
         this.pluginsService = new PluginsService(tuple.v1(), tuple.v2());

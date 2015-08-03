@@ -45,8 +45,6 @@ public class Environment {
 
     private final Settings settings;
 
-    private final Path homeFile;
-
     private final Path[] dataFiles;
 
     private final Path[] dataWithClusterFiles;
@@ -56,6 +54,12 @@ public class Environment {
     private final Path configFile;
 
     private final Path pluginsFile;
+
+    /** location of bin/, used by plugin manager */
+    private final Path binFile;
+
+    /** location of lib/, */
+    private final Path libFile;
 
     private final Path logsFile;
 
@@ -83,6 +87,7 @@ public class Environment {
 
     public Environment(Settings settings) {
         this.settings = settings;
+        final Path homeFile;
         if (settings.get("path.home") != null) {
             homeFile = PathUtils.get(cleanPath(settings.get("path.home")));
         } else {
@@ -133,6 +138,9 @@ public class Environment {
         } else {
             pidFile = null;
         }
+
+        binFile = homeFile.resolve("bin");
+        libFile = homeFile.resolve("lib");
     }
 
     /**
@@ -140,13 +148,6 @@ public class Environment {
      */
     public Settings settings() {
         return this.settings;
-    }
-
-    /**
-     * The home of the installation.
-     */
-    public Path homeFile() {
-        return homeFile;
     }
 
     /**
@@ -234,6 +235,14 @@ public class Environment {
 
     public Path pluginsFile() {
         return pluginsFile;
+    }
+
+    public Path binFile() {
+        return binFile;
+    }
+
+    public Path libFile() {
+        return libFile;
     }
 
     public Path logsFile() {

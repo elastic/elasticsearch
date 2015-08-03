@@ -22,6 +22,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
+import org.elasticsearch.search.aggregations.support.AggregationPath.PathElement;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -162,40 +163,79 @@ public class AggregatorFactories {
             for (PipelineAggregatorFactory factory : pipelineAggregatorFactories) {
                 pipelineAggregatorFactoriesMap.put(factory.getName(), factory);
             }
-            Set<String> aggFactoryNames = new HashSet<>();
+            Map<String, AggregatorFactory> aggFactoriesMap = new HashMap<>();
             for (AggregatorFactory aggFactory : aggFactories) {
-                aggFactoryNames.add(aggFactory.name);
+                aggFactoriesMap.put(aggFactory.name, aggFactory);
             }
             List<PipelineAggregatorFactory> orderedPipelineAggregatorrs = new LinkedList<>();
             List<PipelineAggregatorFactory> unmarkedFactories = new ArrayList<PipelineAggregatorFactory>(pipelineAggregatorFactories);
             Set<PipelineAggregatorFactory> temporarilyMarked = new HashSet<PipelineAggregatorFactory>();
             while (!unmarkedFactories.isEmpty()) {
                 PipelineAggregatorFactory factory = unmarkedFactories.get(0);
-                resolvePipelineAggregatorOrder(aggFactoryNames, pipelineAggregatorFactoriesMap, orderedPipelineAggregatorrs, unmarkedFactories, temporarilyMarked, factory);
+                resolvePipelineAggregatorOrder(aggFactoriesMap, pipelineAggregatorFactoriesMap, orderedPipelineAggregatorrs,
+                        unmarkedFactories, temporarilyMarked, factory);
             }
             return orderedPipelineAggregatorrs;
         }
 
-        private void resolvePipelineAggregatorOrder(Set<String> aggFactoryNames, Map<String, PipelineAggregatorFactory> pipelineAggregatorFactoriesMap,
+        private void resolvePipelineAggregatorOrder(Map<String, AggregatorFactory> aggFactoriesMap,
+                Map<String, PipelineAggregatorFactory> pipelineAggregatorFactoriesMap,
                 List<PipelineAggregatorFactory> orderedPipelineAggregators, List<PipelineAggregatorFactory> unmarkedFactories, Set<PipelineAggregatorFactory> temporarilyMarked,
                 PipelineAggregatorFactory factory) {
             if (temporarilyMarked.contains(factory)) {
-                throw new IllegalStateException("Cyclical dependancy found with pipeline aggregator [" + factory.getName() + "]");
+                throw new IllegalArgumentException("Cyclical dependancy found with pipeline aggregator [" + factory.getName() + "]");
             } else if (unmarkedFactories.contains(factory)) {
                 temporarilyMarked.add(factory);
                 String[] bucketsPaths = factory.getBucketsPaths();
                 for (String bucketsPath : bucketsPaths) {
-                    List<String> bucketsPathElements = AggregationPath.parse(bucketsPath).getPathElementsAsStringList();
-                    String firstAggName = bucketsPathElements.get(0);
-                    if (bucketsPath.equals("_count") || bucketsPath.equals("_key") || aggFactoryNames.contains(firstAggName)) {
+                    List<AggregationPath.PathElement> bucketsPathElements = AggregationPath.parse(bucketsPath).getPathElements();
+                    String firstAggName = bucketsPathElements.get(0).name;
+                    if (bucketsPath.equals("_count") || bucketsPath.equals("_key")) {
+                        continue;
+                    } else if (aggFactoriesMap.containsKey(firstAggName)) {
+                        AggregatorFactory aggFactory = aggFactoriesMap.get(firstAggName);
+                        for (int i = 1; i < bucketsPathElements.size(); i++) {
+                            PathElement pathElement = bucketsPathElements.get(i);
+                            String aggName = pathElement.name;
+                            if ((i == bucketsPathElements.size() - 1) && (aggName.equalsIgnoreCase("_key") || aggName.equals("_count"))) {
+                                break;
+                            } else {
+                                // Check the non-pipeline sub-aggregator
+                                // factories
+                                AggregatorFactory[] subFactories = aggFactory.factories.factories;
+                                boolean foundSubFactory = false;
+                                for (AggregatorFactory subFactory : subFactories) {
+                                    if (aggName.equals(subFactory.name)) {
+                                        aggFactory = subFactory;
+                                        foundSubFactory = true;
+                                        break;
+                                    }
+                                }
+                                // Check the pipeline sub-aggregator factories
+                                if (!foundSubFactory && (i == bucketsPathElements.size() - 1)) {
+                                    List<PipelineAggregatorFactory> subPipelineFactories = aggFactory.factories.pipelineAggregatorFactories;
+                                    for (PipelineAggregatorFactory subFactory : subPipelineFactories) {
+                                        if (aggName.equals(subFactory.name())) {
+                                            foundSubFactory = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                                if (!foundSubFactory) {
+                                    throw new IllegalArgumentException("No aggregation [" + aggName + "] found for path [" + bucketsPath
+                                            + "]");
+                                }
+                            }
+                        }
                         continue;
                     } else {
                         PipelineAggregatorFactory matchingFactory = pipelineAggregatorFactoriesMap.get(firstAggName);
                         if (matchingFactory != null) {
-                            resolvePipelineAggregatorOrder(aggFactoryNames, pipelineAggregatorFactoriesMap, orderedPipelineAggregators, unmarkedFactories,
+                            resolvePipelineAggregatorOrder(aggFactoriesMap, pipelineAggregatorFactoriesMap, orderedPipelineAggregators,
+                                    unmarkedFactories,
                                     temporarilyMarked, matchingFactory);
                         } else {
-                            throw new IllegalStateException("No aggregation found for path [" + bucketsPath + "]");
+                            throw new IllegalArgumentException("No aggregation found for path [" + bucketsPath + "]");
                         }
                     }
                 }

@@ -85,7 +85,7 @@ public class DnRoleMapperTests extends ElasticsearchTestCase {
     @Test
     public void testMapper_AutoReload() throws Exception {
         Path roleMappingFile = getDataPath("role_mapping.yml");
-        Path file = env.homeFile().resolve("test_role_mapping.yml");
+        Path file = env.binFile().getParent().resolve("test_role_mapping.yml");
         Files.copy(roleMappingFile, file, StandardCopyOption.REPLACE_EXISTING);
 
         final CountDownLatch latch = new CountDownLatch(1);
@@ -125,7 +125,7 @@ public class DnRoleMapperTests extends ElasticsearchTestCase {
     @Test
     public void testMapper_AutoReload_WithParseFailures() throws Exception {
         Path roleMappingFile = getDataPath("role_mapping.yml");
-        Path file = env.homeFile().resolve("test_role_mapping.yml");
+        Path file = env.binFile().getParent().resolve("test_role_mapping.yml");
         Files.copy(roleMappingFile, file, StandardCopyOption.REPLACE_EXISTING);
 
         final CountDownLatch latch = new CountDownLatch(1);

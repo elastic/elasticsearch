@@ -94,7 +94,7 @@ public class FileUserPasswdStore {
         if (location == null) {
             return ShieldPlugin.resolveConfigFile(env, "users");
         }
-        return env.homeFile().resolve(location);
+        return env.binFile().getParent().resolve(location);
     }
 
     /**

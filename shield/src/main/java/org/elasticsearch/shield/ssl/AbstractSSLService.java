@@ -238,7 +238,7 @@ public abstract class AbstractSSLService extends AbstractComponent {
         }
 
         private KeyStore readKeystore(String path, String password) throws Exception {
-            try (InputStream in = Files.newInputStream(env.homeFile().resolve(path))) {
+            try (InputStream in = Files.newInputStream(env.binFile().getParent().resolve(path))) {
                 // Load TrustStore
                 KeyStore ks = KeyStore.getInstance("jks");
                 assert password != null;

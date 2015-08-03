@@ -210,19 +210,6 @@
             <artifactId>jsr166e</artifactId>
             <version>1.1.0</version>
         </dependency>
-
-        <dependency>
-            <groupId>org.littleshoot</groupId>
-            <artifactId>littleproxy</artifactId>
-            <version>1.0.0-beta7</version>
-            <scope>test</scope>
-            <exclusions>
-                <exclusion>
-                    <groupId>com.barchart.udt</groupId>
-                    <artifactId>barchart-udt-bundle</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
     </dependencies>
 
     <build>

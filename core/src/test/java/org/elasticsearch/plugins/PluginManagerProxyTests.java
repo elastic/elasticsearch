@@ -19,21 +19,25 @@
 
 package org.elasticsearch.plugins;
 
-import io.netty.handler.codec.http.HttpRequest;
+import com.google.common.base.Charsets;
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.common.Base64;
+import org.elasticsearch.common.cli.CliToolTestCase;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.PluginManager.OutputMode;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.jboss.netty.bootstrap.ServerBootstrap;
+import org.jboss.netty.buffer.ChannelBuffers;
+import org.jboss.netty.channel.*;
+import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
+import org.jboss.netty.handler.codec.http.*;
 import org.junit.After;
 import org.junit.Before;
-import org.littleshoot.proxy.HttpFilters;
-import org.littleshoot.proxy.HttpFiltersSourceAdapter;
-import org.littleshoot.proxy.HttpProxyServer;
-import org.littleshoot.proxy.ProxyAuthenticator;
-import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
 
+import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -41,9 +45,12 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
-import static org.elasticsearch.plugins.PluginManager.DEFAULT_TIMEOUT;
 import static org.elasticsearch.plugins.PluginManager.setProxyPropertiesFromURL;
+import static org.elasticsearch.plugins.PluginManagerCliParser.DEFAULT_TIMEOUT;
 import static org.hamcrest.Matchers.*;
+import static org.jboss.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static org.jboss.netty.handler.codec.http.HttpResponseStatus.PROXY_AUTHENTICATION_REQUIRED;
+import static org.jboss.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
 @LuceneTestCase.SuppressFileSystems("*") // due to jimfs, see PluginManagerTests
 public class PluginManagerProxyTests extends ElasticsearchTestCase {
@@ -51,24 +58,22 @@ public class PluginManagerProxyTests extends ElasticsearchTestCase {
     public static final String PROXY_AUTH_USERNAME = "mySecretUser";
     public static final String PROXY_AUTH_PASSWORD = "mySecretPassword";
 
-    private final int randomProxyPort = randomIntBetween(49152, 65535);
     private final List<HttpRequest> requests = new ArrayList<>();
     private Environment environment;
 
-    private final ProxyAuthenticator proxyAuthenticator = new ProxyAuthenticator() {
-        @Override
-        public boolean authenticate(String userName, String password) {
-            return PROXY_AUTH_USERNAME.equals(userName) && PROXY_AUTH_PASSWORD.equals(password);
-        }
-    };
+    private ServerBootstrap serverBootstrap = new ServerBootstrap(new NioServerSocketChannelFactory());
+    private ChannelPipelineFactory channelPipelineFactory = new ChannelPipelineFactory() {
 
-    private final HttpFiltersSourceAdapter filtersSource = new HttpFiltersSourceAdapter() {
         @Override
-        public HttpFilters filterRequest(HttpRequest originalRequest) {
-            requests.add(originalRequest);
-            return super.filterRequest(originalRequest);
+        public ChannelPipeline getPipeline() throws Exception {
+            return Channels.pipeline(
+                    new HttpRequestDecoder(),
+                    new HttpResponseEncoder(),
+                    new LoggingServerHandler(requests)
+            );
         }
     };
+    private int boundPort;
 
     @Before
     public void setupEnvironment() throws Exception {
@@ -77,6 +82,10 @@ public class PluginManagerProxyTests extends ElasticsearchTestCase {
         Files.createDirectory(homeDir.resolve("plugins"));
         System.setProperty("es.path.home", homeDir.toString());
         environment = InternalSettingsPreparer.prepareSettings(EMPTY_SETTINGS, true, Terminal.DEFAULT).v2();
+
+        serverBootstrap.setPipelineFactory(channelPipelineFactory);
+        Channel channel = serverBootstrap.bind(new InetSocketAddress("localhost", 0));
+        this.boundPort = ((InetSocketAddress) channel.getLocalAddress()).getPort();
     }
 
     @After
@@ -89,71 +98,51 @@ public class PluginManagerProxyTests extends ElasticsearchTestCase {
             System.clearProperty(protocol + "proxyUser");
             System.clearProperty(protocol + "proxyPassword");
         }
+
+        serverBootstrap.releaseExternalResources();
     }
 
     public void testThatProxyCanBeConfiguredViaProperty() throws Exception {
-        assumeTrue("test requires security manager to be disabled", System.getSecurityManager() == null);
+        assumeTrue("test requires security manager to be disabled to change the default authenticator", System.getSecurityManager() == null);
 
         System.setProperty("proxyHost", "localhost");
-        System.setProperty("proxyPort", "" + randomProxyPort);
+        System.setProperty("proxyPort", "" + boundPort);
 
-        HttpProxyServer server = DefaultHttpProxyServer.bootstrap()
-                .withPort(randomProxyPort)
-                .withFiltersSource(filtersSource)
-                .start();
-
+        PluginManager pluginManager = new PluginManager(environment, null, OutputMode.VERBOSE, DEFAULT_TIMEOUT, null);
         try {
-            PluginManager pluginManager = new PluginManager(environment, null, OutputMode.DEFAULT, DEFAULT_TIMEOUT, null);
-            pluginManager.downloadAndExtract("elasticsearch/license/latest");
+            pluginManager.downloadAndExtract("elasticsearch/license/latest", new CliToolTestCase.MockTerminal());
+        } catch (IOException e) {}
 
-            assertThat(requests, hasSize(1));
-        } finally {
-            server.stop();
-        }
+        // no auth info, but if the request hit the netty started as proxy, we are already happy
+        assertThat(requests, hasSize(greaterThan(0)));
     }
 
     public void testThatProxyCanContainBasicAuthInformation() throws Exception {
-        assumeTrue("test requires security manager to be disabled", System.getSecurityManager() == null);
+        assumeTrue("test requires security manager to be disabled to change the default authenticator", System.getSecurityManager() == null);
 
         System.setProperty("http.proxyHost", "localhost");
-        System.setProperty("http.proxyPort", "" + randomProxyPort);
+        System.setProperty("http.proxyPort", "" + boundPort);
         System.setProperty("http.proxyUser", PROXY_AUTH_USERNAME);
         System.setProperty("http.proxyPassword", PROXY_AUTH_PASSWORD);
 
-        HttpProxyServer server = DefaultHttpProxyServer.bootstrap()
-                .withPort(randomProxyPort)
-                .withFiltersSource(filtersSource)
-                .withProxyAuthenticator(proxyAuthenticator)
-            .start();
-
+        PluginManager pluginManager = new PluginManager(environment, null, OutputMode.VERBOSE, DEFAULT_TIMEOUT, null);
         try {
-            PluginManager pluginManager = new PluginManager(environment, null, OutputMode.VERBOSE, DEFAULT_TIMEOUT, null);
-            pluginManager.downloadAndExtract("elasticsearch/license/latest");
+            pluginManager.downloadAndExtract("elasticsearch/license/latest", new CliToolTestCase.MockTerminal());
+        } catch (IOException e) {}
 
-            assertThat(requests, hasSize(1));
-        } finally {
-            server.stop();
-        }
+        assertAnyRequestContainsProxyAuthorzationHeader();
     }
 
     public void testThatProxyCanContainBasicAuthInformationViaCommandline() throws Exception {
-        assumeTrue("test requires security manager to be disabled", System.getSecurityManager() == null);
+        assumeTrue("test requires security manager to be disabled to change the default authenticator", System.getSecurityManager() == null);
 
-        HttpProxyServer server = DefaultHttpProxyServer.bootstrap()
-                .withPort(randomProxyPort)
-                .withFiltersSource(filtersSource)
-                .withProxyAuthenticator(proxyAuthenticator)
-                .start();
-
+        String proxy = String.format(Locale.ROOT, "http://%s:%s@localhost:%s", PROXY_AUTH_USERNAME, PROXY_AUTH_PASSWORD, boundPort);
+        PluginManager pluginManager = new PluginManager(environment, null, OutputMode.DEFAULT, DEFAULT_TIMEOUT, proxy);
         try {
-            String url = String.format(Locale.ROOT, "http://%s:%s@localhost:%s", PROXY_AUTH_USERNAME, PROXY_AUTH_PASSWORD, randomProxyPort);
-            PluginManager pluginManager = new PluginManager(environment, null, OutputMode.VERBOSE, DEFAULT_TIMEOUT, url);
-            pluginManager.downloadAndExtract("elasticsearch/license/latest");
+            pluginManager.downloadAndExtract("elasticsearch/license/latest", new CliToolTestCase.MockTerminal());
+        } catch (IOException e) {}
 
-            assertThat(requests, hasSize(1));
-        } finally {
-            server.stop();
-        }
+        assertAnyRequestContainsProxyAuthorzationHeader();
     }
 
     public void testThatPropertiesAreSetCorrectlyFromUrlString() throws Exception {
@@ -197,6 +186,48 @@ public class PluginManagerProxyTests extends ElasticsearchTestCase {
             }
         } finally {
             clearProperties();
+        }
+    }
+
+    private void assertAnyRequestContainsProxyAuthorzationHeader() {
+        assertThat(requests, hasSize(greaterThan(1)));
+
+        String data = PROXY_AUTH_USERNAME + ":" + PROXY_AUTH_PASSWORD;
+        String base64UserPass = Base64.encodeBytes(data.getBytes(Charsets.UTF_8));
+        // any of the requests should have the proxy auth set
+        boolean found = false;
+        for (HttpRequest request : requests) {
+            if (request.headers().contains("Proxy-Authorization") && request.headers().get("Proxy-Authorization").equals("Basic " + base64UserPass)) {
+                found = true;
+                break;
+            }
+        }
+        assertThat("No logged request contained proxy-authorization header", found, is(true));
+    }
+
+    private static class LoggingServerHandler extends SimpleChannelUpstreamHandler {
+
+        private List<HttpRequest> requests;
+
+        public LoggingServerHandler(List<HttpRequest> requests) {
+            this.requests = requests;
+        }
+
+        @Override
+        public void messageReceived(final ChannelHandlerContext ctx, final MessageEvent e) throws InterruptedException {
+            final HttpRequest request = (HttpRequest) e.getMessage();
+            requests.add(request);
+
+            final org.jboss.netty.handler.codec.http.HttpResponse response;
+            if (!request.headers().contains("Proxy-Authorization")) {
+                response = new DefaultHttpResponse(HTTP_1_1, PROXY_AUTHENTICATION_REQUIRED);
+                response.headers().add(HttpHeaders.Names.PROXY_AUTHENTICATE, "Basic realm=\"Proxy\"");
+                response.headers().add(HttpHeaders.Names.CONTENT_TYPE, "text/html");
+                response.setContent(ChannelBuffers.wrappedBuffer("ADD PROXY AUTH INFOS".getBytes(Charsets.UTF_8)));
+            } else {
+                response = new DefaultHttpResponse(HTTP_1_1, BAD_REQUEST);
+            }
+            ctx.getChannel().write(response);
         }
     }
 }

@@ -107,7 +107,7 @@ public class PluginManagerCliParser extends CliTool {
 
         @Override
         public ExitStatus execute(Settings settings, Environment env) throws Exception {
-            PluginManager pluginManager = new PluginManager(env, null, outputMode, DEFAULT_TIMEOUT);
+            PluginManager pluginManager = new PluginManager(env, null, outputMode, DEFAULT_TIMEOUT, null);
             pluginManager.listInstalledPlugins(terminal);
             return ExitStatus.OK;
         }
@@ -151,7 +151,7 @@ public class PluginManagerCliParser extends CliTool {
         @Override
         public ExitStatus execute(Settings settings, Environment env) throws Exception {
 
-            PluginManager pluginManager = new PluginManager(env, null, outputMode, DEFAULT_TIMEOUT);
+            PluginManager pluginManager = new PluginManager(env, null, outputMode, DEFAULT_TIMEOUT, null);
             terminal.println("-> Removing " + Strings.nullToEmpty(pluginName) + "...");
             pluginManager.removePlugin(pluginName, terminal);
             return ExitStatus.OK;
@@ -168,6 +168,7 @@ public class PluginManagerCliParser extends CliTool {
         private static final CliToolConfig.Cmd CMD = cmd(NAME, Install.class)
                 .options(option("u", "url").required(false).hasArg(true))
                 .options(option("t", "timeout").required(false).hasArg(false))
+                .options(option("p", "proxy").required(false).hasArg(true))
                 .build();
 
         static Command parse(Terminal terminal, CommandLine cli) {
@@ -188,25 +189,28 @@ public class PluginManagerCliParser extends CliTool {
                 outputMode = OutputMode.VERBOSE;
             }
 
-            return new Install(terminal, name, outputMode, url, timeout);
+            String proxy = cli.getOptionValue("p");
+            return new Install(terminal, name, outputMode, url, timeout, proxy);
         }
 
         final String name;
         private OutputMode outputMode;
         final String url;
         final TimeValue timeout;
+        private final String proxy;
 
-        Install(Terminal terminal, String name, OutputMode outputMode, String url, TimeValue timeout) {
+        Install(Terminal terminal, String name, OutputMode outputMode, String url, TimeValue timeout, String proxy) {
             super(terminal);
             this.name = name;
             this.outputMode = outputMode;
             this.url = url;
             this.timeout = timeout;
+            this.proxy = proxy;
         }
 
         @Override
         public ExitStatus execute(Settings settings, Environment env) throws Exception {
-            PluginManager pluginManager = new PluginManager(env, url, outputMode, timeout);
+            PluginManager pluginManager = new PluginManager(env, url, outputMode, timeout, proxy);
             terminal.println("-> Installing " + Strings.nullToEmpty(name) + "...");
             pluginManager.downloadAndExtract(name, terminal);
             return ExitStatus.OK;

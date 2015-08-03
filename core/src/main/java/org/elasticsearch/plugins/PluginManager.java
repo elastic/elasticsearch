@@ -102,10 +102,10 @@ public class PluginManager {
                 protected PasswordAuthentication getPasswordAuthentication() {
                     if (getRequestorType() == Authenticator.RequestorType.PROXY) {
                         String prot = getRequestingProtocol().toLowerCase(Locale.ROOT);
-                        String host = System.getProperty(prot + ".proxyHost", "");
-                        String port = System.getProperty(prot + ".proxyPort", "");
-                        String user = System.getProperty(prot + ".proxyUser", "");
-                        String password = System.getProperty(prot + ".proxyPassword", "");
+                        String host = System.getProperty(prot + ".proxyHost", System.getProperty("proxyHost", ""));
+                        String port = System.getProperty(prot + ".proxyPort", System.getProperty("proxyPort"));
+                        String user = System.getProperty(prot + ".proxyUser", System.getProperty("proxyUser", ""));
+                        String password = System.getProperty(prot + ".proxyPassword", System.getProperty("proxyPassword", ""));
 
                         boolean isPortCorrect = Strings.isNullOrEmpty(port) ? true : Integer.parseInt(port) == getRequestingPort();
                         if (getRequestingHost().toLowerCase(Locale.ROOT).equals(host.toLowerCase(Locale.ROOT)) && isPortCorrect) {

@@ -25,7 +25,6 @@ import org.elasticsearch.cloud.azure.management.AzureComputeServiceTwoNodesMock;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
-import org.apache.lucene.util.LuceneTestCase.Slow;
 
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -33,7 +32,6 @@ import static org.hamcrest.Matchers.notNullValue;
         numDataNodes = 0,
         transportClientRatio = 0.0,
         numClientNodes = 0)
-@Slow
 public class AzureTwoStartedNodesTest extends AbstractAzureComputeServiceTest {
 
     public AzureTwoStartedNodesTest() {

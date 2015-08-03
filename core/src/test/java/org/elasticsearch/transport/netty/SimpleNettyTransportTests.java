@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport.netty;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.network.NetworkService;
@@ -31,7 +30,6 @@ import org.elasticsearch.transport.AbstractSimpleTransportTests;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.junit.Test;
 
-@Slow
 public class SimpleNettyTransportTests extends AbstractSimpleTransportTests {
 
     @Override

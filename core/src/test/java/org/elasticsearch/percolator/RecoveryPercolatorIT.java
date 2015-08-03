@@ -46,12 +46,21 @@ import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuild
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.percolator.PercolatorIT.convertFromTextArray;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertMatchCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.emptyArray;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0)
 public class RecoveryPercolatorIT extends ElasticsearchIntegrationTest {
@@ -62,7 +71,6 @@ public class RecoveryPercolatorIT extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @Slow
     public void testRestartNodePercolator1() throws Exception {
         internalCluster().startNode();
         assertAcked(prepareCreate("test").addMapping("type1", "field1", "type=string").addMapping(PercolatorService.TYPE_NAME, "color", "type=string"));
@@ -100,7 +108,6 @@ public class RecoveryPercolatorIT extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @Slow
     public void testRestartNodePercolator2() throws Exception {
         internalCluster().startNode();
         assertAcked(prepareCreate("test").addMapping("type1", "field1", "type=string").addMapping(PercolatorService.TYPE_NAME, "color", "type=string"));
@@ -173,7 +180,6 @@ public class RecoveryPercolatorIT extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @Slow
     public void testLoadingPercolateQueriesDuringCloseAndOpen() throws Exception {
         internalCluster().startNode();
         internalCluster().startNode();
@@ -221,13 +227,11 @@ public class RecoveryPercolatorIT extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @Slow
     public void testSinglePercolator_recovery() throws Exception {
         percolatorRecovery(false);
     }
 
     @Test
-    @Slow
     public void testMultiPercolator_recovery() throws Exception {
         percolatorRecovery(true);
     }

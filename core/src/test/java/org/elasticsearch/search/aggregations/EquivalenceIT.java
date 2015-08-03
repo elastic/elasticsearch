@@ -22,8 +22,6 @@ package org.elasticsearch.search.aggregations;
 import com.carrotsearch.hppc.IntHashSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -71,7 +69,6 @@ import static org.hamcrest.core.IsNull.notNullValue;
  * Additional tests that aim at testing more complex aggregation trees on larger random datasets, so that things like
  * the growth of dynamic arrays is tested.
  */
-@Slow
 public class EquivalenceIT extends ElasticsearchIntegrationTest {
 
     // Make sure that unordered, reversed, disjoint and/or overlapping ranges are supported

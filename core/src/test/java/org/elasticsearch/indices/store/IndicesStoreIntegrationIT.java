@@ -28,7 +28,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
@@ -92,7 +98,6 @@ public class IndicesStoreIntegrationIT extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @Slow
     public void indexCleanup() throws Exception {
         final String masterNode = internalCluster().startNode(Settings.builder().put("node.data", false));
         final String node_1 = internalCluster().startNode(Settings.builder().put("node.master", false));
@@ -304,7 +309,6 @@ public class IndicesStoreIntegrationIT extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @Slow
     public void testShardActiveElseWhere() throws Exception {
         List<String> nodes = internalCluster().startNodesAsync(2).get();
 

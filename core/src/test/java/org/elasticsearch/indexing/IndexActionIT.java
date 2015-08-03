@@ -49,7 +49,7 @@ public class IndexActionIT extends ElasticsearchIntegrationTest {
      * This test tries to simulate load while creating an index and indexing documents
      * while the index is being created.
      */
-    @Test @Slow
+    @Test
     public void testAutoGenerateIdNoDuplicates() throws Exception {
         int numberOfIterations = scaledRandomIntBetween(10, 50);
         for (int i = 0; i < numberOfIterations; i++) {

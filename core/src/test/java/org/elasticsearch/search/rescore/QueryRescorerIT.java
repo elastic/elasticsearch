@@ -582,7 +582,7 @@ public class QueryRescorerIT extends ElasticsearchIntegrationTest {
         }
     }
 
-    @Test @Slow
+    @Test
     public void testScoring() throws Exception {
         int numDocs = indexRandomNumbers("keyword");
 

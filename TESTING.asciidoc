@@ -73,9 +73,7 @@ mvn test "-Dtests.method=*esi*"
 
 You can also filter tests by certain annotations ie:
 
-  * `@Slow` - tests that are know to take a long time to execute
   * `@Nightly` - tests that only run in nightly builds (disabled by default)
-  * `@Integration` - integration tests
   * `@Backwards` - backwards compatibility tests (disabled by default)
   * `@AwaitsFix` - tests that are waiting for a bugfix (disabled by default)
   * `@BadApple` - tests that are known to fail randomly (disabled by default)

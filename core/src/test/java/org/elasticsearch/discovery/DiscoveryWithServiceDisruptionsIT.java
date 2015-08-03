@@ -72,9 +72,6 @@ import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
-/**
- */
-@LuceneTestCase.Slow
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
 public class DiscoveryWithServiceDisruptionsIT extends ElasticsearchIntegrationTest {
 

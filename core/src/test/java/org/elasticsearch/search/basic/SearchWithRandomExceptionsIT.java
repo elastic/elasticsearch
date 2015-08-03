@@ -49,12 +49,13 @@ import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
 public class SearchWithRandomExceptionsIT extends ElasticsearchIntegrationTest {
 
     @Test
-    @Slow // maybe due to all the logging?
     @TestLogging("action.search.type:TRACE,index.shard:TRACE")
     public void testRandomDirectoryIOExceptions() throws IOException, InterruptedException, ExecutionException {
         String mapping = XContentFactory.jsonBuilder().

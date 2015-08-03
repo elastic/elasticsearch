@@ -53,7 +53,6 @@ public class FullRollingRestartIT extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @Slow
     public void testFullRollingRestart() throws Exception {
         Settings settings = Settings.builder().put(ZenDiscovery.SETTING_JOIN_TIMEOUT, "30s").build();
         internalCluster().startNode(settings);

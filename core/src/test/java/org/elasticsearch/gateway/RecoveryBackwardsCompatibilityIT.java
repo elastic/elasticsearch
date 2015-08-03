@@ -62,9 +62,7 @@ public class RecoveryBackwardsCompatibilityIT extends ElasticsearchBackwardsComp
         return 3;
     }
 
-
     @Test
-    @LuceneTestCase.Slow
     public void testReusePeerRecovery() throws Exception {
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put(indexSettings())
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)

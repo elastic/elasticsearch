@@ -19,7 +19,6 @@
 
 package org.elasticsearch.gateway;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -46,11 +45,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- *
- */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-@Slow
 public class GatewayIndexStateIT extends ElasticsearchIntegrationTest {
 
     private final ESLogger logger = Loggers.getLogger(GatewayIndexStateIT.class);

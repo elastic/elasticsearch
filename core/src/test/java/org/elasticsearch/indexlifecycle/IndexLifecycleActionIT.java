@@ -55,7 +55,6 @@ import static org.hamcrest.Matchers.*;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndexLifecycleActionIT extends ElasticsearchIntegrationTest {
 
-    @Slow
     @Test
     public void testIndexLifecycleActionsWith11Shards1Backup() throws Exception {
         Settings settings = settingsBuilder()

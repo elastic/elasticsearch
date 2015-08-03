@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.basic;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -39,25 +38,21 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class SearchWhileCreatingIndexIT extends ElasticsearchIntegrationTest {
 
     @Test
-    @Slow
     public void testIndexCausesIndexCreation() throws Exception {
         searchWhileCreatingIndex(false, 1); // 1 replica in our default...
     }
 
     @Test
-    @Slow
     public void testNoReplicas() throws Exception {
         searchWhileCreatingIndex(true, 0);
     }
 
     @Test
-    @Slow
     public void testOneReplica() throws Exception {
         searchWhileCreatingIndex(true, 1);
     }
 
     @Test
-    @Slow
     public void testTwoReplicas() throws Exception {
         searchWhileCreatingIndex(true, 2);
     }

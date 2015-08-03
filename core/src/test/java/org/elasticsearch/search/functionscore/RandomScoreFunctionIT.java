@@ -28,7 +28,10 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.CoreMatchers;
 import org.junit.Ignore;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Map;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -50,7 +53,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class RandomScoreFunctionIT extends ElasticsearchIntegrationTest {
 
-    @Slow
     public void testConsistentHitsWithSameSeed() throws Exception {
         createIndex("test");
         ensureGreen(); // make sure we are done otherwise preference could change?

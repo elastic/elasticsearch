@@ -138,7 +138,6 @@ public class UpdateSettingsIT extends ElasticsearchIntegrationTest {
 
     // #6626: make sure we can update throttle settings and the changes take effect
     @Test
-    @Slow
     public void testUpdateThrottleSettings() {
 
         // No throttling at first, only 1 non-replicated shard, force lots of merging:

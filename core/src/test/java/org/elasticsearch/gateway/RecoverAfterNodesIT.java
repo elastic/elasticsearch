@@ -20,8 +20,6 @@
 package org.elasticsearch.gateway;
 
 import com.google.common.collect.ImmutableSet;
-
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -36,11 +34,7 @@ import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 
-/**
- *
- */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-@Slow
 public class RecoverAfterNodesIT extends ElasticsearchIntegrationTest {
 
     private final static TimeValue BLOCK_WAIT_TIMEOUT = TimeValue.timeValueSeconds(10);

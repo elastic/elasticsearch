@@ -43,10 +43,7 @@ import java.net.MulticastSocket;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
-public class MulticastZenPingTests extends ElasticsearchTestCase {
+public class MulticastZenPingIT extends ElasticsearchTestCase {
 
     private Settings buildRandomMulticast(Settings settings) {
         Settings.Builder builder = Settings.builder().put(settings);

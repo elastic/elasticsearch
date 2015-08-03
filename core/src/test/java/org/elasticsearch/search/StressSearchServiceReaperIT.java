@@ -44,7 +44,6 @@ public class StressSearchServiceReaperIT extends ElasticsearchIntegrationTest {
                 .put(SearchService.KEEPALIVE_INTERVAL_KEY, TimeValue.timeValueMillis(1)).build();
     }
 
-    @Slow
     @Test // see issue #5165 - this test fails each time without the fix in pull #5170
     public void testStressReaper() throws ExecutionException, InterruptedException {
         int num = randomIntBetween(100, 150);

@@ -165,7 +165,7 @@ public class MinimumMasterNodesIT extends ElasticsearchIntegrationTest {
         }
     }
 
-    @Test @Slow
+    @Test
     public void multipleNodesShutdownNonMasterNodes() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")

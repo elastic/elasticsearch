@@ -53,7 +53,6 @@ public class QuorumGatewayIT extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @Slow
     public void testChangeInitialShardsRecovery() throws Exception {
         logger.info("--> starting 3 nodes");
         final String[] nodes = internalCluster().startNodesAsync(3).get().toArray(new String[0]);
@@ -118,7 +117,6 @@ public class QuorumGatewayIT extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @Slow
     public void testQuorumRecovery() throws Exception {
 
         logger.info("--> starting 3 nodes");

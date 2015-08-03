@@ -38,7 +38,6 @@ import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.TestCluster;
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -57,7 +56,6 @@ import static org.hamcrest.Matchers.notNullValue;
  * Note, when talking to tribe client, no need to set the local flag on master read operations, it
  * does it by default.
  */
-@Slow
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // doesn't work with potential multi data path from test cluster yet
 public class TribeIT extends ElasticsearchIntegrationTest {
 

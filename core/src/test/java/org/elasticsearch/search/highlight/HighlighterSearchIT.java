@@ -21,16 +21,20 @@ package org.elasticsearch.search.highlight;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Joiner;
 import com.google.common.collect.Iterables;
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.*;
+import org.elasticsearch.index.query.BoostableQueryBuilder;
+import org.elasticsearch.index.query.IdsQueryBuilder;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder.Operator;
 import org.elasticsearch.index.query.MatchQueryBuilder.Type;
+import org.elasticsearch.index.query.MultiMatchQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -47,15 +51,40 @@ import java.util.Map;
 import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.boostingQuery;
+import static org.elasticsearch.index.query.QueryBuilders.commonTermsQuery;
+import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
+import static org.elasticsearch.index.query.QueryBuilders.fuzzyQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchPhrasePrefixQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.missingQuery;
+import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
+import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.regexpQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.QueryBuilders.typeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.highlight;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHighlight;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNotHighlighted;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
-@Slow
 public class HighlighterSearchIT extends ElasticsearchIntegrationTest {
 
     @Test
@@ -990,7 +1019,6 @@ public class HighlighterSearchIT extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @Slow
     public void testFastVectorHighlighterManyDocs() throws Exception {
         assertAcked(prepareCreate("test").addMapping("type1", type1TermVectorMapping()));
         ensureGreen();
@@ -2498,7 +2526,6 @@ public class HighlighterSearchIT extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @Slow
     public void testPostingsHighlighterManyDocs() throws Exception {
         assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
         ensureGreen();

@@ -221,10 +221,10 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
 
     @Override
     public void verify(String seed) {
-        BlobContainer testBlobContainer = blobStore.blobContainer(basePath);
+        BlobContainer testBlobContainer = blobStore.blobContainer(basePath.add(testBlobPrefix(seed)));
         DiscoveryNode localNode = clusterService.localNode();
-        if (testBlobContainer.blobExists(testBlobPrefix(seed) + "-master")) {
-            try (OutputStream outputStream = testBlobContainer.createOutput(testBlobPrefix(seed) + "-" + localNode.getId())) {
+        if (testBlobContainer.blobExists("master.dat")) {
+            try (OutputStream outputStream = testBlobContainer.createOutput("data-" + localNode.getId() + ".dat")) {
                 outputStream.write(Strings.toUTF8Bytes(seed));
             } catch (IOException exp) {
                 throw new RepositoryVerificationException(repositoryName, "store location [" + blobStore + "] is not accessible on the node [" + localNode + "]", exp);

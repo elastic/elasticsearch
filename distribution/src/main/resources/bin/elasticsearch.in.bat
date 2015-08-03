@@ -89,5 +89,10 @@ set JAVA_OPTS=%JAVA_OPTS% -Dfile.encoding=UTF-8
 REM Use our provided JNA always versus the system one
 set JAVA_OPTS=%JAVA_OPTS% -Djna.nosys=true
 
-set ES_CLASSPATH=%ES_CLASSPATH%;%ES_HOME%/lib/${project.build.finalName}.jar;%ES_HOME%/lib/*
+set CORE_CLASSPATH=%ES_HOME%/lib/${project.build.finalName}.jar;%ES_HOME%/lib/*
+if "%ES_CLASSPATH%" == "" (
+set ES_CLASSPATH=%CORE_CLASSPATH%
+) else (
+set ES_CLASSPATH=%ES_CLASSPATH%;%CORE_CLASSPATH%
+)
 set ES_PARAMS=-Delasticsearch -Des-foreground=yes -Des.path.home="%ES_HOME%"

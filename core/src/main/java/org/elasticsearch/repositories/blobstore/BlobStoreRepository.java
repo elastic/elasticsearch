@@ -624,12 +624,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
         try {
             String seed = Strings.randomBase64UUID();
             byte[] testBytes = Strings.toUTF8Bytes(seed);
-            String blobName = testBlobPrefix(seed) + "-master";
-            try (OutputStream outputStream = snapshotsBlobContainer.createOutput(blobName + "-temp")) {
+            BlobContainer testContainer = blobStore().blobContainer(basePath().add(testBlobPrefix(seed)));
+            String blobName = "master.dat";
+            try (OutputStream outputStream = testContainer.createOutput(blobName + "-temp")) {
                 outputStream.write(testBytes);
             }
             // Make sure that move is supported
-            snapshotsBlobContainer.move(blobName + "-temp", blobName);
+            testContainer.move(blobName + "-temp", blobName);
             return seed;
         } catch (IOException exp) {
             throw new RepositoryVerificationException(repositoryName, "path " + basePath() + " is not accessible on master node", exp);
@@ -639,7 +640,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
     @Override
     public void endVerification(String seed) {
         try {
-            snapshotsBlobContainer.deleteBlobsByPrefix(testBlobPrefix(seed));
+            blobStore().delete(basePath().add(testBlobPrefix(seed)));
         } catch (IOException exp) {
             throw new RepositoryVerificationException(repositoryName, "cannot delete test data at " + basePath(), exp);
         }

@@ -45,7 +45,7 @@ public class SitePluginRelativePathConfigTests extends ElasticsearchIntegrationT
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         String cwdToRoot = getRelativePath(PathUtils.get(".").toAbsolutePath());
-        Path pluginDir = PathUtils.get(cwdToRoot, relativizeToRootIfNecessary(getDataPath("/org/elasticsearch/plugins")).toString());
+        Path pluginDir = PathUtils.get(cwdToRoot, relativizeToRootIfNecessary(getDataPath("/org/elasticsearch/test_plugins")).toString());
 
         Path tempDir = createTempDir();
         boolean useRelativeInMiddleOfPath = randomBoolean();

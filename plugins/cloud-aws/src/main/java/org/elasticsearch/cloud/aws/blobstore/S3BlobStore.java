@@ -71,6 +71,12 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
         }
 
         this.numberOfRetries = maxRetries;
+
+        // Note: the method client.doesBucketExist() may return 'true' is the bucket exists
+        // but we don't have access to it (ie, 403 Forbidden response code)
+        // Also, if invalid security credentials are used to execute this method, the
+        // client is not able to distinguish between bucket permission errors and
+        // invalid credential errors, and this method could return an incorrect result.
         if (!client.doesBucketExist(bucket)) {
             if (region != null) {
                 client.createBucket(bucket, region);

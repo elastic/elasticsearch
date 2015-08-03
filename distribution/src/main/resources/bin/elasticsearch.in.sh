@@ -1,6 +1,12 @@
 #!/bin/sh
 
-ES_CLASSPATH="$ES_CLASSPATH:$ES_HOME/lib/${project.build.finalName}.jar:$ES_HOME/lib/*"
+CORE_CLASSPATH="$ES_HOME/lib/${project.build.finalName}.jar:$ES_HOME/lib/*"
+
+if [ "x$ES_CLASSPATH" = "x" ]; then
+    ES_CLASSPATH="$CORE_CLASSPATH"
+else
+    ES_CLASSPATH="$ES_CLASSPATH:$CORE_CLASSPATH"
+fi
 
 if [ "x$ES_MIN_MEM" = "x" ]; then
     ES_MIN_MEM=${packaging.elasticsearch.heap.min}

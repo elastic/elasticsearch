@@ -10,7 +10,7 @@
         <version>2.0.0-beta1-SNAPSHOT</version>
     </parent>
 
-    <artifactId>elasticsearch-example-site</artifactId>
+    <artifactId>elasticsearch-site-example</artifactId>
     <name>Elasticsearch Example site plugin</name>
     <description>Demonstrates how to serve resources via elasticsearch.</description>
 

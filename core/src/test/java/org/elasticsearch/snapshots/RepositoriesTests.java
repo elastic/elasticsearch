@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  */
 @ElasticsearchIntegrationTest.ClusterScope(minNumDataNodes = 2)
-public class RepositoriesTests extends AbstractSnapshotTests {
+public class RepositoriesTests extends AbstractSnapshotIT {
 
     @Test
     public void testRepositoryCreation() throws Exception {

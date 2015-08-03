@@ -48,7 +48,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST)   // test scope since we set cluster wide settings
-public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
+public class UpgradeIT extends ElasticsearchBackwardsCompatIntegrationTest {
 
     @BeforeClass
     public static void checkUpgradeVersion() {
@@ -235,7 +235,7 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
     }
 
     static boolean isUpgraded(Client client, String index) throws Exception {
-        ESLogger logger = Loggers.getLogger(UpgradeTest.class);
+        ESLogger logger = Loggers.getLogger(UpgradeIT.class);
         int toUpgrade = 0;
         for (IndexUpgradeStatus status : getUpgradeStatus(client, index)) {
             logger.info("Index: " + status.getIndex() + ", total: " + status.getTotalBytes() + ", toUpgrade: " + status.getToUpgradeBytes());

@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class SignificantTermsBackwardCompatibilityTests extends ElasticsearchBackwardsCompatIntegrationTest {
+public class SignificantTermsBackwardCompatibilityIT extends ElasticsearchBackwardsCompatIntegrationTest {
 
     static final String INDEX_NAME = "testidx";
     static final String DOC_TYPE = "doc";

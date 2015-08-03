@@ -43,7 +43,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.MergePolicyConfig;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.rest.action.admin.indices.upgrade.UpgradeTest;
+import org.elasticsearch.rest.action.admin.indices.upgrade.UpgradeIT;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -436,10 +436,10 @@ public class OldIndexBackwardsCompatibilityIT extends ElasticsearchIntegrationTe
 
     void assertUpgradeWorks(String indexName, boolean alreadyLatest) throws Exception {
         if (alreadyLatest == false) {
-            UpgradeTest.assertNotUpgraded(client(), indexName);
+            UpgradeIT.assertNotUpgraded(client(), indexName);
         }
         assertNoFailures(client().admin().indices().prepareUpgrade(indexName).get());
-        UpgradeTest.assertUpgraded(client(), indexName);
+        UpgradeIT.assertUpgraded(client(), indexName);
     }
 
 }

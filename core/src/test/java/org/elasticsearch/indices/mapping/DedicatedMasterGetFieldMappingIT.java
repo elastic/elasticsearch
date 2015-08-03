@@ -16,27 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.bwcompat;
+
+package org.elasticsearch.indices.mapping;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.Node;
-import org.junit.Test;
+import org.junit.Before;
 
-import static org.hamcrest.Matchers.containsString;
+import static org.apache.lucene.util.LuceneTestCase.Slow;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 
-public class RecoveryWithUnsupportedIndicesTests extends StaticIndexBackwardCompatibilityTest {
+/**
+ */
+@Slow
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0)
+public class DedicatedMasterGetFieldMappingIT extends SimpleGetFieldMappingsIT {
 
-    @Test
-    public void testUpgradeStartClusterOn_0_20_6() throws Exception {
-        String indexName = "unsupported-0.20.6";
-
-        logger.info("Checking static index " + indexName);
-        Settings nodeSettings = prepareBackwardsDataDir(getDataPath(indexName + ".zip"), Node.HTTP_ENABLED, true);
-        try {
-            internalCluster().startNode(nodeSettings);
-            fail();
-        } catch (Exception ex) {
-            assertThat(ex.getMessage(), containsString(" was created before v0.90.0 and wasn't upgraded"));
-        }
+    @Before
+    public void before1() throws Exception {
+        Settings settings = settingsBuilder()
+                .put("node.data", false)
+                .build();
+        internalCluster().startNodesAsync(settings, Settings.EMPTY).get();
     }
+
 }

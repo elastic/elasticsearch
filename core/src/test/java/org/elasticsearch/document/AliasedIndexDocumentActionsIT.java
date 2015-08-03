@@ -17,28 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.mapping;
+package org.elasticsearch.document;
 
-import org.elasticsearch.common.settings.Settings;
-import org.junit.Before;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 
-import static org.apache.lucene.util.LuceneTestCase.Slow;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.elasticsearch.client.Requests.createIndexRequest;
 
 /**
+ *
  */
-@Slow
-@ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-public class DedicatedMasterGetFieldMappingTests extends SimpleGetFieldMappingsIT {
+public class AliasedIndexDocumentActionsIT extends DocumentActionsIT {
 
-    @Before
-    public void before1() throws Exception {
-        Settings settings = settingsBuilder()
-                .put("node.data", false)
-                .build();
-        internalCluster().startNodesAsync(settings, Settings.EMPTY).get();
+    @Override
+    protected void createIndex() {
+        logger.info("Creating index [test1] with alias [test]");
+        try {
+            client().admin().indices().prepareDelete("test1").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        logger.info("--> creating index test");
+        client().admin().indices().create(createIndexRequest("test1").alias(new Alias("test"))).actionGet();
     }
 
+    @Override
+    protected String getConcreteIndexName() {
+        return "test1";
+    }
 }

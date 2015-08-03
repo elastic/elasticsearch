@@ -733,16 +733,12 @@
                                         summaryFile="${project.build.directory}/failsafe-reports/failsafe-summary.xml"
                                         dir="${project.build.directory}/failsafe-reports"/>
                                 </listeners>
-                                <!-- currently only 1 cpu works, because integ tests don't make "unique" test directories? -->
-                                <parallelism>1</parallelism>
                                 <includes>
                                     <include>**/*IT.class</include>
                                 </includes>
                                 <systemProperties>
                                     <!-- integ tests are typically slow! -->
                                     <tests.slow>true</tests.slow>
-                                    <!-- use external cluster -->
-                                    <tests.cluster>127.0.0.1:9300</tests.cluster>
                                     <!-- let framework know we are running integ tests, for correct 'reproduce with' line -->
                                     <tests.verify.phase>true</tests.verify.phase>
                                 </systemProperties>

@@ -16,11 +16,6 @@
     <name>Elasticsearch Core</name>
     <description>Elasticsearch - Open Source, Distributed, RESTful Search Engine</description>
 
-
-    <properties>
-        <skip.integ.tests>true</skip.integ.tests>
-    </properties>
-
     <dependencies>
         <dependency>
             <groupId>org.hamcrest</groupId>

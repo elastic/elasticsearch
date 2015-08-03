@@ -60,6 +60,9 @@ public class SecurityTests extends ElasticsearchTestCase {
         assertFalse(permissions.implies(new FilePermission(path.resolve("other").toString(), "read")));
         // double check we overwrote java.io.tmpdir correctly for the test
         assertFalse(permissions.implies(new FilePermission(realTmpDir.toString(), "read")));
+        // a read only directory
+        assertTrue(permissions.implies(new FilePermission(esHome.resolve("config").toString(), "read")));
+        assertFalse(permissions.implies(new FilePermission(esHome.resolve("config").toString(), "write")));
     }
 
     /** test generated permissions for all configured paths */

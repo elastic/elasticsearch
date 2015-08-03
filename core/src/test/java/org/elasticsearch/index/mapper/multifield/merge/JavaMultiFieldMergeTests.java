@@ -32,7 +32,7 @@ import org.junit.Test;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
+import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.*;
 
 /**

@@ -47,8 +47,8 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.TreeMap;
 
-import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
-import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
+import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
+import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperBuilders.doc;
 import static org.elasticsearch.index.mapper.MapperBuilders.rootObject;

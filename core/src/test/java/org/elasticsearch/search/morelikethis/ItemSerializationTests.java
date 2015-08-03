@@ -37,7 +37,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Random;
 
-import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
+import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.is;
 
 public class ItemSerializationTests extends ESTestCase {

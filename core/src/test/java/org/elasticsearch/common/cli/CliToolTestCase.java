@@ -21,11 +21,10 @@ package org.elasticsearch.common.cli;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.StreamsUtils;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -161,7 +160,7 @@ public abstract class CliToolTestCase extends ESTestCase {
         }
         assertThat(nonEmptyLines, hasSize(greaterThan(0)));
 
-        String expectedDocs = Streams.copyToStringFromClasspath(classPath);
+        String expectedDocs = StreamsUtils.copyToStringFromClasspath(classPath);
         for (String nonEmptyLine : nonEmptyLines) {
             assertThat(expectedDocs, containsString(nonEmptyLine.replaceAll(System.lineSeparator(), "")));
         }

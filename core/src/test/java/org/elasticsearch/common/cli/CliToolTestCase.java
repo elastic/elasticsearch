@@ -21,6 +21,7 @@ package org.elasticsearch.common.cli;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -32,6 +33,10 @@ import java.io.Writer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  *
@@ -49,7 +54,7 @@ public abstract class CliToolTestCase extends ElasticsearchTestCase {
         System.clearProperty("es.default.path.home");
     }
 
-    protected static String[] args(String command) {
+    public static String[] args(String command) {
         if (!Strings.hasLength(command)) {
             return Strings.EMPTY_ARRAY;
         }
@@ -147,6 +152,22 @@ public abstract class CliToolTestCase extends ElasticsearchTestCase {
 
         public List<String> getTerminalOutput() {
             return terminalOutput;
+        }
+    }
+
+    public static void assertTerminalOutputContainsHelpFile(CliToolTestCase.CaptureOutputTerminal terminal, String classPath) throws IOException {
+        List<String> nonEmptyLines = new ArrayList<>();
+        for (String line : terminal.getTerminalOutput()) {
+            String originalPrintedLine = line.replaceAll(System.lineSeparator(), "");
+            if (com.google.common.base.Strings.isNullOrEmpty(originalPrintedLine)) {
+                nonEmptyLines.add(originalPrintedLine);
+            }
+        }
+        assertThat(nonEmptyLines, hasSize(greaterThan(0)));
+
+        String expectedDocs = Streams.copyToStringFromClasspath(classPath);
+        for (String nonEmptyLine : nonEmptyLines) {
+            assertThat(expectedDocs, containsString(nonEmptyLine.replaceAll(System.lineSeparator(), "")));
         }
     }
 }

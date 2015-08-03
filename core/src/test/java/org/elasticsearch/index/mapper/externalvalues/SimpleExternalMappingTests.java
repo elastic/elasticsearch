@@ -51,7 +51,7 @@ public class SimpleExternalMappingTests extends ElasticsearchSingleNodeTest {
             .endObject().endObject().string()
         );
 
-        ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = documentMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                     .field("field", "1234")
                 .endObject()
@@ -99,7 +99,7 @@ public class SimpleExternalMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().endObject()
                 .string());
 
-        ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = documentMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                     .field("field", "1234")
                 .endObject()
@@ -153,7 +153,7 @@ public class SimpleExternalMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().endObject()
                 .string());
 
-        ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = documentMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "1234")
                 .endObject()

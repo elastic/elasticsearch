@@ -337,6 +337,13 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         return updateTasksExecutor.getMaxTaskWaitTime();
     }
 
+
+    /** asserts that the current thread is the cluster state update thread */
+    public boolean assertClusterStateThread() {
+        assert Thread.currentThread().getName().contains(InternalClusterService.UPDATE_THREAD_NAME) : "not called from the cluster state update thread";
+        return true;
+    }
+
     static abstract class SourcePrioritizedRunnable extends PrioritizedRunnable {
         protected final String source;
 

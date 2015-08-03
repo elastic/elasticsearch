@@ -25,6 +25,7 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.payloads.AveragePayloadFunction;
@@ -124,13 +125,22 @@ public final class AllTermQuery extends PayloadTermQuery {
 
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
+        boolean fieldExists = false;
         boolean hasPayloads = false;
         for (LeafReaderContext context : reader.leaves()) {
             final Terms terms = context.reader().terms(term.field());
-            if (terms.hasPayloads()) {
-                hasPayloads = true;
-                break;
+            if (terms != null) {
+                fieldExists = true;
+                if (terms.hasPayloads()) {
+                    hasPayloads = true;
+                    break;
+                }
             }
+        }
+        if (fieldExists == false) {
+            Query rewritten = new MatchNoDocsQuery();
+            rewritten.setBoost(getBoost());
+            return rewritten;
         }
         if (hasPayloads == false) {
             TermQuery rewritten = new TermQuery(term);

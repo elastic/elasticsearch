@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Priority;
@@ -92,8 +93,10 @@ public class MetaDataIndexStateService extends AbstractComponent {
                     if (indexMetaData.state() != IndexMetaData.State.CLOSE) {
                         IndexRoutingTable indexRoutingTable = currentState.routingTable().index(index);
                         for (IndexShardRoutingTable shard : indexRoutingTable) {
-                            if (!shard.primaryAllocatedPostApi()) {
-                                throw new IndexPrimaryShardNotAllocatedException(new Index(index));
+                            for (ShardRouting shardRouting : shard) {
+                                if (shardRouting.primary() == true && shardRouting.allocatedPostIndexCreate() == false) {
+                                    throw new IndexPrimaryShardNotAllocatedException(new Index(index));
+                                }
                             }
                         }
                         indicesToClose.add(index);

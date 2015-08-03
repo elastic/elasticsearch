@@ -120,6 +120,6 @@ public class RoutingTypeMapperTests extends ElasticsearchSingleNodeTest {
 
         // _routing in a document never worked, so backcompat is ignoring the field
         assertNull(request.routing());
-        assertNull(docMapper.parse("type", "1", doc.bytes()).rootDoc().get("_routing"));
+        assertNull(docMapper.parse("test", "type", "1", doc.bytes()).rootDoc().get("_routing"));
     }
 }

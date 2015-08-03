@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -46,7 +47,7 @@ import static org.hamcrest.Matchers.*;
 
 public class ClusterHealthResponsesTests extends ElasticsearchTestCase {
 
-    private final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
+    private final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(Settings.EMPTY);
 
     private void assertIndexHealth(ClusterIndexHealth indexHealth, ShardCounter counter, IndexMetaData indexMetaData) {
         assertThat(indexHealth.getStatus(), equalTo(counter.status()));
@@ -136,7 +137,7 @@ public class ClusterHealthResponsesTests extends ElasticsearchTestCase {
     }
 
     private IndexShardRoutingTable genShardRoutingTable(String index, int shardId, int replicas, ShardCounter counter) {
-        IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(new ShardId(index, shardId), true);
+        IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(new ShardId(index, shardId));
         ShardRouting shardRouting = genShardRouting(index, shardId, true);
         counter.update(shardRouting);
         builder.addShard(shardRouting);

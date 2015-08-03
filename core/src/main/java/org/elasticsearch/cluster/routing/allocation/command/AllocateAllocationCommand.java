@@ -21,9 +21,10 @@ package org.elasticsearch.cluster.routing.allocation.command;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -35,7 +36,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.Iterator;
 
 /**
  * Allocates an unassigned shard to a specific node. Note, primary allocation will "force"
@@ -221,15 +221,17 @@ public class AllocateAllocationCommand implements AllocationCommand {
         }
         // go over and remove it from the unassigned
         for (RoutingNodes.UnassignedShards.UnassignedIterator it = routingNodes.unassigned().iterator(); it.hasNext(); ) {
-            if (it.next() != shardRouting) {
+            ShardRouting unassigned = it.next();
+            if (unassigned != shardRouting) {
                 continue;
             }
-            it.initialize(routingNode.nodeId());
-            if (shardRouting.primary()) {
-                // we need to clear the post allocation flag, since its an explicit allocation of the primary shard
-                // and we want to force allocate it (and create a new index for it)
-                routingNodes.addClearPostAllocationFlag(shardRouting.shardId());
+            // if we force allocation of a primary, we need to move the unassigned info back to treat it as if
+            // it was index creation
+            if (unassigned.primary() && unassigned.unassignedInfo().getReason() != UnassignedInfo.Reason.INDEX_CREATED) {
+                unassigned.updateUnassignedInfo(new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED,
+                        "force allocation from previous reason " + unassigned.unassignedInfo().getReason() + ", " + unassigned.unassignedInfo().getMessage(), unassigned.unassignedInfo().getFailure()));
             }
+            it.initialize(routingNode.nodeId());
             break;
         }
         return new RerouteExplanation(this, decision);

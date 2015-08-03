@@ -373,13 +373,6 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                 indexBuilder.addShard(refData, shardRoutingEntry);
             }
 
-            for (ShardId shardId : routingNodes.getShardsToClearPostAllocationFlag()) {
-                IndexRoutingTable.Builder indexRoutingBuilder = indexRoutingTableBuilders.get(shardId.index().name());
-                if (indexRoutingBuilder != null) {
-                    indexRoutingBuilder.clearPostAllocationFlag(shardId);
-                }
-            }
-
             for (IndexRoutingTable.Builder indexBuilder : indexRoutingTableBuilders.values()) {
                 add(indexBuilder);
             }

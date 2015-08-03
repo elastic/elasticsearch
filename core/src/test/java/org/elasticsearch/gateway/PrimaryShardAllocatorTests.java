@@ -37,12 +37,13 @@ import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.*;
 
 /**
  */
@@ -66,7 +67,13 @@ public class PrimaryShardAllocatorTests extends ElasticsearchAllocationTestCase 
     @Test
     public void testNoProcessReplica() {
         ShardRouting shard = TestShardRouting.newShardRouting("test", 0, null, null, null, false, ShardRoutingState.UNASSIGNED, 0, new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null));
-        assertThat(testAllocator.needToFindPrimaryCopy(shard, null), equalTo(false));
+        assertThat(testAllocator.needToFindPrimaryCopy(shard), equalTo(false));
+    }
+
+    @Test
+    public void testNoProcessPrimayNotAllcoatedBefore() {
+        ShardRouting shard = TestShardRouting.newShardRouting("test", 0, null, null, null, true, ShardRoutingState.UNASSIGNED, 0, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
+        assertThat(testAllocator.needToFindPrimaryCopy(shard), equalTo(false));
     }
 
     /**
@@ -270,6 +277,60 @@ public class PrimaryShardAllocatorTests extends ElasticsearchAllocationTestCase 
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(2)); // replicas
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(1));
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(), equalTo(node2.id()));
+    }
+
+    @Test
+    public void testAllocationOnAnyNodeWithSharedFs() {
+        ShardRouting shard = TestShardRouting.newShardRouting("test", 0, null, null, null, false,
+                ShardRoutingState.UNASSIGNED, 0,
+                new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null));
+
+        Map<DiscoveryNode, TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> data = new HashMap<>();
+        data.put(node1, new TransportNodesListGatewayStartedShards.NodeGatewayStartedShards(node1, 1));
+        data.put(node2, new TransportNodesListGatewayStartedShards.NodeGatewayStartedShards(node2, 5));
+        data.put(node3, new TransportNodesListGatewayStartedShards.NodeGatewayStartedShards(node3, -1));
+        AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> fetches =
+                new AsyncShardFetch.FetchResult(shardId, data, new HashSet<>(), new HashSet<>());
+
+        PrimaryShardAllocator.NodesAndVersions nAndV = testAllocator.buildNodesAndVersions(shard, false, new HashSet<String>(), fetches);
+        assertThat(nAndV.allocationsFound, equalTo(2));
+        assertThat(nAndV.highestVersion, equalTo(5L));
+        assertThat(nAndV.nodes, contains(node2));
+
+        nAndV = testAllocator.buildNodesAndVersions(shard, true, new HashSet<String>(), fetches);
+        assertThat(nAndV.allocationsFound, equalTo(3));
+        assertThat(nAndV.highestVersion, equalTo(5L));
+        // All three nodes are potential candidates because shards can be recovered on any node
+        assertThat(nAndV.nodes, contains(node2, node1, node3));
+    }
+
+
+    @Test
+    public void testAllocationOnAnyNodeShouldPutNodesWithExceptionsLast() {
+        ShardRouting shard = TestShardRouting.newShardRouting("test", 0, null, null, null, false,
+                ShardRoutingState.UNASSIGNED, 0,
+                new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null));
+
+        Map<DiscoveryNode, TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> data = new HashMap<>();
+        data.put(node1, new TransportNodesListGatewayStartedShards.NodeGatewayStartedShards(node1, 1));
+        data.put(node2, new TransportNodesListGatewayStartedShards.NodeGatewayStartedShards(node2, 1));
+        data.put(node3, new TransportNodesListGatewayStartedShards.NodeGatewayStartedShards(node3, 1, new IOException("I failed to open")));
+        HashSet<String> ignoredNodes = new HashSet<>();
+        ignoredNodes.add(node2.id());
+        AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> fetches =
+                new AsyncShardFetch.FetchResult(shardId, data, new HashSet<>(), ignoredNodes);
+
+        PrimaryShardAllocator.NodesAndVersions nAndV = testAllocator.buildNodesAndVersions(shard, false, ignoredNodes, fetches);
+        assertThat(nAndV.allocationsFound, equalTo(1));
+        assertThat(nAndV.highestVersion, equalTo(1L));
+        assertThat(nAndV.nodes, contains(node1));
+
+        nAndV = testAllocator.buildNodesAndVersions(shard, true, ignoredNodes, fetches);
+        assertThat(nAndV.allocationsFound, equalTo(2));
+        assertThat(nAndV.highestVersion, equalTo(1L));
+        // node3 should be last here
+        assertThat(nAndV.nodes.size(), equalTo(2));
+        assertThat(nAndV.nodes, contains(node1, node3));
     }
 
     private RoutingAllocation routingAllocationWithOnePrimaryNoReplicas(AllocationDeciders deciders) {

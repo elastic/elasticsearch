@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
+import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 
@@ -39,7 +40,7 @@ public class AliasesBenchmark {
     private final static String INDEX_NAME = "my-index";
 
     public static void main(String[] args) throws IOException {
-        int NUM_ADDITIONAL_NODES = 0;
+        int NUM_ADDITIONAL_NODES = 1;
         int BASE_ALIAS_COUNT = 100000;
         int NUM_ADD_ALIAS_REQUEST = 1000;
 
@@ -104,6 +105,7 @@ public class AliasesBenchmark {
             if (i != numberOfAliases && i % 100 == 0) {
                 long avgTime = totalTime / 100;
                 System.out.println("Added [" + (i - numberOfAliases) + "] aliases. Avg create time: "  + avgTime + " ms");
+                System.out.println("Heap used [" + JvmStats.jvmStats().getMem().getHeapUsed() + "]");
                 totalTime = 0;
             }
 
@@ -113,6 +115,8 @@ public class AliasesBenchmark {
                     .execute().actionGet();
             totalTime += System.currentTimeMillis() - time;
         }
+        System.gc();
+        System.out.println("Final heap used [" + JvmStats.jvmStats().getMem().getHeapUsed() + "]");
         System.out.println("Number of aliases: " + countAliases(client));
 
         client.close();

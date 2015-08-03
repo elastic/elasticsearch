@@ -26,6 +26,7 @@ governing permissions and limitations under the License. -->
     <description>The Delete By Query plugin allows to delete documents in Elasticsearch with a single query.</description>
 
     <properties>
+        <elasticsearch.plugin.classname>org.elasticsearch.plugin.deletebyquery.DeleteByQueryPlugin</elasticsearch.plugin.classname>
         <tests.ifNoTests>warn</tests.ifNoTests>
         <tests.rest.suite>delete_by_query</tests.rest.suite>
         <tests.rest.load_packaged>false</tests.rest.load_packaged>

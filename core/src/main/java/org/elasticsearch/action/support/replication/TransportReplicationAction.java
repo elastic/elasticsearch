@@ -456,7 +456,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                         performOnPrimary(primary, shardsIt);
                     }
                 } catch (Throwable t) {
-                    // no commit: check threadpool rejection.
                     finishAsFailed(t);
                 }
             } else {
@@ -1048,7 +1047,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
     /** Utility method to create either an index or a create operation depending
      *  on the {@link OpType} of the request. */
     private final Engine.IndexingOperation prepareIndexOperationOnPrimary(BulkShardRequest shardRequest, IndexRequest request, IndexShard indexShard) {
-        SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.PRIMARY, request.source()).type(request.type()).id(request.id())
+        SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.PRIMARY, request.source()).index(request.index()).type(request.type()).id(request.id())
                 .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp()).ttl(request.ttl());
         boolean canHaveDuplicates = request.canHaveDuplicates();
         if (shardRequest != null) {

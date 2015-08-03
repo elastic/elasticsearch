@@ -72,7 +72,7 @@ In addition, the following node settings related to routing have been deprecated
 === Async replication
 
 The `replication` parameter has been removed from all CRUD operations (index,
-update, delete, bulk, delete-by-query).  These operations are now synchronous
+update, delete, bulk).  These operations are now synchronous
 only, and a request will only return once the changes have been replicated to
 all active shards in the shard group.
 
@@ -284,13 +284,34 @@ curl -XGET 'localhost:9200/index/type/_search'
 }
 ---------------
 
+==== Removed support for `.` in field name mappings
+Prior to Elasticsearch 2.0, a field could be defined to have a `.` in its name.
+Mappings like the one below have been deprecated for some time and they will be
+blocked in Elasticsearch 2.0.
+
+[source,js]
+---------------
+curl -XPUT 'localhost:9200/index'
+{
+  "mappings": {
+    "type": {
+      "properties": {
+        "name.first": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
+---------------
+
 ==== Meta fields have limited configuration
 Meta fields (those beginning with underscore) are fields used by elasticsearch
 to provide special features.  They now have limited configuration options.
 
 * `_id` configuration can no longer be changed.  If you need to sort, use `_uid` instead.
 * `_type` configuration can no longer be changed.
-* `_index` configuration is limited to enabling the field.
+* `_index` configuration can no longer be changed.
 * `_routing` configuration is limited to requiring the field.
 * `_boost` has been removed.
 * `_field_names` configuration is limited to disabling the field.
@@ -376,6 +397,7 @@ The ability to specify mappings in configuration files has been removed. To spec
 default mappings that apply to multiple indexes, use index templates.
 
 The following settings are no longer valid:
+
 * `index.mapper.default_mapping_location`
 * `index.mapper.default_percolator_mapping_location`
 
@@ -545,6 +567,12 @@ DSL; it detects when scores are not needed and automatically optimizes the
 query to not compute scores and optionally caches the result.
 
 As a consequence the `query` filter serves no purpose anymore and is deprecated.
+
+=== Timezone for date field
+
+Specifying the `time_zone` parameter on queries or aggregations of `date` type fields
+must now be either an ISO 8601 UTC offset, or a timezone id. For example, the value
+`+1:00` must now be `+01:00`.
 
 === Snapshot and Restore
 
@@ -792,8 +820,21 @@ For the record, official plugins which can use this new simplified form are:
 * elasticsearch-lang-javascript
 * elasticsearch-lang-python
 
+=== `/bin/elasticsearch` version needs `-V` parameter
+
+Due to switching to elasticsearchs internal command line parsing
+infrastructure for the pluginmanager and the elasticsearch start up
+script, the `-v` parameter now stands for `--verbose`, where as `-V` or
+`--version` can be used to show the Elasticsearch version and exit.
+
 === Aliases
 
 Fields used in alias filters no longer have to exist in the mapping upon alias creation time. Alias filters are now
 parsed at request time and then the fields in filters are resolved from the mapping, whereas before alias filters were
 parsed at alias creation time and the parsed form was kept around in memory.
+
+
+=== _analyze API
+
+The `prefer_local` has been removed from the _analyze api. The _analyze api is a light operation and the caller shouldn't
+be concerned about whether it executes on the node that receives the request or another node.

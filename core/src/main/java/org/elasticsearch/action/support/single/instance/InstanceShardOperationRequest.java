@@ -44,6 +44,8 @@ public abstract class InstanceShardOperationRequest<T extends InstanceShardOpera
     // -1 means its not set, allows to explicitly direct a request to a specific shard
     protected int shardId = -1;
 
+    private String concreteIndex;
+
     protected InstanceShardOperationRequest() {
     }
 
@@ -100,13 +102,21 @@ public abstract class InstanceShardOperationRequest<T extends InstanceShardOpera
         return timeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout"));
     }
 
+    public String concreteIndex() {
+        return concreteIndex;
+    }
+
+    void concreteIndex(String concreteIndex) {
+        this.concreteIndex = concreteIndex;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         index = in.readString();
         shardId = in.readInt();
         timeout = TimeValue.readTimeValue(in);
-        // no need to pass threading over the network, they are always false when coming throw a thread pool
+        concreteIndex = in.readOptionalString();
     }
 
     @Override
@@ -115,9 +125,8 @@ public abstract class InstanceShardOperationRequest<T extends InstanceShardOpera
         out.writeString(index);
         out.writeInt(shardId);
         timeout.writeTo(out);
+        out.writeOptionalString(concreteIndex);
     }
 
-    public void beforeLocalFork() {
-    }
 }
 

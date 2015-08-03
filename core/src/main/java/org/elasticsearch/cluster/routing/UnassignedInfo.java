@@ -91,7 +91,15 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
         /**
          * Unassigned as a result of explicit cancel reroute command.
          */
-        REROUTE_CANCELLED;
+        REROUTE_CANCELLED,
+        /**
+         * When a shard moves from started back to initializing, for example, during shadow replica
+         */
+        REINITIALIZED,
+        /**
+         * A better replica location is identified and causes the existing replica allocation to be cancelled.
+         */
+        REALLOCATED_REPLICA;
     }
 
     private final Reason reason;

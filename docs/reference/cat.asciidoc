@@ -112,6 +112,8 @@ include::cat/indices.asciidoc[]
 
 include::cat/master.asciidoc[]
 
+include::cat/nodeattrs.asciidoc[]
+
 include::cat/nodes.asciidoc[]
 
 include::cat/pending_tasks.asciidoc[]

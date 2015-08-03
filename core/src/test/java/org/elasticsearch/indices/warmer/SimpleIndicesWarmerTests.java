@@ -356,7 +356,7 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
 
         logger.info("register warmer with query cache, validate caching happened");
         assertAcked(client().admin().indices().preparePutWarmer("warmer_1")
-                .setSearchRequest(client().prepareSearch("test").setTypes("a1").setQuery(QueryBuilders.matchAllQuery()).setQueryCache(true))
+                .setSearchRequest(client().prepareSearch("test").setTypes("a1").setQuery(QueryBuilders.matchAllQuery()).setRequestCache(true))
                 .get());
 
         // index again, to make sure it gets refreshed

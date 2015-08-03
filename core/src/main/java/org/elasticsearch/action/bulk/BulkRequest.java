@@ -126,12 +126,10 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
      * Adds an {@link UpdateRequest} to the list of actions to execute.
      */
     public BulkRequest add(UpdateRequest request) {
-        request.beforeLocalFork();
         return internalAdd(request, null);
     }
 
     public BulkRequest add(UpdateRequest request, @Nullable Object payload) {
-        request.beforeLocalFork();
         return internalAdd(request, payload);
     }
 

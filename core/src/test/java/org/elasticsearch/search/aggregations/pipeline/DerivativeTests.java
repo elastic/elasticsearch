@@ -19,15 +19,18 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.Bucket;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
-import org.elasticsearch.search.aggregations.pipeline.SimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.derivative.Derivative;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
@@ -39,12 +42,13 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.derivative;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.filters;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.derivative;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.closeTo;
@@ -228,7 +232,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
             Derivative docCountDeriv = bucket.getAggregations().get("deriv");
             if (i > 0) {
                 assertThat(docCountDeriv, notNullValue());
-                assertThat(docCountDeriv.value(), closeTo((double) (firstDerivValueCounts[i - 1]), 0.00001));
+                assertThat(docCountDeriv.value(), closeTo((firstDerivValueCounts[i - 1]), 0.00001));
                 assertThat(docCountDeriv.normalizedValue(), closeTo((double) (firstDerivValueCounts[i - 1]) / 5, 0.00001));
             } else {
                 assertThat(docCountDeriv, nullValue());
@@ -236,7 +240,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
             Derivative docCount2ndDeriv = bucket.getAggregations().get("2nd_deriv");
             if (i > 1) {
                 assertThat(docCount2ndDeriv, notNullValue());
-                assertThat(docCount2ndDeriv.value(), closeTo((double) (secondDerivValueCounts[i - 2]), 0.00001));
+                assertThat(docCount2ndDeriv.value(), closeTo((secondDerivValueCounts[i - 2]), 0.00001));
                 assertThat(docCount2ndDeriv.normalizedValue(), closeTo((double) (secondDerivValueCounts[i - 2]) * 2, 0.00001));
             } else {
                 assertThat(docCount2ndDeriv, nullValue());
@@ -593,6 +597,42 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
                 }
             }
             lastSumValue = thisSumValue;
+        }
+    }
+
+    @Test
+    public void singleValueAggDerivative_invalidPath() throws Exception {
+        try {
+            client().prepareSearch("idx")
+                    .addAggregation(
+                            histogram("histo")
+                                    .field(SINGLE_VALUED_FIELD_NAME)
+                                    .interval(interval)
+                                    .subAggregation(
+                                            filters("filters").filter(QueryBuilders.termQuery("tag", "foo")).subAggregation(
+                                                    sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
+                                    .subAggregation(derivative("deriv").setBucketsPaths("filters>get>sum"))).execute().actionGet();
+            fail("Expected an Exception but didn't get one");
+        } catch (Exception e) {
+            Throwable cause = ExceptionsHelper.unwrapCause(e);
+            if (cause == null) {
+                throw e;
+            } else if (cause instanceof SearchPhaseExecutionException) {
+                ElasticsearchException[] rootCauses = ((SearchPhaseExecutionException) cause).guessRootCauses();
+                // If there is more than one root cause then something
+                // unexpected happened and we should re-throw the original
+                // exception
+                if (rootCauses.length > 1) {
+                    throw e;
+                }
+                ElasticsearchException rootCauseWrapper = rootCauses[0];
+                Throwable rootCause = rootCauseWrapper.getCause();
+                if (rootCause == null || !(rootCause instanceof IllegalArgumentException)) {
+                    throw e;
+                }
+            } else {
+                throw e;
+            }
         }
     }
 

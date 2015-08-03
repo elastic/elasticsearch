@@ -257,6 +257,21 @@ public final class ShardRouting implements Streamable, ToXContent {
         return shardIdentifier;
     }
 
+    public boolean allocatedPostIndexCreate() {
+        if (active()) {
+            return true;
+        }
+
+        // unassigned info is only cleared when a shard moves to started, so
+        // for unassigned and initializing (we checked for active() before),
+        // we can safely assume it is there
+        if (unassignedInfo.getReason() == UnassignedInfo.Reason.INDEX_CREATED) {
+            return false;
+        }
+
+        return true;
+    }
+
     /**
      * A shard iterator with just this shard in it.
      */
@@ -362,6 +377,11 @@ public final class ShardRouting implements Streamable, ToXContent {
         writeToThin(out);
     }
 
+    public void updateUnassignedInfo(UnassignedInfo unassignedInfo) {
+        ensureNotFrozen();
+        assert this.unassignedInfo != null : "can only update unassign info if they are already set";
+        this.unassignedInfo = unassignedInfo;
+    }
 
     // package private mutators start here
 
@@ -400,7 +420,7 @@ public final class ShardRouting implements Streamable, ToXContent {
     void relocate(String relocatingNodeId) {
         ensureNotFrozen();
         version++;
-        assert state == ShardRoutingState.STARTED : this;
+        assert state == ShardRoutingState.STARTED : "current shard has to be started in order to be relocated " + this;
         state = ShardRoutingState.RELOCATING;
         this.relocatingNodeId = relocatingNodeId;
         this.allocationId = AllocationId.newRelocation(allocationId);
@@ -431,6 +451,7 @@ public final class ShardRouting implements Streamable, ToXContent {
         version++;
         state = ShardRoutingState.INITIALIZING;
         allocationId = AllocationId.newInitializing();
+        this.unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, null);
     }
 
     /**
@@ -446,7 +467,7 @@ public final class ShardRouting implements Streamable, ToXContent {
         restoreSource = null;
         unassignedInfo = null; // we keep the unassigned data until the shard is started
         if (allocationId.getRelocationId() != null) {
-            // target relocation
+            // relocation target
             allocationId = AllocationId.finishRelocation(allocationId);
         }
         state = ShardRoutingState.STARTED;
@@ -477,6 +498,106 @@ public final class ShardRouting implements Streamable, ToXContent {
         primary = false;
     }
 
+    /** returns true if this routing has the same shardId as another */
+    public boolean isSameShard(ShardRouting other) {
+        return index.equals(other.index) && shardId == other.shardId;
+    }
+
+    /**
+     * returns true if this routing has the same allocation ID as another.
+     * <p/>
+     * Note: if both shard routing has a null as their {@link #allocationId()}, this method returns false as the routing describe
+     * no allocation at all..
+     **/
+    public boolean isSameAllocation(ShardRouting other) {
+        boolean b = this.allocationId != null && other.allocationId != null && this.allocationId.getId().equals(other.allocationId.getId());
+        assert b == false || this.currentNodeId.equals(other.currentNodeId) : "ShardRoutings have the same allocation id but not the same node. This [" + this + "], other [" + other + "]";
+        return b;
+    }
+
+    /** returns true if the routing is the relocation target of the given routing */
+    public boolean isRelocationTargetOf(ShardRouting other) {
+        boolean b = this.allocationId != null && other.allocationId != null && this.state == ShardRoutingState.INITIALIZING &&
+                this.allocationId.getId().equals(other.allocationId.getRelocationId());
+
+        assert b == false || other.state == ShardRoutingState.RELOCATING :
+                "ShardRouting is a relocation target but the source shard state isn't relocating. This [" + this + "], other [" + other + "]";
+
+
+        assert b == false || other.allocationId.getId().equals(this.allocationId.getRelocationId()) :
+                "ShardRouting is a relocation target but the source id isn't equal to source's allocationId.getRelocationId. This [" + this + "], other [" + other + "]";
+
+        assert b == false || other.currentNodeId().equals(this.relocatingNodeId) :
+                "ShardRouting is a relocation target but source current node id isn't equal to target relocating node. This [" + this + "], other [" + other + "]";
+
+        assert b == false || this.currentNodeId().equals(other.relocatingNodeId) :
+                "ShardRouting is a relocation target but current node id isn't equal to source relocating node. This [" + this + "], other [" + other + "]";
+
+        assert b == false || isSameShard(other) :
+                "ShardRouting is a relocation target but both routings are not of the same shard. This [" + this + "], other [" + other + "]";
+
+        assert b == false || this.primary == other.primary :
+                "ShardRouting is a relocation target but primary flag is different. This [" + this + "], target [" + other + "]";
+
+        return b;
+    }
+
+    /** returns true if the routing is the relocation source for the given routing */
+    public boolean isRelocationSourceOf(ShardRouting other) {
+        boolean b = this.allocationId != null && other.allocationId != null && other.state == ShardRoutingState.INITIALIZING &&
+                other.allocationId.getId().equals(this.allocationId.getRelocationId());
+
+        assert b == false || this.state == ShardRoutingState.RELOCATING :
+                "ShardRouting is a relocation source but shard state isn't relocating. This [" + this + "], other [" + other + "]";
+
+
+        assert b == false || this.allocationId.getId().equals(other.allocationId.getRelocationId()) :
+                "ShardRouting is a relocation source but the allocation id isn't equal to other.allocationId.getRelocationId. This [" + this + "], other [" + other + "]";
+
+        assert b == false || this.currentNodeId().equals(other.relocatingNodeId) :
+                "ShardRouting is a relocation source but current node isn't equal to other's relocating node. This [" + this + "], other [" + other + "]";
+
+        assert b == false || other.currentNodeId().equals(this.relocatingNodeId) :
+                "ShardRouting is a relocation source but relocating node isn't equal to other's current node. This [" + this + "], other [" + other + "]";
+
+        assert b == false || isSameShard(other) :
+                "ShardRouting is a relocation source but both routings are not of the same shard. This [" + this + "], target [" + other + "]";
+
+        assert b == false || this.primary == other.primary :
+                "ShardRouting is a relocation source but primary flag is different. This [" + this + "], target [" + other + "]";
+
+        return b;
+    }
+
+    /** returns true if the current routing is identical to the other routing in all but meta fields, i.e., version and unassigned info */
+    public boolean equalsIgnoringMetaData(ShardRouting other) {
+        if (primary != other.primary) {
+            return false;
+        }
+        if (shardId != other.shardId) {
+            return false;
+        }
+        if (currentNodeId != null ? !currentNodeId.equals(other.currentNodeId) : other.currentNodeId != null) {
+            return false;
+        }
+        if (index != null ? !index.equals(other.index) : other.index != null) {
+            return false;
+        }
+        if (relocatingNodeId != null ? !relocatingNodeId.equals(other.relocatingNodeId) : other.relocatingNodeId != null) {
+            return false;
+        }
+        if (allocationId != null ? !allocationId.equals(other.allocationId) : other.allocationId != null) {
+            return false;
+        }
+        if (state != other.state) {
+            return false;
+        }
+        if (restoreSource != null ? !restoreSource.equals(other.restoreSource) : other.restoreSource != null) {
+            return false;
+        }
+        return true;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -487,32 +608,8 @@ public final class ShardRouting implements Streamable, ToXContent {
             return false;
         }
         ShardRouting that = (ShardRouting) o;
-
-        if (primary != that.primary) {
-            return false;
-        }
-        if (shardId != that.shardId) {
-            return false;
-        }
-        if (currentNodeId != null ? !currentNodeId.equals(that.currentNodeId) : that.currentNodeId != null) {
-            return false;
-        }
-        if (index != null ? !index.equals(that.index) : that.index != null) {
-            return false;
-        }
-        if (relocatingNodeId != null ? !relocatingNodeId.equals(that.relocatingNodeId) : that.relocatingNodeId != null) {
-            return false;
-        }
-        if (allocationId != null ? !allocationId.equals(that.allocationId) : that.allocationId != null) {
-            return false;
-        }
-        if (state != that.state) {
-            return false;
-        }
-        if (restoreSource != null ? !restoreSource.equals(that.restoreSource) : that.restoreSource != null) {
-            return false;
-        }
-        return true;
+        // TODO: add version + unassigned info check. see #12387
+        return equalsIgnoringMetaData(that);
     }
 
     private long hashVersion = version - 1;

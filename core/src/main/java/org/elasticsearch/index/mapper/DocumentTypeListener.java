@@ -30,11 +30,4 @@ public interface DocumentTypeListener {
      */
     void beforeCreate(DocumentMapper mapper);
 
-    /**
-     * Invoked just after an existing document type has been removed.
-     *
-     * @param mapper The existing document mapper of the type being removed
-     */
-    void afterRemove(DocumentMapper mapper);
-
 }

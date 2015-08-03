@@ -61,3 +61,5 @@ java.io.ObjectOutputStream
 java.io.ObjectOutput
 java.io.ObjectInputStream
 java.io.ObjectInput
+
+java.nio.file.Files#isHidden(java.nio.file.Path) @ Dependent on the operating system, use FileSystemUtils.isHidden instead

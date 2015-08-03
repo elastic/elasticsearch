@@ -53,7 +53,8 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
+import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.fetch.FetchSubPhaseContext;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
@@ -99,7 +100,6 @@ public class DefaultSearchContext extends SearchContext {
     private boolean explain;
     private boolean version = false; // by default, we don't return versions
     private List<String> fieldNames;
-    private FieldDataFieldsContext fieldDataFields;
     private ScriptFieldsContext scriptFields;
     private FetchSourceContext fetchSourceContext;
     private int from = -1;
@@ -126,11 +126,13 @@ public class DefaultSearchContext extends SearchContext {
     private volatile long lastAccessTime = -1;
     private InnerHitsContext innerHitsContext;
 
+    private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
+
     public DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
-                         Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard,
-                         ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
-                         BigArrays bigArrays, Counter timeEstimateCounter, ParseFieldMatcher parseFieldMatcher,
-                         TimeValue timeout
+                                Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard,
+                                ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
+                                BigArrays bigArrays, Counter timeEstimateCounter, ParseFieldMatcher parseFieldMatcher,
+                                TimeValue timeout
     ) {
         super(parseFieldMatcher);
         this.id = id;
@@ -303,6 +305,16 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
+    public <SubPhaseContext extends FetchSubPhaseContext> SubPhaseContext getFetchSubPhaseContext(FetchSubPhase.ContextFactory<SubPhaseContext> contextFactory) {
+        String subPhaseName = contextFactory.getName();
+        if (subPhaseContexts.get(subPhaseName) == null) {
+            subPhaseContexts.put(subPhaseName, contextFactory.newContextInstance());
+        }
+        return (SubPhaseContext) subPhaseContexts.get(subPhaseName);
+    }
+
+
+    @Override
     public SearchContextHighlight highlight() {
         return highlight;
     }
@@ -336,19 +348,6 @@ public class DefaultSearchContext extends SearchContext {
             this.rescore = new ArrayList<>();
         }
         this.rescore.add(rescore);
-    }
-
-    @Override
-    public boolean hasFieldDataFields() {
-        return fieldDataFields != null;
-    }
-
-    @Override
-    public FieldDataFieldsContext fieldDataFields() {
-        if (fieldDataFields == null) {
-            fieldDataFields = new FieldDataFieldsContext();
-        }
-        return this.fieldDataFields;
     }
 
     @Override

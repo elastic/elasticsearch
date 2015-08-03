@@ -30,7 +30,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -186,6 +185,7 @@ public abstract class MappedFieldType extends FieldType {
         fieldDataType = new FieldDataType(typeName());
     }
 
+    @Override
     public abstract MappedFieldType clone();
 
     @Override
@@ -449,7 +449,7 @@ public abstract class MappedFieldType extends FieldType {
         return new TermsQuery(names.indexName(), bytesRefs);
     }
 
-    public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+    public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
         return new TermRangeQuery(names().indexName(),
             lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
             upperTerm == null ? null : indexedValueForSearch(upperTerm),

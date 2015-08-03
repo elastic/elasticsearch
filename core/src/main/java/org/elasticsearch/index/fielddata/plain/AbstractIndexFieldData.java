@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
@@ -29,7 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.settings.IndexSettings;
 
@@ -72,6 +71,11 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
 
     @Override
     public FD load(LeafReaderContext context) {
+        if (context.reader().getFieldInfos().fieldInfo(fieldNames.indexName()) == null) {
+            // If the field doesn't exist, then don't bother with loading and adding an empty instance to the field data cache
+            return empty(context.reader().maxDoc());
+        }
+
         try {
             FD fd = cache.load(context, this);
             return fd;
@@ -83,6 +87,12 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
             }
         }
     }
+
+    /**
+     * @param maxDoc of the current reader
+     * @return an empty field data instances for field data lookups of empty segments (returning no values)
+     */
+    protected abstract FD empty(int maxDoc);
 
     /**
      * A {@code PerValueEstimator} is a sub-class that can be used to estimate

@@ -74,7 +74,7 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/mapping.json");
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
-        Document doc = docMapper.parse("person", "1", new BytesArray(json)).rootDoc();
+        Document doc = docMapper.parse("test", "person", "1", new BytesArray(json)).rootDoc();
         AllField field = (AllField) doc.getField("_all");
         // One field is boosted so we should see AllTokenStream used:
         assertThat(field.tokenStream(docMapper.mappers().indexAnalyzer(), null), Matchers.instanceOf(AllTokenStream.class));
@@ -93,7 +93,7 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
         IndexService index = createIndex("test");
         DocumentMapper docMapper = index.mapperService().documentMapperParser().parse(mapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
-        Document doc = docMapper.parse("person", "1", new BytesArray(json)).rootDoc();
+        Document doc = docMapper.parse("test", "person", "1", new BytesArray(json)).rootDoc();
         AllField field = (AllField) doc.getField("_all");
         AllEntries allEntries = field.getAllEntries();
         assertThat(allEntries.fields().size(), equalTo(3));
@@ -107,7 +107,7 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/mapping_omit_positions_on_all.json");
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
-        Document doc = docMapper.parse("person", "1", new BytesArray(json)).rootDoc();
+        Document doc = docMapper.parse("test", "person", "1", new BytesArray(json)).rootDoc();
         AllField field = (AllField) doc.getField("_all");
         AllEntries allEntries = field.getAllEntries();
         assertThat(allEntries.fields().size(), equalTo(3));
@@ -125,7 +125,7 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/mapping_offsets_on_all.json");
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
-        Document doc = docMapper.parse("person", "1", new BytesArray(json)).rootDoc();
+        Document doc = docMapper.parse("test", "person", "1", new BytesArray(json)).rootDoc();
         AllField field = (AllField) doc.getField("_all");
         // _all field indexes positions, and mapping has boosts, so we should see AllTokenStream:
         assertThat(field.tokenStream(docMapper.mappers().indexAnalyzer(), null), Matchers.instanceOf(AllTokenStream.class));
@@ -144,7 +144,7 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/mapping_boost_omit_positions_on_all.json");
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
-        Document doc = docMapper.parse("person", "1", new BytesArray(json)).rootDoc();
+        Document doc = docMapper.parse("test", "person", "1", new BytesArray(json)).rootDoc();
         AllField field = (AllField) doc.getField("_all");
         // _all field omits positions, so we should not get AllTokenStream even though fields are boosted
         assertThat(field.tokenStream(docMapper.mappers().indexAnalyzer(), null), Matchers.not(Matchers.instanceOf(AllTokenStream.class)));
@@ -155,7 +155,7 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/noboost-mapping.json");
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
-        Document doc = docMapper.parse("person", "1", new BytesArray(json)).rootDoc();
+        Document doc = docMapper.parse("test", "person", "1", new BytesArray(json)).rootDoc();
         AllField field = (AllField) doc.getField("_all");
         // no fields have boost, so we should not see AllTokenStream:
         assertThat(field.tokenStream(docMapper.mappers().indexAnalyzer(), null), Matchers.not(Matchers.instanceOf(AllTokenStream.class)));
@@ -169,7 +169,7 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
         // reparse it
         DocumentMapper builtDocMapper = parser.parse(builtMapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
-        Document doc = builtDocMapper.parse("person", "1", new BytesArray(json)).rootDoc();
+        Document doc = builtDocMapper.parse("test", "person", "1", new BytesArray(json)).rootDoc();
 
         AllField field = (AllField) doc.getField("_all");
         AllEntries allEntries = field.getAllEntries();
@@ -184,7 +184,7 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/store-mapping.json");
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
-        Document doc = docMapper.parse("person", "1", new BytesArray(json)).rootDoc();
+        Document doc = docMapper.parse("test", "person", "1", new BytesArray(json)).rootDoc();
         AllField field = (AllField) doc.getField("_all");
         AllEntries allEntries = field.getAllEntries();
         assertThat(allEntries.fields().size(), equalTo(2));
@@ -204,7 +204,7 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
         // reparse it
         DocumentMapper builtDocMapper = parser.parse(builtMapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
-        Document doc = builtDocMapper.parse("person", "1", new BytesArray(json)).rootDoc();
+        Document doc = builtDocMapper.parse("test", "person", "1", new BytesArray(json)).rootDoc();
 
         AllField field = (AllField) doc.getField("_all");
         AllEntries allEntries = field.getAllEntries();
@@ -277,7 +277,7 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
                 .field("foo", "bar")
                 .field("foobar", "foobar")
                 .endObject().bytes().toBytes();
-        Document doc = builtDocMapper.parse("test", "1", new BytesArray(json)).rootDoc();
+        Document doc = builtDocMapper.parse("test", "test", "1", new BytesArray(json)).rootDoc();
         AllField field = (AllField) doc.getField("_all");
         if (enabled) {
             assertThat(field.fieldType().omitNorms(), equalTo(omitNorms));
@@ -325,7 +325,7 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
                     .endObject()
                 .endObject();
 
-        Document doc = docMapper.parse("test", "1", builder.bytes()).rootDoc();
+        Document doc = docMapper.parse("test", "test", "1", builder.bytes()).rootDoc();
         AllField field = (AllField) doc.getField("_all");
         AllEntries allEntries = field.getAllEntries();
         assertThat(allEntries.fields(), empty());
@@ -343,7 +343,7 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
                 .endObject()
                 .endObject();
 
-        Document doc = docMapper.parse("test", "1", builder.bytes()).rootDoc();
+        Document doc = docMapper.parse("test", "test", "1", builder.bytes()).rootDoc();
         AllField field = (AllField) doc.getField("_all");
         AllEntries allEntries = field.getAllEntries();
         assertThat(allEntries.fields(), hasSize(1));
@@ -390,7 +390,6 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
         Map<String, String> rootTypes = new HashMap<>();
         //just pick some example from DocumentMapperParser.rootTypeParsers
         rootTypes.put(SizeFieldMapper.NAME, "{\"enabled\" : true}");
-        rootTypes.put(IndexFieldMapper.NAME, "{\"enabled\" : true}");
         rootTypes.put("include_in_all", "true");
         rootTypes.put("dynamic_date_formats", "[\"yyyy-MM-dd\", \"dd-MM-yyyy\"]");
         rootTypes.put("numeric_detection", "true");
@@ -448,7 +447,7 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
         String mapping = jsonBuilder().startObject().startObject("type").endObject().endObject().string();
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
         DocumentMapper docMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
-        ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
             .startObject().field("_all", "foo").endObject().bytes());
 
         assertNull(doc.rootDoc().get("_all"));

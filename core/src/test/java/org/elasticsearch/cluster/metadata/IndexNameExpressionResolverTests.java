@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData.State;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -42,6 +43,8 @@ import static org.hamcrest.Matchers.*;
  */
 public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(Settings.EMPTY);
+
     @Test
     public void testIndexOptions_strict() {
         MetaData.Builder mdBuilder = MetaData.builder()
@@ -51,7 +54,6 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
                 .put(indexBuilder("foofoo").putAlias(AliasMetaData.builder("barbaz")));
 
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
 
         IndicesOptions[] indicesOptions = new IndicesOptions[]{ IndicesOptions.strictExpandOpen(), IndicesOptions.strictExpand()};
         for (IndicesOptions options : indicesOptions) {
@@ -141,7 +143,6 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
                 .put(indexBuilder("foofoo-closed").state(IndexMetaData.State.CLOSE))
                 .put(indexBuilder("foofoo").putAlias(AliasMetaData.builder("barbaz")));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
 
         IndicesOptions lenientExpand = IndicesOptions.fromOptions(true, true, true, true);
         IndicesOptions[] indicesOptions = new IndicesOptions[]{ IndicesOptions.lenientExpandOpen(), lenientExpand};
@@ -210,7 +211,6 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
                 .put(indexBuilder("foofoo-closed").state(IndexMetaData.State.CLOSE))
                 .put(indexBuilder("foofoo").putAlias(AliasMetaData.builder("barbaz")));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
 
         IndicesOptions expandOpen = IndicesOptions.fromOptions(true, false, true, false);
         IndicesOptions expand = IndicesOptions.fromOptions(true, false, true, true);
@@ -260,7 +260,6 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
                 .put(indexBuilder("bar"))
                 .put(indexBuilder("foobar").putAlias(AliasMetaData.builder("barbaz")));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
 
         // Only closed
         IndicesOptions options = IndicesOptions.fromOptions(false, true, false, true);
@@ -333,7 +332,6 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
                 .put(indexBuilder("foofoo-closed").state(IndexMetaData.State.CLOSE))
                 .put(indexBuilder("foofoo").putAlias(AliasMetaData.builder("barbaz")));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
 
         //ignore unavailable and allow no indices
         {
@@ -428,7 +426,6 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
                 .put(indexBuilder("foofoo-closed").state(IndexMetaData.State.CLOSE))
                 .put(indexBuilder("foofoo").putAlias(AliasMetaData.builder("barbaz")));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
 
         //error on both unavailable and no indices + every alias needs to expand to a single index
 
@@ -482,7 +479,6 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
     @Test
     public void testIndexOptions_emptyCluster() {
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(MetaData.builder().build()).build();
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
 
         IndicesOptions options = IndicesOptions.strictExpandOpen();
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, options);
@@ -532,7 +528,6 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
                 .put(indexBuilder("testXXX"))
                 .put(indexBuilder("kuku"));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.strictExpandOpen());
 
         indexNameExpressionResolver.concreteIndices(context, "testZZZ");
@@ -544,7 +539,6 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
                 .put(indexBuilder("testXXX"))
                 .put(indexBuilder("kuku"));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpandOpen());
 
         assertThat(newHashSet(indexNameExpressionResolver.concreteIndices(context, "testXXX", "testZZZ")), equalTo(newHashSet("testXXX")));
@@ -556,7 +550,6 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
                 .put(indexBuilder("testXXX"))
                 .put(indexBuilder("kuku"));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.strictExpandOpen());
 
         assertThat(newHashSet(indexNameExpressionResolver.concreteIndices(context, "testMo", "testMahdy")), equalTo(newHashSet("testXXX")));
@@ -568,9 +561,7 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
                 .put(indexBuilder("testXXX"))
                 .put(indexBuilder("kuku"));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpandOpen());
-
         assertThat(newHashSet(indexNameExpressionResolver.concreteIndices(context, new String[]{})), equalTo(Sets.newHashSet("kuku", "testXXX")));
     }
 
@@ -583,7 +574,6 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
                 .put(indexBuilder("testYYY").state(State.OPEN))
                 .put(indexBuilder("testYYX").state(State.OPEN));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
 
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.fromOptions(true, true, false, false));
         assertThat(newHashSet(indexNameExpressionResolver.concreteIndices(context, "testX*")), equalTo(new HashSet<String>()));
@@ -615,7 +605,6 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
 
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
             ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(MetaData.builder().build()).build();
-            IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
             IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, indicesOptions);
 
             // with no indices, asking for all indices should return empty list or exception, depending on indices options
@@ -633,7 +622,6 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
                     .put(indexBuilder("bbb").state(State.OPEN).putAlias(AliasMetaData.builder("bbb_alias1")))
                     .put(indexBuilder("ccc").state(State.CLOSE).putAlias(AliasMetaData.builder("ccc_alias1")));
             state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
-            indexNameExpressionResolver = new IndexNameExpressionResolver();
             context = new IndexNameExpressionResolver.Context(state, indicesOptions);
             if (indicesOptions.expandWildcardsOpen() || indicesOptions.expandWildcardsClosed() || indicesOptions.allowNoIndices()) {
                 String[] concreteIndices = indexNameExpressionResolver.concreteIndices(context, allIndices);
@@ -676,7 +664,6 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
                     .put(indexBuilder("bbb").state(State.OPEN).putAlias(AliasMetaData.builder("bbb_alias1")))
                     .put(indexBuilder("ccc").state(State.CLOSE).putAlias(AliasMetaData.builder("ccc_alias1")));
             ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
-            IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
             IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, indicesOptions);
 
             // asking for non existing wildcard pattern should return empty list or exception
@@ -760,7 +747,6 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
         //even though it does identify all indices, it's not a pattern but just an explicit list of them
         String[] concreteIndices = new String[]{"index1", "index2", "index3"};
         MetaData metaData = metaDataBuilder(concreteIndices);
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
         assertThat(indexNameExpressionResolver.isPatternMatchingAllIndices(metaData, concreteIndices, concreteIndices), equalTo(false));
     }
 
@@ -769,7 +755,6 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
         String[] indicesOrAliases = new String[]{"*"};
         String[] concreteIndices = new String[]{"index1", "index2", "index3"};
         MetaData metaData = metaDataBuilder(concreteIndices);
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
         assertThat(indexNameExpressionResolver.isPatternMatchingAllIndices(metaData, indicesOrAliases, concreteIndices), equalTo(true));
     }
 
@@ -778,7 +763,6 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
         String[] indicesOrAliases = new String[]{"index*"};
         String[] concreteIndices = new String[]{"index1", "index2", "index3"};
         MetaData metaData = metaDataBuilder(concreteIndices);
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
         assertThat(indexNameExpressionResolver.isPatternMatchingAllIndices(metaData, indicesOrAliases, concreteIndices), equalTo(true));
     }
 
@@ -788,7 +772,6 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
         String[] concreteIndices = new String[]{"index1", "index2", "index3"};
         String[] allConcreteIndices = new String[]{"index1", "index2", "index3", "a", "b"};
         MetaData metaData = metaDataBuilder(allConcreteIndices);
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
         assertThat(indexNameExpressionResolver.isPatternMatchingAllIndices(metaData, indicesOrAliases, concreteIndices), equalTo(false));
     }
 
@@ -797,7 +780,6 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
         String[] indicesOrAliases = new String[]{"-index1", "+index1"};
         String[] concreteIndices = new String[]{"index1", "index2", "index3"};
         MetaData metaData = metaDataBuilder(concreteIndices);
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
         assertThat(indexNameExpressionResolver.isPatternMatchingAllIndices(metaData, indicesOrAliases, concreteIndices), equalTo(true));
     }
 
@@ -807,7 +789,6 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
         String[] concreteIndices = new String[]{"index2", "index3"};
         String[] allConcreteIndices = new String[]{"index1", "index2", "index3"};
         MetaData metaData = metaDataBuilder(allConcreteIndices);
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
         assertThat(indexNameExpressionResolver.isPatternMatchingAllIndices(metaData, indicesOrAliases, concreteIndices), equalTo(false));
     }
 
@@ -816,7 +797,6 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
         String[] indicesOrAliases = new String[]{"index*", "-index1", "+index1"};
         String[] concreteIndices = new String[]{"index1", "index2", "index3"};
         MetaData metaData = metaDataBuilder(concreteIndices);
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
         assertThat(indexNameExpressionResolver.isPatternMatchingAllIndices(metaData, indicesOrAliases, concreteIndices), equalTo(true));
     }
 
@@ -826,7 +806,6 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
         String[] concreteIndices = new String[]{"index2", "index3"};
         String[] allConcreteIndices = new String[]{"index1", "index2", "index3"};
         MetaData metaData = metaDataBuilder(allConcreteIndices);
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
         assertThat(indexNameExpressionResolver.isPatternMatchingAllIndices(metaData, indicesOrAliases, concreteIndices), equalTo(false));
     }
 
@@ -837,7 +816,6 @@ public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
                 .put(indexBuilder("foo2-closed").state(IndexMetaData.State.CLOSE).putAlias(AliasMetaData.builder("foobar2-closed")))
                 .put(indexBuilder("foo3").putAlias(AliasMetaData.builder("foobar2-closed")));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
 
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.strictExpandOpenAndForbidClosed());
         try {

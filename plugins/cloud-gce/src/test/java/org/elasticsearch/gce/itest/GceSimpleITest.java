@@ -22,6 +22,7 @@ package org.elasticsearch.gce.itest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cloud.gce.AbstractGceTest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugin.cloud.gce.CloudGcePlugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
@@ -44,7 +45,7 @@ public class GceSimpleITest extends AbstractGceTest {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
+                .put("plugin.types", CloudGcePlugin.class.getName())
                 .build();
     }
 

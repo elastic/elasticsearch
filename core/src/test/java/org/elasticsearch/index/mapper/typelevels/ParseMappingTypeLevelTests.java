@@ -33,16 +33,16 @@ public class ParseMappingTypeLevelTests extends ElasticsearchSingleNodeTest {
     @Test
     public void testTypeLevel() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_index").field("enabled", true).endObject()
+                .startObject("_size").field("enabled", true).endObject()
                 .endObject().endObject().string();
 
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         DocumentMapper mapper = parser.parse("type", mapping);
         assertThat(mapper.type(), equalTo("type"));
-        assertThat(mapper.indexMapper().enabled(), equalTo(true));
+        assertThat(mapper.sizeFieldMapper().enabled(), equalTo(true));
 
         mapper = parser.parse(mapping);
         assertThat(mapper.type(), equalTo("type"));
-        assertThat(mapper.indexMapper().enabled(), equalTo(true));
+        assertThat(mapper.sizeFieldMapper().enabled(), equalTo(true));
     }
 }

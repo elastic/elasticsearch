@@ -478,17 +478,7 @@ Deleting a document is fairly straightforward. This example shows how to delete 
 curl -XDELETE 'localhost:9200/customer/external/2?pretty'
 --------------------------------------------------
 
-We also have the ability to delete multiple documents that match a query condition. This example shows how to delete all customers whose names contain "John":
-
-[source,sh]
---------------------------------------------------
-curl -XDELETE 'localhost:9200/customer/external/_query?pretty' -d '
-{
-  "query": { "match": { "name": "John" } }
-}'
---------------------------------------------------
-
-Note above that the URI has changed to `/_query` to signify a delete-by-query API with the delete query criteria in the body, but we are still using the DELETE verb. Don't worry yet about the query syntax as we will cover that later in this tutorial.
+The `delete-by-query` plugin can delete all documents matching a specific query.
 
 === Batch Processing
 

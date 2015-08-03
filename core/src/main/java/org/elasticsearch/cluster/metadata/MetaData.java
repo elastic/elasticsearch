@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.carrotsearch.hppc.ObjectArrayList;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
@@ -48,7 +47,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
@@ -146,16 +144,14 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
     private final transient int totalNumberOfShards; // Transient ? not serializable anyway?
     private final int numberOfShards;
 
-
     private final String[] allIndices;
     private final String[] allOpenIndices;
     private final String[] allClosedIndices;
 
-    private final ImmutableOpenMap<String, ImmutableOpenMap<String, AliasMetaData>> aliases;
-    private final ImmutableOpenMap<String, String[]> aliasAndIndexToIndexMap;
+    private final SortedMap<String, AliasOrIndex> aliasAndIndexLookup;
 
     @SuppressWarnings("unchecked")
-    MetaData(String clusterUUID, long version, Settings transientSettings, Settings persistentSettings, ImmutableOpenMap<String, IndexMetaData> indices, ImmutableOpenMap<String, IndexTemplateMetaData> templates, ImmutableOpenMap<String, Custom> customs) {
+    MetaData(String clusterUUID, long version, Settings transientSettings, Settings persistentSettings, ImmutableOpenMap<String, IndexMetaData> indices, ImmutableOpenMap<String, IndexTemplateMetaData> templates, ImmutableOpenMap<String, Custom> customs, String[] allIndices, String[] allOpenIndices, String[] allClosedIndices, SortedMap<String, AliasOrIndex> aliasAndIndexLookup) {
         this.clusterUUID = clusterUUID;
         this.version = version;
         this.transientSettings = transientSettings;
@@ -166,87 +162,17 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         this.templates = templates;
         int totalNumberOfShards = 0;
         int numberOfShards = 0;
-        int numAliases = 0;
         for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
             totalNumberOfShards += cursor.value.totalNumberOfShards();
             numberOfShards += cursor.value.numberOfShards();
-            numAliases += cursor.value.aliases().size();
         }
         this.totalNumberOfShards = totalNumberOfShards;
         this.numberOfShards = numberOfShards;
 
-        // build all indices map
-        List<String> allIndicesLst = Lists.newArrayList();
-        for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
-            allIndicesLst.add(cursor.value.index());
-        }
-        allIndices = allIndicesLst.toArray(new String[allIndicesLst.size()]);
-        int numIndices = allIndicesLst.size();
-
-        List<String> allOpenIndices = Lists.newArrayList();
-        List<String> allClosedIndices = Lists.newArrayList();
-        for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
-            IndexMetaData indexMetaData = cursor.value;
-            if (indexMetaData.state() == IndexMetaData.State.OPEN) {
-                allOpenIndices.add(indexMetaData.index());
-            } else if (indexMetaData.state() == IndexMetaData.State.CLOSE) {
-                allClosedIndices.add(indexMetaData.index());
-            }
-        }
-        this.allOpenIndices = allOpenIndices.toArray(new String[allOpenIndices.size()]);
-        this.allClosedIndices = allClosedIndices.toArray(new String[allClosedIndices.size()]);
-
-        // build aliases map
-        ImmutableOpenMap.Builder<String, Object> tmpAliases = ImmutableOpenMap.builder(numAliases);
-        for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
-            IndexMetaData indexMetaData = cursor.value;
-            String index = indexMetaData.index();
-            for (ObjectCursor<AliasMetaData> aliasCursor : indexMetaData.aliases().values()) {
-                AliasMetaData aliasMd = aliasCursor.value;
-                ImmutableOpenMap.Builder<String, AliasMetaData> indexAliasMap = (ImmutableOpenMap.Builder<String, AliasMetaData>) tmpAliases.get(aliasMd.alias());
-                if (indexAliasMap == null) {
-                    indexAliasMap = ImmutableOpenMap.builder(1); // typically, there is 1 alias pointing to an index
-                    tmpAliases.put(aliasMd.alias(), indexAliasMap);
-                }
-                indexAliasMap.put(index, aliasMd);
-            }
-        }
-
-        for (ObjectCursor<String> cursor : tmpAliases.keys()) {
-            String alias = cursor.value;
-            // if there is access to the raw values buffer of the map that the immutable maps wraps, then we don't need to use put, and just set array slots
-            ImmutableOpenMap<String, AliasMetaData> map = ((ImmutableOpenMap.Builder) tmpAliases.get(alias)).cast().build();
-            tmpAliases.put(alias, map);
-        }
-
-        this.aliases = tmpAliases.<String, ImmutableOpenMap<String, AliasMetaData>>cast().build();
-        ImmutableOpenMap.Builder<String, Object> aliasAndIndexToIndexMap = ImmutableOpenMap.builder(numAliases + numIndices);
-        for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
-            IndexMetaData indexMetaData = cursor.value;
-            ObjectArrayList<String> indicesLst = (ObjectArrayList<String>) aliasAndIndexToIndexMap.get(indexMetaData.index());
-            if (indicesLst == null) {
-                indicesLst = new ObjectArrayList<>();
-                aliasAndIndexToIndexMap.put(indexMetaData.index(), indicesLst);
-            }
-            indicesLst.add(indexMetaData.index());
-
-            for (ObjectCursor<String> cursor1 : indexMetaData.aliases().keys()) {
-                String alias = cursor1.value;
-                indicesLst = (ObjectArrayList<String>) aliasAndIndexToIndexMap.get(alias);
-                if (indicesLst == null) {
-                    indicesLst = new ObjectArrayList<>();
-                    aliasAndIndexToIndexMap.put(alias, indicesLst);
-                }
-                indicesLst.add(indexMetaData.index());
-            }
-        }
-
-        for (ObjectObjectCursor<String, Object> cursor : aliasAndIndexToIndexMap) {
-            String[] indicesLst = ((ObjectArrayList<String>) cursor.value).toArray(String.class);
-            aliasAndIndexToIndexMap.put(cursor.key, indicesLst);
-        }
-
-        this.aliasAndIndexToIndexMap = aliasAndIndexToIndexMap.<String, String[]>cast().build();
+        this.allIndices = allIndices;
+        this.allOpenIndices = allOpenIndices;
+        this.allClosedIndices = allClosedIndices;
+        this.aliasAndIndexLookup = aliasAndIndexLookup;
     }
 
     public long version() {
@@ -272,16 +198,32 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         return this.persistentSettings;
     }
 
-    public ImmutableOpenMap<String, ImmutableOpenMap<String, AliasMetaData>> aliases() {
-        return this.aliases;
+    public boolean hasAlias(String alias) {
+        AliasOrIndex aliasOrIndex = getAliasAndIndexLookup().get(alias);
+        if (aliasOrIndex != null) {
+            return aliasOrIndex.isAlias();
+        } else {
+            return false;
+        }
     }
 
-    public ImmutableOpenMap<String, ImmutableOpenMap<String, AliasMetaData>> getAliases() {
-        return aliases();
+    public boolean equalsAliases(MetaData other) {
+        for (ObjectCursor<IndexMetaData> cursor : other.indices().values()) {
+            IndexMetaData otherIndex = cursor.value;
+            IndexMetaData thisIndex= indices().get(otherIndex.getIndex());
+            if (thisIndex == null) {
+                return false;
+            }
+            if (otherIndex.getAliases().equals(thisIndex.getAliases()) == false) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
-    public ImmutableOpenMap<String, String[]> getAliasAndIndexMap() {
-        return aliasAndIndexToIndexMap;
+    public SortedMap<String, AliasOrIndex> getAliasAndIndexLookup() {
+        return aliasAndIndexLookup;
     }
 
     /**
@@ -477,15 +419,24 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
     // TODO: This can be moved to IndexNameExpressionResolver too, but this means that we will support wildcards and other expressions
     // in the index,bulk,update and delete apis.
     public String resolveIndexRouting(@Nullable String routing, String aliasOrIndex) {
-        // Check if index is specified by an alias
-        ImmutableOpenMap<String, AliasMetaData> indexAliases = aliases.get(aliasOrIndex);
-        if (indexAliases == null || indexAliases.isEmpty()) {
+        if (aliasOrIndex == null) {
             return routing;
         }
-        if (indexAliases.size() > 1) {
-            throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has more than one index associated with it [" + Arrays.toString(indexAliases.keys().toArray(String.class)) + "], can't execute a single index op");
+
+        AliasOrIndex result = getAliasAndIndexLookup().get(aliasOrIndex);
+        if (result == null || result.isAlias() == false) {
+            return routing;
         }
-        AliasMetaData aliasMd = indexAliases.values().iterator().next().value;
+        AliasOrIndex.Alias alias = (AliasOrIndex.Alias) result;
+        if (result.getIndices().size() > 1) {
+            String[] indexNames = new String[result.getIndices().size()];
+            int i = 0;
+            for (IndexMetaData indexMetaData : result.getIndices()) {
+                indexNames[i++] = indexMetaData.getIndex();
+            }
+            throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has more than one index associated with it [" + Arrays.toString(indexNames) + "], can't execute a single index op");
+        }
+        AliasMetaData aliasMd = alias.getFirstAliasMetaData();
         if (aliasMd.indexRouting() != null) {
             if (routing != null) {
                 if (!routing.equals(aliasMd.indexRouting())) {
@@ -507,7 +458,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
     }
 
     public boolean hasConcreteIndex(String index) {
-        return aliasAndIndexToIndexMap.containsKey(index);
+        return getAliasAndIndexLookup().containsKey(index);
     }
 
     public IndexMetaData index(String index) {
@@ -829,13 +780,18 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         }
 
         if (newPersistentSettings != null) {
-            return new MetaData(metaData.clusterUUID(),
-                                metaData.version(),
-                                metaData.transientSettings(),
-                                newPersistentSettings.build(),
-                                metaData.getIndices(),
-                                metaData.getTemplates(),
-                                metaData.getCustoms());
+            return new MetaData(
+                    metaData.clusterUUID(),
+                    metaData.version(),
+                    metaData.transientSettings(),
+                    newPersistentSettings.build(),
+                    metaData.getIndices(),
+                    metaData.getTemplates(),
+                    metaData.getCustoms(),
+                    metaData.concreteAllIndices(),
+                    metaData.concreteAllOpenIndices(),
+                    metaData.concreteAllClosedIndices(),
+                    metaData.getAliasAndIndexLookup());
         } else {
             // No changes:
             return metaData;
@@ -1013,7 +969,53 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         }
 
         public MetaData build() {
-            return new MetaData(clusterUUID, version, transientSettings, persistentSettings, indices.build(), templates.build(), customs.build());
+            // TODO: We should move these datastructures to IndexNameExpressionResolver, this will give the following benefits:
+            // 1) The datastructures will only be rebuilded when needed. Now during serailizing we rebuild these datastructures
+            //    while these datastructures aren't even used.
+            // 2) The aliasAndIndexLookup can be updated instead of rebuilding it all the time.
+
+            // build all concrete indices arrays:
+            // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
+            // When doing an operation across all indices, most of the time is spent on actually going to all shards and
+            // do the required operations, the bottleneck isn't resolving expressions into concrete indices.
+            List<String> allIndicesLst = Lists.newArrayList();
+            for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
+                allIndicesLst.add(cursor.value.index());
+            }
+            String[] allIndices = allIndicesLst.toArray(new String[allIndicesLst.size()]);
+
+            List<String> allOpenIndicesLst = Lists.newArrayList();
+            List<String> allClosedIndicesLst = Lists.newArrayList();
+            for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
+                IndexMetaData indexMetaData = cursor.value;
+                if (indexMetaData.state() == IndexMetaData.State.OPEN) {
+                    allOpenIndicesLst.add(indexMetaData.index());
+                } else if (indexMetaData.state() == IndexMetaData.State.CLOSE) {
+                    allClosedIndicesLst.add(indexMetaData.index());
+                }
+            }
+            String[] allOpenIndices = allOpenIndicesLst.toArray(new String[allOpenIndicesLst.size()]);
+            String[] allClosedIndices = allClosedIndicesLst.toArray(new String[allClosedIndicesLst.size()]);
+
+            // build all indices map
+            SortedMap<String, AliasOrIndex> aliasAndIndexLookup = new TreeMap<>();
+            for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
+                IndexMetaData indexMetaData = cursor.value;
+                aliasAndIndexLookup.put(indexMetaData.getIndex(), new AliasOrIndex.Index(indexMetaData));
+
+                for (ObjectObjectCursor<String, AliasMetaData> aliasCursor : indexMetaData.getAliases()) {
+                    AliasMetaData aliasMetaData = aliasCursor.value;
+                    AliasOrIndex.Alias aliasOrIndex = (AliasOrIndex.Alias) aliasAndIndexLookup.get(aliasMetaData.getAlias());
+                    if (aliasOrIndex == null) {
+                        aliasOrIndex = new AliasOrIndex.Alias(aliasMetaData, indexMetaData);
+                        aliasAndIndexLookup.put(aliasMetaData.getAlias(), aliasOrIndex);
+                    } else {
+                        aliasOrIndex.addIndex(indexMetaData);
+                    }
+                }
+            }
+            aliasAndIndexLookup = Collections.unmodifiableSortedMap(aliasAndIndexLookup);
+            return new MetaData(clusterUUID, version, transientSettings, persistentSettings, indices.build(), templates.build(), customs.build(), allIndices, allOpenIndices, allClosedIndices, aliasAndIndexLookup);
         }
 
         public static String toXContent(MetaData metaData) throws IOException {

@@ -20,7 +20,6 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
@@ -68,7 +67,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     }
 
     @Override
-    protected boolean resolveIndex() {
+    protected boolean resolveIndex(MultiGetShardRequest request) {
         return true;
     }
 

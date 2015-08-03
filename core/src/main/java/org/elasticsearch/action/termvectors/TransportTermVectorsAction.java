@@ -65,7 +65,7 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
     }
 
     @Override
-    protected boolean resolveIndex() {
+    protected boolean resolveIndex(TermVectorsRequest request) {
         return true;
     }
 

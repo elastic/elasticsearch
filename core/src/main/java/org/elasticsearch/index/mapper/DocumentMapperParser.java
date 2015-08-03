@@ -56,11 +56,9 @@ import java.util.Map;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.doc;
 
-/**
- *
- */
-public class DocumentMapperParser extends AbstractIndexComponent {
+public class DocumentMapperParser {
 
+    private final Settings indexSettings;
     final MapperService mapperService;
     final AnalysisService analysisService;
     private static final ESLogger logger = Loggers.getLogger(DocumentMapperParser.class);
@@ -76,9 +74,9 @@ public class DocumentMapperParser extends AbstractIndexComponent {
     private volatile ImmutableMap<String, Mapper.TypeParser> typeParsers;
     private volatile ImmutableMap<String, Mapper.TypeParser> rootTypeParsers;
 
-    public DocumentMapperParser(Index index, @IndexSettings Settings indexSettings, MapperService mapperService, AnalysisService analysisService,
+    public DocumentMapperParser(@IndexSettings Settings indexSettings, MapperService mapperService, AnalysisService analysisService,
                                 SimilarityLookupService similarityLookupService, ScriptService scriptService) {
-        super(index, indexSettings);
+        this.indexSettings = indexSettings;
         this.parseFieldMatcher = new ParseFieldMatcher(indexSettings);
         this.mapperService = mapperService;
         this.analysisService = analysisService;
@@ -205,7 +203,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
 
         Mapper.TypeParser.ParserContext parserContext = parserContext();
         // parse RootObjectMapper
-        DocumentMapper.Builder docBuilder = doc(index.name(), indexSettings, (RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext), mapperService);
+        DocumentMapper.Builder docBuilder = doc(indexSettings, (RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext), mapperService);
         Iterator<Map.Entry<String, Object>> iterator = mapping.entrySet().iterator();
         // parse DocumentMapper
         while(iterator.hasNext()) {

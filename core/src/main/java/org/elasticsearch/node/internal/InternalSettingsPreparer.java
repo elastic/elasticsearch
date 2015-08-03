@@ -180,7 +180,7 @@ public class InternalSettingsPreparer {
 
     static Settings replacePromptPlaceholders(Settings settings, Terminal terminal) {
         UnmodifiableIterator<Map.Entry<String, String>> iter = settings.getAsMap().entrySet().iterator();
-        Settings.Builder builder = Settings.builder();
+        Settings.Builder builder = Settings.builder().classLoader(settings.getClassLoaderIfSet());
 
         while (iter.hasNext()) {
             Map.Entry<String, String> entry = iter.next();

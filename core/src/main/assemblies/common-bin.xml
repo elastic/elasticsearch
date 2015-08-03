@@ -26,6 +26,7 @@
                 <include>org.apache.commons:commons-lang3</include>
                 <include>commons-cli:commons-cli</include>
                 <include>com.twitter:jsr166e</include>
+                <include>org.hdrhistogram:HdrHistogram</include>
             </includes>
         </dependencySet>
         <dependencySet>

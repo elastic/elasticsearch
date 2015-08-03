@@ -117,6 +117,9 @@ public class TopHitsAggregator extends MetricsAggregator {
                 if (collectors == null) {
                     Sort sort = subSearchContext.sort();
                     int topN = subSearchContext.from() + subSearchContext.size();
+                    // In the QueryPhase we don't need this protection, because it is build into the IndexSearcher,
+                    // but here we create collectors ourselves and we need prevent OOM because of crazy an offset and size.
+                    topN = Math.min(topN, subSearchContext.searcher().getIndexReader().maxDoc());
                     TopDocsCollector<?> topLevelCollector = sort != null ? TopFieldCollector.create(sort, topN, true, subSearchContext.trackScores(), subSearchContext.trackScores()) : TopScoreDocCollector.create(topN);
                     collectors = new TopDocsAndLeafCollector(topLevelCollector);
                     collectors.leafCollector = collectors.topLevelCollector.getLeafCollector(ctx);

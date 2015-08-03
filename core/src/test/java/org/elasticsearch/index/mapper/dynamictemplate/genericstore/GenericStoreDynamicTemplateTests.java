@@ -46,7 +46,7 @@ public class GenericStoreDynamicTemplateTests extends ElasticsearchSingleNodeTes
         client().admin().indices().preparePutMapping("test").setType("person").setSource(mapping).get();
         DocumentMapper docMapper = index.mapperService().documentMapper("person");
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/genericstore/test-data.json");
-        ParsedDocument parsedDoc = docMapper.parse("person", "1", new BytesArray(json));
+        ParsedDocument parsedDoc = docMapper.parse("test", "person", "1", new BytesArray(json));
         client().admin().indices().preparePutMapping("test").setType("person").setSource(parsedDoc.dynamicMappingsUpdate().toString()).get();
         Document doc = parsedDoc.rootDoc();
 

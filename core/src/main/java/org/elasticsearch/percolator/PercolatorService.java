@@ -182,13 +182,13 @@ public class PercolatorService extends AbstractComponent {
         );
         SearchContext.setCurrent(context);
         try {
-            ParsedDocument parsedDocument = parseRequest(percolateIndexService, request, context);
+            ParsedDocument parsedDocument = parseRequest(percolateIndexService, request, context, request.shardId().getIndex());
             if (context.percolateQueries().isEmpty()) {
                 return new PercolateShardResponse(context, request.shardId());
             }
 
             if (request.docSource() != null && request.docSource().length() != 0) {
-                parsedDocument = parseFetchedDoc(context, request.docSource(), percolateIndexService, request.documentType());
+                parsedDocument = parseFetchedDoc(context, request.docSource(), percolateIndexService, request.shardId().getIndex(), request.documentType());
             } else if (parsedDocument == null) {
                 throw new IllegalArgumentException("Nothing to percolate");
             }
@@ -242,7 +242,7 @@ public class PercolatorService extends AbstractComponent {
         }
     }
 
-    private ParsedDocument parseRequest(IndexService documentIndexService, PercolateShardRequest request, PercolateContext context) {
+    private ParsedDocument parseRequest(IndexService documentIndexService, PercolateShardRequest request, PercolateContext context, String index) {
         BytesReference source = request.source();
         if (source == null || source.length() == 0) {
             return null;
@@ -276,7 +276,7 @@ public class PercolatorService extends AbstractComponent {
 
                         MapperService mapperService = documentIndexService.mapperService();
                         Tuple<DocumentMapper, Mapping> docMapper = mapperService.documentMapperWithAutoCreate(request.documentType());
-                        doc = docMapper.v1().parse(source(parser).type(request.documentType()).flyweight(true));
+                        doc = docMapper.v1().parse(source(parser).index(index).type(request.documentType()).flyweight(true));
                         if (docMapper.v2() != null) {
                             doc.addDynamicMappingsUpdate(docMapper.v2());
                         }
@@ -378,14 +378,14 @@ public class PercolatorService extends AbstractComponent {
         }
     }
 
-    private ParsedDocument parseFetchedDoc(PercolateContext context, BytesReference fetchedDoc, IndexService documentIndexService, String type) {
+    private ParsedDocument parseFetchedDoc(PercolateContext context, BytesReference fetchedDoc, IndexService documentIndexService, String index, String type) {
         ParsedDocument doc = null;
         XContentParser parser = null;
         try {
             parser = XContentFactory.xContent(fetchedDoc).createParser(fetchedDoc);
             MapperService mapperService = documentIndexService.mapperService();
             Tuple<DocumentMapper, Mapping> docMapper = mapperService.documentMapperWithAutoCreate(type);
-            doc = docMapper.v1().parse(source(parser).type(type).flyweight(true));
+            doc = docMapper.v1().parse(source(parser).index(index).type(type).flyweight(true));
 
             if (context.highlight() != null) {
                 doc.setSource(fetchedDoc);

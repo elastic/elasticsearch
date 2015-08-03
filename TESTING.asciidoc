@@ -44,7 +44,7 @@ In order to run Elasticsearch from source without building a package, you can
 run it using Maven:
 
 -------------------------------------
-mvn compile exec:exec
+./run.sh
 -------------------------------------
 
 === Test case filtering.
@@ -261,7 +261,7 @@ The REST tests are run automatically when executing the maven test command. To r
 REST tests use the following command:
 
 ---------------------------------------------------------------------------
-mvn test -Dtests.filter="@Rest"
+mvn verify -Dtests.filter="@Rest"
 ---------------------------------------------------------------------------
 
 `ElasticsearchRestTests` is the executable test class that runs all the
@@ -318,4 +318,6 @@ environment before the tests are executed:
 ES_CLEAN_BEFORE_TEST=true bats 30_deb_package.bats
 ---------------------------------------------------------------------------
 
-
+The current mode of execution is to copy all the packages that should be tested
+into one directory, then copy the bats files into the same directory and run
+those.

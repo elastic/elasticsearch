@@ -74,13 +74,14 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     @Inject
     public TransportBulkAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService,
                                TransportShardBulkAction shardBulkAction, TransportCreateIndexAction createIndexAction,
-                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                               AutoCreateIndex autoCreateIndex) {
         super(settings, BulkAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, BulkRequest.class);
         this.clusterService = clusterService;
         this.shardBulkAction = shardBulkAction;
         this.createIndexAction = createIndexAction;
 
-        this.autoCreateIndex = new AutoCreateIndex(settings);
+        this.autoCreateIndex = autoCreateIndex;
         this.allowIdGeneration = this.settings.getAsBoolean("action.bulk.action.allow_id_generation", true);
     }
 

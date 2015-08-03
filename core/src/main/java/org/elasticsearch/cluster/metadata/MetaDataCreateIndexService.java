@@ -49,6 +49,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
@@ -181,7 +182,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     "index name is too long, (" + byteCount +
                     " > " + MAX_INDEX_NAME_BYTES + ")");
         }
-        if (state.metaData().aliases().containsKey(index)) {
+        if (state.metaData().hasAlias(index)) {
             throw new InvalidIndexNameException(new Index(index), index, "already exists as alias");
         }
     }
@@ -420,7 +421,10 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             .put(indexMetaData, false)
                             .build();
 
-                    logger.info("[{}] creating index, cause [{}], templates {}, shards [{}]/[{}], mappings {}", request.index(), request.cause(), templateNames, indexMetaData.numberOfShards(), indexMetaData.numberOfReplicas(), mappings.keySet());
+                    String maybeShadowIndicator = IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.settings()) ? "s" : "";
+                    logger.info("[{}] creating index, cause [{}], templates {}, shards [{}]/[{}{}], mappings {}",
+                            request.index(), request.cause(), templateNames, indexMetaData.numberOfShards(),
+                            indexMetaData.numberOfReplicas(), maybeShadowIndicator, mappings.keySet());
 
                     ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                     if (!request.blocks().isEmpty()) {
@@ -462,7 +466,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(mappingsDir)) {
             for (Path mappingFile : stream) {
                 final String fileName = mappingFile.getFileName().toString();
-                if (Files.isHidden(mappingFile)) {
+                if (FileSystemUtils.isHidden(mappingFile)) {
                     continue;
                 }
                 int lastDotIndex = fileName.lastIndexOf('.');

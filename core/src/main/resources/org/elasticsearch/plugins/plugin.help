@@ -1,0 +1,24 @@
+NAME
+
+    plugin - Manages plugins
+
+SYNOPSIS
+
+    plugin <command>
+
+DESCRIPTION
+
+    Manage plugins
+
+COMMANDS
+
+    install    Install a plugin
+
+    remove     Remove a plugin
+
+    list       List installed plugins
+
+NOTES
+
+    [*] For usage help on specific commands please type "plugin <command> -h"
+

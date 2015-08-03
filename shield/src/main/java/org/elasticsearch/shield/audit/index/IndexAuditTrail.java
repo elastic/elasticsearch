@@ -607,7 +607,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
             final TransportClient transportClient = TransportClient.builder()
                     .settings(Settings.builder()
                             .put("name", DEFAULT_CLIENT_NAME + "-" + settings.get("name"))
-                            .put("path.home", environment.homeFile())
+                            .put("path.home", environment.binFile().getParent())
                             .putArray("plugin.types", ShieldPlugin.class.getName())
                             .put(clientSettings))
                     .build();

@@ -88,7 +88,7 @@ public class FileUserRolesStore {
         if (location == null) {
             return ShieldPlugin.resolveConfigFile(env, "users_roles");
         }
-        return env.homeFile().resolve(location);
+        return env.binFile().getParent().resolve(location);
     }
 
     /**

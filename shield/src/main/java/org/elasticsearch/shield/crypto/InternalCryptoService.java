@@ -123,7 +123,7 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
         if (location == null) {
             return ShieldPlugin.resolveConfigFile(env, FILE_NAME);
         }
-        return env.homeFile().resolve(location);
+        return env.binFile().getParent().resolve(location);
     }
 
     static SecretKey readSystemKey(Path file) {

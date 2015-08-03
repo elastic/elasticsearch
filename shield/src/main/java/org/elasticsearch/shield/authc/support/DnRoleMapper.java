@@ -78,7 +78,7 @@ public class DnRoleMapper {
         if (location == null) {
             return ShieldPlugin.resolveConfigFile(env, DEFAULT_FILE_NAME);
         }
-        return env.homeFile().resolve(location);
+        return env.binFile().getParent().resolve(location);
     }
 
     /**

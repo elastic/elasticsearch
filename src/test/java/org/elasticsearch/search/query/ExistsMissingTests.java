@@ -39,6 +39,23 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 
 public class ExistsMissingTests extends ElasticsearchIntegrationTest {
 
+    public void testExistsFilterOnEmptyIndex() throws Exception {
+        createIndex("test");
+        ensureYellow("test");
+
+        SearchResponse resp = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).setPostFilter(FilterBuilders.existsFilter("foo")).execute().actionGet();
+        assertSearchResponse(resp);
+    }
+
+    public void testMissingFilterOnEmptyIndex() throws Exception {
+        createIndex("test");
+        ensureYellow("test");
+
+        SearchResponse resp = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).setPostFilter(FilterBuilders.missingFilter("foo")).execute().actionGet();
+        assertSearchResponse(resp);
+    }
+
+
     public void testExistsMissing() throws Exception {
 
         XContentBuilder mapping = XContentBuilder.builder(JsonXContent.jsonXContent)

@@ -261,7 +261,7 @@ The REST tests are run automatically when executing the maven test command. To r
 REST tests use the following command:
 
 ---------------------------------------------------------------------------
-mvn test -Dtests.filter="@Rest"
+mvn verify -Dtests.filter="@Rest"
 ---------------------------------------------------------------------------
 
 `ElasticsearchRestTests` is the executable test class that runs all the

@@ -26,13 +26,13 @@ import org.elasticsearch.test.rest.parser.RestTestParseException;
 
 import java.io.IOException;
 
-/** Rest API tests subset 3 */
-public class Rest3Tests extends ElasticsearchRestTestCase {
-    public Rest3Tests(@Name("yaml") RestTestCandidate testCandidate) {
+/** Rest API tests subset 7 */
+public class Rest7IT extends ElasticsearchRestTestCase {
+    public Rest7IT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);
     }
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
-        return createParameters(3, 8);
+        return createParameters(7, 8);
     }
 }

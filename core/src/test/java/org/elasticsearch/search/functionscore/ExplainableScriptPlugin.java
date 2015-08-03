@@ -36,6 +36,6 @@ public class ExplainableScriptPlugin extends AbstractPlugin {
     }
 
     public void onModule(ScriptModule module) {
-        module.registerScript("native_explainable_script", ExplainableScriptTests.MyNativeScriptFactory.class);
+        module.registerScript("native_explainable_script", ExplainableScriptIT.MyNativeScriptFactory.class);
     }
 }

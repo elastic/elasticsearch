@@ -31,7 +31,7 @@ import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
  */
 @Slow
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-public class DedicatedMasterGetFieldMappingTests extends SimpleGetFieldMappingsTests {
+public class DedicatedMasterGetFieldMappingTests extends SimpleGetFieldMappingsIT {
 
     @Before
     public void before1() throws Exception {

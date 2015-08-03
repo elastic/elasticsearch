@@ -26,7 +26,7 @@ import static org.elasticsearch.client.Requests.createIndexRequest;
 /**
  *
  */
-public class AliasedIndexDocumentActionsTests extends DocumentActionsTests {
+public class AliasedIndexDocumentActionsTests extends DocumentActionsIT {
 
     @Override
     protected void createIndex() {

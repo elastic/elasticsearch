@@ -135,7 +135,8 @@ final class Security {
             addPath(policy, path, "read,readlink,write,delete");
         }
         if (environment.pidFile() != null) {
-            addPath(policy, environment.pidFile().getParent(), "read,readlink,write,delete");
+            // we just need permission to remove the file if its elsewhere.
+            policy.add(new FilePermission(environment.pidFile().toString(), "delete"));
         }
         return policy;
     }

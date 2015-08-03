@@ -47,13 +47,13 @@ esac
 if [ "$STOP_REQUIRED" = "true" ]; then
     echo -n "Stopping elasticsearch service..."
     if command -v systemctl >/dev/null; then
-        systemctl --no-reload stop elasticsearch.service > /dev/null 2>&1 || true
+        systemctl --no-reload stop elasticsearch.service
 
     elif [ -x /etc/init.d/elasticsearch ]; then
         if command -v invoke-rc.d >/dev/null; then
-            invoke-rc.d elasticsearch stop || true
+            invoke-rc.d elasticsearch stop
         else
-            /etc/init.d/elasticsearch stop || true
+            /etc/init.d/elasticsearch stop
         fi
 
     # older suse linux distributions do not ship with systemd
@@ -61,7 +61,7 @@ if [ "$STOP_REQUIRED" = "true" ]; then
     # this tries to start the elasticsearch service on these
     # as well without failing this script
     elif [ -x /etc/rc.d/init.d/elasticsearch ] ; then
-        /etc/rc.d/init.d/elasticsearch stop || true
+        /etc/rc.d/init.d/elasticsearch stop
     fi
     echo " OK"
 fi

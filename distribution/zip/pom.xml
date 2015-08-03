@@ -12,6 +12,15 @@
     <artifactId>elasticsearch-zip</artifactId>
     <name>Elasticsearch ZIP Distribution</name>
 
+    <dependencies>
+        <dependency>
+            <groupId>org.elasticsearch.distribution</groupId>
+            <artifactId>elasticsearch-fully-loaded</artifactId>
+            <version>${elasticsearch.version}</version>
+            <type>pom</type>
+        </dependency>
+    </dependencies>
+
     <build>
         <filters>
             <filter>${project.basedir}/../src/main/packaging/packaging.properties</filter>
@@ -88,7 +97,7 @@
                         <configuration>
                             <skip>${skip.integ.tests}</skip>
                             <target>
-                                <ant antfile="${elasticsearch.integ.antfile}" target="start-external-cluster"/>
+                                <ant antfile="${elasticsearch.integ.antfile}" target="start-external-cluster-zip"/>
                             </target>
                         </configuration>
                     </execution>

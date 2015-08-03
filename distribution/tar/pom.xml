@@ -12,6 +12,15 @@
     <artifactId>elasticsearch-tar</artifactId>
     <name>Elasticsearch TAR Distribution</name>
 
+    <dependencies>
+        <dependency>
+            <groupId>org.elasticsearch.distribution</groupId>
+            <artifactId>elasticsearch-fully-loaded</artifactId>
+            <version>${elasticsearch.version}</version>
+            <type>pom</type>
+        </dependency>
+    </dependencies>
+
     <build>
         <filters>
             <filter>${project.basedir}/../src/main/packaging/packaging.properties</filter>

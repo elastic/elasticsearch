@@ -430,7 +430,7 @@
         <module>cloud-gce</module>
         <module>cloud-azure</module>
         <module>cloud-aws</module>
-        <module>example-site</module>
+        <module>site-example</module>
         <module>lang-python</module>
         <module>lang-javascript</module>
         <module>delete-by-query</module>

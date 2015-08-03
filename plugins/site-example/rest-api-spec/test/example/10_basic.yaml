@@ -10,6 +10,6 @@
     - do:
         nodes.info: {}
 
-    - match:  { nodes.$master.plugins.0.name: example-site  }
+    - match:  { nodes.$master.plugins.0.name: site-example  }
     - match:  { nodes.$master.plugins.0.jvm: false  }
     - match:  { nodes.$master.plugins.0.site: true  }

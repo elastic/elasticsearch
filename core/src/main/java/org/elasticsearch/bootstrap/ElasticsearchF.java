@@ -25,7 +25,7 @@ package org.elasticsearch.bootstrap;
  */
 public class ElasticsearchF {
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Throwable {
         System.setProperty("es.foreground", "yes");
         Bootstrap.main(args);
     }

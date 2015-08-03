@@ -286,4 +286,26 @@
     </java>
   </target>
 
+  <target name="check-shaded-jar-packages">
+    <!-- we unzip the jar, vs zipfileset, zipfileset toString is useless -->
+    <delete dir="${integ.temp}/unzipped"/>
+    <mkdir dir="${integ.temp}/unzipped"/>
+    <unzip src="${project.build.directory}/${project.artifactId}-${project.version}.jar"
+           dest="${integ.temp}/unzipped"/>
+    <local name="unshaded.classes"/>
+    <fileset id="unshaded.classes"
+             dir="${integ.temp}/unzipped"
+             includes="**/*.class"
+             excludes="org/elasticsearch/**,org/apache/lucene/**"/>
+    <fail message="shaded jar contains packages outside of org.elasticsearch: ${toString:unshaded.classes}">
+       <condition>
+         <not>
+           <resourcecount count="0">
+             <fileset refid="unshaded.classes"/>
+           </resourcecount>
+         </not>
+       </condition>
+    </fail>
+  </target>
+
 </project>

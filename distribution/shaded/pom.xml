@@ -51,6 +51,7 @@
                         <configuration>
                             <target>
                                 <ant antfile="${elasticsearch.integ.antfile}" target="check-for-jar-hell"/>
+                                <ant antfile="${elasticsearch.integ.antfile}" target="check-shaded-jar-packages"/>
                             </target>
                         </configuration>
                     </execution>
@@ -74,24 +75,10 @@
                     <createDependencyReducedPom>true</createDependencyReducedPom>
                     <dependencyReducedPomLocation>${build.directory}/dependency-reduced-pom.xml</dependencyReducedPomLocation>
                     <artifactSet>
-                        <includes>
-                            <include>org.elasticsearch:elasticsearch</include>
-                            <include>com.google.guava:guava</include>
-                            <include>com.carrotsearch:hppc</include>
-                            <include>com.fasterxml.jackson.core:jackson-core</include>
-                            <include>com.fasterxml.jackson.dataformat:jackson-dataformat-smile</include>
-                            <include>com.fasterxml.jackson.dataformat:jackson-dataformat-yaml</include>
-                            <include>com.fasterxml.jackson.dataformat:jackson-dataformat-cbor</include>
-                            <include>joda-time:joda-time</include>
-                            <include>org.joda:joda-convert</include>
-                            <include>io.netty:netty</include>
-                            <include>com.ning:compress-lzf</include>
-                            <include>com.github.spullara.mustache.java:compiler</include>
-                            <include>com.tdunning:t-digest</include>
-                            <include>org.apache.commons:commons-lang3</include>
-                            <include>commons-cli:commons-cli</include>
-                            <include>com.twitter:jsr166e</include>
-                        </includes>
+                        <excludes>
+                            <exclude>org.apache.lucene:*</exclude>
+                            <exclude>com.spatial4j:*</exclude>
+                        </excludes>
                     </artifactSet>
                     <transformers>
                         <!-- copy over MANIFEST.MF from unshaded jar, but mark jar as shaded too -->
@@ -107,8 +94,20 @@
                             <shadedPattern>org.elasticsearch.common</shadedPattern>
                         </relocation>
                         <relocation>
+                            <pattern>com.google.thirdparty</pattern>
+                            <shadedPattern>org.elasticsearch.common.thirdparty</shadedPattern>
+                        </relocation>
+                        <relocation>
                             <pattern>com.carrotsearch.hppc</pattern>
                             <shadedPattern>org.elasticsearch.common.hppc</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>org.HdrHistogram</pattern>
+                            <shadedPattern>org.elasticsearch.common.HdrHistogram</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>org.yaml</pattern>
+                            <shadedPattern>org.elasticsearch.common.yaml</shadedPattern>
                         </relocation>
                         <relocation>
                             <pattern>com.twitter.jsr166e</pattern>
@@ -121,6 +120,10 @@
                         <relocation>
                             <pattern>org.joda.time</pattern>
                             <shadedPattern>org.elasticsearch.common.joda.time</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>org.joda.convert</pattern>
+                            <shadedPattern>org.elasticsearch.common.joda.convert</shadedPattern>
                         </relocation>
                         <relocation>
                             <pattern>org.jboss.netty</pattern>

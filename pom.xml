@@ -70,6 +70,7 @@
         <tests.heapdump.path>${basedir}/logs/</tests.heapdump.path>
         <tests.topn>5</tests.topn>
         <execution.hint.file>.local-${elasticsearch.version}-execution-hints.log</execution.hint.file>
+        <execution.hint.integ.file>.local-${elasticsearch.version}-integ-execution-hints.log</execution.hint.integ.file>
         <tests.assertion.disabled>false</tests.assertion.disabled>
         <tests.verbose>false</tests.verbose>
         <tests.seed></tests.seed>
@@ -597,11 +598,6 @@
                             <disable package="${tests.assertion.disabled}"/>
                             <!-- pass org.elasticsearch to run without assertions -->
                         </assertions>
-                        <balancers>
-                            <execution-times>
-                                <fileset dir="${basedir}" includes="${execution.hint.file}"/>
-                            </execution-times>
-                        </balancers>
                         <jvmArgs>
                             <param>-Xmx${tests.heap.size}</param>
                             <param>-Xms${tests.heap.size}</param>
@@ -690,7 +686,6 @@
                                     <containsregex pattern="^(\s+at )(org\.apache\.lucene.util\.AbstractBeforeAfterRule)" />
                                 </filtertrace>
                             </report-text>
-                            <report-execution-times historyLength="20" file="${basedir}/${execution.hint.file}"/>
                         </listeners>
                     </configuration>
                     <executions>
@@ -706,7 +701,14 @@
                                 <listeners>
                                     <report-ant-xml mavenExtensions="true"
                                                     dir="${project.build.directory}/surefire-reports"/>
+                                    <report-execution-times historyLength="20"
+                                                            file="${basedir}/${execution.hint.file}"/>
                                 </listeners>
+                                <balancers>
+                                    <execution-times>
+                                        <fileset dir="${basedir}" includes="${execution.hint.file}"/>
+                                    </execution-times>
+                                </balancers>
                                 <includes>
                                     <include>**/*Tests.class</include>
                                     <include>**/*Test.class</include>
@@ -732,7 +734,14 @@
                                         mavenExtensions="true"
                                         summaryFile="${project.build.directory}/failsafe-reports/failsafe-summary.xml"
                                         dir="${project.build.directory}/failsafe-reports"/>
+                                    <report-execution-times historyLength="20"
+                                                            file="${basedir}/${execution.hint.integ.file}"/>
                                 </listeners>
+                                <balancers>
+                                    <execution-times>
+                                        <fileset dir="${basedir}" includes="${execution.hint.integ.file}"/>
+                                    </execution-times>
+                                </balancers>
                                 <includes>
                                     <include>**/*IT.class</include>
                                 </includes>
@@ -1170,6 +1179,22 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                                     <taskdef resource="com/carrotsearch/junit4/antlib.xml" classpathref="maven.plugin.classpath"/>
                                     <tophints max="${tests.topn}">
                                         <fileset dir="${basedir}" includes="${execution.hint.file}"/>
+                                    </tophints>
+                                </target>
+                            </configuration>
+                            <goals>
+                                <goal>run</goal>
+                            </goals>
+                        </execution>
+                        <execution>
+                            <id>integ-tests-top-hints</id>
+                            <phase>integration-test</phase>
+                            <configuration>
+                                <skip>${skip.integ.tests}</skip>
+                                <target>
+                                    <taskdef resource="com/carrotsearch/junit4/antlib.xml" classpathref="maven.plugin.classpath"/>
+                                    <tophints max="${tests.topn}">
+                                        <fileset dir="${basedir}" includes="${execution.hint.integ.file}"/>
                                     </tophints>
                                 </target>
                             </configuration>

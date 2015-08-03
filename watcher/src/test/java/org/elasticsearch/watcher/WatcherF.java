@@ -18,7 +18,7 @@ import org.elasticsearch.license.plugin.LicensePlugin;
  */
 public class WatcherF {
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Throwable {
         System.setProperty("es.http.cors.enabled", "true");
         System.setProperty("es.script.inline", "on");
         System.setProperty("es.shield.enabled", "false");

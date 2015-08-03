@@ -19,6 +19,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import com.google.common.collect.Lists;
+
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -140,7 +141,10 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
         private Runnable runnable;
         private final long insertionOrder;
+
+        // these two variables are protected by 'this'
         private ScheduledFuture<?> timeoutFuture;
+        private boolean started = false;
 
         TieBreakingPrioritizedRunnable(PrioritizedRunnable runnable, long insertionOrder) {
             this(runnable, runnable.priority(), insertionOrder);
@@ -154,7 +158,12 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
         @Override
         public void run() {
-            FutureUtils.cancel(timeoutFuture);
+            synchronized (this) {
+                // make the task as stared. This is needed for synchronization with the timeout handling
+                // see  #scheduleTimeout()
+                started = true;
+                FutureUtils.cancel(timeoutFuture);
+            }
             runAndClean(runnable);
         }
 
@@ -168,14 +177,21 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
         }
 
         public void scheduleTimeout(ScheduledExecutorService timer, final Runnable timeoutCallback, TimeValue timeValue) {
-            timeoutFuture = timer.schedule(new Runnable() {
-                @Override
-                public void run() {
-                    if (remove(TieBreakingPrioritizedRunnable.this)) {
-                        runAndClean(timeoutCallback);
-                    }
+            synchronized (this) {
+                if (timeoutFuture != null) {
+                    throw new IllegalStateException("scheduleTimeout may only be called once");
                 }
-            }, timeValue.nanos(), TimeUnit.NANOSECONDS);
+                if (started == false) {
+                    timeoutFuture = timer.schedule(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (remove(TieBreakingPrioritizedRunnable.this)) {
+                                runAndClean(timeoutCallback);
+                            }
+                        }
+                    }, timeValue.nanos(), TimeUnit.NANOSECONDS);
+                }
+            }
         }
 
         /**

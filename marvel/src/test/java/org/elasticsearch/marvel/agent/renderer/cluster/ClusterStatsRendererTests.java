@@ -6,11 +6,11 @@
 package org.elasticsearch.marvel.agent.renderer.cluster;
 
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStatsMarvelDoc;
 import org.elasticsearch.marvel.agent.renderer.Renderer;
 import org.elasticsearch.marvel.agent.renderer.RendererTestUtils;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.StreamsUtils;
 import org.junit.Test;
 
 public class ClusterStatsRendererTests extends ESSingleNodeTestCase {
@@ -32,7 +32,7 @@ public class ClusterStatsRendererTests extends ESSingleNodeTestCase {
         String result = RendererTestUtils.renderAsJSON(marvelDoc, renderer);
 
         logger.debug("--> loading sample document from file {}", SAMPLE_FILE);
-        String expected = Streams.copyToStringFromClasspath(SAMPLE_FILE);
+        String expected = StreamsUtils.copyToStringFromClasspath(SAMPLE_FILE);
 
         logger.debug("--> comparing both documents, they must have the same structure");
         RendererTestUtils.assertJSONStructure(result, expected);

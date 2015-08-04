@@ -10,12 +10,12 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateMarvelDoc;
 import org.elasticsearch.marvel.agent.renderer.Renderer;
 import org.elasticsearch.marvel.agent.renderer.RendererTestUtils;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.StreamsUtils;
 import org.junit.Test;
 
 public class ClusterStateRendererTests extends ESSingleNodeTestCase {
@@ -44,7 +44,7 @@ public class ClusterStateRendererTests extends ESSingleNodeTestCase {
         String result = RendererTestUtils.renderAsJSON(marvelDoc, renderer);
 
         logger.debug("--> loading sample document from file {}", SAMPLE_FILE);
-        String expected = Streams.copyToStringFromClasspath(SAMPLE_FILE);
+        String expected = StreamsUtils.copyToStringFromClasspath(SAMPLE_FILE);
 
         String nodeId = clusterState.getNodes().getLocalNodeId();
         logger.debug("--> replace the local node id in sample document with {}", nodeId);

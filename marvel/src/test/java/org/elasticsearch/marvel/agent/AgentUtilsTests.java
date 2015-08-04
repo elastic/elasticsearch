@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.marvel.agent;
 
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.marvel.agent.support.AgentUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.StreamsUtils;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.Test;
@@ -28,7 +28,7 @@ public class AgentUtilsTests extends ESTestCase {
 
     @Test
     public void testVersionIsExtractableFromIndexTemplate() throws IOException {
-        byte[] template = Streams.copyToBytesFromClasspath("/marvel_index_template.json");
+        byte[] template = StreamsUtils.copyToBytesFromClasspath("/marvel_index_template.json");
         MatcherAssert.assertThat(AgentUtils.parseIndexVersionFromTemplate(template), Matchers.greaterThan(0));
     }
 

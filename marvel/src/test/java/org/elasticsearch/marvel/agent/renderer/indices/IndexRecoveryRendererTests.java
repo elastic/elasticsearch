@@ -9,7 +9,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -17,6 +16,7 @@ import org.elasticsearch.marvel.agent.collector.indices.IndexRecoveryMarvelDoc;
 import org.elasticsearch.marvel.agent.renderer.Renderer;
 import org.elasticsearch.marvel.agent.renderer.RendererTestUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.StreamsUtils;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -60,7 +60,7 @@ public class IndexRecoveryRendererTests extends ESTestCase {
         String result = RendererTestUtils.renderAsJSON(marvelDoc, renderer);
 
         logger.debug("--> loading sample document from file {}", SAMPLE_FILE);
-        String expected = Streams.copyToStringFromClasspath(SAMPLE_FILE);
+        String expected = StreamsUtils.copyToStringFromClasspath(SAMPLE_FILE);
 
         logger.debug("--> comparing both documents, they must be identical");
         RendererTestUtils.assertJSONStructureAndValues(result, expected);

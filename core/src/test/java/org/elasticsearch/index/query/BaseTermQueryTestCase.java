@@ -19,14 +19,13 @@
 
 package org.elasticsearch.index.query;
 
-import org.junit.Ignore;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.is;
 
-@Ignore
 public abstract class BaseTermQueryTestCase<QB extends BaseTermQueryBuilder<QB>> extends BaseQueryTestCase<QB> {
-    
+
+    @Override
     protected final QB doCreateTestQueryBuilder() {
         String fieldName = null;
         Object value;

@@ -22,11 +22,11 @@ package org.elasticsearch.index.fielddata;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 
-public class ScriptDocValuesTests extends ElasticsearchTestCase {
+public class ScriptDocValuesTests extends ESTestCase {
 
     private static MultiGeoPointValues wrap(final GeoPoint... points) {
         return new MultiGeoPointValues() {

@@ -371,6 +371,52 @@
                         </execution>
                     </executions>
                 </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-dependency-plugin</artifactId>
+                    <executions>
+                        <execution>
+                            <id>integ-setup-dependencies</id>
+                            <phase>pre-integration-test</phase>
+                            <goals>
+                                <goal>copy</goal>
+                            </goals>
+                            <configuration>
+                                <skip>${skip.integ.tests}</skip>
+                                <artifactItems>
+                                    <artifactItem>
+                                        <groupId>org.elasticsearch.distribution</groupId>
+                                        <artifactId>elasticsearch-zip</artifactId>
+                                        <version>${elasticsearch.version}</version>
+                                        <type>zip</type>
+                                        <overWrite>true</overWrite>
+                                        <!-- these packaging builds sneakily rename their artifacts to look nothing
+                                             like their artifact id, so we must duplicate that rename here -->
+                                        <destFileName>elasticsearch-${elasticsearch.version}.zip</destFileName>
+                                    </artifactItem>
+                                </artifactItems>
+                                <outputDirectory>${integ.deps}</outputDirectory>
+                            </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
+                    <groupId>com.carrotsearch.randomizedtesting</groupId>
+                    <artifactId>junit4-maven-plugin</artifactId>
+                    <executions>
+                        <execution>
+                            <id>integ-tests</id>
+                            <configuration>
+                                <!-- currently only 1 cpu works, because integ tests don't make "unique" test directories? -->
+                                <parallelism>1</parallelism>
+                                <systemProperties>
+                                    <!-- use external cluster -->
+                                    <tests.cluster>127.0.0.1:9300</tests.cluster>
+                                </systemProperties>
+                            </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
             </plugins>
         </pluginManagement>
     </build>
@@ -384,7 +430,7 @@
         <module>cloud-gce</module>
         <module>cloud-azure</module>
         <module>cloud-aws</module>
-        <module>example-site</module>
+        <module>site-example</module>
         <module>lang-python</module>
         <module>lang-javascript</module>
         <module>delete-by-query</module>

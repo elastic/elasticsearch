@@ -34,14 +34,14 @@ import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllo
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ElasticsearchAllocationTestCase;
+import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.*;
 
-public class RoutingIteratorTests extends ElasticsearchAllocationTestCase {
+public class RoutingIteratorTests extends ESAllocationTestCase {
 
     @Test
     public void testEmptyIterator() {

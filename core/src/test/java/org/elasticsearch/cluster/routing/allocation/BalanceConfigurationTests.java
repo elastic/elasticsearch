@@ -35,9 +35,9 @@ import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllo
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ESAllocationTestCase;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 import org.elasticsearch.node.settings.NodeSettingsService;
-import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -45,7 +45,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
-public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
+public class BalanceConfigurationTests extends ESAllocationTestCase {
 
     private final ESLogger logger = Loggers.getLogger(BalanceConfigurationTests.class);
     // TODO maybe we can randomize these numbers somehow

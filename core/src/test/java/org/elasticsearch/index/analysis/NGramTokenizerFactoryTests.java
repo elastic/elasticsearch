@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
+import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -44,7 +44,7 @@ import java.util.Random;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.scaledRandomIntBetween;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class NGramTokenizerFactoryTests extends ElasticsearchTokenStreamTestCase {
+public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
 
 
     @Test

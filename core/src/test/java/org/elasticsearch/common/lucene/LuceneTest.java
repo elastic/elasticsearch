@@ -26,7 +26,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -37,7 +37,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * 
  */
-public class LuceneTest extends ElasticsearchTestCase {
+public class LuceneTest extends ESTestCase {
 
 
     /*

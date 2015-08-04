@@ -38,10 +38,10 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ESAllocationTestCase;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
+public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
     private static ShardsAllocators makeShardsAllocators() {
         return new ShardsAllocators(NoopGatewayAllocator.INSTANCE);

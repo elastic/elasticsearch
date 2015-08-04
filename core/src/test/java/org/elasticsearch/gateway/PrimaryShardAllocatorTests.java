@@ -33,7 +33,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ElasticsearchAllocationTestCase;
+import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class PrimaryShardAllocatorTests extends ElasticsearchAllocationTestCase {
+public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
 
     private final ShardId shardId = new ShardId("test", 0);
     private final DiscoveryNode node1 = newNode("node1");

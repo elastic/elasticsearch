@@ -29,7 +29,7 @@ import org.apache.lucene.util.Version;
 import org.elasticsearch.common.inject.ProvisionException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
-import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
+import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -38,7 +38,7 @@ import java.io.StringReader;
 import static org.hamcrest.Matchers.instanceOf;
 
 
-public class StopTokenFilterTests extends ElasticsearchTokenStreamTestCase {
+public class StopTokenFilterTests extends ESTokenStreamTestCase {
 
     @Test(expected = ProvisionException.class)
     public void testPositionIncrementSetting() throws IOException {

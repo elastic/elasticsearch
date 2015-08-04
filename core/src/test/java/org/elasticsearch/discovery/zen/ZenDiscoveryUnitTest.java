@@ -22,7 +22,7 @@ package org.elasticsearch.discovery.zen;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 import java.util.LinkedList;
@@ -35,7 +35,7 @@ import static org.hamcrest.core.IsNull.nullValue;
 
 /**
  */
-public class ZenDiscoveryUnitTest extends ElasticsearchTestCase {
+public class ZenDiscoveryUnitTest extends ESTestCase {
 
     public void testShouldIgnoreNewClusterState() {
         ClusterName clusterName = new ClusterName("abc");

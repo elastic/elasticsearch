@@ -29,7 +29,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MergeResult;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.isIn;
 
-public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
+public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
 
     @Test
     public void testDefaultConfiguration() throws IOException {

@@ -20,7 +20,7 @@
 package org.elasticsearch.common.unit;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.is;
@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.is;
 /**
  * Tests for the {@link RatioValue} class
  */
-public class RatioValueTests extends ElasticsearchTestCase {
+public class RatioValueTests extends ESTestCase {
 
     @Test
     public void testParsing() {

@@ -38,7 +38,7 @@ import org.elasticsearch.index.analysis.pl.PolishAnalysisBinderProcessor;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -46,7 +46,7 @@ import java.io.StringReader;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class SimplePolishTokenFilterTests extends ElasticsearchTestCase {
+public class SimplePolishTokenFilterTests extends ESTestCase {
 
     @Test
     public void testBasicUsage() throws Exception {

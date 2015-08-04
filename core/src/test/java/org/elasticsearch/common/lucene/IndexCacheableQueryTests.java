@@ -36,12 +36,12 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Set;
 
-public class IndexCacheableQueryTests extends ElasticsearchTestCase {
+public class IndexCacheableQueryTests extends ESTestCase {
 
     static class DummyIndexCacheableQuery extends IndexCacheableQuery {
         @Override

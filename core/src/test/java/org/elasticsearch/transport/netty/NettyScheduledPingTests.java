@@ -26,7 +26,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.greaterThan;
 
 /**
  */
-public class NettyScheduledPingTests extends ElasticsearchTestCase {
+public class NettyScheduledPingTests extends ESTestCase {
 
     @Test
     public void testScheduledPing() throws Exception {

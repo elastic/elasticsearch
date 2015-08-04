@@ -27,7 +27,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class SimpleDynamicTemplatesTests extends ElasticsearchSingleNodeTest {
+public class SimpleDynamicTemplatesTests extends ESSingleNodeTestCase {
 
     @Test
     public void testMatchTypeOnly() throws Exception {

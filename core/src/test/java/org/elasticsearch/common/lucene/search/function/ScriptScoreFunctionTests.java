@@ -25,14 +25,14 @@ import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ScriptScoreFunctionTests extends ElasticsearchTestCase {
+public class ScriptScoreFunctionTests extends ESTestCase {
 
     /**
      * Tests https://github.com/elasticsearch/elasticsearch/issues/2426

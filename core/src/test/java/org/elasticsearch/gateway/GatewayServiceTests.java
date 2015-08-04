@@ -21,7 +21,7 @@ package org.elasticsearch.gateway;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cluster.NoopClusterService;
 import org.hamcrest.Matchers;
 import org.junit.Test;
@@ -29,7 +29,7 @@ import org.junit.Test;
 import java.io.IOException;
 
 
-public class GatewayServiceTests extends ElasticsearchTestCase {
+public class GatewayServiceTests extends ESTestCase {
 
 
     private GatewayService createService(Settings.Builder settings) {

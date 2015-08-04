@@ -20,9 +20,9 @@
 package org.elasticsearch.action.admin.indices.mapping.put;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
-public class PutMappingRequestTests extends ElasticsearchTestCase {
+public class PutMappingRequestTests extends ESTestCase {
 
     public void testValidation() {
         PutMappingRequest r = new PutMappingRequest("myindex");

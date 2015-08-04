@@ -30,7 +30,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.*;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Test;
 
@@ -42,7 +42,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
-public class RecoveriesCollectionTests extends ElasticsearchSingleNodeTest {
+public class RecoveriesCollectionTests extends ESSingleNodeTestCase {
 
     final static RecoveryTarget.RecoveryListener listener = new RecoveryTarget.RecoveryListener() {
         @Override

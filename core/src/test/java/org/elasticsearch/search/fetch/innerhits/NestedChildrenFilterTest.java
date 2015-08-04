@@ -39,7 +39,7 @@ import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext.NestedInnerHits.NestedChildrenQuery;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class NestedChildrenFilterTest extends ElasticsearchTestCase {
+public class NestedChildrenFilterTest extends ESTestCase {
 
     @Test
     public void testNestedChildrenFilter() throws Exception {

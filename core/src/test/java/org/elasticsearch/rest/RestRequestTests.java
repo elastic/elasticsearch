@@ -21,7 +21,7 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.util.Map;
@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class RestRequestTests extends ElasticsearchTestCase {
+public class RestRequestTests extends ESTestCase {
 
     @Test
     public void testContext() throws Exception {

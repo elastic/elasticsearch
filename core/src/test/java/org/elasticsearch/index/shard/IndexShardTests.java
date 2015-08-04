@@ -20,7 +20,6 @@ package org.elasticsearch.index.shard;
 
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.LockObtainFailedException;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.search.SearchResponse;
@@ -29,7 +28,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
@@ -43,14 +41,13 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.DummyShardLock;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -65,7 +62,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Simple unit-test IndexShard related operations.
  */
-public class IndexShardTests extends ElasticsearchSingleNodeTest {
+public class IndexShardTests extends ESSingleNodeTestCase {
 
     public void testFlushOnDeleteSetting() throws Exception {
         boolean initValue = randomBoolean();

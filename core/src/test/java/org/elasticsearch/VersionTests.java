@@ -22,7 +22,7 @@ package org.elasticsearch;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 import org.junit.Test;
@@ -39,7 +39,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class VersionTests extends ElasticsearchTestCase {
+public class VersionTests extends ESTestCase {
     
     public void testMavenVersion() {
         // maven sets this property to ensure that the latest version

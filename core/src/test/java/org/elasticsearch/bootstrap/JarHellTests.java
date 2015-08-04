@@ -20,7 +20,7 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.net.URL;
@@ -33,7 +33,7 @@ import java.util.jar.Manifest;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-public class JarHellTests extends ElasticsearchTestCase {
+public class JarHellTests extends ESTestCase {
 
     URL makeJar(Path dir, String name, Manifest manifest, String... files) throws IOException {
         Path jarpath = dir.resolve(name);

@@ -19,7 +19,7 @@
 package org.elasticsearch.common;
 
 import com.google.common.base.Charsets;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.is;
 /**
  *
  */
-public class Base64Test extends ElasticsearchTestCase {
+public class Base64Test extends ESTestCase {
 
     @Test // issue #6334
     public void testBase64DecodeWithExtraCharactersAfterPadding() throws Exception {

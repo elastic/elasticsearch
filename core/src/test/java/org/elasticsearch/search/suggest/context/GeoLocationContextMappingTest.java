@@ -24,7 +24,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.suggest.context.ContextMapping.ContextConfig;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -36,7 +36,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 /**
  *
  */
-public class GeoLocationContextMappingTest extends ElasticsearchTestCase {
+public class GeoLocationContextMappingTest extends ESTestCase {
 
     @Test
     public void testThatParsingGeoPointsWorksWithCoercion() throws Exception {

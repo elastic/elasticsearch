@@ -63,7 +63,7 @@ import org.elasticsearch.index.search.geo.GeoPolygonQuery;
 import org.elasticsearch.index.search.geo.InMemoryGeoBoundingBoxQuery;
 import org.elasticsearch.index.search.morelikethis.MoreLikeThisFetchService;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Test;
@@ -80,7 +80,7 @@ import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
 import static org.hamcrest.Matchers.*;
 
-public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
+public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
 
     private IndexQueryParserService queryParser;
 

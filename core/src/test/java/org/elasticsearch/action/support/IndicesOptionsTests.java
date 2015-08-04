@@ -22,13 +22,13 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class IndicesOptionsTests extends ElasticsearchTestCase {
+public class IndicesOptionsTests extends ESTestCase {
 
     @Test
     public void testSerialization() throws Exception {

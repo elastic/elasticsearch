@@ -20,16 +20,16 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class SettingsFilterTests extends ElasticsearchTestCase {
+public class SettingsFilterTests extends ESTestCase {
 
     @Test
     public void testAddingAndRemovingFilters() {

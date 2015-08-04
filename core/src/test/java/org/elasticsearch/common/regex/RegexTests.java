@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.common.regex;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.util.Random;
@@ -26,7 +26,7 @@ import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class RegexTests extends ElasticsearchTestCase {
+public class RegexTests extends ESTestCase {
 
     @Test
     public void testFlags() {

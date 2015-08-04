@@ -44,7 +44,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -55,18 +55,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.frequently;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLength;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomInt;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
  */
-public class FreqTermsEnumTests extends ElasticsearchTestCase {
+public class FreqTermsEnumTests extends ESTestCase {
 
     private String[] terms;
     private IndexWriter iw;

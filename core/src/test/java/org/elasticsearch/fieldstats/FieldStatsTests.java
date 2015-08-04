@@ -23,7 +23,7 @@ import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.action.fieldstats.FieldStatsResponse;
 import org.elasticsearch.action.fieldstats.IndexConstraint;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class FieldStatsTests extends ElasticsearchSingleNodeTest {
+public class FieldStatsTests extends ESSingleNodeTestCase {
 
     public void testByte() {
         testNumberRange("field1", "byte", 12, 18);

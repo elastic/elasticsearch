@@ -21,14 +21,14 @@ package org.elasticsearch.discovery.gce;
 
 import com.google.common.collect.Lists;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.cloud.gce.GceComputeService;
 import org.elasticsearch.cloud.gce.GceComputeService.Fields;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.gce.mock.*;
 import org.elasticsearch.plugin.cloud.gce.CloudGcePlugin;
-import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -36,12 +36,13 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.notNullValue;
 
-@ElasticsearchIntegrationTest.ClusterScope(
-        scope = ElasticsearchIntegrationTest.Scope.TEST,
+@ESIntegTestCase.ClusterScope(
+        scope = ESIntegTestCase.Scope.TEST,
         numDataNodes = 0,
         numClientNodes = 0,
         transportClientRatio = 0.0)
-public class GceComputeEngineTest extends ElasticsearchIntegrationTest {
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/12622")
+public class GceComputeEngineTest extends ESIntegTestCase {
 
     public static int getPort(int nodeOrdinal) {
         try {
@@ -91,7 +92,7 @@ public class GceComputeEngineTest extends ElasticsearchIntegrationTest {
         assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().masterNodeId(), notNullValue());
     }
 
-    @Test @Ignore
+    @Test
     public void nodes_with_different_tags_and_no_tag_set() {
         startNode(1,
                 GceComputeServiceTwoNodesDifferentTagsMock.class,
@@ -107,10 +108,10 @@ public class GceComputeEngineTest extends ElasticsearchIntegrationTest {
     /**
      * We need to ignore this test from elasticsearch version 1.2.1 as
      * expected nodes running is 2 and this test will create 2 clusters with one node each.
-     * @see org.elasticsearch.test.ElasticsearchIntegrationTest#ensureClusterSizeConsistency()
+     * @see ESIntegTestCase#ensureClusterSizeConsistency()
      * TODO Reactivate when it will be possible to set the number of running nodes
      */
-    @Test @Ignore
+    @Test
     public void nodes_with_different_tags_and_one_tag_set() {
         startNode(1,
                 GceComputeServiceTwoNodesDifferentTagsMock.class,
@@ -126,10 +127,10 @@ public class GceComputeEngineTest extends ElasticsearchIntegrationTest {
     /**
      * We need to ignore this test from elasticsearch version 1.2.1 as
      * expected nodes running is 2 and this test will create 2 clusters with one node each.
-     * @see org.elasticsearch.test.ElasticsearchIntegrationTest#ensureClusterSizeConsistency()
+     * @see ESIntegTestCase#ensureClusterSizeConsistency()
      * TODO Reactivate when it will be possible to set the number of running nodes
      */
-    @Test @Ignore
+    @Test
     public void nodes_with_different_tags_and_two_tag_set() {
         startNode(1,
                 GceComputeServiceTwoNodesDifferentTagsMock.class,
@@ -142,7 +143,7 @@ public class GceComputeEngineTest extends ElasticsearchIntegrationTest {
         checkNumberOfNodes(1);
     }
 
-    @Test @Ignore
+    @Test
     public void nodes_with_same_tags_and_no_tag_set() {
         startNode(1,
                 GceComputeServiceTwoNodesSameTagsMock.class,
@@ -155,7 +156,7 @@ public class GceComputeEngineTest extends ElasticsearchIntegrationTest {
         checkNumberOfNodes(2);
     }
 
-    @Test @Ignore
+    @Test
     public void nodes_with_same_tags_and_one_tag_set() {
         startNode(1,
                 GceComputeServiceTwoNodesSameTagsMock.class,
@@ -168,7 +169,7 @@ public class GceComputeEngineTest extends ElasticsearchIntegrationTest {
         checkNumberOfNodes(2);
     }
 
-    @Test @Ignore
+    @Test
     public void nodes_with_same_tags_and_two_tags_set() {
         startNode(1,
                 GceComputeServiceTwoNodesSameTagsMock.class,
@@ -181,7 +182,7 @@ public class GceComputeEngineTest extends ElasticsearchIntegrationTest {
         checkNumberOfNodes(2);
     }
 
-    @Test @Ignore
+    @Test
     public void multiple_zones_and_two_nodes_in_same_zone() {
         startNode(1,
                 GceComputeServiceTwoNodesOneZoneMock.class,
@@ -196,7 +197,7 @@ public class GceComputeEngineTest extends ElasticsearchIntegrationTest {
         checkNumberOfNodes(2);
     }
 
-    @Test @Ignore
+    @Test
     public void multiple_zones_and_two_nodes_in_different_zones() {
         startNode(1,
                 GceComputeServiceTwoNodesTwoZonesMock.class,
@@ -214,7 +215,7 @@ public class GceComputeEngineTest extends ElasticsearchIntegrationTest {
     /**
      * For issue https://github.com/elastic/elasticsearch-cloud-gce/issues/43
      */
-    @Test @Ignore
+    @Test
     public void zero_node_43() {
         startNode(1,
                 GceComputeServiceZeroNodeMock.class,

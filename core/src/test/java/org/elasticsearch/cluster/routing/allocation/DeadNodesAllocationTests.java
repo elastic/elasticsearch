@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.ElasticsearchAllocationTestCase;
+import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class DeadNodesAllocationTests extends ElasticsearchAllocationTestCase {
+public class DeadNodesAllocationTests extends ESAllocationTestCase {
 
     private final ESLogger logger = Loggers.getLogger(DeadNodesAllocationTests.class);
 

@@ -21,7 +21,7 @@ package org.elasticsearch.common.joda;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTimeZone;
 import org.junit.Test;
 
@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class DateMathParserTests extends ElasticsearchTestCase {
+public class DateMathParserTests extends ESTestCase {
 
     FormatDateTimeFormatter formatter = Joda.forPattern("dateOptionalTime||epoch_millis");
     DateMathParser parser = new DateMathParser(formatter);

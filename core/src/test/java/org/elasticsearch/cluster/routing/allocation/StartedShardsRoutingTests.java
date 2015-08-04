@@ -25,17 +25,15 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.*;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ElasticsearchAllocationTestCase;
+import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Test;
 
 import java.util.Arrays;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.nullValue;
 
-public class StartedShardsRoutingTests extends ElasticsearchAllocationTestCase {
+public class StartedShardsRoutingTests extends ESAllocationTestCase {
 
     @Test
     public void tesStartedShardsMatching() {

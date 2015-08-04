@@ -31,7 +31,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.ElasticsearchAllocationTestCase;
+import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class AwarenessAllocationTests extends ElasticsearchAllocationTestCase {
+public class AwarenessAllocationTests extends ESAllocationTestCase {
 
     private final ESLogger logger = Loggers.getLogger(AwarenessAllocationTests.class);
 

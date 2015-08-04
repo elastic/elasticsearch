@@ -27,7 +27,7 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -35,7 +35,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
-public class ShardCoreKeyMapTests extends ElasticsearchTestCase {
+public class ShardCoreKeyMapTests extends ESTestCase {
 
     public void testMissingShard() throws IOException {
         try (Directory dir = newDirectory();

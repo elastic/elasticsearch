@@ -23,7 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Test;
 
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class PythonScriptMultiThreadedTest extends ElasticsearchTestCase {
+public class PythonScriptMultiThreadedTest extends ESTestCase {
 
     @After
     public void close() {

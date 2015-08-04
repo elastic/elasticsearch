@@ -27,7 +27,7 @@ import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -35,7 +35,7 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.closeTo;
 
 
-public class GeoPointParsingTests  extends ElasticsearchTestCase {
+public class GeoPointParsingTests  extends ESTestCase {
 
     // mind geohash precision and error
     private static final double ERROR = 0.00001d;

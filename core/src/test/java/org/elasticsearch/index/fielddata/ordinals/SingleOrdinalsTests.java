@@ -22,7 +22,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class SingleOrdinalsTests extends ElasticsearchTestCase {
+public class SingleOrdinalsTests extends ESTestCase {
 
     @Test
     public void testSvValues() throws IOException {

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.util.concurrent.CountDownLatch;
@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.lessThan;
 
 /**
  */
-public class EsExecutorsTests extends ElasticsearchTestCase {
+public class EsExecutorsTests extends ESTestCase {
 
     private TimeUnit randomTimeUnit() {
         return TimeUnit.values()[between(0, TimeUnit.values().length - 1)];

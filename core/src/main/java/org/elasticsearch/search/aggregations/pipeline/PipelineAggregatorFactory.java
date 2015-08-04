@@ -37,7 +37,7 @@ public abstract class PipelineAggregatorFactory {
 
     /**
      * Constructs a new pipeline aggregator factory.
-     * 
+     *
      * @param name
      *            The aggregation name
      * @param type
@@ -49,10 +49,14 @@ public abstract class PipelineAggregatorFactory {
         this.bucketsPaths = bucketsPaths;
     }
 
+    public String name() {
+        return name;
+    }
+
     /**
      * Validates the state of this factory (makes sure the factory is properly
      * configured)
-     * 
+     *
      * @param pipelineAggregatorFactories
      * @param factories
      * @param parent
@@ -66,7 +70,7 @@ public abstract class PipelineAggregatorFactory {
 
     /**
      * Creates the pipeline aggregator
-     * 
+     *
      * @param context
      *            The aggregation context
      * @param parent
@@ -77,7 +81,7 @@ public abstract class PipelineAggregatorFactory {
      *            with <tt>0</tt> as a bucket ordinal. Some factories can take
      *            advantage of this in order to return more optimized
      *            implementations.
-     * 
+     *
      * @return The created aggregator
      */
     public final PipelineAggregator create() throws IOException {

@@ -22,7 +22,7 @@ import com.google.common.base.Charsets;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.BufferedReader;
@@ -37,7 +37,7 @@ import static org.hamcrest.CoreMatchers.nullValue;
 /**
  * Simple unit-tests for Environment.java
  */
-public class EnvironmentTests extends ElasticsearchTestCase {
+public class EnvironmentTests extends ESTestCase {
 
     public Environment newEnvironment() throws IOException {
         return newEnvironment(Settings.EMPTY);

@@ -20,7 +20,7 @@
 package org.elasticsearch.common.logging.jdk;
 
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -33,7 +33,7 @@ import java.util.logging.Logger;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class JDKESLoggerTests extends ElasticsearchTestCase {
+public class JDKESLoggerTests extends ESTestCase {
 
     private ESLogger esTestLogger;
     private TestHandler testHandler;

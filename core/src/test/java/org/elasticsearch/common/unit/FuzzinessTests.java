@@ -21,7 +21,7 @@ package org.elasticsearch.common.unit;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -30,7 +30,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.*;
 import static org.hamcrest.number.IsCloseTo.closeTo;
 
-public class FuzzinessTests extends ElasticsearchTestCase {
+public class FuzzinessTests extends ESTestCase {
 
     @Test
     public void testNumerics() {

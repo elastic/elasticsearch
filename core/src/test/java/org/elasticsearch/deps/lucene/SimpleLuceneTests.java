@@ -28,7 +28,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class SimpleLuceneTests extends ElasticsearchTestCase {
+public class SimpleLuceneTests extends ESTestCase {
 
     @Test
     public void testSortValues() throws Exception {

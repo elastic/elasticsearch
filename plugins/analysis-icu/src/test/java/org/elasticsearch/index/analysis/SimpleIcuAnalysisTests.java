@@ -20,7 +20,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -28,7 +28,7 @@ import static org.elasticsearch.index.analysis.AnalysisTestUtils.createAnalysisS
 import static org.hamcrest.Matchers.instanceOf;
 /**
  */
-public class SimpleIcuAnalysisTests extends ElasticsearchTestCase {
+public class SimpleIcuAnalysisTests extends ESTestCase {
 
     @Test
     public void testDefaultsIcuAnalysis() {

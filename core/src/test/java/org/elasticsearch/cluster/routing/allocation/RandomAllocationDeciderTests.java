@@ -36,8 +36,8 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ESAllocationTestCase;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;
-import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -49,7 +49,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
-public class RandomAllocationDeciderTests extends ElasticsearchAllocationTestCase {
+public class RandomAllocationDeciderTests extends ESAllocationTestCase {
 
     /* This test will make random allocation decision on a growing and shrinking
      * cluster leading to a random distribution of the shards. After a certain

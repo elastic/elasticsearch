@@ -24,12 +24,12 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.util.*;
 
-public class ElectMasterServiceTest extends ElasticsearchTestCase {
+public class ElectMasterServiceTest extends ESTestCase {
 
     ElectMasterService electMasterService() {
         return new ElectMasterService(Settings.EMPTY, Version.CURRENT);

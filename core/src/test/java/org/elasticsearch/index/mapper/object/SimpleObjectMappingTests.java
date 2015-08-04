@@ -20,16 +20,15 @@
 package org.elasticsearch.index.mapper.object;
 
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
 /**
  */
-public class SimpleObjectMappingTests extends ElasticsearchSingleNodeTest {
+public class SimpleObjectMappingTests extends ESSingleNodeTestCase {
 
     @Test
     public void testDifferentInnerObjectTokenFailure() throws Exception {

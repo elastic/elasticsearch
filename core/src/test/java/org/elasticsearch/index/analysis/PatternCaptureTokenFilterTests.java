@@ -32,12 +32,12 @@ import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
-import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
+import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
-public class PatternCaptureTokenFilterTests extends ElasticsearchTokenStreamTestCase {
+public class PatternCaptureTokenFilterTests extends ESTokenStreamTestCase {
 
     @Test
     public void testPatternCaptureTokenFilter() throws Exception {

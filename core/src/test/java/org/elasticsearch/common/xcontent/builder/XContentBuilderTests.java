@@ -26,7 +26,7 @@ import org.elasticsearch.common.io.FastCharArrayWriter;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.*;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class XContentBuilderTests extends ElasticsearchTestCase {
+public class XContentBuilderTests extends ESTestCase {
 
     @Test
     public void testPrettyWithLfAtEnd() throws Exception {

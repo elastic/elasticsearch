@@ -19,7 +19,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -28,7 +28,7 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class HunspellTokenFilterFactoryTests extends ElasticsearchTestCase {
+public class HunspellTokenFilterFactoryTests extends ESTestCase {
 
     @Test
     public void testDedup() throws IOException {

@@ -44,7 +44,7 @@ import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class NestedAggregatorTest extends ElasticsearchSingleNodeTest {
+public class NestedAggregatorTest extends ESSingleNodeTestCase {
 
     @Test
     public void testResetRootDocId() throws Exception {

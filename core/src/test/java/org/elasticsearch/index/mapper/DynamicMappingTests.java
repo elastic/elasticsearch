@@ -32,7 +32,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 
@@ -40,7 +40,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class DynamicMappingTests extends ElasticsearchSingleNodeTest {
+public class DynamicMappingTests extends ESSingleNodeTestCase {
 
     public void testDynamicTrue() throws IOException {
         String mapping = jsonBuilder().startObject().startObject("type")

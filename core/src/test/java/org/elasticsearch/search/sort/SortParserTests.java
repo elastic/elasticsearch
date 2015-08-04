@@ -27,13 +27,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.TestSearchContext;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
-public class SortParserTests extends ElasticsearchSingleNodeTest {
+public class SortParserTests extends ESSingleNodeTestCase {
 
     @Test
     public void testGeoDistanceSortParserManyPointsNoException() throws Exception {

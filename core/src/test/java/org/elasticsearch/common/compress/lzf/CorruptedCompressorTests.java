@@ -24,7 +24,7 @@ import com.ning.compress.lzf.ChunkEncoder;
 import com.ning.compress.lzf.LZFChunk;
 import com.ning.compress.lzf.util.ChunkDecoderFactory;
 import com.ning.compress.lzf.util.ChunkEncoderFactory;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -35,7 +35,7 @@ import java.util.Arrays;
 /**
  * Test an extremely rare corruption produced by the pure java impl of ChunkEncoder.
  */
-public class CorruptedCompressorTests extends ElasticsearchTestCase {
+public class CorruptedCompressorTests extends ESTestCase {
 
     public void testCorruption() throws IOException {
         // this test generates a hash collision: [0,1,153,64] hashes the same as [1,153,64,64]

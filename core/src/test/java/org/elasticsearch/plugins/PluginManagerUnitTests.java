@@ -23,7 +23,7 @@ import com.google.common.io.Files;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.is;
 /**
  *
  */
-public class PluginManagerUnitTests extends ElasticsearchTestCase {
+public class PluginManagerUnitTests extends ESTestCase {
 
     @Test
     public void testThatConfigDirectoryCanBeOutsideOfElasticsearchHomeDirectory() throws IOException {

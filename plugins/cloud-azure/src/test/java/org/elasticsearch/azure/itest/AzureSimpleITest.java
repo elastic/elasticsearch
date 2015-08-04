@@ -22,7 +22,7 @@ package org.elasticsearch.azure.itest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cloud.azure.AbstractAzureTest;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -31,8 +31,8 @@ import org.junit.Test;
  * and -Des.config=/path/to/elasticsearch.yml
  * @see org.elasticsearch.cloud.azure.AbstractAzureTest
  */
-@ElasticsearchIntegrationTest.ClusterScope(
-        scope = ElasticsearchIntegrationTest.Scope.TEST,
+@ESIntegTestCase.ClusterScope(
+        scope = ESIntegTestCase.Scope.TEST,
         numDataNodes = 1,
         numClientNodes = 0,
         transportClientRatio = 0.0)

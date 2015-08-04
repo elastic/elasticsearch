@@ -25,13 +25,13 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper.Dynamic;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class NestedMappingTests extends ElasticsearchSingleNodeTest {
+public class NestedMappingTests extends ESSingleNodeTestCase {
 
     @Test
     public void emptyNested() throws Exception {

@@ -22,12 +22,12 @@ package org.elasticsearch.common.util;
 import com.carrotsearch.hppc.LongLongHashMap;
 import com.carrotsearch.hppc.LongLongMap;
 import com.carrotsearch.hppc.cursors.LongLongCursor;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
 import java.util.*;
 
-public class LongHashTests extends ElasticsearchSingleNodeTest {
+public class LongHashTests extends ESSingleNodeTestCase {
 
     LongHash hash;
 

@@ -38,7 +38,7 @@ import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.membership.MembershipAction;
 import org.elasticsearch.node.settings.NodeSettingsService;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cluster.TestClusterService;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Before;
@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 @TestLogging("discovery.zen:TRACE")
-public class NodeJoinControllerTests extends ElasticsearchTestCase {
+public class NodeJoinControllerTests extends ESTestCase {
 
     private TestClusterService clusterService;
     private NodeJoinController nodeJoinController;

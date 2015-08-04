@@ -1,0 +1,15 @@
+# Integration tests for Example site plugin
+#
+"Example site loaded":
+    - do:
+        cluster.state: {}
+
+    # Get master node id
+    - set: { master_node: master }
+
+    - do:
+        nodes.info: {}
+
+    - match:  { nodes.$master.plugins.0.name: site-example  }
+    - match:  { nodes.$master.plugins.0.jvm: false  }
+    - match:  { nodes.$master.plugins.0.site: true  }

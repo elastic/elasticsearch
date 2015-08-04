@@ -28,12 +28,12 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.search.highlight.HighlightUtils;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class CustomPostingsHighlighterTests extends ElasticsearchTestCase {
+public class CustomPostingsHighlighterTests extends ESTestCase {
 
     @Test
     public void testCustomPostingsHighlighter() throws Exception {

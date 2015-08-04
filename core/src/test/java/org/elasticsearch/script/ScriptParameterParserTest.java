@@ -29,7 +29,7 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.script.Script.ScriptParseException;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -38,7 +38,7 @@ import java.util.*;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ScriptParameterParserTest extends ElasticsearchTestCase {
+public class ScriptParameterParserTest extends ESTestCase {
 
     @Test
     public void testTokenDefaultInline() throws IOException {

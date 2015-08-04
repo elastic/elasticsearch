@@ -47,6 +47,7 @@
         <jackson.version>2.5.3</jackson.version>
         <slf4j.version>1.6.2</slf4j.version>
         <log4j.version>1.2.17</log4j.version>
+        <jacoco.version>0.7.2.201409121644</jacoco.version>
 
         <!-- Build resources properties -->
         <elasticsearch.tools.directory>${project.build.directory}/dev-tools</elasticsearch.tools.directory>
@@ -64,12 +65,12 @@
         <tests.bwc.path>${project.basedir}/backwards</tests.bwc.path>
         <tests.locale>random</tests.locale>
         <tests.timezone>random</tests.timezone>
-        <tests.slow>false</tests.slow>
         <es.logger.level>ERROR</es.logger.level>
         <tests.heap.size>512m</tests.heap.size>
         <tests.heapdump.path>${basedir}/logs/</tests.heapdump.path>
         <tests.topn>5</tests.topn>
         <execution.hint.file>.local-${elasticsearch.version}-execution-hints.log</execution.hint.file>
+        <execution.hint.integ.file>.local-${elasticsearch.version}-integ-execution-hints.log</execution.hint.integ.file>
         <tests.assertion.disabled>false</tests.assertion.disabled>
         <tests.verbose>false</tests.verbose>
         <tests.seed></tests.seed>
@@ -88,7 +89,6 @@
         <tests.awaitsfix></tests.awaitsfix>
         <tests.timeoutSuite></tests.timeoutSuite>
         <tests.showSuccess></tests.showSuccess>
-        <tests.integration></tests.integration>
         <tests.thirdparty></tests.thirdparty>
         <tests.config></tests.config>
         <tests.enable_mock_modules></tests.enable_mock_modules>
@@ -452,14 +452,6 @@
                 <optional>true</optional>
             </dependency>
 
-            <!-- For coverage analysis -->
-            <dependency>
-                <groupId>org.jacoco</groupId>
-                <artifactId>org.jacoco.agent</artifactId>
-                <classifier>runtime</classifier>
-                <version>0.6.4.201312101107</version>
-            </dependency>
-
         </dependencies>
     </dependencyManagement>
 
@@ -597,11 +589,6 @@
                             <disable package="${tests.assertion.disabled}"/>
                             <!-- pass org.elasticsearch to run without assertions -->
                         </assertions>
-                        <balancers>
-                            <execution-times>
-                                <fileset dir="${basedir}" includes="${execution.hint.file}"/>
-                            </execution-times>
-                        </balancers>
                         <jvmArgs>
                             <param>-Xmx${tests.heap.size}</param>
                             <param>-Xms${tests.heap.size}</param>
@@ -637,10 +624,8 @@
                             <tests.weekly>${tests.weekly}</tests.weekly>
                             <haltOnFailure>${tests.failfast}</haltOnFailure>
                             <tests.awaitsfix>${tests.awaitsfix}</tests.awaitsfix>
-                            <tests.slow>${tests.slow}</tests.slow>
                             <tests.timeoutSuite>${tests.timeoutSuite}</tests.timeoutSuite>
                             <tests.showSuccess>${tests.showSuccess}</tests.showSuccess>
-                            <tests.integration>${tests.integration}</tests.integration>
                             <tests.thirdparty>${tests.thirdparty}</tests.thirdparty>
                             <tests.config>${tests.config}</tests.config>
                             <tests.client.ratio>${tests.client.ratio}</tests.client.ratio>
@@ -690,7 +675,6 @@
                                     <containsregex pattern="^(\s+at )(org\.apache\.lucene.util\.AbstractBeforeAfterRule)" />
                                 </filtertrace>
                             </report-text>
-                            <report-execution-times historyLength="20" file="${basedir}/${execution.hint.file}"/>
                         </listeners>
                     </configuration>
                     <executions>
@@ -706,7 +690,14 @@
                                 <listeners>
                                     <report-ant-xml mavenExtensions="true"
                                                     dir="${project.build.directory}/surefire-reports"/>
+                                    <report-execution-times historyLength="20"
+                                                            file="${basedir}/${execution.hint.file}"/>
                                 </listeners>
+                                <balancers>
+                                    <execution-times>
+                                        <fileset dir="${basedir}" includes="${execution.hint.file}"/>
+                                    </execution-times>
+                                </balancers>
                                 <includes>
                                     <include>**/*Tests.class</include>
                                     <include>**/*Test.class</include>
@@ -732,17 +723,18 @@
                                         mavenExtensions="true"
                                         summaryFile="${project.build.directory}/failsafe-reports/failsafe-summary.xml"
                                         dir="${project.build.directory}/failsafe-reports"/>
+                                    <report-execution-times historyLength="20"
+                                                            file="${basedir}/${execution.hint.integ.file}"/>
                                 </listeners>
-                                <!-- currently only 1 cpu works, because integ tests don't make "unique" test directories? -->
-                                <parallelism>1</parallelism>
+                                <balancers>
+                                    <execution-times>
+                                        <fileset dir="${basedir}" includes="${execution.hint.integ.file}"/>
+                                    </execution-times>
+                                </balancers>
                                 <includes>
                                     <include>**/*IT.class</include>
                                 </includes>
                                 <systemProperties>
-                                    <!-- integ tests are typically slow! -->
-                                    <tests.slow>true</tests.slow>
-                                    <!-- use external cluster -->
-                                    <tests.cluster>127.0.0.1:9300</tests.cluster>
                                     <!-- let framework know we are running integ tests, for correct 'reproduce with' line -->
                                     <tests.verify.phase>true</tests.verify.phase>
                                 </systemProperties>
@@ -907,36 +899,6 @@
                         <doCheck>false</doCheck>
                         <doUpdate>false</doUpdate>
                     </configuration>
-                </plugin>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-dependency-plugin</artifactId>
-                    <version>2.10</version>
-                    <executions>
-                        <execution>
-                            <id>integ-setup-dependencies</id>
-                            <phase>pre-integration-test</phase>
-                            <goals>
-                                <goal>copy</goal>
-                            </goals>
-                            <configuration>
-                                <skip>${skip.integ.tests}</skip>
-                                <artifactItems>
-                                    <artifactItem>
-                                        <groupId>org.elasticsearch.distribution</groupId>
-                                        <artifactId>elasticsearch-zip</artifactId>
-                                        <version>${elasticsearch.version}</version>
-                                        <type>zip</type>
-                                        <overWrite>true</overWrite>
-                                        <!-- these packaging builds sneakily rename their artifacts to look nothing
-                                             like their artifact id, so we must duplicate that rename here -->
-                                        <destFileName>elasticsearch-${elasticsearch.version}.zip</destFileName>
-                                    </artifactItem>
-                                </artifactItems>
-                                <outputDirectory>${integ.deps}</outputDirectory>
-                            </configuration>
-                        </execution>
-                    </executions>
                 </plugin>
                 <plugin>
                     <!-- We just declare which plugin version to use. Each project can have then its own settings -->
@@ -1104,7 +1066,7 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                 <plugin>
                     <groupId>org.jacoco</groupId>
                     <artifactId>jacoco-maven-plugin</artifactId>
-                    <version>0.7.2.201409121644</version>
+                    <version>${jacoco.version}</version>
                     <executions>
                         <execution>
                             <id>default-prepare-agent</id>
@@ -1204,6 +1166,22 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                                     <taskdef resource="com/carrotsearch/junit4/antlib.xml" classpathref="maven.plugin.classpath"/>
                                     <tophints max="${tests.topn}">
                                         <fileset dir="${basedir}" includes="${execution.hint.file}"/>
+                                    </tophints>
+                                </target>
+                            </configuration>
+                            <goals>
+                                <goal>run</goal>
+                            </goals>
+                        </execution>
+                        <execution>
+                            <id>integ-tests-top-hints</id>
+                            <phase>integration-test</phase>
+                            <configuration>
+                                <skip>${skip.integ.tests}</skip>
+                                <target>
+                                    <taskdef resource="com/carrotsearch/junit4/antlib.xml" classpathref="maven.plugin.classpath"/>
+                                    <tophints max="${tests.topn}">
+                                        <fileset dir="${basedir}" includes="${execution.hint.integ.file}"/>
                                     </tophints>
                                 </target>
                             </configuration>
@@ -1415,15 +1393,6 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                     <value>true</value>
                 </property>
             </activation>
-            <dependencies>
-                <dependency>
-                    <!--  must be on the classpath  -->
-                    <groupId>org.jacoco</groupId>
-                    <artifactId>org.jacoco.agent</artifactId>
-                    <classifier>runtime</classifier>
-                    <scope>test</scope>
-                </dependency>
-            </dependencies>
             <properties>
                 <tests.security.manager>false</tests.security.manager> <!-- security policy doesn't have appropriate permissions for instrumentation -->
             </properties>

@@ -22,7 +22,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.Template;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -32,7 +32,7 @@ import java.util.Map;
 /**
  * Test building and serialising a template search request.
  * */
-public class TemplateQueryBuilderTest extends ElasticsearchTestCase {
+public class TemplateQueryBuilderTest extends ESTestCase {
 
     @Test
     public void testJSONGeneration() throws IOException {

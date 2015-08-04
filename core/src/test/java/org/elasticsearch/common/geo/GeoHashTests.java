@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 
@@ -26,7 +26,7 @@ import org.junit.Test;
 /**
  * Tests for {@link GeoHashUtils}
  */
-public class GeoHashTests extends ElasticsearchTestCase {
+public class GeoHashTests extends ESTestCase {
 
 
     @Test

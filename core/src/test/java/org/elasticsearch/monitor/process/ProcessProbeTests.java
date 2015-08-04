@@ -20,13 +20,13 @@
 package org.elasticsearch.monitor.process;
 
 import org.elasticsearch.bootstrap.Bootstrap;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.monitor.jvm.JvmInfo.jvmInfo;
 import static org.hamcrest.Matchers.*;
 
-public class ProcessProbeTests extends ElasticsearchTestCase {
+public class ProcessProbeTests extends ESTestCase {
 
     ProcessProbe probe = ProcessProbe.getInstance();
 

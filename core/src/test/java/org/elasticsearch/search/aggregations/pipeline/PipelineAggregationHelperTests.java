@@ -25,7 +25,7 @@ import org.elasticsearch.search.aggregations.metrics.avg.AvgBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.MaxBuilder;
 import org.elasticsearch.search.aggregations.metrics.min.MinBuilder;
 import org.elasticsearch.search.aggregations.metrics.sum.SumBuilder;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 
@@ -33,7 +33,7 @@ import java.util.ArrayList;
  * Provides helper methods and classes for use in PipelineAggregation tests,
  * such as creating mock histograms or computing simple metrics
  */
-public class PipelineAggregationHelperTests extends ElasticsearchTestCase {
+public class PipelineAggregationHelperTests extends ESTestCase {
 
     /**
      * Generates a mock histogram to use for testing.  Each MockBucket holds a doc count, key and document values

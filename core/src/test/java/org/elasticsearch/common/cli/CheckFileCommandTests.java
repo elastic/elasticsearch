@@ -25,7 +25,7 @@ import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class CheckFileCommandTests extends ElasticsearchTestCase {
+public class CheckFileCommandTests extends ESTestCase {
 
     private CliToolTestCase.CaptureOutputTerminal captureOutputTerminal = new CliToolTestCase.CaptureOutputTerminal();
 

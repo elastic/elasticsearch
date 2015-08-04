@@ -19,20 +19,16 @@
 package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
-import org.junit.Ignore;
+import org.elasticsearch.test.ESTokenStreamTestCase;
 
 import java.io.IOException;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.scaledRandomIntBetween;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
 
-/**
- */
-public class AnalyzerBackwardsCompatTests extends ElasticsearchTokenStreamTestCase {
+public class AnalyzerBackwardsCompatTests extends ESTokenStreamTestCase {
 
-    @Ignore
-    private void testNoStopwordsAfter(org.elasticsearch.Version noStopwordVersion, String type) throws IOException {
+    private void assertNoStopwordsAfter(org.elasticsearch.Version noStopwordVersion, String type) throws IOException {
         final int iters = scaledRandomIntBetween(10, 100);
         org.elasticsearch.Version version = org.elasticsearch.Version.CURRENT;
         for (int i = 0; i < iters; i++) {
@@ -58,14 +54,14 @@ public class AnalyzerBackwardsCompatTests extends ElasticsearchTokenStreamTestCa
     }
 
     public void testPatternAnalyzer() throws IOException {
-        testNoStopwordsAfter(org.elasticsearch.Version.V_1_0_0_RC1, "pattern");
+        assertNoStopwordsAfter(org.elasticsearch.Version.V_1_0_0_RC1, "pattern");
     }
 
     public void testStandardHTMLStripAnalyzer() throws IOException {
-        testNoStopwordsAfter(org.elasticsearch.Version.V_1_0_0_RC1, "standard_html_strip");
+        assertNoStopwordsAfter(org.elasticsearch.Version.V_1_0_0_RC1, "standard_html_strip");
     }
 
     public void testStandardAnalyzer() throws IOException {
-        testNoStopwordsAfter(org.elasticsearch.Version.V_1_0_0_Beta1, "standard");
+        assertNoStopwordsAfter(org.elasticsearch.Version.V_1_0_0_Beta1, "standard");
     }
 }

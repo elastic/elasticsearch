@@ -24,9 +24,8 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResp
 import org.elasticsearch.cloud.aws.AbstractAwsTest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugin.cloud.aws.CloudAwsPlugin;
-import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;

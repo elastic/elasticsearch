@@ -114,4 +114,23 @@ public interface FetchSubPhase {
     boolean hitsExecutionNeeded(SearchContext context);
 
     void hitsExecute(SearchContext context, InternalSearchHit[] hits);
+
+    /**
+     * This interface is in the fetch phase plugin mechanism.
+     * Whenever a new search is executed we create a new {@link SearchContext} that holds individual contexts for each {@link org.elasticsearch.search.fetch.FetchSubPhase}.
+     * Fetch phases that use the plugin mechanism must provide a ContextFactory to the SearchContext that creates the fetch phase context and also associates them with a name.
+     * See {@link SearchContext#getFetchSubPhaseContext(FetchSubPhase.ContextFactory)}
+     */
+    public interface ContextFactory<SubPhaseContext extends FetchSubPhaseContext> {
+
+        /**
+         * The name of the context.
+         */
+        public String getName();
+
+        /**
+         * Creates a new instance of a FetchSubPhaseContext that holds all information a FetchSubPhase needs to execute on hits.
+         */
+        public SubPhaseContext newContextInstance();
+    }
 }

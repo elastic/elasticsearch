@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.test.rest.test;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.support.FileUtils;
 import org.junit.Test;
 
@@ -31,7 +31,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class FileUtilsTests extends ElasticsearchTestCase {
+public class FileUtilsTests extends ESTestCase {
 
     @Test
     public void testLoadSingleYamlSuite() throws Exception {

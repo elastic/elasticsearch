@@ -28,10 +28,10 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
 
-public class Murmur3FieldMapperTests extends ElasticsearchSingleNodeTest {
+public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
 
     IndexService indexService;
     DocumentMapperParser parser;

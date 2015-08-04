@@ -24,12 +24,12 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
-public class IndicesStatsTests extends ElasticsearchSingleNodeTest {
+public class IndicesStatsTests extends ESSingleNodeTestCase {
     
     public void testSegmentStatsEmptyIndex() {
         createIndex("test");

@@ -25,13 +25,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
-public class DisabledFieldDataFormatTests extends ElasticsearchSingleNodeTest {
+public class DisabledFieldDataFormatTests extends ESSingleNodeTestCase {
 
     public void test() throws Exception {
         createIndex("test", Settings.EMPTY, "type", "s", "type=string");

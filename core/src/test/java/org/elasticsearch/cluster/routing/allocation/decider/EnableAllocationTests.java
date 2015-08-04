@@ -35,7 +35,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.settings.NodeSettingsService;
-import org.elasticsearch.test.ElasticsearchAllocationTestCase;
+import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Test;
 
 import java.util.EnumSet;
@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class EnableAllocationTests extends ElasticsearchAllocationTestCase {
+public class EnableAllocationTests extends ESAllocationTestCase {
 
     private final ESLogger logger = Loggers.getLogger(EnableAllocationTests.class);
 

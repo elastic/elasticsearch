@@ -39,7 +39,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -59,7 +59,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
+public class TimestampMappingTests extends ESSingleNodeTestCase {
     Settings BWC_SETTINGS = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
 
     @Test

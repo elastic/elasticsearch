@@ -28,7 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class CompressSourceMappingTests extends ElasticsearchSingleNodeTest {
+public class CompressSourceMappingTests extends ESSingleNodeTestCase {
     Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
 
     @Test

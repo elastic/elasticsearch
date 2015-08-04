@@ -20,7 +20,7 @@ package org.elasticsearch.watcher;
 
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.BufferedWriter;
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
-public class FileWatcherTest extends ElasticsearchTestCase {
+public class FileWatcherTest extends ESTestCase {
 
     private class RecordingChangeListener extends FileChangesListener {
 

@@ -24,11 +24,11 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 
-public class AggregationCollectorTests extends ElasticsearchSingleNodeTest {
+public class AggregationCollectorTests extends ESSingleNodeTestCase {
 
     public void testNeedsScores() throws Exception {
         IndexService index = createIndex("idx");

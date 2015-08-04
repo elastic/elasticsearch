@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.DiffableUtils.KeyedReader;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.*;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -35,7 +35,7 @@ import java.util.Map;
 import static com.google.common.collect.Maps.newHashMap;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class DiffableTests extends ElasticsearchTestCase {
+public class DiffableTests extends ESTestCase {
 
     @Test
     public void testImmutableMapDiff() throws IOException {

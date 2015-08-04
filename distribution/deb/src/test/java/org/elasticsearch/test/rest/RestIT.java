@@ -26,7 +26,7 @@ import org.elasticsearch.test.rest.parser.RestTestParseException;
 import java.io.IOException;
 
 /** Rest integration test. runs against external cluster in 'mvn verify' */
-public class RestIT extends ElasticsearchRestTestCase {
+public class RestIT extends ESRestTestCase {
     public RestIT(RestTestCandidate testCandidate) {
         super(testCandidate);
     }

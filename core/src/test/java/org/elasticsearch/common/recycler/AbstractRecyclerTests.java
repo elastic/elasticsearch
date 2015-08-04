@@ -20,13 +20,13 @@
 package org.elasticsearch.common.recycler;
 
 import org.elasticsearch.common.recycler.Recycler.V;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public abstract class AbstractRecyclerTests extends ElasticsearchTestCase {
+public abstract class AbstractRecyclerTests extends ESTestCase {
 
     // marker states for data
     protected static final byte FRESH = 1;

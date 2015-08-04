@@ -20,7 +20,7 @@ under the License.
 package org.apache.lucene.search.postingshighlight;
 
 import org.elasticsearch.search.highlight.HighlightUtils;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.text.BreakIterator;
@@ -30,7 +30,7 @@ import java.util.Locale;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class CustomSeparatorBreakIteratorTests extends ElasticsearchTestCase {
+public class CustomSeparatorBreakIteratorTests extends ESTestCase {
 
     @Test
     public void testBreakOnCustomSeparator() throws Exception {

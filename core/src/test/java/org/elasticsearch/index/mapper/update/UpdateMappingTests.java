@@ -30,7 +30,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MergeResult;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 
-public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
+public class UpdateMappingTests extends ESSingleNodeTestCase {
 
     @Test
     public void test_all_enabled_after_disabled() throws Exception {

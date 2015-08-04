@@ -33,14 +33,14 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.search.scan.ScanContext.MinDocQuery;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class ScanContextTests extends ElasticsearchTestCase {
+public class ScanContextTests extends ESTestCase {
 
     public void testMinDocQueryBasics() {
         MinDocQuery query1 = new MinDocQuery(42);

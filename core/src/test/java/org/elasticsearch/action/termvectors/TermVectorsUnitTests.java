@@ -42,7 +42,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.core.TypeParsers;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.rest.action.termvectors.RestTermVectorsAction;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -56,7 +56,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class TermVectorsUnitTests extends ElasticsearchTestCase {
+public class TermVectorsUnitTests extends ESTestCase {
 
     @Test
     public void streamResponse() throws Exception {

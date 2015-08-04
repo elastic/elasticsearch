@@ -22,7 +22,7 @@ package org.elasticsearch.discovery.azure;
 import org.elasticsearch.cloud.azure.management.AzureComputeServiceTwoNodesMock;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.nullValue;
  * Reported issue in #15
  * (https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/15)
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE,
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE,
         numDataNodes = 0,
         transportClientRatio = 0.0,
         numClientNodes = 0)

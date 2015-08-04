@@ -25,9 +25,9 @@ import org.elasticsearch.cloud.azure.management.AzureComputeService.Discovery;
 import org.elasticsearch.cloud.azure.management.AzureComputeService.Management;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugin.cloud.azure.CloudAzurePlugin;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 
-public abstract class AbstractAzureComputeServiceTest extends ElasticsearchIntegrationTest {
+public abstract class AbstractAzureComputeServiceTest extends ESIntegTestCase {
 
     private Class<? extends AzureComputeService> mock;
 

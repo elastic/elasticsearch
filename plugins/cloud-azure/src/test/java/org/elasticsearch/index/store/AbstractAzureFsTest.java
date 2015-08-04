@@ -20,12 +20,12 @@
 package org.elasticsearch.index.store;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.is;
 
-abstract public class AbstractAzureFsTest extends ElasticsearchIntegrationTest {
+abstract public class AbstractAzureFsTest extends ESIntegTestCase {
 
     @Test
     public void testAzureFs() {

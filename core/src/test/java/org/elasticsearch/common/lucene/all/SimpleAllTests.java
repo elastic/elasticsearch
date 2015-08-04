@@ -34,7 +34,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class SimpleAllTests extends ElasticsearchTestCase {
+public class SimpleAllTests extends ESTestCase {
 
     @Test
     public void testBoostOnEagerTokenizer() throws Exception {

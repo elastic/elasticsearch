@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.mapper.copyto;
 
-import com.google.common.collect.ImmutableList;
-
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -39,7 +37,7 @@ import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -55,7 +53,7 @@ import static org.hamcrest.Matchers.startsWith;
 /**
  *
  */
-public class CopyToMapperTests extends ElasticsearchSingleNodeTest {
+public class CopyToMapperTests extends ESSingleNodeTestCase {
 
     @SuppressWarnings("unchecked")
     @Test

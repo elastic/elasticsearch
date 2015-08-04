@@ -154,11 +154,6 @@
       </run-script>
   </target>
 
-  <!-- unzip core release artifact and start ES -->
-  <target name="start-external-cluster" depends="setup-workspace" unless="${shouldskip}">
-    <startup-elasticsearch/>
-  </target>
-
   <!-- unzip core release artifact, install plugin, then start ES -->
   <target name="start-external-cluster-with-plugin" depends="setup-workspace" unless="${shouldskip}">
     <install-plugin name="${project.artifactId}" file="${project.build.directory}/releases/${project.artifactId}-${project.version}.zip"/>
@@ -184,6 +179,21 @@
     </exec>
     <delete file="${integ.pidfile}"/>
   </target>
+
+  <!-- distribution tests: .zip -->
+
+  <target name="setup-workspace-zip" depends="stop-external-cluster" unless="${shouldskip}">
+    <sequential>
+      <delete dir="${integ.scratch}"/>
+      <unzip src="${project.build.directory}/releases/elasticsearch-${project.version}.zip" 
+             dest="${integ.scratch}"/>
+    </sequential>
+  </target>
+
+  <target name="start-external-cluster-zip" depends="setup-workspace-zip" unless="${shouldskip}">
+    <startup-elasticsearch/>
+  </target>
+
 
   <!-- distribution tests: .tar.gz -->
 
@@ -264,6 +274,38 @@
 
   <target name="start-external-cluster-rpm" depends="setup-workspace-rpm" unless="${shouldskip}">
     <startup-elasticsearch home="${integ.scratch}/rpm-extracted/usr/share/elasticsearch/"/>
+  </target>
+
+  <!-- check shaded jar for jar hell -->
+  <target name="check-for-jar-hell">
+    <java failonerror="true" fork="true" classname="org.elasticsearch.bootstrap.JarHell">
+        <classpath>
+           <pathelement location="${project.build.directory}/${project.artifactId}-${project.version}.jar"/>
+           <pathelement location="${org.apache.lucene:lucene-core:jar}"/>
+        </classpath>
+    </java>
+  </target>
+
+  <target name="check-shaded-jar-packages">
+    <!-- we unzip the jar, vs zipfileset, zipfileset toString is useless -->
+    <delete dir="${integ.temp}/unzipped"/>
+    <mkdir dir="${integ.temp}/unzipped"/>
+    <unzip src="${project.build.directory}/${project.artifactId}-${project.version}.jar"
+           dest="${integ.temp}/unzipped"/>
+    <local name="unshaded.classes"/>
+    <fileset id="unshaded.classes"
+             dir="${integ.temp}/unzipped"
+             includes="**/*.class"
+             excludes="org/elasticsearch/**,org/apache/lucene/**"/>
+    <fail message="shaded jar contains packages outside of org.elasticsearch: ${toString:unshaded.classes}">
+       <condition>
+         <not>
+           <resourcecount count="0">
+             <fileset refid="unshaded.classes"/>
+           </resourcecount>
+         </not>
+       </condition>
+    </fail>
   </target>
 
 </project>

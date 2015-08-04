@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 /**
  */
-public class DanglingIndicesStateTests extends ElasticsearchTestCase {
+public class DanglingIndicesStateTests extends ESTestCase {
 
     private static Settings indexSettings = Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)

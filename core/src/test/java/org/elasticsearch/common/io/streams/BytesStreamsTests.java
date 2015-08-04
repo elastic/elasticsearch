@@ -29,8 +29,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Ignore;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -41,7 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Tests for {@link BytesStreamOutput} paging behaviour.
  */
-public class BytesStreamsTests extends ElasticsearchTestCase {
+public class BytesStreamsTests extends ESTestCase {
 
     @Test
     public void testEmpty() throws Exception {
@@ -357,7 +356,7 @@ public class BytesStreamsTests extends ElasticsearchTestCase {
 
     // we ignore this test for now since all existing callers of BytesStreamOutput happily
     // call bytes() after close().
-    @Ignore
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/12620")
     @Test
     public void testAccessAfterClose() throws Exception {
         BytesStreamOutput out = new BytesStreamOutput();

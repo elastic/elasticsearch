@@ -40,7 +40,7 @@ import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Version;
-import org.elasticsearch.bwcompat.OldIndexBackwardsCompatibilityTests;
+import org.elasticsearch.bwcompat.OldIndexBackwardsCompatibilityIT;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
@@ -79,7 +79,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogTests;
 import org.elasticsearch.test.DummyShardLock;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
@@ -102,7 +102,7 @@ import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.hamcrest.Matchers.*;
 
-public class InternalEngineTests extends ElasticsearchTestCase {
+public class InternalEngineTests extends ESTestCase {
 
     private static final Pattern PARSE_LEGACY_ID_PATTERN = Pattern.compile("^" + Translog.TRANSLOG_FILE_PREFIX + "(\\d+)((\\.recovering))?$");
 
@@ -1378,7 +1378,6 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         }
     }
 
-    @Slow
     @Test
     public void testEnableGcDeletes() throws Exception {
         try (Store store = createStore();
@@ -1750,7 +1749,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
     public void testUpgradeOldIndex() throws IOException {
         List<Path> indexes = new ArrayList<>();
-        Path dir = getDataPath("/" + OldIndexBackwardsCompatibilityTests.class.getPackage().getName().replace('.', '/')); // the files are in the same pkg as the OldIndexBackwardsCompatibilityTests test
+        Path dir = getDataPath("/" + OldIndexBackwardsCompatibilityIT.class.getPackage().getName().replace('.', '/')); // the files are in the same pkg as the OldIndexBackwardsCompatibilityTests test
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, "index-*.zip")) {
             for (Path path : stream) {
                 indexes.add(path);

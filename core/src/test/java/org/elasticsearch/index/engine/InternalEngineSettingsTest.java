@@ -21,14 +21,14 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class InternalEngineSettingsTest extends ElasticsearchSingleNodeTest {
+public class InternalEngineSettingsTest extends ESSingleNodeTestCase {
 
     public void testSettingsUpdate() {
         final IndexService service = createIndex("foo");

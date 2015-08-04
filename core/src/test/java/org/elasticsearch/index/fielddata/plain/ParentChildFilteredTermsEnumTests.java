@@ -26,7 +26,7 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.util.Locale;
@@ -37,7 +37,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
 
 /**
  */
-public class ParentChildFilteredTermsEnumTests extends ElasticsearchTestCase {
+public class ParentChildFilteredTermsEnumTests extends ESTestCase {
 
     @Test
     public void testSimple_twoFieldEachUniqueValue() throws Exception {

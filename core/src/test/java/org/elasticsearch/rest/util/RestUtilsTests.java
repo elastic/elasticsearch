@@ -21,7 +21,7 @@ package org.elasticsearch.rest.util;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.support.RestUtils;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.util.Locale;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class RestUtilsTests extends ElasticsearchTestCase {
+public class RestUtilsTests extends ESTestCase {
 
     @Test
     public void testDecodeQueryString() {

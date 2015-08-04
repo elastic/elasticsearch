@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
-public class MetaStateServiceTests extends ElasticsearchTestCase {
+public class MetaStateServiceTests extends ESTestCase {
 
     private static Settings indexSettings = Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)

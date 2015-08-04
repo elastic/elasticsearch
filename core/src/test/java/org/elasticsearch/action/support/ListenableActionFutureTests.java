@@ -20,7 +20,7 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
 
@@ -28,7 +28,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class ListenableActionFutureTests extends ElasticsearchTestCase {
+public class ListenableActionFutureTests extends ESTestCase {
 
     public void testListenerIsCallableFromNetworkThreads() throws Throwable {
         ThreadPool threadPool = new ThreadPool("testListenerIsCallableFromNetworkThreads");

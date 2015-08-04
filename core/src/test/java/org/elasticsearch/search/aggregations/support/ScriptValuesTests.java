@@ -27,13 +27,13 @@ import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.search.aggregations.support.values.ScriptBytesValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptDoubleValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptLongValues;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.Map;
 
-public class ScriptValuesTests extends ElasticsearchTestCase {
+public class ScriptValuesTests extends ESTestCase {
 
     private static class FakeSearchScript implements LeafSearchScript {
         

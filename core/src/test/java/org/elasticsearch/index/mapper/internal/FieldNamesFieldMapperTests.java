@@ -27,13 +27,13 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.Arrays;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
-public class FieldNamesFieldMapperTests extends ElasticsearchSingleNodeTest {
+public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
 
     private static SortedSet<String> extract(String path) {
         SortedSet<String> set = new TreeSet<>();

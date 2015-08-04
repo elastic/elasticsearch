@@ -19,7 +19,6 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.apache.lucene.util.TestUtil;
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -41,8 +40,7 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 /**
  * see issue #9023
  */
-@Slow
-public class BalanceUnbalancedClusterTest extends CatAllocationTestBase {
+public class BalanceUnbalancedClusterTest extends CatAllocationTestCase {
 
     @Override
     protected Path getCatPath() throws IOException {

@@ -28,7 +28,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchAllocationTestCase;
+import org.elasticsearch.test.ESAllocationTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class RoutingServiceTests extends ElasticsearchAllocationTestCase {
+public class RoutingServiceTests extends ESAllocationTestCase {
 
     private TestRoutingService routingService;
 

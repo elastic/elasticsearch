@@ -32,7 +32,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 /**
  */
-public class BinaryMappingTests extends ElasticsearchSingleNodeTest {
+public class BinaryMappingTests extends ESSingleNodeTestCase {
 
     public void testDefaultMapping() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")

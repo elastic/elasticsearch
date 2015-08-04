@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.util;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.is;
 /**
  *
  */
-public class ArrayUtilsTests extends ElasticsearchTestCase {
+public class ArrayUtilsTests extends ESTestCase {
 
     @Test
     public void binarySearch() throws Exception {

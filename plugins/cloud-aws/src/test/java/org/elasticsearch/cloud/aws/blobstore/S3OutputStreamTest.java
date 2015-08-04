@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cloud.aws.blobstore;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.ByteArrayOutputStream;
@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Unit test for {@link S3OutputStream}.
  */
-public class S3OutputStreamTest extends ElasticsearchTestCase {
+public class S3OutputStreamTest extends ESTestCase {
 
     private static final int BUFFER_SIZE = S3BlobStore.MIN_BUFFER_SIZE.bytesAsInt();
 
@@ -77,7 +77,7 @@ public class S3OutputStreamTest extends ElasticsearchTestCase {
 
     }
 
-    @Test @Slow
+    @Test
     public void testWriteExactlyNTimesMoreDataThanBufferSize() throws IOException {
         int n = randomIntBetween(2, 3);
         int length = n * BUFFER_SIZE;

@@ -28,12 +28,12 @@ import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
 
-public class MultiValueModeTests extends ElasticsearchTestCase {
+public class MultiValueModeTests extends ESTestCase {
 
     private static FixedBitSet randomRootDocs(int maxDoc) {
         FixedBitSet set = new FixedBitSet(maxDoc);

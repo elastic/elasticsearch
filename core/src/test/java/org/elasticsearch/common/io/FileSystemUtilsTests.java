@@ -21,7 +21,7 @@ package org.elasticsearch.common.io;
 
 import com.google.common.base.Charsets;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressFileSystems;
 import org.junit.Assert;
 import org.junit.Before;
@@ -43,7 +43,7 @@ import static org.hamcrest.CoreMatchers.is;
  * Unit tests for {@link org.elasticsearch.common.io.FileSystemUtils}.
  */
 @SuppressFileSystems("WindowsFS") // tries to move away open file handles
-public class FileSystemUtilsTests extends ElasticsearchTestCase {
+public class FileSystemUtilsTests extends ESTestCase {
 
     private Path src;
     private Path dst;

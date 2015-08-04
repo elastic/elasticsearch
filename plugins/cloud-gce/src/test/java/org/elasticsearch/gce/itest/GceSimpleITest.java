@@ -23,8 +23,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cloud.gce.AbstractGceTest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugin.cloud.gce.CloudGcePlugin;
-import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -35,8 +34,8 @@ import org.junit.Test;
  * See https://github.com/elasticsearch/elasticsearch-cloud-gce/issues/10
  * @see org.elasticsearch.cloud.gce.AbstractGceTest
  */
-@ElasticsearchIntegrationTest.ClusterScope(
-        scope = ElasticsearchIntegrationTest.Scope.SUITE,
+@ESIntegTestCase.ClusterScope(
+        scope = ESIntegTestCase.Scope.SUITE,
         numDataNodes = 1,
         transportClientRatio = 0.0)
 public class GceSimpleITest extends AbstractGceTest {

@@ -19,23 +19,16 @@
 
 package org.elasticsearch.cloud.aws;
 
-import com.carrotsearch.randomizedtesting.annotations.TestGroup;
-
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.FailedToResolveConfigException;
 import org.elasticsearch.plugin.cloud.aws.CloudAwsPlugin;
-import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ThirdParty;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ThirdParty;
 import org.junit.After;
 import org.junit.Before;
 
-import java.lang.annotation.Documented;
-import java.lang.annotation.Inherited;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -46,7 +39,7 @@ import java.util.Map;
  * in order to run these tests.
  */
 @ThirdParty
-public abstract class AbstractAwsTest extends ElasticsearchIntegrationTest {
+public abstract class AbstractAwsTest extends ESIntegTestCase {
 
     /**
      * Those properties are set by the AWS SDK v1.9.4 and if not ignored,

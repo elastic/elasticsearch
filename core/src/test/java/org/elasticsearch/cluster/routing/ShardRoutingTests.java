@@ -26,11 +26,11 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class ShardRoutingTests extends ElasticsearchTestCase {
+public class ShardRoutingTests extends ESTestCase {
 
     public void testFrozenAfterRead() throws IOException {
         ShardRouting routing = TestShardRouting.newShardRouting("foo", 1, "node_1", null, null, false, ShardRoutingState.INITIALIZING, 1);

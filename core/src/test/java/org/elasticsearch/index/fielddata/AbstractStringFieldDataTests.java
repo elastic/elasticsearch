@@ -250,7 +250,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         for (int i = 1; i < values.length; ++i) {
             values[i] = TestUtil.randomUnicodeString(getRandom());
         }
-        final int numDocs = scaledRandomIntBetween(10, 10000);
+        final int numDocs = scaledRandomIntBetween(10, 3072);
         for (int i = 0; i < numDocs; ++i) {
             final String value = RandomPicks.randomFrom(getRandom(), values);
             if (value == null) {
@@ -306,7 +306,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         for (int i = 1; i < values.length; ++i) {
             values[i] = TestUtil.randomUnicodeString(getRandom());
         }
-        final int numDocs = scaledRandomIntBetween(10, 10000);
+        final int numDocs = scaledRandomIntBetween(10, 3072);
         for (int i = 0; i < numDocs; ++i) {
             final String value = RandomPicks.randomFrom(getRandom(), values);
             if (value == null) {
@@ -359,7 +359,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         for (int i = 0; i < values.length; ++i) {
             values[i] = TestUtil.randomSimpleString(getRandom());
         }
-        final int numParents = scaledRandomIntBetween(10, 10000);
+        final int numParents = scaledRandomIntBetween(10, 3072);
         List<Document> docs = new ArrayList<>();
         FixedBitSet parents = new FixedBitSet(64);
         for (int i = 0; i < numParents; ++i) {

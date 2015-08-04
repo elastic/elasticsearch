@@ -27,7 +27,7 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -37,7 +37,7 @@ import static org.elasticsearch.index.analysis.AnalysisTestUtils.createAnalysisS
 import static org.hamcrest.Matchers.equalTo;
 
 // Tests borrowed from Solr's Icu collation key filter factory test.
-public class SimpleIcuCollationTokenFilterTests extends ElasticsearchTestCase {
+public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
 
     /*
     * Turkish has some funny casing.

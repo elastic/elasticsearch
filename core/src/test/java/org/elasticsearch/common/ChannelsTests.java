@@ -23,7 +23,7 @@ import org.elasticsearch.common.bytes.ByteBufferBytesReference;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.jboss.netty.buffer.ByteBufferBackedChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffer;
@@ -32,9 +32,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.EOFException;
-import java.io.File;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
@@ -44,7 +42,7 @@ import java.nio.channels.WritableByteChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 
-public class ChannelsTests extends ElasticsearchTestCase {
+public class ChannelsTests extends ESTestCase {
 
     byte[] randomBytes;
     FileChannel fileChannel;

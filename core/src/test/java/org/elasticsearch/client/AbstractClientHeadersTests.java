@@ -49,7 +49,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
 import org.junit.After;
@@ -64,7 +64,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public abstract class AbstractClientHeadersTests extends ElasticsearchTestCase {
+public abstract class AbstractClientHeadersTests extends ESTestCase {
 
     protected static final Settings HEADER_SETTINGS = Settings.builder()
             .put(Headers.PREFIX + ".key1", "val1")

@@ -25,7 +25,7 @@ import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.util.Map;
@@ -34,7 +34,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
 
-public class CountRequestTests extends ElasticsearchTestCase {
+public class CountRequestTests extends ESTestCase {
 
     @Test
     public void testToSearchRequest() {

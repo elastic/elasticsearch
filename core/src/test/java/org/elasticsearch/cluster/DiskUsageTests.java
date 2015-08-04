@@ -19,12 +19,12 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class DiskUsageTests extends ElasticsearchTestCase {
+public class DiskUsageTests extends ESTestCase {
 
     @Test
     public void diskUsageCalcTest() {

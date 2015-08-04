@@ -29,7 +29,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.TestSearchContext;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 /**
  *
  */
-public class IndexQueryParserFilterDateRangeTimezoneTests extends ElasticsearchSingleNodeTest {
+public class IndexQueryParserFilterDateRangeTimezoneTests extends ESSingleNodeTestCase {
 
     private Injector injector;
     private IndexQueryParserService queryParser;

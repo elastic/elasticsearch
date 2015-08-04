@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.ElasticsearchAllocationTestCase;
+import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class ThrottlingAllocationTests extends ElasticsearchAllocationTestCase {
+public class ThrottlingAllocationTests extends ESAllocationTestCase {
 
     private final ESLogger logger = Loggers.getLogger(ThrottlingAllocationTests.class);
 

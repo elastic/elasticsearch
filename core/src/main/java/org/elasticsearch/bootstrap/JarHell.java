@@ -47,8 +47,11 @@ import java.util.jar.Manifest;
 public class JarHell {
 
     /** Simple driver class, can be used eg. from builds. Returns non-zero on jar-hell */
+    @SuppressForbidden(reason = "command line tool")
     public static void main(String args[]) throws Exception {
+        System.out.println("checking for jar hell...");
         checkJarHell();
+        System.out.println("no jar hell found");
     }
 
     /**

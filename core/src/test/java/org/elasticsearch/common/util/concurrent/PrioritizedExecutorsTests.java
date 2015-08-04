@@ -21,7 +21,7 @@ package org.elasticsearch.common.util.concurrent;
 import com.google.common.collect.Lists;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Test;
 
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.is;
 /**
  *
  */
-public class PrioritizedExecutorsTests extends ElasticsearchTestCase {
+public class PrioritizedExecutorsTests extends ESTestCase {
 
     @Test
     public void testPriorityQueue() throws Exception {

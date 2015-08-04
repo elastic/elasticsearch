@@ -117,19 +117,3 @@ The result will look similar to:
   }
 }
 --------------------------------------------------
-
-if your `plugin` data is subject to change use
-`plugins.info_refresh_interval` to change or disable the caching
-interval:
-
-[source,js]
---------------------------------------------------
-# Change cache to 20 seconds
-plugins.info_refresh_interval: 20s
-
-# Infinite cache
-plugins.info_refresh_interval: -1
-
-# Disable cache
-plugins.info_refresh_interval: 0
---------------------------------------------------

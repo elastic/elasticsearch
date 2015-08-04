@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.indexing;
 
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -42,6 +43,7 @@ public final class IndexingSlowLog {
     private long indexInfoThreshold;
     private long indexDebugThreshold;
     private long indexTraceThreshold;
+    private boolean indexSlowLoggingSource;
 
     private String level;
 
@@ -62,7 +64,7 @@ public final class IndexingSlowLog {
         this.indexInfoThreshold = indexSettings.getAsTime(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO, TimeValue.timeValueNanos(-1)).nanos();
         this.indexDebugThreshold = indexSettings.getAsTime(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG, TimeValue.timeValueNanos(-1)).nanos();
         this.indexTraceThreshold = indexSettings.getAsTime(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE, TimeValue.timeValueNanos(-1)).nanos();
-
+        this.indexSlowLoggingSource = indexSettings.getAsBoolean(IndexMetaData.SETTING_SLOW_LOGGING_SOURCE, true);
         this.level = indexSettings.get(INDEX_INDEXING_SLOWLOG_LEVEL, "TRACE").toUpperCase(Locale.ROOT);
 
         this.indexLogger = Loggers.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX +".index");
@@ -101,6 +103,11 @@ public final class IndexingSlowLog {
         if (reformat != this.reformat) {
             this.reformat = reformat;
         }
+
+        boolean indexSlowLoggingSource = settings.getAsBoolean(IndexMetaData.SETTING_SLOW_LOGGING_SOURCE, true);
+        if(indexSlowLoggingSource != this.indexSlowLoggingSource) {
+            this.indexSlowLoggingSource = indexSlowLoggingSource;
+        }
     }
 
     void postIndex(Engine.Index index, long tookInNanos) {
@@ -113,13 +120,13 @@ public final class IndexingSlowLog {
 
     private void postIndexing(ParsedDocument doc, long tookInNanos) {
         if (indexWarnThreshold >= 0 && tookInNanos > indexWarnThreshold) {
-            indexLogger.warn("{}", new SlowLogParsedDocumentPrinter(doc, tookInNanos, reformat));
+            indexLogger.warn("{}", new SlowLogParsedDocumentPrinter(doc, tookInNanos, reformat, indexSlowLoggingSource));
         } else if (indexInfoThreshold >= 0 && tookInNanos > indexInfoThreshold) {
-            indexLogger.info("{}", new SlowLogParsedDocumentPrinter(doc, tookInNanos, reformat));
+            indexLogger.info("{}", new SlowLogParsedDocumentPrinter(doc, tookInNanos, reformat, indexSlowLoggingSource));
         } else if (indexDebugThreshold >= 0 && tookInNanos > indexDebugThreshold) {
-            indexLogger.debug("{}", new SlowLogParsedDocumentPrinter(doc, tookInNanos, reformat));
+            indexLogger.debug("{}", new SlowLogParsedDocumentPrinter(doc, tookInNanos, reformat, indexSlowLoggingSource));
         } else if (indexTraceThreshold >= 0 && tookInNanos > indexTraceThreshold) {
-            indexLogger.trace("{}", new SlowLogParsedDocumentPrinter(doc, tookInNanos, reformat));
+            indexLogger.trace("{}", new SlowLogParsedDocumentPrinter(doc, tookInNanos, reformat, indexSlowLoggingSource));
         }
     }
 
@@ -127,11 +134,13 @@ public final class IndexingSlowLog {
         private final ParsedDocument doc;
         private final long tookInNanos;
         private final boolean reformat;
+        private final boolean indexSlowLoggingSource;
 
-        SlowLogParsedDocumentPrinter(ParsedDocument doc, long tookInNanos, boolean reformat) {
+        SlowLogParsedDocumentPrinter(ParsedDocument doc, long tookInNanos, boolean reformat, boolean indexSlowLoggingSource) {
             this.doc = doc;
             this.tookInNanos = tookInNanos;
             this.reformat = reformat;
+            this.indexSlowLoggingSource = indexSlowLoggingSource;
         }
 
         @Override
@@ -141,18 +150,21 @@ public final class IndexingSlowLog {
             sb.append("type[").append(doc.type()).append("], ");
             sb.append("id[").append(doc.id()).append("], ");
             if (doc.routing() == null) {
-                sb.append("routing[], ");
+                sb.append("routing[] ");
             } else {
-                sb.append("routing[").append(doc.routing()).append("], ");
+                sb.append("routing[").append(doc.routing()).append("] ");
             }
-            if (doc.source() != null && doc.source().length() > 0) {
-                try {
-                    sb.append("source[").append(XContentHelper.convertToJson(doc.source(), reformat)).append("]");
-                } catch (IOException e) {
-                    sb.append("source[_failed_to_convert_]");
+
+            if(indexSlowLoggingSource) {
+                if (doc.source() != null && doc.source().length() > 0) {
+                    try {
+                        sb.append(", source[").append(XContentHelper.convertToJson(doc.source(), reformat)).append("]");
+                    } catch (IOException e) {
+                        sb.append(", source[_failed_to_convert_]");
+                    }
+                } else {
+                    sb.append(", source[]");
                 }
-            } else {
-                sb.append("source[]");
             }
             return sb.toString();
         }

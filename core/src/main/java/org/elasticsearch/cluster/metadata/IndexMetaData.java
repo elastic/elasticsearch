@@ -172,7 +172,9 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     public static final String SETTING_LEGACY_ROUTING_USE_TYPE = "index.legacy.routing.use_type";
     public static final String SETTING_DATA_PATH = "index.data_path";
     public static final String SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE = "index.shared_filesystem.recover_on_any_node";
+    public static final String SETTING_SLOW_LOGGING_SOURCE ="index.slow_logging.source";
     public static final String INDEX_UUID_NA_VALUE = "_na_";
+
 
     // hard-coded hash function as of 2.0
     // older indices will read which hash function to use in their index settings
@@ -202,6 +204,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     private final org.apache.lucene.util.Version minimumCompatibleLuceneVersion;
     private final HashFunction routingHashFunction;
     private final boolean useTypeForRouting;
+    private final boolean indexSlowLoggingSource;
 
     private IndexMetaData(String index, long version, State state, Settings settings, ImmutableOpenMap<String, MappingMetaData> mappings, ImmutableOpenMap<String, AliasMetaData> aliases, ImmutableOpenMap<String, Custom> customs) {
         Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_SHARDS, null) != null, "must specify numberOfShards for index [" + index + "]");
@@ -256,6 +259,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             }
         }
         useTypeForRouting = settings.getAsBoolean(SETTING_LEGACY_ROUTING_USE_TYPE, false);
+        indexSlowLoggingSource = settings.getAsBoolean(SETTING_SLOW_LOGGING_SOURCE, true);
     }
 
     public String index() {
@@ -386,6 +390,14 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
     public int getTotalNumberOfShards() {
         return totalNumberOfShards();
+    }
+
+    public boolean slowLoggingSource() {
+        return indexSlowLoggingSource;
+    }
+
+    public boolean getSlowLoggingSource() {
+        return slowLoggingSource();
     }
 
     public Settings settings() {

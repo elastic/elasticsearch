@@ -25,7 +25,7 @@ import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.shield.license.LicenseService;
-import org.elasticsearch.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.junit.Test;
 
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class LicensingTests extends ShieldIntegrationTest {
+public class LicensingTests extends ShieldIntegTestCase {
 
     public static final String ROLES =
             ShieldSettingsSource.DEFAULT_ROLE + ":\n" +

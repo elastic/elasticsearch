@@ -11,7 +11,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.shield.ssl.ServerSSLService;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.jboss.netty.bootstrap.ClientBootstrap;
 import org.jboss.netty.bootstrap.ServerBootstrap;
 import org.jboss.netty.buffer.ChannelBuffer;
@@ -43,7 +43,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.*;
 
-public class HandshakeWaitingHandlerTests extends ElasticsearchTestCase {
+public class HandshakeWaitingHandlerTests extends ESTestCase {
 
     private static final int CONCURRENT_CLIENT_REQUESTS = 20;
 

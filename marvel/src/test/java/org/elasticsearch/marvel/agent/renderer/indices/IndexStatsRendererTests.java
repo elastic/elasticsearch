@@ -15,10 +15,10 @@ import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.marvel.agent.collector.indices.IndexStatsMarvelDoc;
 import org.elasticsearch.marvel.agent.renderer.Renderer;
 import org.elasticsearch.marvel.agent.renderer.RendererTestUtils;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
-public class IndexStatsRendererTests extends ElasticsearchTestCase {
+public class IndexStatsRendererTests extends ESTestCase {
 
     private static final String SAMPLE_FILE = "/samples/marvel_index_stats.json";
 

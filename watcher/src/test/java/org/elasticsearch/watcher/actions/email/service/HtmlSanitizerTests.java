@@ -6,7 +6,7 @@
 package org.elasticsearch.watcher.actions.email.service;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -15,7 +15,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class HtmlSanitizerTests extends ElasticsearchTestCase {
+public class HtmlSanitizerTests extends ESTestCase {
 
     @Test
     public void testDefault_WithTemplatePlaceholders() {

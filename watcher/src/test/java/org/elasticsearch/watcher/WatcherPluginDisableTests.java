@@ -15,8 +15,8 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -24,7 +24,7 @@ import org.elasticsearch.threadpool.ThreadPoolInfo;
 import org.elasticsearch.watcher.execution.InternalWatchExecutor;
 import org.junit.Test;
 
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
+import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.not;
  *
  */
 @ClusterScope(scope = SUITE, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, maxNumDataNodes = 3)
-public class WatcherPluginDisableTests extends ElasticsearchIntegrationTest {
+public class WatcherPluginDisableTests extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

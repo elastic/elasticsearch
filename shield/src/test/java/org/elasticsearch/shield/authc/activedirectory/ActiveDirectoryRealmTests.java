@@ -15,7 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.*;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
@@ -40,7 +40,7 @@ import static org.mockito.Mockito.*;
  * The username used to authenticate then has to be in the form of CN=user. Finally the username needs to be added as an
  * additional bind DN with a password in the test setup since it really is not a DN in the ldif file
  */
-public class ActiveDirectoryRealmTests extends ElasticsearchTestCase {
+public class ActiveDirectoryRealmTests extends ESTestCase {
 
     private static final String PASSWORD = "password";
 

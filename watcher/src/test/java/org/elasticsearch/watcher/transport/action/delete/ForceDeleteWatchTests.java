@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.transport.action.delete;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
@@ -36,7 +35,7 @@ public class ForceDeleteWatchTests extends AbstractWatcherIntegrationTests {
         return false;
     }
 
-    @Test @Slow @TestLogging("_root:DEBUG")
+    @Test @TestLogging("_root:DEBUG")
     public void testForceDelete_LongRunningWatch() throws Exception {
         PutWatchResponse putResponse = watcherClient().preparePutWatch("_name").setSource(watchBuilder()
                 .trigger(schedule(interval("3s")))

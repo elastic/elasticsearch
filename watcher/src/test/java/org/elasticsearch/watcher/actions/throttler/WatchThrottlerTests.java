@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.watcher.actions.throttler;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.license.LicenseService;
 import org.junit.Test;
@@ -17,7 +17,7 @@ import static org.mockito.Mockito.when;
 /**
  *
  */
-public class WatchThrottlerTests extends ElasticsearchTestCase {
+public class WatchThrottlerTests extends ESTestCase {
 
     @Test
     public void testThrottle_DueToAck() throws Exception {

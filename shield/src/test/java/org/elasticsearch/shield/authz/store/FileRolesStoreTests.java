@@ -14,7 +14,7 @@ import org.elasticsearch.shield.audit.logfile.CapturingLogger;
 import org.elasticsearch.shield.authc.support.RefreshListener;
 import org.elasticsearch.shield.authz.Permission;
 import org.elasticsearch.shield.authz.Privilege;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.Test;
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class FileRolesStoreTests extends ElasticsearchTestCase {
+public class FileRolesStoreTests extends ESTestCase {
 
     @Test
     public void testParseFile() throws Exception {

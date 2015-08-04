@@ -15,7 +15,7 @@ import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
-import org.elasticsearch.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.junit.Test;
 
@@ -27,7 +27,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.is;
 
-public class MultipleIndicesPermissionsTests extends ShieldIntegrationTest {
+public class MultipleIndicesPermissionsTests extends ShieldIntegTestCase {
 
     protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString("passwd".toCharArray())));
 

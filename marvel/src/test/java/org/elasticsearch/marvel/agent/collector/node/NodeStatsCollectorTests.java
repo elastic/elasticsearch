@@ -15,14 +15,14 @@ import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettingsService;
 import org.elasticsearch.node.service.NodeService;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.Collection;
 
 import static org.hamcrest.Matchers.*;
 
-public class NodeStatsCollectorTests extends ElasticsearchIntegrationTest {
+public class NodeStatsCollectorTests extends ESIntegTestCase {
 
     @Test
     public void testNodeStatsCollector() throws Exception {

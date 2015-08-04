@@ -17,7 +17,7 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.Script;
@@ -42,7 +42,7 @@ import static org.mockito.Mockito.when;
 /**
  *
  */
-public class ScriptTransformTests extends ElasticsearchTestCase {
+public class ScriptTransformTests extends ESTestCase {
 
     ThreadPool tp = null;
 

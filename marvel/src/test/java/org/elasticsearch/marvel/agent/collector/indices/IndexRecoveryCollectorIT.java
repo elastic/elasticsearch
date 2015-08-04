@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.marvel.agent.collector.indices;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
 import org.elasticsearch.cluster.ClusterName;
@@ -17,7 +16,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettingsService;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.Collection;
@@ -32,9 +31,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
-@Slow
-@ElasticsearchIntegrationTest.ClusterScope(numDataNodes = 0)
-public class IndexRecoveryCollectorTests extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.ClusterScope(numDataNodes = 0)
+public class IndexRecoveryCollectorIT extends ESIntegTestCase {
 
 
     @Override

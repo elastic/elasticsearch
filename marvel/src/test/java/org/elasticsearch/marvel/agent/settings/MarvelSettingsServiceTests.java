@@ -8,13 +8,13 @@ package org.elasticsearch.marvel.agent.settings;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
-public class MarvelSettingsServiceTests extends ElasticsearchTestCase {
+public class MarvelSettingsServiceTests extends ESTestCase {
 
     @Test
     public void testMarvelSettingService() {

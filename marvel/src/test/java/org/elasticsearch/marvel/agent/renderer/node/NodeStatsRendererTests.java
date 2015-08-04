@@ -11,10 +11,10 @@ import org.elasticsearch.marvel.agent.collector.node.NodeStatsMarvelDoc;
 import org.elasticsearch.marvel.agent.renderer.Renderer;
 import org.elasticsearch.marvel.agent.renderer.RendererTestUtils;
 import org.elasticsearch.node.service.NodeService;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
-public class NodeStatsRendererTests extends ElasticsearchSingleNodeTest {
+public class NodeStatsRendererTests extends ESSingleNodeTestCase {
 
     private static final String SAMPLE_FILE = "/samples/marvel_node_stats.json";
 

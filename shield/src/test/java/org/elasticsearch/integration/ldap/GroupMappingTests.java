@@ -15,7 +15,7 @@ import java.io.IOException;
  * The super class will provide appropriate group mappings via configGroupMappings()
  */
 @Network
-public class GroupMappingTests extends AbstractAdLdapRealmTests {
+public class GroupMappingTests extends AbstractAdLdapRealmTestCase {
 
     @Test
     public void testAuthcAuthz() throws IOException {

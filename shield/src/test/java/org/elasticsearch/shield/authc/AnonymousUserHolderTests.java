@@ -9,14 +9,14 @@ import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.User;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
 
 import static org.hamcrest.Matchers.*;
 
-public class AnonymousUserHolderTests extends ElasticsearchTestCase {
+public class AnonymousUserHolderTests extends ESTestCase {
 
     @Test
     public void testResolveAnonymousUser() throws Exception {

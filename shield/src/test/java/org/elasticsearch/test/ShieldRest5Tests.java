@@ -7,7 +7,7 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.elasticsearch.test.rest.ElasticsearchRestTestCase;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 
@@ -21,6 +21,6 @@ public class ShieldRest5Tests extends ShieldRestTestCase {
   
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
-        return ElasticsearchRestTestCase.createParameters(5, 8);
+        return ESRestTestCase.createParameters(5, 8);
     }
 }

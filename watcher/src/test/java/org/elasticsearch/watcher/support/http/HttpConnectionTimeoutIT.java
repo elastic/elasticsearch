@@ -9,7 +9,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 import org.junit.Test;
 
@@ -19,12 +19,12 @@ import static org.mockito.Mockito.mock;
 
 /**
  */
-public class HttpConnectionTimeoutTests extends ElasticsearchTestCase {
+public class HttpConnectionTimeoutIT extends ESTestCase {
 
     // setting an unroutable IP to simulate a connection timeout
     private static final String UNROUTABLE_IP = "192.168.255.255";
 
-    @Test @Slow
+    @Test
     public void testDefaultTimeout() throws Exception {
         Environment environment = new Environment(Settings.builder().put("path.home", createTempDir()).build());
         HttpClient httpClient = new HttpClient(Settings.EMPTY, mock(HttpAuthRegistry.class), environment).start();
@@ -48,7 +48,7 @@ public class HttpConnectionTimeoutTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test @Slow
+    @Test
     public void testDefaultTimeout_Custom() throws Exception {
         Environment environment = new Environment(Settings.builder().put("path.home", createTempDir()).build());
         HttpClient httpClient = new HttpClient(Settings.builder()
@@ -75,7 +75,7 @@ public class HttpConnectionTimeoutTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test @Slow
+    @Test
     public void testTimeout_CustomPerRequest() throws Exception {
         Environment environment = new Environment(Settings.builder().put("path.home", createTempDir()).build());
         HttpClient httpClient = new HttpClient(Settings.builder()

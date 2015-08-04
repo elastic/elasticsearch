@@ -17,7 +17,7 @@ import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.RefreshListener;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
@@ -41,7 +41,7 @@ import static org.mockito.Mockito.*;
 /**
  *
  */
-public class FileUserPasswdStoreTests extends ElasticsearchTestCase {
+public class FileUserPasswdStoreTests extends ESTestCase {
 
     private Settings settings;
     private Environment env;

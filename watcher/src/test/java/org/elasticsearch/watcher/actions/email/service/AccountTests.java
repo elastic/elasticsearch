@@ -6,7 +6,7 @@
 package org.elasticsearch.watcher.actions.email.service;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.actions.email.service.support.EmailServer;
 import org.elasticsearch.watcher.support.secret.Secret;
 import org.elasticsearch.watcher.support.secret.SecretService;
@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class AccountTests extends ElasticsearchTestCase {
+public class AccountTests extends ESTestCase {
 
     static final String USERNAME = "_user";
     static final String PASSWORD = "_passwd";

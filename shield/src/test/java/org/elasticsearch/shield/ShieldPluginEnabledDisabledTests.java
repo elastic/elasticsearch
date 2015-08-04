@@ -16,7 +16,7 @@ import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.transport.ShieldServerTransportService;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
-import org.elasticsearch.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class ShieldPluginEnabledDisabledTests extends ShieldIntegrationTest {
+public class ShieldPluginEnabledDisabledTests extends ShieldIntegTestCase {
 
     private static boolean enabled;
 

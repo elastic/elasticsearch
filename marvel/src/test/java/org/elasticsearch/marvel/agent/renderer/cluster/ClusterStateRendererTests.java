@@ -15,10 +15,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateMarvelDoc;
 import org.elasticsearch.marvel.agent.renderer.Renderer;
 import org.elasticsearch.marvel.agent.renderer.RendererTestUtils;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
-public class ClusterStateRendererTests extends ElasticsearchSingleNodeTest {
+public class ClusterStateRendererTests extends ESSingleNodeTestCase {
 
     private static final String SAMPLE_FILE = "/samples/marvel_cluster_state.json";
 

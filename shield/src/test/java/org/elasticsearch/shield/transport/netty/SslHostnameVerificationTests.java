@@ -11,7 +11,7 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.transport.Transport;
 import org.junit.Test;
 
@@ -23,7 +23,7 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 
-public class SslHostnameVerificationTests extends ShieldIntegrationTest {
+public class SslHostnameVerificationTests extends ShieldIntegTestCase {
 
     @Override
     protected boolean sslTransportEnabled() {

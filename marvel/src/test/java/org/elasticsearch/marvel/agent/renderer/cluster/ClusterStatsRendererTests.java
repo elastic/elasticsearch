@@ -10,10 +10,10 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStatsMarvelDoc;
 import org.elasticsearch.marvel.agent.renderer.Renderer;
 import org.elasticsearch.marvel.agent.renderer.RendererTestUtils;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
-public class ClusterStatsRendererTests extends ElasticsearchSingleNodeTest {
+public class ClusterStatsRendererTests extends ESSingleNodeTestCase {
 
     private static final String SAMPLE_FILE = "/samples/marvel_cluster_stats.json";
 

@@ -14,7 +14,7 @@ import static org.mockito.Mockito.mock;
 
 /**
  */
-public class TickerScheduleEngineTests extends BaseTriggerEngineTests {
+public class TickerScheduleEngineTests extends BaseTriggerEngineTestCase {
 
     @Override
     protected TriggerEngine createEngine() {

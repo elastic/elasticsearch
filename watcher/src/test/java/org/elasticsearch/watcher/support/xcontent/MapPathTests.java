@@ -7,7 +7,7 @@ package org.elasticsearch.watcher.support.xcontent;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.util.List;
@@ -19,7 +19,7 @@ import static org.hamcrest.Matchers.is;
 /**
  *
  */
-public class MapPathTests extends ElasticsearchTestCase {
+public class MapPathTests extends ESTestCase {
 
     @Test
     public void testEval() throws Exception {

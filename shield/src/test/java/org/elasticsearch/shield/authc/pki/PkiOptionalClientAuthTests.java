@@ -11,14 +11,13 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.transport.SSLClientAuth;
 import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
-import org.elasticsearch.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
@@ -38,7 +37,7 @@ import static org.elasticsearch.test.ShieldSettingsSource.DEFAULT_PASSWORD;
 import static org.elasticsearch.test.ShieldSettingsSource.DEFAULT_USER_NAME;
 import static org.hamcrest.Matchers.is;
 
-public class PkiOptionalClientAuthTests extends ShieldIntegrationTest {
+public class PkiOptionalClientAuthTests extends ShieldIntegTestCase {
 
     private static int randomClientPort;
 

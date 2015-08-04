@@ -13,8 +13,8 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
@@ -23,7 +23,7 @@ import org.junit.Test;
 import static org.hamcrest.Matchers.is;
 
 @ClusterScope(numClientNodes = 0, numDataNodes = 1)
-public class PkiWithoutSSLTests extends ShieldIntegrationTest {
+public class PkiWithoutSSLTests extends ShieldIntegTestCase {
 
     @Override
     public boolean sslTransportEnabled() {

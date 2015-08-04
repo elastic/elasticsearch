@@ -17,7 +17,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.input.search.ExecutableSearchInput;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.support.template.Template;
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class WatcherUtilsTests extends ElasticsearchTestCase {
+public class WatcherUtilsTests extends ESTestCase {
 
     @Test
     public void testFlattenModel() throws Exception {

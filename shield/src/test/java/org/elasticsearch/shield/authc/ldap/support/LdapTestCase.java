@@ -13,16 +13,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.ldap.LdapRealm;
 import org.elasticsearch.shield.authc.support.DnRoleMapper;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 
-import static org.elasticsearch.shield.authc.ldap.LdapSessionFactory.*;
+import static org.elasticsearch.shield.authc.ldap.LdapSessionFactory.HOSTNAME_VERIFICATION_SETTING;
+import static org.elasticsearch.shield.authc.ldap.LdapSessionFactory.URLS_SETTING;
+import static org.elasticsearch.shield.authc.ldap.LdapSessionFactory.USER_DN_TEMPLATES_SETTING;
 
-@Ignore
-public abstract class LdapTest extends ElasticsearchTestCase {
+public abstract class LdapTestCase extends ESTestCase {
 
     protected InMemoryDirectoryServer ldapServer;
 

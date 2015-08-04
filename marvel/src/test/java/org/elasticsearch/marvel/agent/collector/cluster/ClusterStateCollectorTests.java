@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettingsService;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
 import java.util.Collection;
@@ -20,7 +20,7 @@ import java.util.Collection;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
-public class ClusterStateCollectorTests extends ElasticsearchSingleNodeTest {
+public class ClusterStateCollectorTests extends ESSingleNodeTestCase {
 
     @Test
     public void testClusterStateCollectorNoIndices() throws Exception {

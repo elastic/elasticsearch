@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.actions.email.service;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.settings.Settings;
@@ -13,16 +14,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.watcher.shield.WatcherSettingsFilter;
 import org.elasticsearch.watcher.support.secret.SecretService;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.io.InputStream;
 
-/**
- *
- */
-@Ignore
-public class ManualPublicSmtpServersTests {
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/379")
+public class ManualPublicSmtpServersTester {
 
     private static final Terminal terminal = Terminal.DEFAULT;
 

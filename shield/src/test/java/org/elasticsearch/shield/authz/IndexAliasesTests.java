@@ -13,7 +13,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
-import org.elasticsearch.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ShieldIntegTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -23,7 +23,7 @@ import static org.elasticsearch.test.ShieldTestsUtils.assertAuthorizationExcepti
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.*;
 
-public class IndexAliasesTests extends ShieldIntegrationTest {
+public class IndexAliasesTests extends ShieldIntegTestCase {
 
     protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString("test123".toCharArray())));
 

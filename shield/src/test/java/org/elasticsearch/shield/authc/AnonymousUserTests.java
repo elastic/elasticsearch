@@ -16,7 +16,7 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ShieldIntegTestCase;
 import org.junit.Test;
 
 import java.io.InputStreamReader;
@@ -24,7 +24,7 @@ import java.util.Locale;
 
 import static org.hamcrest.Matchers.*;
 
-public class AnonymousUserTests extends ShieldIntegrationTest {
+public class AnonymousUserTests extends ShieldIntegTestCase {
 
     private boolean authorizationExceptionsEnabled = randomBoolean();
 

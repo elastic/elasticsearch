@@ -7,7 +7,7 @@ package org.elasticsearch.watcher.support;
 
 import com.google.common.collect.ImmutableMap;
 import org.joda.time.DateTime;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class VariablesTests extends ElasticsearchTestCase {
+public class VariablesTests extends ESTestCase {
 
     @Test
     public void testCreateCtxModel() throws Exception {

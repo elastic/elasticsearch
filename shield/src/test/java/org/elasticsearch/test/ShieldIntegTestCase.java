@@ -41,13 +41,11 @@ import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Base class to run tests against a cluster with shield installed.
- * The default {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope} is {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope#SUITE},
+ * The default {@link org.elasticsearch.test.ESIntegTestCase.Scope} is {@link org.elasticsearch.test.ESIntegTestCase.Scope#SUITE},
  * meaning that all subclasses that don't specify a different scope will share the same cluster with shield installed.
  * @see org.elasticsearch.test.ShieldSettingsSource
  */
-@Ignore
-@ElasticsearchIntegrationTest.Integration
-public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest {
+public abstract class ShieldIntegTestCase extends ESIntegTestCase {
 
     private static ShieldSettingsSource SHIELD_DEFAULT_SETTINGS;
 
@@ -55,7 +53,7 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
     //The number of nodes is randomized though, but we can predict what the maximum number of nodes will be
     //and configure them all in unicast.hosts
     private static int maxNumberOfNodes() {
-        ClusterScope clusterScope = ShieldIntegrationTest.class.getAnnotation(ClusterScope.class);
+        ClusterScope clusterScope = ShieldIntegTestCase.class.getAnnotation(ClusterScope.class);
         if (clusterScope == null) {
             return InternalTestCluster.DEFAULT_MAX_NUM_DATA_NODES + InternalTestCluster.DEFAULT_MAX_NUM_CLIENT_NODES;
         } else {
@@ -68,7 +66,7 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
     }
 
     private static ClusterScope getAnnotation(Class<?> clazz) {
-        if (clazz == Object.class || clazz == ShieldIntegrationTest.class) {
+        if (clazz == Object.class || clazz == ShieldIntegTestCase.class) {
             return null;
         }
         ClusterScope annotation = clazz.getAnnotation(ClusterScope.class);
@@ -88,8 +86,8 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
     }
 
     /**
-     * Settings used when the {@link org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope} is set to
-     * {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope#SUITE} or {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope#TEST}
+     * Settings used when the {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
+     * {@link org.elasticsearch.test.ESIntegTestCase.Scope#SUITE} or {@link org.elasticsearch.test.ESIntegTestCase.Scope#TEST}
      * so that some of the configuration parameters can be overridden through test instance methods, similarly
      * to how {@link #nodeSettings(int)} and {@link #transportClientSettings()} work.
      */
@@ -113,7 +111,7 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
     }
 
     @Rule
-    //Rules are the only way to have something run before the before (final) method inherited from ElasticsearchIntegrationTest
+    //Rules are the only way to have something run before the before (final) method inherited from ESIntegTestCase
     public ExternalResource externalResource = new ExternalResource() {
         @Override
         protected void before() throws Throwable {
@@ -185,64 +183,64 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
     }
 
     /**
-     * Allows to override the users config file when the {@link org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope} is set to
-     * {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope#SUITE} or {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope#TEST}
+     * Allows to override the users config file when the {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
+     * {@link org.elasticsearch.test.ESIntegTestCase.Scope#SUITE} or {@link org.elasticsearch.test.ESIntegTestCase.Scope#TEST}
      */
     protected String configUsers() {
         return SHIELD_DEFAULT_SETTINGS.configUsers();
     }
 
     /**
-     * Allows to override the users_roles config file when the {@link org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope} is set to
-     * {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope#SUITE} or {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope#TEST}
+     * Allows to override the users_roles config file when the {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
+     * {@link org.elasticsearch.test.ESIntegTestCase.Scope#SUITE} or {@link org.elasticsearch.test.ESIntegTestCase.Scope#TEST}
      */
     protected String configUsersRoles() {
         return SHIELD_DEFAULT_SETTINGS.configUsersRoles();
     }
 
     /**
-     * Allows to override the roles config file when the {@link org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope} is set to
-     * {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope#SUITE} or {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope#TEST}
+     * Allows to override the roles config file when the {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
+     * {@link org.elasticsearch.test.ESIntegTestCase.Scope#SUITE} or {@link org.elasticsearch.test.ESIntegTestCase.Scope#TEST}
      */
     protected String configRoles() {
         return SHIELD_DEFAULT_SETTINGS.configRoles();
     }
 
     /**
-     * Allows to override the node client username (used while sending requests to the test cluster) when the {@link org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope} is set to
-     * {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope#SUITE} or {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope#TEST}
+     * Allows to override the node client username (used while sending requests to the test cluster) when the {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
+     * {@link org.elasticsearch.test.ESIntegTestCase.Scope#SUITE} or {@link org.elasticsearch.test.ESIntegTestCase.Scope#TEST}
      */
     protected String nodeClientUsername() {
         return SHIELD_DEFAULT_SETTINGS.nodeClientUsername();
     }
 
     /**
-     * Allows to override the node client password (used while sending requests to the test cluster) when the {@link org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope} is set to
-     * {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope#SUITE} or {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope#TEST}
+     * Allows to override the node client password (used while sending requests to the test cluster) when the {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
+     * {@link org.elasticsearch.test.ESIntegTestCase.Scope#SUITE} or {@link org.elasticsearch.test.ESIntegTestCase.Scope#TEST}
      */
     protected SecuredString nodeClientPassword() {
         return SHIELD_DEFAULT_SETTINGS.nodeClientPassword();
     }
 
     /**
-     * Allows to override the transport client username (used while sending requests to the test cluster) when the {@link org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope} is set to
-     * {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope#SUITE} or {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope#TEST}
+     * Allows to override the transport client username (used while sending requests to the test cluster) when the {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
+     * {@link org.elasticsearch.test.ESIntegTestCase.Scope#SUITE} or {@link org.elasticsearch.test.ESIntegTestCase.Scope#TEST}
      */
     protected String transportClientUsername() {
         return SHIELD_DEFAULT_SETTINGS.transportClientUsername();
     }
 
     /**
-     * Allows to override the transport client password (used while sending requests to the test cluster) when the {@link org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope} is set to
-     * {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope#SUITE} or {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope#TEST}
+     * Allows to override the transport client password (used while sending requests to the test cluster) when the {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
+     * {@link org.elasticsearch.test.ESIntegTestCase.Scope#SUITE} or {@link org.elasticsearch.test.ESIntegTestCase.Scope#TEST}
      */
     protected SecuredString transportClientPassword() {
         return SHIELD_DEFAULT_SETTINGS.transportClientPassword();
     }
 
     /**
-     * Allows to control whether ssl is enabled or not on the transport layer when the {@link org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope} is set to
-     * {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope#SUITE} or {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope#TEST}
+     * Allows to control whether ssl is enabled or not on the transport layer when the {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
+     * {@link org.elasticsearch.test.ESIntegTestCase.Scope#SUITE} or {@link org.elasticsearch.test.ESIntegTestCase.Scope#TEST}
      */
     protected boolean sslTransportEnabled() {
         return randomBoolean();
@@ -263,48 +261,48 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
 
         @Override
         protected String configUsers() {
-            return ShieldIntegrationTest.this.configUsers();
+            return ShieldIntegTestCase.this.configUsers();
         }
 
         @Override
         protected String configUsersRoles() {
-            return ShieldIntegrationTest.this.configUsersRoles();
+            return ShieldIntegTestCase.this.configUsersRoles();
         }
 
         @Override
         protected String configRoles() {
-            return ShieldIntegrationTest.this.configRoles();
+            return ShieldIntegTestCase.this.configRoles();
         }
 
         @Override
         protected String nodeClientUsername() {
-            return ShieldIntegrationTest.this.nodeClientUsername();
+            return ShieldIntegTestCase.this.nodeClientUsername();
         }
 
         @Override
         protected SecuredString nodeClientPassword() {
-            return ShieldIntegrationTest.this.nodeClientPassword();
+            return ShieldIntegTestCase.this.nodeClientPassword();
         }
 
 
         @Override
         protected String transportClientUsername() {
-            return ShieldIntegrationTest.this.transportClientUsername();
+            return ShieldIntegTestCase.this.transportClientUsername();
         }
 
         @Override
         protected SecuredString transportClientPassword() {
-            return ShieldIntegrationTest.this.transportClientPassword();
+            return ShieldIntegTestCase.this.transportClientPassword();
         }
 
         @Override
         protected Class<? extends Plugin> licensePluginClass() {
-            return ShieldIntegrationTest.this.licensePluginClass();
+            return ShieldIntegTestCase.this.licensePluginClass();
         }
 
         @Override
         protected String licensePluginName() {
-            return ShieldIntegrationTest.this.licensePluginName();
+            return ShieldIntegTestCase.this.licensePluginName();
         }
     }
 

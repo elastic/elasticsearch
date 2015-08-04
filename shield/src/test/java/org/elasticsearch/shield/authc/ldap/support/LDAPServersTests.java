@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.shield.authc.ldap.support;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class LDAPServersTests extends ElasticsearchTestCase {
+public class LDAPServersTests extends ESTestCase {
 
     @Test
     public void testConfigure_1ldaps() {

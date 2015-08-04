@@ -8,7 +8,7 @@ package org.elasticsearch.watcher.actions.throttler;
 import org.joda.time.DateTime;
 import org.joda.time.PeriodType;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.actions.ActionStatus;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.clock.SystemClock;
@@ -25,7 +25,7 @@ import static org.mockito.Mockito.when;
 /**
  *
  */
-public class PeriodThrottlerTests extends ElasticsearchTestCase {
+public class PeriodThrottlerTests extends ESTestCase {
 
     @Test
     public void testBelowPeriod_Successful() throws Exception {

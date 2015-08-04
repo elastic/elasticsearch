@@ -7,19 +7,19 @@ package org.elasticsearch.watcher.support;
 
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.watcher.WatcherModule;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.junit.Test;
 
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
+import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.Is.is;
 
 /**
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 1)
+@ESIntegTestCase.ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 1)
 public class WatcherIndexTemplateRegistryTests extends AbstractWatcherIntegrationTests {
 
     @Test

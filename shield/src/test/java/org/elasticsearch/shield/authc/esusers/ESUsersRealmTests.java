@@ -26,7 +26,7 @@ import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.hamcrest.Matchers;
@@ -41,7 +41,7 @@ import static org.mockito.Mockito.*;
 /**
  *
  */
-public class ESUsersRealmTests extends ElasticsearchTestCase {
+public class ESUsersRealmTests extends ESTestCase {
 
     private RestController restController;
     private Client client;

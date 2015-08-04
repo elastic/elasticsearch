@@ -31,8 +31,8 @@ import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.watcher.WatcherLifeCycleService;
 import org.elasticsearch.watcher.WatcherPlugin;
@@ -75,7 +75,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
+import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.watcher.WatcherModule.*;
 import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.Is.is;
@@ -84,7 +84,7 @@ import static org.hamcrest.core.IsNot.not;
 /**
  */
 @ClusterScope(scope = SUITE, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, maxNumDataNodes = 3)
-public abstract class AbstractWatcherIntegrationTests extends ElasticsearchIntegrationTest {
+public abstract class AbstractWatcherIntegrationTests extends ESIntegTestCase {
 
     private static final boolean timeWarpEnabled = SystemPropertyUtil.getBoolean("tests.timewarp", true);
 

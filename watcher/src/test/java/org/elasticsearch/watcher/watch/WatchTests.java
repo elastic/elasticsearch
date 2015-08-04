@@ -16,7 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.actions.*;
 import org.elasticsearch.watcher.actions.email.DataAttachment;
 import org.elasticsearch.watcher.actions.email.EmailAction;
@@ -108,7 +108,7 @@ import static org.hamcrest.Matchers.*;
 import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Mockito.mock;
 
-public class WatchTests extends ElasticsearchTestCase {
+public class WatchTests extends ESTestCase {
 
     private ScriptServiceProxy scriptService;
     private ClientProxy client;

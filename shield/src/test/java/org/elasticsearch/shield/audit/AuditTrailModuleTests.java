@@ -10,7 +10,7 @@ import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.shield.audit.logfile.LoggingAuditTrail;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.*;
@@ -18,7 +18,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class AuditTrailModuleTests extends ElasticsearchTestCase {
+public class AuditTrailModuleTests extends ESTestCase {
 
     @Test
     public void testEnabled() throws Exception {

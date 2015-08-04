@@ -10,7 +10,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.ShieldSettingsFilter;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -24,7 +24,7 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.*;
 import static org.mockito.Mockito.mock;
 
-public class ServerSSLServiceTests extends ElasticsearchTestCase {
+public class ServerSSLServiceTests extends ESTestCase {
 
     Path testnodeStore;
     ShieldSettingsFilter settingsFilter;

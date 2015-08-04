@@ -12,7 +12,7 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.transport.Transport;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -22,14 +22,14 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 // no client nodes, no transport clients, as they all get rejected on network connections
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
-public class IpFilteringIntegrationTests extends ShieldIntegrationTest {
+public class IpFilteringIntegrationTests extends ShieldIntegTestCase {
 
     private static int randomClientPort;
 

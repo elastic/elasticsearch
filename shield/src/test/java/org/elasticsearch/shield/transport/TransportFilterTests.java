@@ -18,7 +18,7 @@ import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.shield.action.ShieldActionMapper;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authz.AuthorizationService;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.transport.netty.NettyTransport;
@@ -33,8 +33,8 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
+import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.isA;
 import static org.mockito.Mockito.*;
@@ -43,7 +43,7 @@ import static org.mockito.Mockito.*;
  *
  */
 @ClusterScope(scope = SUITE, numDataNodes = 0)
-public class TransportFilterTests extends ElasticsearchIntegrationTest {
+public class TransportFilterTests extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

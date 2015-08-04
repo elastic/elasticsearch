@@ -7,7 +7,7 @@ package org.elasticsearch.watcher.transport.action.stats;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.WatcherBuild;
 import org.elasticsearch.watcher.WatcherState;
@@ -25,7 +25,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
+import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;

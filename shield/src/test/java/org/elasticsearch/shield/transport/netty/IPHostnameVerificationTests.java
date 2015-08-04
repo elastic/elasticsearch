@@ -7,7 +7,7 @@ package org.elasticsearch.shield.transport.netty;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ShieldIntegTestCase;
 import org.junit.Test;
 
 import java.nio.file.Files;
@@ -16,7 +16,7 @@ import java.nio.file.Path;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.CoreMatchers.is;
 
-public class IPHostnameVerificationTests extends ShieldIntegrationTest {
+public class IPHostnameVerificationTests extends ShieldIntegTestCase {
 
     Path keystore;
 

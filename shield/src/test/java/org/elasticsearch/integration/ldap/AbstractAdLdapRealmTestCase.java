@@ -17,8 +17,8 @@ import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ShieldIntegTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
@@ -39,9 +39,7 @@ import static org.hamcrest.Matchers.is;
  * This test assumes all subclass tests will be of type SUITE.  It picks a random realm configuration for the tests, and
  * writes a group to role mapping file for each node.
  */
-@Ignore
-@ElasticsearchIntegrationTest.Integration
-abstract public class AbstractAdLdapRealmTests extends ShieldIntegrationTest {
+abstract public class AbstractAdLdapRealmTestCase extends ShieldIntegTestCase {
 
     public static final String SHIELD_AUTHC_REALMS_EXTERNAL = "shield.authc.realms.external";
     public static final String PASSWORD = "NickFuryHeartsES";

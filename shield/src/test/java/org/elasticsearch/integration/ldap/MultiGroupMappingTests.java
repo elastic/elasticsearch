@@ -14,7 +14,7 @@ import java.io.IOException;
  * This tests the mapping of multiple groups to a role
  */
 @Network
-public class MultiGroupMappingTests extends AbstractAdLdapRealmTests {
+public class MultiGroupMappingTests extends AbstractAdLdapRealmTestCase {
 
     @Override
     protected String configRoles() {

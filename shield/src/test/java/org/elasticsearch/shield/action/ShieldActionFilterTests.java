@@ -17,7 +17,7 @@ import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.shield.crypto.CryptoService;
 import org.elasticsearch.shield.license.LicenseEventsNotifier;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -29,7 +29,7 @@ import static org.mockito.Mockito.*;
 /**
  *
  */
-public class ShieldActionFilterTests extends ElasticsearchTestCase {
+public class ShieldActionFilterTests extends ESTestCase {
 
     private AuthenticationService authcService;
     private AuthorizationService authzService;

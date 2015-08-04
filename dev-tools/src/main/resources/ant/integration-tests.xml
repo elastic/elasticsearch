@@ -143,9 +143,9 @@
   <!-- TODO: doesn't belong here, but we will figure it out -->
   <target name="start-foreground" depends="stop-external-cluster">
       <delete dir="${integ.scratch}"/>
-      <unzip src="${project.build.directory}/releases/elasticsearch-${project.version}.zip" dest="${integ.scratch}"/>
+      <unzip src="${project.build.directory}/releases/${project.artifactId}-${project.version}.zip" dest="${integ.scratch}"/>
       <local name="home"/>
-      <property name="home" location="${integ.scratch}/elasticsearch-${elasticsearch.version}"/>
+      <property name="home" location="${integ.scratch}/${project.artifactId}-${elasticsearch.version}"/>
       <run-script script="${home}/bin/elasticsearch" spawn="false"
                   args="${integ.args} -Des.path.repo=${home}/repo">
         <nested>
@@ -185,7 +185,7 @@
   <target name="setup-workspace-zip" depends="stop-external-cluster" unless="${shouldskip}">
     <sequential>
       <delete dir="${integ.scratch}"/>
-      <unzip src="${project.build.directory}/releases/elasticsearch-${project.version}.zip" 
+      <unzip src="${project.build.directory}/releases/${project.artifactId}-${project.version}.zip" 
              dest="${integ.scratch}"/>
     </sequential>
   </target>
@@ -200,7 +200,7 @@
   <target name="setup-workspace-tar" depends="stop-external-cluster" unless="${shouldskip}">
     <sequential>
       <delete dir="${integ.scratch}"/>
-      <untar src="${project.build.directory}/releases/elasticsearch-${project.version}.tar.gz" 
+      <untar src="${project.build.directory}/releases/${project.artifactId}-${project.version}.tar.gz" 
              dest="${integ.scratch}"
              compression="gzip"/>
     </sequential>
@@ -217,7 +217,7 @@
       <delete dir="${integ.scratch}"/>
       <mkdir dir="${integ.scratch}/deb-extracted"/>
       <local name="debfile"/>
-      <property name="debfile" location="${project.build.directory}/releases/elasticsearch-${project.version}.deb"/>
+      <property name="debfile" location="${project.build.directory}/releases/${project.artifactId}-${project.version}.deb"/>
       <!-- print some basic package info -->
       <exec executable="dpkg-deb" failonerror="true" taskname="deb-info">
          <arg value="-I"/>
@@ -244,7 +244,7 @@
       <local name="rpm.file"/>
       <local name="rpm.database"/>
       <local name="rpm.extracted"/>
-      <property name="rpm.file" location="${project.build.directory}/releases/elasticsearch-${project.version}.rpm"/>
+      <property name="rpm.file" location="${project.build.directory}/releases/${project.artifactId}-${project.version}.rpm"/>
       <property name="rpm.database" location="${integ.scratch}/rpm-database"/>
       <property name="rpm.extracted" location="${integ.scratch}/rpm-extracted"/>
       <mkdir dir="${rpm.database}"/>

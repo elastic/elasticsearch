@@ -33,6 +33,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -52,7 +53,8 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
+import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.fetch.FetchSubPhaseContext;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
@@ -90,7 +92,7 @@ public class DefaultSearchContext extends SearchContext {
     private ScanContext scanContext;
     private float queryBoost = 1.0f;
     // timeout in millis
-    private long timeoutInMillis = -1;
+    private long timeoutInMillis;
     // terminate after count
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
     private List<String> groupStats;
@@ -98,7 +100,6 @@ public class DefaultSearchContext extends SearchContext {
     private boolean explain;
     private boolean version = false; // by default, we don't return versions
     private List<String> fieldNames;
-    private FieldDataFieldsContext fieldDataFields;
     private ScriptFieldsContext scriptFields;
     private FetchSourceContext fetchSourceContext;
     private int from = -1;
@@ -121,13 +122,18 @@ public class DefaultSearchContext extends SearchContext {
     private boolean queryRewritten;
     private volatile long keepAlive;
     private ScoreDoc lastEmittedDoc;
+    private final long originNanoTime = System.nanoTime();
     private volatile long lastAccessTime = -1;
     private InnerHitsContext innerHitsContext;
 
+    private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
+
     public DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
-                         Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard,
-                         ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
-                         BigArrays bigArrays, Counter timeEstimateCounter, ParseFieldMatcher parseFieldMatcher) {
+                                Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard,
+                                ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
+                                BigArrays bigArrays, Counter timeEstimateCounter, ParseFieldMatcher parseFieldMatcher,
+                                TimeValue timeout
+    ) {
         super(parseFieldMatcher);
         this.id = id;
         this.request = request;
@@ -145,6 +151,7 @@ public class DefaultSearchContext extends SearchContext {
         this.indexService = indexService;
         this.searcher = new ContextIndexSearcher(this, engineSearcher);
         this.timeEstimateCounter = timeEstimateCounter;
+        this.timeoutInMillis = timeout.millis();
     }
 
     @Override
@@ -266,6 +273,11 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
+    public long getOriginNanoTime() {
+        return originNanoTime;
+    }
+
+    @Override
     protected long nowInMillisImpl() {
         return request.nowInMillis();
     }
@@ -291,6 +303,16 @@ public class DefaultSearchContext extends SearchContext {
         this.aggregations = aggregations;
         return this;
     }
+
+    @Override
+    public <SubPhaseContext extends FetchSubPhaseContext> SubPhaseContext getFetchSubPhaseContext(FetchSubPhase.ContextFactory<SubPhaseContext> contextFactory) {
+        String subPhaseName = contextFactory.getName();
+        if (subPhaseContexts.get(subPhaseName) == null) {
+            subPhaseContexts.put(subPhaseName, contextFactory.newContextInstance());
+        }
+        return (SubPhaseContext) subPhaseContexts.get(subPhaseName);
+    }
+
 
     @Override
     public SearchContextHighlight highlight() {
@@ -326,19 +348,6 @@ public class DefaultSearchContext extends SearchContext {
             this.rescore = new ArrayList<>();
         }
         this.rescore.add(rescore);
-    }
-
-    @Override
-    public boolean hasFieldDataFields() {
-        return fieldDataFields != null;
-    }
-
-    @Override
-    public FieldDataFieldsContext fieldDataFields() {
-        if (fieldDataFields == null) {
-            fieldDataFields = new FieldDataFieldsContext();
-        }
-        return this.fieldDataFields;
     }
 
     @Override

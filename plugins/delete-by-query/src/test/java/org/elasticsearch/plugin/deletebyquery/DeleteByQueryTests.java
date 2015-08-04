@@ -19,7 +19,6 @@
 
 package org.elasticsearch.plugin.deletebyquery;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -50,10 +49,15 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-
-@Slow
 @ClusterScope(scope = SUITE, transportClientRatio = 0)
 public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
+    
+    protected Settings nodeSettings(int nodeOrdinal) {
+        Settings.Builder settings = Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put("plugin.types", DeleteByQueryPlugin.class.getName());
+        return settings.build();
+    }
 
     @Test(expected = ActionRequestValidationException.class)
     public void testDeleteByQueryWithNoSource() {

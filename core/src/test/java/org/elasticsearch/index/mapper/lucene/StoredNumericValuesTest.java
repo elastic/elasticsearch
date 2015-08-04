@@ -65,7 +65,7 @@ public class StoredNumericValuesTest extends ElasticsearchSingleNodeTest {
                 .string();
         DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
-        ParsedDocument doc = mapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                     .field("field1", 1)
                     .field("field2", 1.1)

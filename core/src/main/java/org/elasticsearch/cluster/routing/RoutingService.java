@@ -134,7 +134,7 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
     }
 
     // visible for testing
-    void performReroute(String reason) {
+    protected void performReroute(String reason) {
         try {
             if (lifecycle.stopped()) {
                 return;

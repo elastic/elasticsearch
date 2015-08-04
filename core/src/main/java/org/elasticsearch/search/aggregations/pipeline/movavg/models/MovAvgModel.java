@@ -155,7 +155,8 @@ public abstract class MovAvgModel {
          * @param parseFieldMatcher  Matcher for field names
          * @return                   A fully built moving average model
          */
-        public abstract MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName, int windowSize, ParseFieldMatcher parseFieldMatcher) throws ParseException;
+        public abstract MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName,
+                                          int windowSize, ParseFieldMatcher parseFieldMatcher) throws ParseException;
 
 
         /**
@@ -180,6 +181,7 @@ public abstract class MovAvgModel {
             } else if (value instanceof Number) {
                 double v = ((Number) value).doubleValue();
                 if (v >= 0 && v <= 1) {
+                    settings.remove(name);
                     return v;
                 }
 
@@ -211,6 +213,7 @@ public abstract class MovAvgModel {
             if (value == null) {
                 return defaultValue;
             } else if (value instanceof Number) {
+                settings.remove(name);
                 return ((Number) value).intValue();
             }
 
@@ -238,11 +241,18 @@ public abstract class MovAvgModel {
             if (value == null) {
                 return defaultValue;
             } else if (value instanceof Boolean) {
+                settings.remove(name);
                 return (Boolean)value;
             }
 
             throw new ParseException("Parameter [" + name + "] must be a boolean, type `"
                     + value.getClass().getSimpleName() + "` provided instead", 0);
+        }
+
+        protected void checkUnrecognizedParams(@Nullable Map<String, Object> settings) throws ParseException {
+            if (settings != null && settings.size() > 0) {
+                throw new ParseException("Unrecognized parameter(s): [" + settings.keySet() + "]", 0);
+            }
         }
     }
 

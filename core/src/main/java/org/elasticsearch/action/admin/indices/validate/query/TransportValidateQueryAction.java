@@ -46,6 +46,7 @@ import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.DefaultSearchContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchLocalRequest;
@@ -172,7 +173,8 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
         DefaultSearchContext searchContext = new DefaultSearchContext(0,
                 new ShardSearchLocalRequest(request.types(), request.nowInMillis(), request.filteringAliases()),
                 null, searcher, indexService, indexShard,
-                scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher
+                scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher,
+                SearchService.NO_TIMEOUT
         );
         SearchContext.setCurrent(searchContext);
         try {

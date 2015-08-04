@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.test.ElasticsearchTestCase;
+
 /**
  * A helper that allows to create shard routing instances within tests, while not requiring to expose
  * different simplified constructors on the ShardRouting itself.
@@ -26,20 +28,52 @@ package org.elasticsearch.cluster.routing;
 public class TestShardRouting {
 
     public static ShardRouting newShardRouting(String index, int shardId, String currentNodeId, boolean primary, ShardRoutingState state, long version) {
-        return new ShardRouting(index, shardId, currentNodeId, null, null, primary, state, version, null, true);
+        return new ShardRouting(index, shardId, currentNodeId, null, null, primary, state, version, buildUnassignedInfo(state), buildAllocationId(state), true);
     }
 
     public static ShardRouting newShardRouting(String index, int shardId, String currentNodeId, String relocatingNodeId, boolean primary, ShardRoutingState state, long version) {
-        return new ShardRouting(index, shardId, currentNodeId, relocatingNodeId, null, primary, state, version, null, true);
+        return new ShardRouting(index, shardId, currentNodeId, relocatingNodeId, null, primary, state, version, buildUnassignedInfo(state), buildAllocationId(state), true);
+    }
+
+    public static ShardRouting newShardRouting(String index, int shardId, String currentNodeId, String relocatingNodeId, boolean primary, ShardRoutingState state, AllocationId allocationId, long version) {
+        return new ShardRouting(index, shardId, currentNodeId, relocatingNodeId, null, primary, state, version, buildUnassignedInfo(state), allocationId, true);
     }
 
     public static ShardRouting newShardRouting(String index, int shardId, String currentNodeId, String relocatingNodeId, RestoreSource restoreSource, boolean primary, ShardRoutingState state, long version) {
-        return new ShardRouting(index, shardId, currentNodeId, relocatingNodeId, restoreSource, primary, state, version, null, true);
+        return new ShardRouting(index, shardId, currentNodeId, relocatingNodeId, restoreSource, primary, state, version, buildUnassignedInfo(state), buildAllocationId(state), true);
     }
 
     public static ShardRouting newShardRouting(String index, int shardId, String currentNodeId,
                                                String relocatingNodeId, RestoreSource restoreSource, boolean primary, ShardRoutingState state, long version,
                                                UnassignedInfo unassignedInfo) {
-        return new ShardRouting(index, shardId, currentNodeId, relocatingNodeId, restoreSource, primary, state, version, unassignedInfo, true);
+        return new ShardRouting(index, shardId, currentNodeId, relocatingNodeId, restoreSource, primary, state, version, unassignedInfo, buildAllocationId(state), true);
+    }
+
+    private static AllocationId buildAllocationId(ShardRoutingState state) {
+        switch (state) {
+            case UNASSIGNED:
+                return null;
+            case INITIALIZING:
+            case STARTED:
+                return AllocationId.newInitializing();
+            case RELOCATING:
+                AllocationId allocationId = AllocationId.newInitializing();
+                return AllocationId.newRelocation(allocationId);
+            default:
+                throw new IllegalStateException("illegal state");
+        }
+    }
+
+    private static UnassignedInfo buildUnassignedInfo(ShardRoutingState state) {
+        switch (state) {
+            case UNASSIGNED:
+            case INITIALIZING:
+                return new UnassignedInfo(ElasticsearchTestCase.randomFrom(UnassignedInfo.Reason.values()), "auto generated for test");
+            case STARTED:
+            case RELOCATING:
+                return null;
+            default:
+                throw new IllegalStateException("illegal state");
+        }
     }
 }

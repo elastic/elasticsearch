@@ -497,16 +497,26 @@ public abstract class StreamInput extends InputStream {
                     final String name = readString();
                     return (T) readException(this, name);
                 case 1:
-                    // this sucks it would be nice to have a better way to construct those?
-                    String msg = readOptionalString();
-                    final int idx = msg.indexOf(" (resource=");
-                    final String resource = msg.substring(idx + " (resource=".length(), msg.length()-1);
-                    msg = msg.substring(0, idx);
-                    return (T) readStackTrace(new CorruptIndexException(msg, resource, readThrowable()), this); // Lucene 5.3 will have getters for all these
+                    String msg1 = readOptionalString();
+                    String resource1 = readOptionalString();
+                    return (T) readStackTrace(new CorruptIndexException(msg1, resource1, readThrowable()), this);
                 case 2:
-                    return (T) readStackTrace(new IndexFormatTooNewException(readOptionalString(), -1, -1, -1), this);  // Lucene 5.3 will have getters for all these
+                    String resource2 = readOptionalString();
+                    int version2 = readInt();
+                    int minVersion2 = readInt();
+                    int maxVersion2 = readInt();
+                    return (T) readStackTrace(new IndexFormatTooNewException(resource2, version2, minVersion2, maxVersion2), this);
                 case 3:
-                    return (T) readStackTrace(new IndexFormatTooOldException(readOptionalString(), -1, -1, -1), this);  // Lucene 5.3 will have getters for all these
+                    String resource3 = readOptionalString();
+                    if (readBoolean()) {
+                        int version3 = readInt();
+                        int minVersion3 = readInt();
+                        int maxVersion3 = readInt();
+                        return (T) readStackTrace(new IndexFormatTooOldException(resource3, version3, minVersion3, maxVersion3), this);
+                    } else {
+                        String version3 = readOptionalString();
+                        return (T) readStackTrace(new IndexFormatTooOldException(resource3, version3), this);
+                    }
                 case 4:
                     return (T) readStackTrace(new NullPointerException(readOptionalString()), this);
                 case 5:

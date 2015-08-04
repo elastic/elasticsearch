@@ -57,7 +57,7 @@ public class RegexpQueryParser implements QueryParser {
         String fieldName = parser.currentName();
         String rewriteMethod = null;
 
-        Object value = null;
+        String value = null;
         float boost = 1.0f;
         int flagsValue = DEFAULT_FLAGS_VALUE;
         int maxDeterminizedStates = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
@@ -76,7 +76,7 @@ public class RegexpQueryParser implements QueryParser {
                         currentFieldName = parser.currentName();
                     } else {
                         if ("value".equals(currentFieldName)) {
-                            value = parser.objectBytes();
+                            value = parser.textOrNull();
                         } else if ("boost".equals(currentFieldName)) {
                             boost = parser.floatValue();
                         } else if ("rewrite".equals(currentFieldName)) {
@@ -100,7 +100,7 @@ public class RegexpQueryParser implements QueryParser {
                     queryName = parser.text();
                 } else {
                     fieldName = currentFieldName;
-                    value = parser.objectBytes();
+                    value = parser.textOrNull();
                 }
             }
         }

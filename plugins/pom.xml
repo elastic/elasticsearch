@@ -19,10 +19,11 @@
     </parent>
 
     <properties>
-        <elasticsearch.assembly.descriptor>${basedir}/src/main/assemblies/plugin.xml</elasticsearch.assembly.descriptor>
+        <elasticsearch.assembly.descriptor>${elasticsearch.tools.directory}/plugin-metadata/plugin-assembly.xml</elasticsearch.assembly.descriptor>
         <elasticsearch.assembly.appendId>false</elasticsearch.assembly.appendId>
-        <elasticsearch.integ.antfile.default>${elasticsearch.tools.directory}/ant/integration-tests.xml</elasticsearch.integ.antfile.default>
-        <elasticsearch.integ.antfile>${elasticsearch.integ.antfile.default}</elasticsearch.integ.antfile>
+        <elasticsearch.plugin.jvm>true</elasticsearch.plugin.jvm>
+        <elasticsearch.plugin.isolated>true</elasticsearch.plugin.isolated>
+        <elasticsearch.plugin.site>false</elasticsearch.plugin.site>
     </properties>
 
     <dependencies>
@@ -41,12 +42,6 @@
             <groupId>org.elasticsearch</groupId>
             <artifactId>elasticsearch</artifactId>
             <type>test-jar</type>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.elasticsearch</groupId>
-            <artifactId>elasticsearch</artifactId>
-            <type>zip</type>
             <scope>test</scope>
         </dependency>
 
@@ -315,8 +310,7 @@
                             </goals>
                             <configuration>
                                 <target>
-                                    <ant antfile="${elasticsearch.integ.antfile}"
-                                         target="start-external-cluster-with-plugin"/>
+                                    <ant antfile="${elasticsearch.integ.antfile}" target="start-external-cluster-with-plugin"/>
                                 </target>
                             </configuration>
                         </execution>
@@ -329,21 +323,11 @@
                             </goals>
                             <configuration>
                                 <target>
-                                    <ant antfile="${elasticsearch.integ.antfile}"
-                                         target="stop-external-cluster"/>
+                                    <ant antfile="${elasticsearch.integ.antfile}" target="stop-external-cluster"/>
                                 </target>
                             </configuration>
                         </execution>
                     </executions>
-                </plugin>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-failsafe-plugin</artifactId>
-                    <configuration>
-                        <systemPropertyVariables>
-                            <tests.cluster>127.0.0.1:9300</tests.cluster>
-                        </systemPropertyVariables>
-                    </configuration>
                 </plugin>
         </plugins>
 
@@ -368,6 +352,71 @@
                         </execution>
                     </executions>
                 </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-enforcer-plugin</artifactId>
+                    <executions>
+                        <execution>
+                            <id>enforce-plugin-classname</id>
+                            <goals>
+                                <goal>enforce</goal>
+                            </goals>
+                            <configuration>
+                                <rules>
+                                    <requireProperty>
+                                        <property>elasticsearch.plugin.classname</property>
+                                    </requireProperty>
+                                </rules>
+                            </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-dependency-plugin</artifactId>
+                    <executions>
+                        <execution>
+                            <id>integ-setup-dependencies</id>
+                            <phase>pre-integration-test</phase>
+                            <goals>
+                                <goal>copy</goal>
+                            </goals>
+                            <configuration>
+                                <skip>${skip.integ.tests}</skip>
+                                <artifactItems>
+                                    <artifactItem>
+                                        <groupId>org.elasticsearch.distribution</groupId>
+                                        <artifactId>elasticsearch-zip</artifactId>
+                                        <version>${elasticsearch.version}</version>
+                                        <type>zip</type>
+                                        <overWrite>true</overWrite>
+                                        <!-- these packaging builds sneakily rename their artifacts to look nothing
+                                             like their artifact id, so we must duplicate that rename here -->
+                                        <destFileName>elasticsearch-${elasticsearch.version}.zip</destFileName>
+                                    </artifactItem>
+                                </artifactItems>
+                                <outputDirectory>${integ.deps}</outputDirectory>
+                            </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
+                    <groupId>com.carrotsearch.randomizedtesting</groupId>
+                    <artifactId>junit4-maven-plugin</artifactId>
+                    <executions>
+                        <execution>
+                            <id>integ-tests</id>
+                            <configuration>
+                                <!-- currently only 1 cpu works, because integ tests don't make "unique" test directories? -->
+                                <parallelism>1</parallelism>
+                                <systemProperties>
+                                    <!-- use external cluster -->
+                                    <tests.cluster>127.0.0.1:9300</tests.cluster>
+                                </systemProperties>
+                            </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
             </plugins>
         </pluginManagement>
     </build>
@@ -381,6 +430,7 @@
         <module>cloud-gce</module>
         <module>cloud-azure</module>
         <module>cloud-aws</module>
+        <module>site-example</module>
         <module>lang-python</module>
         <module>lang-javascript</module>
         <module>delete-by-query</module>

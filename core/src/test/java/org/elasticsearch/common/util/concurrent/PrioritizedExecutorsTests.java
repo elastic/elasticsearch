@@ -244,7 +244,7 @@ public class PrioritizedExecutorsTests extends ElasticsearchTestCase {
     @Test
     public void testTimeoutCleanup() throws Exception {
         ThreadPool threadPool = new ThreadPool("test");
-        ScheduledThreadPoolExecutor timer = (ScheduledThreadPoolExecutor) threadPool.scheduler();
+        final ScheduledThreadPoolExecutor timer = (ScheduledThreadPoolExecutor) threadPool.scheduler();
         final AtomicBoolean timeoutCalled = new AtomicBoolean();
         PrioritizedEsThreadPoolExecutor executor = EsExecutors.newSinglePrioritizing(EsExecutors.daemonThreadFactory(getTestName()));
         final CountDownLatch invoked = new CountDownLatch(1);
@@ -253,7 +253,7 @@ public class PrioritizedExecutorsTests extends ElasticsearchTestCase {
                              public void run() {
                                  invoked.countDown();
                              }
-                         }, timer, TimeValue.timeValueMillis(1000), new Runnable() {
+                         }, timer, TimeValue.timeValueHours(1), new Runnable() {
                     @Override
                     public void run() {
                         // We should never get here
@@ -262,7 +262,15 @@ public class PrioritizedExecutorsTests extends ElasticsearchTestCase {
                 }
         );
         invoked.await();
-        assertThat(timer.getQueue().size(), equalTo(0));
+
+        // the timeout handler is added post execution (and quickly cancelled). We have allow for this
+        // and use assert busy
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                assertThat(timer.getQueue().size(), equalTo(0));
+            }
+        }, 5, TimeUnit.SECONDS);
         assertThat(timeoutCalled.get(), equalTo(false));
         assertTrue(terminate(executor));
         assertTrue(terminate(threadPool));

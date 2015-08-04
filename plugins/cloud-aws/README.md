@@ -28,7 +28,7 @@ To build a `SNAPSHOT` version, you need to build it with Maven:
 
 ```bash
 mvn clean install
-plugin --install cloud-aws \ 
+plugin install cloud-aws \
        --url file:target/releases/elasticsearch-cloud-aws-X.X.X-SNAPSHOT.zip
 ```
 

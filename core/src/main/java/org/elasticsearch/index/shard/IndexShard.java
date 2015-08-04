@@ -21,16 +21,13 @@ package org.elasticsearch.index.shard;
 
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
-
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.CheckIndex;
-import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.ThreadInterruptedException;
-import org.elasticsearch.ElasticsearchCorruptionException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -39,7 +36,6 @@ import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RestoreSource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -172,6 +168,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     protected volatile IndexShardState state;
     protected final AtomicReference<Engine> currentEngineReference = new AtomicReference<>();
     protected final EngineFactory engineFactory;
+    private final IndexSearcherWrappingService wrappingService;
 
     @Nullable
     private RecoveryState recoveryState;
@@ -201,12 +198,13 @@ public class IndexShard extends AbstractIndexShardComponent {
                       IndicesQueryCache indicesQueryCache, ShardPercolateService shardPercolateService, CodecService codecService,
                       ShardTermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, IndexService indexService,
                       @Nullable IndicesWarmer warmer, SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService, EngineFactory factory,
-                      ClusterService clusterService, ShardPath path, BigArrays bigArrays) {
+                      ClusterService clusterService, ShardPath path, BigArrays bigArrays, IndexSearcherWrappingService wrappingService) {
         super(shardId, indexSettingsService.getSettings());
         this.codecService = codecService;
         this.warmer = warmer;
         this.deletionPolicy = deletionPolicy;
         this.similarityService = similarityService;
+        this.wrappingService = wrappingService;
         Preconditions.checkNotNull(store, "Store must be provided to the index shard");
         Preconditions.checkNotNull(deletionPolicy, "Snapshot deletion policy must be provided to the index shard");
         this.engineFactory = factory;
@@ -340,14 +338,16 @@ public class IndexShard extends AbstractIndexShardComponent {
         if (!newRouting.shardId().equals(shardId())) {
             throw new IllegalArgumentException("Trying to set a routing entry with shardId [" + newRouting.shardId() + "] on a shard with shardId [" + shardId() + "]");
         }
+        if ((currentRouting == null || newRouting.isSameAllocation(currentRouting)) == false) {
+            throw new IllegalArgumentException("Trying to set a routing entry with a different allocation. Current " + currentRouting + ", new " + newRouting);
+        }
         try {
             if (currentRouting != null) {
-                assert newRouting.version() > currentRouting.version() : "expected: " + newRouting.version() + " > " + currentRouting.version();
                 if (!newRouting.primary() && currentRouting.primary()) {
                     logger.warn("suspect illegal state: trying to move shard from primary mode to replica mode");
                 }
-                // if its the same routing, return
-                if (currentRouting.equals(newRouting)) {
+                // if its the same routing except for some metadata info, return
+                if (currentRouting.equalsIgnoringMetaData(newRouting)) {
                     this.shardRouting = newRouting; // might have a new version
                     return;
                 }
@@ -726,12 +726,12 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public org.apache.lucene.util.Version minimumCompatibleVersion() {
         org.apache.lucene.util.Version luceneVersion = null;
-        for(Segment segment : engine().segments(false)) {
+        for (Segment segment : engine().segments(false)) {
             if (luceneVersion == null || luceneVersion.onOrAfter(segment.getVersion())) {
                 luceneVersion = segment.getVersion();
             }
         }
-        return luceneVersion == null ?  Version.indexCreated(indexSettings).luceneVersion : luceneVersion;
+        return luceneVersion == null ? Version.indexCreated(indexSettings).luceneVersion : luceneVersion;
     }
 
     public SnapshotIndexCommit snapshotIndex(boolean flushFirst) throws EngineException {
@@ -1039,10 +1039,11 @@ public class IndexShard extends AbstractIndexShardComponent {
         return path;
     }
 
-    public void recoverFromStore(IndexShardRoutingTable shardRoutingTable, StoreRecoveryService.RecoveryListener recoveryListener) {
+    public void recoverFromStore(ShardRouting shard, StoreRecoveryService.RecoveryListener recoveryListener) {
         // we are the first primary, recover from the gateway
         // if its post api allocation, the index should exists
-        final boolean shouldExist = shardRoutingTable.primaryAllocatedPostApi();
+        assert shard.primary() : "recover from store only makes sense if the shard is a primary shard";
+        final boolean shouldExist = shard.allocatedPostIndexCreate();
         storeRecoveryService.recover(this, shouldExist, recoveryListener);
     }
 
@@ -1115,7 +1116,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                 }
 
                 final int maxMergeCount = settings.getAsInt(MergeSchedulerConfig.MAX_MERGE_COUNT, mergeSchedulerConfig.getMaxMergeCount());
-                if (maxMergeCount !=  mergeSchedulerConfig.getMaxMergeCount()) {
+                if (maxMergeCount != mergeSchedulerConfig.getMaxMergeCount()) {
                     logger.info("updating [{}] from [{}] to [{}]", MergeSchedulerConfig.MAX_MERGE_COUNT, mergeSchedulerConfig.getMaxMergeCount(), maxMergeCount);
                     mergeSchedulerConfig.setMaxMergeCount(maxMergeCount);
                     change = true;
@@ -1362,7 +1363,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         };
         return new EngineConfig(shardId,
                 threadPool, indexingService, indexSettingsService.indexSettings(), warmer, store, deletionPolicy, mergePolicyConfig.getMergePolicy(), mergeSchedulerConfig,
-                mapperService.indexAnalyzer(), similarityService.similarity(), codecService, failedEngineListener, translogRecoveryPerformer, indexCache.query(), cachingPolicy, translogConfig);
+                mapperService.indexAnalyzer(), similarityService.similarity(), codecService, failedEngineListener, translogRecoveryPerformer, indexCache.query(), cachingPolicy, wrappingService, translogConfig);
     }
 
     private static class IndexShardOperationCounter extends AbstractRefCounted {

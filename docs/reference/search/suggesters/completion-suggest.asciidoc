@@ -219,8 +219,8 @@ The following parameters are supported:
     See  <<fuzziness>> for allowed settings.
 
 `transpositions`::
-    Sets if transpositions should be counted
-    as one or two changes, defaults to `true`
+    if set to `true`, transpositions are counted
+    as one change instead of two, defaults to `true`
 
 `min_length`::
     Minimum length of the input before fuzzy

@@ -29,6 +29,7 @@ import org.apache.lucene.spatial.prefix.tree.PackedQuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.SpatialStrategy;
@@ -41,6 +42,8 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 
 import java.io.IOException;
@@ -49,6 +52,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.index.mapper.MapperBuilders.geoShapeField;
 
 
@@ -81,6 +85,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
         public static final String DISTANCE_ERROR_PCT = "distance_error_pct";
         public static final String ORIENTATION = "orientation";
         public static final String STRATEGY = "strategy";
+        public static final String COERCE = "coerce";
     }
 
     public static class Defaults {
@@ -90,6 +95,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
         public static final int QUADTREE_LEVELS = GeoUtils.quadTreeLevelsForPrecision("50m");
         public static final double LEGACY_DISTANCE_ERROR_PCT = 0.025d;
         public static final Orientation ORIENTATION = Orientation.RIGHT;
+        public static final Explicit<Boolean> COERCE = new Explicit<>(false, false);
 
         public static final MappedFieldType FIELD_TYPE = new GeoShapeFieldType();
 
@@ -108,12 +114,29 @@ public class GeoShapeFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder<Builder, GeoShapeFieldMapper> {
 
+        private Boolean coerce;
+
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE);
         }
 
         public GeoShapeFieldType fieldType() {
             return (GeoShapeFieldType)fieldType;
+        }
+
+        public Builder coerce(boolean coerce) {
+            this.coerce = coerce;
+            return builder;
+        }
+
+        protected Explicit<Boolean> coerce(BuilderContext context) {
+            if (coerce != null) {
+                return new Explicit<>(coerce, true);
+            }
+            if (context.indexSettings() != null) {
+                return new Explicit<>(context.indexSettings().getAsBoolean("index.mapping.coerce", Defaults.COERCE.value()), false);
+            }
+            return Defaults.COERCE;
         }
 
         @Override
@@ -130,7 +153,8 @@ public class GeoShapeFieldMapper extends FieldMapper {
             }
             setupFieldType(context);
 
-            return new GeoShapeFieldMapper(name, fieldType, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+            return new GeoShapeFieldMapper(name, fieldType, coerce(context), context.indexSettings(), multiFieldsBuilder.build(this,
+                    context), copyTo);
         }
     }
 
@@ -160,6 +184,9 @@ public class GeoShapeFieldMapper extends FieldMapper {
                     iterator.remove();
                 } else if (Names.STRATEGY.equals(fieldName)) {
                     builder.fieldType().setStrategyName(fieldNode.toString());
+                    iterator.remove();
+                } else if (Names.COERCE.equals(fieldName)) {
+                    builder.coerce(nodeBooleanValue(fieldNode));
                     iterator.remove();
                 }
             }
@@ -246,7 +273,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
             termStrategy.setDistErrPct(distanceErrorPct());
             defaultStrategy = resolveStrategy(strategyName);
         }
-        
+
         @Override
         public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts, boolean strict) {
             super.checkCompatibility(fieldType, conflicts, strict);
@@ -357,8 +384,12 @@ public class GeoShapeFieldMapper extends FieldMapper {
 
     }
 
-    public GeoShapeFieldMapper(String simpleName, MappedFieldType fieldType, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+    protected Explicit<Boolean> coerce;
+
+    public GeoShapeFieldMapper(String simpleName, MappedFieldType fieldType, Explicit<Boolean> coerce, Settings indexSettings,
+                               MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, multiFields, copyTo);
+        this.coerce = coerce;
     }
 
     @Override
@@ -398,6 +429,21 @@ public class GeoShapeFieldMapper extends FieldMapper {
     }
 
     @Override
+    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+        super.merge(mergeWith, mergeResult);
+        if (!this.getClass().equals(mergeWith.getClass())) {
+            return;
+        }
+
+        GeoShapeFieldMapper gsfm = (GeoShapeFieldMapper)mergeWith;
+        if (mergeResult.simulate() == false && mergeResult.hasConflicts() == false) {
+            if (gsfm.coerce.explicit()) {
+                this.coerce = gsfm.coerce;
+            }
+        }
+    }
+
+    @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         builder.field("type", contentType());
 
@@ -419,6 +465,13 @@ public class GeoShapeFieldMapper extends FieldMapper {
         if (includeDefaults || fieldType().orientation() != Defaults.ORIENTATION) {
             builder.field(Names.ORIENTATION, fieldType().orientation());
         }
+        if (includeDefaults || coerce.explicit()) {
+            builder.field("coerce", coerce.value());
+        }
+    }
+
+    public Explicit<Boolean> coerce() {
+        return coerce;
     }
 
     @Override

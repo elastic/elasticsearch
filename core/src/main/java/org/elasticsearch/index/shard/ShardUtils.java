@@ -63,7 +63,11 @@ public final class ShardUtils {
             if (reader instanceof ElasticsearchLeafReader) {
                 return (ElasticsearchLeafReader) reader;
             } else {
-                return getElasticsearchLeafReader(FilterLeafReader.unwrap(reader));
+                // We need to use FilterLeafReader#getDelegate and not FilterLeafReader#unwrap, because
+                // If there are multiple levels of filtered leaf readers then with the unwrap() method it immediately
+                // returns the most inner leaf reader and thus skipping of over any other filtered leaf reader that
+                // may be instance of ElasticsearchLeafReader. This can cause us to miss the shardId.
+                return getElasticsearchLeafReader(((FilterLeafReader) reader).getDelegate());
             }
         }
         return null;
@@ -74,7 +78,11 @@ public final class ShardUtils {
             if (reader instanceof ElasticsearchDirectoryReader) {
                 return (ElasticsearchDirectoryReader) reader;
             } else {
-                return null; // lucene needs a getDelegate method on FilteredDirectoryReader - not a big deal here
+                // We need to use FilterDirectoryReader#getDelegate and not FilterDirectoryReader#unwrap, because
+                // If there are multiple levels of filtered leaf readers then with the unwrap() method it immediately
+                // returns the most inner leaf reader and thus skipping of over any other filtered leaf reader that
+                // may be instance of ElasticsearchLeafReader. This can cause us to miss the shardId.
+                return getElasticsearchDirectoryReader(((FilterDirectoryReader) reader).getDelegate());
             }
         }
         return null;

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.script.groovy;
 
+import com.google.common.base.Charsets;
+import com.google.common.hash.Hashing;
 import groovy.lang.Binding;
 import groovy.lang.GroovyClassLoader;
 import groovy.lang.Script;
@@ -49,7 +51,6 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Provides the infrastructure for Groovy as a scripting language for Elasticsearch
@@ -57,7 +58,6 @@ import java.util.concurrent.atomic.AtomicLong;
 public class GroovyScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
     public static final String NAME = "groovy";
-    private final AtomicLong counter = new AtomicLong();
     private final GroovyClassLoader loader;
 
     @Inject
@@ -111,7 +111,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
     @Override
     public Object compile(String script) {
         try {
-            return loader.parseClass(script, generateScriptName());
+            return loader.parseClass(script, Hashing.sha1().hashString(script, Charsets.UTF_8).toString());
         } catch (Throwable e) {
             if (logger.isTraceEnabled()) {
                 logger.trace("exception compiling Groovy script:", e);
@@ -188,10 +188,6 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
     @Override
     public Object unwrap(Object value) {
         return value;
-    }
-
-    private String generateScriptName() {
-        return "Script" + counter.incrementAndGet() + ".groovy";
     }
 
     public static final class GroovyScript implements ExecutableScript, LeafSearchScript {

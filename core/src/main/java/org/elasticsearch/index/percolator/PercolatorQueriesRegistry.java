@@ -226,14 +226,6 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
             }
         }
 
-        @Override
-        public void afterRemove(DocumentMapper mapper) {
-            if (PercolatorService.TYPE_NAME.equals(mapper.type())) {
-                disableRealTimePercolator();
-                clear();
-            }
-        }
-
     }
 
     private class ShardLifecycleListener extends IndicesLifecycle.Listener {

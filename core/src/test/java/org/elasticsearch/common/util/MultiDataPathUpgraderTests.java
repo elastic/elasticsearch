@@ -24,7 +24,7 @@ import com.google.common.collect.Sets;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.bwcompat.OldIndexBackwardsCompatibilityTests;
+import org.elasticsearch.bwcompat.OldIndexBackwardsCompatibilityIT;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -134,7 +134,7 @@ public class MultiDataPathUpgraderTests extends ElasticsearchTestCase {
      */
     public void testUpgradeRealIndex() throws IOException, URISyntaxException {
         List<Path> indexes = new ArrayList<>();
-        Path dir = getDataPath("/" + OldIndexBackwardsCompatibilityTests.class.getPackage().getName().replace('.', '/')); // the files are in the same pkg as the OldIndexBackwardsCompatibilityTests test
+        Path dir = getDataPath("/" + OldIndexBackwardsCompatibilityIT.class.getPackage().getName().replace('.', '/')); // the files are in the same pkg as the OldIndexBackwardsCompatibilityTests test
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, "index-*.zip")) {
             for (Path path : stream) {
                 indexes.add(path);
@@ -177,7 +177,7 @@ public class MultiDataPathUpgraderTests extends ElasticsearchTestCase {
                 multiDataPath[i++] = nodePath.indicesPath;
             }
             logger.info("--> injecting index [{}] into multiple data paths", indexName);
-            OldIndexBackwardsCompatibilityTests.copyIndex(logger, src, indexName, multiDataPath);
+            OldIndexBackwardsCompatibilityIT.copyIndex(logger, src, indexName, multiDataPath);
             final ShardPath shardPath = new ShardPath(nodeEnvironment.availableShardPaths(new ShardId(indexName, 0))[0], nodeEnvironment.availableShardPaths(new ShardId(indexName, 0))[0], IndexMetaData.INDEX_UUID_NA_VALUE, new ShardId(indexName, 0));
 
             logger.info("{}", FileSystemUtils.files(shardPath.resolveIndex()));

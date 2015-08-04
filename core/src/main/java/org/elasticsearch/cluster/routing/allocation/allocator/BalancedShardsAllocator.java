@@ -41,7 +41,6 @@ import org.elasticsearch.node.settings.NodeSettingsService;
 
 import java.util.*;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 
 /**
@@ -292,7 +291,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             }
             indices.addAll(allocation.routingTable().indicesRouting().keySet());
             buildModelFromAssigned(routing.shards(assignedFilter));
-            return allocateUnassigned(unassigned, routing.ignoredUnassigned());
+            return allocateUnassigned(unassigned);
         }
 
         private static float absDelta(float lower, float higher) {
@@ -551,7 +550,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
          * Allocates all given shards on the minimal eligable node for the shards index
          * with respect to the weight function. All given shards must be unassigned.
          */
-        private boolean allocateUnassigned(RoutingNodes.UnassignedShards unassigned, List<ShardRouting> ignoredUnassigned) {
+        private boolean allocateUnassigned(RoutingNodes.UnassignedShards unassigned) {
             assert !nodes.isEmpty();
             if (logger.isTraceEnabled()) {
                 logger.trace("Start allocating unassigned shards");
@@ -600,9 +599,9 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     if (!shard.primary()) {
                         boolean drop = deciders.canAllocate(shard, allocation).type() == Type.NO;
                         if (drop) {
-                            ignoredUnassigned.add(shard);
+                            unassigned.ignoreShard(shard);
                             while(i < primaryLength-1 && comparator.compare(primary[i], primary[i+1]) == 0) {
-                                ignoredUnassigned.add(primary[++i]);
+                                unassigned.ignoreShard(primary[++i]);
                             }
                             continue;
                         } else {
@@ -706,10 +705,10 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     } else if (logger.isTraceEnabled()) {
                         logger.trace("No Node found to assign shard [{}]", shard);
                     }
-                    ignoredUnassigned.add(shard);
+                    unassigned.ignoreShard(shard);
                     if (!shard.primary()) { // we could not allocate it and we are a replica - check if we can ignore the other replicas
                         while(secondaryLength > 0 && comparator.compare(shard, secondary[secondaryLength-1]) == 0) {
-                            ignoredUnassigned.add(secondary[--secondaryLength]);
+                            unassigned.ignoreShard(secondary[--secondaryLength]);
                         }
                     }
                 }

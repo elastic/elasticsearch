@@ -47,7 +47,7 @@ public class CompressSourceMappingTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapper documentMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
 
-        ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
+        ParsedDocument doc = documentMapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field1", "value1")
                 .field("field2", "value2")
                 .endObject().bytes());
@@ -63,7 +63,7 @@ public class CompressSourceMappingTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapper documentMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
 
-        ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
+        ParsedDocument doc = documentMapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field1", "value1")
                 .field("field2", "value2")
                 .endObject().bytes());
@@ -80,14 +80,14 @@ public class CompressSourceMappingTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapper documentMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
 
-        ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
+        ParsedDocument doc = documentMapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field1", "value1")
                 .endObject().bytes());
 
         BytesRef bytes = doc.rootDoc().getBinaryValue("_source");
         assertThat(CompressorFactory.isCompressed(new BytesArray(bytes)), equalTo(false));
 
-        doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
+        doc = documentMapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field1", "value1")
                 .field("field2", "value2 xxxxxxxxxxxxxx yyyyyyyyyyyyyyyyyyy zzzzzzzzzzzzzzzzz")
                 .field("field2", "value2 xxxxxxxxxxxxxx yyyyyyyyyyyyyyyyyyy zzzzzzzzzzzzzzzzz")

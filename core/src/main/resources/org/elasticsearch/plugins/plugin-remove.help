@@ -1,0 +1,12 @@
+NAME
+
+    remove - Remove a plugin
+
+SYNOPSIS
+
+    plugin remove <name>
+
+DESCRIPTION
+
+    This command removes an elasticsearch plugin
+

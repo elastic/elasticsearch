@@ -32,16 +32,17 @@ import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import static org.hamcrest.Matchers.*;
 
 public class IndexTypeMapperTests extends ElasticsearchSingleNodeTest {
+    private Settings bwcSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
     
-    public void testSimpleIndexMapper() throws Exception {
+    public void testSimpleIndexMapperEnabledBackcompat() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_index").field("enabled", true).endObject()
                 .endObject().endObject().string();
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test", bwcSettings).mapperService().documentMapperParser().parse(mapping);
         IndexFieldMapper indexMapper = docMapper.indexMapper();
         assertThat(indexMapper.enabled(), equalTo(true));
 
-        ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
                 .endObject()
@@ -51,15 +52,15 @@ public class IndexTypeMapperTests extends ElasticsearchSingleNodeTest {
         assertThat(doc.rootDoc().get("field"), equalTo("value"));
     }
     
-    public void testExplicitDisabledIndexMapper() throws Exception {
+    public void testExplicitDisabledIndexMapperBackcompat() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_index").field("enabled", false).endObject()
                 .endObject().endObject().string();
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test", bwcSettings).mapperService().documentMapperParser().parse(mapping);
         IndexFieldMapper indexMapper = docMapper.rootMapper(IndexFieldMapper.class);
         assertThat(indexMapper.enabled(), equalTo(false));
 
-        ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
                 .endObject()
@@ -76,7 +77,7 @@ public class IndexTypeMapperTests extends ElasticsearchSingleNodeTest {
         IndexFieldMapper indexMapper = docMapper.rootMapper(IndexFieldMapper.class);
         assertThat(indexMapper.enabled(), equalTo(false));
 
-        ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
                 .endObject()
@@ -86,11 +87,11 @@ public class IndexTypeMapperTests extends ElasticsearchSingleNodeTest {
         assertThat(doc.rootDoc().get("field"), equalTo("value"));
     }
     
-    public void testThatMergingFieldMappingAllowsDisabling() throws Exception {
+    public void testThatMergingFieldMappingAllowsDisablingBackcompat() throws Exception {
         String mappingWithIndexEnabled = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_index").field("enabled", true).endObject()
                 .endObject().endObject().string();
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        DocumentMapperParser parser = createIndex("test", bwcSettings).mapperService().documentMapperParser();
         DocumentMapper mapperEnabled = parser.parse(mappingWithIndexEnabled);
 
 
@@ -103,11 +104,11 @@ public class IndexTypeMapperTests extends ElasticsearchSingleNodeTest {
         assertThat(mapperEnabled.IndexFieldMapper().enabled(), is(false));
     }
     
-    public void testThatDisablingWorksWhenMerging() throws Exception {
+    public void testThatDisablingWorksWhenMergingBackcompat() throws Exception {
         String enabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_index").field("enabled", true).endObject()
                 .endObject().endObject().string();
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        DocumentMapperParser parser = createIndex("test", bwcSettings).mapperService().documentMapperParser();
         DocumentMapper enabledMapper = parser.parse(enabledMapping);
 
         String disabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -125,13 +126,13 @@ public class IndexTypeMapperTests extends ElasticsearchSingleNodeTest {
                 .field("enabled", true)
                 .field("store", "yes").endObject()
             .endObject().endObject().string();
-        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
-        DocumentMapper docMapper = createIndex("test", indexSettings).mapperService().documentMapperParser().parse(mapping);
+
+        DocumentMapper docMapper = createIndex("test", bwcSettings).mapperService().documentMapperParser().parse(mapping);
         IndexFieldMapper indexMapper = docMapper.rootMapper(IndexFieldMapper.class);
         assertThat(indexMapper.enabled(), equalTo(true));
         assertThat(indexMapper.fieldType().stored(), equalTo(true));
 
-        ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
             .startObject()
             .field("field", "value")
             .endObject()

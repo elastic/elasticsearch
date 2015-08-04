@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -35,10 +36,17 @@ import java.io.IOException;
  */
 public abstract class SingleShardRequest<T extends SingleShardRequest> extends ActionRequest<T> implements IndicesRequest {
 
-    ShardId internalShardId;
-
-    protected String index;
     public static final IndicesOptions INDICES_OPTIONS = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+
+    /**
+     * The concrete index name
+     *
+     * Whether index property is optional depends on the concrete implementation. If index property is required the
+     * concrete implementation should use {@link #validateNonNullIndex()} to check if the index property has been set
+     */
+    @Nullable
+    protected String index;
+    ShardId internalShardId;
     private boolean threadedOperation = true;
 
     protected SingleShardRequest() {
@@ -57,8 +65,10 @@ public abstract class SingleShardRequest<T extends SingleShardRequest> extends A
         this.index = index;
     }
 
-    @Override
-    public ActionRequestValidationException validate() {
+    /**
+     * @return a validation exception if the index property hasn't been set
+     */
+    protected ActionRequestValidationException validateNonNullIndex() {
         ActionRequestValidationException validationException = null;
         if (index == null) {
             validationException = ValidateActions.addValidationError("index is missing", validationException);
@@ -66,6 +76,13 @@ public abstract class SingleShardRequest<T extends SingleShardRequest> extends A
         return validationException;
     }
 
+    /**
+     * @return The concrete index this request is targeted for or <code>null</code> if index is optional.
+     *         Whether index property is optional depends on the concrete implementation. If index property
+     *         is required the concrete implementation should use {@link #validateNonNullIndex()} to check
+     *         if the index property has been set
+     */
+    @Nullable
     public String index() {
         return index;
     }
@@ -111,7 +128,7 @@ public abstract class SingleShardRequest<T extends SingleShardRequest> extends A
         if (in.readBoolean()) {
             internalShardId = ShardId.readShardId(in);
         }
-        index = in.readString();
+        index = in.readOptionalString();
         // no need to pass threading over the network, they are always false when coming throw a thread pool
     }
 
@@ -119,7 +136,7 @@ public abstract class SingleShardRequest<T extends SingleShardRequest> extends A
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalStreamable(internalShardId);
-        out.writeString(index);
+        out.writeOptionalString(index);
     }
 
 }

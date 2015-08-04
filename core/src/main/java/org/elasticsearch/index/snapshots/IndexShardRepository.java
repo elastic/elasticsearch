@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.snapshots;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.shard.ShardId;
@@ -35,7 +36,7 @@ public interface IndexShardRepository {
     /**
      * Creates a snapshot of the shard based on the index commit point.
      * <p/>
-     * The index commit point can be obtained by using {@link org.elasticsearch.index.engine.Engine#snapshotIndex()} method.
+     * The index commit point can be obtained by using {@link org.elasticsearch.index.engine.Engine#snapshotIndex} method.
      * IndexShardRepository implementations shouldn't release the snapshot index commit point. It is done by the method caller.
      * <p/>
      * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check
@@ -55,19 +56,21 @@ public interface IndexShardRepository {
      *
      * @param snapshotId      snapshot id
      * @param shardId         shard id (in the current index)
+     * @param version   version of elasticsearch that created this snapshot
      * @param snapshotShardId shard id (in the snapshot)
      * @param recoveryState   recovery state
      */
-    void restore(SnapshotId snapshotId, ShardId shardId, ShardId snapshotShardId, RecoveryState recoveryState);
+    void restore(SnapshotId snapshotId, Version version, ShardId shardId, ShardId snapshotShardId, RecoveryState recoveryState);
 
     /**
      * Retrieve shard snapshot status for the stored snapshot
      *
      * @param snapshotId snapshot id
+     * @param version   version of elasticsearch that created this snapshot
      * @param shardId    shard id
      * @return snapshot status
      */
-    IndexShardSnapshotStatus snapshotStatus(SnapshotId snapshotId, ShardId shardId);
+    IndexShardSnapshotStatus snapshotStatus(SnapshotId snapshotId, Version version, ShardId shardId);
 
     /**
      * Verifies repository settings on data node

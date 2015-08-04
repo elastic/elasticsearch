@@ -29,7 +29,7 @@ To build a `SNAPSHOT` version, you need to build it with Maven:
 
 ```bash
 mvn clean install
-plugin --install analysis-kuromoji \
+plugin install analysis-kuromoji \
        --url file:target/releases/elasticsearch-analysis-kuromoji-X.X.X-SNAPSHOT.zip
 ```
 

@@ -32,6 +32,7 @@ import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.*;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lease.Releasables;
@@ -58,7 +59,7 @@ import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
+import org.elasticsearch.search.fetch.FetchSubPhaseContext;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
@@ -98,6 +99,7 @@ public class PercolateContext extends SearchContext {
     private final ConcurrentMap<BytesRef, Query> percolateQueries;
     private final int numberOfShards;
     private final Query aliasFilter;
+    private final long originNanoTime = System.nanoTime();
     private final long startTime;
     private String[] types;
 
@@ -115,6 +117,7 @@ public class PercolateContext extends SearchContext {
     private SearchContextAggregations aggregations;
     private QuerySearchResult querySearchResult;
     private Sort sort;
+    private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
 
     public PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, IndexShard indexShard,
                             IndexService indexService, PageCacheRecycler pageCacheRecycler,
@@ -281,6 +284,15 @@ public class PercolateContext extends SearchContext {
         return this;
     }
 
+    @Override
+    public <SubPhaseContext extends FetchSubPhaseContext> SubPhaseContext getFetchSubPhaseContext(FetchSubPhase.ContextFactory<SubPhaseContext> contextFactory) {
+        String subPhaseName = contextFactory.getName();
+        if (subPhaseContexts.get(subPhaseName) == null) {
+            subPhaseContexts.put(subPhaseName, contextFactory.newContextInstance());
+        }
+        return (SubPhaseContext) subPhaseContexts.get(subPhaseName);
+    }
+
     // Unused:
     @Override
     public void preProcess() {
@@ -338,6 +350,11 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
+    public long getOriginNanoTime() {
+        return originNanoTime;
+    }
+
+    @Override
     protected long nowInMillisImpl() {
         return startTime;
     }
@@ -369,16 +386,6 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public void addRescore(RescoreSearchContext rescore) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public boolean hasFieldDataFields() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public FieldDataFieldsContext fieldDataFields() {
         throw new UnsupportedOperationException();
     }
 

@@ -208,7 +208,7 @@ public class ShardReplicationTests extends ElasticsearchTestCase {
 
         RoutingTable.Builder routing = new RoutingTable.Builder();
         routing.addAsNew(indexMetaData);
-        IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId, false);
+        IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
 
         String primaryNode = null;
         String relocatingNode = null;
@@ -694,7 +694,7 @@ public class ShardReplicationTests extends ElasticsearchTestCase {
                ThreadPool threadPool) {
             super(settings, actionName, transportService, clusterService, null, threadPool,
                     new ShardStateAction(settings, clusterService, transportService, null, null), null,
-                    new ActionFilters(new HashSet<ActionFilter>()), new IndexNameExpressionResolver(), Request.class, Request.class, ThreadPool.Names.SAME);
+                    new ActionFilters(new HashSet<ActionFilter>()), new IndexNameExpressionResolver(Settings.EMPTY), Request.class, Request.class, ThreadPool.Names.SAME);
         }
 
         @Override

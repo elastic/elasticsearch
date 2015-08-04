@@ -96,6 +96,8 @@ import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.recovery.TransportRecoveryAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.TransportRefreshAction;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
+import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.segments.TransportIndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
@@ -153,6 +155,7 @@ import org.elasticsearch.action.suggest.SuggestAction;
 import org.elasticsearch.action.suggest.TransportSuggestAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.termvectors.*;
 import org.elasticsearch.action.termvectors.dfs.TransportDfsOnlyAction;
@@ -219,6 +222,7 @@ public class ActionModule extends AbstractModule {
             actionFilterMultibinder.addBinding().to(actionFilter);
         }
         bind(ActionFilters.class).asEagerSingleton();
+        bind(AutoCreateIndex.class).asEagerSingleton();
         registerAction(NodesInfoAction.INSTANCE, TransportNodesInfoAction.class);
         registerAction(NodesStatsAction.INSTANCE, TransportNodesStatsAction.class);
         registerAction(NodesHotThreadsAction.INSTANCE, TransportNodesHotThreadsAction.class);
@@ -242,6 +246,7 @@ public class ActionModule extends AbstractModule {
 
         registerAction(IndicesStatsAction.INSTANCE, TransportIndicesStatsAction.class);
         registerAction(IndicesSegmentsAction.INSTANCE, TransportIndicesSegmentsAction.class);
+        registerAction(IndicesShardStoresAction.INSTANCE, TransportIndicesShardStoresAction.class);
         registerAction(CreateIndexAction.INSTANCE, TransportCreateIndexAction.class);
         registerAction(DeleteIndexAction.INSTANCE, TransportDeleteIndexAction.class);
         registerAction(GetIndexAction.INSTANCE, TransportGetIndexAction.class);

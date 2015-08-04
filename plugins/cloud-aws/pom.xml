@@ -15,6 +15,7 @@
     <description>The Amazon Web Service (AWS) Cloud plugin allows to use AWS API for the unicast discovery mechanism and add S3 repositories.</description>
 
     <properties>
+        <elasticsearch.plugin.classname>org.elasticsearch.plugin.cloud.aws.CloudAwsPlugin</elasticsearch.plugin.classname>
         <amazonaws.version>1.10.0</amazonaws.version>
         <tests.jvms>1</tests.jvms>
         <tests.rest.suite>cloud_aws</tests.rest.suite>

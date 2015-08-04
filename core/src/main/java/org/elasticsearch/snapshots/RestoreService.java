@@ -84,7 +84,7 @@ import static org.elasticsearch.cluster.metadata.MetaDataIndexStateService.INDEX
  * {@link StoreRecoveryService#recover(IndexShard, boolean, StoreRecoveryService.RecoveryListener)}
  * method, which detects that shard should be restored from snapshot rather than recovered from gateway by looking
  * at the {@link org.elasticsearch.cluster.routing.ShardRouting#restoreSource()} property. If this property is not null
- * {@code recover} method uses {@link StoreRecoveryService#restore(org.elasticsearch.indices.recovery.RecoveryState)}
+ * {@code recover} method uses {@link StoreRecoveryService#restore}
  * method to start shard restore process.
  * <p/>
  * At the end of the successful restore process {@code IndexShardSnapshotAndRestoreService} calls {@link #indexShardRestoreCompleted(SnapshotId, ShardId)},
@@ -203,7 +203,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                         for (Map.Entry<String, String> indexEntry : renamedIndices.entrySet()) {
                             String index = indexEntry.getValue();
                             boolean partial = checkPartial(index);
-                            RestoreSource restoreSource = new RestoreSource(snapshotId, index);
+                            RestoreSource restoreSource = new RestoreSource(snapshotId, snapshot.version(), index);
                             String renamedIndex = indexEntry.getKey();
                             IndexMetaData snapshotIndexMetaData = metaData.index(index);
                             snapshotIndexMetaData = updateIndexSettings(snapshotIndexMetaData, request.indexSettings, request.ignoreIndexSettings);

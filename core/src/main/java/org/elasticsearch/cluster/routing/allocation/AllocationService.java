@@ -86,7 +86,7 @@ public class AllocationService extends AbstractComponent {
     }
 
     public RoutingAllocation.Result applyFailedShard(ClusterState clusterState, ShardRouting failedShard) {
-        return applyFailedShards(clusterState, ImmutableList.of(new FailedRerouteAllocation.FailedShard(failedShard, null)));
+        return applyFailedShards(clusterState, ImmutableList.of(new FailedRerouteAllocation.FailedShard(failedShard, null, null)));
     }
 
     /**
@@ -101,7 +101,7 @@ public class AllocationService extends AbstractComponent {
         FailedRerouteAllocation allocation = new FailedRerouteAllocation(allocationDeciders, routingNodes, clusterState.nodes(), failedShards, clusterInfoService.getClusterInfo());
         boolean changed = false;
         for (FailedRerouteAllocation.FailedShard failedShard : failedShards) {
-            changed |= applyFailedShard(allocation, failedShard.shard, true, new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, failedShard.details));
+            changed |= applyFailedShard(allocation, failedShard.shard, true, new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, failedShard.message, failedShard.failure));
         }
         if (!changed) {
             return new RoutingAllocation.Result(false, clusterState.routingTable());
@@ -324,47 +324,49 @@ public class AllocationService extends AbstractComponent {
         for (ShardRouting startedShard : startedShardEntries) {
             assert startedShard.initializing();
 
-            // retrieve the relocating node id before calling startedShard().
-            String relocatingNodeId = null;
+            // validate index still exists. strictly speaking this is not needed but it gives clearer logs
+            if (routingNodes.routingTable().index(startedShard.index()) == null) {
+                logger.debug("{} ignoring shard started, unknown index (routing: {})", startedShard.shardId(), startedShard);
+                continue;
+            }
+
 
             RoutingNodes.RoutingNodeIterator currentRoutingNode = routingNodes.routingNodeIter(startedShard.currentNodeId());
-            if (currentRoutingNode != null) {
-                for (ShardRouting shard : currentRoutingNode) {
-                    if (shard.shardId().equals(startedShard.shardId())) {
-                        if (shard.equals(startedShard)) {
-                            relocatingNodeId = shard.relocatingNodeId();
-                            dirty = true;
-                            routingNodes.started(shard);
-                            logger.trace("{} marked as started", shard);
-                        } else {
-                            logger.debug("failed to find shard [{}] in order to start it [no matching shard on node], ignoring", startedShard);
-                        }
-                        break;
-                    }
-                }
-            } else {
-                logger.debug("failed to find shard [{}] in order to start it [failed to find node], ignoring", startedShard);
+            if (currentRoutingNode == null) {
+                logger.debug("{} failed to find shard in order to start it [failed to find node], ignoring (routing: {})", startedShard.shardId(), startedShard);
+                continue;
+            }
 
+            for (ShardRouting shard : currentRoutingNode) {
+                if (shard.isSameAllocation(startedShard)) {
+                    if (shard.active()) {
+                        logger.trace("{} shard is already started, ignoring (routing: {})", startedShard.shardId(), startedShard);
+                    } else {
+                        dirty = true;
+                        // override started shard with the latest copy. Capture it now , before starting the shard destroys it...
+                        startedShard = new ShardRouting(shard);
+                        routingNodes.started(shard);
+                        logger.trace("{} marked shard as started (routing: {})", startedShard.shardId(), startedShard);
+                    }
+                    break;
+                }
             }
 
             // startedShard is the current state of the shard (post relocation for example)
             // this means that after relocation, the state will be started and the currentNodeId will be
             // the node we relocated to
-
-            if (relocatingNodeId == null) {
+            if (startedShard.relocatingNodeId() == null) {
                 continue;
             }
 
-            RoutingNodes.RoutingNodeIterator sourceRoutingNode = routingNodes.routingNodeIter(relocatingNodeId);
+            RoutingNodes.RoutingNodeIterator sourceRoutingNode = routingNodes.routingNodeIter(startedShard.relocatingNodeId());
             if (sourceRoutingNode != null) {
                 while (sourceRoutingNode.hasNext()) {
                     ShardRouting shard = sourceRoutingNode.next();
-                    if (shard.shardId().equals(startedShard.shardId())) {
-                        if (shard.relocating()) {
-                            dirty = true;
-                            sourceRoutingNode.remove();
-                            break;
-                        }
+                    if (shard.isRelocationSourceOf(startedShard)) {
+                        dirty = true;
+                        sourceRoutingNode.remove();
+                        break;
                     }
                 }
             }
@@ -377,133 +379,86 @@ public class AllocationService extends AbstractComponent {
      * require relocation.
      */
     private boolean applyFailedShard(RoutingAllocation allocation, ShardRouting failedShard, boolean addToIgnoreList, UnassignedInfo unassignedInfo) {
-        // create a copy of the failed shard, since we assume we can change possible references to it without
-        // changing the state of failed shard
-        failedShard = new ShardRouting(failedShard);
-
         IndexRoutingTable indexRoutingTable = allocation.routingTable().index(failedShard.index());
         if (indexRoutingTable == null) {
+            logger.debug("{} ignoring shard failure, unknown index in {} ({})", failedShard.shardId(), failedShard, unassignedInfo.shortSummary());
             return false;
         }
 
         RoutingNodes routingNodes = allocation.routingNodes();
-        boolean dirty = false;
-        if (failedShard.relocatingNodeId() != null) {
-            // the shard is relocating, either in initializing (recovery from another node) or relocating (moving to another node)
-            if (failedShard.initializing()) {
-                // the shard is initializing and recovering from another node
-                // first, we need to cancel the current node that is being initialized
-                RoutingNodes.RoutingNodeIterator initializingNode = routingNodes.routingNodeIter(failedShard.currentNodeId());
-                if (initializingNode != null) {
-                    while (initializingNode.hasNext()) {
-                        ShardRouting shardRouting = initializingNode.next();
-                        if (shardRouting.equals(failedShard)) {
-                            dirty = true;
-                            initializingNode.remove();
-                            if (addToIgnoreList) {
-                                // make sure we ignore this shard on the relevant node
-                                allocation.addIgnoreShardForNode(failedShard.shardId(), failedShard.currentNodeId());
-                            }
 
-                            break;
-                        }
-                    }
-                }
-                if (dirty) {
-                    logger.debug("failed shard {} found in routingNodes, failing it", failedShard);
-                    // now, find the node that we are relocating *from*, and cancel its relocation
-                    RoutingNode relocatingFromNode = routingNodes.node(failedShard.relocatingNodeId());
-                    if (relocatingFromNode != null) {
-                        for (ShardRouting shardRouting : relocatingFromNode) {
-                            if (shardRouting.shardId().equals(failedShard.shardId()) && shardRouting.relocating()) {
-                                dirty = true;
-                                routingNodes.cancelRelocation(shardRouting);
-                                break;
-                            }
-                        }
-                    }
-                } else {
-                    logger.debug("failed shard {} not found in routingNodes, ignoring it", failedShard);
-                }
-                return dirty;
-            } else if (failedShard.relocating()) {
-                // the shard is relocating, meaning its the source the shard is relocating from
-                // first, we need to cancel the current relocation from the current node
-                // now, find the node that we are recovering from, cancel the relocation, remove it from the node
-                // and add it to the unassigned shards list...
-                RoutingNodes.RoutingNodeIterator relocatingFromNode = routingNodes.routingNodeIter(failedShard.currentNodeId());
-                if (relocatingFromNode != null) {
-                    while (relocatingFromNode.hasNext()) {
-                        ShardRouting shardRouting = relocatingFromNode.next();
-                        if (shardRouting.equals(failedShard)) {
-                            dirty = true;
-                            if (addToIgnoreList) {
-                                // make sure we ignore this shard on the relevant node
-                                allocation.addIgnoreShardForNode(failedShard.shardId(), failedShard.currentNodeId());
-                            }
-                            relocatingFromNode.moveToUnassigned(unassignedInfo);
-                            break;
-                        }
-                    }
-                }
-                if (dirty) {
-                    logger.debug("failed shard {} found in routingNodes, failing it", failedShard);
-                    // next, we need to find the target initializing shard that is recovering from, and remove it...
-                    RoutingNodes.RoutingNodeIterator initializingNode = routingNodes.routingNodeIter(failedShard.relocatingNodeId());
-                    if (initializingNode != null) {
-                        while (initializingNode.hasNext()) {
-                            ShardRouting shardRouting = initializingNode.next();
-                            if (shardRouting.shardId().equals(failedShard.shardId()) && shardRouting.initializing()) {
-                                dirty = true;
-                                initializingNode.remove();
-                            }
-                        }
-                    }
-                } else {
-                    logger.debug("failed shard {} not found in routingNodes, ignoring it", failedShard);
-                }
-            } else {
-                throw new IllegalStateException("illegal state for a failed shard, relocating node id is set, but state does not match: " + failedShard);
+        RoutingNodes.RoutingNodeIterator matchedNode = routingNodes.routingNodeIter(failedShard.currentNodeId());
+        if (matchedNode == null) {
+            logger.debug("{} ignoring shard failure, unknown node in {} ({})", failedShard.shardId(), failedShard, unassignedInfo.shortSummary());
+            return false;
+        }
+
+        boolean matchedShard = false;
+        while (matchedNode.hasNext()) {
+            ShardRouting routing = matchedNode.next();
+            if (routing.isSameAllocation(failedShard)) {
+                matchedShard = true;
+                logger.debug("{} failed shard {} found in routingNodes, failing it ({})", failedShard.shardId(), failedShard, unassignedInfo.shortSummary());
+                break;
             }
-        } else {
-            // the shard is not relocating, its either started, or initializing, just cancel it and move on...
-            RoutingNodes.RoutingNodeIterator node = routingNodes.routingNodeIter(failedShard.currentNodeId());
-            if (node != null) {
-                while (node.hasNext()) {
-                    ShardRouting shardRouting = node.next();
-                    if (shardRouting.equals(failedShard)) {
-                        dirty = true;
-                        if (addToIgnoreList) {
-                            // make sure we ignore this shard on the relevant node
-                            allocation.addIgnoreShardForNode(failedShard.shardId(), failedShard.currentNodeId());
-                        }
-                        // move all the shards matching the failed shard to the end of the unassigned list
-                        // so we give a chance for other allocations and won't create poison failed allocations
-                        // that can keep other shards from being allocated (because of limits applied on how many
-                        // shards we can start per node)
-                        List<ShardRouting> shardsToMove = Lists.newArrayList();
-                        for (Iterator<ShardRouting> unassignedIt = routingNodes.unassigned().iterator(); unassignedIt.hasNext(); ) {
-                            ShardRouting unassignedShardRouting = unassignedIt.next();
-                            if (unassignedShardRouting.shardId().equals(failedShard.shardId())) {
-                                unassignedIt.remove();
-                                shardsToMove.add(unassignedShardRouting);
-                            }
-                        }
-                        if (!shardsToMove.isEmpty()) {
-                            routingNodes.unassigned().addAll(shardsToMove);
-                        }
+        }
 
-                        node.moveToUnassigned(unassignedInfo);
+        if (matchedShard == false) {
+            logger.debug("{} ignoring shard failure, unknown allocation id in {} ({})", failedShard.shardId(), failedShard, unassignedInfo.shortSummary());
+            return false;
+        }
+
+        // replace incoming instance to make sure we work on the latest one. Copy it to maintain information during modifications.
+        failedShard = new ShardRouting(matchedNode.current());
+
+        // remove the current copy of the shard
+        matchedNode.remove();
+
+        if (addToIgnoreList) {
+            // make sure we ignore this shard on the relevant node
+            allocation.addIgnoreShardForNode(failedShard.shardId(), failedShard.currentNodeId());
+        }
+
+        if (failedShard.relocatingNodeId() != null && failedShard.initializing()) {
+            // The shard is a target of a relocating shard. In that case we only
+            // need to remove the target shard and cancel the source relocation.
+            // No shard is left unassigned
+            logger.trace("{} is a relocation target, resolving source to cancel relocation ({})", failedShard, unassignedInfo.shortSummary());
+            RoutingNode relocatingFromNode = routingNodes.node(failedShard.relocatingNodeId());
+            if (relocatingFromNode != null) {
+                for (ShardRouting shardRouting : relocatingFromNode) {
+                    if (shardRouting.isRelocationSourceOf(failedShard)) {
+                        logger.trace("{}, resolved source to [{}]. canceling relocation ... ({})", failedShard.shardId(), shardRouting, unassignedInfo.shortSummary());
+                        routingNodes.cancelRelocation(shardRouting);
                         break;
                     }
                 }
             }
-            if (dirty) {
-                logger.debug("failed shard {} found in routingNodes and failed", failedShard);
-            } else {
-                logger.debug("failed shard {} not found in routingNodes, ignoring it", failedShard);
+        } else {
+            // The fail shard is the main copy of the current shard routing. Any
+            // relocation will be cancelled (and the target shard removed as well)
+            // and the shard copy needs to be marked as unassigned
+
+            if (failedShard.relocatingNodeId() != null) {
+                // handle relocation source shards.  we need to find the target initializing shard that is recovering, and remove it...
+                assert failedShard.initializing() == false; // should have been dealt with and returned
+                assert failedShard.relocating();
+
+                RoutingNodes.RoutingNodeIterator initializingNode = routingNodes.routingNodeIter(failedShard.relocatingNodeId());
+                if (initializingNode != null) {
+                    while (initializingNode.hasNext()) {
+                        ShardRouting shardRouting = initializingNode.next();
+                        if (shardRouting.isRelocationTargetOf(failedShard)) {
+                            logger.trace("{} is removed due to the failure of the source shard", shardRouting);
+                            initializingNode.remove();
+                        }
+                    }
+                }
             }
+
+            matchedNode.moveToUnassigned(unassignedInfo);
         }
-        return dirty;
+        assert matchedNode.isRemoved() : "failedShard " + failedShard + " was matched but wasn't removed";
+        return true;
     }
 }

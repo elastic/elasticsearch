@@ -16,29 +16,34 @@
   <property name="integ.args"
             value="-Des.node.name=smoke_tester -Des.cluster.name=prepare_release
                    -Des.discovery.zen.ping.multicast.enabled=false -Des.script.inline=on
-                   -Des.script.indexed=on -Des.pidfile=${integ.pidfile}"/>
+                   -Des.script.indexed=on -Des.pidfile=${integ.pidfile} -Des.repositories.url.allowed_urls=http://snapshot.test*"/>
 
   <!-- runs an OS script -->
   <macrodef name="run-script">
       <attribute name="script"/>
-      <attribute name="dir"/>
       <attribute name="args"/>
       <attribute name="spawn" default="false"/>
+      <element name="nested" optional="true"/>
     <sequential>
       <local name="failonerror"/>
       <condition property="failonerror">
           <isfalse value="@{spawn}"/>
       </condition>
 
-      <exec executable="cmd" osfamily="winnt" dir="@{dir}" failonerror="${failonerror}" spawn="@{spawn}">
+      <!-- create a temp CWD, to enforce that commands don't rely on CWD -->
+      <mkdir dir="${integ.temp}"/>
+
+      <exec executable="cmd" osfamily="winnt" dir="${integ.temp}" failonerror="${failonerror}" spawn="@{spawn}">
         <arg value="/c"/>
-        <arg value="@{dir}/@{script}.bat"/>
+        <arg value="@{script}.bat"/>
         <arg line="@{args}"/>
+        <nested/>
       </exec>
 
-      <exec executable="sh" osfamily="unix" dir="@{dir}" failonerror="${failonerror}" spawn="@{spawn}">
-        <arg value="@{dir}/@{script}"/>
+      <exec executable="sh" osfamily="unix" dir="${integ.temp}" failonerror="${failonerror}" spawn="@{spawn}">
+        <arg value="@{script}"/>
         <arg line="@{args}"/>
+        <nested/>
       </exec>
     </sequential>
   </macrodef>
@@ -72,85 +77,87 @@
     </sequential>
   </macrodef>
 
-  <!-- unzip core release artifact and start ES -->
-  <target name="start-external-cluster" depends="stop-external-cluster" unless="${shouldskip}">
-    <local name="integ.finalname"/>
-    <local name="integ.home"/>
-    <local name="integ.repo.home"/>
-    <local name="integ.pid"/>
+  <!-- installs a plugin into elasticsearch -->
+  <macrodef name="install-plugin">
+      <attribute name="home" default="${integ.scratch}/elasticsearch-${elasticsearch.version}"/>
+      <attribute name="name"/>
+      <attribute name="file"/>
+    <sequential>
+      <local name="url"/>
+      <makeurl property="url" file="@{file}"/>
 
-    <delete dir="${integ.scratch}"/>
-    <property name="integ.finalname" value="${project.artifactId}-${project.version}"/>
+      <!-- install plugin -->
+      <echo>Installing plugin @{name}...</echo>
+      <run-script script="@{home}/bin/plugin" args="install @{name} -u ${url}"/>
 
-    <unzip src="${project.build.directory}/releases/${integ.finalname}.zip"
-           dest="${integ.scratch}"/>
+      <!-- check that plugin was installed into correct place -->
+      <local name="longname"/>
+      <property name="longname" value="@{name}"/>
+      <local name="shortname"/>
+      <filter-property src="longname" dest="shortname">
+        <chain>
+          <replaceregex pattern="^elasticsearch-" replace=""/>
+        </chain>
+      </filter-property>
 
-    <property name="integ.home" location="${integ.scratch}/${integ.finalname}"/>
-    <property name="integ.repo.home" location="${integ.home}/repo"/>
+      <fail message="did not find plugin installed as ${shortname}">
+        <condition>
+          <not>
+            <resourceexists>
+              <file file="@{home}/plugins/${shortname}"/>
+            </resourceexists>
+          </not>
+        </condition>
+      </fail>
+    </sequential>
+  </macrodef>
 
-    <!-- execute -->
-    <echo>Starting up external cluster...</echo>
-    <run-script dir="${integ.home}" script="bin/elasticsearch" spawn="true"
-                args="${integ.args} -Des.path.repo=${integ.repo.home} -Des.repositories.url.allowed_urls=http://snapshot.test*" />
+  <!-- start elasticsearch and wait until its ready -->
+  <macrodef name="startup-elasticsearch">
+      <attribute name="home" default="${integ.scratch}/elasticsearch-${elasticsearch.version}"/>
+      <attribute name="args" default="${integ.args}"/>
+    <sequential>
+      <echo>Starting up external cluster...</echo>
+      <run-script script="@{home}/bin/elasticsearch" spawn="true"
+                  args="@{args} -Des.path.repo=@{home}/repo" />
 
-    <waitfor maxwait="3" maxwaitunit="minute" checkevery="500">
-      <http url="http://127.0.0.1:9200"/>
-    </waitfor>
+      <waitfor maxwait="3" maxwaitunit="minute" checkevery="500">
+        <http url="http://127.0.0.1:9200"/>
+      </waitfor>
 
-    <extract-pid property="integ.pid"/>
-    <echo>External cluster started PID ${integ.pid}</echo>
+      <local name="integ.pid"/>
+      <extract-pid property="integ.pid"/>
+      <echo>External cluster started PID ${integ.pid}</echo>
+    </sequential>
+  </macrodef>
+
+  <!-- unzip the elasticsearch zip -->
+  <target name="setup-workspace" depends="stop-external-cluster" unless="${shouldskip}">
+    <sequential>
+      <delete dir="${integ.scratch}"/>
+      <unzip src="${integ.deps}/elasticsearch-${elasticsearch.version}.zip" dest="${integ.scratch}"/>
+    </sequential>
+  </target>
+
+  <!-- run elasticsearch in the foreground (for debugging etc) -->
+  <!-- TODO: doesn't belong here, but we will figure it out -->
+  <target name="start-foreground" depends="stop-external-cluster">
+      <delete dir="${integ.scratch}"/>
+      <unzip src="${project.build.directory}/releases/elasticsearch-${project.version}.zip" dest="${integ.scratch}"/>
+      <local name="home"/>
+      <property name="home" location="${integ.scratch}/elasticsearch-${elasticsearch.version}"/>
+      <run-script script="${home}/bin/elasticsearch" spawn="false"
+                  args="${integ.args} -Des.path.repo=${home}/repo">
+        <nested>
+          <env key="JAVA_OPTS" value="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=8000"/>
+        </nested>
+      </run-script>
   </target>
 
   <!-- unzip core release artifact, install plugin, then start ES -->
-  <target name="start-external-cluster-with-plugin" depends="stop-external-cluster" unless="${shouldskip}">
-    <local name="integ.home"/>
-    <local name="integ.repo.home"/>
-    <local name="integ.plugin.url"/>
-    <local name="integ.pid"/>
-
-    <delete dir="${integ.scratch}"/>
-    <unzip src="${org.elasticsearch:elasticsearch:zip}"
-           dest="${integ.scratch}"/>
-
-    <property name="integ.home" location="${integ.scratch}/elasticsearch-${elasticsearch.version}"/>
-    <property name="integ.repo.home" location="${integ.home}/repo"/>
-
-    <makeurl property="integ.plugin.url" file="${project.build.directory}/releases/${project.artifactId}-${project.version}.zip"/>
-
-    <!-- install plugin -->
-    <echo>Installing plugin ${project.artifactId}...</echo>
-    <run-script dir="${integ.home}" script="bin/plugin"
-                args="-u ${integ.plugin.url} -i ${project.artifactId}"/>
-
-    <!-- check that plugin was installed into correct place -->
-    <local name="expected-shortname"/>
-    <filter-property src="project.artifactId" dest="expected-shortname">
-      <chain>
-        <replaceregex pattern="^elasticsearch-" replace=""/>
-      </chain>
-    </filter-property>
-
-    <fail message="did not find plugin installed as ${expected-shortname}">
-      <condition>
-        <not>
-          <resourceexists>
-            <file file="${integ.home}/plugins/${expected-shortname}"/>
-          </resourceexists>
-        </not>
-      </condition>
-    </fail>
-
-    <!-- execute -->
-    <echo>Starting up external cluster...</echo>
-    <run-script dir="${integ.home}" script="bin/elasticsearch" spawn="true"
-                args="${integ.args} -Des.path.repo=${integ.repo.home} -Des.repositories.url.allowed_urls=http://snapshot.test*"/>
-
-    <waitfor maxwait="3" maxwaitunit="minute" checkevery="500">
-      <http url="http://127.0.0.1:9200"/>
-    </waitfor>
-
-    <extract-pid property="integ.pid"/>
-    <echo>External cluster started PID ${integ.pid}</echo>
+  <target name="start-external-cluster-with-plugin" depends="setup-workspace" unless="${shouldskip}">
+    <install-plugin name="${project.artifactId}" file="${project.build.directory}/releases/${project.artifactId}-${project.version}.zip"/>
+    <startup-elasticsearch/>
   </target>
 
   <!-- TODO, for some more safety, add back some of the old jps logic
@@ -172,4 +179,133 @@
     </exec>
     <delete file="${integ.pidfile}"/>
   </target>
+
+  <!-- distribution tests: .zip -->
+
+  <target name="setup-workspace-zip" depends="stop-external-cluster" unless="${shouldskip}">
+    <sequential>
+      <delete dir="${integ.scratch}"/>
+      <unzip src="${project.build.directory}/releases/elasticsearch-${project.version}.zip" 
+             dest="${integ.scratch}"/>
+    </sequential>
+  </target>
+
+  <target name="start-external-cluster-zip" depends="setup-workspace-zip" unless="${shouldskip}">
+    <startup-elasticsearch/>
+  </target>
+
+
+  <!-- distribution tests: .tar.gz -->
+
+  <target name="setup-workspace-tar" depends="stop-external-cluster" unless="${shouldskip}">
+    <sequential>
+      <delete dir="${integ.scratch}"/>
+      <untar src="${project.build.directory}/releases/elasticsearch-${project.version}.tar.gz" 
+             dest="${integ.scratch}"
+             compression="gzip"/>
+    </sequential>
+  </target>
+
+  <target name="start-external-cluster-tar" depends="setup-workspace-tar" unless="${shouldskip}">
+    <startup-elasticsearch/>
+  </target>
+
+  <!-- distribution tests: .deb -->
+
+  <target name="setup-workspace-deb" depends="stop-external-cluster" unless="${shouldskip}">
+    <sequential>
+      <delete dir="${integ.scratch}"/>
+      <mkdir dir="${integ.scratch}/deb-extracted"/>
+      <local name="debfile"/>
+      <property name="debfile" location="${project.build.directory}/releases/elasticsearch-${project.version}.deb"/>
+      <!-- print some basic package info -->
+      <exec executable="dpkg-deb" failonerror="true" taskname="deb-info">
+         <arg value="-I"/>
+         <arg value="${debfile}"/> 
+      </exec>
+      <!-- extract contents from .deb package -->
+      <exec executable="dpkg-deb" failonerror="true">
+         <arg value="-x"/> 
+         <arg value="${debfile}"/> 
+         <arg value="${integ.scratch}/deb-extracted"/> 
+      </exec>
+    </sequential>
+  </target>
+
+  <target name="start-external-cluster-deb" depends="setup-workspace-deb" unless="${shouldskip}">
+    <startup-elasticsearch home="${integ.scratch}/deb-extracted/usr/share/elasticsearch/"/>
+  </target>
+
+  <!-- distribution tests: .rpm -->
+  <target name="setup-workspace-rpm" depends="stop-external-cluster" unless="${shouldskip}">
+    <sequential>
+      <delete dir="${integ.scratch}"/>
+      <!-- use full paths with paranoia, we will be doing relocations -->
+      <local name="rpm.file"/>
+      <local name="rpm.database"/>
+      <local name="rpm.extracted"/>
+      <property name="rpm.file" location="${project.build.directory}/releases/elasticsearch-${project.version}.rpm"/>
+      <property name="rpm.database" location="${integ.scratch}/rpm-database"/>
+      <property name="rpm.extracted" location="${integ.scratch}/rpm-extracted"/>
+      <mkdir dir="${rpm.database}"/>
+      <mkdir dir="${rpm.extracted}"/>
+      <!-- print some basic package info -->
+      <exec executable="rpm" failonerror="true" taskname="rpm-info">
+         <arg value="-q"/>
+         <arg value="-i"/>
+         <arg value="-p"/>
+         <arg value="${rpm.file}"/> 
+      </exec>
+      <!-- extract contents from .rpm package -->
+      <exec executable="rpm" failonerror="true" taskname="rpm">
+         <arg value="--dbpath"/>
+         <arg value="${rpm.database}"/>
+         <arg value="--badreloc"/>
+         <arg value="--relocate"/>
+         <arg value="/=${rpm.extracted}"/>
+         <arg value="--nodeps"/> 
+         <arg value="--noscripts"/> 
+         <arg value="--notriggers"/> 
+         <arg value="-i"/>
+         <arg value="${rpm.file}"/> 
+      </exec>
+    </sequential>
+  </target>
+
+  <target name="start-external-cluster-rpm" depends="setup-workspace-rpm" unless="${shouldskip}">
+    <startup-elasticsearch home="${integ.scratch}/rpm-extracted/usr/share/elasticsearch/"/>
+  </target>
+
+  <!-- check shaded jar for jar hell -->
+  <target name="check-for-jar-hell">
+    <java failonerror="true" fork="true" classname="org.elasticsearch.bootstrap.JarHell">
+        <classpath>
+           <pathelement location="${project.build.directory}/${project.artifactId}-${project.version}.jar"/>
+           <pathelement location="${org.apache.lucene:lucene-core:jar}"/>
+        </classpath>
+    </java>
+  </target>
+
+  <target name="check-shaded-jar-packages">
+    <!-- we unzip the jar, vs zipfileset, zipfileset toString is useless -->
+    <delete dir="${integ.temp}/unzipped"/>
+    <mkdir dir="${integ.temp}/unzipped"/>
+    <unzip src="${project.build.directory}/${project.artifactId}-${project.version}.jar"
+           dest="${integ.temp}/unzipped"/>
+    <local name="unshaded.classes"/>
+    <fileset id="unshaded.classes"
+             dir="${integ.temp}/unzipped"
+             includes="**/*.class"
+             excludes="org/elasticsearch/**,org/apache/lucene/**"/>
+    <fail message="shaded jar contains packages outside of org.elasticsearch: ${toString:unshaded.classes}">
+       <condition>
+         <not>
+           <resourcecount count="0">
+             <fileset refid="unshaded.classes"/>
+           </resourcecount>
+         </not>
+       </condition>
+    </fail>
+  </target>
+
 </project>

@@ -32,7 +32,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.*;
 
-public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsRequest> implements Iterable<TermVectorsRequest>, CompositeIndicesRequest {
+public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsRequest> implements Iterable<TermVectorsRequest>, CompositeIndicesRequest, RealtimeRequest {
 
     String preference;
     List<TermVectorsRequest> requests = new ArrayList<>();
@@ -161,5 +161,13 @@ public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsReque
 
     public int size() {
         return requests.size();
+    }
+
+    @Override
+    public MultiTermVectorsRequest realtime(Boolean realtime) {
+        for (TermVectorsRequest request : requests) {
+            request.realtime(realtime);
+        }
+        return this;
     }
 }

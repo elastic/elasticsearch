@@ -529,12 +529,12 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     }
 
     /**
-     * Sets if this request should use the query cache or not, assuming that it can (for
+     * Sets if this request should use the request cache or not, assuming that it can (for
      * example, if "now" is used, it will never be cached). By default (not set, or null,
-     * will default to the index level setting if query cache is enabled or not).
+     * will default to the index level setting if request cache is enabled or not).
      */
-    public SearchRequest queryCache(Boolean queryCache) {
-        this.requestCache = queryCache;
+    public SearchRequest requestCache(Boolean requestCache) {
+        this.requestCache = requestCache;
         return this;
     }
 

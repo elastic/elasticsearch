@@ -43,7 +43,7 @@
         <!-- libraries -->
         <lucene.version>5.2.1</lucene.version>
         <lucene.maven.version>5.2.1</lucene.maven.version>
-        <testframework.version>2.1.14</testframework.version>
+        <testframework.version>2.1.16</testframework.version>
         <jackson.version>2.5.3</jackson.version>
         <slf4j.version>1.6.2</slf4j.version>
         <log4j.version>1.2.17</log4j.version>
@@ -53,6 +53,8 @@
         <elasticsearch.thirdparty.config>unshaded</elasticsearch.thirdparty.config>
         <elasticsearch.license.header>${elasticsearch.tools.directory}/license-check/elasticsearch_license_header.txt</elasticsearch.license.header>
         <elasticsearch.license.headerDefinition>${elasticsearch.tools.directory}/license-check/license_header_definition.xml</elasticsearch.license.headerDefinition>
+        <elasticsearch.integ.antfile.default>${elasticsearch.tools.directory}/ant/integration-tests.xml</elasticsearch.integ.antfile.default>
+        <elasticsearch.integ.antfile>${elasticsearch.integ.antfile.default}</elasticsearch.integ.antfile>
 
         <!-- Test properties -->
         <tests.jvms>auto</tests.jvms>
@@ -62,12 +64,12 @@
         <tests.bwc.path>${project.basedir}/backwards</tests.bwc.path>
         <tests.locale>random</tests.locale>
         <tests.timezone>random</tests.timezone>
-        <tests.slow>false</tests.slow>
         <es.logger.level>ERROR</es.logger.level>
         <tests.heap.size>512m</tests.heap.size>
         <tests.heapdump.path>${basedir}/logs/</tests.heapdump.path>
         <tests.topn>5</tests.topn>
         <execution.hint.file>.local-${elasticsearch.version}-execution-hints.log</execution.hint.file>
+        <execution.hint.integ.file>.local-${elasticsearch.version}-integ-execution-hints.log</execution.hint.integ.file>
         <tests.assertion.disabled>false</tests.assertion.disabled>
         <tests.verbose>false</tests.verbose>
         <tests.seed></tests.seed>
@@ -86,7 +88,6 @@
         <tests.awaitsfix></tests.awaitsfix>
         <tests.timeoutSuite></tests.timeoutSuite>
         <tests.showSuccess></tests.showSuccess>
-        <tests.integration></tests.integration>
         <tests.thirdparty></tests.thirdparty>
         <tests.config></tests.config>
         <tests.enable_mock_modules></tests.enable_mock_modules>
@@ -105,6 +106,7 @@
         <skip.unit.tests>${skipTests}</skip.unit.tests>
         <skip.integ.tests>${skipTests}</skip.integ.tests>
         <integ.scratch>${project.build.directory}/integ-tests</integ.scratch>
+        <integ.deps>${project.build.directory}/integ-deps</integ.deps>
         <integ.temp>${integ.scratch}/temp</integ.temp>
         <no.commit.pattern>\bno(n|)commit\b</no.commit.pattern>
     </properties>
@@ -376,7 +378,7 @@
             <dependency>
                 <groupId>io.netty</groupId>
                 <artifactId>netty</artifactId>
-                <version>3.10.0.Final</version>
+                <version>3.10.3.Final</version>
             </dependency>
 
             <dependency>
@@ -392,6 +394,12 @@
             </dependency>
 
             <dependency>
+                <groupId>org.hdrhistogram</groupId>
+                <artifactId>HdrHistogram</artifactId>
+                <version>2.1.6</version>
+            </dependency>
+
+            <dependency>
                 <groupId>org.apache.commons</groupId>
                 <artifactId>commons-lang3</artifactId>
                 <version>3.3.2</version>
@@ -400,7 +408,7 @@
             <dependency>
                 <groupId>commons-cli</groupId>
                 <artifactId>commons-cli</artifactId>
-                <version>1.2</version>
+                <version>1.3.1</version>
             </dependency>
 
             <!-- END: dependencies that might be shaded -->
@@ -408,7 +416,7 @@
             <dependency>
                 <groupId>org.codehaus.groovy</groupId>
                 <artifactId>groovy-all</artifactId>
-                <version>2.4.0</version>
+                <version>2.4.4</version>
                 <classifier>indy</classifier>
             </dependency>
 
@@ -465,12 +473,21 @@
                     <artifactId>maven-compiler-plugin</artifactId>
                 </plugin>
                 <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-dependency-plugin</artifactId>
+                </plugin>
+                <plugin>
                     <groupId>org.codehaus.mojo</groupId>
                     <artifactId>buildnumber-maven-plugin</artifactId>
                 </plugin>
                 <plugin>
                     <groupId>com.carrotsearch.randomizedtesting</groupId>
                     <artifactId>junit4-maven-plugin</artifactId>
+                </plugin>
+                <!-- we only use failsafe's "verify" right now -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-failsafe-plugin</artifactId>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -505,9 +522,6 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-deploy-plugin</artifactId>
                     <version>2.8.2</version>
-                    <configuration>
-                        <deployAtEnd>true</deployAtEnd> <!-- all or nothing -->
-                    </configuration>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -564,6 +578,112 @@
                     <groupId>com.carrotsearch.randomizedtesting</groupId>
                     <artifactId>junit4-maven-plugin</artifactId>
                     <version>${testframework.version}</version>
+                    <!-- general test configuration, used for both unit and integ tests -->
+                    <configuration>
+                        <jvm>${jvm.executable}</jvm>
+                        <argLine>${tests.jvm.argline}</argLine>
+                        <heartbeat>10</heartbeat>
+                        <jvmOutputAction>warn</jvmOutputAction>
+                        <leaveTemporary>true</leaveTemporary>
+                        <parallelism>${tests.jvms}</parallelism>
+                        <!-- System assertions (-esa) are disabled for now because of what looks like a
+                             JDK bug triggered by Groovy on JDK7. We should look at re-enabling system
+                             assertions when we upgrade to a new version of Groovy (currently 2.4.4) or
+                             require JDK8. See https://issues.apache.org/jira/browse/GROOVY-7528.
+                        -->
+                        <assertions enableSystemAssertions="false">
+                            <enable/>
+                            <disable package="${tests.assertion.disabled}"/>
+                            <!-- pass org.elasticsearch to run without assertions -->
+                        </assertions>
+                        <jvmArgs>
+                            <param>-Xmx${tests.heap.size}</param>
+                            <param>-Xms${tests.heap.size}</param>
+                            <param>${java.permGenSpace}</param>
+                            <param>-XX:MaxDirectMemorySize=512m</param>
+                            <param>-Des.logger.prefix=</param>
+                            <param>-XX:+HeapDumpOnOutOfMemoryError</param>
+                            <param>-XX:HeapDumpPath=${tests.heapdump.path}</param>
+                        </jvmArgs>
+                        <shuffleOnSlave>${tests.shuffle}</shuffleOnSlave>
+                        <sysouts>${tests.verbose}</sysouts>
+                        <seed>${tests.seed}</seed>
+                        <!-- enforce unique suite names, or reporting stuff can be screwed up -->
+                        <uniqueSuiteNames>true</uniqueSuiteNames>
+                        <systemProperties>
+                            <!-- we use './temp' since this is per JVM and tests are forbidden from writing to CWD -->
+                            <java.io.tmpdir>./temp</java.io.tmpdir>
+                            <!-- RandomizedTesting library system properties -->
+                            <tests.bwc>${tests.bwc}</tests.bwc>
+                            <tests.bwc.path>${tests.bwc.path}</tests.bwc.path>
+                            <tests.bwc.version>${tests.bwc.version}</tests.bwc.version>
+                            <tests.jvm.argline>${tests.jvm.argline}</tests.jvm.argline>
+                            <tests.appendseed>${tests.appendseed}</tests.appendseed>
+                            <tests.cluster>${tests.cluster}</tests.cluster>
+                            <tests.iters>${tests.iters}</tests.iters>
+                            <tests.maxfailures>${tests.maxfailures}</tests.maxfailures>
+                            <tests.failfast>${tests.failfast}</tests.failfast>
+                            <tests.class>${tests.class}</tests.class>
+                            <tests.method>${tests.method}</tests.method>
+                            <tests.nightly>${tests.nightly}</tests.nightly>
+                            <tests.verbose>${tests.verbose}</tests.verbose>
+                            <tests.badapples>${tests.badapples}</tests.badapples>
+                            <tests.weekly>${tests.weekly}</tests.weekly>
+                            <haltOnFailure>${tests.failfast}</haltOnFailure>
+                            <tests.awaitsfix>${tests.awaitsfix}</tests.awaitsfix>
+                            <tests.timeoutSuite>${tests.timeoutSuite}</tests.timeoutSuite>
+                            <tests.showSuccess>${tests.showSuccess}</tests.showSuccess>
+                            <tests.thirdparty>${tests.thirdparty}</tests.thirdparty>
+                            <tests.config>${tests.config}</tests.config>
+                            <tests.client.ratio>${tests.client.ratio}</tests.client.ratio>
+                            <tests.enable_mock_modules>${tests.enable_mock_modules}</tests.enable_mock_modules>
+                            <tests.assertion.disabled>${tests.assertion.disabled}</tests.assertion.disabled>
+                            <tests.rest>${tests.rest}</tests.rest>
+                            <tests.rest.suite>${tests.rest.suite}</tests.rest.suite>
+                            <tests.rest.blacklist>${tests.rest.blacklist}</tests.rest.blacklist>
+                            <tests.rest.spec>${tests.rest.spec}</tests.rest.spec>
+                            <tests.network>${tests.network}</tests.network>
+                            <tests.heap.size>${tests.heap.size}</tests.heap.size>
+                            <tests.filter>${tests.filter}</tests.filter>
+                            <tests.version>${elasticsearch.version}</tests.version>
+                            <tests.locale>${tests.locale}</tests.locale>
+                            <tests.rest.load_packaged>${tests.rest.load_packaged}</tests.rest.load_packaged>
+                            <tests.timezone>${tests.timezone}</tests.timezone>
+                            <es.node.local>${env.ES_TEST_LOCAL}</es.node.local>
+                            <es.node.mode>${es.node.mode}</es.node.mode>
+                            <es.logger.level>${es.logger.level}</es.logger.level>
+                            <tests.security.manager>${tests.security.manager}</tests.security.manager>
+                            <tests.compatibility>${tests.compatibility}</tests.compatibility>
+                            <java.awt.headless>true</java.awt.headless>
+                            <!-- true if we are running tests from maven (as opposed to IDE, etc).
+                                 allows us to assert certain things work, like libsigar -->
+                            <tests.maven>true</tests.maven>
+                        </systemProperties>
+                        <listeners>
+                            <report-text
+                                    showThrowable="true"
+                                    showStackTraces="true"
+                                    showOutput="${tests.output}"
+                                    showStatusOk="false"
+                                    showStatusError="true"
+                                    showStatusFailure="true"
+                                    showStatusIgnored="true"
+                                    showSuiteSummary="true"
+                                    timestamps="false">
+                                <filtertrace>
+                                    <!-- custom filters: we carefully only omit test infra noise here -->
+                                    <containsstring contains=".SlaveMain." />
+                                    <containsregex pattern="^(\s+at )(org\.junit\.)" />
+                                    <!-- also includes anonymous classes inside these two: -->
+                                    <containsregex pattern="^(\s+at )(com\.carrotsearch\.randomizedtesting.RandomizedRunner)" />
+                                    <containsregex pattern="^(\s+at )(com\.carrotsearch\.randomizedtesting.ThreadLeakControl)" />
+                                    <containsregex pattern="^(\s+at )(com\.carrotsearch\.randomizedtesting.rules\.)" />
+                                    <containsregex pattern="^(\s+at )(org\.apache\.lucene.util\.TestRule)" />
+                                    <containsregex pattern="^(\s+at )(org\.apache\.lucene.util\.AbstractBeforeAfterRule)" />
+                                </filtertrace>
+                            </report-text>
+                        </listeners>
+                    </configuration>
                     <executions>
                         <execution>
                             <id>tests</id>
@@ -572,46 +692,14 @@
                                 <goal>junit4</goal>
                             </goals>
                             <configuration>
-                                <jvm>${jvm.executable}</jvm>
-                                <argLine>${tests.jvm.argline}</argLine>
-                                <skipTests>${skip.unit.tests}</skipTests>
-                                <heartbeat>10</heartbeat>
-                                <jvmOutputAction>warn</jvmOutputAction>
-                                <leaveTemporary>true</leaveTemporary>
                                 <ifNoTests>${tests.ifNoTests}</ifNoTests>
+                                <skipTests>${skip.unit.tests}</skipTests>
                                 <listeners>
                                     <report-ant-xml mavenExtensions="true"
                                                     dir="${project.build.directory}/surefire-reports"/>
-                                    <report-text
-                                            showThrowable="true"
-                                            showStackTraces="true"
-                                            showOutput="${tests.output}"
-                                            showStatusOk="false"
-                                            showStatusError="true"
-                                            showStatusFailure="true"
-                                            showStatusIgnored="true"
-                                            showSuiteSummary="true"
-                                            timestamps="false">
-                                      <filtertrace>
-                                         <!-- custom filters: we carefully only omit test infra noise here -->
-                                         <containsstring contains=".SlaveMain." />
-                                         <containsregex pattern="^(\s+at )(org\.junit\.)" />
-                                         <!-- also includes anonymous classes inside these two: -->
-                                         <containsregex pattern="^(\s+at )(com\.carrotsearch\.randomizedtesting.RandomizedRunner)" />
-                                         <containsregex pattern="^(\s+at )(com\.carrotsearch\.randomizedtesting.ThreadLeakControl)" />
-                                         <containsregex pattern="^(\s+at )(com\.carrotsearch\.randomizedtesting.rules\.)" />
-                                         <containsregex pattern="^(\s+at )(org\.apache\.lucene.util\.TestRule)" />
-                                         <containsregex pattern="^(\s+at )(org\.apache\.lucene.util\.AbstractBeforeAfterRule)" />
-                                      </filtertrace>
-                                    </report-text>
-                                <report-execution-times historyLength="20" file="${basedir}/${execution.hint.file}"/>
+                                    <report-execution-times historyLength="20"
+                                                            file="${basedir}/${execution.hint.file}"/>
                                 </listeners>
-                                <assertions enableSystemAssertions="true">
-                                    <enable/>
-                                    <disable package="${tests.assertion.disabled}"/>
-                                    <!-- pass org.elasticsearch to run without assertions -->
-                                </assertions>
-                                <parallelism>${tests.jvms}</parallelism>
                                 <balancers>
                                     <execution-times>
                                         <fileset dir="${basedir}" includes="${execution.hint.file}"/>
@@ -625,70 +713,37 @@
                                     <exclude>**/Abstract*.class</exclude>
                                     <exclude>**/*StressTest.class</exclude>
                                 </excludes>
-                                <jvmArgs>
-                                    <param>-Xmx${tests.heap.size}</param>
-                                    <param>-Xms${tests.heap.size}</param>
-                                    <param>${java.permGenSpace}</param>
-                                    <param>-XX:MaxDirectMemorySize=512m</param>
-                                    <param>-Des.logger.prefix=</param>
-                                    <param>-XX:+HeapDumpOnOutOfMemoryError</param>
-                                    <param>-XX:HeapDumpPath=${tests.heapdump.path}</param>
-                                </jvmArgs>
-                                <shuffleOnSlave>${tests.shuffle}</shuffleOnSlave>
-                                <sysouts>${tests.verbose}</sysouts>
-                                <seed>${tests.seed}</seed>
-                                <haltOnFailure>${tests.failfast}</haltOnFailure>
-                                <!-- enforce unique suite names, or reporting stuff can be screwed up -->
-                                <uniqueSuiteNames>true</uniqueSuiteNames>
+                            </configuration>
+                        </execution>
+                        <execution>
+                            <id>integ-tests</id>
+                            <phase>integration-test</phase>
+                            <goals>
+                                <goal>junit4</goal>
+                            </goals>
+                            <configuration>
+                                <ifNoTests>warn</ifNoTests>
+                                <haltOnFailure>false</haltOnFailure>
+                                <skipTests>${skip.integ.tests}</skipTests>
+                                <listeners>
+                                    <report-ant-xml
+                                        mavenExtensions="true"
+                                        summaryFile="${project.build.directory}/failsafe-reports/failsafe-summary.xml"
+                                        dir="${project.build.directory}/failsafe-reports"/>
+                                    <report-execution-times historyLength="20"
+                                                            file="${basedir}/${execution.hint.integ.file}"/>
+                                </listeners>
+                                <balancers>
+                                    <execution-times>
+                                        <fileset dir="${basedir}" includes="${execution.hint.integ.file}"/>
+                                    </execution-times>
+                                </balancers>
+                                <includes>
+                                    <include>**/*IT.class</include>
+                                </includes>
                                 <systemProperties>
-                                    <!-- we use './temp' since this is per JVM and tests are forbidden from writing to CWD -->
-                                    <java.io.tmpdir>./temp</java.io.tmpdir>
-                                    <!-- RandomizedTesting library system properties -->
-                                    <tests.bwc>${tests.bwc}</tests.bwc>
-                                    <tests.bwc.path>${tests.bwc.path}</tests.bwc.path>
-                                    <tests.bwc.version>${tests.bwc.version}</tests.bwc.version>
-                                    <tests.jvm.argline>${tests.jvm.argline}</tests.jvm.argline>
-                                    <tests.appendseed>${tests.appendseed}</tests.appendseed>
-                                    <tests.iters>${tests.iters}</tests.iters>
-                                    <tests.maxfailures>${tests.maxfailures}</tests.maxfailures>
-                                    <tests.failfast>${tests.failfast}</tests.failfast>
-                                    <tests.class>${tests.class}</tests.class>
-                                    <tests.method>${tests.method}</tests.method>
-                                    <tests.nightly>${tests.nightly}</tests.nightly>
-                                    <tests.verbose>${tests.verbose}</tests.verbose>
-                                    <tests.badapples>${tests.badapples}</tests.badapples>
-                                    <tests.weekly>${tests.weekly}</tests.weekly>
-                                    <tests.awaitsfix>${tests.awaitsfix}</tests.awaitsfix>
-                                    <tests.slow>${tests.slow}</tests.slow>
-                                    <tests.timeoutSuite>${tests.timeoutSuite}</tests.timeoutSuite>
-                                    <tests.showSuccess>${tests.showSuccess}</tests.showSuccess>
-                                    <tests.integration>${tests.integration}</tests.integration>
-                                    <tests.thirdparty>${tests.thirdparty}</tests.thirdparty>
-                                    <tests.config>${tests.config}</tests.config>
-                                    <tests.client.ratio>${tests.client.ratio}</tests.client.ratio>
-                                    <tests.enable_mock_modules>${tests.enable_mock_modules}</tests.enable_mock_modules>
-                                    <tests.assertion.disabled>${tests.assertion.disabled}</tests.assertion.disabled>
-                                    <tests.rest>${tests.rest}</tests.rest>
-                                    <tests.rest.suite>${tests.rest.suite}</tests.rest.suite>
-                                    <tests.rest.blacklist>${tests.rest.blacklist}</tests.rest.blacklist>
-                                    <tests.rest.spec>${tests.rest.spec}</tests.rest.spec>
-                                    <tests.network>${tests.network}</tests.network>
-                                    <tests.cluster>${tests.cluster}</tests.cluster>
-                                    <tests.heap.size>${tests.heap.size}</tests.heap.size>
-                                    <tests.filter>${tests.filter}</tests.filter>
-                                    <tests.version>${elasticsearch.version}</tests.version>
-                                    <tests.locale>${tests.locale}</tests.locale>
-                                    <tests.rest.load_packaged>${tests.rest.load_packaged}</tests.rest.load_packaged>
-                                    <tests.timezone>${tests.timezone}</tests.timezone>
-                                    <es.node.local>${env.ES_TEST_LOCAL}</es.node.local>
-                                    <es.node.mode>${es.node.mode}</es.node.mode>
-                                    <es.logger.level>${es.logger.level}</es.logger.level>
-                                    <tests.security.manager>${tests.security.manager}</tests.security.manager>
-                                    <tests.compatibility>${tests.compatibility}</tests.compatibility>
-                                    <java.awt.headless>true</java.awt.headless>
-                                    <!-- true if we are running tests from maven (as opposed to IDE, etc).
-                                         allows us to assert certain things work, like libsigar -->
-                                    <tests.maven>true</tests.maven>
+                                    <!-- let framework know we are running integ tests, for correct 'reproduce with' line -->
+                                    <tests.verify.phase>true</tests.verify.phase>
                                 </systemProperties>
                             </configuration>
                         </execution>
@@ -708,24 +763,10 @@
                     <artifactId>maven-failsafe-plugin</artifactId>
                     <version>2.18.1</version>
                     <configuration>
-                       <skipTests>${skip.integ.tests}</skipTests>
-                       <systemPropertyVariables>
-                           <es.logger.level>${es.logger.level}</es.logger.level>
-                           <tests.rest.suite>${tests.rest.suite}</tests.rest.suite>
-                           <tests.rest.blacklist>${tests.rest.blacklist}</tests.rest.blacklist>
-                           <tests.rest.spec>${tests.rest.spec}</tests.rest.spec>
-                           <tests.rest.load_packaged>${tests.rest.load_packaged}</tests.rest.load_packaged>
-                           <java.io.tmpdir>${integ.temp}</java.io.tmpdir>
-                           <tests.security.manager>false</tests.security.manager>
-                       </systemPropertyVariables>
+                        <skip>${skip.integ.tests}</skip>
+                        <failIfNoTests>true</failIfNoTests>
                     </configuration>
                     <executions>
-                        <execution>
-                            <id>integration-test</id>
-                            <goals>
-                                <goal>integration-test</goal>
-                            </goals>
-                        </execution>
                         <execution>
                             <id>verify</id>
                             <goals>
@@ -733,13 +774,6 @@
                             </goals>
                         </execution>
                     </executions>
-                    <dependencies>
-                      <dependency>
-                        <groupId>org.apache.maven.surefire</groupId>
-                        <artifactId>surefire-junit47</artifactId>
-                        <version>2.18.1</version>
-                      </dependency>
-                    </dependencies>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -840,7 +874,7 @@
                     <!-- We just declare which plugin version to use. Each project can have then its own settings -->
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-shade-plugin</artifactId>
-                    <version>2.4</version>
+                    <version>2.4.1</version>
                 </plugin>
                 <plugin>
                     <!-- We just declare which plugin version to use. Each project can have then its own settings -->
@@ -875,22 +909,18 @@
                 </plugin>
                 <plugin>
                     <!-- We just declare which plugin version to use. Each project can have then its own settings -->
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-dependency-plugin</artifactId>
-                    <version>2.10</version>
-                </plugin>
-                <plugin>
-                    <!-- We just declare which plugin version to use. Each project can have then its own settings -->
                     <!-- some infos https://github.com/tcurdt/jdeb/blob/master/docs/maven.md -->
                     <groupId>org.vafer</groupId>
                     <artifactId>jdeb</artifactId>
                     <version>1.3</version>
+                    <extensions>true</extensions>
                 </plugin>
                 <plugin>
                     <!-- We just declare which plugin version to use. Each project can have then its own settings -->
                     <groupId>org.codehaus.mojo</groupId>
                     <artifactId>rpm-maven-plugin</artifactId>
-                    <version>2.1.2</version>
+                    <version>2.1.3</version>
+                    <extensions>true</extensions>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -1072,27 +1102,6 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                     <version>1.8</version>
                     <executions>
                         <execution>
-                            <id>check-license</id>
-                            <phase>verify</phase>
-                            <goals>
-                                <goal>run</goal>
-                            </goals>
-                            <configuration>
-                                <target>
-                                    <condition property="licenses.exists">
-                                        <available file="${basedir}/licenses" type="dir"/>
-                                    </condition>
-                                    <echo taskName="license check">Running license check</echo>
-                                    <!-- on windows checksums are calculated wrong -->
-                                    <exec failonerror="${licenses.exists}" executable="perl" dir="${elasticsearch.tools.directory}/license-check" osfamily="unix" >
-                                        <arg value="check_license_and_sha.pl"/>
-                                        <arg value="--check"/>
-                                        <arg value="${basedir}"/>
-                                    </exec>
-                                </target>
-                            </configuration>
-                        </execution>
-                        <execution>
                             <id>set-permgen</id>
                             <phase>validate</phase>
                             <goals>
@@ -1163,7 +1172,23 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                                 <target>
                                     <taskdef resource="com/carrotsearch/junit4/antlib.xml" classpathref="maven.plugin.classpath"/>
                                     <tophints max="${tests.topn}">
-                                        <file file="${basedir}/${execution.hint.file}"/>
+                                        <fileset dir="${basedir}" includes="${execution.hint.file}"/>
+                                    </tophints>
+                                </target>
+                            </configuration>
+                            <goals>
+                                <goal>run</goal>
+                            </goals>
+                        </execution>
+                        <execution>
+                            <id>integ-tests-top-hints</id>
+                            <phase>integration-test</phase>
+                            <configuration>
+                                <skip>${skip.integ.tests}</skip>
+                                <target>
+                                    <taskdef resource="com/carrotsearch/junit4/antlib.xml" classpathref="maven.plugin.classpath"/>
+                                    <tophints max="${tests.topn}">
+                                        <fileset dir="${basedir}" includes="${execution.hint.integ.file}"/>
                                     </tophints>
                                 </target>
                             </configuration>
@@ -1213,6 +1238,13 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                 </plugin>
             </plugins>
         </pluginManagement>
+        <extensions>
+            <extension>
+                <groupId>org.springframework.build</groupId>
+                <artifactId>aws-maven</artifactId>
+                <version>5.0.0.RELEASE</version>
+            </extension>
+        </extensions>
     </build>
     <profiles>
         <profile>
@@ -1234,7 +1266,7 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
             <properties>
                 <package.rpm>true</package.rpm>
                 <no.commit.pattern>\bno(n|)(release|commit)\b</no.commit.pattern> <!-- check for no-commit / no-release -->
-                <forbidden.test.signatures>org.apache.lucene.util.LuceneTestCase$AwaitsFix @ Please fix all bugs before release</forbidden.test.signatures>
+                <forbidden.test.signatures>org.apache.lucene.util.LuceneTestCase$AwaitsFix @ Please fix all bugs before release or mark them as ignored</forbidden.test.signatures>
             </properties>
             <build>
                 <!-- sign the artifacts with GPG -->
@@ -1260,6 +1292,18 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                     </plugin>
                 </plugins>
             </build>
+            <distributionManagement>
+                <repository>
+                    <id>aws-release</id>
+                    <name>AWS Release Repository</name>
+                    <url>s3://download.elasticsearch.org/elasticsearch/release</url>
+                </repository>
+                <snapshotRepository>
+                    <id>aws-snapshot</id>
+                    <name>AWS Snapshot Repository</name>
+                    <url>s3://download.elasticsearch.org/elasticsearch/snapshot</url>
+                </snapshotRepository>
+            </distributionManagement>
         </profile>
         <!-- license profile, to generate third party license file -->
         <profile>
@@ -1278,12 +1322,13 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
             <activation>
                 <activeByDefault>false</activeByDefault>
                 <file>
-                    <missing>${basedir}/src</missing>
+                    <missing>${basedir}/src/test/java</missing>
                 </file>
             </activation>
             <properties>
                 <skip.unit.tests>true</skip.unit.tests>
                 <skip.integ.tests>true</skip.integ.tests>
+                <enforcer.skip>true</enforcer.skip>
             </properties>
             <build>
                 <plugins>
@@ -1427,10 +1472,10 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
         </profile>
     </profiles>
     <modules>
-        <module>securemock</module>
         <module>dev-tools</module>
         <module>rest-api-spec</module>
-        <module>plugins</module>
         <module>core</module>
+        <module>distribution</module>
+        <module>plugins</module>
     </modules>
 </project>

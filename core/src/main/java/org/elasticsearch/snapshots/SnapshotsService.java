@@ -471,7 +471,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                         shardSnapshotStatus.failure(shardFailure.reason());
                         shardStatusBuilder.put(shardId, shardSnapshotStatus);
                     } else {
-                        IndexShardSnapshotStatus shardSnapshotStatus = indexShardRepository.snapshotStatus(snapshotId, shardId);
+                        IndexShardSnapshotStatus shardSnapshotStatus = indexShardRepository.snapshotStatus(snapshotId, snapshot.version(), shardId);
                         shardStatusBuilder.put(shardId, shardSnapshotStatus);
                     }
                 }

@@ -29,7 +29,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.single.custom.TransportSingleCustomOperationAction;
+import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -54,7 +54,7 @@ import java.util.List;
 /**
  * Transport action used to execute analyze requests
  */
-public class TransportAnalyzeAction extends TransportSingleCustomOperationAction<AnalyzeRequest, AnalyzeResponse> {
+public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRequest, AnalyzeResponse> {
 
     private final IndicesService indicesService;
     private final IndicesAnalysisService indicesAnalysisService;

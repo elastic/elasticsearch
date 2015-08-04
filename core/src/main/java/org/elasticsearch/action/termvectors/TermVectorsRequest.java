@@ -25,6 +25,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocumentRequest;
+import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
@@ -50,7 +51,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
  * Note, the {@link #index()}, {@link #type(String)} and {@link #id(String)} are
  * required.
  */
-public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> implements DocumentRequest<TermVectorsRequest> {
+public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> implements DocumentRequest<TermVectorsRequest>, RealtimeRequest {
 
     private String type;
 
@@ -167,6 +168,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         this.version = other.version();
         this.versionType = VersionType.fromValue(other.versionType().getValue());
         this.startTime = other.startTime();
+        this.filterSettings = other.filterSettings();
     }
 
     public TermVectorsRequest(MultiGetRequest.Item item) {
@@ -404,6 +406,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     /**
      * Choose whether term vectors be generated real-time.
      */
+    @Override
     public TermVectorsRequest realtime(Boolean realtime) {
         this.realtime = realtime;
         return this;
@@ -472,7 +475,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = super.validate();
+        ActionRequestValidationException validationException = super.validateNonNullIndex();
         if (type == null) {
             validationException = ValidateActions.addValidationError("type is missing", validationException);
         }

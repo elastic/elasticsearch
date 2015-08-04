@@ -23,6 +23,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.FailedToResolveConfigException;
+import org.elasticsearch.plugin.cloud.gce.CloudGcePlugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ThirdParty;
@@ -38,7 +39,7 @@ public abstract class AbstractGceTest extends ElasticsearchIntegrationTest {
         Settings.Builder settings = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("path.home", createTempDir())
-                .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true);
+                .put("plugin.types", CloudGcePlugin.class.getName());
 
         Environment environment = new Environment(settings.build());
 

@@ -24,7 +24,7 @@ package org.elasticsearch.bootstrap;
  */
 public class Elasticsearch extends Bootstrap {
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Throwable {
         Bootstrap.main(args);
     }
 }

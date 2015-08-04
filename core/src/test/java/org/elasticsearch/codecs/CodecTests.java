@@ -20,7 +20,6 @@
 package org.elasticsearch.codecs;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -36,9 +35,6 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 
-/**
- */
-@Slow
 public class CodecTests extends ElasticsearchSingleNodeTest {
 
     public void testAcceptPostingsFormat() throws IOException {

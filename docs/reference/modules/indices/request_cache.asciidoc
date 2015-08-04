@@ -75,7 +75,7 @@ curl -XPUT localhost:9200/my_index/_settings -d'
 [float]
 ==== Enabling caching per request
 
-The `query_cache` query-string parameter can be used to enable or disable
+The `request_cache` query-string parameter can be used to enable or disable
 caching on a *per-request* basis.  If set, it overrides the index-level setting:
 
 [source,js]

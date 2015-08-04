@@ -63,7 +63,7 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
     }
 
     @Override
-    protected boolean resolveIndex() {
+    protected boolean resolveIndex(MultiTermVectorsShardRequest request) {
         return false;
     }
 

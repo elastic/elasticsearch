@@ -42,6 +42,8 @@ import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActionListener;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
 import java.util.Locale;
 
@@ -111,6 +113,9 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("rep", "alias:r,shards.replica,shardsReplica;text-align:right;desc:number of replica shards");
         table.addCell("docs.count", "alias:dc,docsCount;text-align:right;desc:available docs");
         table.addCell("docs.deleted", "alias:dd,docsDeleted;text-align:right;desc:deleted docs");
+
+        table.addCell("creation.date", "alias:cd;default:false;desc:index creation date (millisecond value)");
+        table.addCell("creation.date.string", "alias:cds;default:false;desc:index creation date (as string)");        
 
         table.addCell("store.size", "sibling:pri;alias:ss,storeSize;text-align:right;desc:store size of primaries & replicas");
         table.addCell("pri.store.size", "text-align:right;desc:store size of primaries");
@@ -250,6 +255,15 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("search.query_total", "sibling:pri;alias:sqto,searchQueryTotal;default:false;text-align:right;desc:total query phase ops");
         table.addCell("pri.search.query_total", "default:false;text-align:right;desc:total query phase ops");
 
+        table.addCell("search.scroll_current", "sibling:pri;alias:scc,searchScrollCurrent;default:false;text-align:right;desc:open scroll contexts");
+        table.addCell("pri.search.scroll_current", "default:false;text-align:right;desc:open scroll contexts");
+
+        table.addCell("search.scroll_time", "sibling:pri;alias:scti,searchScrollTime;default:false;text-align:right;desc:time scroll contexts held open");
+        table.addCell("pri.search.scroll_time", "default:false;text-align:right;desc:time scroll contexts held open");
+
+        table.addCell("search.scroll_total", "sibling:pri;alias:scto,searchScrollTotal;default:false;text-align:right;desc:completed scroll contexts");
+        table.addCell("pri.search.scroll_total", "default:false;text-align:right;desc:completed scroll contexts");
+
         table.addCell("segments.count", "sibling:pri;alias:sc,segmentsCount;default:false;text-align:right;desc:number of segments");
         table.addCell("pri.segments.count", "default:false;text-align:right;desc:number of segments");
 
@@ -310,6 +324,9 @@ public class RestIndicesAction extends AbstractCatAction {
             table.addCell(indexHealth == null ? null : indexHealth.getNumberOfReplicas());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getDocs().getCount());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getDocs().getDeleted());
+
+            table.addCell(indexMetaData.creationDate());
+            table.addCell(new DateTime(indexMetaData.creationDate(), DateTimeZone.getDefault()));
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getStore().size());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getStore().size());
@@ -448,6 +465,15 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getSearch().getTotal().getQueryCount());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSearch().getTotal().getQueryCount());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getSearch().getTotal().getScrollCurrent());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSearch().getTotal().getScrollCurrent());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getSearch().getTotal().getScrollTime());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSearch().getTotal().getScrollTime());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getSearch().getTotal().getScrollCount());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSearch().getTotal().getScrollCount());
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getSegments().getCount());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSegments().getCount());

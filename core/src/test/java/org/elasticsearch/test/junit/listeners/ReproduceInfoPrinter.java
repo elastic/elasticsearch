@@ -62,6 +62,13 @@ public class ReproduceInfoPrinter extends RunListener {
         logger.trace("Test {} finished", description.getDisplayName());
     }
 
+    /**
+     * true if we are running maven integration tests (mvn verify)
+     */
+    static boolean inVerifyPhase() {
+        return Boolean.parseBoolean(System.getProperty("tests.verify.phase"));
+    }
+
     @Override
     public void testFailure(Failure failure) throws Exception {
         // Ignore assumptions.
@@ -70,7 +77,11 @@ public class ReproduceInfoPrinter extends RunListener {
         }
 
         final StringBuilder b = new StringBuilder();
-        b.append("REPRODUCE WITH: mvn test -Pdev");
+        if (inVerifyPhase()) {
+            b.append("REPRODUCE WITH: mvn verify -Pdev -Dskip.unit.tests");
+        } else {
+            b.append("REPRODUCE WITH: mvn test -Pdev");
+        }
         MavenMessageBuilder mavenMessageBuilder = new MavenMessageBuilder(b);
         mavenMessageBuilder.appendAllOpts(failure.getDescription());
 
@@ -140,9 +151,13 @@ public class ReproduceInfoPrinter extends RunListener {
         }
 
         public ReproduceErrorMessageBuilder appendESProperties() {
-            appendProperties("es.logger.level", "es.node.mode", "es.node.local", TESTS_CLUSTER, InternalTestCluster.TESTS_ENABLE_MOCK_MODULES,
-                    "tests.assertion.disabled", "tests.security.manager", "tests.nightly", "tests.jvms", "tests.client.ratio", "tests.heap.size",
-                    "tests.bwc", "tests.bwc.version");
+            appendProperties("es.logger.level");
+            if (!inVerifyPhase()) {
+                // these properties only make sense for unit tests
+                appendProperties("es.node.mode", "es.node.local", TESTS_CLUSTER, InternalTestCluster.TESTS_ENABLE_MOCK_MODULES);
+            }
+            appendProperties("tests.assertion.disabled", "tests.security.manager", "tests.nightly", "tests.jvms", 
+                             "tests.client.ratio", "tests.heap.size", "tests.bwc", "tests.bwc.version");
             if (System.getProperty("tests.jvm.argline") != null && !System.getProperty("tests.jvm.argline").isEmpty()) {
                 appendOpt("tests.jvm.argline", "\"" + System.getProperty("tests.jvm.argline") + "\"");
             }

@@ -93,6 +93,9 @@ public class GeoPolygonQueryParser implements QueryParser {
                             while ((token = parser.nextToken()) != Token.END_ARRAY) {
                                 shell.add(GeoUtils.parseGeoPoint(parser));
                             }
+                            if (!shell.get(shell.size()-1).equals(shell.get(0))) {
+                                shell.add(shell.get(0));
+                            }
                         } else {
                             throw new QueryParsingException(parseContext, "[geo_polygon] query does not support [" + currentFieldName
                                     + "]");

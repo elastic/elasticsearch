@@ -174,8 +174,12 @@ public class OperationRouting extends AbstractComponent {
                     return indexShard.preferNodeActiveInitializingShardsIt(localNodeId);
                 case PRIMARY:
                     return indexShard.primaryActiveInitializingShardIt();
+                case REPLICA:
+                    return indexShard.replicaActiveInitializingShardIt();
                 case PRIMARY_FIRST:
                     return indexShard.primaryFirstActiveInitializingShardsIt();
+                case REPLICA_FIRST:
+                    return indexShard.replicaFirstActiveInitializingShardsIt();
                 case ONLY_LOCAL:
                     return indexShard.onlyNodeActiveInitializingShardsIt(localNodeId);
                 case ONLY_NODE:

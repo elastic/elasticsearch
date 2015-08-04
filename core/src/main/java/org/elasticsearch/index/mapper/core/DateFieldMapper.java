@@ -51,12 +51,15 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.LongFieldMapper.CustomLongNumericField;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
@@ -69,8 +72,8 @@ public class DateFieldMapper extends NumberFieldMapper {
     public static final String CONTENT_TYPE = "date";
 
     public static class Defaults extends NumberFieldMapper.Defaults {
-        public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("strictDateOptionalTime||epoch_millis", Locale.ROOT);
-        public static final FormatDateTimeFormatter DATE_TIME_FORMATTER_BEFORE_2_0 = Joda.forPattern("dateOptionalTime", Locale.ROOT);
+        public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("strict_date_optional_time||epoch_millis", Locale.ROOT);
+        public static final FormatDateTimeFormatter DATE_TIME_FORMATTER_BEFORE_2_0 = Joda.forPattern("date_optional_time", Locale.ROOT);
         public static final TimeUnit TIME_UNIT = TimeUnit.MILLISECONDS;
         public static final DateFieldType FIELD_TYPE = new DateFieldType();
 
@@ -124,6 +127,7 @@ public class DateFieldMapper extends NumberFieldMapper {
             return fieldMapper;
         }
 
+        @Override
         protected void setupFieldType(BuilderContext context) {
             if (Version.indexCreated(context.indexSettings()).before(Version.V_2_0_0_beta1) &&
                 !fieldType().dateTimeFormatter().format().contains("epoch_")) {
@@ -277,6 +281,7 @@ public class DateFieldMapper extends NumberFieldMapper {
             this.dateMathParser = ref.dateMathParser;
         }
 
+        @Override
         public DateFieldType clone() {
             return new DateFieldType(this);
         }
@@ -390,8 +395,8 @@ public class DateFieldMapper extends NumberFieldMapper {
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-            return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, null, null, context);
+        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+            return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, null, null);
         }
 
         @Override
@@ -419,7 +424,7 @@ public class DateFieldMapper extends NumberFieldMapper {
             );
         }
 
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser, @Nullable QueryParseContext context) {
+        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser) {
             return new LateParsingQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, forcedDateParser);
         }
 

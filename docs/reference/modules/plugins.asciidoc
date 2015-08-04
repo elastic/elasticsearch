@@ -20,7 +20,7 @@ Installing plugins typically take the following form:
 
 [source,sh]
 -----------------------------------
-bin/plugin --install plugin_name
+bin/plugin install plugin_name
 -----------------------------------
 
 The plugin will be automatically downloaded in this case from `download.elastic.co` download service using the
@@ -30,7 +30,7 @@ For older version of elasticsearch (prior to 2.0.0) or community plugins, you wo
 
 [source,sh]
 -----------------------------------
-bin/plugin --install <org>/<user/component>/<version>
+bin/plugin install <org>/<user/component>/<version>
 -----------------------------------
 
 The plugins will be automatically downloaded in this case from `download.elastic.co` (for older plugins),
@@ -45,11 +45,12 @@ for example:
 
 [source,sh]
 -----------------------------------
-bin/plugin --url file:///path/to/plugin --install plugin-name
+bin/plugin install plugin-name --url file:///path/to/plugin
 -----------------------------------
 
 
-You can run `bin/plugin -h`.
+You can run `bin/plugin -h`, or `bin/plugin install -h` for help on the install command
+as well as `bin/plugin remove -h` for help on the remove command..
 
 [float]
 [[site-plugins]]
@@ -70,8 +71,8 @@ running:
 
 [source,js]
 --------------------------------------------------
-bin/plugin --install mobz/elasticsearch-head
-bin/plugin --install lukas-vlcek/bigdesk
+bin/plugin install mobz/elasticsearch-head
+bin/plugin install lukas-vlcek/bigdesk
 --------------------------------------------------
 
 Will install both of those site plugins, with `elasticsearch-head`
@@ -108,7 +109,7 @@ Removing plugins typically take the following form:
 
 [source,sh]
 -----------------------------------
-plugin --remove <pluginname>
+plugin remove <pluginname>
 -----------------------------------
 
 [float]
@@ -126,8 +127,8 @@ Note that exit codes could be:
 
 [source,sh]
 -----------------------------------
-bin/plugin --install mobz/elasticsearch-head --verbose
-plugin --remove head --silent
+bin/plugin install mobz/elasticsearch-head --verbose
+plugin remove head --silent
 -----------------------------------
 
 [float]
@@ -140,33 +141,25 @@ different values:
 [source,sh]
 -----------------------------------
 # Wait for 30 seconds before failing
-bin/plugin --install mobz/elasticsearch-head --timeout 30s
+bin/plugin install mobz/elasticsearch-head --timeout 30s
 
 # Wait for 1 minute before failing
-bin/plugin --install mobz/elasticsearch-head --timeout 1m
+bin/plugin install mobz/elasticsearch-head --timeout 1m
 
 # Wait forever (default)
-bin/plugin --install mobz/elasticsearch-head --timeout 0
+bin/plugin install mobz/elasticsearch-head --timeout 0
 -----------------------------------
 
 [float]
 ==== Proxy settings
 
+
 To install a plugin via a proxy, you can pass the proxy details using the environment variables `proxyHost` and `proxyPort`.
-
-On Linux and Mac, here is an example of setting it:
-
-[source,sh]
------------------------------------
-bin/plugin -DproxyHost=host_name -DproxyPort=port_number --install mobz/elasticsearch-head
------------------------------------
-
-On Windows, here is an example of setting it:
 
 [source,sh]
 -----------------------------------
 set JAVA_OPTS="-DproxyHost=host_name -DproxyPort=port_number"
-bin/plugin --install mobz/elasticsearch-head
+bin/plugin install mobz/elasticsearch-head
 -----------------------------------
 
 [float]

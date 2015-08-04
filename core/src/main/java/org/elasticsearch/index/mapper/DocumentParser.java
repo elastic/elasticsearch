@@ -56,18 +56,16 @@ class DocumentParser implements Closeable {
     private CloseableThreadLocal<ParseContext.InternalParseContext> cache = new CloseableThreadLocal<ParseContext.InternalParseContext>() {
         @Override
         protected ParseContext.InternalParseContext initialValue() {
-            return new ParseContext.InternalParseContext(index, indexSettings, docMapperParser, docMapper, new ContentPath(0));
+            return new ParseContext.InternalParseContext(indexSettings, docMapperParser, docMapper, new ContentPath(0));
         }
     };
 
-    private final String index;
     private final Settings indexSettings;
     private final DocumentMapperParser docMapperParser;
     private final DocumentMapper docMapper;
     private final ReleasableLock parseLock;
 
-    public DocumentParser(String index, Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper, ReleasableLock parseLock) {
-        this.index = index;
+    public DocumentParser(Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper, ReleasableLock parseLock) {
         this.indexSettings = indexSettings;
         this.docMapperParser = docMapperParser;
         this.docMapper = docMapper;

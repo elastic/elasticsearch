@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
@@ -90,33 +91,50 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
         /**
          * Unassigned as a result of explicit cancel reroute command.
          */
-        REROUTE_CANCELLED;
+        REROUTE_CANCELLED,
+        /**
+         * When a shard moves from started back to initializing, for example, during shadow replica
+         */
+        REINITIALIZED,
+        /**
+         * A better replica location is identified and causes the existing replica allocation to be cancelled.
+         */
+        REALLOCATED_REPLICA;
     }
 
     private final Reason reason;
     private final long timestamp;
-    private final String details;
+    private final String message;
+    private final Throwable failure;
 
-    public UnassignedInfo(Reason reason, String details) {
-        this(reason, System.currentTimeMillis(), details);
+    public UnassignedInfo(Reason reason, String message) {
+        this(reason, System.currentTimeMillis(), message, null);
     }
 
-    private UnassignedInfo(Reason reason, long timestamp, String details) {
+    public UnassignedInfo(Reason reason, @Nullable String message, @Nullable Throwable failure) {
+        this(reason, System.currentTimeMillis(), message, failure);
+    }
+
+    private UnassignedInfo(Reason reason, long timestamp, String message, Throwable failure) {
         this.reason = reason;
         this.timestamp = timestamp;
-        this.details = details;
+        this.message = message;
+        this.failure = failure;
+        assert !(message == null && failure != null) : "provide a message if a failure exception is provided";
     }
 
     UnassignedInfo(StreamInput in) throws IOException {
         this.reason = Reason.values()[(int) in.readByte()];
         this.timestamp = in.readLong();
-        this.details = in.readOptionalString();
+        this.message = in.readOptionalString();
+        this.failure = in.readThrowable();
     }
 
     public void writeTo(StreamOutput out) throws IOException {
         out.writeByte((byte) reason.ordinal());
         out.writeLong(timestamp);
-        out.writeOptionalString(details);
+        out.writeOptionalString(message);
+        out.writeThrowable(failure);
     }
 
     public UnassignedInfo readFrom(StreamInput in) throws IOException {
@@ -144,8 +162,27 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
      * Returns optional details explaining the reasons.
      */
     @Nullable
+    public String getMessage() {
+        return this.message;
+    }
+
+    /**
+     * Returns additional failure exception details if exists.
+     */
+    @Nullable
+    public Throwable getFailure() {
+        return failure;
+    }
+
+    /**
+     * Builds a string representation of the message and the failure if exists.
+     */
+    @Nullable
     public String getDetails() {
-        return this.details;
+        if (message == null) {
+            return null;
+        }
+        return message + (failure == null ? "" : ", failure " + ExceptionsHelper.detailedMessage(failure));
     }
 
     /**
@@ -228,16 +265,20 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
         return nextDelay == Long.MAX_VALUE ? 0l : nextDelay;
     }
 
-    @Override
-    public String toString() {
+    public String shortSummary() {
         StringBuilder sb = new StringBuilder();
-        sb.append("unassigned_info[[reason=").append(reason).append("]");
+        sb.append("[reason=").append(reason).append("]");
         sb.append(", at[").append(DATE_TIME_FORMATTER.printer().print(timestamp)).append("]");
+        String details = getDetails();
         if (details != null) {
             sb.append(", details[").append(details).append("]");
         }
-        sb.append("]");
         return sb.toString();
+    }
+
+    @Override
+    public String toString() {
+        return "unassigned_info[" + shortSummary() + "]";
     }
 
     @Override
@@ -245,6 +286,7 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
         builder.startObject("unassigned_info");
         builder.field("reason", reason);
         builder.field("at", DATE_TIME_FORMATTER.printer().print(timestamp));
+        String details = getDetails();
         if (details != null) {
             builder.field("details", details);
         }

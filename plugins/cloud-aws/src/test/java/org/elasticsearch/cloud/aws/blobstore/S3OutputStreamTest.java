@@ -77,7 +77,7 @@ public class S3OutputStreamTest extends ElasticsearchTestCase {
 
     }
 
-    @Test @Slow
+    @Test
     public void testWriteExactlyNTimesMoreDataThanBufferSize() throws IOException {
         int n = randomIntBetween(2, 3);
         int length = n * BUFFER_SIZE;

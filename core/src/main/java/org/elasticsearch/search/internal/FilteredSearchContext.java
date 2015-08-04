@@ -45,7 +45,8 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
+import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.fetch.FetchSubPhaseContext;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
@@ -140,6 +141,11 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
+    public long getOriginNanoTime() {
+        return in.getOriginNanoTime();
+    }
+
+    @Override
     protected long nowInMillisImpl() {
         return in.nowInMillisImpl();
     }
@@ -202,16 +208,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public void addRescore(RescoreSearchContext rescore) {
         in.addRescore(rescore);
-    }
-
-    @Override
-    public boolean hasFieldDataFields() {
-        return in.hasFieldDataFields();
-    }
-
-    @Override
-    public FieldDataFieldsContext fieldDataFields() {
-        return in.fieldDataFields();
     }
 
     @Override
@@ -622,5 +618,10 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public void copyContextAndHeadersFrom(HasContextAndHeaders other) {
         in.copyContextAndHeadersFrom(other);
+    }
+
+    @Override
+    public <SubPhaseContext extends FetchSubPhaseContext> SubPhaseContext getFetchSubPhaseContext(FetchSubPhase.ContextFactory<SubPhaseContext> contextFactory) {
+        return in.getFetchSubPhaseContext(contextFactory);
     }
 }

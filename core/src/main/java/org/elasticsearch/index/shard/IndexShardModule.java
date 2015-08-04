@@ -21,7 +21,10 @@ package org.elasticsearch.index.shard;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.engine.IndexSearcherWrapper;
+import org.elasticsearch.index.engine.IndexSearcherWrappingService;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.percolator.stats.ShardPercolateService;
@@ -73,6 +76,10 @@ public class IndexShardModule extends AbstractModule {
         bind(StoreRecoveryService.class).asEagerSingleton();
         bind(ShardPercolateService.class).asEagerSingleton();
         bind(ShardTermVectorsService.class).asEagerSingleton();
+        bind(IndexSearcherWrappingService.class).asEagerSingleton();
+        // this injects an empty set in IndexSearcherWrappingService, otherwise guice can't construct IndexSearcherWrappingService
+        Multibinder<IndexSearcherWrapper> multibinder
+                = Multibinder.newSetBinder(binder(), IndexSearcherWrapper.class);
     }
 
 

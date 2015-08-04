@@ -21,13 +21,13 @@ package org.elasticsearch.index.fielddata;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.plain.*;
@@ -44,7 +44,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentMap;
 
 import static org.elasticsearch.index.mapper.MappedFieldType.Names;
 
@@ -138,11 +137,15 @@ public class IndexFieldDataService extends AbstractIndexComponent {
     }
 
     private final IndicesFieldDataCache indicesFieldDataCache;
-    private final ConcurrentMap<String, IndexFieldData<?>> loadedFieldData = ConcurrentCollections.newConcurrentMap();
-    private final KeyedLock.GlobalLockable<String> fieldLoadingLock = new KeyedLock.GlobalLockable<>();
-    private final Map<String, IndexFieldDataCache> fieldDataCaches = Maps.newHashMap(); // no need for concurrency support, always used under lock
+    // the below map needs to be modified under a lock
+    private final Map<String, IndexFieldDataCache> fieldDataCaches = Maps.newHashMap();
 
     IndexService indexService;
+
+    // We need to cache fielddata on the _parent field because of 1.x indices.
+    // When we don't support 1.x anymore (3.0) then remove this caching
+    // This variable needs to be read/written under lock
+    private IndexFieldData<?> parentIndexFieldData;
 
     @Inject
     public IndexFieldDataService(Index index, @IndexSettings Settings indexSettings, IndicesFieldDataCache indicesFieldDataCache,
@@ -157,69 +160,35 @@ public class IndexFieldDataService extends AbstractIndexComponent {
         this.indexService = indexService;
     }
 
-    public void clear() {
-        fieldLoadingLock.globalLock().lock();
-        try {
-            List<Throwable> exceptions = new ArrayList<>(0);
-            final Collection<IndexFieldData<?>> fieldDataValues = loadedFieldData.values();
-            for (IndexFieldData<?> fieldData : fieldDataValues) {
-                try {
-                    fieldData.clear();
-                } catch (Throwable t) {
-                    exceptions.add(t);
-                }
+    public synchronized void clear() {
+        parentIndexFieldData = null;
+        List<Throwable> exceptions = new ArrayList<>(0);
+        final Collection<IndexFieldDataCache> fieldDataCacheValues = fieldDataCaches.values();
+        for (IndexFieldDataCache cache : fieldDataCacheValues) {
+            try {
+                cache.clear();
+            } catch (Throwable t) {
+                exceptions.add(t);
             }
-            fieldDataValues.clear();
-            final Collection<IndexFieldDataCache> fieldDataCacheValues = fieldDataCaches.values();
-            for (IndexFieldDataCache cache : fieldDataCacheValues) {
-                try {
-                    cache.clear();
-                } catch (Throwable t) {
-                    exceptions.add(t);
-                }
-            }
-            fieldDataCacheValues.clear();
-            ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
-        } finally {
-            fieldLoadingLock.globalLock().unlock();
         }
+        fieldDataCacheValues.clear();
+        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
     }
 
-    public void clearField(final String fieldName) {
-        fieldLoadingLock.acquire(fieldName);
-        try {
-            List<Throwable> exceptions = new ArrayList<>(0);
-            final IndexFieldData<?> fieldData = loadedFieldData.remove(fieldName);
-            if (fieldData != null) {
-                try {
-                    fieldData.clear();
-                } catch (Throwable t) {
-                    exceptions.add(t);
-                }
-            }
-            final IndexFieldDataCache cache = fieldDataCaches.remove(fieldName);
-            if (cache != null) {
-                try {
-                    cache.clear();
-                } catch (Throwable t) {
-                    exceptions.add(t);
-                }
-            }
-            ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
-        } finally {
-            fieldLoadingLock.release(fieldName);
+    public synchronized void clearField(final String fieldName) {
+        if (ParentFieldMapper.NAME.equals(fieldName)) {
+            parentIndexFieldData = null;
         }
-    }
-
-    public void onMappingUpdate() {
-        // synchronize to make sure to not miss field data instances that are being loaded
-        fieldLoadingLock.globalLock().lock();
-        try {
-            // important: do not clear fieldDataCaches: the cache may be reused
-            loadedFieldData.clear();
-        } finally {
-            fieldLoadingLock.globalLock().unlock();
+        List<Throwable> exceptions = new ArrayList<>(0);
+        final IndexFieldDataCache cache = fieldDataCaches.remove(fieldName);
+        if (cache != null) {
+            try {
+                cache.clear();
+            } catch (Throwable t) {
+                exceptions.add(t);
+            }
         }
+        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
     }
 
     @SuppressWarnings("unchecked")
@@ -230,58 +199,57 @@ public class IndexFieldDataService extends AbstractIndexComponent {
             throw new IllegalArgumentException("found no fielddata type for field [" + fieldNames.fullName() + "]");
         }
         final boolean docValues = fieldType.hasDocValues();
-        final String key = fieldNames.indexName();
-        IndexFieldData<?> fieldData = loadedFieldData.get(key);
-        if (fieldData == null) {
-            fieldLoadingLock.acquire(key);
-            try {
-                fieldData = loadedFieldData.get(key);
-                if (fieldData == null) {
-                    IndexFieldData.Builder builder = null;
-                    String format = type.getFormat(indexSettings);
-                    if (format != null && FieldDataType.DOC_VALUES_FORMAT_VALUE.equals(format) && !docValues) {
-                        logger.warn("field [" + fieldNames.fullName() + "] has no doc values, will use default field data format");
-                        format = null;
-                    }
-                    if (format != null) {
-                        builder = buildersByTypeAndFormat.get(Tuple.tuple(type.getType(), format));
-                        if (builder == null) {
-                            logger.warn("failed to find format [" + format + "] for field [" + fieldNames.fullName() + "], will use default");
-                        }
-                    }
-                    if (builder == null && docValues) {
-                        builder = docValuesBuildersByType.get(type.getType());
-                    }
-                    if (builder == null) {
-                        builder = buildersByType.get(type.getType());
-                    }
-                    if (builder == null) {
-                        throw new IllegalArgumentException("failed to find field data builder for field " + fieldNames.fullName() + ", and type " + type.getType());
-                    }
-
-                    IndexFieldDataCache cache = fieldDataCaches.get(fieldNames.indexName());
-                    if (cache == null) {
-                        //  we default to node level cache, which in turn defaults to be unbounded
-                        // this means changing the node level settings is simple, just set the bounds there
-                        String cacheType = type.getSettings().get("cache", indexSettings.get(FIELDDATA_CACHE_KEY, FIELDDATA_CACHE_VALUE_NODE));
-                        if (FIELDDATA_CACHE_VALUE_NODE.equals(cacheType)) {
-                            cache = indicesFieldDataCache.buildIndexFieldDataCache(indexService, index, fieldNames, type);
-                        } else if ("none".equals(cacheType)){
-                            cache = new IndexFieldDataCache.None();
-                        } else {
-                            throw new IllegalArgumentException("cache type not supported [" + cacheType + "] for field [" + fieldNames.fullName() + "]");
-                        }
-                        fieldDataCaches.put(fieldNames.indexName(), cache);
-                    }
-
-                    fieldData = builder.build(index, indexSettings, fieldType, cache, circuitBreakerService, indexService.mapperService());
-                    loadedFieldData.put(fieldNames.indexName(), fieldData);
-                }
-            } finally {
-                fieldLoadingLock.release(key);
+        IndexFieldData.Builder builder = null;
+        String format = type.getFormat(indexSettings);
+        if (format != null && FieldDataType.DOC_VALUES_FORMAT_VALUE.equals(format) && !docValues) {
+            logger.warn("field [" + fieldNames.fullName() + "] has no doc values, will use default field data format");
+            format = null;
+        }
+        if (format != null) {
+            builder = buildersByTypeAndFormat.get(Tuple.tuple(type.getType(), format));
+            if (builder == null) {
+                logger.warn("failed to find format [" + format + "] for field [" + fieldNames.fullName() + "], will use default");
             }
         }
-        return (IFD) fieldData;
+        if (builder == null && docValues) {
+            builder = docValuesBuildersByType.get(type.getType());
+        }
+        if (builder == null) {
+            builder = buildersByType.get(type.getType());
+        }
+        if (builder == null) {
+            throw new IllegalArgumentException("failed to find field data builder for field " + fieldNames.fullName() + ", and type " + type.getType());
+        }
+
+        IndexFieldDataCache cache;
+        synchronized (this) {
+            cache = fieldDataCaches.get(fieldNames.indexName());
+            if (cache == null) {
+                //  we default to node level cache, which in turn defaults to be unbounded
+                // this means changing the node level settings is simple, just set the bounds there
+                String cacheType = type.getSettings().get("cache", indexSettings.get(FIELDDATA_CACHE_KEY, FIELDDATA_CACHE_VALUE_NODE));
+                if (FIELDDATA_CACHE_VALUE_NODE.equals(cacheType)) {
+                    cache = indicesFieldDataCache.buildIndexFieldDataCache(indexService, index, fieldNames, type);
+                } else if ("none".equals(cacheType)){
+                    cache = new IndexFieldDataCache.None();
+                } else {
+                    throw new IllegalArgumentException("cache type not supported [" + cacheType + "] for field [" + fieldNames.fullName() + "]");
+                }
+                fieldDataCaches.put(fieldNames.indexName(), cache);
+            }
+
+            // Remove this in 3.0
+            final boolean isOldParentField = ParentFieldMapper.NAME.equals(fieldNames.indexName())
+                    && Version.indexCreated(indexSettings).before(Version.V_2_0_0_beta1);
+            if (isOldParentField) {
+                if (parentIndexFieldData == null) {
+                    parentIndexFieldData = builder.build(index, indexSettings, fieldType, cache, circuitBreakerService, indexService.mapperService());
+                }
+                return (IFD) parentIndexFieldData;
+            }
+        }
+
+        return (IFD) builder.build(index, indexSettings, fieldType, cache, circuitBreakerService, indexService.mapperService());
     }
 
 }

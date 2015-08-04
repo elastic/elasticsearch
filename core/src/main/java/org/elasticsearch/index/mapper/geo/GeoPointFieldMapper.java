@@ -636,9 +636,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
                         double lon = context.parser().doubleValue();
                         token = context.parser().nextToken();
                         double lat = context.parser().doubleValue();
-                        while ((token = context.parser().nextToken()) != XContentParser.Token.END_ARRAY) {
-
-                        }
+                        while ((token = context.parser().nextToken()) != XContentParser.Token.END_ARRAY);
                         parse(context, sparse.reset(lat, lon), null);
                     } else {
                         while (token != XContentParser.Token.END_ARRAY) {

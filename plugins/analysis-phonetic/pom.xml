@@ -15,9 +15,10 @@
     <description>The Phonetic Analysis plugin integrates phonetic token filter analysis with elasticsearch.</description>
 
     <properties>
+       <elasticsearch.plugin.classname>org.elasticsearch.plugin.analysis.AnalysisPhoneticPlugin</elasticsearch.plugin.classname>
        <tests.rest.suite>analysis_phonetic</tests.rest.suite>
        <tests.rest.load_packaged>false</tests.rest.load_packaged>
-      </properties>
+    </properties>
 
     <dependencies>
         <dependency>

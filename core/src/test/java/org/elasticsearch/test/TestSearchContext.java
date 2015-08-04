@@ -48,7 +48,8 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
+import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.fetch.FetchSubPhaseContext;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
@@ -63,9 +64,7 @@ import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 public class TestSearchContext extends SearchContext {
 
@@ -81,6 +80,9 @@ public class TestSearchContext extends SearchContext {
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
     private String[] types;
     private SearchContextAggregations aggregations;
+
+    private final long originNanoTime = System.nanoTime();
+    private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
 
     public TestSearchContext(ThreadPool threadPool,PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, IndexService indexService, QueryCache filterCache, IndexFieldDataService indexFieldDataService) {
         super(ParseFieldMatcher.STRICT);
@@ -171,6 +173,11 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
+    public long getOriginNanoTime() {
+        return originNanoTime;
+    }
+
+    @Override
     protected long nowInMillisImpl() {
         return 0;
     }
@@ -194,6 +201,15 @@ public class TestSearchContext extends SearchContext {
     public SearchContext aggregations(SearchContextAggregations aggregations) {
         this.aggregations = aggregations;
         return this;
+    }
+
+    @Override
+    public <SubPhaseContext extends FetchSubPhaseContext> SubPhaseContext getFetchSubPhaseContext(FetchSubPhase.ContextFactory<SubPhaseContext> contextFactory) {
+        String subPhaseName = contextFactory.getName();
+        if (subPhaseContexts.get(subPhaseName) == null) {
+            subPhaseContexts.put(subPhaseName, contextFactory.newContextInstance());
+        }
+        return (SubPhaseContext) subPhaseContexts.get(subPhaseName);
     }
 
     @Override
@@ -221,16 +237,6 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public void addRescore(RescoreSearchContext rescore) {
-    }
-
-    @Override
-    public boolean hasFieldDataFields() {
-        return false;
-    }
-
-    @Override
-    public FieldDataFieldsContext fieldDataFields() {
-        return null;
     }
 
     @Override

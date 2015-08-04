@@ -284,8 +284,20 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         boolean success = false;
         Injector shardInjector = null;
         try {
-
-            ShardPath path = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
+            lock = nodeEnv.shardLock(shardId, TimeUnit.SECONDS.toMillis(5));
+            ShardPath path;
+            try {
+                path = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
+            } catch (IllegalStateException ex) {
+                logger.warn("{} failed to load shard path, trying to remove leftover", shardId);
+                try {
+                    ShardPath.deleteLeftoverShardDirectory(logger, nodeEnv, lock, indexSettings);
+                    path = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
+                } catch (Throwable t) {
+                    t.addSuppressed(ex);
+                    throw t;
+                }
+            }
             if (path == null) {
                 path = ShardPath.selectNewPathForShard(nodeEnv, shardId, indexSettings, getAvgShardSizeInBytes(), this);
                 logger.debug("{} creating using a new path [{}]", shardId, path);
@@ -293,7 +305,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                 logger.debug("{} creating using an existing path [{}]", shardId, path);
             }
 
-            lock = nodeEnv.shardLock(shardId, TimeUnit.SECONDS.toMillis(5));
             if (shards.containsKey(shardId.id())) {
                 throw new IndexShardAlreadyExistsException(shardId + " already exists");
             }

@@ -35,6 +35,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -114,7 +115,7 @@ public abstract class MetaDataStateFormat<T> {
                 CodecUtil.writeHeader(out, STATE_FILE_CODEC, STATE_FILE_VERSION);
                 out.writeInt(format.index());
                 out.writeLong(version);
-                try (XContentBuilder builder = newXContentBuilder(format, new org.elasticsearch.common.lucene.store.OutputStreamIndexOutput(out) {
+                try (XContentBuilder builder = newXContentBuilder(format, new IndexOutputOutputStream(out) {
                     @Override
                     public void close() throws IOException {
                         // this is important since some of the XContentBuilders write bytes on close.

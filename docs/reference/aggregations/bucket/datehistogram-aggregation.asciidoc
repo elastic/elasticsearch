@@ -50,9 +50,10 @@ See <<time-units>> for accepted abbreviations.
 By default, times are stored as UTC milliseconds since the epoch. Thus, all computation and "bucketing" / "rounding" is
 done on UTC. It is possible to provide a time zone value, which will cause all bucket
 computations to take place in the specified zone. The time returned for each bucket/entry is milliseconds since the
-epoch in UTC. The parameters is called `time_zone`. It accepts either a numeric value for the hours offset, for example:
-`"time_zone" : -2`. It also accepts a format of hours and minutes, like `"time_zone" : "-02:30"`.
-Another option is to provide a time zone accepted as one of the values listed here.
+epoch in UTC. The parameters is called `time_zone`. It accepts either a ISO 8601 UTC offset, or a timezone id.
+A UTC offset has the form of a `+` or `-`, followed by two digit hour, followed by `:`, followed by two digit minutes.
+For example, `+01:00` represents 1 hour ahead of UTC. A timezone id is the identifier for a TZ database. For example,
+Pacific time is represented as `America\Los_Angeles`.
 
 Lets take an example. For `2012-04-01T04:15:30Z` (UTC), with a `time_zone` of `"-08:00"`. For day interval, the actual time by
 applying the time zone and rounding falls under `2012-03-31`, so the returned value will be (in millis) of

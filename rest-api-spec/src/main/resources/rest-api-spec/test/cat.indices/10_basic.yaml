@@ -36,3 +36,18 @@
                   (\d+|\d+[.]\d+)(kb|b) \s*
                 )
                 $/
+
+  - do:
+      cat.indices:
+        v: false
+        h: i,cd,cds,creation.date,creation.date.string
+  - match:
+      $body: |
+               /^(
+                  index1                                                    \s+
+                  (\d+)                                                     \s+
+                  (\d\d\d\d\-\d\d\-\d\dT\d\d:\d\d:\d\d.\d\d\d[+-]\d\d:\d\d) \s+
+                  (\d+)                                                     \s+
+                  (\d\d\d\d\-\d\d\-\d\dT\d\d:\d\d:\d\d.\d\d\d[+-]\d\d:\d\d) \s*
+                )
+                $/

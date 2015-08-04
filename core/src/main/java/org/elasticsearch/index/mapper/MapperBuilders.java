@@ -32,8 +32,8 @@ public final class MapperBuilders {
 
     private MapperBuilders() {}
 
-    public static DocumentMapper.Builder doc(String index, Settings settings, RootObjectMapper.Builder objectBuilder, MapperService mapperService) {
-        return new DocumentMapper.Builder(index, settings, objectBuilder, mapperService);
+    public static DocumentMapper.Builder doc(Settings settings, RootObjectMapper.Builder objectBuilder, MapperService mapperService) {
+        return new DocumentMapper.Builder(settings, objectBuilder, mapperService);
     }
 
     public static RootObjectMapper.Builder rootObject(String name) {

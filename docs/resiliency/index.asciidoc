@@ -89,6 +89,19 @@ Further issues remain with the retry mechanism:
 See {GIT}9967[#9967]. (STATUS: ONGOING)
 
 [float]
+=== Wait on incoming joins before electing local node as master (STATUS: ONGOING)
+
+During master election each node pings in order to discover other nodes and validate the liveness of existing
+nodes. Based on this information the node either discovers an existing master or, if enough nodes are found
+(see https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-discovery-zen.html#master-election[`discovery.zen.minimum_master_nodes`]) a new master will be elected. Currently, the node that is
+elected as master will update the cluster state to indicate the result of the election. Other nodes will submit
+a join request to the newly elected master node. Instead of immediately processing the election result, the elected master
+node should wait for the incoming joins from other nodes, thus validating that the result of the election is properly applied. As soon as enough
+nodes have sent their joins request (based on the `minimum_master_nodes` settings) the cluster state is updated.
+{GIT}12161[#12161]
+
+
+[float]
 === Write index metadata on data nodes where shards allocated (STATUS: ONGOING)
 
 Today, index metadata is written only on nodes that are master-eligible, not on

@@ -20,6 +20,7 @@
 package org.elasticsearch.action.get;
 
 import com.carrotsearch.hppc.IntArrayList;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -52,6 +53,11 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
         realtime = multiGetRequest.realtime;
         refresh = multiGetRequest.refresh;
         ignoreErrorsOnGeneratedFields = multiGetRequest.ignoreErrorsOnGeneratedFields;
+    }
+
+    @Override
+    public ActionRequestValidationException validate() {
+        return super.validateNonNullIndex();
     }
 
     public int shardId() {

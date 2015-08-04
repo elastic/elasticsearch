@@ -12,6 +12,8 @@ include::allocation/filtering.asciidoc[]
 
 include::allocation/delayed.asciidoc[]
 
+include::allocation/prioritization.asciidoc[]
+
 include::allocation/total_shards.asciidoc[]
 
 

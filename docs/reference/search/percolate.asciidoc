@@ -499,7 +499,7 @@ The `wildcard` and `regexp` query natively use a lot of memory and because the p
 this can easily take up the available memory in the heap space. If possible try to use a `prefix` query or ngramming to
 achieve the same result (with way less memory being used).
 
-The delete-by-query API doesn't work to unregister a query, it only deletes the percolate documents from disk. In order
+The `delete-by-query` plugin doesn't work to unregister a query, it only deletes the percolate documents from disk. In order
 to update the registered queries in memory the index needs be closed and opened.
 
 [float]

@@ -50,7 +50,8 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
+import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.fetch.FetchSubPhaseContext;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
@@ -142,6 +143,8 @@ public abstract class SearchContext implements Releasable, HasContextAndHeaders 
 
     public abstract SearchContext queryBoost(float queryBoost);
 
+    public abstract long getOriginNanoTime();
+
     public final long nowInMillis() {
         nowInMillisUsed = true;
         return nowInMillisImpl();
@@ -161,6 +164,8 @@ public abstract class SearchContext implements Releasable, HasContextAndHeaders 
 
     public abstract SearchContext aggregations(SearchContextAggregations aggregations);
 
+    public abstract  <SubPhaseContext extends FetchSubPhaseContext> SubPhaseContext getFetchSubPhaseContext(FetchSubPhase.ContextFactory<SubPhaseContext> contextFactory);
+
     public abstract SearchContextHighlight highlight();
 
     public abstract void highlight(SearchContextHighlight highlight);
@@ -179,10 +184,6 @@ public abstract class SearchContext implements Releasable, HasContextAndHeaders 
     public abstract List<RescoreSearchContext> rescore();
 
     public abstract void addRescore(RescoreSearchContext rescore);
-
-    public abstract boolean hasFieldDataFields();
-
-    public abstract FieldDataFieldsContext fieldDataFields();
 
     public abstract boolean hasScriptFields();
 

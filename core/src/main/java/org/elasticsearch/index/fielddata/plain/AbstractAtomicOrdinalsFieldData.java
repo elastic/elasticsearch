@@ -64,7 +64,7 @@ public abstract class AbstractAtomicOrdinalsFieldData implements AtomicOrdinalsF
 
             @Override
             public RandomAccessOrds getOrdinalsValues() {
-                return (RandomAccessOrds) DocValues.emptySortedSet();
+                return DocValues.emptySortedSet();
             }
         };
     }

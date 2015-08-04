@@ -211,12 +211,7 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
         }
 
         if (indexShard.getTranslogDurability() == Translog.Durabilty.REQUEST && location != null) {
-            try {
-                indexShard.sync(location);
-            } catch (EngineClosedException e) {
-                // ignore, the engine is already closed and we do not want the
-                // operation to be retried, because it has been modified
-            }
+            indexShard.sync(location);
         }
     }
 }

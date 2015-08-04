@@ -53,7 +53,7 @@ org.joda.time.DateTime#<init>(int, int, int, int, int)
 org.joda.time.DateTime#<init>(int, int, int, int, int, int)
 org.joda.time.DateTime#<init>(int, int, int, int, int, int, int)
 org.joda.time.DateTime#now()
-org.joda.time.DateTime#getDefault()
+org.joda.time.DateTimeZone#getDefault()
 
 com.google.common.collect.Iterators#emptyIterator() @ Use Collections.emptyIterator instead
 

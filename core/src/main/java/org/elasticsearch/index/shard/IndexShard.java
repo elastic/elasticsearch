@@ -1403,9 +1403,11 @@ public class IndexShard extends AbstractIndexShardComponent {
      * Syncs the given location with the underlying storage unless already synced.
      */
     public void sync(Translog.Location location) {
-        final Engine engine = engine();
         try {
+            final Engine engine = engine();
             engine.getTranslog().ensureSynced(location);
+        } catch (EngineClosedException ex) {
+            // that's fine since we already synced everything on engine close - this also is conform with the methods documentation
         } catch (IOException ex) { // if this fails we are in deep shit - fail the request
             logger.debug("failed to sync translog", ex);
             throw new ElasticsearchException("failed to sync translog", ex);

@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  */
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
-public class RepositoriesTests extends AbstractSnapshotIntegTestCase {
+public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
 
     @Test
     public void testRepositoryCreation() throws Exception {

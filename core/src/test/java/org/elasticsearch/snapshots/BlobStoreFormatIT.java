@@ -49,7 +49,7 @@ import java.util.concurrent.*;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class BlobStoreFormatTests extends AbstractSnapshotIntegTestCase {
+public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
 
     private static final ParseFieldMatcher parseFieldMatcher = new ParseFieldMatcher(Settings.EMPTY);
 

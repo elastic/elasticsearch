@@ -44,10 +44,7 @@ import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
 import org.junit.Test;
 
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
+import java.util.*;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -74,10 +71,12 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         usages.put("node3", new DiskUsage("node3", "node3", 100, 60)); // 40% used
         usages.put("node4", new DiskUsage("node4", "node4", 100, 80)); // 20% used
 
-        Map<String, Long> shardSizes = new HashMap<>();
-        shardSizes.put("[test][0][p]", 10L); // 10 bytes
-        shardSizes.put("[test][0][r]", 10L);
-        final ClusterInfo clusterInfo = new ClusterInfo(ImmutableMap.copyOf(usages), ImmutableMap.copyOf(shardSizes));
+        final ClusterInfo clusterInfo = new ClusterInfo(usages, Collections.EMPTY_MAP) {
+            @Override
+            public Long getShardSize(ShardRouting shardRouting) {
+                return 10l;
+            }
+        };
 
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
@@ -269,10 +268,12 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         usages.put("node4", new DiskUsage("node4", "n4", 100, 80)); // 20% used
         usages.put("node5", new DiskUsage("node5", "n5", 100, 85)); // 15% used
 
-        Map<String, Long> shardSizes = new HashMap<>();
-        shardSizes.put("[test][0][p]", 10L); // 10 bytes
-        shardSizes.put("[test][0][r]", 10L);
-        final ClusterInfo clusterInfo = new ClusterInfo(ImmutableMap.copyOf(usages), ImmutableMap.copyOf(shardSizes));
+        final ClusterInfo clusterInfo = new ClusterInfo(usages, Collections.EMPTY_MAP) {
+            @Override
+            public Long getShardSize(ShardRouting shardRouting) {
+                return shardRouting.shardId().equals(new ShardId("test", 0)) ? 10l : null;
+            }
+        };
 
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
@@ -334,7 +335,12 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         // Make node without the primary now habitable to replicas
         usages.put(nodeWithoutPrimary, new DiskUsage(nodeWithoutPrimary, "", 100, 35)); // 65% used
-        final ClusterInfo clusterInfo2 = new ClusterInfo(ImmutableMap.copyOf(usages), ImmutableMap.copyOf(shardSizes));
+        final ClusterInfo clusterInfo2 = new ClusterInfo(usages, Collections.EMPTY_MAP) {
+            @Override
+            public Long getShardSize(ShardRouting shardRouting) {
+                return shardRouting.shardId().equals(new ShardId("test", 0)) ? 10l : null;
+            }
+        };
         cis = new ClusterInfoService() {
             @Override
             public ClusterInfo getClusterInfo() {
@@ -531,9 +537,12 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         usages.put("node1", new DiskUsage("node1", "n1", 100, 31)); // 69% used
         usages.put("node2", new DiskUsage("node2", "n2", 100, 1));  // 99% used
 
-        Map<String, Long> shardSizes = new HashMap<>();
-        shardSizes.put("[test][0][p]", 10L); // 10 bytes
-        final ClusterInfo clusterInfo = new ClusterInfo(ImmutableMap.copyOf(usages), ImmutableMap.copyOf(shardSizes));
+        final ClusterInfo clusterInfo = new ClusterInfo(usages, Collections.EMPTY_MAP) {
+            @Override
+            public Long getShardSize(ShardRouting shardRouting) {
+                return shardRouting.primary() ? 10l : null;
+            }
+        };
 
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
@@ -597,10 +606,12 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         usages.put("node2", new DiskUsage("node2", "node2", 100, 50)); // 50% used
         usages.put("node3", new DiskUsage("node3", "node3", 100, 0));  // 100% used
 
-        Map<String, Long> shardSizes = new HashMap<>();
-        shardSizes.put("[test][0][p]", 10L); // 10 bytes
-        shardSizes.put("[test][0][r]", 10L); // 10 bytes
-        final ClusterInfo clusterInfo = new ClusterInfo(ImmutableMap.copyOf(usages), ImmutableMap.copyOf(shardSizes));
+        final ClusterInfo clusterInfo = new ClusterInfo(usages, Collections.EMPTY_MAP) {
+            @Override
+            public Long getShardSize(ShardRouting shardRouting) {
+                return shardRouting.shardId().equals(new ShardId("test", 0)) ? 10l : null;
+            }
+        };
 
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
@@ -699,12 +710,17 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         usages.put("node2", new DiskUsage("node2", "n2", 100, 40)); // 60% used
         usages.put("node2", new DiskUsage("node3", "n3", 100, 40)); // 60% used
 
-        Map<String, Long> shardSizes = new HashMap<>();
-        shardSizes.put("[test][0][p]", 14L); // 14 bytes
-        shardSizes.put("[test][0][r]", 14L);
-        shardSizes.put("[test2][0][p]", 1L); // 1 bytes
-        shardSizes.put("[test2][0][r]", 1L);
-        final ClusterInfo clusterInfo = new ClusterInfo(ImmutableMap.copyOf(usages), ImmutableMap.copyOf(shardSizes));
+        final ClusterInfo clusterInfo = new ClusterInfo(usages, Collections.EMPTY_MAP) {
+            @Override
+            public Long getShardSize(ShardRouting shardRouting) {
+                if (shardRouting.shardId().equals(new ShardId("test", 0))) {
+                    return 14l;
+                } else if (shardRouting.shardId().equals(new ShardId("test2", 0))) {
+                    return 1l;
+                }
+                return null;
+            }
+        };
 
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
@@ -804,10 +820,16 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         usages.put("node1", new DiskUsage("node1", "n1", 100, 20)); // 80% used
         usages.put("node2", new DiskUsage("node2", "n2", 100, 100)); // 0% used
 
-        Map<String, Long> shardSizes = new HashMap<>();
-        shardSizes.put("[test][0][p]", 40L);
-        shardSizes.put("[test][1][p]", 40L);
-        final ClusterInfo clusterInfo = new ClusterInfo(ImmutableMap.copyOf(usages), ImmutableMap.copyOf(shardSizes));
+        final ClusterInfo clusterInfo = new ClusterInfo(usages, Collections.EMPTY_MAP) {
+            @Override
+            public Long getShardSize(ShardRouting shardRouting) {
+                if (shardRouting.index().equals("test") && (shardRouting.id() == 1 || shardRouting.id() == 0) && shardRouting.primary()) {
+                    return 40l;
+                }
+                return null;
+            }
+        };
+
 
         DiskThresholdDecider diskThresholdDecider = new DiskThresholdDecider(diskSettings);
         MetaData metaData = MetaData.builder()

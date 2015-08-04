@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.state;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
@@ -92,7 +91,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
                         .nodes(DiscoveryNodes.EMPTY_NODES)
                         .build()
         );
-        ClusterInfo clusterInfo = new ClusterInfo(ImmutableMap.<String, DiskUsage>of(), ImmutableMap.<String, Long>of());
+        ClusterInfo clusterInfo = ClusterInfo.EMPTY;
 
         RoutingAllocation routingAllocation = new RoutingAllocation(allocationDeciders, routingNodes, current.nodes(), clusterInfo);
         allocator.allocateUnassigned(routingAllocation);

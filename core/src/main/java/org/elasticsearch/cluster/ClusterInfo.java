@@ -19,23 +19,23 @@
 
 package org.elasticsearch.cluster;
 
-import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.ShardRouting;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 
 /**
  * ClusterInfo is an object representing a map of nodes to {@link DiskUsage}
- * and a map of shard ids to shard sizes, see
- * <code>InternalClusterInfoService.shardIdentifierFromRouting(String)</code>
- * for the key used in the shardSizes map
+ * and a map of shard ids to shard sizes keyed by the {@link AllocationId}
  */
 public class ClusterInfo {
-
+    public static final ClusterInfo EMPTY = new ClusterInfo(Collections.EMPTY_MAP, Collections.EMPTY_MAP);
     private final Map<String, DiskUsage> usages;
-    final Map<String, Long> shardSizes;
+    private final Map<AllocationId, Long> shardSizes;
 
-    public ClusterInfo(Map<String, DiskUsage> usages, Map<String, Long> shardSizes) {
+    public ClusterInfo(Map<String, DiskUsage> usages, Map<AllocationId, Long> shardSizes) {
         this.usages = usages;
         this.shardSizes = shardSizes;
     }
@@ -45,14 +45,14 @@ public class ClusterInfo {
     }
 
     public Long getShardSize(ShardRouting shardRouting) {
-        return shardSizes.get(shardIdentifierFromRouting(shardRouting));
+        return shardSizes.get(shardRouting.allocationId());
     }
 
-    /**
-     * Method that incorporates the ShardId for the shard into a string that
-     * includes a 'p' or 'r' depending on whether the shard is a primary.
-     */
-    static String shardIdentifierFromRouting(ShardRouting shardRouting) {
-        return shardRouting.shardId().toString() + "[" + (shardRouting.primary() ? "p" : "r") + "]";
+    final int getNumShardSizes() { // for testing
+        return shardSizes.size();
+    }
+
+    final Collection<Long> getShardSizeValues() { // for testing
+        return shardSizes.values();
     }
 }

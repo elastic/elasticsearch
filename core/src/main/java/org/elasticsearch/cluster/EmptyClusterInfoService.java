@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 
@@ -31,11 +30,9 @@ public class EmptyClusterInfoService extends AbstractComponent implements Cluste
     private final static class Holder {
         private final static EmptyClusterInfoService instance = new EmptyClusterInfoService();
     }
-    private final ClusterInfo emptyClusterInfo;
 
     private EmptyClusterInfoService() {
         super(Settings.EMPTY);
-        emptyClusterInfo = new ClusterInfo(ImmutableMap.<String, DiskUsage>of(), ImmutableMap.<String, Long>of());
     }
 
     public static EmptyClusterInfoService getInstance() {
@@ -44,7 +41,7 @@ public class EmptyClusterInfoService extends AbstractComponent implements Cluste
 
     @Override
     public ClusterInfo getClusterInfo() {
-        return emptyClusterInfo;
+        return ClusterInfo.EMPTY;
     }
 
     @Override

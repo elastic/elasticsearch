@@ -19,19 +19,14 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import com.google.common.collect.ImmutableMap;
 
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
-import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
-
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -47,9 +42,7 @@ public class DiskThresholdDeciderUnitTests extends ESTestCase {
         ClusterInfoService cis = new ClusterInfoService() {
             @Override
             public ClusterInfo getClusterInfo() {
-                Map<String, DiskUsage> usages = new HashMap<>();
-                Map<String, Long> shardSizes = new HashMap<>();
-                return new ClusterInfo(ImmutableMap.copyOf(usages), ImmutableMap.copyOf(shardSizes));
+                return ClusterInfo.EMPTY;
             }
 
             @Override

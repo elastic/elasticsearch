@@ -33,7 +33,7 @@ public class RestResponse {
     private final HttpResponse response;
     private JsonPath parsedResponse;
 
-    RestResponse(HttpResponse response) {
+    public RestResponse(HttpResponse response) {
         this.response = response;
     }
 

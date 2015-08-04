@@ -29,7 +29,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -55,7 +54,7 @@ public class MultiMatchQuery extends MatchQuery {
     private Query parseAndApply(Type type, String fieldName, Object value, String minimumShouldMatch, Float boostValue) throws IOException {
         Query query = parse(type, fieldName, value);
         if (query instanceof BooleanQuery) {
-            Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
+            query = Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
         }
         if (boostValue != null && query != null) {
             query.setBoost(boostValue);

@@ -336,7 +336,7 @@ public final class TermVectorsFields extends Fields {
                 }
 
                 @Override
-                public PostingsEnum postings(Bits liveDocs, PostingsEnum reuse, int flags) throws IOException {
+                public PostingsEnum postings(PostingsEnum reuse, int flags) throws IOException {
                     final TermVectorPostingsEnum retVal = (reuse instanceof TermVectorPostingsEnum ? (TermVectorPostingsEnum) reuse
                             : new TermVectorPostingsEnum());
                     return retVal.reset(hasPositions ? positions : null, hasOffsets ? startOffsets : null, hasOffsets ? endOffsets

@@ -166,7 +166,7 @@ public class MoreLikeThisQuery extends Query {
         BooleanQuery bq = new BooleanQuery();
         if (this.likeFields != null) {
             Query mltQuery = mlt.like(this.likeFields);
-            Queries.applyMinimumShouldMatch((BooleanQuery) mltQuery, minimumShouldMatch);
+            mltQuery = Queries.applyMinimumShouldMatch((BooleanQuery) mltQuery, minimumShouldMatch);
             bq.add(mltQuery, BooleanClause.Occur.SHOULD);
         }
         if (this.likeText != null) {
@@ -176,7 +176,7 @@ public class MoreLikeThisQuery extends Query {
             }
             //LUCENE 4 UPGRADE this mapps the 3.6 behavior (only use the first field)
             Query mltQuery = mlt.like(moreLikeFields[0], readers);
-            Queries.applyMinimumShouldMatch((BooleanQuery) mltQuery, minimumShouldMatch);
+            mltQuery = Queries.applyMinimumShouldMatch((BooleanQuery) mltQuery, minimumShouldMatch);
             bq.add(mltQuery, BooleanClause.Occur.SHOULD);
         }
 

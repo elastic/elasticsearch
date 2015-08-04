@@ -158,27 +158,25 @@ final class ParentIdsFilter extends Filter {
             parentIds.get(i, idSpare);
             BytesRef uid = Uid.createUidAsBytes(parentTypeBr, idSpare, uidSpare);
             if (termsEnum.seekExact(uid)) {
+                docsEnum = termsEnum.postings(docsEnum, PostingsEnum.NONE);
                 int docId;
-                docsEnum = termsEnum.postings(acceptDocs, docsEnum, PostingsEnum.NONE);
-                if (result == null) {
-                    docId = docsEnum.nextDoc();
-                    if (docId != DocIdSetIterator.NO_MORE_DOCS) {
-                        // very rough heuristic that tries to get an idea of the number of documents
-                        // in the set based on the number of parent ids that we didn't find in this segment
-                        final int expectedCardinality = size / (i + 1);
-                        // similar heuristic to BitDocIdSet.Builder
-                        if (expectedCardinality >= (context.reader().maxDoc() >>> 10)) {
-                            result = new FixedBitSet(context.reader().maxDoc());
-                        } else {
-                            result = new SparseFixedBitSet(context.reader().maxDoc());
-                        }
-                    } else {
-                        continue;
+                for (docId = docsEnum.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
+                    if (acceptDocs == null || acceptDocs.get(docId)) {
+                        break;
                     }
-                } else {
-                    docId = docsEnum.nextDoc();
-                    if (docId == DocIdSetIterator.NO_MORE_DOCS) {
-                        continue;
+                }
+                if (docId == DocIdSetIterator.NO_MORE_DOCS) {
+                    continue;
+                }
+                if (result == null) {
+                    // very rough heuristic that tries to get an idea of the number of documents
+                    // in the set based on the number of parent ids that we didn't find in this segment
+                    final int expectedCardinality = size / (i + 1);
+                    // similar heuristic to BitDocIdSet.Builder
+                    if (expectedCardinality >= (context.reader().maxDoc() >>> 10)) {
+                        result = new FixedBitSet(context.reader().maxDoc());
+                    } else {
+                        result = new SparseFixedBitSet(context.reader().maxDoc());
                     }
                 }
                 if (nonNestedDocs != null) {

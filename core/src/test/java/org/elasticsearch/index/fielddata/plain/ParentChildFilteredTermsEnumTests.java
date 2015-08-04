@@ -59,7 +59,7 @@ public class ParentChildFilteredTermsEnumTests extends ESTestCase {
             for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
                 ++expected;
                 assertThat(term.utf8ToString(), equalTo(format(expected)));
-                PostingsEnum docsEnum = termsEnum.postings(null, null);
+                PostingsEnum docsEnum = termsEnum.postings(null);
                 assertThat(docsEnum, notNullValue());
                 int docId = docsEnum.nextDoc();
                 assertThat(docId, not(equalTo(-1)));
@@ -98,7 +98,7 @@ public class ParentChildFilteredTermsEnumTests extends ESTestCase {
             for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
                 ++expected;
                 assertThat(term.utf8ToString(), equalTo(format(expected)));
-                PostingsEnum docsEnum = termsEnum.postings(null, null);
+                PostingsEnum docsEnum = termsEnum.postings(null);
                 assertThat(docsEnum, notNullValue());
                 int numDocs = 0;
                 for (int docId = docsEnum.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {

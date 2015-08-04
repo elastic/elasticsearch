@@ -23,7 +23,7 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FieldsConsumer;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene50.Lucene50Codec;
+import org.apache.lucene.codecs.lucene53.Lucene53Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.Fields;
@@ -44,7 +44,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RAMDirectory;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LineFileDocs;
 import org.elasticsearch.Version;
@@ -282,7 +281,7 @@ public class CompletionPostingsFormatTest extends ESTestCase {
     public Lookup buildAnalyzingLookup(final CompletionFieldMapper mapper, String[] terms, String[] surfaces, long[] weights)
             throws IOException {
         RAMDirectory dir = new RAMDirectory();
-        Codec codec = new Lucene50Codec() {
+        Codec codec = new Lucene53Codec() {
             public PostingsFormat getPostingsFormatForField(String field) {
                 final PostingsFormat in = super.getPostingsFormatForField(field);
                 return mapper.fieldType().postingsFormat(in);
@@ -401,13 +400,13 @@ public class CompletionPostingsFormatTest extends ESTestCase {
                                 }
 
                                 @Override
-                                public PostingsEnum postings(Bits liveDocs, PostingsEnum reuse, int flags) throws IOException {
+                                public PostingsEnum postings(PostingsEnum reuse, int flags) throws IOException {
                                     final TermPosAndPayload data = current;
                                     return new PostingsEnum() {
                                         boolean done = false;
                                         @Override
                                         public int nextPosition() throws IOException {
-                                            return current.pos;
+                                            return data.pos;
                                         }
 
                                         @Override
@@ -422,7 +421,7 @@ public class CompletionPostingsFormatTest extends ESTestCase {
 
                                         @Override
                                         public BytesRef getPayload() throws IOException {
-                                            return current.payload;
+                                            return data.payload;
                                         }
 
                                         @Override

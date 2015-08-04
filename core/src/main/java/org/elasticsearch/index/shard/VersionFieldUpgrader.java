@@ -133,9 +133,13 @@ class VersionFieldUpgrader extends FilterCodecReader {
                 final GrowableWriter versions = new GrowableWriter(2, reader.maxDoc(), PackedInts.COMPACT);
                 PostingsEnum dpe = null;
                 for (BytesRef uid = uids.next(); uid != null; uid = uids.next()) {
-                    dpe = uids.postings(reader.getLiveDocs(), dpe, PostingsEnum.PAYLOADS);
+                    dpe = uids.postings(dpe, PostingsEnum.PAYLOADS);
                     assert terms.hasPayloads() : "field has payloads";
+                    final Bits liveDocs = reader.getLiveDocs();
                     for (int doc = dpe.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dpe.nextDoc()) {
+                        if (liveDocs != null && liveDocs.get(doc) == false) {
+                            continue;
+                        }
                         dpe.nextPosition();
                         final BytesRef payload = dpe.getPayload();
                         if (payload != null && payload.length == 8) {

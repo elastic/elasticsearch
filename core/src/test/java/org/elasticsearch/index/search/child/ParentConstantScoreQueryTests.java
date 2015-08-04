@@ -28,6 +28,7 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.lease.Releasables;
@@ -209,8 +210,14 @@ public class ParentConstantScoreQueryTests extends AbstractChildTestCase {
                     for (String id : childIds) {
                         TermsEnum.SeekStatus seekStatus = termsEnum.seekCeil(Uid.createUidAsBytes("child", id));
                         if (seekStatus == TermsEnum.SeekStatus.FOUND) {
-                            docsEnum = termsEnum.postings(slowLeafReader.getLiveDocs(), docsEnum, PostingsEnum.NONE);
-                            expectedResult.set(docsEnum.nextDoc());
+                            docsEnum = termsEnum.postings(docsEnum, PostingsEnum.NONE);
+                            final Bits liveDocs = slowLeafReader.getLiveDocs();
+                            for (int doc = docsEnum.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = docsEnum.nextDoc()) {
+                                if (liveDocs == null || liveDocs.get(doc)) {
+                                    break;
+                                }
+                            }
+                            expectedResult.set(docsEnum.docID());
                         } else if (seekStatus == TermsEnum.SeekStatus.END) {
                             break;
                         }

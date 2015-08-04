@@ -171,7 +171,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
                 TermsEnum terms = termVector.getFields().terms(field).iterator();
                 BytesRef term;
                 while ((term = terms.next()) != null) {
-                    tv.put(term.utf8ToString(), terms.postings(null, null, PostingsEnum.ALL).freq());
+                    tv.put(term.utf8ToString(), terms.postings(null, PostingsEnum.ALL).freq());
                 }
                 hitField.values().add(tv);
             } catch (IOException e) {

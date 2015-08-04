@@ -4,10 +4,11 @@
             <outputDirectory>/lib</outputDirectory>
             <useTransitiveDependencies>true</useTransitiveDependencies>
             <useTransitiveFiltering>false</useTransitiveFiltering>
+            <useProjectArtifact>false</useProjectArtifact>
             <excludes>
               <!-- don't include our POMs etc that we use internally -->
               <!-- otherwise, don't filter here. mark deps properly instead -->
-              <exclude>org.elasticsearch.distribution:*</exclude>
+              <exclude>*:pom</exclude>
             </excludes>
         </dependencySet>
     </dependencySets>

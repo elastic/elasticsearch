@@ -385,16 +385,14 @@
                                 <skip>${skip.integ.tests}</skip>
                                 <artifactItems>
                                     <artifactItem>
-                                        <groupId>org.elasticsearch.distribution</groupId>
-                                        <artifactId>elasticsearch-zip</artifactId>
+                                        <groupId>org.elasticsearch.distribution.zip</groupId>
+                                        <artifactId>elasticsearch</artifactId>
                                         <version>${elasticsearch.version}</version>
                                         <type>zip</type>
                                         <overWrite>true</overWrite>
-                                        <!-- these packaging builds sneakily rename their artifacts to look nothing
-                                             like their artifact id, so we must duplicate that rename here -->
-                                        <destFileName>elasticsearch-${elasticsearch.version}.zip</destFileName>
                                     </artifactItem>
                                 </artifactItems>
+                                <useBaseVersion>true</useBaseVersion>
                                 <outputDirectory>${integ.deps}</outputDirectory>
                             </configuration>
                         </execution>

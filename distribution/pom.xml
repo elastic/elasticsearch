@@ -71,7 +71,6 @@
     </dependencies>
 
     <build>
-        <finalName>elasticsearch-${project.version}</finalName>
         <plugins>
             <!-- We copy libs for deb and rpm -->
             <plugin>
@@ -155,6 +154,14 @@
                             </configuration>
                         </execution>
                     </executions>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-jar-plugin</artifactId>
+                    <configuration>
+                        <!-- distribution modules don't provide any jar. No need to upload empty jars to maven central -->
+                        <skipIfEmpty>true</skipIfEmpty>
+                    </configuration>
                 </plugin>
                 <plugin>
                     <groupId>com.carrotsearch.randomizedtesting</groupId>

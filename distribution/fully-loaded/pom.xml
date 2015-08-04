@@ -9,7 +9,8 @@
         <version>2.0.0-SNAPSHOT</version>
     </parent>
 
-    <artifactId>elasticsearch-fully-loaded</artifactId>
+    <groupId>org.elasticsearch.distribution.fully-loaded</groupId>
+    <artifactId>elasticsearch</artifactId>
     <name>Elasticsearch with all optional dependencies</name>
     <packaging>pom</packaging>
 

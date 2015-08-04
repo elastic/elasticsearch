@@ -9,14 +9,15 @@
         <version>2.0.0-SNAPSHOT</version>
     </parent>
 
-    <artifactId>elasticsearch-rpm</artifactId>
+    <groupId>org.elasticsearch.distribution.rpm</groupId>
+    <artifactId>elasticsearch</artifactId>
     <name>Elasticsearch RPM Distribution</name>
     <packaging>rpm</packaging>
 
     <dependencies>
         <dependency>
-            <groupId>org.elasticsearch.distribution</groupId>
-            <artifactId>elasticsearch-fully-loaded</artifactId>
+            <groupId>org.elasticsearch.distribution.fully-loaded</groupId>
+            <artifactId>elasticsearch</artifactId>
             <version>${elasticsearch.version}</version>
             <type>pom</type>
         </dependency>
@@ -301,7 +302,6 @@
                                     <type>${project.packaging}</type>
                                     <overWrite>true</overWrite>
                                     <outputDirectory>${project.build.directory}/releases/</outputDirectory>
-                                    <destFileName>elasticsearch-${project.version}.rpm</destFileName>
                                 </artifactItem>
                             </artifactItems>
                         </configuration>

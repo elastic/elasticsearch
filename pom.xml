@@ -905,7 +905,7 @@
                     <!-- some infos https://github.com/tcurdt/jdeb/blob/master/docs/maven.md -->
                     <groupId>org.vafer</groupId>
                     <artifactId>jdeb</artifactId>
-                    <version>1.3</version>
+                    <version>1.4</version>
                     <extensions>true</extensions>
                 </plugin>
                 <plugin>

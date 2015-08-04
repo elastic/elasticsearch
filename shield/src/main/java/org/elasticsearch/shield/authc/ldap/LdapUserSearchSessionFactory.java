@@ -41,13 +41,12 @@ public class LdapUserSearchSessionFactory extends SessionFactory {
     private final LdapSearchScope scope;
     private final String userAttribute;
     private final ServerSet serverSet;
-    private final Settings settings;
 
     private LDAPConnectionPool connectionPool;
 
     public LdapUserSearchSessionFactory(RealmConfig config, ClientSSLService sslService) {
         super(config);
-        settings = config.settings();
+        Settings settings = config.settings();
         userSearchBaseDn = settings.get("user_search.base_dn");
         if (userSearchBaseDn == null) {
             throw new IllegalArgumentException("user_search base_dn must be specified");
@@ -55,16 +54,16 @@ public class LdapUserSearchSessionFactory extends SessionFactory {
         scope = LdapSearchScope.resolve(settings.get("user_search.scope"), LdapSearchScope.SUB_TREE);
         userAttribute = settings.get("user_search.attribute", DEFAULT_USERNAME_ATTRIBUTE);
         serverSet = serverSet(settings, sslService);
-        connectionPool = createConnectionPool(settings, serverSet, timeout, logger);
+        connectionPool = createConnectionPool(config, serverSet, timeout, logger);
         groupResolver = groupResolver(settings);
     }
 
     private synchronized LDAPConnectionPool connectionPool() throws IOException {
         if (connectionPool == null) {
-            connectionPool = createConnectionPool(settings, serverSet, timeout, logger);
+            connectionPool = createConnectionPool(config, serverSet, timeout, logger);
             // if it is still null throw an exception
             if (connectionPool == null) {
-                throw new IOException("failed to create a connection pool as no LDAP servers are available");
+                throw new IOException("failed to create a connection pool for realm [" + config.name() + "] as no LDAP servers are available");
             }
         }
 
@@ -77,7 +76,8 @@ public class LdapUserSearchSessionFactory extends SessionFactory {
         filter.filterOut("shield.authc.realms." + realmName + "." + HOSTNAME_VERIFICATION_SETTING);
     }
 
-    static LDAPConnectionPool createConnectionPool(Settings settings, ServerSet serverSet, TimeValue timeout, ESLogger logger) {
+    static LDAPConnectionPool createConnectionPool(RealmConfig config, ServerSet serverSet, TimeValue timeout, ESLogger logger) {
+        Settings settings = config.settings();
         SimpleBindRequest bindRequest = bindRequest(settings);
         int initialSize = settings.getAsInt("user_search.pool.initial_size", DEFAULT_CONNECTION_POOL_INITIAL_SIZE);
         int size = settings.getAsInt("user_search.pool.size", DEFAULT_CONNECTION_POOL_SIZE);
@@ -101,9 +101,9 @@ public class LdapUserSearchSessionFactory extends SessionFactory {
             return pool;
         } catch (LDAPException e) {
             if (logger.isDebugEnabled()) {
-                logger.debug("unable to create connection pool", e);
+                logger.debug("unable to create connection pool for realm [{}]", e, config.name());
             } else {
-                logger.error("unable to create connection pool: {}", e.getMessage());
+                logger.error("unable to create connection pool for realm [{}]: {}", config.name(), e.getMessage());
             }
         }
         return null;

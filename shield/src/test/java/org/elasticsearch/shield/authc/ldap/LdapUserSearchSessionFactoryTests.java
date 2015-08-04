@@ -319,7 +319,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 .put("bind_password", "pass")
                 .build(), globalSettings);
 
-        LDAPConnectionPool connectionPool = LdapUserSearchSessionFactory.createConnectionPool(config.settings(), new SingleServerSet("localhost", ldapServer.getListenPort()), TimeValue.timeValueSeconds(5), NoOpLogger.INSTANCE);
+        LDAPConnectionPool connectionPool = LdapUserSearchSessionFactory.createConnectionPool(config, new SingleServerSet("localhost", ldapServer.getListenPort()), TimeValue.timeValueSeconds(5), NoOpLogger.INSTANCE);
         try {
             assertThat(connectionPool.getCurrentAvailableConnections(), is(LdapUserSearchSessionFactory.DEFAULT_CONNECTION_POOL_INITIAL_SIZE));
             assertThat(connectionPool.getMaximumAvailableConnections(), is(LdapUserSearchSessionFactory.DEFAULT_CONNECTION_POOL_SIZE));
@@ -346,7 +346,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 .put("user_search.pool.health_check.enabled", false)
                 .build(), globalSettings);
 
-        LDAPConnectionPool connectionPool = LdapUserSearchSessionFactory.createConnectionPool(config.settings(), new SingleServerSet("localhost", ldapServer.getListenPort()), TimeValue.timeValueSeconds(5), NoOpLogger.INSTANCE);
+        LDAPConnectionPool connectionPool = LdapUserSearchSessionFactory.createConnectionPool(config, new SingleServerSet("localhost", ldapServer.getListenPort()), TimeValue.timeValueSeconds(5), NoOpLogger.INSTANCE);
         try {
             assertThat(connectionPool.getCurrentAvailableConnections(), is(10));
             assertThat(connectionPool.getMaximumAvailableConnections(), is(12));

@@ -1009,7 +1009,6 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      * successful.
      */
     @Test
-    @Slow
     public void testReadOnPostRecoveryShards() throws Exception {
         List<BlockClusterStateProcessing> clusterStateBlocks = new ArrayList<>();
         try {

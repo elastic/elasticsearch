@@ -49,7 +49,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class AbstractTermVectorsTests extends ESIntegTestCase {
+public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
 
     protected static class TestFieldSetting {
         final public String name;

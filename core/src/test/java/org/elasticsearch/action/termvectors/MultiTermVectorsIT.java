@@ -33,20 +33,20 @@ import java.io.IOException;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
-public class MultiTermVectorsTests extends AbstractTermVectorsTests {
+public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
 
     @Test
     public void testDuelESLucene() throws Exception {
-        AbstractTermVectorsTests.TestFieldSetting[] testFieldSettings = getFieldSettings();
+        AbstractTermVectorsTestCase.TestFieldSetting[] testFieldSettings = getFieldSettings();
         createIndexBasedOnFieldSettings("test", "alias", testFieldSettings);
         //we generate as many docs as many shards we have
         TestDoc[] testDocs = generateTestDocs("test", testFieldSettings);
 
         DirectoryReader directoryReader = indexDocsWithLucene(testDocs);
-        AbstractTermVectorsTests.TestConfig[] testConfigs = generateTestConfigs(20, testDocs, testFieldSettings);
+        AbstractTermVectorsTestCase.TestConfig[] testConfigs = generateTestConfigs(20, testDocs, testFieldSettings);
 
         MultiTermVectorsRequestBuilder requestBuilder = client().prepareMultiTermVectors();
-        for (AbstractTermVectorsTests.TestConfig test : testConfigs) {
+        for (AbstractTermVectorsTestCase.TestConfig test : testConfigs) {
             requestBuilder.add(getRequestForConfig(test).request());
         }
 

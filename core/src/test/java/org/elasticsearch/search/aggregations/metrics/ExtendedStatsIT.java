@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.sameInstance;
 /**
  *
  */
-public class ExtendedStatsTests extends AbstractNumericTests {
+public class ExtendedStatsIT extends AbstractNumericTestCase {
 
     private static double stdDev(int... vals) {
         return Math.sqrt(variance(vals));

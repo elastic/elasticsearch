@@ -30,7 +30,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
  *
  */
 @ESIntegTestCase.SuiteScopeTestCase
-public abstract class AbstractNumericTests extends ESIntegTestCase {
+public abstract class AbstractNumericTestCase extends ESIntegTestCase {
 
     protected static long minValue, maxValue, minValues, maxValues;
 

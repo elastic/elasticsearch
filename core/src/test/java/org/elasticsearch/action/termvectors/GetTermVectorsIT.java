@@ -62,7 +62,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class GetTermVectorsIT extends AbstractTermVectorsTests {
+public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
 
     @Test
     public void testNoSuchDoc() throws Exception {

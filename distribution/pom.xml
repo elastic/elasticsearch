@@ -167,7 +167,7 @@
                                 <parallelism>1</parallelism>
                                 <systemProperties>
                                     <!-- use external cluster -->
-                                    <tests.cluster>127.0.0.1:9300</tests.cluster>
+                                    <tests.cluster>127.0.0.1:${integ.transport.port}</tests.cluster>
                                 </systemProperties>
                             </configuration>
                         </execution>

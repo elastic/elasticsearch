@@ -16,6 +16,7 @@
   <property name="integ.args"
             value="-Des.node.name=smoke_tester -Des.cluster.name=prepare_release
                    -Des.discovery.zen.ping.multicast.enabled=false -Des.script.inline=on
+                   -Des.http.port=${integ.http.port} -Des.transport.tcp.port=${integ.transport.port}
                    -Des.script.indexed=on -Des.pidfile=${integ.pidfile} -Des.repositories.url.allowed_urls=http://snapshot.test*"/>
 
   <!-- runs an OS script -->
@@ -122,7 +123,7 @@
                   args="@{args} -Des.path.repo=@{home}/repo" />
 
       <waitfor maxwait="3" maxwaitunit="minute" checkevery="500">
-        <http url="http://127.0.0.1:9200"/>
+        <http url="http://127.0.0.1:${integ.http.port}"/>
       </waitfor>
 
       <local name="integ.pid"/>

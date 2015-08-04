@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class WebhookHttpsIntegrationIT extends AbstractWatcherIntegrationTests {
+public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTests {
 
     private int webPort;
     private MockWebServer webServer;

@@ -36,7 +36,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
-public class TribeIT extends ShieldIntegTestCase {
+public class TribeTests extends ShieldIntegTestCase {
 
     //use known suite prefix since their threads are already ignored via ElasticsearchThreadFilter
     public static final String SECOND_CLUSTER_NODE_PREFIX =  SUITE_CLUSTER_NODE_PREFIX;

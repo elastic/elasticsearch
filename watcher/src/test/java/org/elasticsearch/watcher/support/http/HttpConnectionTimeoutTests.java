@@ -19,7 +19,7 @@ import static org.mockito.Mockito.mock;
 
 /**
  */
-public class HttpConnectionTimeoutIT extends ESTestCase {
+public class HttpConnectionTimeoutTests extends ESTestCase {
 
     // setting an unroutable IP to simulate a connection timeout
     private static final String UNROUTABLE_IP = "192.168.255.255";

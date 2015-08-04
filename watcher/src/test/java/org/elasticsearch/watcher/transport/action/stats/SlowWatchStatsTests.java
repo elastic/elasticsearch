@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 2)
-public class SlowWatchStatsIT extends AbstractWatcherIntegrationTests {
+public class SlowWatchStatsTests extends AbstractWatcherIntegrationTests {
 
     @Override
     protected boolean timeWarped() {

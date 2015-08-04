@@ -32,7 +32,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.*;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 0)
-public class IndexRecoveryCollectorIT extends ESIntegTestCase {
+public class IndexRecoveryCollectorTests extends ESIntegTestCase {
 
 
     @Override

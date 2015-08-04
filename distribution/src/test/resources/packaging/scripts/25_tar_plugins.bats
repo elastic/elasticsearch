@@ -257,3 +257,101 @@ setup() {
     run rm -rf "$TEMP_CONFIG_DIR"
     [ "$status" -eq 0 ]
 }
+
+@test "[TAR] install shield plugin to elasticsearch directory with a space" {
+    export ES_DIR="/tmp/elastic search"
+
+    # Install the archive
+    install_archive
+
+    # Checks that the archive is correctly installed
+    verify_archive_installation
+
+    # Move the Elasticsearch installation to a directory with a space in it
+    rm -rf "$ES_DIR"
+    mv /tmp/elasticsearch "$ES_DIR"
+
+    # Checks that plugin archive is available
+    [ -e "$SHIELD_ZIP" ]
+
+    # Install Shield
+    run "$ES_DIR/bin/plugin" install elasticsearch/shield/latest -u "file://$SHIELD_ZIP"
+    [ "$status" -eq 0 ]
+
+    # Checks that Shield is correctly installed
+    assert_file_exist "$ES_DIR/bin/shield"
+    assert_file_exist "$ES_DIR/bin/shield/esusers"
+    assert_file_exist "$ES_DIR/bin/shield/syskeygen"
+    assert_file_exist "$ES_DIR/config/shield"
+    assert_file_exist "$ES_DIR/config/shield/role_mapping.yml"
+    assert_file_exist "$ES_DIR/config/shield/roles.yml"
+    assert_file_exist "$ES_DIR/config/shield/users"
+    assert_file_exist "$ES_DIR/config/shield/users_roles"
+    assert_file_exist "$ES_DIR/plugins/shield"
+
+    # Remove the plugin
+    run "$ES_DIR/bin/plugin" remove elasticsearch/shield/latest
+    [ "$status" -eq 0 ]
+
+    # Checks that the plugin is correctly removed
+    assert_file_not_exist "$ES_DIR/bin/shield"
+    assert_file_exist "$ES_DIR/config/shield"
+    assert_file_exist "$ES_DIR/config/shield/role_mapping.yml"
+    assert_file_exist "$ES_DIR/config/shield/roles.yml"
+    assert_file_exist "$ES_DIR/config/shield/users"
+    assert_file_exist "$ES_DIR/config/shield/users_roles"
+    assert_file_not_exist "$ES_DIR/plugins/shield"
+
+    #Cleanup our temporary Elasticsearch installation
+    rm -rf "$ES_DIR"
+}
+
+@test "[TAR] install shield plugin from a directory with a space" {
+
+    export SHIELD_ZIP_WITH_SPACE="/tmp/plugins with space/shield.zip"
+
+    # Install the archive
+    install_archive
+
+    # Checks that the archive is correctly installed
+    verify_archive_installation
+
+    # Checks that plugin archive is available
+    [ -e "$SHIELD_ZIP" ]
+
+    # Copy the shield plugin to a directory with a space in it
+    rm -f "$SHIELD_ZIP_WITH_SPACE"
+    mkdir -p "$(dirname "$SHIELD_ZIP_WITH_SPACE")"
+    cp $SHIELD_ZIP "$SHIELD_ZIP_WITH_SPACE"
+
+    # Install Shield
+    run /tmp/elasticsearch/bin/plugin install elasticsearch/shield/latest -u "file://$SHIELD_ZIP_WITH_SPACE"
+    [ "$status" -eq 0 ]
+
+    # Checks that Shield is correctly installed
+    assert_file_exist "/tmp/elasticsearch/bin/shield"
+    assert_file_exist "/tmp/elasticsearch/bin/shield/esusers"
+    assert_file_exist "/tmp/elasticsearch/bin/shield/syskeygen"
+    assert_file_exist "/tmp/elasticsearch/config/shield"
+    assert_file_exist "/tmp/elasticsearch/config/shield/role_mapping.yml"
+    assert_file_exist "/tmp/elasticsearch/config/shield/roles.yml"
+    assert_file_exist "/tmp/elasticsearch/config/shield/users"
+    assert_file_exist "/tmp/elasticsearch/config/shield/users_roles"
+    assert_file_exist "/tmp/elasticsearch/plugins/shield"
+
+    # Remove the plugin
+    run /tmp/elasticsearch/bin/plugin remove elasticsearch/shield/latest
+    [ "$status" -eq 0 ]
+
+    # Checks that the plugin is correctly removed
+    assert_file_not_exist "/tmp/elasticsearch/bin/shield"
+    assert_file_exist "/tmp/elasticsearch/config/shield"
+    assert_file_exist "/tmp/elasticsearch/config/shield/role_mapping.yml"
+    assert_file_exist "/tmp/elasticsearch/config/shield/roles.yml"
+    assert_file_exist "/tmp/elasticsearch/config/shield/users"
+    assert_file_exist "/tmp/elasticsearch/config/shield/users_roles"
+    assert_file_not_exist "/tmp/elasticsearch/plugins/shield"
+
+    #Cleanup our plugin directory with a space
+    rm -rf "$SHIELD_ZIP_WITH_SPACE"
+}
